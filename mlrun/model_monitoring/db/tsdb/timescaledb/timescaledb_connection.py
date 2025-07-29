@@ -17,10 +17,22 @@ import time
 from threading import Lock
 from typing import Optional, Union
 
+# try:
+#     import psycopg2
+# except ImportError:
+#     import subprocess
+#     import sys
+#     # Install the package
+#     subprocess.check_call(
+#         [sys.executable, "-m", "pip", "install", "psycopg2-binary~=2.9"]
+#     )
+# Now import it
+# import psycopg2
 import psycopg2
 import psycopg2.pool
 
 import mlrun.errors
+from mlrun.utils.debug import traced_call
 
 
 class QueryResult:
@@ -84,7 +96,7 @@ _connection_pool = None
 _connection_lock = Lock()
 
 
-class TimescaleDBConnection:
+class TimescaleDBConnectionIn:
     """
     TimescaleDB connection with shared connection pool and parameterized query support.
 
@@ -267,3 +279,17 @@ class TimescaleDBConnection:
                 # If putconn fails, just close the connection
                 with contextlib.suppress(Exception):
                     conn.close()
+
+
+class TimescaleDBConnection(TimescaleDBConnectionIn):
+    def __init__(self, *args, **kwargs):
+        return traced_call(super().__init__, *args, **kwargs)
+
+    def _execute_operation(self, *args, **kwargs):
+        return traced_call(super()._execute_operation, *args, **kwargs)
+
+    def _execute_query(self, *args, **kwargs):
+        return traced_call(super()._execute_query, *args, **kwargs)
+
+    def run(self, *args, **kwargs):
+        return traced_call(super().run, *args, **kwargs)

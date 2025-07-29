@@ -15,6 +15,8 @@
 from datetime import datetime
 from typing import Optional, Union
 
+import psycopg2
+
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
@@ -113,6 +115,16 @@ class TimescaleDBOperationsHandler:
             project=self.project,
             with_pre_aggregates=config is not None,
         )
+        # Try to create extension, ignore if already exists
+        try:
+            self._connection.run(
+                statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"]
+            )
+        except psycopg2.errors.DuplicateObject:
+            # Extension already loaded - this is fine
+            pass
+        except Exception:
+            raise
 
         # Create schema if it doesn't exist
         schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema

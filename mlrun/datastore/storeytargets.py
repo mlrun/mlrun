@@ -23,10 +23,12 @@ from mlrun.datastore.base import DataStore
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
     DatastoreProfileKafkaTarget,
+    DatastoreProfilePostgreSQL,
     DatastoreProfileTDEngine,
-    DatastoreProfileTimescaleDB,
     datastore_profile_read,
 )
+from mlrun.utils import logger
+from mlrun.utils.debug import _format_args, _repr, traced_call
 
 from ..platforms.iguazio import parse_path
 from .utils import (
@@ -60,20 +62,161 @@ class TDEngineStoreyTarget(storey.TDEngineTarget):
                     "Only DatastoreProfileTDEngine is supported"
                 )
             url = datastore_profile.dsn()
-        super().__init__(*args, url=url, **kwargs)
+        kwargs["url"] = url
+        traced_call(super().__init__, *args, **kwargs)
+
+    def _event_to_batch_entry(self, *args, **kwargs):
+        return traced_call(super()._event_to_batch_entry, *args, **kwargs)
+
+    async def _emit(self, *args, **kwargs):
+        name = f"{super()._emit.__module__}.{super()._emit.__name__}"
+        formatted_args = _format_args(super()._emit, args, kwargs)
+
+        logger.info(f"TDECALL: {name}({formatted_args})")
+
+        try:
+            result = await super()._emit(*args, **kwargs)
+            result_repr = "None" if result is None else _repr(result)
+            logger.info(f"TDERETURN: {name} -> {result_repr}")
+            return result
+        except Exception as e:
+            logger.info(f"TDEEXCEPTION: {name} -> {type(e).__name__}: {str(e)[:100]}")
+            raise
+
+    async def _do(self, *args, **kwargs):
+        name = f"{super()._do.__module__}.{super()._do.__name__}"
+        formatted_args = _format_args(super()._do, args, kwargs)
+
+        logger.info(f"TDECALL: {name}({formatted_args})")
+
+        try:
+            result = await super()._do(*args, **kwargs)
+            result_repr = "None" if result is None else _repr(result)
+            logger.info(f"TDERETURN: {name} -> {result_repr}")
+            return result
+        except Exception as e:
+            logger.info(f"TDEEXCEPTION: {name} -> {type(e).__name__}: {str(e)[:100]}")
+            raise
 
 
 class TimescaleDBStoreyTarget(storey.TimescaleDBTarget):
     def __init__(self, *args, url: str, **kwargs):
         if url.startswith("ds://"):
             datastore_profile = datastore_profile_read(url)
-            if not isinstance(datastore_profile, DatastoreProfileTimescaleDB):
+            if not isinstance(datastore_profile, DatastoreProfilePostgreSQL):
                 raise ValueError(
                     f"Unexpected datastore profile type: {datastore_profile.type}. "
-                    "Only DatastoreProfileTimescaleDB is supported"
+                    "Only DatastoreProfilePostgreSQL is supported"
                 )
             url = datastore_profile.dsn()
-        super().__init__(*args, url=url, **kwargs)
+        super().__init__(*args, dsn=url, **kwargs)
+
+        # Remove - overridfing TimescaleDBTarget
+        self._schema = None
+        if "." in self._table:
+            self._schema, self._table = self._table.split(".", 1)
+
+    def _event_to_batch_entry(self, *args, **kwargs):
+        return traced_call(self._event_to_writer_entry, *args, **kwargs)
+
+    async def _emit(self, *args, **kwargs):
+        name = f"{super()._emit.__module__}.{super()._emit.__name__}"
+        formatted_args = _format_args(super()._emit, args, kwargs)
+
+        logger.info(f"TDECALL: {name}({formatted_args})")
+
+        try:
+            # result = await super()._emit(*args, **kwargs)
+            result = await self.my_emit(*args, **kwargs)
+            result_repr = "None" if result is None else _repr(result)
+            logger.info(f"TDERETURN: {name} -> {result_repr}")
+            return result
+        except Exception as e:
+            logger.info(f"TDEEXCEPTION: {name} -> {type(e).__name__}: {str(e)[:100]}")
+            await self.my_emit(*args, **kwargs)
+            raise
+
+    # Remove - overridfing TimescaleDBTarget
+    async def my_emit(
+        self, batch, batch_key, batch_time, batch_events, last_event_time=None
+    ):
+        """Write a batch of events to TimescaleDB.
+
+        This method performs the core data writing functionality:
+        1. Ensures the connection pool is initialized
+        2. Converts dictionary events to tuples for efficient COPY operations
+        3. Uses PostgreSQL's COPY protocol for high-performance bulk inserts
+        4. Maintains proper column ordering for TimescaleDB compatibility
+
+        Args:
+            batch: list of events to write
+            batch_key: Key used for batching (unused in this implementation)
+            batch_time: Timestamp when batch was created
+            batch_events: list of original event objects
+            last_event_time: Timestamp of the most recent event in the batch
+        """
+        # Ensure connection pool is created
+        await self._async_init()
+
+        # Skip processing if batch is empty
+        if not batch:
+            return
+
+        # Convert dictionaries to tuples for copy_records_to_table
+        # PostgreSQL's COPY protocol requires data in tuple format with consistent column ordering
+
+        records = []
+        for item in batch:
+            if not isinstance(item, dict):
+                # Only dictionaries are supported as input
+                raise TypeError(
+                    f"TimescaleDBTarget only supports dictionary data, got {type(item)}"
+                )
+
+            # Convert dict to tuple in correct column order
+            # This ensures time column is first, followed by data columns
+            record = tuple(item.get(col) for col in self._column_names)
+            records.append(record)
+        # Write data using connection pool
+        async with self._pool.acquire() as conn:
+            # Use PostgreSQL's COPY protocol for optimal performance
+            # This is significantly faster than individual INSERT statements
+            await conn.copy_records_to_table(
+                table_name=self._table,
+                schema_name=self._schema,
+                records=records,
+                columns=self._column_names,
+            )
+
+    async def _do(self, *args, **kwargs):
+        name = f"{super()._do.__module__}.{super()._do.__name__}"
+        formatted_args = _format_args(super()._do, args, kwargs)
+
+        logger.info(f"TDECALL: {name}({formatted_args})")
+
+        try:
+            result = await super()._do(*args, **kwargs)
+            result_repr = "None" if result is None else _repr(result)
+            logger.info(f"TDERETURN: {name} -> {result_repr}")
+            return result
+        except Exception as e:
+            logger.info(f"TDEEXCEPTION: {name} -> {type(e).__name__}: {str(e)[:100]}")
+            raise
+
+    async def _do(self, *args, **kwargs):
+        name = f"{super()._do.__module__}.{super()._do.__name__}"
+        formatted_args = _format_args(super()._do, args, kwargs)
+
+        logger.info(f"TDECALL: {name}({formatted_args})")
+
+        try:
+            result = await super()._do(*args, **kwargs)
+            result_repr = "None" if result is None else _repr(result)
+            logger.info(f"TDERETURN: {name} -> {result_repr}")
+            return result
+        except Exception as e:
+            logger.info(f"TDEEXCEPTION: {name} -> {type(e).__name__}: {str(e)[:100]}")
+            raise
 
 
 class StoreyTargetUtils:

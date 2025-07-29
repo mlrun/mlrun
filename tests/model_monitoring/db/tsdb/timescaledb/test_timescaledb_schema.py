@@ -116,9 +116,8 @@ class TestTimescaleDBColumn:
         assert _TimescaleDBColumn.TIMESTAMPTZ.data_type == "TIMESTAMPTZ"
         assert _TimescaleDBColumn.DOUBLE_PRECISION.data_type == "DOUBLE PRECISION"
         assert _TimescaleDBColumn.INTEGER.data_type == "INTEGER"
-        assert _TimescaleDBColumn.VARCHAR_64.data_type == "VARCHAR"
-        assert _TimescaleDBColumn.VARCHAR_64.length == 64
-        assert _TimescaleDBColumn.VARCHAR_1000.length == 1000
+        assert _TimescaleDBColumn.VARCHAR_64.data_type == "TEXT"
+        assert _TimescaleDBColumn.VARCHAR_1000.data_type == "TEXT"
         assert _TimescaleDBColumn.TEXT.data_type == "TEXT"
 
 

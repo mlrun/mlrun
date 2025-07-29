@@ -23,7 +23,7 @@ import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
-from mlrun.datastore.datastore_profile import DatastoreProfileTimescaleDB
+from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     TimescaleDBConnection,
@@ -68,13 +68,13 @@ def test_database():
                 f"CREATE DATABASE {test_db_name}",
             ]
         )
+        admin_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
 
         # Build test database DSN
         test_dsn = admin_dsn.replace("/postgres", f"/{test_db_name}")
 
         # Connect to test database and enable TimescaleDB extension
-        test_conn = TimescaleDBConnection(test_dsn, max_connections=1, autocommit=False)
-        test_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+        TimescaleDBConnection(test_dsn, max_connections=1, autocommit=False)
 
         yield test_dsn
 
@@ -104,7 +104,7 @@ def db_connection(test_database):
 @pytest.fixture
 def mock_profile():
     """Create a mock datastore profile."""
-    profile = Mock(spec=DatastoreProfileTimescaleDB)
+    profile = Mock(spec=DatastoreProfilePostgreSQL)
     profile.name = "test_profile"
     return profile
 

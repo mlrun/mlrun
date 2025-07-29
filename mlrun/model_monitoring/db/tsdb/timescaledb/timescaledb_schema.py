@@ -46,8 +46,8 @@ class _TimescaleDBColumn:
     TIMESTAMPTZ = _TimescaleDBColumnType("TIMESTAMPTZ")
     DOUBLE_PRECISION = _TimescaleDBColumnType("DOUBLE PRECISION")
     INTEGER = _TimescaleDBColumnType("INTEGER")
-    VARCHAR_64 = _TimescaleDBColumnType("VARCHAR", 64)
-    VARCHAR_1000 = _TimescaleDBColumnType("VARCHAR", 1000)
+    VARCHAR_64 = _TimescaleDBColumnType("TEXT")
+    VARCHAR_1000 = _TimescaleDBColumnType("TEXT")
     TEXT = _TimescaleDBColumnType("TEXT")
     BIGINT = _TimescaleDBColumnType("BIGINT")
 
@@ -253,6 +253,7 @@ class TimescaleDBSchema:
         order_by: Optional[str] = None,
         desc: Optional[bool] = None,
         use_pre_aggregates: bool = True,
+        group_by: Optional[list[str]] = None,
     ) -> str:
         """Build query to get records from the table or its pre-aggregates."""
 
@@ -305,6 +306,11 @@ class TimescaleDBSchema:
             if conditions:
                 query.write(" WHERE " + " AND ".join(conditions))
 
+            # GROUP BY clause (must come before ORDER BY)
+            if group_by:
+                query.write(f" GROUP BY {', '.join(group_by)}")
+
+            # ORDER BY clause (must come after GROUP BY)
             if order_by:
                 direction = " DESC" if desc else " ASC"
                 query.write(f" ORDER BY {order_by}{direction}")
@@ -313,6 +319,7 @@ class TimescaleDBSchema:
                 query.write(f" LIMIT {limit}")
 
             query.write(";")
+
             return query.getvalue()
 
 

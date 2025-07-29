@@ -14,7 +14,7 @@
 import mlrun
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
-from mlrun.datastore.datastore_profile import DatastoreProfileTimescaleDB
+from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     TimescaleDBConnection,
 )
@@ -35,7 +35,7 @@ class TimescaleDBStreamHandler:
     def __init__(
         self,
         project: str,
-        profile: DatastoreProfileTimescaleDB,
+        profile: DatastoreProfilePostgreSQL,
         connection: TimescaleDBConnection,
     ):
         """
@@ -83,7 +83,7 @@ class TimescaleDBStreamHandler:
         def apply_process_before_timescaledb():
             """Add preprocessing step for TimescaleDB data format."""
             graph.add_step(
-                "mlrun.model_monitoring.db.tsdb.timescaledb.stream_graph_steps.ProcessBeforeTimescaleDB",
+                "mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_stream_graph_steps.ProcessBeforeTimescaleDB",
                 name="ProcessBeforeTimescaleDB",
                 after="FilterNOP",
             )
@@ -93,10 +93,10 @@ class TimescaleDBStreamHandler:
             predictions_table = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
 
             graph.add_step(
-                "mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_target.TimescaleDBTarget",
+                "mlrun.datastore.storeytargets.TimescaleDBStoreyTarget",
                 name=name,
                 after=after,
-                dsn=self.profile.dsn(),
+                url=f"ds://{self.profile.name}",
                 time_col=mm_schemas.EventFieldType.TIME,
                 table=f"{predictions_table.schema}.{predictions_table.table_name}",
                 columns=[
@@ -140,17 +140,17 @@ class TimescaleDBStreamHandler:
 
         # Add error extraction step
         graph.add_step(
-            "mlrun.model_monitoring.db.tsdb.timescaledb.stream_graph_steps.ErrorExtractor",
+            "mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_stream_graph_steps.TimescaleDBErrorExtractor",
             name="error_extractor",
             after="ForwardError",
         )
 
         # Add TimescaleDB target for error data
         graph.add_step(
-            "mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_target.TimescaleDBTarget",
+            "mlrun.datastore.storeytargets.TimescaleDBStoreyTarget",
             name="timescaledb_error",
             after="error_extractor",
-            dsn=self.profile.dsn(),
+            url=f"ds://{self.profile.name}",
             time_col=mm_schemas.EventFieldType.TIME,
             table=f"{errors_table.schema}.{errors_table.table_name}",
             columns=[

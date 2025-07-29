@@ -271,7 +271,7 @@ class EventKeyMetrics:
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
-    TimescaleDB = "timescaledb"
+    TimescaleDB = "postgresql"
 
 
 class ProjectSecretKeys:

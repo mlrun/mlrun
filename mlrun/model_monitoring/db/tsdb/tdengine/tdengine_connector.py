@@ -30,6 +30,7 @@ from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
 )
 from mlrun.model_monitoring.helpers import get_invocations_fqn, get_start_end
 from mlrun.utils import logger
+from mlrun.utils.debug import _format_args, _repr, traced_call
 
 # Thread-local storage for connections
 _thread_local = threading.local()
@@ -48,7 +49,7 @@ class TDEngineTimestampPrecision(mlrun.common.types.StrEnum):
     NANOSECOND = "ns"
 
 
-class TDEngineConnector(TSDBConnector):
+class TDEngineConnectorIn(TSDBConnector):
     """
     Handles the TSDB operations when the TSDB connector is of type TDEngine.
     """
@@ -1297,3 +1298,79 @@ class TDEngineConnector(TSDBConnector):
     #     )
     #     if predictions:
     #         return get_invocations_metric(self.project)
+
+
+class TDEngineConnector(TDEngineConnectorIn):
+    # Delegate operations methods
+    def create_tables(self, *args, **kwargs):
+        return traced_call(super().create_tables, *args, **kwargs)
+
+    def write_application_event(self, *args, **kwargs):
+        return traced_call(super().write_application_event, *args, **kwargs)
+
+    def delete_tsdb_records(self, *args, **kwargs):
+        return traced_call(super().delete_tsdb_records, *args, **kwargs)
+
+    def delete_tsdb_resources(self, *args, **kwargs):
+        return traced_call(super().delete_tsdb_resources, *args, **kwargs)
+
+    # Delegate query methods
+    def read_metrics_data(self, *args, **kwargs):
+        return traced_call(super().read_metrics_data, *args, **kwargs)
+
+    def read_predictions(self, *args, **kwargs):
+        return traced_call(super().read_predictions, *args, **kwargs)
+
+    def get_last_request(self, *args, **kwargs):
+        return traced_call(super().get_last_request, *args, **kwargs)
+
+    def get_drift_status(self, *args, **kwargs):
+        return traced_call(super().get_drift_status, *args, **kwargs)
+
+    def get_metrics_metadata(self, *args, **kwargs):
+        return traced_call(super().get_metrics_metadata, *args, **kwargs)
+
+    def get_results_metadata(self, *args, **kwargs):
+        return traced_call(super().get_results_metadata, *args, **kwargs)
+
+    def get_error_count(self, *args, **kwargs):
+        return traced_call(super().get_error_count, *args, **kwargs)
+
+    def get_avg_latency(self, *args, **kwargs):
+        return traced_call(super().get_avg_latency, *args, **kwargs)
+
+    def count_results_by_status(self, *args, **kwargs):
+        return traced_call(super().count_results_by_status, *args, **kwargs)
+
+    def get_model_endpoint_real_time_metrics(self, *args, **kwargs):
+        return traced_call(
+            super().get_model_endpoint_real_time_metrics, *args, **kwargs
+        )
+
+    async def add_basic_metrics(self, *args, **kwargs):
+        name = f"{super().add_basic_metrics.__module__}.{super().add_basic_metrics.__name__}"
+        formatted_args = _format_args(super().add_basic_metrics, args, kwargs)
+
+        logger.info(f"TDECALL: {name}({formatted_args})")
+
+        try:
+            result = await super().add_basic_metrics(*args, **kwargs)
+            result_repr = "None" if result is None else _repr(result)
+            logger.info(f"TDERETURN: {name} -> {result_repr}")
+            return result
+        except Exception as e:
+            logger.info(f"TDEEXCEPTION: {name} -> {type(e).__name__}: {str(e)[:100]}")
+            raise
+
+    # Delegate stream methods
+    def apply_monitoring_stream_steps(self, *args, **kwargs):
+        return traced_call(super().apply_monitoring_stream_steps, *args, **kwargs)
+
+    def handle_model_error(self, *args, **kwargs):
+        return traced_call(super().handle_model_error, *args, **kwargs)
+
+    def calculate_latest_metrics(self, *args, **kwargs):
+        return traced_call(super().calculate_latest_metrics, *args, **kwargs)
+
+    def count_processed_model_endpoints(self, *args, **kwargs):
+        return traced_call(super().count_processed_model_endpoints, *args, **kwargs)

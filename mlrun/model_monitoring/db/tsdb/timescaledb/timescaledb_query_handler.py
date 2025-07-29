@@ -336,48 +336,181 @@ class TimescaleDBQueryHandler:
         table_schema = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
         filter_query = self._get_endpoint_filter(endpoint_ids)
 
+        if use_pre_aggregates:
+            columns = [
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                table_schema.time_column,
+                mm_schemas.EventFieldType.LATENCY,
+            ]
+
+            query = table_schema._get_records_query(
+                start=start,
+                end=end,
+                columns_to_filter=columns,
+                filter_query=filter_query,
+                agg_funcs=["max"],
+                interval=interval,
+                use_pre_aggregates=True,
+            )
+
+            result = self._connection.run(query=query)
+            df = pd.DataFrame(
+                result.data if result else [], columns=result.fields if result else []
+            )
+
+            if not df.empty:
+                # Handle pre-aggregate column renaming
+                column_mapping = {
+                    f"max_{table_schema.time_column}": mm_schemas.EventFieldType.LAST_REQUEST,
+                    f"max_{mm_schemas.EventFieldType.LATENCY}": "last_latency",
+                }
+                df.rename(columns=column_mapping, inplace=True)
+                # Ensure consistent column naming
+                df.rename(
+                    columns={mm_schemas.WriterEvent.ENDPOINT_ID: "endpoint_id"},
+                    inplace=True,
+                )
+        else:
+            # Use PostgreSQL DISTINCT ON for raw data - most efficient approach
+            query = f"""
+            SELECT DISTINCT ON ({mm_schemas.WriterEvent.ENDPOINT_ID})
+                {mm_schemas.WriterEvent.ENDPOINT_ID} as endpoint_id,
+                {table_schema.time_column} as {mm_schemas.EventFieldType.LAST_REQUEST},
+                {mm_schemas.EventFieldType.LATENCY} as last_latency
+            FROM {table_schema.schema}.{table_schema.table_name}
+            WHERE {filter_query}
+            AND {table_schema.time_column} >= '{start}'
+            AND {table_schema.time_column} <= '{end}'
+            ORDER BY {mm_schemas.WriterEvent.ENDPOINT_ID}, {table_schema.time_column} DESC;
+            """
+
+            result = self._connection.run(query=query)
+            df = pd.DataFrame(
+                result.data if result else [], columns=result.fields if result else []
+            )
+
+        # Convert timestamp to proper format (common for both paths)
+        if not df.empty and mm_schemas.EventFieldType.LAST_REQUEST in df.columns:
+            df[mm_schemas.EventFieldType.LAST_REQUEST] = pd.to_datetime(
+                df[mm_schemas.EventFieldType.LAST_REQUEST],
+                errors="coerce",
+                utc=True,
+            )
+
+        return df
+
+    #####
+    def get_avg_latency(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        interval: Optional[str] = None,
+        get_raw: bool = False,
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
+        """Get average latency with optional pre-aggregate optimization."""
+
+        # Convert single endpoint to list for consistent handling
+        if isinstance(endpoint_ids, str):
+            endpoint_ids = [endpoint_ids]
+
+        # Set default start time and get end time
+        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
+        start, end = self._pre_aggregate_handler.get_start_end(start, end)
+
+        # Align times and check if we can use pre-aggregates
+        start, end = self._pre_aggregate_handler.align_time_range(start, end, interval)
+        use_pre_aggregates = self._pre_aggregate_handler.can_use_pre_aggregates(
+            interval=interval
+        )
+
+        table_schema = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
+        filter_query = self._get_endpoint_filter(endpoint_ids)
+
+        if use_pre_aggregates:
+            try:
+                # For pre-aggregates, don't specify columns - let the schema handle the continuous aggregate structure
+                query = table_schema._get_records_query(
+                    start=start,
+                    end=end,
+                    columns_to_filter=None,  # Don't specify columns for pre-aggregates
+                    filter_query=filter_query,
+                    agg_funcs=["avg"],
+                    interval=interval,
+                    use_pre_aggregates=True,
+                )
+
+                result = self._connection.run(query=query)
+                df = pd.DataFrame(
+                    result.data if result else [],
+                    columns=result.fields if result else [],
+                )
+
+                if not df.empty:
+                    # Handle flexible column naming - find columns that contain the expected data
+                    column_mapping = {}
+
+                    # Look for latency-related column (avg_latency, avg_xxx, etc.)
+                    latency_col = None
+                    for col in df.columns:
+                        if "avg" in col.lower() and (
+                            "latency" in col.lower() or col.endswith("latency")
+                        ):
+                            latency_col = col
+                            break
+                    if latency_col and latency_col != "avg_latency":
+                        column_mapping[latency_col] = "avg_latency"
+
+                    # Look for endpoint-related column
+                    endpoint_col = None
+                    for col in df.columns:
+                        if "endpoint" in col.lower():
+                            endpoint_col = col
+                            break
+                    if endpoint_col and endpoint_col != "endpoint_id":
+                        column_mapping[endpoint_col] = "endpoint_id"
+
+                    if column_mapping:
+                        df.rename(columns=column_mapping, inplace=True)
+
+                    return df
+
+            except Exception as e:
+                # If pre-aggregate query fails, fall back to raw data
+                print(f"Pre-aggregate query failed, falling back to raw data: {e}")
+                use_pre_aggregates = False
+
+        # Use the schema's _get_records_query method for raw data aggregation
         columns = [
-            mm_schemas.WriterEvent.ENDPOINT_ID,
-            table_schema.time_column,
-            mm_schemas.EventFieldType.LATENCY,
+            f"{mm_schemas.WriterEvent.ENDPOINT_ID} as endpoint_id",
+            f"AVG({mm_schemas.EventFieldType.LATENCY}) as avg_latency",
         ]
+
+        group_by_columns = [mm_schemas.WriterEvent.ENDPOINT_ID]
+
+        # Add additional filter to exclude invalid latency values
+        enhanced_filter_query = filter_query
+        if enhanced_filter_query:
+            enhanced_filter_query += (
+                f" AND {mm_schemas.EventFieldType.LATENCY} IS NOT NULL"
+            )
+        else:
+            enhanced_filter_query = f"{mm_schemas.EventFieldType.LATENCY} IS NOT NULL"
+        enhanced_filter_query += f" AND {mm_schemas.EventFieldType.LATENCY} > 0"
 
         query = table_schema._get_records_query(
             start=start,
             end=end,
             columns_to_filter=columns,
-            filter_query=filter_query,
-            agg_funcs=["max"] if use_pre_aggregates else None,
-            interval=interval if use_pre_aggregates else None,
-            order_by=table_schema.time_column,
-            desc=True,
-            use_pre_aggregates=use_pre_aggregates,
+            filter_query=enhanced_filter_query,
+            group_by=group_by_columns,
+            order_by=mm_schemas.WriterEvent.ENDPOINT_ID,
         )
 
         result = self._connection.run(query=query)
         df = pd.DataFrame(
             result.data if result else [], columns=result.fields if result else []
         )
-
-        if not df.empty:
-            # Rename columns to match expected output
-            column_mapping = {
-                table_schema.time_column: mm_schemas.EventFieldType.LAST_REQUEST,
-                mm_schemas.EventFieldType.LATENCY: "last_latency",
-            }
-            if use_pre_aggregates:
-                column_mapping[f"max_{table_schema.time_column}"] = (
-                    mm_schemas.EventFieldType.LAST_REQUEST
-                )
-
-            df.rename(columns=column_mapping, inplace=True)
-
-            # Convert timestamp to proper format
-            df[mm_schemas.EventFieldType.LAST_REQUEST] = pd.to_datetime(
-                df[mm_schemas.EventFieldType.LAST_REQUEST],
-                errors="coerce",
-                utc=True,
-            )
 
         return df
 
@@ -391,6 +524,11 @@ class TimescaleDBQueryHandler:
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """Get drift status with optional pre-aggregate optimization."""
 
+        # Convert single endpoint to list for consistent handling
+        if isinstance(endpoint_ids, str):
+            endpoint_ids = [endpoint_ids]
+
+        # Set default start time and get end time
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._pre_aggregate_handler.get_start_end(start, end)
 
@@ -403,19 +541,86 @@ class TimescaleDBQueryHandler:
         table_schema = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
         filter_query = self._get_endpoint_filter(endpoint_ids)
 
+        if use_pre_aggregates:
+            try:
+                # For pre-aggregates, don't specify columns - let the schema handle the continuous aggregate structure
+                query = table_schema._get_records_query(
+                    start=start,
+                    end=end,
+                    columns_to_filter=None,  # Don't specify columns for pre-aggregates
+                    filter_query=filter_query,
+                    agg_funcs=["max"],
+                    interval=interval,
+                    use_pre_aggregates=True,
+                )
+
+                result = self._connection.run(query=query)
+                df = pd.DataFrame(
+                    result.data if result else [],
+                    columns=result.fields if result else [],
+                )
+
+                if not df.empty:
+                    # Handle flexible column naming - find columns that contain the expected data
+                    column_mapping = {}
+
+                    # Look for status-related column (max_result_status, max_xxx, etc.)
+                    status_col = None
+                    for col in df.columns:
+                        if "max" in col.lower() and (
+                            "status" in col.lower() or "result" in col.lower()
+                        ):
+                            status_col = col
+                            break
+                        elif col == mm_schemas.ResultData.RESULT_STATUS:
+                            status_col = col
+                            break
+                    if status_col and status_col != mm_schemas.ResultData.RESULT_STATUS:
+                        column_mapping[status_col] = mm_schemas.ResultData.RESULT_STATUS
+
+                    # Look for endpoint-related column
+                    endpoint_col = None
+                    for col in df.columns:
+                        if "endpoint" in col.lower():
+                            endpoint_col = col
+                            break
+                    if endpoint_col and endpoint_col != "endpoint_id":
+                        column_mapping[endpoint_col] = "endpoint_id"
+
+                    if column_mapping:
+                        df.rename(columns=column_mapping, inplace=True)
+
+                    return df
+
+            except Exception as e:
+                # If pre-aggregate query fails, fall back to raw data
+                print(f"Pre-aggregate query failed, falling back to raw data: {e}")
+                use_pre_aggregates = False
+
+        # Use the schema's _get_records_query method for raw data aggregation
         columns = [
-            mm_schemas.ResultData.RESULT_STATUS,
-            mm_schemas.WriterEvent.ENDPOINT_ID,
+            f"{mm_schemas.WriterEvent.ENDPOINT_ID} as endpoint_id",
+            f"MAX({mm_schemas.ResultData.RESULT_STATUS}) as {mm_schemas.ResultData.RESULT_STATUS}",
         ]
+
+        group_by_columns = [mm_schemas.WriterEvent.ENDPOINT_ID]
+
+        # Add filter to exclude NULL result status values
+        enhanced_filter_query = filter_query
+        if enhanced_filter_query:
+            enhanced_filter_query += (
+                f" AND {mm_schemas.ResultData.RESULT_STATUS} IS NOT NULL"
+            )
+        else:
+            enhanced_filter_query = f"{mm_schemas.ResultData.RESULT_STATUS} IS NOT NULL"
 
         query = table_schema._get_records_query(
             start=start,
             end=end,
             columns_to_filter=columns,
-            filter_query=filter_query,
-            agg_funcs=["max"] if use_pre_aggregates else None,
-            interval=interval if use_pre_aggregates else None,
-            use_pre_aggregates=use_pre_aggregates,
+            filter_query=enhanced_filter_query,
+            group_by=group_by_columns,
+            order_by=mm_schemas.WriterEvent.ENDPOINT_ID,
         )
 
         result = self._connection.run(query=query)
@@ -423,16 +628,115 @@ class TimescaleDBQueryHandler:
             result.data if result else [], columns=result.fields if result else []
         )
 
-        if not df.empty and use_pre_aggregates:
-            df.rename(
-                columns={
-                    f"max_{mm_schemas.ResultData.RESULT_STATUS}": mm_schemas.ResultData.RESULT_STATUS
-                },
-                inplace=True,
-            )
+        return df
+
+    def get_error_count(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        interval: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Get error count with optional pre-aggregate optimization."""
+
+        # Convert single endpoint to list for consistent handling
+        if isinstance(endpoint_ids, str):
+            endpoint_ids = [endpoint_ids]
+
+        # Set default start time and get end time
+        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
+        start, end = self._pre_aggregate_handler.get_start_end(start, end)
+
+        # Align times and check if we can use pre-aggregates
+        start, end = self._pre_aggregate_handler.align_time_range(start, end, interval)
+        use_pre_aggregates = self._pre_aggregate_handler.can_use_pre_aggregates(
+            interval=interval
+        )
+
+        table_schema = self.tables[mm_schemas.TimescaleDBTables.ERRORS]
+        filter_query = self._get_endpoint_filter(endpoint_ids)
+
+        # The error_type filter might not be available in continuous aggregates
+        # so we'll try with pre-aggregates first, then fall back to raw data with the filter
+
+        if use_pre_aggregates:
+            try:
+                # Try pre-aggregates WITHOUT the error_type filter first
+                # If the continuous aggregate was created with the filter, this will work
+                # If not, we'll fall back to raw data
+                query = table_schema._get_records_query(
+                    start=start,
+                    end=end,
+                    columns_to_filter=None,  # Don't specify columns for pre-aggregates
+                    filter_query=filter_query,  # Only endpoint filter, no error_type
+                    agg_funcs=["count"],
+                    interval=interval,
+                    use_pre_aggregates=True,
+                )
+
+                result = self._connection.run(query=query)
+                df = pd.DataFrame(
+                    result.data if result else [],
+                    columns=result.fields if result else [],
+                )
+
+                if not df.empty:
+                    # Handle flexible column naming - find columns that contain the expected data
+                    column_mapping = {}
+
+                    # Look for count-related column (count_model_error, count_xxx, count, etc.)
+                    count_col = None
+                    for col in df.columns:
+                        if "count" in col.lower():
+                            count_col = col
+                            break
+                    if count_col and count_col != "error_count":
+                        column_mapping[count_col] = "error_count"
+
+                    # Look for endpoint-related column
+                    endpoint_col = None
+                    for col in df.columns:
+                        if "endpoint" in col.lower():
+                            endpoint_col = col
+                            break
+                    if endpoint_col and endpoint_col != "endpoint_id":
+                        column_mapping[endpoint_col] = "endpoint_id"
+
+                    if column_mapping:
+                        df.rename(columns=column_mapping, inplace=True)
+
+                    return df
+
+            except Exception as e:
+                # If pre-aggregate query fails (likely due to missing error_type column),
+                # fall back to raw data with full filtering
+                print(
+                    f"Pre-aggregate query failed, falling back to raw data with error_type filter: {e}"
+                )
+                use_pre_aggregates = False
+
+        # Use PostgreSQL aggregation with GROUP BY for raw data WITH error_type filter
+        filter_query += f" AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
+
+        query = f"""
+        SELECT
+            {mm_schemas.WriterEvent.ENDPOINT_ID} as endpoint_id,
+            COUNT(*) as error_count
+        FROM {table_schema.schema}.{table_schema.table_name}
+        WHERE {filter_query}
+        AND {table_schema.time_column} >= '{start}'
+        AND {table_schema.time_column} <= '{end}'
+        GROUP BY {mm_schemas.WriterEvent.ENDPOINT_ID};
+        """
+
+        result = self._connection.run(query=query)
+        df = pd.DataFrame(
+            result.data if result else [], columns=result.fields if result else []
+        )
 
         return df
 
+    #####
     def get_metrics_metadata(
         self,
         endpoint_id: Union[str, list[str]],
@@ -512,110 +816,6 @@ class TimescaleDBQueryHandler:
 
         return df
 
-    def get_error_count(
-        self,
-        endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        get_raw: bool = False,
-    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
-        """Get error count with optional pre-aggregate optimization."""
-
-        start, end = self._pre_aggregate_handler.get_start_end(start, end)
-
-        table_schema = self.tables[mm_schemas.TimescaleDBTables.ERRORS]
-        filter_query = self._get_endpoint_filter(endpoint_ids)
-        filter_query += f" AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
-
-        columns = [
-            mm_schemas.EventFieldType.MODEL_ERROR,
-            mm_schemas.WriterEvent.ENDPOINT_ID,
-        ]
-
-        query = table_schema._get_records_query(
-            start=start,
-            end=end,
-            columns_to_filter=columns,
-            filter_query=filter_query,
-        )
-
-        result = self._connection.run(query=query)
-        df = pd.DataFrame(
-            result.data if result else [], columns=result.fields if result else []
-        )
-
-        # Count errors by endpoint
-        if not df.empty:
-            df = (
-                df.groupby(mm_schemas.WriterEvent.ENDPOINT_ID)
-                .size()
-                .reset_index(name="error_count")
-            )
-
-        return df
-
-    def get_avg_latency(
-        self,
-        endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        interval: Optional[str] = None,
-        get_raw: bool = False,
-    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
-        """Get average latency with optional pre-aggregate optimization."""
-
-        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._pre_aggregate_handler.get_start_end(start, end)
-
-        # Align times and check if we can use pre-aggregates
-        start, end = self._pre_aggregate_handler.align_time_range(start, end, interval)
-        use_pre_aggregates = self._pre_aggregate_handler.can_use_pre_aggregates(
-            interval=interval
-        )
-
-        table_schema = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
-        filter_query = self._get_endpoint_filter(endpoint_ids)
-
-        columns = [
-            mm_schemas.EventFieldType.LATENCY,
-            mm_schemas.WriterEvent.ENDPOINT_ID,
-        ]
-
-        query = table_schema._get_records_query(
-            start=start,
-            end=end,
-            columns_to_filter=columns,
-            filter_query=filter_query,
-            agg_funcs=["avg"] if use_pre_aggregates else None,
-            interval=interval if use_pre_aggregates else None,
-            use_pre_aggregates=use_pre_aggregates,
-        )
-
-        result = self._connection.run(query=query)
-        df = pd.DataFrame(
-            result.data if result else [], columns=result.fields if result else []
-        )
-
-        if not df.empty:
-            if use_pre_aggregates:
-                df.rename(
-                    columns={f"avg_{mm_schemas.EventFieldType.LATENCY}": "avg_latency"},
-                    inplace=True,
-                )
-            else:
-                # Calculate average from raw data
-                df = (
-                    df.groupby(mm_schemas.WriterEvent.ENDPOINT_ID)[
-                        mm_schemas.EventFieldType.LATENCY
-                    ]
-                    .mean()
-                    .reset_index(name="avg_latency")
-                )
-
-        return df
-
-    # In timescaledb_query_handler.py - Add this method to TimescaleDBQueryHandler
-
     def count_results_by_status(
         self,
         start: Optional[Union[datetime, str]] = None,
@@ -690,27 +890,28 @@ class TimescaleDBQueryHandler:
 
         filter_query = " AND ".join(filter_conditions) if filter_conditions else None
 
-        # Build the aggregation query
+        # Build the aggregation query using the enhanced _get_records_query
         columns = [
+            mm_schemas.WriterEvent.APPLICATION_NAME,
+            mm_schemas.ResultData.RESULT_STATUS,
+            "COUNT(*) as count",
+        ]
+
+        group_by_columns = [
             mm_schemas.WriterEvent.APPLICATION_NAME,
             mm_schemas.ResultData.RESULT_STATUS,
         ]
 
+        order_by_clause = f"{mm_schemas.WriterEvent.APPLICATION_NAME}, {mm_schemas.ResultData.RESULT_STATUS}"
+
         query = table_schema._get_records_query(
             start=start,
             end=end,
-            columns_to_filter=columns + ["COUNT(*) as count"],
+            columns_to_filter=columns,
             filter_query=filter_query,
-            order_by=f"{mm_schemas.WriterEvent.APPLICATION_NAME}, {mm_schemas.ResultData.RESULT_STATUS}",
+            group_by=group_by_columns,
+            order_by=order_by_clause,
         )
-
-        # Modify query to add GROUP BY
-        # This is a bit hacky, but TimescaleDB schema doesn't have built-in GROUP BY support
-        if ";" in query:
-            query = query.replace(
-                ";",
-                f" GROUP BY {mm_schemas.WriterEvent.APPLICATION_NAME}, {mm_schemas.ResultData.RESULT_STATUS};",
-            )
 
         result = self._connection.run(query=query)
 

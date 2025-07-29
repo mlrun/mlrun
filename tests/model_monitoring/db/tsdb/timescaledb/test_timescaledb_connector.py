@@ -17,7 +17,7 @@ from unittest.mock import Mock
 import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
-from mlrun.datastore.datastore_profile import DatastoreProfileTimescaleDB
+from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connector import (
@@ -28,7 +28,7 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connector import (
 @pytest.fixture
 def mock_profile():
     """Create a mock datastore profile."""
-    profile = Mock(spec=DatastoreProfileTimescaleDB)
+    profile = Mock(spec=DatastoreProfilePostgreSQL)
     profile.name = "test_profile"
     profile.dsn.return_value = "postgresql://user:pass@localhost:5432/test_db"
     return profile

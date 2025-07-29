@@ -456,10 +456,10 @@ class DatastoreProfileTDEngine(DatastoreProfile):
         )
 
 
-class DatastoreProfileTimescaleDB(DatastoreProfile):
+class DatastoreProfilePostgreSQL(DatastoreProfile):
     """
-    A profile that holds the required parameters for a TimescaleDB database.
-    TimescaleDB uses standard PostgreSQL connection parameters.
+    A profile that holds the required parameters for a PostgreSQL database.
+    PostgreSQL uses standard PostgreSQL connection parameters.
     """
 
     type: str = pydantic.v1.Field("postgresql")
@@ -474,17 +474,17 @@ class DatastoreProfileTimescaleDB(DatastoreProfile):
     )  # the default maintenance database
 
     def dsn(self) -> str:
-        """Get the Data Source Name of the configured TimescaleDB profile."""
+        """Get the Data Source Name of the configured PostgreSQL profile."""
         return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
     @classmethod
-    def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfileTimescaleDB":
+    def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfilePostgreSQL":
         """
-        Construct a TimescaleDB profile from DSN (connection string) and a name for the profile.
+        Construct a PostgreSQL profile from DSN (connection string) and a name for the profile.
 
-        :param dsn:          The DSN (Data Source Name) of the TimescaleDB database, e.g.: ``"postgresql://user:password@localhost:5432/mydb"``.
+        :param dsn:          The DSN (Data Source Name) of the PostgreSQL database, e.g.: ``"postgresql://user:password@localhost:5432/mydb"``.
         :param profile_name: The new profile's name.
-        :return:             The TimescaleDB profile.
+        :return:             The PostgreSQL profile.
         """
         parsed_url = urlparse(dsn)
         return cls(
@@ -493,7 +493,7 @@ class DatastoreProfileTimescaleDB(DatastoreProfile):
             password=parsed_url.password,
             host=parsed_url.hostname,
             port=parsed_url.port,
-            database=parsed_url.path.lstrip("/") if parsed_url.path else "postgres",
+            database=parsed_url.path.lstrip("/") if parsed_url.path else "postgresql",
         )
 
 
@@ -564,7 +564,7 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "az": DatastoreProfileAzureBlob,
     "hdfs": DatastoreProfileHdfs,
     "taosws": DatastoreProfileTDEngine,
-    "postgresql": DatastoreProfileTimescaleDB,
+    "postgresql": DatastoreProfilePostgreSQL,
     "config": ConfigProfile,
     "openai": OpenAIProfile,
     "huggingface": HuggingFaceProfile,

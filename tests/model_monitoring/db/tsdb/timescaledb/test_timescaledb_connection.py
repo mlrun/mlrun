@@ -28,7 +28,7 @@ connection_string = os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
 
 # Skip entire module if connection string is not available or not PostgreSQL
 pytestmark = pytest.mark.skipif(
-    not connection_string or not connection_string.startswith("postgres://"),
+    not connection_string or not connection_string.startswith("postgres"),
     reason="TimescaleDB connection string not available or not PostgreSQL",
 )
 import psycopg2  # noqa: E402
@@ -57,6 +57,7 @@ def test_database():
 
     admin_dsn = connection_string
     test_db_name = f"mlrun_test_{int(time.time())}"  # Unique database name
+    test_db_name = "postgres"
 
     # Create admin connection with autocommit enabled for DDL operations
     admin_conn = TimescaleDBConnection(admin_dsn, max_connections=1, autocommit=True)
@@ -65,30 +66,38 @@ def test_database():
         # Create test database
         admin_conn.run(
             statements=[
-                f"DROP DATABASE IF EXISTS {test_db_name}",
-                f"CREATE DATABASE {test_db_name}",
+                "DROP SCHEMA public CASCADE;"
+                "CREATE SCHEMA public;"
+                "GRANT ALL ON SCHEMA public TO PUBLIC;"
+                # f"DROP DATABASE IF EXISTS {test_db_name}",
+                # f"CREATE DATABASE {test_db_name}",
             ]
         )
-        admin_conn.run(
-            statements=[
-                f"DROP DATABASE IF EXISTS {test_db_name}",
-                f"CREATE DATABASE {test_db_name}",
-            ]
-        )
+        admin_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+
 
         # Build test database DSN
         test_dsn = admin_dsn.replace("/postgres", f"/{test_db_name}")
 
         # Connect to test database and enable TimescaleDB extension
-        test_conn = TimescaleDBConnection(test_dsn, max_connections=1, autocommit=False)
-        test_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+        _ = TimescaleDBConnection(test_dsn, max_connections=1, autocommit=False)
 
         yield test_dsn
 
     finally:
         # Cleanup: Drop test database
         with contextlib.suppress(Exception):
-            admin_conn.run(statements=[f"DROP DATABASE IF EXISTS {test_db_name}"])
+            statements = [
+                "DROP SCHEMA public CASCADE;"
+                "CREATE SCHEMA public;"
+                "GRANT ALL ON SCHEMA public TO PUBLIC;"
+                # f"DROP DATABASE IF EXISTS {test_db_name}",
+                # f"CREATE DATABASE {test_db_name}",
+            ]
+            admin_conn.run(statements=statements)
+
+
+#            admin_conn.run(statements=[f"DROP DATABASE IF EXISTS {test_db_name}"])
 
 
 @pytest.fixture

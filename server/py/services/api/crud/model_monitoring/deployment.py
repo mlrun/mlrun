@@ -1650,12 +1650,12 @@ class MonitoringDeployment:
             tsdb_profile,
             (
                 mlrun.datastore.datastore_profile.DatastoreProfileTDEngine,
-                mlrun.datastore.datastore_profile.DatastoreProfileTimescaleDB,
+                mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
             ),
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfileTimescaleDB`."
+                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfilePostgreSQL`."
             )
 
         return tsdb_profile

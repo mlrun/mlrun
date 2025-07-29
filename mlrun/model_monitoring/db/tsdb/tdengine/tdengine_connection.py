@@ -21,6 +21,7 @@ from taosws import TaosStmt
 
 import mlrun
 from mlrun.utils import logger
+from mlrun.utils.debug import traced_call
 
 
 class _StrEnum(str, Enum):
@@ -139,7 +140,7 @@ class Statement:
         return statement
 
 
-class TDEngineConnection:
+class TDEngineConnectionIn:
     def __init__(self, connection_string, max_retries=3, retry_delay=0.5):
         self._connection_string = connection_string
         self.prefix_statements = []
@@ -279,3 +280,8 @@ class TDEngineConnection:
             logger.warning(
                 f"Error closing TDEngine connection: {mlrun.errors.err_to_str(e)}"
             )
+
+
+class TDEngineConnection(TDEngineConnectionIn):
+    def _execute_with_retry(self, *args, **kwargs):
+        return traced_call(super()._execute_with_retry, *args, **kwargs)

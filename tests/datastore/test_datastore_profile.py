@@ -26,8 +26,8 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfile2Json,
     DatastoreProfileKafkaTarget,
+    DatastoreProfilePostgreSQL,
     DatastoreProfileTDEngine,
-    DatastoreProfileTimescaleDB,
     DatastoreProfileV3io,
     datastore_profile_read,
     register_temporary_client_datastore_profile,
@@ -125,12 +125,12 @@ class TestTDEngineProfile:
         assert profile_read.password == "1234", "Wrong password"
 
 
-class TestTimescaleDBProfile:
+class TestDatastoreProfilePostgreSQL:
     @staticmethod
     def test_from_dsn() -> None:
         dsn = "postgresql://postgres:password123@localhost:5432/mydb"
         profile_name = "test-timescaledb"
-        profile = DatastoreProfileTimescaleDB.from_dsn(
+        profile = DatastoreProfilePostgreSQL.from_dsn(
             dsn=dsn, profile_name=profile_name
         )
         assert profile.type == "postgresql"
@@ -147,7 +147,7 @@ class TestTimescaleDBProfile:
     def test_from_dsn_without_database() -> None:
         dsn = "postgresql://postgres:password123@localhost:5432"
         profile_name = "test-timescaledb-no-db"
-        profile = DatastoreProfileTimescaleDB.from_dsn(
+        profile = DatastoreProfilePostgreSQL.from_dsn(
             dsn=dsn, profile_name=profile_name
         )
         assert profile.type == "postgresql"

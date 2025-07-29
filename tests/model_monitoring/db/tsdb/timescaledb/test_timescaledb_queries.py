@@ -16,7 +16,7 @@ import contextlib
 import os
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import Mock
 
 import pandas as pd
@@ -25,7 +25,7 @@ import pytest
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
 import mlrun.utils
-from mlrun.datastore.datastore_profile import DatastoreProfileTimescaleDB
+from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     TimescaleDBConnection,
@@ -42,7 +42,7 @@ connection_string = os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
 
 # Skip entire module if connection string is not available or not PostgreSQL
 pytestmark = pytest.mark.skipif(
-    not connection_string or not connection_string.startswith("postgres://"),
+    not connection_string or not connection_string.startswith("postgres"),
     reason="TimescaleDB connection string not available or not PostgreSQL",
 )
 
@@ -141,13 +141,14 @@ def test_database():
                 f"CREATE DATABASE {test_db_name}",
             ]
         )
+        admin_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+
 
         # Build test database DSN
         test_dsn = admin_dsn.replace("/postgres", f"/{test_db_name}")
 
         # Connect to test database and enable TimescaleDB extension
-        test_conn = TimescaleDBConnection(test_dsn, max_connections=1, autocommit=False)
-        test_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+        _ = TimescaleDBConnection(test_dsn, max_connections=1, autocommit=False)
 
         yield test_dsn
 
@@ -177,7 +178,7 @@ def db_connection(test_database):
 @pytest.fixture
 def mock_profile(test_database):
     """Create a mock datastore profile."""
-    profile = Mock(spec=DatastoreProfileTimescaleDB)
+    profile = Mock(spec=DatastoreProfilePostgreSQL)
     profile.name = "test_profile"
     profile.dsn.return_value = test_database
     return profile
@@ -188,7 +189,7 @@ def pre_aggregate_config():
     """Create a test pre-aggregate configuration."""
     return PreAggregateConfig(
         aggregate_intervals=["10m", "1h"],
-        agg_functions=["sum", "avg", "max"],
+        agg_functions=["sum", "avg", "max", "count"],
         retention_policy={
             "raw": "7d",
             "10m": "30d",
@@ -726,27 +727,31 @@ class TestTimescaleDBQueryHandlerIntegration:
         assert len(result) == 0
 
     def test_get_drift_status_with_data(self, query_handler):
-        """Test get_drift_status with sample data."""
-        # Insert sample app result data
+        """Test get_drift_status with sample data - validates GROUP BY MAX aggregation."""
+        # Insert sample app result data with different status values for GROUP BY testing
         connection = query_handler._connection
         # Note: Using TimescaleDBTables enum keys for compatibility across TSDB implementations
         app_results_table = query_handler.tables[
             mm_schemas.TimescaleDBTables.APP_RESULTS
         ]
 
-        test_time = datetime(2024, 1, 15, 12, 30, 0)
+        # Insert multiple records with different statuses to test MAX aggregation
+        status_values = [1, 3, 2]  # Max should be 3
+        base_time = datetime(2024, 1, 15, 12, 30, 0)
 
-        connection.run(
-            statements=[
-                f"""
-                INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
-                (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
-                 result_value, result_status, result_kind, result_extra_data)
-                VALUES ('{test_time}', '{test_time}', 'test_endpoint', 'drift_app', 'drift_result',
-                        0.85, 2, 1, '{{}}')
-                """
-            ]
-        )
+        for i, status in enumerate(status_values):
+            test_time = base_time + timedelta(minutes=i * 10)
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{test_time}', '{test_time}', 'test_endpoint', 'drift_app', 'drift_result',
+                            0.85, {status}, 1, '{{}}')
+                    """
+                ]
+            )
 
         result = query_handler.get_drift_status(
             endpoint_ids=["test_endpoint"],
@@ -755,6 +760,68 @@ class TestTimescaleDBQueryHandlerIntegration:
         )
 
         assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1  # One result per endpoint due to GROUP BY
+        if not result.empty:
+            assert "endpoint_id" in result.columns
+            assert mm_schemas.ResultData.RESULT_STATUS in result.columns
+            # Verify the maximum status is returned (validates GROUP BY MAX)
+            assert result[mm_schemas.ResultData.RESULT_STATUS].iloc[0] == 3
+
+    def test_get_drift_status_multiple_endpoints(self, query_handler):
+        """Test get_drift_status with multiple endpoints - validates GROUP BY behavior."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        # Insert data for multiple endpoints with different status values
+        test_data = [
+            ("endpoint_1", [1, 2, 3]),  # Max: 3
+            ("endpoint_2", [2, 1]),  # Max: 2
+            ("endpoint_3", [1]),  # Max: 1
+        ]
+
+        base_time = datetime(2024, 1, 15, 12, 0, 0)
+        minute_offset = 0
+
+        for endpoint_id, statuses in test_data:
+            for status in statuses:
+                test_time = base_time + timedelta(minutes=minute_offset)
+                connection.run(
+                    statements=[
+                        f"""
+                        INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                        (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                         result_value, result_status, result_kind, result_extra_data)
+                        VALUES ('{test_time}', '{test_time}', '{endpoint_id}', 'drift_app', 'drift_result',
+                                0.85, {status}, 1, '{{}}')
+                        """
+                    ]
+                )
+                minute_offset += 5
+
+        result = query_handler.get_drift_status(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 3  # One result per endpoint due to GROUP BY
+        assert "endpoint_id" in result.columns
+        assert mm_schemas.ResultData.RESULT_STATUS in result.columns
+
+        # Verify each endpoint has its maximum status (validates GROUP BY MAX)
+        for _, row in result.iterrows():
+            endpoint_id = row["endpoint_id"]
+            result_status = row[mm_schemas.ResultData.RESULT_STATUS]
+
+            if endpoint_id == "endpoint_1":
+                assert result_status == 3
+            elif endpoint_id == "endpoint_2":
+                assert result_status == 2
+            elif endpoint_id == "endpoint_3":
+                assert result_status == 1
 
     def test_get_metrics_metadata_empty(self, query_handler):
         """Test get_metrics_metadata with no data."""
@@ -789,6 +856,132 @@ class TestTimescaleDBQueryHandlerIntegration:
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 0
 
+    def test_get_error_count_with_data(self, query_handler):
+        """Test get_error_count with sample data - validates GROUP BY COUNT aggregation."""
+        # Insert sample error data with multiple errors for GROUP BY testing
+        connection = query_handler._connection
+        errors_table = query_handler.tables[mm_schemas.TimescaleDBTables.ERRORS]
+
+        # Insert multiple errors for the same endpoint to test COUNT aggregation
+        base_time = datetime(2024, 1, 15, 12, 0, 0)
+        error_count = 3
+
+        for i in range(error_count):
+            test_time = base_time + timedelta(minutes=i * 5)
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                    (time, endpoint_id, model_error, error_type)
+                    VALUES ('{test_time}', 'test_endpoint', 'Test error {i}', '{mm_schemas.EventFieldType.INFER_ERROR}')
+                    """
+                ]
+            )
+
+        result = query_handler.get_error_count(
+            endpoint_ids=["test_endpoint"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1  # One result per endpoint due to GROUP BY
+        if not result.empty:
+            assert "endpoint_id" in result.columns
+            assert "error_count" in result.columns
+            # Verify the count is correct (validates GROUP BY COUNT)
+            assert result["error_count"].iloc[0] == error_count
+
+    def test_get_error_count_multiple_endpoints(self, query_handler):
+        """Test get_error_count with multiple endpoints - validates GROUP BY behavior."""
+        connection = query_handler._connection
+        errors_table = query_handler.tables[mm_schemas.TimescaleDBTables.ERRORS]
+
+        # Insert different number of errors for different endpoints
+        test_data = [
+            ("endpoint_1", 3),  # 3 errors
+            ("endpoint_2", 1),  # 1 error
+            ("endpoint_3", 2),  # 2 errors
+        ]
+
+        base_time = datetime(2024, 1, 15, 12, 0, 0)
+        minute_offset = 0
+
+        for endpoint_id, error_count in test_data:
+            for i in range(error_count):
+                test_time = base_time + timedelta(minutes=minute_offset)
+                connection.run(
+                    statements=[
+                        f"""
+                        INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                        (time, endpoint_id, model_error, error_type)
+                        VALUES ('{test_time}', '{endpoint_id}', 'Error {i}', '{mm_schemas.EventFieldType.INFER_ERROR}')
+                        """
+                    ]
+                )
+                minute_offset += 5
+
+        result = query_handler.get_error_count(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 3  # One result per endpoint due to GROUP BY
+        assert "endpoint_id" in result.columns
+        assert "error_count" in result.columns
+
+        # Verify each endpoint has its correct error count (validates GROUP BY COUNT)
+        for _, row in result.iterrows():
+            endpoint_id = row["endpoint_id"]
+            error_count = row["error_count"]
+
+            if endpoint_id == "endpoint_1":
+                assert error_count == 3
+            elif endpoint_id == "endpoint_2":
+                assert error_count == 1
+            elif endpoint_id == "endpoint_3":
+                assert error_count == 2
+
+    def test_get_error_count_filters_error_type(self, query_handler):
+        """Test that get_error_count only counts INFER_ERROR types."""
+        connection = query_handler._connection
+        errors_table = query_handler.tables[mm_schemas.TimescaleDBTables.ERRORS]
+
+        base_time = datetime(2024, 1, 15, 12, 0, 0)
+
+        # Insert different types of errors
+        error_types = [
+            mm_schemas.EventFieldType.INFER_ERROR,  # Should be counted
+            "OTHER_ERROR",  # Should not be counted
+            mm_schemas.EventFieldType.INFER_ERROR,  # Should be counted
+        ]
+
+        for i, error_type in enumerate(error_types):
+            test_time = base_time + timedelta(minutes=i * 5)
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                    (time, endpoint_id, model_error, error_type)
+                    VALUES ('{test_time}', 'test_endpoint', 'Error {i}', '{error_type}')
+                    """
+                ]
+            )
+
+        result = query_handler.get_error_count(
+            endpoint_ids=["test_endpoint"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        if not result.empty:
+            # Should only count the 2 INFER_ERROR entries, not the OTHER_ERROR
+            assert result["error_count"].iloc[0] == 2
+
     def test_get_avg_latency_empty(self, query_handler):
         """Test get_avg_latency with no data."""
         result = query_handler.get_avg_latency(
@@ -801,15 +994,15 @@ class TestTimescaleDBQueryHandlerIntegration:
         assert len(result) == 0
 
     def test_get_avg_latency_with_data(self, query_handler):
-        """Test get_avg_latency with sample data."""
-        # Insert sample prediction data
+        """Test get_avg_latency with sample data - validates GROUP BY AVG aggregation."""
+        # Insert sample prediction data with different latencies for GROUP BY testing
         connection = query_handler._connection
         # Note: Using TimescaleDBTables enum keys for compatibility across TSDB implementations
         predictions_table = query_handler.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
 
-        latencies = [0.1, 0.2, 0.15]
+        latencies = [0.1, 0.2, 0.15]  # Average should be 0.15
 
         for i, latency in enumerate(latencies):
             test_time = datetime(2024, 1, 15, 12, i, 0)
@@ -830,8 +1023,63 @@ class TestTimescaleDBQueryHandlerIntegration:
         )
 
         assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1  # One result per endpoint due to GROUP BY
         if not result.empty:
             assert "avg_latency" in result.columns
+            assert "endpoint_id" in result.columns
+            # Verify the average is calculated correctly (validates GROUP BY AVG)
+            assert abs(result["avg_latency"].iloc[0] - 0.15) < 0.01
+
+    def test_get_avg_latency_multiple_endpoints(self, query_handler):
+        """Test get_avg_latency with multiple endpoints - validates GROUP BY behavior."""
+        connection = query_handler._connection
+        predictions_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+
+        # Insert data for multiple endpoints with different latencies
+        test_data = [
+            ("endpoint_1", 0.1),
+            ("endpoint_1", 0.2),  # Average for endpoint_1: 0.15
+            ("endpoint_2", 0.3),
+            ("endpoint_2", 0.4),  # Average for endpoint_2: 0.35
+            ("endpoint_3", 0.5),  # Average for endpoint_3: 0.5 (only one value)
+        ]
+
+        for i, (endpoint_id, latency) in enumerate(test_data):
+            test_time = datetime(2024, 1, 15, 12, i, 0)
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    VALUES ('{test_time}', '{endpoint_id}', {latency}, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        result = query_handler.get_avg_latency(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 3  # One result per endpoint due to GROUP BY
+        assert "avg_latency" in result.columns
+        assert "endpoint_id" in result.columns
+
+        # Verify each endpoint has its own average (validates GROUP BY AVG)
+        for _, row in result.iterrows():
+            endpoint_id = row["endpoint_id"]
+            avg_latency = row["avg_latency"]
+
+            if endpoint_id == "endpoint_1":
+                assert abs(avg_latency - 0.15) < 0.01
+            elif endpoint_id == "endpoint_2":
+                assert abs(avg_latency - 0.35) < 0.01
+            elif endpoint_id == "endpoint_3":
+                assert abs(avg_latency - 0.5) < 0.01
 
     def test_endpoint_filter_single_string(self, query_handler):
         """Test _get_endpoint_filter with single string."""
@@ -921,7 +1169,7 @@ class TestTimescaleDBQueryHandlerIntegration:
         config = query_handler_with_aggregates.get_preaggregate_config()
         assert config is not None
         assert config.aggregate_intervals == ["10m", "1h"]
-        assert config.agg_functions == ["sum", "avg", "max"]
+        assert config.agg_functions == ["sum", "avg", "max", "count"]
 
         # Verify pre-aggregate handler was initialized
         assert hasattr(query_handler_with_aggregates, "_pre_aggregate_handler")
@@ -969,6 +1217,130 @@ class TestTimescaleDBQueryHandlerIntegration:
             assert True  # If we get here, write succeeded
         except Exception as e:
             pytest.fail(f"Simple write test failed: {e}")
+
+
+class TestGroupByAggregationMethods:
+    """Dedicated tests for the updated GROUP BY aggregation methods."""
+
+    def test_get_avg_latency_with_interval(self, query_handler_with_aggregates):
+        """Test get_avg_latency with interval parameter for pre-aggregate optimization."""
+        connection = query_handler_with_aggregates._connection
+        predictions_table = query_handler_with_aggregates.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+
+        # Insert data spanning multiple time intervals
+        test_times = [
+            datetime(2024, 1, 15, 11, 30, 0),
+            datetime(2024, 1, 15, 12, 15, 0),
+            datetime(2024, 1, 15, 12, 45, 0),
+        ]
+
+        for i, test_time in enumerate(test_times):
+            latency = 0.1 + (i * 0.05)  # Varying latencies
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    VALUES ('{test_time}', 'test_endpoint', {latency}, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        result = query_handler_with_aggregates.get_avg_latency(
+            endpoint_ids=["test_endpoint"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            interval="1h",
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        if not result.empty:
+            assert "avg_latency" in result.columns or "endpoint_id" in result.columns
+
+    def test_get_drift_status_with_interval(self, query_handler_with_aggregates):
+        """Test get_drift_status with interval parameter for pre-aggregate optimization."""
+        connection = query_handler_with_aggregates._connection
+        app_results_table = query_handler_with_aggregates.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        test_time = datetime(2024, 1, 15, 12, 30, 0)
+        connection.run(
+            statements=[
+                f"""
+                INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                 result_value, result_status, result_kind, result_extra_data)
+                VALUES ('{test_time}', '{test_time}', 'test_endpoint', 'drift_app', 'drift_result',
+                        0.85, 2, 1, '{{}}')
+                """
+            ]
+        )
+
+        result = query_handler_with_aggregates.get_drift_status(
+            endpoint_ids=["test_endpoint"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            interval="1h",
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        if not result.empty:
+            assert "endpoint_id" in result.columns
+
+    def test_get_error_count_with_interval(self, query_handler_with_aggregates):
+        """Test get_error_count with interval parameter for pre-aggregate optimization."""
+        connection = query_handler_with_aggregates._connection
+        errors_table = query_handler_with_aggregates.tables[
+            mm_schemas.TimescaleDBTables.ERRORS
+        ]
+
+        test_time = datetime(2024, 1, 15, 12, 30, 0)
+        connection.run(
+            statements=[
+                f"""
+                INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                (time, endpoint_id, model_error, error_type)
+                VALUES ('{test_time}', 'test_endpoint', 'Test error', '{mm_schemas.EventFieldType.INFER_ERROR}')
+                """
+            ]
+        )
+
+        result = query_handler_with_aggregates.get_error_count(
+            endpoint_ids=["test_endpoint"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            interval="1h",
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        if not result.empty:
+            assert "endpoint_id" in result.columns
+
+    def test_aggregation_methods_with_empty_endpoint_list(self, query_handler):
+        """Test aggregation methods with empty endpoint list."""
+        for method_name in ["get_avg_latency", "get_drift_status", "get_error_count"]:
+            method = getattr(query_handler, method_name)
+            result = method(
+                endpoint_ids=[],
+                start=datetime(2024, 1, 1),
+                end=datetime(2024, 1, 2),
+            )
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 0
+
+    def test_aggregation_methods_with_single_string_endpoint(self, query_handler):
+        """Test aggregation methods with single endpoint as string (not list)."""
+        for method_name in ["get_avg_latency", "get_drift_status", "get_error_count"]:
+            method = getattr(query_handler, method_name)
+            result = method(
+                endpoint_ids="single_endpoint",  # String instead of list
+                start=datetime(2024, 1, 1),
+                end=datetime(2024, 1, 2),
+            )
+            assert isinstance(result, pd.DataFrame)
 
 
 if __name__ == "__main__":

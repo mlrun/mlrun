@@ -943,6 +943,13 @@ class TestProject(TestMLRunSystem):
             == mlrun.common.runtimes.constants.RunStates.completed
         )
 
+        assert all(
+            [
+                "Retry #1" in notification[0]["spec"]["notifications"][0]["name"]
+                for notification in notifications
+            ]
+        )
+
         second_rerun_id = mlrun.retry_pipeline(
             run_id=run_id.run_id, project=project_name
         )

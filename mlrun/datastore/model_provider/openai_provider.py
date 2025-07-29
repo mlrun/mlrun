@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.utils import accepts_param
 
 T = TypeVar("T")
 
@@ -67,10 +69,6 @@ class OpenAIProvider(ModelProvider):
             #  in openai there is no usage of subpath variable. if the model contains "/", it is part of the model name.
             subpath = ""
         return endpoint, subpath
-
-    @property
-    def model(self) -> Optional[str]:
-        return self.endpoint
 
     def load_client(self) -> None:
         """
@@ -126,12 +124,18 @@ class OpenAIProvider(ModelProvider):
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
+
         if operation:
-            return operation(**invoke_kwargs, model=self.model)
+            if not callable(operation):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenAI custom_invoke operation must be a callable"
+                )
+            if not accepts_param(operation, "model"):
+                model_kwargs = {}
+            return operation(**invoke_kwargs, **model_kwargs)
         else:
-            return self.client.chat.completions.create(
-                **invoke_kwargs, model=self.model
-            )
+            return self.client.chat.completions.create(**invoke_kwargs, **model_kwargs)
 
     async def async_custom_invoke(
         self,
@@ -145,25 +149,33 @@ class OpenAIProvider(ModelProvider):
         `ModelProvider.async_custom_invoke`.
 
         Example:
-            ```python
+        ```python
             result = openai_model_provider.invoke(
                 openai_model_provider.async_client.images.generate,
                 prompt="A futuristic cityscape at sunset",
                 n=1,
                 size="1024x1024",
             )
-            ```
+        ```
+
         :param operation:       Same as ModelProvider.async_custom_invoke.
         :param invoke_kwargs:   Same as ModelProvider.async_custom_invoke.
         :return:                Same as ModelProvider.async_custom_invoke.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
         if operation:
-            return await operation(**invoke_kwargs, model=self.model)
+            if not inspect.iscoroutinefunction(operation):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenAI async_custom_invoke operation must be a coroutine function"
+                )
+            if not accepts_param(operation, "model"):
+                model_kwargs = {}
+            return await operation(**invoke_kwargs, **model_kwargs)
         else:
             return await self.async_client.chat.completions.create(
-                **invoke_kwargs, model=self.model
+                **invoke_kwargs, **model_kwargs
             )
 
     def invoke(

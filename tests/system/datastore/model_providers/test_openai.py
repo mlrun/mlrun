@@ -52,7 +52,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         missing_env_variables = get_missing_openai_env_variables()
         if missing_env_variables:
             pytest.skip(
-                f"The following snowflake keys are missing: {missing_env_variables}"
+                f"The following openai keys are missing: {missing_env_variables}"
             )
         cls.basic_llm_model = "gpt-4o-mini"
 
@@ -73,15 +73,15 @@ class TestOpenAIModelRunner(TestMLRunSystem):
 
     @pytest.mark.parametrize("execution_mechanism", ["naive", "asyncio"])
     def test_basic_openai_model_runner(self, execution_mechanism):
-        model_url = self.url_prefix + self.basic_llm_model
         mlrun_model_name = "sync_invoke_model"
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
-            model_url,
+            self.model_url,
             mlrun_model_name=mlrun_model_name,
             image=self.image,
             requirements=["openai==1.77.0"],
             execution_mechanism=execution_mechanism,
+            default_config={"max_tokens": 100},
         )
         function.deploy()
         response = function.invoke(
@@ -95,16 +95,16 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         assert token_count == 100
 
     def test_model_runner_with_openai_async(self):
-        model_url = self.url_prefix + self.basic_llm_model
         mlrun_model_name = "async_invoke_model"
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
-            model_url,
+            self.model_url,
             mlrun_model_name=mlrun_model_name,
             execution_mechanism="asyncio",
             image=self.image,
             requirements=["openai==1.77.0"],
             model_class="MyOpenAIAsyncEvents",
+            default_config={"max_tokens": 100},
         )
         function.deploy()
 

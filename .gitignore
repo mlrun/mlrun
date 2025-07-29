@@ -109,3 +109,4 @@ server/api
 tests/coverage_reports/*.xml
 tests/coverage_reports/*.html
 **/test-openai.yml
+**/test-huggingface.yml

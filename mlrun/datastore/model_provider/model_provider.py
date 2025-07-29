@@ -148,7 +148,12 @@ class ModelProvider(BaseRemoteClient):
 
     @property
     def model(self) -> Optional[str]:
-        return None
+        """
+        Returns the model identifier used by the underlying SDK.
+
+        :return: A string representing the model ID, or None if not set.
+        """
+        return self.endpoint
 
     def get_invoke_kwargs(self, invoke_kwargs) -> dict:
         kwargs = self.default_invoke_kwargs.copy()

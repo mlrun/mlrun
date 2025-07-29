@@ -123,6 +123,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
         result = model_provider.invoke(messages=messages, as_str=True)
+        assert isinstance(result, str)
         assert EXPECTED_RESULTS[0] in result.lower()
 
         encoding = tiktoken.encoding_for_model(model_name)
@@ -137,21 +138,18 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert isinstance(response, openai.types.chat.ChatCompletion)
         assert token_count == 50
 
-    @pytest.mark.parametrize("use_datastore_profile", [True, False])
-    def test_basic_invoke(self, use_datastore_profile):
-        if use_datastore_profile:
+    @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
+    def test_basic_invoke(self, cred_mode):
+        secrets = {}
+        if cred_mode == "profile":
             self.setup_datastore_profile()
+        elif cred_mode == "secrets":
+            self.reset_env()
+            secrets = self.env_secrets
+
         model_url = self.url_prefix + self.basic_llm_model
-        #  env check
         self.check_basic_invoke(
-            model_url=model_url, secrets={}, model_name=self.basic_llm_model
-        )
-        # secrets check
-        self.reset_env()
-        self.check_basic_invoke(
-            model_url=model_url,
-            secrets=self.env_secrets,
-            model_name=self.basic_llm_model,
+            model_url=model_url, secrets=secrets, model_name=self.basic_llm_model
         )
 
     def test_configurable_model(self):
@@ -184,7 +182,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_tokens": 200}
         )
-        result = model_provider.invoke(messages=messages, as_str=True).strip()
+        result = model_provider.invoke(messages=messages, as_str=True)
+        assert isinstance(result, str)
+        result = result.strip()
         assert result
         assert " " not in result.strip()  # checking one-word answer
 
@@ -225,10 +225,23 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             embeddings = await model_provider.async_custom_invoke(
                 operation=async_client.embeddings.create, input=prompt
             )
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="OpenAI async_custom_invoke operation"
+                " must be a coroutine function",
+            ):
+                _ = await model_provider.async_custom_invoke(
+                    operation=client.embeddings.create, input=prompt
+                )
         else:
             embeddings = model_provider.custom_invoke(
                 operation=client.embeddings.create, input=prompt
             )
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="OpenAI custom_invoke " "operation must be a callable",
+            ):
+                _ = await model_provider.custom_invoke(operation="test", input=prompt)
         encoding = tiktoken.encoding_for_model(model_name)
         token_count = len(encoding.encode(prompt))
         assert embeddings.data[0].embedding is not None
@@ -243,7 +256,10 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-            project, model_url, execution_mechanism=execution_mechanism
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            default_config={"max_tokens": 100},
         )
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.
@@ -280,6 +296,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             model_url,
             execution_mechanism="asyncio",
             model_class="MyOpenAIAsyncEvents",
+            default_config={"max_tokens": 100},
         )
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.

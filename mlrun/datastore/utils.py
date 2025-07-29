@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import math
 import tarfile
 import tempfile
@@ -333,3 +334,8 @@ def parse_url(url):
     if parsed_url.port:
         endpoint += f":{parsed_url.port}"
     return schema, endpoint, parsed_url
+
+
+def accepts_param(func: callable, param_name):
+    sig = inspect.signature(func)
+    return param_name in sig.parameters

@@ -229,13 +229,28 @@ def test_new_function_args_with_default_image_pull_secret(
                 match="Retry count must be at least 0, got -1",
             ),
         ),
+        (
+            10,
+            "7 days",
+            None,
+            None,
+            pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=re.escape(
+                    "Retry backoff base_delay 7 days * retry count 10 must be less than 259200 seconds, "
+                    "got 6048000 seconds"
+                ),
+            ),
+        ),
     ],
 )
 def test_validate_run_retry(
     count, base_delay, default_base_delay, min_base_delay, expectation
 ):
-    mlrun.mlconf.function.spec.retry.backoff.default_base_delay = default_base_delay
-    mlrun.mlconf.function.spec.retry.backoff.min_base_delay = min_base_delay
+    if default_base_delay:
+        mlrun.mlconf.function.spec.retry.backoff.default_base_delay = default_base_delay
+    if min_base_delay:
+        mlrun.mlconf.function.spec.retry.backoff.min_base_delay = min_base_delay
     launcher = services.api.launcher.ServerSideLauncher(
         auth_info=mlrun.common.schemas.AuthInfo()
     )

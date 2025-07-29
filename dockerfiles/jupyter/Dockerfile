@@ -100,6 +100,7 @@ RUN rm -rf /tmp/mlrun \
 USER $NB_UID
 
 # This will usually cause a cache miss - so keep it in the last layers
+ARG MLRUN_CACHE_DATE
 
 # Use 1.7.x version from mlrun/demos to update the demos(do not update version).
 RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \

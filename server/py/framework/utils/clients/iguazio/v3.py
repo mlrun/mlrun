@@ -159,7 +159,6 @@ class Client(
         self._wait_for_job_completion_retry_interval = mlrun.utils.create_step_backoff(
             [[1, 10], [5, None]]
         )
-        self._logger = logger.get_child("iguazio-client")
         self._igz_clients = {}
 
         self._job_cache = _JobCache(

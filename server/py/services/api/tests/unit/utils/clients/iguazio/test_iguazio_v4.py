@@ -19,6 +19,7 @@ import pytest
 from aioresponses import CallbackResult
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
     build_mock_request,
@@ -95,7 +96,7 @@ async def test_verify_request_session_success(
 
     patch_restful_request(
         aioresponses_mock,
-        method=http.HTTPMethod.GET,
+        method=mlrun.common.types.HTTPMethod.GET,
         url=url,
         callback=_verify_session_with_body_mock,
     )
@@ -172,7 +173,7 @@ async def test_verify_request_session_malformed_response(
 
     patch_restful_request(
         aioresponses_mock,
-        method=http.HTTPMethod.GET,
+        method=mlrun.common.types.HTTPMethod.GET,
         url=url,
         callback=_mock_response,
     )
@@ -232,7 +233,7 @@ async def test_verify_request_session_valid_no_groups(
 
     patch_restful_request(
         aioresponses_mock,
-        method=http.HTTPMethod.GET,
+        method=mlrun.common.types.HTTPMethod.GET,
         url=url,
         callback=_mock_response,
     )
@@ -279,7 +280,10 @@ async def test_verify_request_session_single_group_untyped(
 
     url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
     patch_restful_request(
-        aioresponses_mock, method=http.HTTPMethod.GET, url=url, callback=_mock_response
+        aioresponses_mock,
+        method=mlrun.common.types.HTTPMethod.GET,
+        url=url,
+        callback=_mock_response,
     )
 
     auth_info = await maybe_coroutine(

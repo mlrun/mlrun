@@ -31,6 +31,7 @@ from mlrun.utils import logger
 class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self._logger = logger.get_child("iguazio-client")
 
     @property
     def is_sync(self) -> bool:
@@ -227,6 +228,21 @@ class BaseAsyncClient(BaseClient):
                     method, path, response, response_body, error_message, kwargs
                 )
             yield response
+
+        except mlrun.errors.MLRunUnauthorizedError as exc:
+            self._logger.error(
+                f"{error_message}: Unauthorized request to {url}",
+                exc_info=mlrun.errors.err_to_str(exc),
+            )
+            raise
+
+        except Exception as exc:
+            self._logger.error(
+                f"{error_message}: Failed to send request to API",
+                exc_info=mlrun.errors.err_to_str(exc),
+            )
+            raise
+
         finally:
             if response:
                 response.release()

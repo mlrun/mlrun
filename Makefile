@@ -661,7 +661,7 @@ test: clean ## Run mlrun tests
 
 
 .PHONY: test-integration-dockerized
-test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
+test-integration-dockerized: build-test api ## Run mlrun integration tests in docker container, some tests require the api image to be built
 	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/integration_tests" ;\
 	$(SETUP_COVERAGE_MOUNTING)  && \
 	docker run \

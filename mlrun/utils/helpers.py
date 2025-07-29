@@ -2423,6 +2423,7 @@ def get_data_from_path(
         output_data = [output_data]
     return output_data
 
+
 def is_valid_port(port):
     if port < 0 or port > 65535:
         raise ValueError("Port must be in the range 0-65535")

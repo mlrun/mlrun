@@ -29,7 +29,7 @@ from mlrun.runtimes.nuclio.api_gateway import (
     APIGatewaySpec,
 )
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
-from mlrun.utils import logger, update_in, is_valid_port
+from mlrun.utils import is_valid_port, logger, update_in
 
 
 class ApplicationSpec(NuclioSpec):
@@ -289,11 +289,12 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
         if ports:
-            logger.info(f"Setting internal application port to the first port from the sidecar: {ports[0]}. If this is not intended, "
-                        f"please set the internal_application_port explicitly.")
+            logger.info(
+                f"Setting internal application port to the first port from the sidecar: {ports[0]}. If this is not intended, "
+                f"please set the internal_application_port explicitly."
+            )
             self.spec.internal_application_port = ports[0]
             self.spec.application_ports = ports
-
 
     def pre_deploy_validation(self):
         super().pre_deploy_validation()
@@ -542,7 +543,9 @@ class ApplicationRuntime(RemoteRuntime):
                 "Authentication credentials not provided"
             )
 
-        ports = port or self.spec.internal_application_port if direct_port_access else []
+        ports = (
+            port or self.spec.internal_application_port if direct_port_access else []
+        )
 
         api_gateway = APIGateway(
             APIGatewayMetadata(

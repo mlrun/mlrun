@@ -164,8 +164,7 @@ class HuggingFaceProvider(ModelProvider):
                             If `True`, return only the main content (e.g., generated text) from a
                             **single-response output** — intended for use cases where you expect exactly one result.
 
-                            If `False`, return the **full raw response object**, which may be a list or dict depending
-                            on the underlying client (e.g., Hugging Face `pipeline`).
+                            If `False`, return the **full raw response object**, which is a list of dictionaries.
 
         :param invoke_kwargs:
                             Same as ModelProvider.invoke.

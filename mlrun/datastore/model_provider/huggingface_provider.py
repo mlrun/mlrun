@@ -19,8 +19,7 @@ from mlrun.datastore.model_provider.model_provider import ModelProvider
 
 if TYPE_CHECKING:
     from transformers.pipelines.base import Pipeline
-
-ChatType = list[dict[str, str]]  # according to transformers.pipelines.text_generation
+    from transformers.pipelines.text_generation import ChatType
 
 
 class HuggingFaceProvider(ModelProvider):
@@ -149,7 +148,7 @@ class HuggingFaceProvider(ModelProvider):
 
     def invoke(
         self,
-        messages: Union[str, list[str], ChatType, list[ChatType]] = None,
+        messages: Union[str, list[str], "ChatType", list["ChatType"]] = None,
         as_str: bool = False,
         **invoke_kwargs,
     ) -> Union[str, list]:

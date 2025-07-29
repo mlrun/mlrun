@@ -16,7 +16,7 @@ import importlib
 import os
 import re
 from typing import Any, Optional, Union
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse, urlsplit
 
 import sqlalchemy
 
@@ -37,6 +37,7 @@ class ParsedDsn:
     _HOST_REGEX = re.compile(r"[A-Za-z0-9.\-]+")  # host
     _PATH_REGEX = re.compile(r"[A-Za-z0-9_\-./]+")  # sqlite path
     _DBNAME_REGEX = re.compile(r"[A-Za-z0-9_\-$]+")  # db-name
+    _SAFE_CHARS = "~"
 
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
@@ -72,6 +73,25 @@ class ParsedDsn:
             }
         else:
             self.configurations = {}
+
+    def _encode_credentials(self, dsn: str) -> str:
+        """
+        Percent‑encode the username / password part (everything left of the
+        last '@') so urlsplit() won’t treat reserved chars (#, ?, |, < …) as
+        delimiters.
+        """
+        if "://" not in dsn or "@" not in dsn:
+            return dsn
+        scheme, rest = dsn.split("://", 1)
+        creds, hostport = rest.rsplit("@", 1)
+        if ":" in creds:
+            user, pwd = creds.split(":", 1)
+            user_enc = quote(user, safe=self._SAFE_CHARS)
+            pwd_enc = quote(pwd, safe=self._SAFE_CHARS)
+            creds_enc = f"{user_enc}:{pwd_enc}"
+        else:
+            creds_enc = quote(creds, safe=self._SAFE_CHARS)
+        return f"{scheme}://{creds_enc}@{hostport}"
 
     def is_valid(self) -> bool:
         """
@@ -193,7 +213,20 @@ class DBUtil:
 
     @classmethod
     def get_parsed_dsn(cls) -> ParsedDsn:
-        return ParsedDsn(cls.get_dsn())
+        raw_dsn = cls.get_dsn()
+        if not raw_dsn:
+            raise ValueError("No DSN provided.")
+
+        clean = cls._encode_credentials(raw_dsn)
+        parsed = urlsplit(clean)
+
+        return ParsedDsn(
+            username=unquote(parsed.username) if parsed.username else None,
+            password=unquote(parsed.password) if parsed.password else None,
+            host=parsed.hostname,
+            port=parsed.port,
+            database=parsed.path.lstrip("/") or None,
+        )
 
     def _get_connection(self):
         return self._get_driver().connect(**self._connection_kwargs())

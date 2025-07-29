@@ -522,7 +522,8 @@ class ApplicationRuntime(RemoteRuntime):
         :param set_as_default:          Set the API gateway as the default for the application (`status.api_gateway`)
         :param gateway_timeout:         nginx ingress timeout in sec (request timeout, when will the gateway return an
                                         error)
-        :param port:                    The API gateway port
+        :param port:                    The API gateway port, used only when direct_port_access=True
+
         :return:                        The API gateway URL
         """
         if not name:

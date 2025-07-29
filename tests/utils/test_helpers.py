@@ -36,6 +36,7 @@ from mlrun.utils.helpers import (
     get_pretty_types_names,
     get_regex_list_as_string,
     parse_artifact_uri,
+    remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
     str_to_timestamp,
     template_artifact_path,
@@ -1716,3 +1717,28 @@ def test_validate_and_convert_date(date_input, expected_output, expectation):
         assert (
             mlrun.utils.helpers.validate_and_convert_date(date_input) == expected_output
         )
+
+
+@pytest.mark.parametrize(
+    "input_uri,expected_output",
+    [
+        ("store://proj/key:latest", "store://proj/key"),
+        ("key#1:dev@tree^uid", "key#1@tree^uid"),
+        ("store://key:tag", "store://key"),
+        (
+            "store://models/remote-model-project/my_model#0@tree",
+            "store://models/remote-model-project/my_model#0@tree",
+        ),
+        (
+            "store://llm-prompts/test-nuclio-runtime/my_llm#0:v1@0eb15a5a-b093-4ca3-9e7d-c22482a6c990^c4f4dcc412acd61460adf9b4a4e799567c4793c8",
+            "store://llm-prompts/test-nuclio-runtime/my_llm#0@0eb15a5a-b093-4ca3-9e7d-c22482a6c990^c4f4dcc412acd61460adf9b4a4e799567c4793c8",
+        ),
+        ("key:tag", "key"),
+        ("key#1:tag", "key#1"),
+        ("key#1@tree", "key#1@tree"),
+        ("key#1@tree^uid", "key#1@tree^uid"),
+        ("store://key#1:tag@tree", "store://key#1@tree"),
+    ],
+)
+def test_remove_tag_from_artifact_uri(input_uri, expected_output):
+    assert remove_tag_from_artifact_uri(input_uri) == expected_output

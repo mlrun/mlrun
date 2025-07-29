@@ -25,6 +25,7 @@ import pandas as pd
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.errors
@@ -33,6 +34,7 @@ import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 import mlrun.model_monitoring.db._schedules as mm_schedules
 import mlrun.model_monitoring.helpers as mm_helpers
+import mlrun.utils
 from mlrun.serving.utils import MonitoringApplicationToDict
 from mlrun.utils import logger
 
@@ -194,7 +196,25 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             Optional[mm_schedules.ModelMonitoringSchedulesFileApplication],
         ]
     ]:
-        endpoints_output: dict[str, list[tuple]] = defaultdict(list)
+        endpoints_output: dict[
+            str,
+            list[
+                tuple[
+                    mm_context.MonitoringApplicationContext,
+                    Union[
+                        mm_results.ModelMonitoringApplicationResult,
+                        mm_results.ModelMonitoringApplicationMetric,
+                        list[
+                            Union[
+                                mm_results.ModelMonitoringApplicationResult,
+                                mm_results.ModelMonitoringApplicationMetric,
+                                mm_results._ModelMonitoringApplicationStats,
+                            ]
+                        ],
+                    ],
+                ]
+            ],
+        ] = defaultdict(list)
         application_schedules = nullcontext()
         if write_output:
             cls._check_writer_is_up(project)
@@ -220,11 +240,21 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     profile=stream_profile,
                 )
                 for endpoint_id, outputs in endpoints_output.items():
+                    writer_events = []
+                    for ctx, res in outputs:
+                        if isinstance(res, list):
+                            writer_events.extend(
+                                _serialize_context_and_result(
+                                    context=ctx, result=sub_res
+                                )
+                                for sub_res in res
+                            )
+                        else:
+                            writer_events.append(
+                                _serialize_context_and_result(context=ctx, result=res)
+                            )
                     writer_stream.push(
-                        [
-                            _serialize_context_and_result(context=ctx, result=res)
-                            for ctx, res in outputs
-                        ],
+                        writer_events,
                         partition_key=endpoint_id,
                     )
                 logger.debug(
@@ -238,6 +268,14 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
                 application_schedules.__exit__(None, None, None)
 
+    @classmethod
+    def _get_application_name(cls, context: "mlrun.MLClientCtx") -> str:
+        """Get the application name from the context via the function URI"""
+        _, application_name, _, _ = mlrun.common.helpers.parse_versioned_object_uri(
+            context.to_dict().get("spec", {}).get("function", "")
+        )
+        return application_name
+
     def _handler(
         self,
         context: "mlrun.MLClientCtx",
@@ -250,7 +288,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[str] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
-        allow_unordered_data: bool = False,
+        fail_on_overlap: bool = True,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ):
         """
@@ -271,7 +309,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 "working with endpoints, without any custom data-frame input"
             )
 
-        application_name = self.__class__.__name__
+        application_name = self._get_application_name(context)
 
         feature_stats = (
             mm_api.get_sample_set_statistics(reference_data)
@@ -320,7 +358,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         application_schedules=application_schedules,
                         endpoint_id=endpoint_id,
                         application_name=application_name,
-                        allow_unordered_data=allow_unordered_data,
+                        fail_on_overlap=fail_on_overlap,
                     ):
                         result = call_do_tracking(
                             event={
@@ -443,7 +481,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end_dt: datetime,
         base_period: Optional[int],
         application_name: str,
-        allow_unordered_data: bool,
+        fail_on_overlap: bool,
     ) -> datetime:
         """Make sure that the (app, endpoint) pair doesn't write output before the last analyzed window"""
         if application_schedules:
@@ -452,7 +490,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
             if last_analyzed:
                 if start_dt < last_analyzed:
-                    if allow_unordered_data:
+                    if not fail_on_overlap:
                         if last_analyzed < end_dt and base_period is None:
                             logger.warn(
                                 "Setting the start time to last_analyzed since the original start time precedes "
@@ -499,7 +537,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         ],
         endpoint_id: str,
         application_name: str,
-        allow_unordered_data: bool,
+        fail_on_overlap: bool,
     ) -> Iterator[tuple[Optional[datetime], Optional[datetime]]]:
         if start is None or end is None:
             # A single window based on the `sample_data` input - see `_handler`.
@@ -516,7 +554,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             end_dt=end_dt,
             base_period=base_period,
             application_name=application_name,
-            allow_unordered_data=allow_unordered_data,
+            fail_on_overlap=fail_on_overlap,
         )
 
         if base_period is None:
@@ -590,6 +628,42 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         return f"{handler_to_class}::{cls._handler.__name__}"
 
     @classmethod
+    def _determine_job_name(
+        cls,
+        *,
+        func_name: Optional[str],
+        class_handler: Optional[str],
+        handler_to_class: str,
+    ) -> str:
+        """
+        Determine the batch app's job name. This name is used also as the application name,
+        which is retrieved in `_get_application_name`.
+        """
+        if func_name:
+            job_name = func_name
+        else:
+            if not class_handler:
+                class_name = cls.__name__
+            else:
+                class_name = handler_to_class.split(".")[-1].split("::")[0]
+
+            job_name = mlrun.utils.normalize_name(class_name, verbose=False)
+
+        if not mm_constants.APP_NAME_REGEX.fullmatch(job_name):
+            raise mlrun.errors.MLRunValueError(
+                "The function name does not comply with the required pattern "
+                f"`{mm_constants.APP_NAME_REGEX.pattern}`. "
+                "Please choose another `func_name`."
+            )
+        if not job_name.endswith(mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX):
+            job_name += mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+            mlrun.utils.logger.info(
+                'Changing function name - adding `"-batch"` suffix', func_name=job_name
+            )
+
+        return job_name
+
+    @classmethod
     def to_job(
         cls,
         *,
@@ -628,7 +702,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``end``, ``datetime``
         * ``base_period``, ``int``
         * ``write_output``, ``bool``
-        * ``allow_unordered_data``, ``bool``
+        * ``fail_on_overlap``, ``bool``
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -647,7 +721,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   :py:class:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase`,
                                   is used.
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
-        :param func_name:         The name of the function. If not ``None``, the class name is used.
+        :param func_name:         The name of the function. If ``None``, the normalized class name is used
+                                  (:py:meth:`mlrun.utils.helpers.normalize_name`).
+                                  A ``"-batch"`` suffix is guaranteed to be added if not already there.
+                                  The function name is also used as the application name to use for the results.
         :param tag:               Tag for the function.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
@@ -668,12 +745,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         handler_to_class = class_handler or cls.__name__
         handler = cls.get_job_handler(handler_to_class)
 
-        if not class_handler:
-            class_name = cls.__name__
-        else:
-            class_name = handler_to_class.split(".")[-1].split("::")[-1]
-
-        job_name = func_name if func_name else class_name
+        job_name = cls._determine_job_name(
+            func_name=func_name,
+            class_handler=class_handler,
+            handler_to_class=handler_to_class,
+        )
 
         job = cast(
             mlrun.runtimes.KubejobRuntime,
@@ -712,7 +788,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
-        allow_unordered_data: bool = False,
+        fail_on_overlap: bool = True,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ) -> "mlrun.RunObject":
         """
@@ -724,7 +800,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         data to the application.
 
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
-        :param func_name:         The name of the function. If not ``None``, the class name is used.
+        :param func_name:         The name of the function. If ``None``, the normalized class name is used
+                                  (:py:meth:`mlrun.utils.helpers.normalize_name`).
+                                  A ``"-batch"`` suffix is guaranteed to be added if not already there.
+                                  The function name is also used as the application name to use for the results.
         :param tag:               Tag for the function.
         :param run_local:         Whether to run the function locally or remotely.
         :param auto_build:        Whether to auto build the function.
@@ -777,11 +856,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param write_output:      Whether to write the results and metrics to the time-series DB. Can be ``True`` only
                                   if ``endpoints`` are passed.
                                   Note: the model monitoring infrastructure must be up for the writing to work.
-        :param allow_unordered_data: Relevant only when writing outputs to the database. When ``False``, and the
-                                     requested ``start`` time precedes the ``end`` time of a previous run that also
-                                     wrote to the database - an error is raised.
-                                     If ``True``, when the previously described situation occurs, the relevant time
-                                     window is cut so that it starts at the earliest possible time after ``start``.
+        :param fail_on_overlap:   Relevant only when ``write_output=True``. When ``True``, and the
+                                  requested ``start`` time precedes the ``end`` time of a previous run that also
+                                  wrote to the database - an error is raised.
+                                  If ``False``, when the previously described situation occurs, the relevant time
+                                  window is cut so that it starts at the earliest possible time after ``start``.
         :param stream_profile:    The stream datastore profile. It should be provided only when running locally and
                                   writing the outputs to the database (i.e., when both ``run_local`` and
                                   ``write_output`` are set to ``True``).
@@ -821,7 +900,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 params["end"] = end.isoformat() if isinstance(end, datetime) else end
                 params["base_period"] = base_period
                 params["write_output"] = write_output
-                params["allow_unordered_data"] = allow_unordered_data
+                params["fail_on_overlap"] = fail_on_overlap
                 if stream_profile:
                     if not run_local:
                         raise mlrun.errors.MLRunValueError(

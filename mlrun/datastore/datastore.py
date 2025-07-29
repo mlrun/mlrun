@@ -38,6 +38,7 @@ from ..utils import DB_SCHEMA, RunKeys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
+from .model_provider.huggingface_provider import HuggingFaceProvider
 from .model_provider.openai_provider import OpenAIProvider
 from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
@@ -102,8 +103,7 @@ def schema_to_store(schema) -> DataStore.__subclasses__():
 def schema_to_model_provider(
     schema: str, raise_missing_schema_exception=True
 ) -> type[ModelProvider]:
-    #  TODO add hugging face and http
-    schema_dict = {"openai": OpenAIProvider}
+    schema_dict = {"openai": OpenAIProvider, "huggingface": HuggingFaceProvider}
     provider_class = schema_dict.get(schema, None)
     if not provider_class:
         if raise_missing_schema_exception:
@@ -247,7 +247,7 @@ class StoreManager:
 
         if schema == "ds":
             datastore_profile = datastore_profile_read(url, project_name, secrets)
-            secrets = merge(secrets or {}, datastore_profile.secrets() or {})
+            secrets = merge({}, secrets or {}, datastore_profile.secrets() or {})
             url = datastore_profile.url(subpath)
             schema, endpoint, parsed_url = parse_url(url)
             subpath = parsed_url.path
@@ -281,7 +281,7 @@ class StoreManager:
                 endpoint, subpath
             )
             remote_client = remote_client_class(
-                self, schema, cache_key, parsed_url.netloc, secrets=secrets, **kwargs
+                self, schema, cache_key, endpoint, secrets=secrets, **kwargs
             )
             if not secrets and not mlrun.config.is_running_as_api():
                 cache[cache_key] = remote_client

@@ -1045,13 +1045,13 @@ def test_tracked_model_runner_with_error_handler(
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
         assert (
             dummy_stream.event_list[0].get("error")
-            == "<class 'TypeError'>: can only concatenate str (not \"int\") to str"
+            == 'TypeError: can only concatenate str (not "int") to str'
         )
         assert dummy_stream.event_list[0].get("request", {}).get("inputs") == "1"
     elif not enable_tracking and as_responder:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
         assert resp == {
-            "error": "<class 'TypeError'>: can only concatenate str (not \"int\") to str"
+            "error": 'TypeError: can only concatenate str (not "int") to str'
         }
 
     _test_graph_structure(server.graph, enable_tracking)

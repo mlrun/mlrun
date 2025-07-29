@@ -145,7 +145,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 max_tokens=50,
             )
         assert isinstance(response, openai.types.chat.ChatCompletion)
-        token_count = len(encoding.encode(response.choices[0].message.content))
+        token_count = response.usage.completion_tokens
         assert token_count == 50
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])

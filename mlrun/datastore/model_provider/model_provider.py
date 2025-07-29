@@ -184,6 +184,6 @@ class ModelProvider(BaseRemoteClient):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> str:
+    ) -> Union[str, Any]:
         """Async version of `invoke`. See `invoke` for full documentation."""
         raise NotImplementedError("async_invoke is not implemented")

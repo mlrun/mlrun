@@ -115,7 +115,7 @@ class HuggingFaceProvider(ModelProvider):
 
     def custom_invoke(
         self, operation: Optional["Pipeline"] = None, **invoke_kwargs
-    ) -> Union[list, Any]:
+    ) -> Union[list, dict, Any]:
         """
         HuggingFace implementation of `ModelProvider.custom_invoke`.
         Use the default config in provider client/ user defined client:

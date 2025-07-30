@@ -1929,9 +1929,7 @@ class BaseRuntimeHandler(ABC):
             message = f"Run failed attempt {attempt_number} of {max_retries + 1} with error: {message or reason}"
         elif 0 < max_retries <= retry_count:
             new_state = RunStates.error
-            message = (
-                f"Run failed after {attempt_number} attempts with error: {message or reason}"
-            )
+            message = f"Run failed after {attempt_number} attempts with error: {message or reason}"
         else:
             new_state = RunStates.error
         return new_state, message

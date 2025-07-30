@@ -635,10 +635,7 @@ class BaseRuntimeHandler(ABC):
                     )
 
                 # Check if the run should be retried, and update its status accordingly
-                message = ""
-                run_state, message = self._evaluate_run_retry_state(
-                    run, reason, message
-                )
+                run_state, message = self._evaluate_run_retry_state(run, reason)
                 logger.info("Updating run state", run_uid=run_uid, run_state=run_state)
                 run_updates = {
                     "status.state": run_state,
@@ -1913,13 +1910,13 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _evaluate_run_retry_state(
-        run: dict, reason: str, message: str
+        run: dict, reason: str, message: str = ""
     ) -> tuple[str, str]:
         """
         Determine if the run should be retried or marked as failed, based on the retry policy and current attempt count.
         """
         retry_spec = run.get("spec", {}).get("retry", {})
-        max_retries = retry_spec.get("count") if retry_spec else -1
+        max_retries = retry_spec.get("count", -1) if retry_spec else -1
         # Run status retry_count may be `None` if the run has never been retried
         retry_count = run.get("status", {}).get("retry_count") or 0
         attempt_number = retry_count + 1

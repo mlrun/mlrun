@@ -917,7 +917,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             **({} if self.image is None else {"image": self.image}),
         )
         function.deploy()
-        resp = function.invoke(
+        function.invoke(
             "/",
             body={
                 "sepal_length_cm": 0.5,

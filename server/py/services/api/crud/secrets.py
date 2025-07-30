@@ -17,6 +17,8 @@ import json
 import typing
 import uuid
 
+import jwt
+
 import mlrun.common
 import mlrun.common.schemas
 import mlrun.common.secrets
@@ -418,6 +420,53 @@ class Secrets(
 
     def is_internal_project_secret_key(self, key: str) -> bool:
         return key.startswith(self.internal_secrets_key_prefix)
+
+    def store_secret_tokens(
+        self, secret_tokens: typing.List[mlrun.common.schemas.SecretToken]
+    ):
+        offline_tokens = []
+        seen_names = set()
+
+        for secret in secret_tokens:
+            # Token name validation
+            if not secret.name or secret.name in seen_names:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid or duplicate token name '{secret.name}' found in request payload",
+                )
+            seen_names.add(secret.name)
+
+            # JWT decoding
+            try:
+                decoded = jwt.decode(secret.token, options={"verify_signature": False})
+            except Exception:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid or malformed offline token '{secret.name}'",
+                )
+
+            # Sub verification
+            token_sub = decoded.get("sub")
+            if token_sub != self._authenticated_user_id:
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    f"Offline token '{secret.name}' does not belong to the authenticated user",
+                )
+
+            offline_tokens.append(secret.token)
+
+            # Validate token
+            try:
+                # TODO: use multiple tokens validation API when available
+                response = self._client.refresh_access_token(secret.token)
+            except Exception as exc:
+                raise mlrun.errors.MLRunUnauthorizedError(
+                    f"Offline token '{secret.name}' is invalid or expired",
+                ) from exc
+
+            if response.get("status", {}).get("statusCode") != 200 or not response.get(
+                "spec", {}
+            ).get("accessToken"):
+                raise mlrun.errors.MLRunUnauthorizedError(
+                    f"Offline token '{secret.name}' is invalid or expired",
+                )
 
     def _resolve_project_secret_key(
         self,

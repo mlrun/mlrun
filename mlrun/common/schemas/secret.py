@@ -47,3 +47,8 @@ class AuthSecretData(BaseModel):
 class SecretKeysData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
     secret_keys: Optional[list] = []
+
+
+class SecretToken(BaseModel):
+    name: str
+    token: str

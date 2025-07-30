@@ -3948,7 +3948,7 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
-        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+        if mlrun.mlconf.httpdb.dsn.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
             logger.debug("Partition management not supported for SQLite")
             return {}, {}, {}
 

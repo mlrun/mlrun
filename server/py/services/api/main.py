@@ -23,6 +23,7 @@ import fastapi.concurrency
 import sqlalchemy.orm
 
 import mlrun
+import mlrun.common.db.dialects
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -31,7 +32,6 @@ import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
 from mlrun import mlconf
-from mlrun.common.db.dialects import Dialects
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 
@@ -587,7 +587,7 @@ class Service(framework.service.Service):
             )
 
     def _start_periodic_partition_management(self):
-        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+        if mlrun.mlconf.httpdb.dsn.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
             self._logger.debug("Partition management not supported for SQLite")
             return
 

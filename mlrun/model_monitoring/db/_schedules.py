@@ -162,11 +162,11 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
             endpoint_id=model_endpoint.metadata.uid,
         )
 
-    def get_application_time(self, application: str) -> Optional[int]:
+    def get_application_time(self, application: str) -> Optional[float]:
         self._check_open_schedules()
         return self._schedules.get(application)
 
-    def update_application_time(self, application: str, timestamp: int) -> None:
+    def update_application_time(self, application: str, timestamp: float) -> None:
         self._check_open_schedules()
         self._schedules[application] = timestamp
 
@@ -174,7 +174,7 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
         self._check_open_schedules()
         return set(self._schedules.keys())
 
-    def get_min_timestamp(self) -> Optional[int]:
+    def get_min_timestamp(self) -> Optional[float]:
         self._check_open_schedules()
         return min(self._schedules.values(), default=None)
 
@@ -208,7 +208,7 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
             return None
 
     def update_endpoint_timestamps(
-        self, endpoint_uid: str, last_request: int, last_analyzed: int
+        self, endpoint_uid: str, last_request: float, last_analyzed: float
     ) -> None:
         self._check_open_schedules()
         self._schedules[endpoint_uid] = {
@@ -216,7 +216,7 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
             schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED: last_analyzed,
         }
 
-    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[int]:
+    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[float]:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
             return self._schedules[endpoint_uid].get(

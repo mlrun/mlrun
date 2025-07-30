@@ -145,8 +145,18 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 max_tokens=50,
             )
         assert isinstance(response, openai.types.chat.ChatCompletion)
-        token_count = response.usage.completion_tokens
-        assert token_count == 50
+        completion_tokens = response.usage.completion_tokens
+        total_tokens = response.usage.total_tokens
+        prompt_tokens = response.usage.prompt_tokens
+        output, tokens_stats = model_provider.get_output_with_tokens_metrics(
+            response=response
+        )
+
+        assert EXPECTED_RESULTS[0] in output.lower()
+        assert completion_tokens == 50
+        assert tokens_stats["completion_tokens"] == completion_tokens
+        assert tokens_stats["prompt_tokens"] == prompt_tokens
+        assert tokens_stats["total_tokens"] == total_tokens
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     @pytest.mark.parametrize("run_async", [True, False])

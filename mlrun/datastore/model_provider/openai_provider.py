@@ -38,6 +38,7 @@ class OpenAIProvider(ModelProvider):
     """
 
     support_async = True
+    response_class = None
 
     def __init__(
         self,
@@ -63,6 +64,52 @@ class OpenAIProvider(ModelProvider):
         )
         self.options = self.get_client_options()
         self.load_client()
+
+    @classmethod
+    def _import_response_class(cls) -> None:
+        if not cls.response_class:
+            try:
+                from openai.types.chat.chat_completion import ChatCompletion
+            except ImportError as exc:
+                raise ImportError("openai package is not installed") from exc
+            cls.response_class = ChatCompletion
+
+    @classmethod
+    def get_output_with_tokens_metrics(
+        cls, response: Union["ChatCompletion", dict]
+    ) -> (str, dict):
+        cls._import_response_class()
+        if not isinstance(response, (cls.response_class, dict)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"OpenaiProvider.get_output_with_tokens_metrics expect"
+                f" {cls.response_class.__name__} or dictionary response types"
+            )
+
+        if isinstance(response, cls.response_class):
+            if len(response.choices) != 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenaiProvider.get_output_with_tokens_metrics expects a single choice in order to calculate stats"
+                )
+            usage = response.usage
+            token_stats = {
+                "completion_tokens": usage.completion_tokens,
+                "prompt_tokens": usage.prompt_tokens,
+                "total_tokens": usage.total_tokens,
+            }
+
+            output = response.choices[0].message.content
+        else:
+            if len(response["choices"]) != 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenaiProvider.get_output_with_tokens_metrics expects a single choice in order to calculate stats"
+                )
+            output = response["choices"][0]["message"]["content"]
+            usage = response.get("usage")
+            token_stats = {
+                k: usage[k]
+                for k in ("completion_tokens", "prompt_tokens", "total_tokens")
+            }
+        return output, token_stats
 
     @classmethod
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):

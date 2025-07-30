@@ -142,7 +142,11 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
         )
 
     async def predict_async(
-        self, body, messages: list[dict], model_configuration: dict
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
     ):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact

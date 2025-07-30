@@ -56,6 +56,10 @@ class ModelProvider(BaseRemoteClient):
         self._client = None
         self._async_client = None
 
+    @classmethod
+    def get_output_with_tokens_metrics(cls, response: Any) -> (str, dict):
+        return None, {}
+
     def get_client_options(self) -> dict:
         """
         Returns a dictionary containing credentials and configuration

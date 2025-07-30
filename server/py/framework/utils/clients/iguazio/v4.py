@@ -17,8 +17,12 @@ import typing
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
+from mlrun.utils import get_in
 
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
+
+_GROUP_TYPE_KEY = "@type"
+_GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
 
 
 class Client(BaseClient):
@@ -27,7 +31,14 @@ class Client(BaseClient):
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.common.schemas.AuthInfo:
-        raise NotImplementedError()
+        """
+        Extract and return AuthInfo from a valid session verification response.
+        """
+        username, group_ids = self._parse_auth_response_data(response_body)
+        return mlrun.common.schemas.AuthInfo(
+            username=username,
+            user_group_ids=group_ids,
+        )
 
     @property
     def _verify_session_http_method(self) -> str:
@@ -36,19 +47,64 @@ class Client(BaseClient):
     def _prepare_request_kwargs(
         self, session: typing.Optional[str], path: str, *, kwargs: dict
     ):
-        raise NotImplementedError()
+        """
+        Prepare headers for session verification request.
+        Must include either an Authorization header or an _oauth2_proxy cookie.
+        """
+        headers = kwargs.setdefault("headers", {})
 
-    def _handle_error_response(
-        self,
-        method: str,
-        path: str,
-        response: typing.Any,
-        response_body: dict,
-        error_message: str,
-        kwargs: dict,
-    ) -> None:
-        raise NotImplementedError()
+        # Accept an Authorization header or a session cookie named "_oauth2_proxy"
+        authorization = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
+        cookie = headers.get(mlrun.common.schemas.HeaderNames.cookie, "")
+
+        if (
+            not authorization
+            and mlrun.common.schemas.CookieNames.oauth2_proxy not in cookie
+        ):
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Request must include either an Authorization header or _oauth2_proxy cookie"
+            )
+
+    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+        return response_body.get("status", {}).get("ctx")
+
+    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
+        return response_body.get("status", {}).get("errorMessage")
+
+    @staticmethod
+    def _parse_auth_response_data(
+        response_body: typing.Mapping[typing.Any, typing.Any],
+    ) -> tuple[str, list[str]]:
+        """
+        Validate and parse the authentication response body to extract the username and group IDs.
+        """
+        if not isinstance(response_body, dict):
+            raise mlrun.errors.MLRunBadRequestError("Expected dict in response body")
+
+        username = get_in(response_body, "metadata.username", "")
+        if not username:
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Missing or empty username in authentication response"
+            )
+
+        group_ids = []
+
+        relationships = response_body.get("relationships")
+        if isinstance(relationships, list):
+            for relationship in relationships:
+                if relationship.get(_GROUP_TYPE_KEY) == _GROUP_TYPE_VALUE:
+                    group_id = get_in(relationship, "metadata.id")
+                    if group_id:
+                        group_ids.append(group_id)
+        elif relationships is not None:
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Invalid format for 'relationships' in authentication response"
+            )
+
+        return username, group_ids
 
 
 class AsyncClient(BaseAsyncClient, Client):
+    """Asynchronous implementation of the Iguazio V4 client. Inherits logic from Client and BaseAsyncClient."""
+
     pass

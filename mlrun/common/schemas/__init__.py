@@ -66,6 +66,7 @@ from .constants import (
     ArtifactPartitionByField,
     AuthorizationHeaderPrefixes,
     ClusterizationRole,
+    CookieNames,
     DeletionStrategy,
     FeatureStorePartitionByField,
     HeaderNames,

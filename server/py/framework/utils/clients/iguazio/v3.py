@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import asyncio
-import copy
 import datetime
 import enum
 import http
@@ -159,7 +158,6 @@ class Client(
         self._wait_for_job_completion_retry_interval = mlrun.utils.create_step_backoff(
             [[1, 10], [5, None]]
         )
-        self._logger = logger.get_child("iguazio-client")
         self._igz_clients = {}
 
         self._job_cache = _JobCache(
@@ -641,6 +639,9 @@ class Client(
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.common.schemas.AuthInfo:
+        """
+        Extract and return AuthInfo from a valid session verification response.
+        """
         (
             username,
             session,
@@ -900,33 +901,12 @@ class Client(
                 if isinstance(dict_[key], enum.Enum):
                     dict_[key] = dict_[key].value
 
-    def _handle_error_response(
-        self,
-        method: str,
-        path: str,
-        response: typing.Any,
-        response_body: dict,
-        error_message: str,
-        kwargs: dict,
-    ) -> None:
-        log_kwargs = copy.deepcopy(kwargs)
+    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+        return response_body.get("meta", {}).get("ctx")
 
-        # this can be big and spammy
-        log_kwargs.pop("json", None)
-        log_kwargs.update({"method": method, "path": path})
-        try:
-            ctx = response_body.get("meta", {}).get("ctx")
-            errors = response_body.get("errors", [])
-        except Exception:
-            pass
-        else:
-            if errors:
-                error_message = f"{error_message}: {str(errors)}"
-            if errors or ctx:
-                log_kwargs.update({"ctx": ctx, "errors": errors})
-
-        self._logger.warning("Request to iguazio failed", **log_kwargs)
-        mlrun.errors.raise_for_status(response, error_message)
+    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
+        errors = response_body.get("errors", [])
+        return str(errors) if errors else None
 
     def _is_job_terminated(self, session: str, job_id: str) -> bool:
         """
@@ -958,4 +938,6 @@ class Client(
 
 
 class AsyncClient(BaseAsyncClient, Client):
+    """Asynchronous implementation of the Iguazio V3 client. Inherits logic from Client and BaseAsyncClient."""
+
     pass

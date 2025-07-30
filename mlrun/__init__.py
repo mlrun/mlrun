@@ -31,6 +31,7 @@ from typing import Optional
 
 import dotenv
 
+from .common.constants import MLRUN_ACTIVE_PROJECT
 from .config import config as mlconf
 from .datastore import DataItem, ModelProvider, store_manager
 from .db import get_run_db
@@ -167,11 +168,13 @@ def set_environment(
 
 
 def get_current_project(silent: bool = False) -> Optional[MlrunProject]:
-    if not pipeline_context.project and not silent:
+    project_from_env = environ.get(MLRUN_ACTIVE_PROJECT, None)
+    project = pipeline_context.project or project_from_env
+    if not project and not silent:
         raise MLRunInvalidArgumentError(
             "No current project is initialized. Use new, get or load project functions first."
         )
-    return pipeline_context.project
+    return project
 
 
 def get_sample_path(subpath=""):

@@ -34,6 +34,7 @@ from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.datastore.dbfs_store import DBFSStore
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
+from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from mlrun.datastore.redis import RedisStore
 from mlrun.datastore.s3 import S3Store
@@ -213,6 +214,7 @@ def test_schema_to_store(schemas, expected_class, expected):
     "schemas,expected_class,expected",
     [
         (["openai"], OpenAIProvider, does_not_raise()),
+        (["huggingface"], HuggingFaceProvider, does_not_raise()),
         (["random"], None, pytest.raises(ValueError)),
     ],
 )

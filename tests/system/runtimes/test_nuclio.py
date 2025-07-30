@@ -188,8 +188,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         # stole the tag from the model artifact above
         _ = self.project.log_model(
-            "my_model-2",
-            model_url="http://localhost:8080/v2/models/mymodel/infer",
+            "my_model",
+            model_url="http://localhost:8080/v2/models/mymodel/infer-2",
             default_config={"model_version": "4"},
             tag="v1",
         )
@@ -312,7 +312,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
                 "error": "catcher_echo",
             }
             if raise_exception
-            else {"error": f"{RuntimeError.__class__}: "}
+            else {"error": "RuntimeError: "}
         )
 
     # Nuclio sometimes passes b'' instead of None due to dirty memory

@@ -11,13 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 from collections.abc import Awaitable
-from typing import Callable, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.utils import accepts_param
 
-T = TypeVar("T")
+if TYPE_CHECKING:
+    from openai._models import BaseModel  # noqa
+    from openai.types.chat.chat_completion import ChatCompletion
 
 
 class OpenAIProvider(ModelProvider):
@@ -68,10 +72,6 @@ class OpenAIProvider(ModelProvider):
             subpath = ""
         return endpoint, subpath
 
-    @property
-    def model(self) -> Optional[str]:
-        return self.endpoint
-
     def load_client(self) -> None:
         """
         Initializes the OpenAI SDK client using the provided options.
@@ -103,8 +103,8 @@ class OpenAIProvider(ModelProvider):
         return self._sanitize_options(res)
 
     def custom_invoke(
-        self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
-    ) -> Optional[T]:
+        self, operation: Optional[Callable] = None, **invoke_kwargs
+    ) -> Union["ChatCompletion", "BaseModel"]:
         """
         OpenAI-specific implementation of `ModelProvider.custom_invoke`.
 
@@ -126,18 +126,24 @@ class OpenAIProvider(ModelProvider):
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
+
         if operation:
-            return operation(**invoke_kwargs, model=self.model)
+            if not callable(operation):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenAI custom_invoke operation must be a callable"
+                )
+            if not accepts_param(operation, "model"):
+                model_kwargs = {}
+            return operation(**invoke_kwargs, **model_kwargs)
         else:
-            return self.client.chat.completions.create(
-                **invoke_kwargs, model=self.model
-            )
+            return self.client.chat.completions.create(**invoke_kwargs, **model_kwargs)
 
     async def async_custom_invoke(
         self,
-        operation: Optional[Callable[..., Awaitable[T]]] = None,
+        operation: Optional[Callable[..., Awaitable[Any]]] = None,
         **invoke_kwargs,
-    ) -> Optional[T]:
+    ) -> Union["ChatCompletion", "BaseModel"]:
         """
         OpenAI-specific implementation of `ModelProvider.async_custom_invoke`.
 
@@ -145,25 +151,33 @@ class OpenAIProvider(ModelProvider):
         `ModelProvider.async_custom_invoke`.
 
         Example:
-            ```python
+        ```python
             result = openai_model_provider.invoke(
                 openai_model_provider.async_client.images.generate,
                 prompt="A futuristic cityscape at sunset",
                 n=1,
                 size="1024x1024",
             )
-            ```
+        ```
+
         :param operation:       Same as ModelProvider.async_custom_invoke.
         :param invoke_kwargs:   Same as ModelProvider.async_custom_invoke.
         :return:                Same as ModelProvider.async_custom_invoke.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
         if operation:
-            return await operation(**invoke_kwargs, model=self.model)
+            if not inspect.iscoroutinefunction(operation):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenAI async_custom_invoke operation must be a coroutine function"
+                )
+            if not accepts_param(operation, "model"):
+                model_kwargs = {}
+            return await operation(**invoke_kwargs, **model_kwargs)
         else:
             return await self.async_client.chat.completions.create(
-                **invoke_kwargs, model=self.model
+                **invoke_kwargs, **model_kwargs
             )
 
     def invoke(
@@ -171,7 +185,7 @@ class OpenAIProvider(ModelProvider):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, T]]:
+    ) -> Union[str, "ChatCompletion"]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
         Invokes an OpenAI model operation using the sync client.
@@ -200,7 +214,7 @@ class OpenAIProvider(ModelProvider):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> str:
+    ) -> Union[str, "ChatCompletion"]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
         Invokes an OpenAI model operation using the async client.

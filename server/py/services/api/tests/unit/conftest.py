@@ -37,6 +37,7 @@ import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 import framework.utils.clients.iguazio.v3
+import framework.utils.clients.iguazio.v4
 import framework.utils.projects.remotes.leader
 import framework.utils.singletons.k8s
 import services.api.crud
@@ -184,11 +185,33 @@ def api_url() -> str:
 @pytest.fixture()
 def iguazio_client(
     request: pytest.FixtureRequest,
-) -> framework.utils.clients.iguazio.v3.Client:
-    if request.param == "async":
-        client = framework.utils.clients.iguazio.v3.AsyncClient()
+):
+    """
+    A parameterized fixture to return either an IG3 or IG4 client (sync or async)
+    based on request parameters.
+
+    Usage:
+        @pytest.mark.parametrize(
+            "iguazio_client",
+            [("v3", "async"), ("v4", "sync")],
+            indirect=True
+        )
+    """
+    version, mode = request.param
+
+    if version == "v3":
+        module = framework.utils.clients.iguazio.v3
+    elif version == "v4":
+        module = framework.utils.clients.iguazio.v4
     else:
-        client = framework.utils.clients.iguazio.v3.Client()
+        raise ValueError(f"Unsupported client version: {version}")
+
+    if mode == "async":
+        client = module.AsyncClient()
+    elif mode == "sync":
+        client = module.Client()
+    else:
+        raise ValueError(f"Unsupported client mode: {mode}")
 
     # force running init again so the configured api url will be used
     client.__init__()

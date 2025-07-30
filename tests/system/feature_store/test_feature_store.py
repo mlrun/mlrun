@@ -3538,7 +3538,7 @@ class TestFeatureStore(TestMLRunSystem):
             },
         }
         headers = {
-            mlrun.common.schemas.HeaderNames.cookie: "session=j:"
+            mlrun.common.schemas.HeaderNames.cookie: f"{mlrun.common.schemas.CookieNames.iguazio}=j:"
             + json.dumps({"sid": os.getenv("V3IO_ACCESS_KEY")})
         }
         response = requests.patch(

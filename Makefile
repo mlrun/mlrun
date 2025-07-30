@@ -525,7 +525,7 @@ DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 # The API (and the common image it inherits from) must *always* be built on
 # Python 3.11, regardless of what the rest of the matrix is doing.
-api: MLRUN_PYTHON_VERSION := 3.11
+api: export MLRUN_PYTHON_VERSION = 3.11
 .PHONY: api
 api: common-image compile-schemas update-version-file ## Build mlrun-api docker image
 	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)

@@ -14,16 +14,13 @@
 
 import dataclasses
 import json
-import re
 from abc import ABC, abstractmethod
 
 from pydantic.v1 import validator
 from pydantic.v1.dataclasses import dataclass
 
-import mlrun.common.helpers
-import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.utils.v3io_clients
+import mlrun.errors
 from mlrun.utils import logger
 
 _RESULT_EXTRA_DATA_MAX_SIZE = 998
@@ -33,10 +30,10 @@ class _ModelMonitoringApplicationDataRes(ABC):
     name: str
 
     def __post_init__(self):
-        pat = re.compile(mm_constants.RESULT_NAME_PATTERN)
-        if not re.fullmatch(pat, self.name):
+        if not mm_constants.RESULT_NAME_REGEX.fullmatch(self.name):
             raise mlrun.errors.MLRunValueError(
-                f"Attribute name must comply with the regex `{mm_constants.RESULT_NAME_PATTERN}`"
+                "The application result or metric name must comply with the regex "
+                f"`{mm_constants.RESULT_NAME_REGEX.pattern}`"
             )
 
     @abstractmethod

@@ -414,6 +414,7 @@ class Pipelines(
         :param original_runner:  The RunObject of the original workflow-runner function.
         :param auth_info:        Caller’s authentication info.
         :param client_version:   Optional SDK version header, to pin the runner image.
+        :param rerun_index:      The index of this retry (e.g. 1 for first retry, 2 for second, etc.).
         :return:                 A WorkflowResponse with:
                                    - project: same project name
                                    - name:    the MLRun function name for the rerun
@@ -451,13 +452,18 @@ class Pipelines(
         original_runner_notifications = (
             original_runner.spec.notifications.to_dict()
             if original_runner.spec.notifications
-            else None
+            else []
         )
+
+        rerun_notifications = [
+            self._augment_notification_for_retry(n, rerun_index)
+            for n in original_runner_notifications
+        ]
 
         rerun_request = mlrun.common.schemas.RerunWorkflowRequest(
             run_name=run_name,
             run_id=run_id,
-            notifications=original_runner_notifications,
+            notifications=rerun_notifications,
             workflow_runner_node_selector=original_runner.spec.node_selector,
             original_workflow_runner_uid=original_runner.metadata.uid,
             original_workflow_name=original_runner.spec.parameters["workflow_name"],
@@ -821,3 +827,15 @@ class Pipelines(
             return False
 
         return list(filter(filter_by, runs))
+
+    @staticmethod
+    def _augment_notification_for_retry(
+        notification: dict[str, typing.Any], rerun_index: int
+    ) -> dict[str, typing.Any]:
+        """
+        Return a new notification dict with its `name` suffixed by "– Retry #<idx>".
+        """
+        return {
+            **notification,
+            "name": f"{notification.get('name','')} – Retry #{rerun_index}",
+        }

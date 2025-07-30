@@ -24,6 +24,7 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.utils
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.model_monitoring.applications import (
@@ -303,7 +304,7 @@ def test_window_generator_validation(
                 application_schedules=None,
                 endpoint_id="",
                 application_name="",
-                allow_unordered_data=False,
+                fail_on_overlap=True,
             )
         )
 
@@ -377,7 +378,7 @@ def test_windows(
                 application_schedules=None,
                 endpoint_id="",
                 application_name="",
-                allow_unordered_data=False,
+                fail_on_overlap=True,
             )
         )
         == expected_windows
@@ -549,3 +550,146 @@ def test_handle_endpoints_type_evaluate_error(
         ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
             project, endpoints
         )
+
+
+@pytest.mark.parametrize(
+    (
+        "class_name",
+        "func_name",
+        "class_handler",
+        "handler_to_class",
+        "expectation",
+        "expected_log",
+    ),
+    [
+        (
+            "App1",
+            None,
+            None,
+            "App1::_handler",
+            does_not_raise("app1-batch"),
+            True,
+        ),
+        (
+            "App1",
+            None,
+            "remote_module.AppClass",
+            "remote_module.AppClass::_handler",
+            does_not_raise("appclass-batch"),
+            True,
+        ),
+        (
+            "App1",
+            "keep-my-batch",
+            None,
+            "AppClass::_handler",
+            does_not_raise("keep-my-batch"),
+            False,
+        ),
+        (
+            "App",
+            " app with space",
+            None,
+            None,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The function name does not comply with the required pattern",
+            ),
+            False,
+        ),
+    ],
+)
+@patch("mlrun.utils.logger", spec=mlrun.utils.Logger)
+def test_determine_job_name(
+    logger: Mock,
+    class_name: str,
+    func_name: Optional[str],
+    class_handler: Optional[str],
+    handler_to_class: str,
+    expectation: AbstractContextManager,
+    expected_log: bool,
+) -> None:
+    app_class = type(class_name, (ModelMonitoringApplicationBase,), {})
+    with expectation as expected_result:
+        assert (
+            app_class._determine_job_name(
+                func_name=func_name,
+                class_handler=class_handler,
+                handler_to_class=handler_to_class,
+            )
+            == expected_result
+        )
+    if expected_log:
+        logger.info.assert_called_once()
+    else:
+        logger.info.assert_not_called()
+
+
+@pytest.fixture
+def run_context() -> mlrun.MLClientCtx:
+    return mlrun.MLClientCtx.from_dict(
+        {
+            "kind": "run",
+            "metadata": {
+                "annotations": {},
+                "iteration": 0,
+                "labels": {
+                    "host": "M-K",
+                    "kind": "local",
+                    "owner": "admin",
+                    "v3io_user": "admin",
+                },
+                "name": "take-my-name-hold-my-hand--handler",
+                "project": "mm-job-mep-data",
+                "uid": "c8da9e6d9d9447b48109a29adb4bd4c2",
+            },
+            "spec": {
+                "affinity": {},
+                "data_stores": [],
+                "function": "mm-job-mep-data/take-my-name-hold-my-hand@588be7f7fb3dcab77e59c5f3003056f90fa2b55b",
+                "handler": "Some_application::_handler",
+                "hyper_param_options": {},
+                "hyperparams": {},
+                "inputs": {},
+                "log_level": "info",
+                "node_selector": {},
+                "notifications": [],
+                "output_path": "v3io:///projects/mm-job-mep-data/artifacts",
+                "outputs": [],
+                "parameters": {
+                    "application_name": "take-my-name-hold-my_hand",
+                    "base_period": None,
+                    "end": "2025-07-27T10:01:36.665785+00:00",
+                    "endpoints": ["classifier-0"],
+                    "fail_on_overlap": True,
+                    "start": "2025-07-27T10:00:31.527024+00:00",
+                    "stream_profile": None,
+                    "write_output": False,
+                },
+                "retry": {},
+                "state_thresholds": {
+                    "executing": "24h",
+                    "image_pull_backoff": "1h",
+                    "pending_not_scheduled": "-1",
+                    "pending_scheduled": "1h",
+                },
+                "tolerations": {},
+            },
+            "status": {
+                "artifact_uris": {},
+                "last_update": "2025-07-27T15:31:38.482028+00:00",
+                "results": {},
+                "retries": [],
+                "retry_count": None,
+                "start_time": "2025-07-27T15:31:38.482028+00:00",
+                "state": "running",
+            },
+        }
+    )
+
+
+def test_get_application_name(run_context: mlrun.MLClientCtx) -> None:
+    assert (
+        ModelMonitoringApplicationBase._get_application_name(run_context)
+        == "take-my-name-hold-my-hand"
+    ), "The application name is different than expected"

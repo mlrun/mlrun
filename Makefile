@@ -488,6 +488,9 @@ COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).stamp
 COMMON_DOCKER_ARGS   := --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION)
 COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
 
+common-image-3.11:
+	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.11
+
 # --- Build (cached) ----------------------------------------------------------
 ifeq ($(strip $(MLRUN_NO_CACHE)),)
 common-image: $(COMMON_STAMP)
@@ -525,9 +528,8 @@ DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 # The API (and the common image it inherits from) must *always* be built on
 # Python 3.11, regardless of what the rest of the matrix is doing.
-api: export MLRUN_PYTHON_VERSION = 3.11
 .PHONY: api
-api: common-image compile-schemas update-version-file ## Build mlrun-api docker image
+api: common-image-3.11 compile-schemas update-version-file ## Build mlrun-api docker image
 	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \

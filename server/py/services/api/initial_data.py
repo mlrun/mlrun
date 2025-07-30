@@ -85,7 +85,6 @@ def init_data(
             perform_migrations_if_needed,
         )
 
-
     mlrun.utils.logger.info("Initial data created")
 
 
@@ -292,6 +291,7 @@ def _add_initial_data(db_session: sqlalchemy.orm.Session):
     _add_data_version(db, db_session)
     # initialize system id
     framework.db.session.run_function_with_new_db_session(func=_init_system_id)
+
 
 def _add_default_hub_source_if_needed(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session

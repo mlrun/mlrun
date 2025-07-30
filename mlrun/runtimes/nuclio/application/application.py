@@ -289,11 +289,12 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
         if ports:
-            logger.info(
-                f"Setting internal application port to the first port from the sidecar: {ports[0]}. "
-                f"If this is not intended, please set the internal_application_port explicitly."
-            )
-            self.spec.internal_application_port = ports[0]
+            if self.spec.internal_application_port != ports[0]:
+                logger.info(
+                    f"Setting internal application port to the first port from the sidecar: {ports[0]}. "
+                    f"If this is not intended, please set the internal_application_port explicitly."
+                )
+                self.spec.internal_application_port = ports[0]
             self.spec.application_ports = ports
 
     def pre_deploy_validation(self):

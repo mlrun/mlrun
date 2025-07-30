@@ -142,6 +142,7 @@ class MonitoringPreProcessor(storey.MapClass):
                          * If result is a matrix, returns a list of lists.
 
         :raises ValueError: If the values include a mix of scalars and lists, or if the list lengths do not match.
+                mlrun.MLRunInvalidArgumentError if the schema keys are not contained in the data keys.
         """
         new_schema = None
         # Normalize schema to list
@@ -156,7 +157,7 @@ class MonitoringPreProcessor(storey.MapClass):
         values = [data[key] for key in keys if key in data]
         if len(values) != len(keys):
             raise mlrun.MLRunInvalidArgumentError(
-                f"Schema keys {keys} do not match the data keys {list(data.keys())}."
+                f"Schema keys {keys} are not contained in the data keys {list(data.keys())}."
             )
 
         # Detect if all are scalars ie: int,float,str

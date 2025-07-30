@@ -1653,6 +1653,7 @@ class ModelRunnerStep(MonitoredStep):
                 raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
 
         outputs = outputs or self._get_model_output_schema(model_artifact)
+        inputs = inputs or self._get_model_input_schema(model_artifact)
 
         model_artifact = (
             model_artifact.uri
@@ -1735,12 +1736,29 @@ class ModelRunnerStep(MonitoredStep):
             return [feature.name for feature in _model_artifact.spec.outputs]
 
     @staticmethod
-    def _get_model_endpoint_output_schema(
+    def _get_model_input_schema(
+        model_artifact: Union[ModelArtifact, LLMPromptArtifact],
+    ) -> Optional[list[str]]:
+        if isinstance(
+            model_artifact,
+            ModelArtifact,
+        ):
+            return [feature.name for feature in model_artifact.spec.inputs]
+        elif isinstance(
+            model_artifact,
+            LLMPromptArtifact,
+        ):
+            _model_artifact = model_artifact.model_artifact
+            return [feature.name for feature in _model_artifact.spec.inputs]
+
+    @staticmethod
+    def _get_model_endpoint_schema(
         name: str,
         project: str,
         uid: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         output_schema = None
+        input_schema = None
         try:
             model_endpoint: mlrun.common.schemas.model_monitoring.ModelEndpoint = (
                 mlrun.db.get_run_db().get_model_endpoint(
@@ -1751,6 +1769,7 @@ class ModelRunnerStep(MonitoredStep):
                 )
             )
             output_schema = model_endpoint.spec.label_names
+            input_schema = model_endpoint.spec.feature_names
         except (
             mlrun.errors.MLRunNotFoundError,
             mlrun.errors.MLRunInvalidArgumentError,
@@ -1759,7 +1778,7 @@ class ModelRunnerStep(MonitoredStep):
                 f"Model endpoint not found, using default output schema for model {name}",
                 error=f"{type(ex).__name__}: {ex}",
             )
-        return output_schema
+        return input_schema, output_schema
 
     def _calculate_monitoring_data(self) -> dict[str, dict[str, str]]:
         monitoring_data = deepcopy(
@@ -1774,6 +1793,36 @@ class ModelRunnerStep(MonitoredStep):
                 )
                 monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = split_path(
                     monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
+                )
+
+                mep_output_schema, mep_input_schema = None, None
+
+                output_schema = self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.OUTPUTS]
+                input_schema = self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.INPUTS]
+                if not output_schema or not input_schema:
+                    # if output or input schema is not provided, try to get it from the model endpoint
+                    mep_output_schema, mep_input_schema = (
+                        self._get_model_endpoint_schema(
+                            model,
+                            self.context.project,
+                            monitoring_data[model].get(
+                                schemas.MonitoringData.MODEL_ENDPOINT_UID, ""
+                            ),
+                        )
+                    )
+                self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.OUTPUTS] = (
+                    output_schema or mep_output_schema
+                )
+                self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.INPUTS] = (
+                    input_schema or mep_input_schema
                 )
             return monitoring_data
         else:

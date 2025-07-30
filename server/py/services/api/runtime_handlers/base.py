@@ -1919,7 +1919,7 @@ class BaseRuntimeHandler(ABC):
         Determine if the run should be retried or marked as failed, based on the retry policy and current attempt count.
         """
         retry_spec = run.get("spec", {}).get("retry", {})
-        max_retries = retry_spec.get("count", -1)
+        max_retries = retry_spec.get("count") if retry_spec else -1
         # Run status retry_count may be `None` if the run has never been retried
         retry_count = run.get("status", {}).get("retry_count") or 0
         attempt_number = retry_count + 1

@@ -3948,6 +3948,10 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
+        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+            logger.debug("Partition management not supported for SQLite")
+            return {}, {}, {}
+
         project_to_endpoint_alerts_count = collections.defaultdict(int)
         project_to_job_alerts_count = collections.defaultdict(int)
         project_to_other_alerts_count = collections.defaultdict(int)
@@ -6815,6 +6819,23 @@ class SQLDB(DBInterface):
         :param session: SQLAlchemy session.
         :param table_name: The name of the table with partitions.
         :param cutoff_partition_name: The cutoff partition name for dropping old partitions.
+        """
+        pass
+
+    @staticmethod
+    def get_partition_expression_for_table(
+        session: Session,
+        table_name: str,
+    ) -> str:
+        """
+        Returns partitioning expression for a given table
+        :param session: SQLAlchemy session.
+        :param table_name: Name of the table.
+
+        Output examples:
+        - month(`activation_time`)
+        - dayofmonth(`activation_time`)
+        - yearweek(`activation_time`, 1)
         """
         pass
 

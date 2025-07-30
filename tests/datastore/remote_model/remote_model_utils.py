@@ -24,7 +24,7 @@ from mlrun.serving.states import LLModel  # noqa
 
 INPUT_DATA = [
     {
-        "question": "What is the capital of France, and give a historical overview.",
+        "question": "What is the capital of France? Answer with one word first, then provide a historical overview.",
         "depth_level": "detailed",
         "persona": "teacher",
         "tone": "casual",
@@ -78,12 +78,14 @@ def setup_remote_model_test(
     execution_mechanism="naive",
     image=None,
     requirements=None,
-    model_class="LLModel",
+    requirements_file=None,
+    model_class: str = "LLModel",
+    default_config: Optional[dict] = None,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
         model_url=model_url,
-        default_config={"max_tokens": 100},
+        default_config=default_config,
     )
     llm_prompt_artifact = project.log_llm_prompt(
         "my_llm_prompt",
@@ -104,6 +106,7 @@ def setup_remote_model_test(
         filename=__file__,
         image=image,
         requirements=requirements,
+        requirements_file=requirements_file,
     )
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")

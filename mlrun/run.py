@@ -1184,11 +1184,13 @@ def get_model_provider(
     raise_missing_schema_exception=True,
 ) -> ModelProvider:
     """get mlrun dataitem object (from path/url)"""
-    store_manager.set(secrets, db=db)
+    #  without caching secrets
+    store_manager.set(db=db)
     return store_manager.model_provider_object(
         url=url,
         default_invoke_kwargs=default_invoke_kwargs,
         raise_missing_schema_exception=raise_missing_schema_exception,
+        secrets=secrets,
     )
 
 

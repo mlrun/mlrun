@@ -196,15 +196,19 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
-            fn, ready = services.api.utils.functions.build_function(
+            fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=fn,
+                project=self.project,
+                name=fn.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
             logger.debug(
                 "Submitted the stream deployment",
                 stream_data=fn.to_dict(),
-                stream_ready=ready,
             )
 
     def deploy_model_monitoring_controller(
@@ -253,15 +257,19 @@ class MonitoringDeployment:
                     interval=f"{self._get_trigger_frequency(base_period)}m"
                 ),
             )
-            fn, ready = services.api.utils.functions.build_function(
+            fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=fn,
+                project=self.project,
+                name=fn.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
             logger.debug(
                 "Submitted the controller deployment",
                 controller_data=fn.to_dict(),
-                controller_ready=ready,
             )
 
     def deploy_model_monitoring_writer_application(
@@ -287,15 +295,19 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_writer_function(
                 writer_image=writer_image
             )
-            fn, ready = services.api.utils.functions.build_function(
+            fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=fn,
+                project=self.project,
+                name=fn.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
             logger.debug(
                 "Submitted the writer deployment",
                 writer_data=fn.to_dict(),
-                writer_ready=ready,
             )
 
     def apply_and_create_stream_trigger(
@@ -786,16 +798,20 @@ class MonitoringDeployment:
                 mm_constants.ModelMonitoringAppLabel.VAL,
             )
 
-            fn, ready = services.api.utils.functions.build_function(
+            fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=func,
+                project=self.project,
+                name=func.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
 
             logger.debug(
                 "Submitted the histogram data drift app deployment",
                 app_data=fn.to_dict(),
-                app_ready=ready,
             )
 
     def _create_tsdb_tables(

@@ -170,7 +170,7 @@ class ApplicationSpec(NuclioSpec):
         # Validate and normalize
         cleaned_ports = []
         for port in ports:
-            is_valid_port(port)
+            is_valid_port(port, raise_on_error=True)
             if port != self.internal_application_port:
                 cleaned_ports.append(port)
 
@@ -183,8 +183,7 @@ class ApplicationSpec(NuclioSpec):
     @internal_application_port.setter
     def internal_application_port(self, port):
         port = int(port)
-        if port < 0 or port > 65535:
-            raise ValueError("Port must be in the range 0-65535")
+        is_valid_port(port, raise_on_error=True)
         self._internal_application_port = port
 
         # when setting new internal application port, ensure that it is included in the application ports

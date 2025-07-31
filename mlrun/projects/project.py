@@ -2698,16 +2698,16 @@ class MlrunProject(ModelObj):
         | Creating a function with non project source is done by specifying a module ``handler`` and on the
          returned function set the source with ``function.with_source_archive(<source>)``.
 
-        Support URL prefixes:
+        Supported URL prefixes:
 
-            | Object (s3://, v3io://, ..)
-            | MLRun DB e.g. db://project/func:ver
-            | Functions hub/market: e.g. hub://auto-trainer:master
+            - Object: s3://, v3io://, etc.
+            - MLRun DB: e.g db://project/func:ver
+            - Function hub/market: e.g. hub://auto-trainer:master
 
         Examples::
 
             proj.set_function(func_object)
-            proj.set_function("http://.../mynb.ipynb", "train")
+            proj.set_function("http://.../mynb.ipynb", "train", kind="job", image="mlrun/mlrun")
             proj.set_function("./func.yaml")
             proj.set_function("hub://get_toy_data", "getdata")
 

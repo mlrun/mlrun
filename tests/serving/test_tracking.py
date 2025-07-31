@@ -1101,3 +1101,54 @@ def test_transpose_by_key_with_str():
     ]
     assert result == expected_result
     assert new_schema == ["Price", "Product", "Stock", "extra", "time"]
+
+
+def test_negative_schema_with_dict_model(rundb_mock):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="DictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="my_dict_model",
+        input_path="inputs.my_dict_model",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"],
+        raise_error=False,
+    )
+    graph.to(model_runner_step).respond()
+
+    function.set_tracking("dummy://", enable_tracking=True)
+    server = function.to_mock_server()
+    # bad key right length
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": 1, "f2": 2, "f3": 3, "f4": 4},
+            }
+        },
+    )
+    # missing keys
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": 1, "f1": 2, "f2": 3},
+            }
+        },
+    )
+    # wrong lengthes
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": [1, 2], "f1": 2, "f2": 3, "f4": 4},
+            }
+        },
+    )
+
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 0, "expected stream to get zero messages"

@@ -397,7 +397,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             "id"
         )
         feature_names = event.get("request", {}).get("input_schema")
-        labels_names = event.get("request", {}).get("output_schema")
+        labels_names = event.get("resp", {}).get("output_schema")
         latency = event.get("microsec")
         features = event.get("request", {}).get("inputs")
         predictions = event.get("resp", {}).get("outputs")

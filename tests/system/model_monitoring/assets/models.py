@@ -174,8 +174,8 @@ class MyModel(mlrun.serving.Model):
 
 
 class MyDictModel(mlrun.serving.Model):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, artifact_uri: str, **kwargs):
+        super().__init__(*args, artifact_uri=artifact_uri, **kwargs)
         self.model = None
 
     def get_model(self, suffix=""):
@@ -212,9 +212,6 @@ class MyDictModel(mlrun.serving.Model):
             model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
                 self.artifact_uri, suffix
             )
-            if self.model_spec and self.model_spec.parameters:
-                for key, value in self.model_spec.parameters.items():
-                    self._params[key] = value
             return model_file, extra_dataitems
         return None, None
 
@@ -225,26 +222,10 @@ class MyDictModel(mlrun.serving.Model):
 
     def predict(self, body: dict, **kwargs) -> dict:
         """Generate model predictions from sample."""
-        if "inputs" in body and isinstance(body["inputs"], dict):
-            feats = np.asarray(body["inputs"].values())
+        if "dict_inputs" in body and isinstance(body["dict_inputs"], dict):
+            feats = np.asarray([list(body["dict_inputs"].values())])
         else:
-            feats = np.asarray(body["inputs"])
+            feats = np.asarray(body["dict_inputs"])
         result: np.ndarray = self.model.predict(feats)
-        body["outputs"] = {"label": result.tolist()}
-        return body
-
-
-class SimpleDictModel(mlrun.serving.Model):
-    """
-    A simple model that returns the input as output.
-    This is used for testing purposes.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def predict(self, body, **kwargs):
-        body["outputs"] = {}
-        for key, value in body["inputs"][self.name].items():
-            body["outputs"][f"out_{key}"] = value
+        body["dict_outputs"] = {"label": result.tolist()}
         return body

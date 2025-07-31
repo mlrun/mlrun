@@ -168,8 +168,23 @@ def set_environment(
 
 
 def get_current_project(silent: bool = False) -> Optional[MlrunProject]:
-    project_from_env = environ.get(MLRUN_ACTIVE_PROJECT, None)
-    project = pipeline_context.project or project_from_env
+    if pipeline_context.project:
+        return pipeline_context.project
+
+    project_name = environ.get(MLRUN_ACTIVE_PROJECT, None)
+    if not project_name:
+        if not silent:
+            raise MLRunInvalidArgumentError(
+                "No current project is initialized. Use new, get or load project functions first."
+            )
+        return None
+
+    project = load_project(
+        name=project_name,
+        url=project_name,
+        save=False,
+        sync_functions=False)
+
     if not project and not silent:
         raise MLRunInvalidArgumentError(
             "No current project is initialized. Use new, get or load project functions first."

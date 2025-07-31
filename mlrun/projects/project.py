@@ -2707,7 +2707,7 @@ class MlrunProject(ModelObj):
          returned function set the source with ``function.with_source_archive(<source>)``.
 
         Supported URL prefixes:
-        
+
         - Object: s3://, v3io://, etc.
         - MLRun DB: e.g db://project/func:ver
         - Function hub/market: e.g. hub://auto-trainer:master
@@ -2764,7 +2764,7 @@ class MlrunProject(ModelObj):
                           - databricks: run code on Databricks cluster (python scripts, Spark etc.)
                           - application: run a long living application (e.g. a web server, UI, etc.)
                           - handler: execute a python handler (used automatically in notebooks or for debug)
-                                    
+
         :param image:               Docker image to be used, can also be specified in the function object/yaml
         :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in

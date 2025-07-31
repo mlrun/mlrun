@@ -1154,11 +1154,5 @@ def bootstrap_partitions(
         )
 
 
-def get_partitioned_table_names():
-    return [
-        AlertActivation.__tablename__,
-    ]
-
-
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

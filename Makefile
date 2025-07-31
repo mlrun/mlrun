@@ -752,22 +752,6 @@ run-api: api ## Run mlrun api (dockerized)
 		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
-.PHONY: run-test-db
-run-test-db:
-	# clean up any previous test db container. Don't remove it after run to be able to debug failures
-	docker rm test-db --force || true
-	docker run \
-		--name=test-db \
-		--volume $(shell pwd):/mlrun \
-		--publish 3306:3306 \
-		--env MYSQL_ROOT_PASSWORD="" \
-		--env MYSQL_ALLOW_EMPTY_PASSWORD="true" \
-		--env MYSQL_ROOT_HOST=% \
-		--env MYSQL_DATABASE="mlrun" \
-		--detach \
-		gcr.io/iguazio/mlrun-mysql:8.0 \
-		--character-set-server=utf8 \
-		--collation-server=utf8_bin
 
 .PHONY: clean-html-docs
 clean-html-docs: ## Clean html docs

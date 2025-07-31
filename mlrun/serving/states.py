@@ -1206,7 +1206,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
 class LLModel(Model):
     def __init__(
-        self, name: str, input_path: Optional[Union[str, list[str]]], **kwargs
+        self, name: str, input_path: Optional[Union[str, list[str]]] = None, **kwargs
     ):
         super().__init__(name, **kwargs)
         self._input_path = split_path(input_path)

@@ -157,6 +157,16 @@ class BaseLauncher(abc.ABC):
         ]:
             mlrun.utils.helpers.warn_on_deprecated_image(image)
 
+        # Raise an error if retry is configured for a runtime that doesn't support retries
+        if (
+            run.spec.retry.count
+            and runtime.kind not in mlrun.runtimes.RuntimeKinds.retriable_runtimes()
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Retry is not supported for {runtime.kind} runtime, supported runtimes are: "
+                f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"
+            )
+
     @staticmethod
     def _validate_output_path(
         runtime: "mlrun.runtimes.BaseRuntime",

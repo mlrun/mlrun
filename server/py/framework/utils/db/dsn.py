@@ -125,7 +125,7 @@ class Dsn:
             return False
         if not self.host or not self._HOST_REGEX.fullmatch(self.host):
             return False
-        if mlrun.utils.helpers.is_valid_port(self.port):
+        if not mlrun.utils.helpers.is_valid_port(self.port):
             return False
         return True
 

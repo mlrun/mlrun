@@ -183,7 +183,8 @@ def get_current_project(silent: bool = False) -> Optional[MlrunProject]:
         name=project_name,
         url=project_name,
         save=False,
-        sync_functions=False)
+        sync_functions=False,
+    )
 
     if not project and not silent:
         raise MLRunInvalidArgumentError(

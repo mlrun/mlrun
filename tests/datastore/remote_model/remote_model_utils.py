@@ -18,7 +18,10 @@ from typing import Any, Optional
 import mlrun
 import mlrun.artifacts
 import mlrun.serving
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+)
 from mlrun.serving import ModelRunnerStep
 from mlrun.serving.states import LLModel  # noqa
 
@@ -155,7 +158,7 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
                 timed(
                     self.model_provider.async_invoke(
                         messages=[message],
-                        as_str=True,
+                        invoke_response_format=InvokeResponseFormat.STRING,
                         **(model_configuration or {}),
                     )
                 )

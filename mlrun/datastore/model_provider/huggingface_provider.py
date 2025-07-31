@@ -15,7 +15,10 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import mlrun
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+)
 
 if TYPE_CHECKING:
     from transformers.pipelines.base import Pipeline
@@ -68,7 +71,10 @@ class HuggingFaceProvider(ModelProvider):
         """
         if not isinstance(result, list) or len(result) == 0:
             raise ValueError("Empty or invalid pipeline output")
-
+        if len(result) != 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "HuggingFaceProvider: extracting string from response is only supported for single-response outputs"
+            )
         return result[0].get("generated_text")
 
     @classmethod
@@ -78,6 +84,55 @@ class HuggingFaceProvider(ModelProvider):
             # In HuggingFace, "/" in a model name is part of the name — `subpath` is not used.
             subpath = ""
         return endpoint, subpath
+
+    def _invoke_handler(
+        self,
+        response: Union[str, list],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        messages: Union[str, list[str], "ChatType", list["ChatType"]] = None,
+        **kwargs,
+    ) -> Union[str, list, dict[str, Any]]:
+        """
+        Expected to ge the response after using return_full_text = False.
+
+        :param messages:
+        :param response:
+        :param invoke_response_format:
+        :param kwargs:
+        :return:
+        """
+        if InvokeResponseFormat.is_str_response(invoke_response_format.value):
+            str_response = self._extract_string_output(response)
+            if invoke_response_format == InvokeResponseFormat.STRING:
+                return str_response
+            if invoke_response_format == InvokeResponseFormat.STATS:
+                tokenizer = self.client.tokenizer
+                if not isinstance(messages, str):
+                    try:
+                        messages = tokenizer.apply_chat_template(
+                            messages, tokenize=False, add_generation_prompt=True
+                        )
+                    except Exception as e:
+                        raise mlrun.errors.MLRunRuntimeError(
+                            f"Failed to apply chat template using the tokenizer for model '{self.model}'. "
+                            "This may indicate that the tokenizer does not support chat formatting, "
+                            "or that the input format is invalid. "
+                            f"Original error: {e}"
+                        )
+                prompt_tokens = len(
+                    tokenizer.encode(messages, add_special_tokens=False)
+                )
+                completion_tokens = len(
+                    tokenizer.encode(str_response, add_special_tokens=False)
+                )
+                total_tokens = prompt_tokens + completion_tokens
+                stats = {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                }
+                response = {"str_response": str_response, "stats": stats}
+        return response
 
     def load_client(self) -> None:
         """
@@ -149,9 +204,9 @@ class HuggingFaceProvider(ModelProvider):
     def invoke(
         self,
         messages: Union[str, list[str], "ChatType", list["ChatType"]] = None,
-        as_str: bool = False,
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, list]:
+    ) -> Union[str, list, dict[str, Any]]:
         """
         HuggingFace-specific implementation of `ModelProvider.invoke`.
         Invokes a HuggingFace model operation using the synchronous client.
@@ -174,9 +229,12 @@ class HuggingFaceProvider(ModelProvider):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "HuggingFaceProvider.invoke supports text-generation task only"
             )
-        if as_str:
+        if InvokeResponseFormat.is_str_response(invoke_response_format.value):
             invoke_kwargs["return_full_text"] = False
         response = self.custom_invoke(text_inputs=messages, **invoke_kwargs)
-        if as_str:
-            return self._extract_string_output(response)
+        response = self._invoke_handler(
+            messages=messages,
+            response=response,
+            invoke_response_format=invoke_response_format,
+        )
         return response

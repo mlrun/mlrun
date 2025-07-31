@@ -16,7 +16,10 @@ from collections.abc import Awaitable
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import mlrun
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+)
 from mlrun.datastore.utils import accepts_param
 
 if TYPE_CHECKING:
@@ -73,43 +76,6 @@ class OpenAIProvider(ModelProvider):
             except ImportError as exc:
                 raise ImportError("openai package is not installed") from exc
             cls.response_class = ChatCompletion
-
-    @classmethod
-    def get_output_with_tokens_metrics(
-        cls, response: Union["ChatCompletion", dict]
-    ) -> (str, dict):
-        cls._import_response_class()
-        if not isinstance(response, (cls.response_class, dict)):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"OpenaiProvider.get_output_with_tokens_metrics expect"
-                f" {cls.response_class.__name__} or dictionary response types"
-            )
-
-        if isinstance(response, cls.response_class):
-            if len(response.choices) != 1:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "OpenaiProvider.get_output_with_tokens_metrics expects a single choice in order to calculate stats"
-                )
-            usage = response.usage
-            token_stats = {
-                "completion_tokens": usage.completion_tokens,
-                "prompt_tokens": usage.prompt_tokens,
-                "total_tokens": usage.total_tokens,
-            }
-
-            output = response.choices[0].message.content
-        else:
-            if len(response["choices"]) != 1:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "OpenaiProvider.get_output_with_tokens_metrics expects a single choice in order to calculate stats"
-                )
-            output = response["choices"][0]["message"]["content"]
-            usage = response.get("usage")
-            token_stats = {
-                k: usage[k]
-                for k in ("completion_tokens", "prompt_tokens", "total_tokens")
-            }
-        return output, token_stats
 
     @classmethod
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
@@ -227,12 +193,31 @@ class OpenAIProvider(ModelProvider):
                 **invoke_kwargs, **model_kwargs
             )
 
+    def _invoke_handler(
+        self,
+        response: "ChatCompletion",
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **kwargs,
+    ) -> ["ChatCompletion", str, dict[str, Any]]:
+        if InvokeResponseFormat.is_str_response(invoke_response_format.value):
+            if len(response.choices) != 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenAIProvider.invoke: STATS and STRING modes support single-response outputs only"
+                )
+            str_response = response.choices[0].message.content
+            if invoke_response_format == InvokeResponseFormat.STRING:
+                return str_response
+            if invoke_response_format == InvokeResponseFormat.STATS:
+                response = response.to_dict()
+                response = {"str_response": str_response, "stats": response}
+        return response
+
     def invoke(
         self,
         messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, "ChatCompletion"]:
+    ) -> Union[dict[str, Any], str, "ChatCompletion"]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
         Invokes an OpenAI model operation using the sync client.
@@ -240,11 +225,11 @@ class OpenAIProvider(ModelProvider):
 
         :param messages:    Same as ModelProvider.invoke.
 
-        :param as_str: bool
-                            If `True`, returns only the main content of the first response
-                            (`response.choices[0].message.content`).
-                            If `False`, returns the full response object, whose type depends on
-                            the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
+        :param invoke_response_format: str
+                            Same as ModelProvider.invoke.
+                            string responses will be generated from the first response.
+                            full response
+
 
         :param invoke_kwargs:
                             Same as ModelProvider.invoke.
@@ -252,16 +237,18 @@ class OpenAIProvider(ModelProvider):
 
         """
         response = self.custom_invoke(messages=messages, **invoke_kwargs)
-        if as_str:
-            return response.choices[0].message.content
-        return response
+        return self._invoke_handler(
+            messages=messages,
+            invoke_response_format=invoke_response_format,
+            response=response,
+        )
 
     async def async_invoke(
         self,
         messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, "ChatCompletion"]:
+    ) -> Union[str, "ChatCompletion", dict]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
         Invokes an OpenAI model operation using the async client.
@@ -281,6 +268,8 @@ class OpenAIProvider(ModelProvider):
 
         """
         response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
-        if as_str:
-            return response.choices[0].message.content
-        return response
+        return self._invoke_handler(
+            messages=messages,
+            invoke_response_format=invoke_response_format,
+            response=response,
+        )

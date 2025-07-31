@@ -12,12 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Awaitable
+from enum import Enum
 from typing import Any, Callable, Optional, Union
 
 import mlrun.errors
 from mlrun.datastore.remote_client import (
     BaseRemoteClient,
 )
+
+
+class InvokeResponseFormat(Enum):
+    STRING = "string"
+    STATS = "stats"
+    FULL = "full"
+
+    @classmethod
+    def is_str_response(cls, invoke_response_format: str) -> bool:
+        """
+        Returns True if the response key corresponds to a string-based response (not a full generation object).
+        """
+        return invoke_response_format in {
+            cls.STATS.value,
+            cls.STRING.value,
+        }
 
 
 class ModelProvider(BaseRemoteClient):
@@ -59,6 +76,14 @@ class ModelProvider(BaseRemoteClient):
     @classmethod
     def get_output_with_tokens_metrics(cls, response: Any) -> (str, dict):
         return None, {}
+
+    def _invoke_handler(
+        self,
+        response: Any,
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **kwargs,
+    ) -> Union[str, dict, Any]:
+        return None
 
     def get_client_options(self) -> dict:
         """
@@ -138,7 +163,7 @@ class ModelProvider(BaseRemoteClient):
     def invoke(
         self,
         messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, Any]:
         """
@@ -149,36 +174,39 @@ class ModelProvider(BaseRemoteClient):
         response can be returned as plain text or in its full structured format, depending
         on the `as_str` parameter.
 
-        :param messages:    A list of dictionaries representing the conversation history or input messages.
-                            Each dictionary should follow the format::
-                            {"role": "system"| "user" | "assistant" ..., "content": "Message content as a string"}
-                            Example:
+                :param messages:    A list of dictionaries representing the conversation history or input messages.
+                                    Each dictionary should follow the format::
+                                    {"role": "system"| "user" | "assistant" ..., "content":
+                                     "Message content as a string"}
+                                    Example:
 
-                            .. code-block:: json
+                                    .. code-block:: json
 
-                                [
-                                    {"role": "system", "content": "You are a helpful assistant."},
-                                    {"role": "user", "content": "What is the capital of France?"}
-                                ]
+                                        [
+                                            {"role": "system", "content": "You are a helpful assistant."},
+                                            {"role": "user", "content": "What is the capital of France?"}
+                                        ]
 
-                            This format is consistent across all backends. Defaults to None if no messages
-                            are provided.
+                                    This format is consistent across all backends. Defaults to None if no messages
+                                    are provided.
 
-        :param as_str:      A boolean flag indicating whether to return the response as a plain string.
-                            - If True, the function extracts and returns the main content of the first
-                            response.
-                            - If False, the function returns the full response object,
-                            which may include additional metadata or multiple response options.
-                            Defaults to False.
+        :param invoke_response_format:
+                                    Determine whether the response type should be treated as a string-like output,
+                                    dictionary or full structured response.
+
+                                    - STRING: Returns only the generated text content from the model output,
+                                              for single-answer responses only.
+                                    - STATS:  Combines the STRING response with additional metadata (e.g. token usage),
+                                              and returns the result in a dictionary.
+                                    - FULL:   Returns the full model output.
 
         :param invoke_kwargs:
-                            Additional keyword arguments to be passed to the underlying model API call.
-                            These can include parameters such as temperature, max tokens, etc.,
-                            depending on the capabilities of the specific backend being used.
+                                    Additional keyword arguments to be passed to the underlying model API call.
+                                    These can include parameters such as temperature, max tokens, etc.,
+                                    depending on the capabilities of the specific backend being used.
 
-        :return:
-                            - If `as_str` is True: Returns the main content of the first response as a string.
-                            - If `as_str` is False: Returns the full response object.
+        :return:                    The invoke result formatted according to the specified
+                                    invoke_response_format parameter.
 
         """
         raise NotImplementedError("invoke method is not implemented")
@@ -186,7 +214,7 @@ class ModelProvider(BaseRemoteClient):
     async def async_invoke(
         self,
         messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, Any]:
         """Async version of `invoke`. See `invoke` for full documentation."""

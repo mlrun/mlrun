@@ -31,6 +31,7 @@ from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
     register_temporary_client_datastore_profile,
 )
+from mlrun.datastore.model_provider.model_provider import InvokeResponseFormat
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
@@ -124,16 +125,20 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
         if run_async:
-            result = await model_provider.async_invoke(messages=messages, as_str=True)
+            result = await model_provider.async_invoke(
+                messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+            )
         else:
-            result = model_provider.invoke(messages=messages, as_str=True)
+            result = model_provider.invoke(
+                messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+            )
         assert isinstance(result, str)
         assert EXPECTED_RESULTS[0] in result.lower()
 
         encoding = tiktoken.encoding_for_model(model_name)
         token_count = len(encoding.encode(result))
         assert token_count == 100
-        # checking as_str = False
+        # checking invoke_response_format=InvokeResponseFormat.FULL
         if run_async:
             response = await model_provider.async_invoke(
                 messages=messages,
@@ -145,18 +150,30 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 max_tokens=50,
             )
         assert isinstance(response, openai.types.chat.ChatCompletion)
-        completion_tokens = response.usage.completion_tokens
-        total_tokens = response.usage.total_tokens
-        prompt_tokens = response.usage.prompt_tokens
-        output, tokens_stats = model_provider.get_output_with_tokens_metrics(
-            response=response
-        )
+        assert EXPECTED_RESULTS[0] in response.choices[0].message.content.lower()
+        assert response.usage.completion_tokens == 50
 
-        assert EXPECTED_RESULTS[0] in output.lower()
+        if run_async:
+            response = await model_provider.async_invoke(
+                messages=messages,
+                max_tokens=50,
+                invoke_response_format=InvokeResponseFormat.STATS,
+            )
+        else:
+            response = model_provider.invoke(
+                messages=messages,
+                max_tokens=50,
+                invoke_response_format=InvokeResponseFormat.STATS,
+            )
+
+        assert isinstance(response, dict)
+        completion_tokens = response["stats"]["usage"]["completion_tokens"]
+        prompt_tokens = response["stats"]["usage"]["prompt_tokens"]
+        total_tokens = response["stats"]["usage"]["total_tokens"]
+        assert EXPECTED_RESULTS[0] in response["str_response"].lower()
         assert completion_tokens == 50
-        assert tokens_stats["completion_tokens"] == completion_tokens
-        assert tokens_stats["prompt_tokens"] == prompt_tokens
-        assert tokens_stats["total_tokens"] == total_tokens
+        assert prompt_tokens > 0
+        assert total_tokens == prompt_tokens + completion_tokens
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     @pytest.mark.parametrize("run_async", [True, False])
@@ -206,7 +223,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_tokens": 200}
         )
-        result = model_provider.invoke(messages=messages, as_str=True)
+        result = model_provider.invoke(
+            messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+        )
         assert isinstance(result, str)
         result = result.strip()
         assert result

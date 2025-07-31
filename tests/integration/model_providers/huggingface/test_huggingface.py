@@ -29,6 +29,7 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
+from mlrun.datastore.model_provider.model_provider import InvokeResponseFormat
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
@@ -110,7 +111,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         )
         model_provider = cast(HuggingFaceProvider, model_provider)
         assert model_provider.model == model_name
-        result = model_provider.invoke(messages=messages, as_str=True)
+        result = model_provider.invoke(
+            messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+        )
         assert isinstance(result, str)
         assert EXPECTED_RESULTS[0] in result.lower()
         if expected_torch_dtype:
@@ -119,7 +122,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         token_count = len(model_provider.client.tokenizer.encode(result))
         # Extra token is due to the EOS token, which signals end of generation.
         assert token_count in (100, 101)
-        # checking as_str = False
+        # checking invoke_response_format=InvokeResponseFormat.FULL
         response = model_provider.invoke(
             messages=messages,
             max_new_tokens=50,
@@ -132,6 +135,28 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         token_count = len(model_provider.client.tokenizer.encode(result))
         assert assistant_response["role"] == "assistant"
         assert token_count in (50, 51)
+
+        # checking invoke_response_format=InvokeResponseFormat.STATS
+        response = model_provider.invoke(
+            messages=messages,
+            max_new_tokens=50,
+            invoke_response_format=InvokeResponseFormat.STATS,
+        )
+        assert EXPECTED_RESULTS[0] in response["str_response"].lower()
+        assert response["stats"]["completion_tokens"] in (50, 51)
+
+        prompt = model_provider.client.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        prompt_tokens = len(
+            model_provider.client.tokenizer.encode(prompt, add_special_tokens=False)
+        )
+        assert response["stats"]["prompt_tokens"] == prompt_tokens
+        assert (
+            response["stats"]["total_tokens"]
+            == response["stats"]["prompt_tokens"]
+            + response["stats"]["completion_tokens"]
+        )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     def test_basic_invoke(self, cred_mode):
@@ -189,7 +214,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_new_tokens": 200}
         )
-        result = model_provider.invoke(messages=messages, as_str=True)
+        result = model_provider.invoke(
+            messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+        )
         assert isinstance(result, str)
         result = result.strip()
         assert result

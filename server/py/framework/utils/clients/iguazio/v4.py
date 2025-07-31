@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import http
 import typing
+
+import iguazio
 
 import mlrun.common.schemas
 import mlrun.common.types
@@ -26,6 +28,37 @@ _GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
 
 
 class Client(BaseClient):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._client = iguazio.Client(api_url=self._api_url)
+
+    def refresh_access_token(self, token_name: str, token: str) -> str:
+        """
+        Refresh the access token using the Iguazio client.
+
+        :param token_name: Logical name of the token (used for error messages)
+        :param token: The offline token string
+        :return: The new access token
+        :raises mlrun.errors.MLRunUnauthorizedError: If the token is invalid or expired
+        """
+        try:
+            response = self._client.refresh_access_token(token)
+        except Exception as exc:
+            raise mlrun.errors.MLRunUnauthorizedError(
+                f"Failed to refresh access token {token_name}: token is invalid or expired"
+            ) from exc
+
+        access_token = response.get("spec", {}).get("accessToken")
+        if (
+            response.get("status", {}).get("statusCode") != http.HTTPStatus.OK
+            or not access_token
+        ):
+            raise mlrun.errors.MLRunUnauthorizedError(
+                f"Failed to refresh access token {token_name}: token is invalid or expired"
+            )
+
+        return access_token
+
     def _generate_auth_info_from_session_verification_response(
         self,
         response_headers: typing.Mapping[str, typing.Any],

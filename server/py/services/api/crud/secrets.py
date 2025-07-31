@@ -30,6 +30,7 @@ import mlrun.utils.vault
 from mlrun.config import config as mlconf
 from mlrun.utils import logger
 
+import framework.utils.clients.iguazio.v4
 import framework.utils.singletons.k8s
 import services.api
 import services.api.utils.events.events_factory as events_factory
@@ -422,51 +423,122 @@ class Secrets(
         return key.startswith(self.internal_secrets_key_prefix)
 
     def store_secret_tokens(
-        self, secret_tokens: typing.List[mlrun.common.schemas.SecretToken]
+        self,
+        secret_tokens: typing.List[mlrun.common.schemas.SecretToken],
+        authorization: str,
     ):
-        offline_tokens = []
+        """
+        Validate and store offline tokens as Kubernetes secrets.
+
+        Returns a dict indicating which tokens were created, updated, or skipped.
+        """
+        if not secret_tokens:
+            raise mlrun.errors.MLRunInvalidArgumentError("No tokens provided")
+
+        username, user_id = self._extract_user_info_from_access_token(authorization)
+
+        valid_tokens = self._validate_and_decode_offline_tokens(secret_tokens, user_id)
+
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        iguazio_client.refresh_access_tokens(secret_tokens)
+
+        created_tokens, updated_tokens, skipped_tokens = [], [], []
+
+        for token_name, decoded_token in valid_tokens.items():
+            secret_name = self._generate_k8s_secret_name(username, token_name)
+            # TODO: create a new secret if it doesn't exist, or update it if it does use self.secrets_provider.
+
+        return {
+            "created": created_tokens,
+            "updated": updated_tokens,
+            "skipped": skipped_tokens,
+        }
+
+    def _extract_user_info_from_access_token(
+        self, authorization: str
+    ) -> tuple[str, str]:
+        decoded_token = self._decode_access_token(authorization)
+
+        exp = decoded_token.get("exp")
+        sub = decoded_token.get("sub")
+        username = decoded_token.get("preferred_username")
+
+        if not exp or not sub or not username:
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Access token is missing required claims: 'exp', 'sub', or 'preferred_username'"
+            )
+
+        # TODO: validate expiration here? (compare exp to current time)
+
+        return username, sub
+
+    def _decode_access_token(self, authorization: str) -> dict:
+        try:
+            token = authorization.replace(
+                mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer, ""
+            ).strip()
+            return jwt.decode(token, options={"verify_signature": False})
+        except Exception as exc:
+            raise mlrun.errors.MLRunUnauthorizedError("Invalid access token") from exc
+
+    def _validate_and_decode_offline_tokens(
+        self,
+        secret_tokens: typing.List[mlrun.common.schemas.SecretToken],
+        expected_user_id: str,
+    ) -> dict[str, dict]:
         seen_names = set()
+        result = {}
 
-        for secret in secret_tokens:
-            # Token name validation
-            if not secret.name or secret.name in seen_names:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Invalid or duplicate token name '{secret.name}' found in request payload",
-                )
-            seen_names.add(secret.name)
+        for token in secret_tokens:
+            self._validate_token_name(token.name, seen_names)
+            decoded = self._decode_and_verify_offline_token(
+                token.name, token.token, expected_user_id
+            )
+            result[token.name] = decoded
 
-            # JWT decoding
-            try:
-                decoded = jwt.decode(secret.token, options={"verify_signature": False})
-            except Exception:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Invalid or malformed offline token '{secret.name}'",
-                )
+        return result
 
-            # Sub verification
-            token_sub = decoded.get("sub")
-            if token_sub != self._authenticated_user_id:
-                raise mlrun.errors.MLRunAccessDeniedError(
-                    f"Offline token '{secret.name}' does not belong to the authenticated user",
-                )
+    def _validate_token_name(self, token_name: str, seen_names: set):
+        if not token_name or token_name in seen_names:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid or duplicate token name '{token_name}' found in request payload"
+            )
+        seen_names.add(token_name)
 
-            offline_tokens.append(secret.token)
+    def _decode_and_verify_offline_token(
+        self, token_name: str, token: str, expected_user_id: str
+    ) -> dict:
+        decoded = self._decode_offline_token(token_name, token)
 
-            # Validate token
-            try:
-                # TODO: use multiple tokens validation API when available
-                response = self._client.refresh_access_token(secret.token)
-            except Exception as exc:
-                raise mlrun.errors.MLRunUnauthorizedError(
-                    f"Offline token '{secret.name}' is invalid or expired",
-                ) from exc
+        sub = decoded.get("sub")
+        exp = decoded.get("exp")
 
-            if response.get("status", {}).get("statusCode") != 200 or not response.get(
-                "spec", {}
-            ).get("accessToken"):
-                raise mlrun.errors.MLRunUnauthorizedError(
-                    f"Offline token '{secret.name}' is invalid or expired",
-                )
+        if not sub or not exp:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Offline token '{token_name}' is missing required claims (exp/sub)"
+            )
+
+        if sub != expected_user_id:
+            raise mlrun.errors.MLRunAccessDeniedError(
+                f"Offline token '{token_name}' does not belong to the authenticated user"
+            )
+
+        return decoded
+
+    def _decode_offline_token(self, token_name: str, token: str) -> dict:
+        try:
+            return jwt.decode(token, options={"verify_signature": False})
+        except jwt.DecodeError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Failed to decode offline token '{token_name}'"
+            ) from exc
+        except Exception as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected error decoding token '{token_name}'"
+            ) from exc
+
+    def _generate_k8s_secret_name(self, username: str, token_name: str) -> str:
+        return f"mlrun-auth-{username}-{token_name}"
 
     def _resolve_project_secret_key(
         self,

@@ -13,5 +13,6 @@
 # limitations under the License.
 import mlrun
 
+
 def my_func(context, event):
     return mlrun.get_current_project().to_json()

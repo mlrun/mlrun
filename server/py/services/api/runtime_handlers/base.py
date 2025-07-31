@@ -642,7 +642,6 @@ class BaseRuntimeHandler(ABC):
                     "status.reason": reason,
                     "status.status_text": message,
                     "status.last_update": now.isoformat(),
-                    "status.end_time": now.isoformat(),
                 }
                 db.update_run(
                     db_session, updates=run_updates, uid=run_uid, project=project

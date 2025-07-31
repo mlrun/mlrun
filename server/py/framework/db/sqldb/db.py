@@ -19,8 +19,10 @@ import hashlib
 import inspect
 import pathlib
 import re
+import time
 import typing
 import urllib.parse
+from contextlib import nullcontext
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Union
@@ -148,6 +150,10 @@ conflict_messages = [
     "(pymysql.err.IntegrityError) (1062",
     "(pymysql.err.IntegrityError) (1586",
 ]
+
+
+def _next_sleep(prev: float, factor: float = 2.0, max_sleep: float = 5.0) -> float:
+    return min(prev * factor, max_sleep) if prev else 0.05
 
 
 def retry_on_conflict(function):
@@ -3194,52 +3200,86 @@ class SQLDB(DBInterface):
     @staticmethod
     def _delete_table_in_batches(
         session: Session,
-        table: framework.db.sqldb.base.BaseModel,
+        table,
         where_clause,
     ) -> int:
         """
-        Delete rows from a table in batches based on ID ordering.
-        :param session: SQLAlchemy session.
-        :param table: SQLAlchemy ORM model/table to delete from.
-        :param where_clause: SQLAlchemy WHERE clause.
-        :return: Total number of deleted rows.
+        Delete rows from *table* that satisfy *where_clause* in PK-ordered ranges.
+
+        * Retries the current range on MySQL 1205 (lock-wait timeout) or 1213 (deadlock),
+          backing off exponentially inside the function.
+        * Opens its own transaction only if the caller didn't start one, so it can be
+          used from inside existing `with session.begin():` blocks.
         """
-        last_id = 0
-        total_deleted = 0
+        pk = table.id
         batch_size = mlrun.mlconf.httpdb.projects.resource_deletion_batch_size
+        total_deleted = 0
 
-        while True:
-            ids_to_delete = (
-                session.query(table.id)
-                .filter(where_clause, table.id > last_id)
-                .order_by(table.id)
-                .limit(batch_size)
-                .all()
-            )
+        logger.info(
+            "starting_batched_range_delete",
+            table=str(table),
+            batch_size=batch_size,
+        )
 
-            if not ids_to_delete:
-                break
+        outer_cm = nullcontext() if session.in_transaction() else session.begin()
 
-            id_values = [row.id for row in ids_to_delete]
+        with outer_cm:
+            while True:
+                start_id = session.scalar(
+                    select(pk).where(where_clause).order_by(pk).limit(1)
+                )
+                if start_id is None:
+                    break
 
-            delete_stmt = (
-                delete(table)
-                .where(table.id.in_(id_values))
-                .execution_options(synchronize_session=False)
-            )
-            result = session.execute(delete_stmt)
-            session.commit()
+                end_id = start_id + batch_size - 1
+                sleep_secs = 0.0
 
-            last_id = id_values[-1]
-            total_deleted += result.rowcount
+                logger.debug("selected_range", start_id=start_id, end_id=end_id)
 
-            logger.debug(
-                "Deleted batch from table",
-                batch_size=len(id_values),
-                total_deleted=total_deleted,
-                last_id=last_id,
-                table=table,
-            )
+                while True:
+                    try:
+                        with session.begin_nested():
+                            result = session.execute(
+                                delete(table)
+                                .where(where_clause)
+                                .where(pk.between(start_id, end_id))
+                                .execution_options(synchronize_session=False)
+                            )
+                            rows = result.rowcount or 0
+                            total_deleted += rows
+
+                        logger.debug(
+                            "range_deleted",
+                            start_id=start_id,
+                            end_id=end_id,
+                            rows_deleted=rows,
+                            total_deleted=total_deleted,
+                        )
+                        break
+
+                    except sqlalchemy.exc.OperationalError as exc:
+                        # MySQL error codes: 1205 = lock-wait timeout, 1213 = deadlock
+                        mysql_code = getattr(exc.orig, "args", [None])[0]
+                        if mysql_code not in (1205, 1213):
+                            raise
+
+                        session.rollback()
+                        sleep_secs = _next_sleep(sleep_secs)
+                        logger.warning(
+                            "range delete lock contention",
+                            start_id=start_id,
+                            end_id=end_id,
+                            mysql_code=mysql_code,
+                            sleep_seconds=sleep_secs,
+                            total_deleted=total_deleted,
+                        )
+                        time.sleep(sleep_secs)
+
+        logger.info(
+            "finished batched range delete",
+            table=str(table),
+            total_deleted=total_deleted,
+        )
         return total_deleted
 
     def _get_schedule_record(

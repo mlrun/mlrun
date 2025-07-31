@@ -26,6 +26,7 @@ from dateutil import parser
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 from mlrun.artifacts import (
     Artifact,
     DatasetArtifact,
@@ -91,6 +92,9 @@ class MLClientCtx:
         self._autocommit = autocommit
         self._notifications = []
         self._state_thresholds = {}
+        self._retry_spec = {}
+        self._retry_count = None
+        self._retries = []
 
         self._labels = {}
         self._annotations = {}
@@ -432,6 +436,7 @@ class MLClientCtx:
             self._tolerations = spec.get("tolerations", self._tolerations)
             self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
+            self._retry_spec = spec.get("retry", self._retry_spec)
 
         self._init_dbs(rundb)
 
@@ -450,10 +455,11 @@ class MLClientCtx:
         if start:
             start = parser.parse(start) if isinstance(start, str) else start
             self._start_time = start
-        self._state = "running"
+        self._state = mlrun.common.runtimes.constants.RunStates.running
 
         status = attrs.get("status")
-        if include_status and status:
+        retry_configured = self._retry_spec and self._retry_spec.get("count")
+        if (include_status or retry_configured) and status:
             self._results = status.get("results", self._results)
             for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
@@ -462,7 +468,11 @@ class MLClientCtx:
                 )
             for key, uri in status.get("artifact_uris", {}).items():
                 self._artifacts_manager.artifact_uris[key] = uri
-            self._state = status.get("state", self._state)
+            self._retry_count = status.get("retry_count", self._retry_count)
+            self._retries = status.get("retries", self._retries)
+            # if run is a retry, the state needs to move to running
+            if include_status:
+                self._state = status.get("state", self._state)
 
         # No need to store the run for every worker
         if store_run and self.is_logging_worker():
@@ -903,7 +913,7 @@ class MLClientCtx:
     def log_llm_prompt(
         self,
         key,
-        prompt_string: Optional[str] = None,
+        prompt_template: Optional[list[dict]] = None,
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
@@ -927,7 +937,7 @@ class MLClientCtx:
             # Log an inline prompt
             context.log_llm_prompt(
                 key="qa-prompt",
-                prompt_string="Q: {question}",
+                prompt_template=[{"role: "user", "content": "question with {place_holder}"}],
                 model_artifact=model,
                 prompt_legend={"question": "user_input"},
                 model_configuration={"temperature": 0.7, "max_tokens": 128},
@@ -935,10 +945,16 @@ class MLClientCtx:
             )
 
         :param key: Unique name of the artifact.
-        :param prompt_string: Raw prompt text as a string. Cannot be used with `prompt_path`.
+        :param prompt_template: Raw prompt list of dicts -
+         [{"role": "system", "content": "You are a {profession} advisor"},
+         "role": "user", "content": "I need your help with {profession}"]. only "role" and "content" keys allow in any
+         str format (upper/lower case), keys will be modified to lower case.
+         Cannot be used with `prompt_path`.
         :param prompt_path: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
         :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
-               and the value is a description or explanation of what that placeholder represents.
+               and the value is a dictionary holding two keys, "field", "description". "field" points to the field in
+               the event where the value of the place-holder inside the event, if None or not exist will be replaced
+               with the place-holder name. "description" will point to explanation of what that placeholder represents.
                Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param model_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).
@@ -953,10 +969,15 @@ class MLClientCtx:
         :returns: The logged `LLMPromptArtifact` object.
         """
 
+        if not prompt_template and not prompt_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Either 'prompt_template' or 'prompt_path' must be provided"
+            )
+
         llm_prompt = LLMPromptArtifact(
             key=key,
             project=self.project or "",
-            prompt_string=prompt_string,
+            prompt_template=prompt_template,
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             model_artifact=model_artifact,
@@ -1107,13 +1128,13 @@ class MLClientCtx:
         :param completed: Mark run as completed
         """
         # Changing state to completed is allowed only when the execution is in running state
-        if self._state != "running":
+        if self._state != mlrun.common.runtimes.constants.RunStates.running:
             completed = False
 
         if message:
             self._annotations["message"] = message
         if completed:
-            self._state = "completed"
+            self._state = mlrun.common.runtimes.constants.RunStates.completed
 
         if self._parent:
             self._parent.update_child_iterations()
@@ -1147,9 +1168,15 @@ class MLClientCtx:
         updates = {"status.last_update": now_date().isoformat()}
 
         if error is not None:
-            self._state = "error"
+            state = mlrun.common.runtimes.constants.RunStates.error
+            max_retries = self._retry_spec.get("count", 0)
+            self._retry_count = self._retry_count or 0
+            if max_retries and self._retry_count < max_retries:
+                state = mlrun.common.runtimes.constants.RunStates.pending_retry
+
+            self._state = state
             self._error = str(error)
-            updates["status.state"] = "error"
+            updates["status.state"] = state
             updates["status.error"] = error
         elif (
             execution_state
@@ -1241,11 +1268,14 @@ class MLClientCtx:
                 "node_selector": self._node_selector,
                 "tolerations": self._tolerations,
                 "affinity": self._affinity,
+                "retry": self._retry_spec,
             },
             "status": {
                 "results": self._results,
                 "start_time": to_date_str(self._start_time),
                 "last_update": to_date_str(self._last_update),
+                "retry_count": self._retry_count,
+                "retries": self._retries,
             },
         }
 
@@ -1283,6 +1313,18 @@ class MLClientCtx:
         self._write_tmpfile()
         if self._rundb:
             self._rundb.store_run(
+                self.to_dict(), self._uid, self.project, iter=self._iteration
+            )
+
+    def update_run(self):
+        """
+        Store the run object in the DB - removes missing fields.
+        Use _update_run for coherent updates.
+        Should be called by the logging worker only (see is_logging_worker()).
+        """
+        self._write_tmpfile()
+        if self._rundb:
+            self._rundb.update_run(
                 self.to_dict(), self._uid, self.project, iter=self._iteration
             )
 

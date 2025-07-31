@@ -36,6 +36,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 
@@ -894,7 +895,7 @@ def _run_pipeline(
 def retry_pipeline(
     run_id: str,
     project: str,
-) -> str:
+) -> typing.Union[str, dict[str, str]]:
     """Retry a pipeline run.
 
     This function retries a previously executed pipeline run using the specified run ID. If the run is not in a
@@ -913,10 +914,33 @@ def retry_pipeline(
             "Please set the dbpath URL."
         )
 
-    pipeline_run_id = mldb.retry_pipeline(
+    # Invoke retry pipeline run. Depending on the context, this call returns either:
+    # 1. A simple string of a workflow-id, for direct retries or non-remote workflows, or
+    # 2. A dict payload representing a WorkflowResponse when rerunning remote workflows.
+    rerun_response = mldb.retry_pipeline(
         run_id=run_id,
         project=project,
     )
+    if isinstance(rerun_response, str):
+        pipeline_run_id = rerun_response
+    else:
+        rerun_response = mlrun.common.schemas.WorkflowResponse(**rerun_response)
+
+        def _fetch_workflow_id():
+            rerun = mldb.read_run(rerun_response.run_id, project)
+            workflow_id = rerun["metadata"]["labels"].get("workflow-id")
+            if not workflow_id:
+                raise mlrun.errors.MLRunRuntimeError("workflow-id label not set yet")
+            return workflow_id
+
+        pipeline_run_id = mlrun.utils.helpers.retry_until_successful(
+            backoff=3,
+            timeout=int(mlrun.mlconf.workflows.timeouts.remote),
+            logger=logger,
+            verbose=False,
+            _function=_fetch_workflow_id,
+        )
+
     if pipeline_run_id == run_id:
         logger.info(
             f"Retried pipeline run ID={pipeline_run_id}, check UI for progress."
@@ -1150,6 +1174,24 @@ def get_dataitem(url, secrets=None, db=None) -> "DataItem":
     """get mlrun dataitem object (from path/url)"""
     stores = store_manager.set(secrets, db=db)
     return stores.object(url=url)
+
+
+def get_model_provider(
+    url,
+    secrets=None,
+    db=None,
+    default_invoke_kwargs: Optional[dict] = None,
+    raise_missing_schema_exception=True,
+) -> ModelProvider:
+    """get mlrun dataitem object (from path/url)"""
+    #  without caching secrets
+    store_manager.set(db=db)
+    return store_manager.model_provider_object(
+        url=url,
+        default_invoke_kwargs=default_invoke_kwargs,
+        raise_missing_schema_exception=raise_missing_schema_exception,
+        secrets=secrets,
+    )
 
 
 def download_object(url, target, secrets=None):

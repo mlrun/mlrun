@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import inspect
+import io
 import os
 import shutil
+import sys
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -245,6 +247,7 @@ class RunDBMock:
         self._runs = {}
         self._api_gateways = {}
         self._get_model_endpoint_calls = 0
+        self._get_background_task_calls = 1
 
     def reset(self):
         self._functions = {}
@@ -708,7 +711,7 @@ class RunDBMock:
         return mlrun.common.schemas.model_monitoring.ModelEndpoint(
             metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
                 name=name,
-                project=project,
+                project=project or "project",
                 labels={},
                 uid=model_uid,
             ),
@@ -738,6 +741,7 @@ class RunDBMock:
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
+        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
@@ -747,13 +751,11 @@ class RunDBMock:
         if isinstance(names, str):
             names = [names]
         endpoints = []
-        for name in names:
+        for name in names or ["model-ep-1"]:
             endpoints.append(
                 mlrun.common.schemas.model_monitoring.ModelEndpoint(
                     metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                        name=name,
-                        project=project,
-                        uid=name,
+                        name=name, project=project, uid=f"{name}-uid"
                     ),
                     spec=mlrun.common.schemas.ModelEndpointSpec(),
                     status=mlrun.common.schemas.ModelEndpointStatus(),
@@ -763,6 +765,34 @@ class RunDBMock:
         return mlrun.common.schemas.model_monitoring.ModelEndpointList(
             endpoints=endpoints
         )
+
+    def get_project_background_task(self, project, task_name):
+        if self._get_background_task_calls == 0:
+            task = mlrun.common.schemas.BackgroundTask(
+                kind=mlrun.common.schemas.object.ObjectKind.background_task,
+                metadata=mlrun.common.schemas.BackgroundTaskMetadata(
+                    name="name", project=project
+                ),
+                spec=mlrun.common.schemas.BackgroundTaskSpec(),
+                status=mlrun.common.schemas.BackgroundTaskStatus(
+                    state=mlrun.common.schemas.BackgroundTaskState.running,
+                    error="No error",
+                ),
+            )
+            self._get_background_task_calls += 1
+        else:
+            task = mlrun.common.schemas.BackgroundTask(
+                kind=mlrun.common.schemas.object.ObjectKind.background_task,
+                metadata=mlrun.common.schemas.BackgroundTaskMetadata(
+                    name="name", project=project
+                ),
+                spec=mlrun.common.schemas.BackgroundTaskSpec(),
+                status=mlrun.common.schemas.BackgroundTaskStatus(
+                    state=mlrun.common.schemas.BackgroundTaskState.succeeded,
+                    error="No error",
+                ),
+            )
+        return task
 
 
 @pytest.fixture()
@@ -884,3 +914,12 @@ def remote_builder_mock(monkeypatch):
         mlrun, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
     )
     return builder_mock
+
+
+@pytest.fixture
+def logs_stream():
+    """Fixture to capture logs for verifying console output in tests."""
+    stream = io.StringIO()
+    mlrun.utils.logger.replace_handler_stream("default", stream)
+    yield stream
+    mlrun.utils.logger.replace_handler_stream("default", sys.stdout)

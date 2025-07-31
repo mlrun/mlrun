@@ -18,6 +18,8 @@ import pytest
 from typing_extensions import TypeAlias
 
 import mlrun
+import mlrun.common.model_monitoring.helpers
+import mlrun.model_monitoring.helpers
 from mlrun import MlrunProject
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
@@ -93,3 +95,22 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
             tsdb_profile_name=self.mm_tsdb_profile.name,
             stream_profile_name=self.mm_stream_profile.name,
         )
+
+    def get_stream_path(self, function_name) -> (str, str):
+        """
+        :returns: tuple of container and stream_path
+        """
+        stream_profile = TestMLRunSystemModelMonitoring.get_stream_profile(
+            self.mm_stream_profile_data
+        )
+        stream_uri = mlrun.model_monitoring.helpers.get_stream_path(
+            project=self.project.name,
+            function_name=function_name,
+            profile=stream_profile,
+        )
+        _, container, stream_path = (
+            mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                stream_uri,
+            )
+        )
+        return container, stream_path

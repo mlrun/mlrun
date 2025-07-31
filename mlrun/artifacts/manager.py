@@ -110,11 +110,6 @@ class ArtifactProducer:
 
 def dict_to_artifact(struct: dict) -> Artifact:
     kind = struct.get("kind", "")
-
-    # TODO: Remove once data migration v5 is obsolete
-    if mlrun.utils.is_legacy_artifact(struct):
-        return mlrun.artifacts.base.convert_legacy_artifact_to_new_format(struct)
-
     artifact_class = artifact_types[kind]
     return artifact_class.from_dict(struct)
 
@@ -413,8 +408,8 @@ class ArtifactManager:
         self.artifact_db.del_artifact(
             key=item.db_key,
             project=item.project,
-            tag=item.tag,
             tree=item.tree,
+            uid=item.uid,
             iter=item.iter,
             deletion_strategy=deletion_strategy,
             secrets=secrets,

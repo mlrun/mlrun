@@ -64,8 +64,6 @@ class OneToMany(mlrun.serving.V2ModelServer):
 
 
 class IncModel(mlrun.serving.states.Model):
-    execution_mechanism = "naive"
-
     def __init__(
         self, *args, inc: int, gpu_number: typing.Optional[int] = None, **kwargs
     ):
@@ -73,7 +71,7 @@ class IncModel(mlrun.serving.states.Model):
         self.inc = inc
         self.gpu_number = gpu_number
 
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["n"] += self.inc
         body.pop("models", None)
         if self.gpu_number is not None:
@@ -85,24 +83,10 @@ class IncModel(mlrun.serving.states.Model):
 
 
 class MyRemoteModel(mlrun.serving.states.Model):
-    execution_mechanism = "naive"
-
-    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
-        super().__init__(
-            name=name,
-            raise_exception=raise_exception,
-            artifact_uri=artifact_uri,
-            **kwargs,
-        )
-        self.artifact = None
-
-    def predict(self, body):
-        body["url"] = self.artifact.model_url
-        body["default_config"] = self.artifact.default_config
+    def predict(self, body, **kwargs):
+        body["url"] = self.model_artifact.model_url
+        body["default_config"] = self.model_artifact.default_config
         return body
-
-    def load(self):
-        self.artifact = self._get_artifact_object()
 
 
 class Echo:
@@ -115,8 +99,6 @@ class Echo:
 
 
 class MyModel(mlrun.serving.Model):
-    execution_mechanism = "naive"
-
     def __init__(
         self,
         *args,
@@ -178,7 +160,7 @@ class MyModel(mlrun.serving.Model):
         model_file, extra_data = self.get_model(".pkl")
         self.model = load(open(model_file, "rb"))
 
-    def predict(self, body: dict) -> dict:
+    def predict(self, body: dict, **kwargs) -> dict:
         """Generate model predictions from sample."""
         feats = np.asarray(body["inputs"])
         start = mlrun.utils.now_date().isoformat(sep=" ", timespec="microseconds")

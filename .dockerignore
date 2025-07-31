@@ -47,6 +47,8 @@ kubeconfig*
 **/test-google-cloud-storage.yml
 **/test-dbfs-store.yml
 **/test-redis.yml
+**/test-openai.yml
+**/test-huggingface.yml
 **/tests
 **/env.yml
 **/patch[_\-]env.yml

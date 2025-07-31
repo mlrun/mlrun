@@ -205,6 +205,11 @@ class ControllerEvent(MonitoringStrEnum):
     FIRST_REQUEST = "first_request"
     FEATURE_SET_URI = "feature_set_uri"
     ENDPOINT_TYPE = "endpoint_type"
+
+    # first_timestamp and last_timestamp are used to batch completed events
+    FIRST_TIMESTAMP = "first_timestamp"
+    LAST_TIMESTAMP = "last_timestamp"
+
     ENDPOINT_POLICY = "endpoint_policy"
     # Note: currently under endpoint policy we will have a dictionary including the keys: "application_names"
     # "base_period", and "updated_endpoint" stand for when the MEP was updated
@@ -219,6 +224,7 @@ class ControllerEventEndpointPolicy(MonitoringStrEnum):
 class ControllerEventKind(MonitoringStrEnum):
     NOP_EVENT = "nop_event"
     REGULAR_EVENT = "regular_event"
+    BATCH_COMPLETE = "batch_complete"
 
 
 class MetricData(MonitoringStrEnum):
@@ -319,6 +325,19 @@ class EndpointType(IntEnum):
     @classmethod
     def top_level_list(cls):
         return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP]
+
+    @classmethod
+    def real_time_list(cls):
+        return [cls.NODE_EP, cls.ROUTER, cls.LEAF_EP]
+
+    @classmethod
+    def batch_list(cls):
+        return [cls.BATCH_EP]
+
+
+class EndpointMode(StrEnum):
+    REAL_TIME = "real_time"
+    BATCH = "batch"
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):
@@ -468,25 +487,33 @@ class ModelMonitoringLabels:
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
 
+_RESERVED_EVALUATE_FUNCTION_SUFFIX = "-batch"
+
 
 class ModelEndpointMonitoringMetricType(StrEnum):
     RESULT = "result"
     METRIC = "metric"
 
 
+# refer to `mlrun.utils.regex.project_name`
+_INNER_PROJECT_PATTERN = r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?"
+PROJECT_PATTERN = rf"^{_INNER_PROJECT_PATTERN}$"
+
+MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
+
 _FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
+_RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
+
 FQN_PATTERN = (
-    rf"^(?P<project>{_FQN_PART_PATTERN})\."
+    rf"^(?P<project>{_INNER_PROJECT_PATTERN})\."
     rf"(?P<app>{_FQN_PART_PATTERN})\."
     rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
-    rf"(?P<name>{_FQN_PART_PATTERN})$"
+    rf"(?P<name>{_RESULT_NAME_PATTERN})$"
 )
 FQN_REGEX = re.compile(FQN_PATTERN)
+APP_NAME_REGEX = re.compile(_FQN_PART_PATTERN)
+RESULT_NAME_REGEX = re.compile(_RESULT_NAME_PATTERN)
 
-# refer to `mlrun.utils.regex.project_name`
-PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
-MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
-RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
 
 INTERSECT_DICT_KEYS = {
     ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",

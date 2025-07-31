@@ -19,6 +19,8 @@ tests/temp*
 tests/*.pkl
 tests/project.yaml
 tests/system/env.yml
+server/py/services/api/db/mlrun.db
+migration_tests.log
 # Coverage reports
 *.coverage
 
@@ -106,3 +108,5 @@ server/py/schemas/proto/*pb2*.py
 server/api
 tests/coverage_reports/*.xml
 tests/coverage_reports/*.html
+**/test-openai.yml
+**/test-huggingface.yml

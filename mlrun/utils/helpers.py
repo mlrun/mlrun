@@ -29,6 +29,7 @@ import traceback
 import typing
 import uuid
 import warnings
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from importlib import import_module, reload
 from os import path
@@ -97,7 +98,13 @@ class StorePrefix:
 
     @classmethod
     def is_artifact(cls, prefix):
-        return prefix in [cls.Artifact, cls.Model, cls.Dataset, cls.Document]
+        return prefix in [
+            cls.Artifact,
+            cls.Model,
+            cls.Dataset,
+            cls.Document,
+            cls.LLMPrompt,
+        ]
 
     @classmethod
     def kind_to_prefix(cls, kind):
@@ -154,14 +161,6 @@ def get_artifact_target(item: dict, project=None):
         return target
 
     return item["spec"].get("target_path")
-
-
-# TODO: Remove once data migration v5 is obsolete
-def is_legacy_artifact(artifact):
-    if isinstance(artifact, dict):
-        return "metadata" not in artifact
-    else:
-        return not hasattr(artifact, "metadata")
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -788,6 +787,27 @@ def generate_artifact_uri(
     return artifact_uri
 
 
+def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
+    """
+    Remove the `:<tag>` part from a URI with pattern:
+    [store://][<project>/]<key>[#<iter>][:<tag>][@<tree>][^<uid>]
+
+    Returns the URI without the tag section.
+
+    Examples:
+        "store://proj/key:latest" => "store://proj/key"
+        "key#1:dev@tree^uid" => "key#1@tree^uid"
+        "store://key:tag" => "store://key"
+        "store://models/remote-model-project/my_model#0@tree" => unchanged (no tag)
+    """
+    add_store = False
+    if mlrun.datastore.is_store_uri(uri):
+        uri = uri.removeprefix(DB_SCHEMA + "://")
+        add_store = True
+    uri = re.sub(r"(#[^:@\s]*)?:[^@^:\s]+(?=(@|\^|$))", lambda m: m.group(1) or "", uri)
+    return uri if not add_store else DB_SCHEMA + "://" + uri
+
+
 def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     """
     Retrieve the full uri of the item's yaml in the hub.
@@ -907,8 +927,13 @@ def enrich_image_url(
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
-
+    if ":" in image_url:
+        _, image_tag = image_url.rsplit(":", 1)
+    else:
+        image_tag = None
     if is_mlrun_image and "mlrun/ml-base" in image_url:
+        # use the tag from image URL if available, else fallback to the given tag
+        tag = image_tag or tag
         if tag:
             if mlrun.utils.helpers.validate_component_version_compatibility(
                 "mlrun-client", "1.10.0-rc0", mlrun_client_version=tag
@@ -1039,7 +1064,14 @@ def fill_function_hash(function_dict, tag=""):
 
 
 def retry_until_successful(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    *args,
+    fatal_exceptions=(),
+    **kwargs,
 ):
     """
     Runs function with given *args and **kwargs.
@@ -1052,14 +1084,31 @@ def retry_until_successful(
     :param verbose: whether to log the failure on each retry
     :param _function: function to run
     :param args: functions args
+    :param fatal_exceptions: exception types that should not be retried
     :param kwargs: functions kwargs
     :return: function result
     """
-    return Retryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
+    return Retryer(
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
+    ).run()
 
 
 async def retry_until_successful_async(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    *args,
+    fatal_exceptions=(),
+    **kwargs,
 ):
     """
     Runs function with given *args and **kwargs.
@@ -1071,12 +1120,20 @@ async def retry_until_successful_async(
     :param logger: a logger so we can log the failures
     :param verbose: whether to log the failure on each retry
     :param _function: function to run
+    :param fatal_exceptions: exception types that should not be retried
     :param args: functions args
     :param kwargs: functions kwargs
     :return: function result
     """
     return await AsyncRetryer(
-        backoff, timeout, logger, verbose, _function, *args, **kwargs
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
     ).run()
 
 
@@ -2341,3 +2398,32 @@ def encode_user_code(
             "Consider using `with_source_archive` to add user code as a remote source to the function."
         )
     return encoded
+
+
+def split_path(path: str) -> typing.Union[str, list[str], None]:
+    if path is not None:
+        parsed_path = path.split(".")
+        if len(parsed_path) == 1:
+            parsed_path = parsed_path[0]
+        return parsed_path
+    return path
+
+
+def get_data_from_path(
+    path: typing.Union[str, list[str], None], data: dict
+) -> dict[str, Any]:
+    if isinstance(path, str):
+        output_data = data.get(path)
+    elif isinstance(path, list):
+        output_data = deepcopy(data)
+        for key in path:
+            output_data = output_data.get(key, {})
+    elif path is None:
+        output_data = data
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected path be of type str or list of str or None"
+        )
+    if isinstance(output_data, (int, float)):
+        output_data = [output_data]
+    return output_data

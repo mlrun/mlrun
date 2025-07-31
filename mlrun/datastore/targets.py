@@ -970,7 +970,7 @@ class ParquetTarget(BaseStoreTarget):
                         break
 
         store, path, url = self._get_store_and_path()
-        spark_options = store.get_spark_options()
+        spark_options = store.get_spark_options(store.spark_url + path)
         spark_options.update(
             {
                 "path": store.spark_url + path,
@@ -1104,7 +1104,7 @@ class CSVTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         store, path, url = self._get_store_and_path()
-        spark_options = store.get_spark_options()
+        spark_options = store.get_spark_options(store.spark_url + path)
         spark_options.update(
             {
                 "path": store.spark_url + path,

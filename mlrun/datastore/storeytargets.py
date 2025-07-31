@@ -46,7 +46,7 @@ def get_url_and_storage_options(path, external_storage_options=None):
         storage_options = merge(external_storage_options, storage_options)
     else:
         storage_options = storage_options or external_storage_options
-    return url, DataStore._sanitize_storage_options(storage_options)
+    return url, DataStore._sanitize_options(storage_options)
 
 
 class TDEngineStoreyTarget(storey.TDEngineTarget):

@@ -21,8 +21,13 @@ import mlrun.common.schemas
 
 import framework.db.sqldb.db
 
+pytest.importorskip(
+    "psycopg2",
+    reason="psycopg2 not installed",
+)
 
-@pytest.mark.usefixtures("pmr_postgres_container")
+
+@pytest.mark.integration
 def test_create_partitions_postgres(alembic_engine):
     session = sessionmaker(bind=alembic_engine)()
     table = "dyn_table"
@@ -34,7 +39,7 @@ def test_create_partitions_postgres(alembic_engine):
             data TEXT
         ) PARTITION BY RANGE (id);
 
-        CREATE TABLE p0 PARTITION OF {table}
+        CREATE TABLE {table}_p0 PARTITION OF {table}
         FOR VALUES FROM (MINVALUE) TO (1);
         """)
     )
@@ -50,12 +55,12 @@ def test_create_partitions_postgres(alembic_engine):
             session, table
         ).keys()
     )
-    expected = {name for name, _ in parts}.union({"p0"})
+    expected = {name for name, _ in parts}.union({f"{table}_p0"})
     assert attached == expected
     session.close()
 
 
-@pytest.mark.usefixtures("pmr_postgres_container")
+@pytest.mark.integration
 def test_drop_partitions_postgres(alembic_engine):
     session = sessionmaker(bind=alembic_engine)()
     table = "dyn_table_drop"
@@ -68,7 +73,7 @@ def test_drop_partitions_postgres(alembic_engine):
             data TEXT
         ) PARTITION BY RANGE (id);
 
-        CREATE TABLE p0 PARTITION OF {table}
+        CREATE TABLE {table}_p0 PARTITION OF {table}
         FOR VALUES FROM (MINVALUE) TO (1);
         """)
     )
@@ -94,5 +99,4 @@ def test_drop_partitions_postgres(alembic_engine):
     assert cutoff in remaining  # cutoff kept
     newer = {name for name, _ in parts[2:]}  # newest kept
     assert newer <= remaining
-
     session.close()

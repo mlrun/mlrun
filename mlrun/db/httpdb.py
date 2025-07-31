@@ -608,7 +608,7 @@ class HTTPRunDB(RunDBInterface):
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
 
-    def get_log(self, uid, project="", offset=0, size=None):
+    def get_log(self, uid, project="", offset=0, size=None, attempt=None):
         """Retrieve 1 MB data of log.
 
         :param uid: Log unique ID
@@ -616,6 +616,8 @@ class HTTPRunDB(RunDBInterface):
         :param offset: Retrieve partial log, get up to ``size`` bytes starting at offset ``offset``
             from beginning of log (must be >= 0)
         :param size: If set to ``-1`` will retrieve and print all data to end of the log by chunks of 1MB each.
+        :param attempt: For retriable runs, the attempt number to retrieve the log for.
+            1 is the initial attempt.
         :returns: The following objects:
 
             - state - The state of the runtime object which generates this log, if it exists. In case no known state
@@ -636,6 +638,8 @@ class HTTPRunDB(RunDBInterface):
             return state, offset
 
         params = {"offset": offset, "size": size}
+        if attempt:
+            params["attempt"] = attempt
         path = self._path_of("logs", project, uid)
         error = f"get log {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
@@ -658,7 +662,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error)
         return resp.json()["size"]
 
-    def watch_log(self, uid, project="", watch=True, offset=0):
+    def watch_log(self, uid, project="", watch=True, offset=0, attempt=None):
         """Retrieve logs of a running process by chunks of 1MB, and watch the progress of the execution until it
         completes. This method will print out the logs and continue to periodically poll for, and print,
         new logs as long as the state of the runtime which generates this log is either ``pending`` or ``running``.
@@ -668,10 +672,11 @@ class HTTPRunDB(RunDBInterface):
         :param watch: If set to ``True`` will continue tracking the log as described above. Otherwise this function
             is practically equivalent to the :py:func:`~get_log` function.
         :param offset: Minimal offset in the log to watch.
+        :param attempt: For retriable runs, the attempt number to retrieve the log for. 1 is the initial attempt.
         :returns: The final state of the log being watched and the final offset.
         """
 
-        state, text = self.get_log(uid, project, offset=offset)
+        state, text = self.get_log(uid, project, offset=offset, attempt=attempt)
         if text:
             print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
         nil_resp = 0
@@ -687,7 +692,7 @@ class HTTPRunDB(RunDBInterface):
                         mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
                     )
                 )
-            state, text = self.get_log(uid, project, offset=offset)
+            state, text = self.get_log(uid, project, offset=offset, attempt=attempt)
             if text:
                 nil_resp = 0
                 print(
@@ -752,7 +757,7 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            return self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
         return None
@@ -779,7 +784,7 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
             if (
@@ -834,7 +839,7 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
             if (
@@ -1480,7 +1485,7 @@ class HTTPRunDB(RunDBInterface):
                 "Function is being deleted", project_name=project, function_name=name
             )
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
             if (
@@ -2350,6 +2355,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         namespace: Optional[str] = None,
         timeout: int = 30,
+        submit_mode: str = "",
     ):
         """
         Retry a specific pipeline run using its run ID. This function sends an API request
@@ -2359,6 +2365,7 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace where the pipeline is running. Optional.
         :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
         :param project: Name of the MLRun project associated with the pipeline.
+        :param submit_mode: Whether to submit the pipeline directly to the API.
 
         :raises ValueError: Raised if the API response is not successful or contains an
             error.
@@ -2369,6 +2376,9 @@ class HTTPRunDB(RunDBInterface):
         params = {}
         if namespace:
             params["namespace"] = namespace
+
+        if submit_mode:
+            params["submit-mode"] = submit_mode
 
         resp_text = ""
         resp_code = None
@@ -3264,7 +3274,7 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             logger.info("Waiting for project to be deleted", project_name=name)
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name
             )
             if (
@@ -3377,7 +3387,7 @@ class HTTPRunDB(RunDBInterface):
             _verify_project_in_terminal_state,
         )
 
-    def _wait_for_background_task_to_reach_terminal_state(
+    def wait_for_background_task_to_reach_terminal_state(
         self, name: str, project: str = ""
     ) -> mlrun.common.schemas.BackgroundTask:
         def _verify_background_task_in_terminal_state():
@@ -3398,6 +3408,7 @@ class HTTPRunDB(RunDBInterface):
             logger,
             False,
             _verify_background_task_in_terminal_state,
+            fatal_exceptions=(mlrun.errors.MLRunAccessDeniedError,),
         )
 
     def create_project_secrets(
@@ -3802,6 +3813,7 @@ class HTTPRunDB(RunDBInterface):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
+        mode: mm_constants.EndpointMode = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -3822,6 +3834,8 @@ class HTTPRunDB(RunDBInterface):
                                 If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                                 will be included.
         :param top_level:       Whether to return only top level model endpoints.
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set
+                                to None.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
         :return:                A list of model endpoints.
@@ -3845,6 +3859,7 @@ class HTTPRunDB(RunDBInterface):
                 "tsdb-metrics": tsdb_metrics,
                 "metric": metric_list,
                 "top-level": top_level,
+                "mode": mode,
                 "uid": uids,
                 "latest-only": latest_only,
             },
@@ -4072,7 +4087,7 @@ class HTTPRunDB(RunDBInterface):
                 **response.json()
             ).background_tasks
             for task in background_tasks:
-                task = self._wait_for_background_task_to_reach_terminal_state(
+                task = self.wait_for_background_task_to_reach_terminal_state(
                     task.metadata.name, project=project
                 )
                 if (
@@ -4109,7 +4124,7 @@ class HTTPRunDB(RunDBInterface):
                 **response.json()
             ).background_tasks
             for task in background_tasks:
-                task = self._wait_for_background_task_to_reach_terminal_state(
+                task = self.wait_for_background_task_to_reach_terminal_state(
                     task.metadata.name, project=project
                 )
                 if (
@@ -4187,6 +4202,36 @@ class HTTPRunDB(RunDBInterface):
         for item in response.json():
             results.append(FunctionSummary(**item))
         return results
+
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> FunctionSummary:
+        """
+        Get a monitoring function summary for the specified project and function.
+        :param project:                The name of the project.
+        :param function_name:          The name of the function.
+        :param start:                  Start time for filtering the results (optional).
+        :param end:                    End time for filtering the results (optional).
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
+
+        :return: A FunctionSummary object containing information about the monitoring function.
+        """
+
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{project}/model-monitoring/function-summaries/{function_name}",
+            params={
+                "start": datetime_to_iso(start),
+                "end": datetime_to_iso(end),
+                "include-latest-metrics": include_latest_metrics,
+            },
+        )
+        return FunctionSummary(**response.json())
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
@@ -4700,6 +4745,28 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.common.schemas.GetWorkflowResponse(**response.json())
 
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool = False
+    ):
+        """
+        Toggle the “retrying” label on a workflow-runner run.
+
+        This will POST to the workflows endpoint to either add or remove the
+        `retrying` flag on a specific run, which prevents parallel retries.
+
+        :param project:   The project name under which the workflow is defined.
+        :param name:      The workflow name (as in the URL path).
+        :param run_id:    The UID of the workflow-runner run to update.
+        :param retrying:  True to add the `retrying` label, False to remove it.
+
+        :raises MLRunHTTPError: If the HTTP request fails or returns an error status.
+        """
+        path = f"projects/{project}/workflows/{name}/runs/{run_id}/set-retry-status"
+        params = {"retrying": retrying}
+        self.api_call(
+            "POST", path, f"set retrying on {project}/{run_id}", params=params
+        )
+
     def load_project(
         self,
         name: str,
@@ -5118,6 +5185,38 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return mlrun.common.schemas.ProjectSummary(**response.json())
 
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
+        """
+        Get drift counts over time for the project.
+
+        This method returns a list of tuples, each representing a time-interval (in a granularity set by the
+        duration of the given time range) and the number of suspected drifts and detected drifts in that interval.
+        For a range of 6 hours or less, the granularity is 10 minute, for a range of 2 hours to 72 hours, the
+        granularity is 1 hour, and for a range of more than 72 hours, the granularity is 24 hours.
+
+        :param project: The name of the project for which to retrieve drift counts.
+        :param start: Start time of the range to retrieve drift counts from.
+        :param end: End time of the range to retrieve drift counts from.
+
+        :return: A ModelEndpointDriftValues object containing the drift counts over time.
+        """
+        endpoint_path = f"projects/{project}/model-endpoints/drift-over-time"
+        error_message = f"Failed retrieving drift data for {project}"
+        response = self.api_call(
+            method="GET",
+            path=endpoint_path,
+            error=error_message,
+            params={"start": start, "end": end},
+        )
+        return mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues(
+            **response.json()
+        )
+
     @staticmethod
     def _parse_labels(
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],
@@ -5438,7 +5537,7 @@ class HTTPRunDB(RunDBInterface):
     def _wait_for_background_task_from_response(self, response):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            return self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name
             )
         return None

@@ -43,7 +43,10 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
     datastore_profile_read,
 )
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+)
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import get_data_from_path, logger, split_path
 
@@ -1221,9 +1224,10 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
+            # TODO read metrics
             body["result"] = self.model_provider.invoke(
                 messages=messages,
-                as_str=True,
+                invoke_response_format=InvokeResponseFormat.STRING,
                 **(model_configuration or {}),
             )
         return body
@@ -1238,9 +1242,10 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
+            # TODO read metrics
             body["result"] = await self.model_provider.async_invoke(
                 messages=messages,
-                as_str=True,
+                invoke_response_format=InvokeResponseFormat.STRING,
                 **(model_configuration or {}),
             )
         return body

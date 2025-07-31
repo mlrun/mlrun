@@ -73,16 +73,39 @@ class ModelProvider(BaseRemoteClient):
         self._client = None
         self._async_client = None
 
-    @classmethod
-    def get_output_with_tokens_metrics(cls, response: Any) -> (str, dict):
-        return None, {}
+    @staticmethod
+    def _extract_string_output(response: Any) -> str:
+        """
+        Extracts string response from response object
+        """
+        pass
 
-    def _invoke_handler(
+    def _response_handler(
         self,
         response: Any,
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **kwargs,
     ) -> Union[str, dict, Any]:
+        """
+        Handles the model response according to the specified response format.
+
+        :param response: The raw response returned from the model invocation.
+        :param invoke_response_format: Determines how the response should be processed and returned.
+                                       Options include:
+
+                                       - STRING: Return only the main generated content as a string,
+                                                 typically for single-answer responses.
+                                       - STATS: Return a dictionary combining the string response with
+                                                additional metadata or statistics, in this format:
+                                                {"str_response": <string>, "stats": <dict>}
+
+                                       - FULL: Return the full raw response object unmodified.
+
+        :param kwargs: Additional parameters that may be required by specific implementations.
+
+        :return: The processed response in the format specified by `invoke_response_format`.
+                 Can be a string, dictionary, or the original response object.
+        """
         return None
 
     def get_client_options(self) -> dict:
@@ -162,7 +185,7 @@ class ModelProvider(BaseRemoteClient):
 
     def invoke(
         self,
-        messages: Optional[list[dict]] = None,
+        messages: Optional[list[dict], Any] = None,
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, Any]:
@@ -170,35 +193,41 @@ class ModelProvider(BaseRemoteClient):
         Invokes a generative AI model with the provided messages and additional parameters.
         This method is designed to be a flexible interface for interacting with various
         generative AI backends (e.g., OpenAI, Hugging Face, etc.). It allows users to send
-        a list of messages (following a standardized format) and receive a response. The
-        response can be returned as plain text or in its full structured format, depending
-        on the `as_str` parameter.
+        a list of messages (following a standardized format) and receive a response.
 
-                :param messages:    A list of dictionaries representing the conversation history or input messages.
+        :param messages:            A list of dictionaries representing the conversation history or input messages.
                                     Each dictionary should follow the format::
                                     {"role": "system"| "user" | "assistant" ..., "content":
                                      "Message content as a string"}
+
                                     Example:
 
                                     .. code-block:: json
 
                                         [
                                             {"role": "system", "content": "You are a helpful assistant."},
-                                            {"role": "user", "content": "What is the capital of France?"}
+                                            {"role": "user", "content": "What is the capital of France?"},
                                         ]
 
                                     This format is consistent across all backends. Defaults to None if no messages
                                     are provided.
 
         :param invoke_response_format:
-                                    Determine whether the response type should be treated as a string-like output,
-                                    dictionary or full structured response.
+                                    Determines how the model response is returned:
 
-                                    - STRING: Returns only the generated text content from the model output,
+                                    - string: Returns only the generated text content from the model output,
                                               for single-answer responses only.
-                                    - STATS:  Combines the STRING response with additional metadata (e.g. token usage),
+                                    - stats:  Combines the STRING response with additional metadata (e.g. token usage),
                                               and returns the result in a dictionary.
-                                    - FULL:   Returns the full model output.
+
+                                              .. code-block:: json
+
+                                                   {
+                                                       "str_response": "The capital of France is Paris.",
+                                                       "stats": { ... }
+                                                   }
+
+                                    - full:   Returns the full model output.
 
         :param invoke_kwargs:
                                     Additional keyword arguments to be passed to the underlying model API call.

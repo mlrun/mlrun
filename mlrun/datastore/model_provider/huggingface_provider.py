@@ -64,18 +64,18 @@ class HuggingFaceProvider(ModelProvider):
         self.load_client()
 
     @staticmethod
-    def _extract_string_output(result) -> str:
+    def _extract_string_output(response) -> str:
         """
         Extracts the first generated string from Hugging Face pipeline output,
         regardless of whether it's plain text-generation or chat-style output.
         """
-        if not isinstance(result, list) or len(result) == 0:
+        if not isinstance(response, list) or len(response) == 0:
             raise ValueError("Empty or invalid pipeline output")
-        if len(result) != 1:
+        if len(response) != 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "HuggingFaceProvider: extracting string from response is only supported for single-response outputs"
             )
-        return result[0].get("generated_text")
+        return response[0].get("generated_text")
 
     @classmethod
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
@@ -85,7 +85,7 @@ class HuggingFaceProvider(ModelProvider):
             subpath = ""
         return endpoint, subpath
 
-    def _invoke_handler(
+    def _response_handler(
         self,
         response: Union[str, list],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
@@ -93,13 +93,15 @@ class HuggingFaceProvider(ModelProvider):
         **kwargs,
     ) -> Union[str, list, dict[str, Any]]:
         """
-        Expected to ge the response after using return_full_text = False.
+        Same as `ModelProvider._response_handler`.
 
-        :param messages:
-        :param response:
-        :param invoke_response_format:
-        :param kwargs:
-        :return:
+        * Expected to receive the response with `return_full_text=False`.
+
+        :param messages:                Same as in `ModelProvider._response_handler`.
+        :param response:                Same as in `ModelProvider._response_handler`.
+        :param invoke_response_format:  Same as in `ModelProvider._response_handler`.
+        :param kwargs:                  Same as in `ModelProvider._response_handler`.
+        :return:                        See `ModelProvider._response_handler`.
         """
         if InvokeResponseFormat.is_str_response(invoke_response_format.value):
             str_response = self._extract_string_output(response)
@@ -210,21 +212,37 @@ class HuggingFaceProvider(ModelProvider):
         """
         HuggingFace-specific implementation of `ModelProvider.invoke`.
         Invokes a HuggingFace model operation using the synchronous client.
-        For complete usage details, refer to `ModelProvider.invoke`.
+        For full details, see `ModelProvider.invoke`.
 
         :param messages:
-                            Same as ModelProvider.invoke.
+            Same as `ModelProvider.invoke`.
 
-        :param as_str:
-                            If `True`, return only the main content (e.g., generated text) from a
-                            **single-response output** — intended for use cases where you expect exactly one result.
+        :param invoke_response_format: InvokeResponseFormat
+            Specifies the format of the returned response. Options:
 
-                            If `False`, return the **full raw response object**, which is a list of dictionaries.
+            - "string": Returns only the generated text content, extracted from a single response.
+            - "stats":  Combines the generated text with metadata (e.g., token usage), returning a dictionary:
+
+            .. code-block:: json
+                {
+                    "str_response": "<generated_text>",
+                    "stats": {
+                        "prompt_tokens": <int>,
+                        "completion_tokens": <int>,
+                        "total_tokens": <int>
+                    }
+                }
+
+            - "full":   Returns the full raw response object from the HuggingFace model,
+                        typically a list of generated sequences (dictionaries).
 
         :param invoke_kwargs:
-                            Same as ModelProvider.invoke.
-        :return:            Same as ModelProvider.invoke.
+            Additional keyword arguments passed to the HuggingFace client. Same as in `ModelProvider.invoke`.
+
+        :return:
+            A string, dictionary, or list of model outputs, depending on `invoke_response_format`.
         """
+
         if self.client.task != "text-generation":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "HuggingFaceProvider.invoke supports text-generation task only"
@@ -232,7 +250,7 @@ class HuggingFaceProvider(ModelProvider):
         if InvokeResponseFormat.is_str_response(invoke_response_format.value):
             invoke_kwargs["return_full_text"] = False
         response = self.custom_invoke(text_inputs=messages, **invoke_kwargs)
-        response = self._invoke_handler(
+        response = self._response_handler(
             messages=messages,
             response=response,
             invoke_response_format=invoke_response_format,

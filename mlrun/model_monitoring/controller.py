@@ -20,7 +20,7 @@ import traceback
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import Any, NamedTuple, Optional, Union, cast
+from typing import Any, Final, NamedTuple, Optional, Union, cast
 
 import nuclio_sdk
 import numpy as np
@@ -50,6 +50,8 @@ class _Interval(NamedTuple):
 
 
 class _BatchWindow:
+    TIMESTAMP_RESOLUTION_MICRO: Final = 1e-6  # 0.000001 seconds or 1 microsecond
+
     def __init__(
         self,
         *,
@@ -138,7 +140,8 @@ class _BatchWindow:
                 timestamp, tz=datetime.timezone.utc
             )
             end_time = datetime.datetime.fromtimestamp(
-                timestamp + self._step, tz=datetime.timezone.utc
+                timestamp - self.TIMESTAMP_RESOLUTION_MICRO + self._step,
+                tz=datetime.timezone.utc,
             )
             yield _Interval(start_time, end_time)
 

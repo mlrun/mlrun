@@ -424,7 +424,7 @@ class Secrets(
 
     def store_secret_tokens(
         self,
-        secret_tokens: typing.List[mlrun.common.schemas.SecretToken],
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
         authorization: str,
     ):
         """
@@ -463,9 +463,9 @@ class Secrets(
                 skipped_tokens.append(token_name)
 
         return {
-            "created": created_tokens,
-            "updated": updated_tokens,
-            "skipped": skipped_tokens,
+            "createdTokens": created_tokens,
+            "updatedTokens": updated_tokens,
+            "skippedTokens": skipped_tokens,
         }
 
     def _extract_user_info_from_access_token(
@@ -498,7 +498,7 @@ class Secrets(
 
     def _validate_and_decode_offline_tokens(
         self,
-        secret_tokens: typing.List[mlrun.common.schemas.SecretToken],
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
         expected_user_id: str,
     ) -> dict[str, dict]:
         seen_names = set()
@@ -553,9 +553,6 @@ class Secrets(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unexpected error decoding token '{token_name}'"
             ) from exc
-
-    def _generate_k8s_secret_name(self, username: str, token_name: str) -> str:
-        return f"mlrun-auth-{username}-{token_name}"
 
     def _resolve_project_secret_key(
         self,

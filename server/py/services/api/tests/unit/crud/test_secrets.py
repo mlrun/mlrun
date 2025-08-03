@@ -18,6 +18,7 @@ import unittest.mock
 
 import deepdiff
 import fastapi.testclient
+import jwt
 import pytest
 import sqlalchemy.orm
 
@@ -694,14 +695,6 @@ def test_store_auth_secret(
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
 
 
-# TODO move to another file
-import jwt
-
-
-def generate_token(payload: dict) -> str:
-    return jwt.encode(payload, key="dummy", algorithm="HS256")
-
-
 @pytest.mark.parametrize(
     "claims, should_raise, expected_result",
     [
@@ -732,7 +725,7 @@ def generate_token(payload: dict) -> str:
     ],
 )
 def test_extract_user_info_from_access_token(claims, should_raise, expected_result):
-    token = generate_token(claims)
+    token = _generate_token(claims)
     auth_header = f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer} {token}"
 
     if should_raise:
@@ -770,7 +763,7 @@ def test_store_secret_tokens_missing_tokens(
     tokens,
 ):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        services.api.crud.Secrets().store_secret_tokens(tokens, None)
+        services.api.crud.Secrets().store_secret_tokens(tokens, "Bearer some-token")
 
 
 @unittest.mock.patch.object(
@@ -784,17 +777,19 @@ def test_store_secret_tokens_duplicate_names(mock_extract_user_info):
 
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
-            name="dup-token", token=generate_token(token_payload)
+            name="dup-token", token=_generate_token(token_payload)
         ),
         mlrun.common.schemas.SecretToken(
-            name="dup-token", token=generate_token(token_payload)
+            name="dup-token", token=_generate_token(token_payload)
         ),
     ]
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError, match="Invalid or duplicate token name"
     ):
-        services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+        services.api.crud.Secrets().store_secret_tokens(
+            secret_tokens, "Bearer some-token"
+        )
 
 
 @unittest.mock.patch.object(
@@ -812,7 +807,9 @@ def test_store_secret_tokens_invalid_offline_token_jwt_decode(mock_extract_user_
         mlrun.errors.MLRunInvalidArgumentError,
         match="Failed to decode offline token 'bad'",
     ):
-        services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+        services.api.crud.Secrets().store_secret_tokens(
+            secret_tokens, "Bearer some-token"
+        )
 
 
 @pytest.mark.parametrize(
@@ -831,7 +828,7 @@ def test_store_secret_tokens_missing_required_claims_in_offline_token(
     # Mock the access token decoding to return fixed user info
     mock_extract_user_info.return_value = ("testuser", "user-123")
 
-    token = generate_token(payload)
+    token = _generate_token(payload)
     secret_tokens = [
         mlrun.common.schemas.SecretToken(name="bad-token", token=token),
     ]
@@ -839,7 +836,9 @@ def test_store_secret_tokens_missing_required_claims_in_offline_token(
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError, match="missing required claims"
     ):
-        services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+        services.api.crud.Secrets().store_secret_tokens(
+            secret_tokens, "Bearer some-token"
+        )
 
 
 @unittest.mock.patch.object(
@@ -854,7 +853,7 @@ def test_store_secret_tokens_sub_mismatch(mock_extract_user_info):
         "sub": "other-user-id",
         "exp": 9999999999,
     }
-    token = generate_token(payload)
+    token = _generate_token(payload)
     secret_tokens = [
         mlrun.common.schemas.SecretToken(name="wrong-user-token", token=token)
     ]
@@ -863,7 +862,9 @@ def test_store_secret_tokens_sub_mismatch(mock_extract_user_info):
         mlrun.errors.MLRunAccessDeniedError,
         match="does not belong to the authenticated user",
     ):
-        services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+        services.api.crud.Secrets().store_secret_tokens(
+            secret_tokens, "Bearer some-token"
+        )
 
 
 @unittest.mock.patch.object(
@@ -879,13 +880,13 @@ def test_store_secret_tokens_return_values(
     token_payload = {"sub": "user-id-123", "exp": 9999999999}
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
-            name="token1", token=generate_token(token_payload)
+            name="token1", token=_generate_token(token_payload)
         ),
         mlrun.common.schemas.SecretToken(
-            name="token2", token=generate_token(token_payload)
+            name="token2", token=_generate_token(token_payload)
         ),
         mlrun.common.schemas.SecretToken(
-            name="token3", token=generate_token(token_payload)
+            name="token3", token=_generate_token(token_payload)
         ),
     ]
 
@@ -897,13 +898,42 @@ def test_store_secret_tokens_return_values(
         mlrun.common.schemas.SecretEventActions.skipped,
     ]
 
-    result = services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+    result = services.api.crud.Secrets().store_secret_tokens(
+        secret_tokens, "Bearer some-token"
+    )
 
     assert result == {
-        "created": ["token1"],
-        "updated": ["token2"],
-        "skipped": ["token3"],
+        "createdTokens": ["token1"],
+        "updatedTokens": ["token2"],
+        "skippedTokens": ["token3"],
     }
 
     assert mock_secrets_provider.create_or_update_user_token_secret.call_count == 3
     mock_refresh_access_tokens.assert_called_once_with(secret_tokens)
+
+
+@unittest.mock.patch.object(
+    services.api.crud.Secrets, "_extract_user_info_from_access_token"
+)
+@unittest.mock.patch("framework.utils.clients.iguazio.v4.Client.refresh_access_tokens")
+def test_store_secret_tokens_refresh_access_tokens_failure(
+    mock_refresh_access_tokens, mock_extract_user_info
+):
+    mock_extract_user_info.return_value = ("testuser", "user-id-123")
+    mock_refresh_access_tokens.side_effect = mlrun.errors.MLRunUnauthorizedError(
+        "Refresh failed"
+    )
+
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1",
+            token=_generate_token({"sub": "user-id-123", "exp": 9999999999}),
+        ),
+    ]
+
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError, match="Refresh failed"):
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, "Bearer abc")
+
+
+def _generate_token(payload: dict) -> str:
+    return jwt.encode(payload, key="dummy", algorithm="HS256")

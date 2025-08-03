@@ -47,7 +47,7 @@ class Client(BaseClient):
             ) from exc
 
     def refresh_access_tokens(
-        self, secret_tokens: typing.List[mlrun.common.schemas.SecretToken]
+        self, secret_tokens: list[mlrun.common.schemas.SecretToken]
     ) -> None:
         """
         Refresh all offline tokens using the Iguazio client to validate them.

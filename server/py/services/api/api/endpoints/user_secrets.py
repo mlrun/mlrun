@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-import typing
 from http import HTTPStatus
 
 import fastapi
@@ -31,7 +30,7 @@ router = fastapi.APIRouter(prefix="/user-secrets/tokens")
 
 @router.put("", status_code=HTTPStatus.OK.value)
 async def store_secret_tokens(
-    secret_tokens: typing.List[mlrun.common.schemas.SecretToken],
+    secret_tokens: list[mlrun.common.schemas.SecretToken],
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),

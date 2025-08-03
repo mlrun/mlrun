@@ -174,7 +174,7 @@ class _DummyStream(storey.MapClass):
 
     def __init__(self, event_list=None, **kwargs):
         self.event_list = event_list or []
-        super().__init__()
+        super().__init__(**kwargs)
 
     def push(self, data, **kwargs):
         if not isinstance(data, list):

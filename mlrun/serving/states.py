@@ -48,7 +48,7 @@ from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import get_data_from_path, logger, split_path
 
 from ..config import config
-from ..datastore import get_stream_pusher
+from ..datastore import _DummyStream, get_stream_pusher
 from ..datastore.utils import (
     get_kafka_brokers_from_dict,
     parse_kafka_url,
@@ -3099,6 +3099,8 @@ def _init_async_objects(context, steps):
                             context=context,
                             **options,
                         )
+                    elif stream_path.startswith("dummy://"):
+                        step._async_object = _DummyStream(context=context, **options)
                     else:
                         if stream_path.startswith("v3io://"):
                             endpoint, stream_path = parse_path(step.path)

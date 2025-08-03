@@ -39,6 +39,7 @@ __all__ = [
 from urllib.parse import urlparse
 
 import fsspec
+import storey
 
 import mlrun.datastore.wasbfs
 from mlrun.datastore.datastore_profile import (
@@ -168,11 +169,12 @@ def get_stream_pusher(stream_path: str, **kwargs):
             raise ValueError(f"unsupported stream path {stream_path}")
 
 
-class _DummyStream:
+class _DummyStream(storey.Flow):
     """stream emulator for tests and debug"""
 
     def __init__(self, event_list=None, **kwargs):
         self.event_list = event_list or []
+        super().__init__()
 
     def push(self, data, **kwargs):
         if not isinstance(data, list):
@@ -180,3 +182,13 @@ class _DummyStream:
         for item in data:
             logger.info(f"dummy stream got event: {item}, kwargs={kwargs}")
             self.event_list.append(item)
+
+    async def _do(self, event):
+        if event is storey.flow._termination_obj:
+            return await self._do_downstream(storey.flow._termination_obj)
+        if hasattr(event, "body"):
+            event = event.body
+            if not isinstance(event, list):
+                event = [event]
+            for item in event:
+                self.event_list.append(item)

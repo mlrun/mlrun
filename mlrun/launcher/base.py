@@ -157,7 +157,6 @@ class BaseLauncher(abc.ABC):
         ]:
             mlrun.utils.helpers.warn_on_deprecated_image(image)
 
-        logger.debug("yacouby: validating run",count = run.spec.retry.count,kind=runtime.kind)
         # Raise an error if retry is configured for a runtime that doesn't support retries
         if (
             run.spec.retry.count

@@ -125,7 +125,6 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
             state_thresholds=state_thresholds,
             retry=retry,
         )
-        logger.info("yacouby: launching local run", kind=runtime.kind, count=run.spec.retry.count)
         self._validate_run(runtime, run)
         result = self._execute(
             runtime=runtime,

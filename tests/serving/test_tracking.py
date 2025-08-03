@@ -214,7 +214,7 @@ def test_child_function_tracking_with_model_runner(rundb_mock):
         model_runner_step, function="c1"
     ).to(">>", name="out", path="dummy://out")
     fn.set_tracking("dummy://", enable_tracking=True)
-    fn.add_child_function("c1", f"{assets_path}/child_function.py", r"mlrun\mlrun")
+    fn.add_child_function("c1", f"{assets_path}/child_function.py", "mlrun/mlrun")
     server = fn.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()

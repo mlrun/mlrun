@@ -867,6 +867,56 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             },
         )
 
+    @pytest.mark.asyncio
+    async def test_retry_pod_deleted_before_first_attempt(
+        self, db: Session, client: TestClient
+    ):
+        # Test that a run still retries if the pod is deleted before the first retry attempt starts.
+        list_namespaced_pods_calls = [
+            [self.pending_job_pod],
+            [self.running_job_pod],
+            # simulate deleted pod
+            [],
+            [self.failed_job_pod],
+            # additional time for the get_logger_pods
+            [self.failed_job_pod],
+        ]
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_read_namespaced_pod_log()
+
+        # Simulate that no runtime resources are found
+        self.runtime_handler._get_runtime_resources = unittest.mock.Mock(
+            return_value=[]
+        )
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_pods_calls - 1
+        )
+
+        # Store the run with retry spec
+        self._store_run(
+            db,
+            retry_spec={"count": 3},
+        )
+
+        for _ in range(expected_monitor_cycles_to_reach_expected_state):
+            self.runtime_handler.monitor_runs(get_db(), db)
+
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, expected_number_of_list_pods_calls
+        )
+
+        self._assert_run_reached_state(
+            db,
+            self.project,
+            self.run_uid,
+            RunStates.pending_retry,
+            expected_status_attrs={
+                "reason": "Some reason",
+                "status_text": "Run failed attempt 1 of 4 with error: Failed message",
+            },
+        )
+
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod
         mocked_responses = self._mock_list_namespaced_pods([[pod]])

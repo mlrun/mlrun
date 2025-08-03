@@ -29,6 +29,7 @@ from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.common.constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
@@ -830,7 +831,8 @@ class RemoteRuntime(KubeResource):
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
         runtime_env = {
-            "MLRUN_ACTIVE_PROJECT": self.metadata.project or mlconf.active_project,
+            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
+            or mlconf.active_project,
         }
         if mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url

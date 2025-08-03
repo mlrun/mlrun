@@ -437,18 +437,30 @@ class Secrets(
                 "Failed to store secret tokens – no tokens provided"
             )
 
+        # TODO: maybe we can use auth info and not decode the token?
         username, user_id = self._extract_user_info_from_access_token(authorization)
 
         valid_tokens = self._validate_and_decode_offline_tokens(secret_tokens, user_id)
 
-        iguazio_client = framework.utils.clients.iguazio.v4.Client()
-        iguazio_client.refresh_access_tokens(secret_tokens)
+        # TODO: refresh access tokens via iguazio
+        # iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        # iguazio_client.refresh_access_tokens(secret_tokens)
 
         created_tokens, updated_tokens, skipped_tokens = [], [], []
 
         for token_name, decoded_token in valid_tokens.items():
-            secret_name = self._generate_k8s_secret_name(username, token_name)
-            # TODO: create a new secret if it doesn't exist, or update it if it does use self.secrets_provider.
+            action = self.secrets_provider.create_or_update_user_token_secret(
+                username=username,
+                token_name=token_name,
+                token=decoded_token["raw_token"],
+                expiration=decoded_token["exp"],
+            )
+            if action == mlrun.common.schemas.SecretEventActions.created:
+                created_tokens.append(token_name)
+            elif action == mlrun.common.schemas.SecretEventActions.updated:
+                updated_tokens.append(token_name)
+            elif action == mlrun.common.schemas.SecretEventActions.skipped:
+                skipped_tokens.append(token_name)
 
         return {
             "created": created_tokens,
@@ -497,6 +509,7 @@ class Secrets(
             decoded = self._decode_and_verify_offline_token(
                 token.name, token.token, expected_user_id
             )
+            decoded["raw_token"] = token.token  # Add original token string
             result[token.name] = decoded
 
         return result
@@ -530,6 +543,7 @@ class Secrets(
 
     def _decode_offline_token(self, token_name: str, token: str) -> dict:
         try:
+            # TODO : verify signature?
             return jwt.decode(token, options={"verify_signature": False})
         except jwt.DecodeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(

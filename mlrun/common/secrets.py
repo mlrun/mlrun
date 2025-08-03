@@ -55,6 +55,15 @@ class SecretProviderInterface(ABC):
     def get_secret_data(self, secret_name, namespace=""):
         pass
 
+    @abstractmethod
+    def create_or_update_user_token_secret(
+        self,
+        username: str,
+        token_name: str,
+        token: str,
+        expiration: int,
+    ) -> mlrun.common.schemas.SecretEventActions:
+        pass
 
 class InMemorySecretProvider(SecretProviderInterface):
     def __init__(self):
@@ -130,6 +139,15 @@ class InMemorySecretProvider(SecretProviderInterface):
 
     def get_secret_data(self, secret_name, namespace=""):
         return self.secrets_map[secret_name]
+
+    def create_or_update_user_token_secret(
+        self,
+        username: str,
+        token_name: str,
+        token: str,
+        expiration: int,
+    ) -> mlrun.common.schemas.SecretEventActions:
+        raise NotImplementedError()
 
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):

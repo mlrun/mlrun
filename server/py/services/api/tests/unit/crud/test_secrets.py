@@ -797,6 +797,24 @@ def test_store_secret_tokens_duplicate_names(mock_extract_user_info):
         services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
 
 
+@unittest.mock.patch.object(
+    services.api.crud.Secrets, "_extract_user_info_from_access_token"
+)
+def test_store_secret_tokens_invalid_offline_token_jwt_decode(mock_extract_user_info):
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(name="bad", token="this-is-not-a-jwt"),
+    ]
+
+    # Mock the access token decoding to return fixed user info
+    mock_extract_user_info.return_value = ("some-user", "some-user-id")
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Failed to decode offline token 'bad'",
+    ):
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -846,3 +864,43 @@ def test_store_secret_tokens_sub_mismatch(mock_extract_user_info):
         match="does not belong to the authenticated user",
     ):
         services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+
+
+@unittest.mock.patch.object(
+    services.api.crud.Secrets, "_extract_user_info_from_access_token"
+)
+def test_store_secret_tokens_return_values(
+    mock_extract_user_info,
+):
+    mock_extract_user_info.return_value = ("testuser", "user-id-123")
+
+    token_payload = {"sub": "user-id-123", "exp": 9999999999}
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1", token=generate_token(token_payload)
+        ),
+        mlrun.common.schemas.SecretToken(
+            name="token2", token=generate_token(token_payload)
+        ),
+        mlrun.common.schemas.SecretToken(
+            name="token3", token=generate_token(token_payload)
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.create_or_update_user_token_secret.side_effect = [
+        mlrun.common.schemas.SecretEventActions.created,
+        mlrun.common.schemas.SecretEventActions.updated,
+        mlrun.common.schemas.SecretEventActions.skipped,
+    ]
+
+    result = services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+
+    assert result == {
+        "created": ["token1"],
+        "updated": ["token2"],
+        "skipped": ["token3"],
+    }
+
+    assert mock_secrets_provider.create_or_update_user_token_secret.call_count == 3

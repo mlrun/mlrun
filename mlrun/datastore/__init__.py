@@ -184,7 +184,6 @@ class _DummyStream(storey.MapClass):
             self.event_list.append(item)
 
     def do(self, event):
-        event = event.body if hasattr(event, "body") else event
         if not isinstance(event, list):
             event = [event]
         for item in event:

@@ -1804,14 +1804,14 @@ class MlrunProject(ModelObj):
         Example::
 
             project.log_model(
-            "model",
-            body=dumps(model),
-            model_file="model.pkl",
-            metrics=context.results,
-            training_set=training_df,
-            label_column="label",
-            feature_vector=feature_vector_uri,
-            labels={"app": "fraud"},
+                "model",
+                body=dumps(model),
+                model_file="model.pkl",
+                metrics=context.results,
+                training_set=training_df,
+                label_column="label",
+                feature_vector=feature_vector_uri,
+                labels={"app": "fraud"},
             )
 
         :param key:             artifact key or artifact class ()
@@ -2057,7 +2057,7 @@ class MlrunProject(ModelObj):
         :return: DocumentArtifact object
 
         Example::
-            
+
             # Log a PDF document with custom loader
             project.log_document(
                 local_path="path/to/doc.pdf",
@@ -2067,7 +2067,7 @@ class MlrunProject(ModelObj):
                     kwargs={"extract_images": True},
                 ),
             )
-            
+
         """
         if not key and not local_path and not target_path:
             raise ValueError(

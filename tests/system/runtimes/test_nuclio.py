@@ -32,15 +32,16 @@ from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.serving import ModelRunnerStep
+from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
 from tests.system.runtimes.assets.function_with_llm import MyLLM
 from tests.system.runtimes.assets.function_with_model import DummyModel
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
-class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
+class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     project_name = "test-nuclio-runtime"
 
-    image: str = "mlrun/mlrun"
+    image: str = "artifactory.iguazeng.com:10557/davids/mlrun:1.10.0"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")
@@ -259,6 +260,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         ]
 
     def test_deploy_function_with_model_runner_with_child_function(self):
+        self.set_mm_credentials()
         code_path = str(self.assets_path / "function_with_model.py")
         child_code_path = str(self.assets_path / "child_function.py")
         self._logger.debug("Creating nuclio function")
@@ -279,6 +281,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         )
         step = graph.to(model_runner_step).respond()
         step.to(name="inc", handler="inc", function="child")
+        function.set_tracking()
         function.add_child_function(
             "child",
             child_code_path,
@@ -286,6 +289,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         )
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
+
+        assert len(self.project.list_model_endpoints()) == 1
 
         assert deployment == function.get_url()  # check function url
 

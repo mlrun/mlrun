@@ -166,7 +166,7 @@ def new_project(
     in the project root dir, it will be executed upon project creation or loading.
 
 
-    example::
+    Example::
 
         # create a project with local and hub functions, a workflow, and an artifact
         project = mlrun.new_project(
@@ -183,7 +183,7 @@ def new_project(
         # run the "main" workflow (watch=True to wait for run completion)
         project.run("main", watch=True)
 
-    example (load from template)::
+    Example (load from template)::
 
         # create a new project from a zip template (can also use yaml/git templates)
         # initialize a local git, and register the git remote path
@@ -197,7 +197,7 @@ def new_project(
         project.run("main", watch=True)
 
 
-    example using project_setup.py to init the project objects::
+    Example using project_setup.py to init the project objects::
 
             def setup(project):
                 project.set_function(
@@ -1281,7 +1281,7 @@ class MlrunProject(ModelObj):
     ) -> str:
         """return the project artifact uri (store://..) from the artifact key
 
-        example::
+        Example::
 
             uri = project.get_artifact_uri("my_model", category="model", tag="prod", iter=0)
 
@@ -1459,7 +1459,7 @@ class MlrunProject(ModelObj):
     ):
         """add/set an artifact in the project spec (will be registered on load)
 
-        example::
+        Example::
 
             # register a simple file artifact
             project.set_artifact("data", target_path=data_url)
@@ -1610,7 +1610,7 @@ class MlrunProject(ModelObj):
 
         If the artifact already exists with the same key and tag, it will be overwritten.
 
-        example::
+        Example::
 
             project.log_artifact(
                 "some-data",
@@ -1714,7 +1714,7 @@ class MlrunProject(ModelObj):
 
         If the dataset already exists with the same key and tag, it will be overwritten.
 
-        example::
+        Example::
 
             raw_data = {
                 "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
@@ -1801,17 +1801,17 @@ class MlrunProject(ModelObj):
 
         If the model already exists with the same key and tag, it will be overwritten.
 
-        example::
+        Example::
 
             project.log_model(
-                "model",
-                body=dumps(model),
-                model_file="model.pkl",
-                metrics=context.results,
-                training_set=training_df,
-                label_column="label",
-                feature_vector=feature_vector_uri,
-                labels={"app": "fraud"},
+            "model",
+            body=dumps(model),
+            model_file="model.pkl",
+            metrics=context.results,
+            training_set=training_df,
+            label_column="label",
+            feature_vector=feature_vector_uri,
+            labels={"app": "fraud"},
             )
 
         :param key:             artifact key or artifact class ()
@@ -2000,11 +2000,12 @@ class MlrunProject(ModelObj):
                                 This wrapper provides both access to the original vector
                                 store's capabilities and additional MLRun functionality.
 
-        Example:
-            >>> vector_store = Chroma(embedding_function=embeddings)
-            >>> collection = project.get_vector_store_collection(
-            ...     vector_store, collection_name="my_collection"
-            ... )
+        Example::
+
+            vector_store = Chroma(embedding_function=embeddings)
+            collection = project.get_vector_store_collection(
+                vector_store, collection_name="my_collection"
+            )
         """
         return VectorStoreCollection(
             self,
@@ -2055,17 +2056,18 @@ class MlrunProject(ModelObj):
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
 
-        Example:
-            >>> # Log a PDF document with custom loader
-            >>> project.log_document(
-            ...     local_path="path/to/doc.pdf",
-            ...     document_loader=DocumentLoaderSpec(
-            ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
-            ...         src_name="file_path",
-            ...         kwargs={"extract_images": True},
-            ...     ),
-            ... )
-
+        Example::
+            
+            # Log a PDF document with custom loader
+            project.log_document(
+                local_path="path/to/doc.pdf",
+                document_loader=DocumentLoaderSpec(
+                    loader_class_name="langchain_community.document_loaders.PDFLoader",
+                    src_name="file_path",
+                    kwargs={"extract_images": True},
+                ),
+            )
+            
         """
         if not key and not local_path and not target_path:
             raise ValueError(
@@ -3414,7 +3416,7 @@ class MlrunProject(ModelObj):
         when using a secrets file it should have lines in the form KEY=VALUE, comment line start with "#"
         V3IO paths/credentials and MLrun service API address are dropped from the secrets
 
-        example secrets file:
+        Example secrets file:
 
         .. code-block:: shell
 
@@ -3993,7 +3995,7 @@ class MlrunProject(ModelObj):
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
-        example (use with project)::
+        Example (use with project)::
 
             # create a project with two functions (local and from hub)
             project = mlrun.new_project(project_name, "./proj")
@@ -4827,7 +4829,7 @@ class MlrunProject(ModelObj):
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
-        example::
+        Example::
 
             functions = project.list_functions(tag="latest")
 
@@ -4966,12 +4968,14 @@ class MlrunProject(ModelObj):
         include_infra: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
         """Get monitoring function summaries for the specified project.
+
         :param start: Start time for filtering the results (optional).
         :param end: End time for filtering the results (optional).
         :param names: List of function names to filter by (optional).
         :param labels: Labels to filter by (optional).
         :param include_stats: Whether to include statistics in the response (default is False).
         :param include_infra: whether to include model monitoring infrastructure functions (default is True).
+
         :return: A list of FunctionSummary objects containing information about the monitoring functions.
         """
 
@@ -5000,6 +5004,7 @@ class MlrunProject(ModelObj):
         include_latest_metrics: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         """Get a monitoring function summary for the specified project and function name.
+
         :param name:                   Name of the monitoring function to retrieve the summary for.
         :param start:                  Start time for filtering the results (optional).
         :param end:                    End time for filtering the results (optional).

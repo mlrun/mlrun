@@ -162,7 +162,6 @@ class BaseLauncher(abc.ABC):
             run.spec.retry.count
             and runtime.kind not in mlrun.runtimes.RuntimeKinds.retriable_runtimes()
         ):
-            logger.debug("in if")
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Retry is not supported for {runtime.kind} runtime, supported runtimes are: "
                 f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"

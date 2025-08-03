@@ -169,7 +169,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
             raise ValueError(f"unsupported stream path {stream_path}")
 
 
-class _DummyStream(storey.Flow):
+class _DummyStream(storey.MapClass):
     """stream emulator for tests and debug"""
 
     def __init__(self, event_list=None, **kwargs):
@@ -183,12 +183,9 @@ class _DummyStream(storey.Flow):
             logger.info(f"dummy stream got event: {item}, kwargs={kwargs}")
             self.event_list.append(item)
 
-    async def _do(self, event):
-        if event is storey.flow._termination_obj:
-            return await self._do_downstream(storey.flow._termination_obj)
-        if hasattr(event, "body"):
-            event = event.body
-            if not isinstance(event, list):
-                event = [event]
-            for item in event:
-                self.event_list.append(item)
+    def do(self, event):
+        event = event.body if hasattr(event, "body") else event
+        if not isinstance(event, list):
+            event = [event]
+        for item in event:
+            self.event_list.append(item)

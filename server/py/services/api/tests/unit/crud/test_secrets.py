@@ -869,7 +869,9 @@ def test_store_secret_tokens_sub_mismatch(mock_extract_user_info):
 @unittest.mock.patch.object(
     services.api.crud.Secrets, "_extract_user_info_from_access_token"
 )
+@unittest.mock.patch("framework.utils.clients.iguazio.v4.Client.refresh_access_tokens")
 def test_store_secret_tokens_return_values(
+    mock_refresh_access_tokens,
     mock_extract_user_info,
 ):
     mock_extract_user_info.return_value = ("testuser", "user-id-123")
@@ -904,3 +906,4 @@ def test_store_secret_tokens_return_values(
     }
 
     assert mock_secrets_provider.create_or_update_user_token_secret.call_count == 3
+    mock_refresh_access_tokens.assert_called_once_with(secret_tokens)

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import http
 import typing
 
 import iguazio
@@ -32,32 +31,36 @@ class Client(BaseClient):
         super().__init__(*args, **kwargs)
         self._client = iguazio.Client(api_url=self._api_url)
 
-    def refresh_access_token(self, token_name: str, token: str) -> str:
+    def refresh_access_token(self, token_name: str, token: str) -> None:
         """
-        Refresh the access token using the Iguazio client.
+        Refresh the access token using the Iguazio client to validate the offline token.
 
         :param token_name: Logical name of the token (used for error messages)
         :param token: The offline token string
-        :return: The new access token
         :raises mlrun.errors.MLRunUnauthorizedError: If the token is invalid or expired
         """
         try:
-            response = self._client.refresh_access_token(token)
+            self._client.refresh_access_token(token)
         except Exception as exc:
             raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to refresh access token {token_name}: token is invalid or expired"
+                f"Failed to refresh access token '{token_name}': token is invalid or expired"
             ) from exc
 
-        access_token = response.get("spec", {}).get("accessToken")
-        if (
-            response.get("status", {}).get("statusCode") != http.HTTPStatus.OK
-            or not access_token
-        ):
-            raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to refresh access token {token_name}: token is invalid or expired"
-            )
+    def refresh_access_tokens(
+        self, secret_tokens: typing.List[mlrun.common.schemas.SecretToken]
+    ) -> None:
+        """
+        Refresh all offline tokens using the Iguazio client to validate them.
 
-        return access_token
+        :param secret_tokens: List of SecretToken objects
+        :raises mlrun.errors.MLRunUnauthorizedError: If any token is invalid or expired
+        """
+        try:
+            self._client.refresh_access_tokens(secret_tokens)
+        except Exception as exc:
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Failed to refresh one or more access tokens: token(s) are invalid or expired"
+            ) from exc
 
     def _generate_auth_info_from_session_verification_response(
         self,

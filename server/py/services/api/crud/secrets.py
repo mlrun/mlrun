@@ -442,9 +442,9 @@ class Secrets(
 
         valid_tokens = self._validate_and_decode_offline_tokens(secret_tokens, user_id)
 
-        # TODO: refresh access tokens via iguazio
-        # iguazio_client = framework.utils.clients.iguazio.v4.Client()
-        # iguazio_client.refresh_access_tokens(secret_tokens)
+        # TODO: move init iguazio_client
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        iguazio_client.refresh_access_tokens(secret_tokens)
 
         created_tokens, updated_tokens, skipped_tokens = [], [], []
 

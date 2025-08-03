@@ -1727,7 +1727,7 @@ class ModelRunnerStep(MonitoredStep):
     @staticmethod
     def _get_model_artifact_schema(
         model_artifact: Union[ModelArtifact, LLMPromptArtifact],
-    ) -> Optional[tuple[list[str], list[str]]]:
+    ) -> Union[tuple[list[str], list[str]], tuple[None, None]]:
         if isinstance(
             model_artifact,
             ModelArtifact,
@@ -1743,6 +1743,8 @@ class ModelRunnerStep(MonitoredStep):
             return [feature.name for feature in _model_artifact.spec.outputs], [
                 feature.name for feature in _model_artifact.spec.inputs
             ]
+        else:
+            return None, None
 
     @staticmethod
     def _get_model_endpoint_schema(

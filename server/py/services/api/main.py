@@ -31,6 +31,7 @@ import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
 from mlrun import mlconf
+from mlrun.common.db.dialects import Dialects
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 
@@ -586,6 +587,10 @@ class Service(framework.service.Service):
             )
 
     def _start_periodic_partition_management(self):
+        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+            self._logger.debug("Partition management not supported for SQLite")
+            return
+
         for table_name, retention_days in mlconf.object_retentions.items():
             self._logger.info(
                 f"Starting periodic partition management for table {table_name}",
@@ -963,8 +968,7 @@ class Service(framework.service.Service):
         self._logger.debug("Retrying jobs with retry policy configured")
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         fetch_runs_limit = int(mlconf.monitoring.runs.retry.fetch_runs_limit)
-        staleness_threshold = int(mlconf.monitoring.runs.retry.staleness_threshold)
-        stale_after = datetime.timedelta(minutes=staleness_threshold)
+        stale_after = mlconf.get_run_retry_staleness_threshold_timedelta()
         now = datetime.datetime.now(datetime.timezone.utc)
         try:
             offset = 0
@@ -1003,7 +1007,7 @@ class Service(framework.service.Service):
                                     uid=run.metadata.uid,
                                     run_updates={
                                         "status.status_text": "Retry aborted: run was pending retry for more than "
-                                        f"{staleness_threshold} minutes",
+                                        f"{mlrun.mlconf.monitoring.runs.retry.staleness_threshold} minutes",
                                     },
                                     run=run_dict,
                                 )
@@ -1105,7 +1109,7 @@ class Service(framework.service.Service):
                 "task": run.to_dict(),
             }
             framework.db.session.run_function_with_new_db_session(
-                framework.api.utils.submit_run_sync,
+                framework.api.utils.submit_run_from_body,
                 # auth is already masked on the function
                 mlrun.common.schemas.AuthInfo(),
                 # TODO: pass values for param_file_secrets ?

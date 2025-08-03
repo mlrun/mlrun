@@ -47,3 +47,6 @@ class MonitoringData(StrEnum):
 class ModelsData(enum.Enum):
     MODEL_CLASS = 0
     MODEL_PARAMETERS = 1
+
+
+MAX_BATCH_JOB_DURATION = "1w"

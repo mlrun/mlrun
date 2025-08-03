@@ -127,7 +127,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.10.8"},
+        "storey": {"~=1.10.9"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "scipy": {"~=1.13.0"},
@@ -149,6 +149,7 @@ def test_requirement_specifiers_convention():
         "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
         "aioresponses": {"~=0.7"},
+        "testcontainers[k3s]": {"~=4.10.0"},
         "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},

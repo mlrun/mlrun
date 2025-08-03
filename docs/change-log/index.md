@@ -39,7 +39,8 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10376|Improved the description of creating an alert, including `run-id`. See [Creating an alert](../concepts/alerts.md#creating-an-alert).|
+|NA|Workflow engine types and the interdependencies with Python are fully described in {ref}`local-remote`.|
+|ML-10367|Improved the description of creating an alert, including `run-id`. See [Creating an alert](../concepts/alerts.md#creating-an-alert).|
 
 
 

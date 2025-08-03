@@ -63,6 +63,20 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         assert deployment == function.get_url()  # check function url
 
+    def test_mlrun_project_accessibility(self):
+        fn = mlrun.code_to_function(
+            filename=str(self.assets_path / "nuclio_mlrun_function.py"),
+            name="nuclio-mlrun",
+            kind="nuclio",
+            image=self.image,
+            handler="my_func",
+            project=self.project_name,
+        )
+        fn.deploy()
+        response = fn.invoke(path="/")
+        response_body = json.loads(response.decode("utf-8"))
+        assert response_body.get("metadata", {}).get("name") == self.project_name
+
     @pytest.mark.parametrize("raise_exception", [True, False])
     @pytest.mark.parametrize("with_object", [True, False])
     def test_deploy_function_with_model_runner(self, raise_exception, with_object):

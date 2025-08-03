@@ -1652,8 +1652,13 @@ class ModelRunnerStep(MonitoredStep):
             except mlrun.errors.MLRunNotFoundError:
                 raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
 
-        outputs = outputs or self._get_model_output_schema(model_artifact)
-        inputs = inputs or self._get_model_input_schema(model_artifact)
+        artifact_outputs, artifact_inputs = None, None
+        if not outputs or not inputs:
+            artifact_outputs, artifact_inputs = self._get_model_artifact_schema(
+                model_artifact
+            )
+        outputs = outputs or artifact_outputs
+        inputs = inputs or artifact_inputs
 
         model_artifact = (
             model_artifact.uri
@@ -1720,36 +1725,24 @@ class ModelRunnerStep(MonitoredStep):
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
 
     @staticmethod
-    def _get_model_output_schema(
+    def _get_model_artifact_schema(
         model_artifact: Union[ModelArtifact, LLMPromptArtifact],
-    ) -> Optional[list[str]]:
+    ) -> Optional[tuple[list[str], list[str]]]:
         if isinstance(
             model_artifact,
             ModelArtifact,
         ):
-            return [feature.name for feature in model_artifact.spec.outputs]
+            return [feature.name for feature in model_artifact.spec.outputs], [
+                feature.name for feature in model_artifact.spec.inputs
+            ]
         elif isinstance(
             model_artifact,
             LLMPromptArtifact,
         ):
             _model_artifact = model_artifact.model_artifact
-            return [feature.name for feature in _model_artifact.spec.outputs]
-
-    @staticmethod
-    def _get_model_input_schema(
-        model_artifact: Union[ModelArtifact, LLMPromptArtifact],
-    ) -> Optional[list[str]]:
-        if isinstance(
-            model_artifact,
-            ModelArtifact,
-        ):
-            return [feature.name for feature in model_artifact.spec.inputs]
-        elif isinstance(
-            model_artifact,
-            LLMPromptArtifact,
-        ):
-            _model_artifact = model_artifact.model_artifact
-            return [feature.name for feature in _model_artifact.spec.inputs]
+            return [feature.name for feature in _model_artifact.spec.outputs], [
+                feature.name for feature in _model_artifact.spec.inputs
+            ]
 
     @staticmethod
     def _get_model_endpoint_schema(

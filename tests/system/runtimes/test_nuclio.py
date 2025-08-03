@@ -41,7 +41,7 @@ from tests.system.runtimes.assets.function_with_model import DummyModel
 class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     project_name = "test-nuclio-runtime"
 
-    image: str = "artifactory.iguazeng.com:10557/davids/mlrun:1.10.0"
+    image: str = "mlrun/mlrun"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")

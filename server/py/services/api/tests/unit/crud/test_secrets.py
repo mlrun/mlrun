@@ -692,3 +692,157 @@ def test_store_auth_secret(
         ),
     )
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
+
+
+# TODO move to another file
+import jwt
+
+
+def generate_token(payload: dict) -> str:
+    return jwt.encode(payload, key="dummy", algorithm="HS256")
+
+
+@pytest.mark.parametrize(
+    "claims, should_raise, expected_result",
+    [
+        # All required claims
+        (
+            {"exp": 9999999999, "sub": "user123", "preferred_username": "testuser"},
+            False,
+            ("testuser", "user123"),
+        ),
+        # Missing 'exp'
+        (
+            {"sub": "user123", "preferred_username": "testuser"},
+            True,
+            None,
+        ),
+        # Missing 'sub'
+        (
+            {"exp": 9999999999, "preferred_username": "testuser"},
+            True,
+            None,
+        ),
+        # Missing 'preferred_username'
+        (
+            {"exp": 9999999999, "sub": "user123"},
+            True,
+            None,
+        ),
+    ],
+)
+def test_extract_user_info_from_access_token(claims, should_raise, expected_result):
+    token = generate_token(claims)
+    auth_header = f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer} {token}"
+
+    if should_raise:
+        with pytest.raises(
+            mlrun.errors.MLRunUnauthorizedError,
+            match="Access token is missing required claims: 'exp', 'sub', or 'preferred_username'",
+        ):
+            services.api.crud.Secrets()._extract_user_info_from_access_token(
+                auth_header
+            )
+    else:
+        result = services.api.crud.Secrets()._extract_user_info_from_access_token(
+            auth_header
+        )
+        assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    [
+        f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer} not-a-valid-jwt",
+        f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.basic} not-a-bearer-token",
+        "",
+    ],
+)
+def test_extract_user_info_from_access_token_invalid_format(authorization):
+    with pytest.raises(
+        mlrun.errors.MLRunUnauthorizedError, match="Invalid access token"
+    ):
+        services.api.crud.Secrets()._extract_user_info_from_access_token(authorization)
+
+
+@pytest.mark.parametrize("tokens", [[], None])
+def test_store_secret_tokens_missing_tokens(
+    tokens,
+):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        services.api.crud.Secrets().store_secret_tokens(tokens, None)
+
+
+@unittest.mock.patch.object(
+    services.api.crud.Secrets, "_extract_user_info_from_access_token"
+)
+def test_store_secret_tokens_duplicate_names(mock_extract_user_info):
+    # Mock user info returned from access token extraction
+    mock_extract_user_info.return_value = ("testuser", "user-123")
+
+    token_payload = {"sub": "user-123", "exp": 9999999999}
+
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="dup-token", token=generate_token(token_payload)
+        ),
+        mlrun.common.schemas.SecretToken(
+            name="dup-token", token=generate_token(token_payload)
+        ),
+    ]
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Invalid or duplicate token name"
+    ):
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"exp": 9999999999},  # missing sub
+        {"sub": "user-123"},  # missing exp
+    ],
+)
+@unittest.mock.patch.object(
+    services.api.crud.Secrets, "_extract_user_info_from_access_token"
+)
+def test_store_secret_tokens_missing_required_claims_in_offline_token(
+    mock_extract_user_info, payload
+):
+    # Mock the access token decoding to return fixed user info
+    mock_extract_user_info.return_value = ("testuser", "user-123")
+
+    token = generate_token(payload)
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(name="bad-token", token=token),
+    ]
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="missing required claims"
+    ):
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)
+
+
+@unittest.mock.patch.object(
+    services.api.crud.Secrets, "_extract_user_info_from_access_token"
+)
+def test_store_secret_tokens_sub_mismatch(mock_extract_user_info):
+    # Mock the access token decoding to return fixed user info
+    mock_extract_user_info.return_value = ("testuser", "expected-user-id")
+
+    # Create a token with a different sub (user ID)
+    payload = {
+        "sub": "other-user-id",
+        "exp": 9999999999,
+    }
+    token = generate_token(payload)
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(name="wrong-user-token", token=token)
+    ]
+
+    with pytest.raises(
+        mlrun.errors.MLRunAccessDeniedError,
+        match="does not belong to the authenticated user",
+    ):
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, None)

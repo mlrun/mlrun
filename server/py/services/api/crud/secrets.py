@@ -433,7 +433,9 @@ class Secrets(
         Returns a dict indicating which tokens were created, updated, or skipped.
         """
         if not secret_tokens:
-            raise mlrun.errors.MLRunInvalidArgumentError("No tokens provided")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Failed to store secret tokens – no tokens provided"
+            )
 
         username, user_id = self._extract_user_info_from_access_token(authorization)
 
@@ -477,6 +479,7 @@ class Secrets(
             token = authorization.replace(
                 mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer, ""
             ).strip()
+            # TODO: verify signature?
             return jwt.decode(token, options={"verify_signature": False})
         except Exception as exc:
             raise mlrun.errors.MLRunUnauthorizedError("Invalid access token") from exc

@@ -159,7 +159,8 @@ class BaseLauncher(abc.ABC):
 
         # Raise an error if retry is configured for a runtime that doesn't support retries
         if (
-            run.spec.retry.count
+            not mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
+            and run.spec.retry.count
             and runtime.kind not in mlrun.runtimes.RuntimeKinds.retriable_runtimes()
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(

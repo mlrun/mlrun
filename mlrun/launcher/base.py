@@ -157,7 +157,9 @@ class BaseLauncher(abc.ABC):
         ]:
             mlrun.utils.helpers.warn_on_deprecated_image(image)
 
-        # Raise an error if retry is configured for a runtime that doesn't support retries
+        # Raise an error if retry is configured for a runtime that doesn't support retries.
+        # For local runs, we intentionally skip this validation and allow the run to proceed, since they are typically
+        # used for debugging purposes, and in such cases we avoid blocking their execution.
         if (
             not mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
             and run.spec.retry.count

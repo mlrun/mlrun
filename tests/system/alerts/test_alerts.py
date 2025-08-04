@@ -15,6 +15,7 @@
 import json
 import time
 import typing
+import uuid
 
 import deepdiff
 import pytest
@@ -184,10 +185,12 @@ class TestAlerts(TestMLRunSystem):
         nuclio_function_url = notification_helpers.deploy_notification_nuclio(
             self.project, self.image
         )
+        # generate a new model-endpoint
         model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=self.project.metadata.name,
             model_endpoint_name="test-endpoint",
             context=mlrun.get_or_create_ctx("demo"),
+            endpoint_id=uuid.uuid4().hex # either endpoint-id or function_name and function_tag must be provided
         )
 
         # waits for the writer function to be deployed

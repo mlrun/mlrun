@@ -135,8 +135,8 @@ class HuggingFaceProvider(ModelProvider):
                     "total_tokens": total_tokens,
                 }
                 response = {
-                    ResponseStatsKeys.ANSWER: str_response,
-                    ResponseStatsKeys.STATS: stats,
+                    ResponseStatsKeys.ANSWER.value: str_response,
+                    ResponseStatsKeys.STATS.value: stats,
                 }
         return response
 

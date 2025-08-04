@@ -15,7 +15,7 @@ import os
 import time
 import unittest.mock
 from typing import cast
-
+from mlrun.datastore.model_provider.model_provider import ResponseStatsKeys
 import openai.types.chat
 import pytest
 import tiktoken
@@ -167,6 +167,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             )
 
         assert isinstance(response, dict)
+        # TODO update stats to const
         completion_tokens = response["stats"]["usage"]["completion_tokens"]
         prompt_tokens = response["stats"]["usage"]["prompt_tokens"]
         total_tokens = response["stats"]["usage"]["total_tokens"]
@@ -299,10 +300,18 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            result = server.test(body=INPUT_DATA[0])["result"]
-            assert EXPECTED_RESULTS[0] in result.lower()
+            response = server.test(body=INPUT_DATA[0])["output"]
+            assert len(response) == 2
+            answer = response[ResponseStatsKeys.ANSWER.value]
+            assert EXPECTED_RESULTS[0] in answer.lower()
             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            assert len(encoding.encode(result)) == 100
+            assert len(encoding.encode(answer)) == 100
+
+            stats = response[ResponseStatsKeys.STATS.value]
+            assert stats["usage"]["completion_tokens"] == 100
+            assert stats["usage"]["prompt_tokens"] > 0
+            assert stats["usage"]["total_tokens"] == stats["usage"]["completion_tokens"] +\
+                   stats["usage"]["prompt_tokens"]
         finally:
             server.wait_for_completion()
 

@@ -118,6 +118,7 @@ def setup_remote_model_test(
         endpoint_name="my_endpoint",
         execution_mechanism=execution_mechanism,
         model_artifact=llm_prompt_artifact,
+        result_path="output",
     )
     graph.to(model_runner_step).respond()
     return model_artifact, llm_prompt_artifact, function

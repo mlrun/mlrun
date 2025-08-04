@@ -1250,11 +1250,13 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            # TODO read metrics
-            body["result"] = await self.model_provider.async_invoke(
+            response_with_stats = await self.model_provider.async_invoke(
                 messages=messages,
-                invoke_response_format=InvokeResponseFormat.STRING,
+                invoke_response_format=InvokeResponseFormat.STATS,
                 **(model_configuration or {}),
+            )
+            set_data_by_path(
+                path=self._result_path, data=body, value=response_with_stats
             )
         return body
 

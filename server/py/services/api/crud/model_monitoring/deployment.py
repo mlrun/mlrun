@@ -2301,7 +2301,6 @@ class MonitoringDeployment:
         sampling_percentage: typing.Optional[float] = None,
         label_names: typing.Optional[list[str]] = None,
         model_path: typing.Optional[str] = None,
-        feature_names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
         return mlrun.common.schemas.ModelEndpoint(
@@ -2316,7 +2315,6 @@ class MonitoringDeployment:
                 children=children_names,
                 children_uids=children_uids,
                 model_path=model_path,
-                feature_names=feature_names or [],
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
@@ -2437,9 +2435,6 @@ class MonitoringDeployment:
                             ),
                             model_path=monitoring_data[endpoint_name].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_PATH, ""
-                            ),
-                            feature_names=monitoring_data[endpoint_name].get(
-                                mlrun.common.schemas.MonitoringData.INPUTS, []
                             ),
                         ),
                         monitoring_data[endpoint_name].get(

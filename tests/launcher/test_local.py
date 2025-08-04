@@ -300,3 +300,18 @@ def test_validate_run_retries_warning(logs_stream):
         in logs_stream.getvalue()
     )
     assert run.spec.retry.count == 0
+
+
+def test_validate_run_retries_invalid_runtime():
+    launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
+    runtime = mlrun.code_to_function(
+        name="test", kind="dask", filename=str(func_path), handler=handler
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(retry={"count": 3}, output_path="/tmp")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
+        launcher._validate_run(runtime, run)
+
+    assert "Retry is not supported for dask runtime" in str(excinfo.value)

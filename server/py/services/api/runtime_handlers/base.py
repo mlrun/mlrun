@@ -633,15 +633,18 @@ class BaseRuntimeHandler(ABC):
                         "possibly it was preempted or evicted. "
                         "Additional details may be available from Kubernetes events."
                     )
-                logger.info(
-                    "Updating run state", run_uid=run_uid, run_state=RunStates.error
-                )
-                run.setdefault("status", {})["state"] = RunStates.error
 
-                run.setdefault("status", {})["reason"] = reason
-                run.setdefault("status", {})["last_update"] = now.isoformat()
-                run.setdefault("status", {})["end_time"] = now.isoformat()
-                db.store_run(db_session, run, run_uid, project)
+                # Check if the run should be retried, and update its status accordingly
+                run_state, message = self._evaluate_run_retry_state(run, reason)
+                logger.info("Updating run state", run_uid=run_uid, run_state=run_state)
+                run_updates = {
+                    "status.state": run_state,
+                    "status.reason": reason,
+                    "status.status_text": message,
+                }
+                db.update_run(
+                    db_session, updates=run_updates, uid=run_uid, project=project
+                )
 
     def _get_runtime_resources(self, label_selector: str, namespace: str):
         """
@@ -1761,17 +1764,11 @@ class BaseRuntimeHandler(ABC):
             elif run_state == RunStates.error:
                 # Try resolving the error reason
                 reason, message = self._resolve_container_error_status(runtime_resource)
-                # Should run be retried
-                retry_spec = run.get("spec", {}).get("retry")
-                max_retries = retry_spec.get("count") if retry_spec else -1
-                # Run status retry_count may be `None` if the run has never been retried
-                retry_count = run.get("status", {}).get("retry_count", 0) or 0
-                attempts = retry_count + 1
-                if retry_count < max_retries:
-                    run_state = RunStates.pending_retry
-                    message = f"Run failed attempt {attempts} of {max_retries + 1} with error: {message or reason}"
-                elif 0 < max_retries <= retry_count:
-                    message = f"Run failed after {attempts} attempts with error: {message or reason}"
+
+                # Check if the run should be retried, and update its status accordingly
+                run_state, message = self._evaluate_run_retry_state(
+                    run, reason, message
+                )
 
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
         run_updates = {
@@ -1908,3 +1905,26 @@ class BaseRuntimeHandler(ABC):
         else:
             new_meta.generate_name = norm_name
         return new_meta
+
+    @staticmethod
+    def _evaluate_run_retry_state(
+        run: dict, reason: str, message: str = ""
+    ) -> tuple[str, str]:
+        """
+        Determine if the run should be retried or marked as failed, based on the retry policy and current attempt count.
+        """
+        retry_spec = run.get("spec", {}).get("retry", {})
+        max_retries = retry_spec.get("count", -1) if retry_spec else -1
+        # Run status retry_count may be `None` if the run has never been retried
+        retry_count = run.get("status", {}).get("retry_count") or 0
+        current_attempt = retry_count + 1
+
+        if retry_count < max_retries:
+            new_state = RunStates.pending_retry
+            message = f"Run failed attempt {current_attempt} of {max_retries + 1} with error: {message or reason}"
+        elif 0 < max_retries <= retry_count:
+            new_state = RunStates.error
+            message = f"Run failed after {current_attempt} attempts with error: {message or reason}"
+        else:
+            new_state = RunStates.error
+        return new_state, message

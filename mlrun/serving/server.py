@@ -361,6 +361,7 @@ def add_error_raiser_step(
             raise_exception=monitored_step.raise_exception,
             models_names=list(monitored_step.class_args["models"].keys()),
             model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+            function=monitored_step.function,
         )
         if monitored_step.responder:
             monitored_step.responder = False

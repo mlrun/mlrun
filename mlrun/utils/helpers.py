@@ -2433,7 +2433,9 @@ def set_data_by_path(
     path: typing.Union[str, list[str], None], data: dict, value
 ) -> None:
     if path is None:
-        raise ValueError("path can not be None")
+        if not isinstance(value, dict):
+            raise ValueError("When path is None, value must be a dictionary.")
+        data.update(value)
 
     elif isinstance(path, str):
         data[path] = value

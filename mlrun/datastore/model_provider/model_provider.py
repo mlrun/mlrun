@@ -188,7 +188,7 @@ class ModelProvider(BaseRemoteClient):
         messages: Union[list[dict], Any],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, Any]:
+    ) -> Union[str, dict[str, Any], Any]:
         """
         Invokes a generative AI model with the provided messages and additional parameters.
         This method is designed to be a flexible interface for interacting with various
@@ -245,6 +245,6 @@ class ModelProvider(BaseRemoteClient):
         messages: list[dict],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, Any]:
+    ) -> Union[str, dict[str, Any], Any]:
         """Async version of `invoke`. See `invoke` for full documentation."""
         raise NotImplementedError("async_invoke is not implemented")

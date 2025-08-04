@@ -48,7 +48,7 @@ from mlrun.datastore.model_provider.model_provider import (
     ModelProvider,
 )
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
-from mlrun.utils import get_data_from_path, logger, split_path
+from mlrun.utils import get_data_from_path, logger, set_data_by_path, split_path
 
 from ..config import config
 from ..datastore import get_stream_pusher
@@ -1209,10 +1209,15 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
 class LLModel(Model):
     def __init__(
-        self, name: str, input_path: Optional[Union[str, list[str]]] = None, **kwargs
+        self,
+        name: str,
+        input_path: Optional[Union[str, list[str]]] = None,
+        output_path: Optional[Union[str, list[str]]] = None,
+        **kwargs,
     ):
         super().__init__(name, **kwargs)
         self._input_path = split_path(input_path)
+        self._output_path = split_path(output_path)
 
     def predict(
         self,
@@ -1224,11 +1229,13 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            # TODO read metrics
-            body["result"] = self.model_provider.invoke(
+            response_with_stats = self.model_provider.invoke(
                 messages=messages,
-                invoke_response_format=InvokeResponseFormat.STRING,
+                invoke_response_format=InvokeResponseFormat.STATS,
                 **(model_configuration or {}),
+            )
+            set_data_by_path(
+                path=self._output_path, data=body, value=response_with_stats
             )
         return body
 

@@ -37,6 +37,15 @@ class InvokeResponseFormat(Enum):
         }
 
 
+class ResponseStatsKeys(str, Enum):
+    ANSWER = "answer"
+    STATS = "stats"
+
+    @classmethod
+    def fields(cls) -> list[str]:
+        return [cls.ANSWER.value, cls.STATS.value]
+
+
 class ModelProvider(BaseRemoteClient):
     """
     The ModelProvider class is an abstract base for integrating with external

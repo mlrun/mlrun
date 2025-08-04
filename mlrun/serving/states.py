@@ -24,6 +24,7 @@ import inspect
 import os
 import pathlib
 import traceback
+import warnings
 from abc import ABC
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
@@ -45,7 +46,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
-    ModelProvider,
+    ModelProvider, ResponseStatsKeys,
 )
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import get_data_from_path, logger, set_data_by_path, split_path
@@ -1648,7 +1649,12 @@ class ModelRunnerStep(MonitoredStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
-
+        if isinstance(model_class, str) and model_class == LLModel.__name__:
+            if outputs:
+                warnings.warn(
+                    "LLModel with existing outputs detected, overriding to default"
+                )
+            outputs = ResponseStatsKeys.fields()
         model_parameters = model_parameters or (
             model_class.to_dict() if isinstance(model_class, Model) else {}
         )
@@ -1813,6 +1819,13 @@ class ModelRunnerStep(MonitoredStep):
                 )
                 .get(model_params.get("name"), {})
                 .get(schemas.MonitoringData.INPUT_PATH)
+            )
+            model_params[schemas.MonitoringData.RESULT_PATH] = (
+                self.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
+                )
+                .get(model_params.get("name"), {})
+                .get(schemas.MonitoringData.RESULT_PATH)
             )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True

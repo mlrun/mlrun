@@ -19,6 +19,7 @@ import mlrun
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
     ModelProvider,
+    ResponseStatsKeys,
 )
 from mlrun.datastore.utils import accepts_param
 
@@ -217,7 +218,10 @@ class OpenAIProvider(ModelProvider):
                 return str_response
             if invoke_response_format == InvokeResponseFormat.STATS:
                 response = response.to_dict()
-                response = {"str_response": str_response, "stats": response}
+                response = {
+                    ResponseStatsKeys.ANSWER: str_response,
+                    ResponseStatsKeys.STATS: response,
+                }
         return response
 
     def invoke(

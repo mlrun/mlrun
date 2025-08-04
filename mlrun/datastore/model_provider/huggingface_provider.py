@@ -18,6 +18,7 @@ import mlrun
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
     ModelProvider,
+    ResponseStatsKeys,
 )
 
 if TYPE_CHECKING:
@@ -133,7 +134,10 @@ class HuggingFaceProvider(ModelProvider):
                     "completion_tokens": completion_tokens,
                     "total_tokens": total_tokens,
                 }
-                response = {"str_response": str_response, "stats": stats}
+                response = {
+                    ResponseStatsKeys.ANSWER: str_response,
+                    ResponseStatsKeys.STATS: stats,
+                }
         return response
 
     def load_client(self) -> None:

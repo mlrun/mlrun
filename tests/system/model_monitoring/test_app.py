@@ -1100,11 +1100,10 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
             assert result_values[
                 "values"
             ], f"The values list is empty for result {result_values['full_name']}"
-            assert len(result_values["values"]) == 2
+            assert len(result_values["values"]) == 3
 
         first_result = response_content[0]
         assert first_result["full_name"] in results_full_names
-        assert len(first_result["values"]) == 2
 
     def test_serving_as_a_job(self) -> None:
         self._log_model()

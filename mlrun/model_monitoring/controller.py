@@ -137,7 +137,7 @@ class _BatchWindow:
         ):
             entered = True
             start_time = datetime.datetime.fromtimestamp(
-                timestamp - self.TIMESTAMP_RESOLUTION_MICRO, tz=datetime.timezone.utc
+                timestamp, tz=datetime.timezone.utc
             )
             end_time = datetime.datetime.fromtimestamp(
                 timestamp - self.TIMESTAMP_RESOLUTION_MICRO + self._step,
@@ -157,7 +157,7 @@ class _BatchWindow:
             # If the endpoint is a batch endpoint, we need to update the last analyzed time
             # to the end of the batch time.
             if last_analyzed:
-                if last_analyzed < self._stop:
+                if last_analyzed - self.TIMESTAMP_RESOLUTION_MICRO < self._stop:
                     # If the last analyzed time is earlier than the stop time,
                     # yield the final partial interval from last_analyzed to stop
                     yield _Interval(

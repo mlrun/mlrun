@@ -890,6 +890,9 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
         {
             "country": {"field": "not-exist", "description": "Great"},
         },
+        {
+            "country": {"field": "state", "description": "Great"},
+        },
     ),
 )
 def test_llm_with_missing_legends(legend: dict):
@@ -929,15 +932,29 @@ def test_llm_with_missing_legends(legend: dict):
         )
         graph.to(model_runner_step).respond()
         server = function.to_mock_server()
+        if (
+            legend is not None
+            and "country" in legend
+            and legend["country"]["field"] == "state"
+        ):
+            # If the legend is set to use state, we expect the prompt to use state
+            # and not country.
+            expected_prompt = [
+                {"role": "user", "content": "What is the capital city of Israel ?!"},
+                {"role": "system", "content": "you are answer as Data scientist"},
+            ]
+        else:
+            expected_prompt = [
+                {"role": "user", "content": "What is the capital city of France ?!"},
+                {"role": "system", "content": "you are answer as Data scientist"},
+            ]
         resp = server.test(
             body={
                 "country": "France",
                 "some_other_ph": "!",
                 "profession": "Data scientist",
+                "state": "Israel",
             }
         )
         server.wait_for_completion()
-        assert resp["prompt"] == [
-            {"role": "user", "content": "What is the capital city of France ?!"},
-            {"role": "system", "content": "you are answer as Data scientist"},
-        ]
+        assert resp["prompt"] == expected_prompt

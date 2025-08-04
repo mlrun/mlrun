@@ -5832,7 +5832,7 @@ class SQLDB(DBInterface):
         :param model_name: The model name of the model endpoint.
         :param model_tag: The model tag associated with the model endpoint.
         :param top_level: If True, filters for top-level model endpoints.
-        :param mode: Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set to None.
+        :param mode: Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or both if set to None.
         :param labels: The labels to filter model endpoints.
         :param start: Start date-time filter.
         :param end: End date-time filter.

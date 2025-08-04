@@ -70,9 +70,10 @@ class Client(BaseClient):
         """
         Extract and return AuthInfo from a valid session verification response.
         """
-        username, group_ids = self._parse_auth_response_data(response_body)
+        username, user_id, group_ids = self._parse_auth_response_data(response_body)
         return mlrun.common.schemas.AuthInfo(
             username=username,
+            user_id=user_id,
             user_group_ids=group_ids,
         )
 
@@ -110,9 +111,9 @@ class Client(BaseClient):
     @staticmethod
     def _parse_auth_response_data(
         response_body: typing.Mapping[typing.Any, typing.Any],
-    ) -> tuple[str, list[str]]:
+    ) -> tuple[str, str, list[str]]:
         """
-        Validate and parse the authentication response body to extract the username and group IDs.
+        Validate and parse the authentication response body to extract the username, user ID, and group IDs.
         """
         if not isinstance(response_body, dict):
             raise mlrun.errors.MLRunBadRequestError("Expected dict in response body")
@@ -120,7 +121,13 @@ class Client(BaseClient):
         username = get_in(response_body, "metadata.username", "")
         if not username:
             raise mlrun.errors.MLRunUnauthorizedError(
-                "Missing or empty username in authentication response"
+                "Missing or empty 'metadata.username' in authentication response"
+            )
+
+        user_id = get_in(response_body, "metadata.id", "")
+        if not user_id:
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Missing or empty 'metadata.id' in authentication response"
             )
 
         group_ids = []
@@ -137,7 +144,7 @@ class Client(BaseClient):
                 "Invalid format for 'relationships' in authentication response"
             )
 
-        return username, group_ids
+        return username, user_id, group_ids
 
 
 class AsyncClient(BaseAsyncClient, Client):

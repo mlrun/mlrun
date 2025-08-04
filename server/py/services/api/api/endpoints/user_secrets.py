@@ -36,19 +36,27 @@ async def store_secret_tokens(
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
-    # TODO: create or update?
+    # Ensure required authentication context exists
+    if not auth_info.user_id or not auth_info.username:
+        raise mlrun.errors.MLRunUnauthorizedError(
+            "Missing required authentication details (user_id or username)"
+        )
+
     # TODO: add user-secrets to orca resources?
     await (
         framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.user_secrets,
-            mlrun.common.schemas.AuthorizationAction.create,
+            mlrun.common.schemas.AuthorizationAction.store,
             auth_info,
         )
     )
 
     # TODO we need to define MLRUN_NAMESPACE?
     await run_in_threadpool(
-        services.api.crud.Secrets().store_secret_tokens, secret_tokens
+        services.api.crud.Secrets().store_secret_tokens,
+        secret_tokens,
+        auth_info.user_id,
+        auth_info.username,
     )
 
     return fastapi.Response(status_code=HTTPStatus.OK.value)

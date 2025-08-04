@@ -425,7 +425,8 @@ class Secrets(
     def store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
-        authorization: str,
+        authenticated_user_id: str,
+        authenticated_username: str,
     ):
         """
         Validate and store offline tokens as Kubernetes secrets.
@@ -437,10 +438,9 @@ class Secrets(
                 "Failed to store secret tokens – no tokens provided"
             )
 
-        # TODO: maybe we can use auth info and not decode the token?
-        username, user_id = self._extract_user_info_from_access_token(authorization)
-
-        valid_tokens = self._validate_and_decode_offline_tokens(secret_tokens, user_id)
+        valid_tokens = self._validate_and_decode_offline_tokens(
+            secret_tokens, authenticated_user_id
+        )
 
         # TODO: move init iguazio_client
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
@@ -450,7 +450,7 @@ class Secrets(
 
         for token_name, decoded_token in valid_tokens.items():
             action = self.secrets_provider.create_or_update_user_token_secret(
-                username=username,
+                username=authenticated_username,
                 token_name=token_name,
                 token=decoded_token["raw_token"],
                 expiration=decoded_token["exp"],
@@ -467,34 +467,6 @@ class Secrets(
             "updatedTokens": updated_tokens,
             "skippedTokens": skipped_tokens,
         }
-
-    def _extract_user_info_from_access_token(
-        self, authorization: str
-    ) -> tuple[str, str]:
-        decoded_token = self._decode_access_token(authorization)
-
-        exp = decoded_token.get("exp")
-        sub = decoded_token.get("sub")
-        username = decoded_token.get("preferred_username")
-
-        if not exp or not sub or not username:
-            raise mlrun.errors.MLRunUnauthorizedError(
-                "Access token is missing required claims: 'exp', 'sub', or 'preferred_username'"
-            )
-
-        # TODO: validate expiration here? (compare exp to current time)
-
-        return username, sub
-
-    def _decode_access_token(self, authorization: str) -> dict:
-        try:
-            token = authorization.replace(
-                mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer, ""
-            ).strip()
-            # TODO: verify signature?
-            return jwt.decode(token, options={"verify_signature": False})
-        except Exception as exc:
-            raise mlrun.errors.MLRunUnauthorizedError("Invalid access token") from exc
 
     def _validate_and_decode_offline_tokens(
         self,
@@ -543,7 +515,6 @@ class Secrets(
 
     def _decode_offline_token(self, token_name: str, token: str) -> dict:
         try:
-            # TODO : verify signature?
             return jwt.decode(token, options={"verify_signature": False})
         except jwt.DecodeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(

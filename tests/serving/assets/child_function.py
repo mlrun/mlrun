@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.serving import V2ModelServer
+from mlrun.serving import Model, V2ModelServer
 
 
 class OneToMany(V2ModelServer):
@@ -21,5 +21,15 @@ class OneToMany(V2ModelServer):
 
     def predict(self, event: dict) -> list:
         inputs = event.get("inputs")
-        print("[PREDICT]: inputs:", inputs)
         return inputs
+
+
+class MyModel(Model):
+    def __init__(self, *args, inc: int, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.inc = inc
+
+    def predict(self, body, **kwargs):
+        body["n"] += self.inc
+        body.pop("models", None)
+        return body

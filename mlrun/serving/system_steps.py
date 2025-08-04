@@ -46,14 +46,12 @@ class MonitoringPreProcessor(storey.MapClass):
         input_path = model_monitoring_data.get(MonitoringData.INPUT_PATH)
 
         result = get_data_from_path(result_path, event.body.get(model, event.body))
-
-        new_output_schema, new_input_schema = None, None
         output_schema = model_monitoring_data.get(MonitoringData.OUTPUTS)
         input_schema = model_monitoring_data.get(MonitoringData.INPUTS)
         logger.debug("output schema retrieved", output_schema=output_schema)
         if isinstance(result, dict):
             # transpose by key the outputs:
-            outputs, new_output_schema = self.transpose_by_key(result, output_schema)
+            outputs = self.transpose_by_key(result, output_schema)
             if not output_schema:
                 logger.warn(
                     "Output schema was not provided using Project:log_model or by ModelRunnerStep:add_model order "
@@ -66,7 +64,7 @@ class MonitoringPreProcessor(storey.MapClass):
         event_inputs = get_data_from_path(input_path, event_inputs)
         if isinstance(event_inputs, dict):
             # transpose by key the inputs:
-            inputs, new_input_schema = self.transpose_by_key(event_inputs, input_schema)
+            inputs = self.transpose_by_key(event_inputs, input_schema)
             if not input_schema:
                 logger.warn(
                     "Input schema was not provided using by ModelRunnerStep:add_model, order "
@@ -98,19 +96,15 @@ class MonitoringPreProcessor(storey.MapClass):
                     "outputs and inputs are not in the same length check 'input_path' and "
                     "'output_path' was specified if needed"
                 )
-        request = {
-            "inputs": inputs,
-            "id": getattr(event, "id", None),
-            "input_schema": input_schema or new_input_schema,
-        }
-        resp = {"outputs": outputs, "output_schema": output_schema or new_output_schema}
+        request = {"inputs": inputs, "id": getattr(event, "id", None)}
+        resp = {"outputs": outputs}
 
         return request, resp
 
     @staticmethod
     def transpose_by_key(
         data: dict, schema: Optional[Union[str, list[str]]] = None
-    ) -> tuple[Union[list[Any], list[list[Any]]], list[str]]:
+    ) -> Union[list[Any], list[list[Any]]]:
         """
         Transpose values from a dictionary by keys.
 
@@ -142,13 +136,11 @@ class MonitoringPreProcessor(storey.MapClass):
                          * If result is a matrix, returns a list of lists.
 
         :raises ValueError: If the values include a mix of scalars and lists, or if the list lengths do not match.
-                mlrun.MLRunInvalidArgumentError if the schema keys are not contained in the data keys.
         """
-        new_schema = None
+
         # Normalize schema to list
         if not schema:
             keys = list(data.keys())
-            new_schema = keys
         elif isinstance(schema, str):
             keys = [schema]
         else:
@@ -157,7 +149,7 @@ class MonitoringPreProcessor(storey.MapClass):
         values = [data[key] for key in keys if key in data]
         if len(values) != len(keys):
             raise mlrun.MLRunInvalidArgumentError(
-                f"Schema keys {keys} are not contained in the data keys {list(data.keys())}."
+                f"Schema keys {keys} do not match the data keys {list(data.keys())}."
             )
 
         # Detect if all are scalars ie: int,float,str
@@ -176,12 +168,12 @@ class MonitoringPreProcessor(storey.MapClass):
             mat = np.stack(arrays, axis=0)
             transposed = mat.T
         else:
-            return values[0], new_schema
+            return values[0]
 
         if transposed.shape[1] == 1 and transposed.shape[0] == 1:
             # Transform [[0]] -> [0]:
-            return transposed[:, 0].tolist(), new_schema
-        return transposed.tolist(), new_schema
+            return transposed[:, 0].tolist()
+        return transposed.tolist()
 
     def do(self, event):
         monitoring_event_list = []

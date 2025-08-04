@@ -30,6 +30,7 @@ RESERVED_TAG_NAME_LATEST = "latest"
 JOB_TYPE_WORKFLOW_RUNNER = "workflow-runner"
 JOB_TYPE_PROJECT_LOADER = "project-loader"
 JOB_TYPE_RERUN_WORKFLOW_RUNNER = "rerun-workflow-runner"
+MLRUN_ACTIVE_PROJECT = "MLRUN_ACTIVE_PROJECT"
 
 
 class MLRunInternalLabels:

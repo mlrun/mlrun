@@ -19,6 +19,7 @@ import sqlalchemy
 
 import mlrun
 import mlrun.common.db.dialects
+import mlrun.utils.helpers
 
 
 class Dsn:
@@ -124,7 +125,7 @@ class Dsn:
             return False
         if not self.host or not self._HOST_REGEX.fullmatch(self.host):
             return False
-        if self.port is None or not 1 <= self.port <= 65535:
+        if not mlrun.utils.helpers.is_valid_port(self.port):
             return False
         return True
 

@@ -2427,3 +2427,25 @@ def get_data_from_path(
     if isinstance(output_data, (int, float)):
         output_data = [output_data]
     return output_data
+
+
+def set_data_by_path(
+    path: typing.Union[str, list[str], None], data: dict, value
+) -> None:
+    if path is None:
+        raise ValueError("path can not be None")
+
+    elif isinstance(path, str):
+        data[path] = value
+
+    elif isinstance(path, list):
+        current = data
+        for key in path[:-1]:
+            if key not in current or not isinstance(current[key], dict):
+                current[key] = {}
+            current = current[key]
+        current[path[-1]] = value
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected path to be of type str or list of str"
+        )

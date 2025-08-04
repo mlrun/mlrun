@@ -32,6 +32,7 @@ from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
     extend_hub_uri_if_needed,
+    get_data_from_path,
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
@@ -45,7 +46,7 @@ from mlrun.utils.helpers import (
     validate_tag_name,
     validate_v3io_stream_consumer_group,
     verify_field_regex,
-    verify_list_items_type,
+    verify_list_items_type, set_data_by_path,
 )
 
 STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
@@ -1742,3 +1743,51 @@ def test_validate_and_convert_date(date_input, expected_output, expectation):
 )
 def test_remove_tag_from_artifact_uri(input_uri, expected_output):
     assert remove_tag_from_artifact_uri(input_uri) == expected_output
+
+
+@pytest.mark.parametrize(
+    "path, data, expected",
+    [
+        ("b", {"a": {"x": 1}, "b": 2}, [2]),  # simple key with int
+        ("missing", {"x": 1}, None),  # missing key
+        (
+            ["a", "b", "c"],
+            {"a": {"b": {"c": {"value": 42}}}},
+            {"value": 42},
+        ),  # nested dict
+        (["a", "missing"], {"a": {"b": 1}}, {}),  # partially missing nested path
+        (None, {"x": 1, "y": 2}, {"x": 1, "y": 2}),  # path is None
+    ],
+)
+def test_get_data_from_path_parametrized(path, data, expected):
+    assert get_data_from_path(path, data) == expected
+
+
+@pytest.mark.parametrize(
+    "path, initial_data, value, expected_data",
+    [
+        ("a", {}, 42, {"a": 42}),
+        (["a", "b", "c"], {}, 99, {"a": {"b": {"c": 99}}}),
+        (["a", "b", "c"], {"a": {"b": {"c": 1}}}, 2, {"a": {"b": {"c": 2}}}),
+        (["x", "y"], {}, "value", {"x": {"y": "value"}}),
+        (["single"], {}, "only", {"single": "only"}),
+    ],
+)
+def test_set_data_by_path_success(path, initial_data, value, expected_data):
+    set_data_by_path(path, initial_data, value)
+    assert initial_data == expected_data
+
+
+@pytest.mark.parametrize(
+    "path, exc_type, exc_msg",
+    [
+        (None, ValueError, "path can not be None"),
+        (123, mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
+        (3.14, mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
+        ({"not": "a path"}, mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
+    ],
+)
+def test_set_data_by_path_invalid_path(path, exc_type, exc_msg):
+    data = {}
+    with pytest.raises(exc_type, match=exc_msg):
+        set_data_by_path(path, data, "some_value")

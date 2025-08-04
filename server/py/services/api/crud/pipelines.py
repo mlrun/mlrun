@@ -23,8 +23,10 @@ import kfp_server_api
 import sqlalchemy.orm
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
@@ -37,9 +39,14 @@ import mlrun_pipelines.imports
 import mlrun_pipelines.mixins
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
+from mlrun.common.schemas import WorkflowResponse
+from mlrun.k8s_utils import sanitize_label_value
 
 import framework.api.utils
+import framework.utils.singletons.db
 import services.api.crud
+from services.api.crud.workflows import RerunRunner
+from services.api.utils.helpers import resolve_client_default_kfp_image
 
 
 class Pipelines(
@@ -265,7 +272,76 @@ class Pipelines(
             ) from exc
         return run
 
-    def retry_pipeline(
+    def get_original_workflow_run(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run_id: str,
+        project: str,
+    ) -> tuple[typing.Optional[mlrun.model.RunObject], str]:
+        """
+        Given any KFP pipeline run UID (whether the very first run or a retry),
+        resolve back to the *original* workflow‐runner RunObject and its workflow ID.
+
+        1. Look for a workflow‐runner job whose "workflow-id" label == run_id.
+           If found, that *is* our original runner.
+        2. Otherwise, find rerun-runner (workflow-id == run_id), grab its original_workflow_id,
+         then fetch that original workflow-runner.
+
+        :returns:
+          Tuple of:
+            * the RunObject for the original workflow‐runner
+            * the original_workflow_id (str)
+
+        :raises:
+            MLRunNotFoundError: If the run ID doesn't correspond to any remote workflow.
+        """
+        job_type_label = mlrun_constants.MLRunInternalLabels.job_type
+        workflow_id_label = mlrun_constants.MLRunInternalLabels.workflow_id
+
+        def _list_runs(labels: list[str]) -> list[mlrun.model.RunObject]:
+            return services.api.crud.Runs().list_runs(
+                db_session=db_session,
+                project=project,
+                labels=labels,
+                sort=True,
+                with_notifications=True,
+            )
+
+        def _first_or_none(labels: list[str]) -> typing.Optional[mlrun.model.RunObject]:
+            runs = _list_runs(labels)
+            return runs.to_objects()[0] if runs else None
+
+        def _get_original_workflow(
+            workflow_id: str,
+        ) -> typing.Optional[mlrun.model.RunObject]:
+            """Find a workflow‐runner run by its workflow_id."""
+            labels = [
+                f"{workflow_id_label}={workflow_id}",
+                f"{job_type_label}={mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER}",
+            ]
+            return _first_or_none(labels)
+
+        # direct workflow-runner
+        if original := _get_original_workflow(run_id):
+            return original, run_id
+
+        # rerun-runner → original_workflow_id → workflow-runner
+        rerun_labels = [
+            f"{workflow_id_label}={run_id}",
+            f"{job_type_label}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
+        ]
+        if rerun := _first_or_none(rerun_labels):
+            original_workflow_id = rerun.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.original_workflow_id
+            ]
+            if original := _get_original_workflow(original_workflow_id):
+                return original, original_workflow_id
+
+        raise mlrun.errors.MLRunNotFoundError(
+            f"No remote workflow runner found with workflow-id={run_id} in project '{project}'"
+        )
+
+    def rerun_pipeline_direct(
         self,
         run_id: str,
         project: str,
@@ -312,6 +388,150 @@ class Pipelines(
             run_id=run_id,
             project=project,
         )
+
+    def rerun_pipeline_via_runner(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run_id: str,
+        project: mlrun.common.schemas.ProjectOut,
+        original_runner: mlrun.run.RunObject,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        client_version: typing.Optional[str] = None,
+        rerun_index: typing.Optional[int] = None,
+    ):
+        """
+        Re-run a completed KFP pipeline by launching an MLRun RerunRunner job.
+
+        This will:
+        1. Choose a KFP image (honoring any client_version header).
+        2. Create & save an MLRun function (the RerunRunner) that invokes `mlrun.projects.rerun_workflow`
+           with the original run_id.
+        3. Submit that function to Kubernetes, returning a WorkflowResponse for the new MLRun-run.
+
+        :param db_session:       SQLAlchemy session for persisting the runner function.
+        :param run_id:           The pipeline run ID to retry (the original KFP run UID).
+        :param project:          The MLRun project description (ProjectOut).
+        :param original_runner:  The RunObject of the original workflow-runner function.
+        :param auth_info:        Caller’s authentication info.
+        :param client_version:   Optional SDK version header, to pin the runner image.
+        :param rerun_index:      The index of this retry (e.g. 1 for first retry, 2 for second, etc.).
+        :return:                 A WorkflowResponse with:
+                                   - project: same project name
+                                   - name:    the MLRun function name for the rerun
+                                   - status:  `"running"`
+                                   - run_id:  the new MLRun-run UID for the RerunRunner job
+        """
+        client_image = resolve_client_default_kfp_image(
+            project,
+            workflow_spec=None,
+            client_version=client_version,
+        )
+        run_name = f"rerun-runner-{run_id[:8]}"
+
+        rerun_runner: mlrun.run.KubejobRuntime = RerunRunner().create_runner(
+            run_name=run_name,
+            project=project.metadata.name,
+            db_session=db_session,
+            auth_info=auth_info,
+            image=client_image,
+        )
+
+        mlrun.utils.logger.debug(
+            "Saved function for rerun workflow",
+            project_name=rerun_runner.metadata.project,
+            function_name=rerun_runner.metadata.name,
+            kind=rerun_runner.kind,
+            image=rerun_runner.spec.image,
+        )
+
+        if client_version is not None:
+            rerun_runner.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.client_version
+            ] = sanitize_label_value(client_version)
+
+        original_runner_notifications = (
+            original_runner.spec.notifications.to_dict()
+            if original_runner.spec.notifications
+            else []
+        )
+
+        rerun_notifications = [
+            self._augment_notification_for_retry(n, rerun_index)
+            for n in original_runner_notifications
+        ]
+
+        rerun_request = mlrun.common.schemas.RerunWorkflowRequest(
+            run_name=run_name,
+            run_id=run_id,
+            notifications=rerun_notifications,
+            workflow_runner_node_selector=original_runner.spec.node_selector,
+            original_workflow_runner_uid=original_runner.metadata.uid,
+            original_workflow_name=original_runner.spec.parameters["workflow_name"],
+            rerun_index=rerun_index,
+        )
+
+        run = RerunRunner().run(
+            runner=rerun_runner,
+            project=project,
+            run_uid=run_id,
+            rerun_request=rerun_request,
+            auth_info=auth_info,
+        )
+        status = mlrun_pipelines.common.models.RunStatuses.running
+        runner_uid = run.uid()
+
+        return mlrun.common.schemas.WorkflowResponse(
+            project=project.metadata.name,
+            name=rerun_request.run_name,
+            status=str(status),
+            run_id=runner_uid,
+        )
+
+    def lock_run_and_mark_retrying(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        run_id: str,
+        retrying: bool = True,
+    ) -> int:
+        """
+        Lock the specified run row, toggle its `retrying` label (adding by default),
+        bump the `rerun_counter` as needed, and return the updated counter.
+        """
+        run_struct = services.api.crud.RerunRunner().set_run_retrying_status(
+            db_session=db_session,
+            project=project,
+            run_id=run_id,
+            retrying=retrying,
+        )
+        return run_struct["metadata"]["labels"].get(
+            mlrun_constants.MLRunInternalLabels.rerun_counter, 1
+        )
+
+    def get_running_rerun_runner(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        original_workflow_id: str,
+    ):
+        running_rerun_runners = services.api.crud.Runs().list_runs(
+            db_session=db_session,
+            project=project,
+            labels=[
+                f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
+                f"{mlrun_constants.MLRunInternalLabels.original_workflow_id}={original_workflow_id}",
+            ],
+            states=[mlrun.common.runtimes.constants.RunStates.running],
+        )
+        if running_rerun_runners:
+            run = running_rerun_runners.to_objects()[0]
+            return WorkflowResponse(
+                project=project,
+                name=run.metadata.name,
+                run_id=run.metadata.uid,
+                status=str(run.status),
+            )
+        raise mlrun.errors.MLRunNotFoundError
 
     def terminate_pipeline(
         self,
@@ -607,3 +827,15 @@ class Pipelines(
             return False
 
         return list(filter(filter_by, runs))
+
+    @staticmethod
+    def _augment_notification_for_retry(
+        notification: dict[str, typing.Any], rerun_index: int
+    ) -> dict[str, typing.Any]:
+        """
+        Return a new notification dict with its `name` suffixed by "– Retry #<idx>".
+        """
+        return {
+            **notification,
+            "name": f"{notification.get('name','')} – Retry #{rerun_index}",
+        }

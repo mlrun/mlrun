@@ -393,12 +393,14 @@ def resolve_formatter_by_kind(
 
 
 def create_test_logger(name: str = "mlrun", stream: IO[str] = stdout) -> Logger:
-    return create_logger(
+    logger = create_logger(
         level="debug",
         formatter_kind=FormatterKinds.HUMAN_EXTENDED.name,
         name=name,
         stream=stream,
     )
+    logger._logger.propagate = True  # pass records up to pytest’s handler
+    return logger
 
 
 def create_logger(

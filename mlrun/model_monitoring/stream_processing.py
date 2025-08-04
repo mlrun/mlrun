@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import asyncio
 import datetime
 import typing
 
@@ -134,6 +134,9 @@ class EventStreamProcessor:
            the default parquet path is under mlrun.mlconf.model_endpoint_monitoring.user_space. Note that if you are
            using CE, the parquet target path is based on the defined MLRun artifact path.
 
+        In a separate branch, "batch complete" events are forwarded to the controller stream with an intentional delay,
+        to allow for data to first be written to parquet.
+
         :param fn: A serving function.
         :param tsdb_connector: Time series database connector.
         :param controller_stream_uri: The controller stream URI. Runs on server api pod so needed to be provided as
@@ -143,6 +146,20 @@ class EventStreamProcessor:
         graph = typing.cast(
             mlrun.serving.states.RootFlowStep,
             fn.set_topology(mlrun.serving.states.StepKinds.flow, engine="async"),
+        )
+
+        # forward back complete events to controller
+        graph.add_step(
+            "storey.Filter",
+            "FilterBatchComplete",
+            _fn="(event.get('kind') == 'batch_complete')",
+        )
+
+        graph.add_step(
+            "Delay",
+            name="BatchDelay",
+            after="FilterBatchComplete",
+            delay=self.parquet_batching_timeout_secs + 5,  # add margin
         )
 
         # split the graph between event with error vs valid event
@@ -261,7 +278,7 @@ class EventStreamProcessor:
                 "controller_stream",
                 path=stream_uri,
                 sharding_func=ControllerEvent.ENDPOINT_ID,
-                after="ForwardNOP",
+                after=["ForwardNOP", "BatchDelay"],
                 # Force using the pipeline key instead of the one in the profile in case of v3io profile.
                 # In case of Kafka, this parameter will be ignored.
                 alternative_v3io_access_key="V3IO_ACCESS_KEY",
@@ -306,6 +323,16 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
             if not event.get(key):
                 event[key] = None
         logger.info("ProcessBeforeParquet2", event=event)
+        return event
+
+
+class Delay(mlrun.feature_store.steps.MapClass):
+    def __init__(self, delay: int, **kwargs):
+        super().__init__(**kwargs)
+        self._delay = delay
+
+    async def do(self, event):
+        await asyncio.sleep(self._delay)
         return event
 
 
@@ -369,6 +396,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         request_id = event.get("request", {}).get("id") or event.get("resp", {}).get(
             "id"
         )
+        feature_names = event.get("request", {}).get("input_schema")
+        labels_names = event.get("resp", {}).get("output_schema")
         latency = event.get("microsec")
         features = event.get("request", {}).get("inputs")
         predictions = event.get("resp", {}).get("outputs")
@@ -469,6 +498,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     ),
                     EventFieldType.EFFECTIVE_SAMPLE_COUNT: effective_sample_count,
                     EventFieldType.ESTIMATED_PREDICTION_COUNT: estimated_prediction_count,
+                    EventFieldType.FEATURE_NAMES: feature_names,
+                    EventFieldType.LABEL_NAMES: labels_names,
                 }
             )
 
@@ -632,7 +663,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     "Feature names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
-                feature_names = [
+                feature_names = event.get(EventFieldType.FEATURE_NAMES) or [
                     f"f{i}" for i, _ in enumerate(event[EventFieldType.FEATURES])
                 ]
 
@@ -655,7 +686,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     "label column names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
-                label_columns = [
+                label_columns = event.get(EventFieldType.LABEL_NAMES) or [
                     f"p{i}" for i, _ in enumerate(event[EventFieldType.PREDICTION])
                 ]
                 attributes_to_update[EventFieldType.LABEL_NAMES] = label_columns

@@ -30,10 +30,12 @@ from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
 
 import storey.utils
+from storey import ParallelExecutionMechanisms
 
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact, PlaceholderDefaultDict
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
@@ -41,12 +43,12 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
     datastore_profile_read,
 )
-from mlrun.datastore.store_resources import get_store_resource
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
-from mlrun.utils import logger
+from mlrun.utils import get_data_from_path, logger, split_path
 
 from ..config import config
-from ..datastore import get_stream_pusher
+from ..datastore import _DummyStream, get_stream_pusher
 from ..datastore.utils import (
     get_kafka_brokers_from_dict,
     parse_kafka_url,
@@ -499,10 +501,15 @@ class BaseStep(ModelObj):
     def verify_model_runner_step(
         self,
         step: "ModelRunnerStep",
+        step_model_endpoints_names: Optional[list[str]] = None,
+        verify_shared_models: bool = True,
     ):
         """
         Verify ModelRunnerStep, can be part of Flow graph and models can not repeat in graph.
-        :param step: ModelRunnerStep to verify
+        :param step:                        ModelRunnerStep to verify
+        :param step_model_endpoints_names:  List of model endpoints names that are in the step.
+                                            if provided will ignore step models and verify only the models on list.
+        :param verify_shared_models:        If True, verify that shared models are defined in the graph.
         """
 
         if not isinstance(step, ModelRunnerStep):
@@ -514,8 +521,8 @@ class BaseStep(ModelObj):
             raise GraphError(
                 "ModelRunnerStep can be added to 'Flow' topology graph only"
             )
-        step_model_endpoints_names = list(
-            step.class_args[schemas.ModelRunnerStepData.MODELS].keys()
+        step_model_endpoints_names = step_model_endpoints_names or list(
+            step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys()
         )
         # Get all model_endpoints names that are in both lists
         common_endpoints_names = list(
@@ -527,7 +534,79 @@ class BaseStep(ModelObj):
             raise GraphError(
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
+
+        if verify_shared_models:
+            # Check if shared models are defined in the graph
+            self._verify_shared_models(root, step, step_model_endpoints_names)
+        # Update model endpoints names in the root step
         root.update_model_endpoints_names(step_model_endpoints_names)
+
+    @staticmethod
+    def _verify_shared_models(
+        root: "RootFlowStep",
+        step: "ModelRunnerStep",
+        step_model_endpoints_names: list[str],
+    ) -> None:
+        proxy_endpoints = [
+            name
+            for name in step_model_endpoints_names
+            if step.class_args.get(
+                schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM, {}
+            ).get(name)
+            == ParallelExecutionMechanisms.shared_executor
+        ]
+        shared_models = []
+
+        for name in proxy_endpoints:
+            shared_runnable_name = (
+                step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
+                .get(name, ["", {}])[schemas.ModelsData.MODEL_PARAMETERS.value]
+                .get("shared_runnable_name")
+            )
+            model_artifact_uri = (
+                step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
+                .get(name, ["", {}])[schemas.ModelsData.MODEL_PARAMETERS.value]
+                .get("artifact_uri")
+            )
+            prefix, _ = mlrun.datastore.parse_store_uri(model_artifact_uri)
+            # if the model artifact is a prompt, we need to get the model URI
+            # to ensure that the shared runnable name is correct
+            if prefix == mlrun.utils.StorePrefix.LLMPrompt:
+                llm_artifact, _ = mlrun.store_manager.get_store_artifact(
+                    model_artifact_uri
+                )
+                model_artifact_uri = mlrun.utils.remove_tag_from_artifact_uri(
+                    llm_artifact.spec.parent_uri
+                )
+            actual_shared_name = root.get_shared_model_name_by_artifact_uri(
+                model_artifact_uri
+            )
+
+            if not shared_runnable_name:
+                if not actual_shared_name:
+                    raise GraphError(
+                        f"Can't find shared model for {name} model endpoint"
+                    )
+                else:
+                    step.class_args[schemas.ModelRunnerStepData.MODELS][name][
+                        schemas.ModelsData.MODEL_PARAMETERS.value
+                    ]["shared_runnable_name"] = actual_shared_name
+                    shared_models.append(actual_shared_name)
+            elif actual_shared_name != shared_runnable_name:
+                raise GraphError(
+                    f"Model endpoint {name} shared runnable name mismatch: "
+                    f"expected {actual_shared_name}, got {shared_runnable_name}"
+                )
+            else:
+                shared_models.append(actual_shared_name)
+
+        undefined_shared_models = list(
+            set(shared_models) - set(root.shared_models.keys())
+        )
+        if undefined_shared_models:
+            raise GraphError(
+                f"The following shared models are not defined in the graph: {undefined_shared_models}."
+            )
 
 
 class TaskStep(BaseStep):
@@ -1005,19 +1084,33 @@ class RouterStep(TaskStep):
 
 
 class Model(storey.ParallelExecutionRunnable, ModelObj):
-    _dict_fields = ["name", "raise_exception", "artifact_uri"]
+    _dict_fields = [
+        "name",
+        "raise_exception",
+        "artifact_uri",
+        "shared_runnable_name",
+        "shared_proxy_mapping",
+    ]
+    kind = "model"
 
     def __init__(
         self,
         name: str,
         raise_exception: bool = True,
         artifact_uri: Optional[str] = None,
+        shared_proxy_mapping: Optional[dict] = None,
         **kwargs,
     ):
         super().__init__(name=name, raise_exception=raise_exception, **kwargs)
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
         self.artifact_uri = artifact_uri
+        self.shared_proxy_mapping: dict[
+            str : Union[str, ModelArtifact, LLMPromptArtifact]
+        ] = shared_proxy_mapping
+        self.invocation_artifact: Optional[LLMPromptArtifact] = None
+        self.model_artifact: Optional[ModelArtifact] = None
+        self.model_provider: Optional[ModelProvider] = None
 
     def __init_subclass__(cls):
         super().__init_subclass__()
@@ -1029,12 +1122,30 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
     def load(self) -> None:
         """Override to load model if needed."""
-        pass
+        self._load_artifacts()
+        if self.model_artifact:
+            self.model_provider = mlrun.get_model_provider(
+                url=self.model_artifact.model_url,
+                default_invoke_kwargs=self.model_artifact.default_config,
+                raise_missing_schema_exception=False,
+            )
 
-    def _get_artifact_object(self) -> Union[ModelArtifact, None]:
-        if self.artifact_uri:
-            if mlrun.datastore.is_store_uri(self.artifact_uri):
-                return get_store_resource(self.artifact_uri)
+    def _load_artifacts(self) -> None:
+        artifact = self._get_artifact_object()
+        if isinstance(artifact, LLMPromptArtifact):
+            self.invocation_artifact = artifact
+            self.model_artifact = self.invocation_artifact.model_artifact
+        else:
+            self.model_artifact = artifact
+
+    def _get_artifact_object(
+        self, proxy_uri: Optional[str] = None
+    ) -> Union[ModelArtifact, LLMPromptArtifact, None]:
+        uri = proxy_uri or self.artifact_uri
+        if uri:
+            if mlrun.datastore.is_store_uri(uri):
+                artifact, _ = mlrun.store_manager.get_store_artifact(uri)
+                return artifact
             else:
                 raise ValueError(
                     "Could not get artifact, 'artifact_uri' must be a valid artifact store URI"
@@ -1045,19 +1156,21 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
     def init(self):
         self.load()
 
-    def predict(self, body: Any) -> Any:
+    def predict(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
         return body
 
-    async def predict_async(self, body: Any) -> Any:
+    async def predict_async(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic if the logic requires asyncio."""
         return body
 
-    def run(self, body: Any, path: str) -> Any:
+    def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         return self.predict(body)
 
-    async def run_async(self, body: Any, path: str) -> Any:
-        return self.predict(body)
+    async def run_async(
+        self, body: Any, path: str, origin_name: Optional[str] = None
+    ) -> Any:
+        return await self.predict_async(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):
         """
@@ -1089,6 +1202,115 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             )
             return model_file, extra_dataitems
         return None, None
+
+
+class LLModel(Model):
+    def __init__(
+        self, name: str, input_path: Optional[Union[str, list[str]]] = None, **kwargs
+    ):
+        super().__init__(name, **kwargs)
+        self._input_path = split_path(input_path)
+
+    def predict(
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
+    ) -> Any:
+        if isinstance(
+            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            body["result"] = self.model_provider.invoke(
+                messages=messages,
+                as_str=True,
+                **(model_configuration or {}),
+            )
+        return body
+
+    async def predict_async(
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
+    ) -> Any:
+        if isinstance(
+            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            body["result"] = await self.model_provider.async_invoke(
+                messages=messages,
+                as_str=True,
+                **(model_configuration or {}),
+            )
+        return body
+
+    def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+        messages, model_configuration = self.enrich_prompt(body, origin_name)
+        return self.predict(
+            body, messages=messages, model_configuration=model_configuration
+        )
+
+    async def run_async(
+        self, body: Any, path: str, origin_name: Optional[str] = None
+    ) -> Any:
+        messages, model_configuration = self.enrich_prompt(body, origin_name)
+        return await self.predict_async(
+            body, messages=messages, model_configuration=model_configuration
+        )
+
+    def enrich_prompt(
+        self, body: dict, origin_name: str
+    ) -> Union[tuple[list[dict], dict], tuple[None, None]]:
+        if origin_name and self.shared_proxy_mapping:
+            llm_prompt_artifact = self.shared_proxy_mapping.get(origin_name)
+            if isinstance(llm_prompt_artifact, str):
+                llm_prompt_artifact = self._get_artifact_object(llm_prompt_artifact)
+                self.shared_proxy_mapping[origin_name] = llm_prompt_artifact
+        else:
+            llm_prompt_artifact = (
+                self.invocation_artifact or self._get_artifact_object()
+            )
+        if not (
+            llm_prompt_artifact and isinstance(llm_prompt_artifact, LLMPromptArtifact)
+        ):
+            logger.warning(
+                "LLMModel must be provided with LLMPromptArtifact",
+                llm_prompt_artifact=llm_prompt_artifact,
+            )
+            return None, None
+        prompt_legend = llm_prompt_artifact.spec.prompt_legend
+        prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
+        input_data = copy(get_data_from_path(self._input_path, body))
+        if isinstance(input_data, dict):
+            kwargs = (
+                {
+                    place_holder: input_data.get(body_map["field"])
+                    for place_holder, body_map in prompt_legend.items()
+                    if input_data.get(body_map["field"])
+                }
+                if prompt_legend
+                else {}
+            )
+            input_data.update(kwargs)
+            default_place_holders = PlaceholderDefaultDict(lambda: None, input_data)
+            for message in prompt_template:
+                try:
+                    message["content"] = message["content"].format(**input_data)
+                except KeyError as e:
+                    logger.warning(
+                        "Input data was missing a placeholder, placeholder stay unformatted",
+                        key_error=e,
+                    )
+                    message["content"] = message["content"].format_map(
+                        default_place_holders
+                    )
+        else:
+            logger.warning(
+                f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt "
+                f"template stay unformatted",
+            )
+        return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 
 class ModelSelector:
@@ -1182,7 +1404,7 @@ class ModelRunnerStep(MonitoredStep):
     example::
 
         model_runner_step = ModelRunnerStep(name="my_model_runner")
-        model_runner_step.add_model(MyModel(name="my_model"))
+        model_runner_step.add_model(..., model_class=MyModel(name="my_model"))
         graph.to(model_runner_step)
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
@@ -1197,6 +1419,7 @@ class ModelRunnerStep(MonitoredStep):
     """
 
     kind = "model_runner"
+    _dict_fields = MonitoredStep._dict_fields + ["_shared_proxy_mapping"]
 
     def __init__(
         self,
@@ -1216,14 +1439,122 @@ class ModelRunnerStep(MonitoredStep):
         )
         self.raise_exception = raise_exception
         self.shape = "folder"
+        self._shared_proxy_mapping = {}
+
+    def add_shared_model_proxy(
+        self,
+        endpoint_name: str,
+        model_artifact: Union[str, ModelArtifact, LLMPromptArtifact],
+        shared_model_name: Optional[str] = None,
+        labels: Optional[Union[list[str], dict[str, str]]] = None,
+        model_endpoint_creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        inputs: Optional[list[str]] = None,
+        outputs: Optional[list[str]] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
+        override: bool = False,
+    ) -> None:
+        """
+        Add a proxy model to the ModelRunnerStep, which is a proxy for a model that is already defined as shared model
+        within the graph
+
+        :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
+        :param model_artifact:      model artifact or mlrun model artifact uri, according to the model artifact
+                                    we will match the model endpoint to the correct shared model.
+        :param shared_model_name:   str, the name of the shared model that is already defined within the graph
+        :param labels:              model endpoint labels, should be list of str or mapping of str:str
+        :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
+          * **overwrite**:
+          1. If model endpoints with the same name exist, delete the `latest` one.
+          2. Create a new model endpoint entry and set it as `latest`.
+          * **inplace** (default):
+          1. If model endpoints with the same name exist, update the `latest` entry.
+          2. Otherwise, create a new entry.
+          * **archive**:
+          1. If model endpoints with the same name exist, preserve them.
+          2. Create a new model endpoint with the same name and set it to `latest`.
+
+        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
+                                    that been configured in the model artifact, please note that those inputs need to
+                                    be equal in length and order to the inputs that model_class predict method expects
+        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
+                                    that been configured in the model artifact, please note that those outputs need to
+                                    be equal to the model_class predict method outputs (length, and order)
+        :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
+                                    (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+        :param result_path:         result path inside the user output event, expect scopes to be defined by dot
+                                    notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
+                                    in path.
+        :param override:            bool allow override existing model on the current ModelRunnerStep.
+        """
+        model_class, model_params = (
+            "mlrun.serving.Model",
+            {"name": endpoint_name, "shared_runnable_name": shared_model_name},
+        )
+        if isinstance(model_artifact, str):
+            model_artifact_uri = model_artifact
+        elif isinstance(model_artifact, ModelArtifact):
+            model_artifact_uri = model_artifact.uri
+        elif isinstance(model_artifact, LLMPromptArtifact):
+            model_artifact_uri = model_artifact.model_artifact.uri
+        else:
+            raise MLRunInvalidArgumentError(
+                "model_artifact must be a string, ModelArtifact or LLMPromptArtifact"
+            )
+        root = self._extract_root_step()
+        if isinstance(root, RootFlowStep):
+            shared_model_name = (
+                shared_model_name
+                or root.get_shared_model_name_by_artifact_uri(model_artifact_uri)
+            )
+            if not root.shared_models or (
+                root.shared_models
+                and shared_model_name
+                and shared_model_name not in root.shared_models.keys()
+            ):
+                raise GraphError(
+                    f"ModelRunnerStep can only add proxy models that were added to the root flow step, "
+                    f"model {shared_model_name} is not in the shared models."
+                )
+        if shared_model_name not in self._shared_proxy_mapping:
+            self._shared_proxy_mapping[shared_model_name] = {
+                endpoint_name: model_artifact.uri
+                if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                else model_artifact
+            }
+        else:
+            self._shared_proxy_mapping[shared_model_name].update(
+                {
+                    endpoint_name: model_artifact.uri
+                    if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                    else model_artifact
+                }
+            )
+        self.add_model(
+            endpoint_name=endpoint_name,
+            model_class=model_class,
+            execution_mechanism=ParallelExecutionMechanisms.shared_executor,
+            model_artifact=model_artifact,
+            labels=labels,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
+            override=override,
+            inputs=inputs,
+            outputs=outputs,
+            input_path=input_path,
+            result_path=result_path,
+            **model_params,
+        )
 
     def add_model(
         self,
         endpoint_name: str,
         model_class: Union[str, Model],
-        model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
+        execution_mechanism: Union[str, ParallelExecutionMechanisms],
+        model_artifact: Optional[Union[str, ModelArtifact, LLMPromptArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
-        creation_strategy: Optional[
+        model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = schemas.ModelEndpointCreationStrategy.INPLACE,
         inputs: Optional[list[str]] = None,
@@ -1238,33 +1569,70 @@ class ModelRunnerStep(MonitoredStep):
 
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
         :param model_class:         Model class name
-        :param model_artifact:      model artifact or mlrun model artifact uri
-        :param labels:              model endpoint labels, should be list of str or mapping of str:str
-        :param creation_strategy:   Strategy for creating or updating the model endpoint:
-            * **overwrite**:
-            1. If model endpoints with the same name exist, delete the `latest` one.
-            2. Create a new model endpoint entry and set it as `latest`.
-            * **inplace** (default):
-            1. If model endpoints with the same name exist, update the `latest` entry.
-            2. Otherwise, create a new entry.
-            * **archive**:
-            1. If model endpoints with the same name exist, preserve them.
-            2. Create a new model endpoint with the same name and set it to `latest`.
-        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs that
-                                    been configured in the model artifact, please note that those inputs need to be
-                                    equal in length and order to the inputs that model_class predict method expects
-        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs that
-                                    been configured in the model artifact, please note that those outputs need to be
-                                    equal to the model_class predict method outputs (length, and order)
-        :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
-                                    (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-        :param result_path:         result path inside the user output event, expect scopes to be defined by dot
-                                    notation (e.g "outputs.my_model_outputs") expects list or dictionary type object in
-                                    path.
-        :param override:            bool allow override existing model on the current ModelRunnerStep.
-        :param model_parameters:    Parameters for model instantiation
-        """
+        :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
+            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
+                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
+                Lock (GIL).
+            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
+                tasks that also require significant Runnable-specific initialization (e.g. a large model).
+            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+                otherwise block the main event loop thread.
+            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
+                event loop to continue running while waiting for a response.
+            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
+                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
+                useful when:
+                - You want to share a heavy resource like a large model loaded onto a GPU.
+                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
+                memory and hardware accelerators.
+            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
+                It means that the runnable will not actually be run in parallel to anything else.
 
+            :param model_artifact:      model artifact or mlrun model artifact uri
+            :param labels:              model endpoint labels, should be list of str or mapping of str:str
+            :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
+              * **overwrite**:
+              1. If model endpoints with the same name exist, delete the `latest` one.
+              2. Create a new model endpoint entry and set it as `latest`.
+              * **inplace** (default):
+              1. If model endpoints with the same name exist, update the `latest` entry.
+              2. Otherwise, create a new entry.
+              * **archive**:
+              1. If model endpoints with the same name exist, preserve them.
+              2. Create a new model endpoint with the same name and set it to `latest`.
+
+          :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
+                                      that been configured in the model artifact, please note that those inputs need to
+                                      be equal in length and order to the inputs that model_class predict method expects
+          :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
+                                      that been configured in the model artifact, please note that those outputs need to
+                                      be equal to the model_class predict method outputs (length, and order)
+          :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
+                                      this require that the event body will behave like a dict, expects scopes to be
+                                      defined by dot notation (e.g "data.d").
+                                      examples: input_path="data.b"
+                                      event: {"data":{"a": 5, "b": 7}}, means monitored body will be 7.
+                                      event: {"data":{"a": [5, 9], "b": [7, 8]}} means monitored body will be [7,8].
+                                      event: {"data":{"a": "extra_data", "b": {"f0": [1, 2]}}} means monitored body will
+                                      be {"f0": [1, 2]}.
+                                      if a ``list`` or ``list of lists`` is provided, it must follow the order and
+                                      size defined by the input schema.
+          :param result_path:         when specified selects the key/path in the output event to use as model monitoring
+                                      outputs this require that the output event body will behave like a dict,
+                                      expects scopes to be defined by dot notation (e.g "data.d").
+                                      examples: result_path="out.b"
+                                      event: {"out":{"a": 5, "b": 7}}, means monitored body will be 7.
+                                      event: {"out":{"a": [5, 9], "b": [7, 8]}} means monitored body will be [7,8]
+                                      event: {"out":{"a": "extra_data", "b": {"f0": [1, 2]}}} means monitored body will
+                                      be {"f0": [1, 2]}
+                                      if a ``list`` or ``list of lists`` is provided, it must follow the order and
+                                      size defined by the output schema.
+
+          :param override:            bool allow override existing model on the current ModelRunnerStep.
+          :param model_parameters:    Parameters for model instantiation
+        """
         if isinstance(model_class, Model) and model_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
@@ -1273,14 +1641,35 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters = model_parameters or (
             model_class.to_dict() if isinstance(model_class, Model) else {}
         )
-        if outputs is None and isinstance(
-            model_artifact, mlrun.artifacts.ModelArtifact
+
+        if isinstance(
+            model_artifact,
+            str,
         ):
-            outputs = [feature.name for feature in model_artifact.spec.outputs]
+            try:
+                model_artifact, _ = mlrun.store_manager.get_store_artifact(
+                    mlrun.utils.remove_tag_from_artifact_uri(model_artifact)
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
+
+        artifact_outputs, artifact_inputs = None, None
+        if not outputs or not inputs:
+            artifact_outputs, artifact_inputs = self._get_model_artifact_schema(
+                model_artifact
+            )
+        outputs = outputs or artifact_outputs
+        inputs = inputs or artifact_inputs
+
         model_artifact = (
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
             else model_artifact
+        )
+        model_artifact = (
+            mlrun.utils.remove_tag_from_artifact_uri(model_artifact)
+            if model_artifact
+            else None
         )
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
@@ -1297,6 +1686,21 @@ class ModelRunnerStep(MonitoredStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Model with name {endpoint_name} already exists in this ModelRunnerStep."
             )
+        root = self._extract_root_step()
+        if isinstance(root, RootFlowStep):
+            self.verify_model_runner_step(
+                self, [endpoint_name], verify_shared_models=False
+            )
+        ParallelExecutionMechanisms.validate(execution_mechanism)
+        self.class_args[schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM] = (
+            self.class_args.get(
+                schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM,
+                {},
+            )
+        )
+        self.class_args[schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM][
+            endpoint_name
+        ] = execution_mechanism
 
         model_parameters["name"] = endpoint_name
         monitoring_data = self.class_args.get(
@@ -1313,7 +1717,7 @@ class ModelRunnerStep(MonitoredStep):
             schemas.MonitoringData.OUTPUTS: outputs,
             schemas.MonitoringData.INPUT_PATH: input_path,
             schemas.MonitoringData.RESULT_PATH: result_path,
-            schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
+            schemas.MonitoringData.CREATION_STRATEGY: model_endpoint_creation_strategy,
             schemas.MonitoringData.LABELS: labels,
             schemas.MonitoringData.MODEL_PATH: model_artifact,
             schemas.MonitoringData.MODEL_CLASS: model_class,
@@ -1322,25 +1726,55 @@ class ModelRunnerStep(MonitoredStep):
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
 
     @staticmethod
-    def _get_model_output_schema(
-        model: str, monitoring_data: dict[str, dict[str, str]]
-    ) -> list[str]:
-        output_schema = None
-        if monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH) is not None:
-            artifact = get_store_resource(
-                monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
-            )
-            output_schema = [feature.name for feature in artifact.spec.outputs]
-        return output_schema
+    def _get_model_artifact_schema(
+        model_artifact: Union[ModelArtifact, LLMPromptArtifact],
+    ) -> Union[tuple[list[str], list[str]], tuple[None, None]]:
+        if isinstance(
+            model_artifact,
+            ModelArtifact,
+        ):
+            return [feature.name for feature in model_artifact.spec.outputs], [
+                feature.name for feature in model_artifact.spec.inputs
+            ]
+        elif isinstance(
+            model_artifact,
+            LLMPromptArtifact,
+        ):
+            _model_artifact = model_artifact.model_artifact
+            return [feature.name for feature in _model_artifact.spec.outputs], [
+                feature.name for feature in _model_artifact.spec.inputs
+            ]
+        else:
+            return None, None
 
     @staticmethod
-    def _split_path(path: str) -> Union[str, list[str], None]:
-        if path is not None:
-            parsed_path = path.split(".")
-            if len(parsed_path) == 1:
-                parsed_path = parsed_path[0]
-            return parsed_path
-        return path
+    def _get_model_endpoint_schema(
+        name: str,
+        project: str,
+        uid: str,
+    ) -> tuple[list[str], list[str]]:
+        output_schema = None
+        input_schema = None
+        try:
+            model_endpoint: mlrun.common.schemas.model_monitoring.ModelEndpoint = (
+                mlrun.db.get_run_db().get_model_endpoint(
+                    name=name,
+                    project=project,
+                    endpoint_id=uid,
+                    tsdb_metrics=False,
+                )
+            )
+            output_schema = model_endpoint.spec.label_names
+            input_schema = model_endpoint.spec.feature_names
+        except (
+            mlrun.errors.MLRunNotFoundError,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ) as ex:
+            logger.warning(
+                f"Model endpoint not found, using default output schema for model {name}",
+                error=f"{type(ex).__name__}: {ex}",
+            )
+        return input_schema, output_schema
 
     def _calculate_monitoring_data(self) -> dict[str, dict[str, str]]:
         monitoring_data = deepcopy(
@@ -1350,35 +1784,69 @@ class ModelRunnerStep(MonitoredStep):
         )
         if isinstance(monitoring_data, dict):
             for model in monitoring_data:
-                monitoring_data[model][schemas.MonitoringData.OUTPUTS] = (
-                    monitoring_data[model][schemas.MonitoringData.OUTPUTS]
-                    or self._get_model_output_schema(model, monitoring_data)
+                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = split_path(
+                    monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
                 )
-                # Prevent calling _get_model_output_schema for same model more than once
+                monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = split_path(
+                    monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
+                )
+
+                mep_output_schema, mep_input_schema = None, None
+
+                output_schema = self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.OUTPUTS]
+                input_schema = self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.INPUTS]
+                if not output_schema or not input_schema:
+                    # if output or input schema is not provided, try to get it from the model endpoint
+                    mep_output_schema, mep_input_schema = (
+                        self._get_model_endpoint_schema(
+                            model,
+                            self.context.project,
+                            monitoring_data[model].get(
+                                schemas.MonitoringData.MODEL_ENDPOINT_UID, ""
+                            ),
+                        )
+                    )
                 self.class_args[
                     mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
-                ][model][schemas.MonitoringData.OUTPUTS] = monitoring_data[model][
-                    schemas.MonitoringData.OUTPUTS
-                ]
-                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = (
-                    self._split_path(
-                        monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
-                    )
+                ][model][schemas.MonitoringData.OUTPUTS] = (
+                    output_schema or mep_output_schema
                 )
-                monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = (
-                    self._split_path(
-                        monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
-                    )
+                self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.INPUTS] = (
+                    input_schema or mep_input_schema
                 )
             return monitoring_data
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Monitoring data must be a dictionary."
+            )
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        self.context = context
+        if not self._is_local_function(context):
+            # skip init of non local functions
+            return
         model_selector = self.class_args.get("model_selector")
+        execution_mechanism_by_model_name = self.class_args.get(
+            schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM
+        )
         models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
         for model, model_params in models.values():
+            model_params[schemas.MonitoringData.INPUT_PATH] = (
+                self.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
+                )
+                .get(model_params.get("name"), {})
+                .get(schemas.MonitoringData.INPUT_PATH)
+            )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True
             )
@@ -1387,6 +1855,8 @@ class ModelRunnerStep(MonitoredStep):
         self._async_object = ModelRunner(
             model_selector=model_selector,
             runnables=model_objects,
+            execution_mechanism_by_runnable_name=execution_mechanism_by_model_name,
+            shared_proxy_mapping=self._shared_proxy_mapping or None,
             name=self.name,
             context=context,
         )
@@ -1710,7 +2180,7 @@ class FlowStep(BaseStep):
         self._insert_all_error_handlers()
         self.check_and_process_graph()
 
-        for step in self._steps.values():
+        for step in self.steps.values():
             step.set_parent(self)
             step.init_object(context, namespace, mode, reset=reset)
         self._set_error_handler()
@@ -2026,7 +2496,13 @@ class FlowStep(BaseStep):
         if not step.before and not any(
             [step.name in other_step.after for other_step in self._steps.values()]
         ):
-            step.responder = True
+            if any(
+                [
+                    getattr(step_in_graph, "responder", False)
+                    for step_in_graph in self._steps.values()
+                ]
+            ):
+                step.responder = True
             return
 
         for step_name in step.before:
@@ -2073,6 +2549,11 @@ class RootFlowStep(FlowStep):
         "model_endpoints_names",
         "model_endpoints_routes_names",
         "track_models",
+        "shared_max_processes",
+        "shared_max_threads",
+        "shared_models",
+        "shared_models_mechanism",
+        "pool_factor",
     ]
 
     def __init__(
@@ -2093,6 +2574,158 @@ class RootFlowStep(FlowStep):
         self._models = set()
         self._route_models = set()
         self._track_models = False
+        self._shared_models: dict[str, tuple[str, dict]] = {}
+        self._shared_models_mechanism: dict[str, ParallelExecutionMechanisms] = {}
+        self._shared_max_processes = None
+        self._shared_max_threads = None
+        self._pool_factor = None
+
+    def add_shared_model(
+        self,
+        name: str,
+        model_class: Union[str, Model],
+        execution_mechanism: Union[str, ParallelExecutionMechanisms],
+        model_artifact: Union[str, ModelArtifact],
+        override: bool = False,
+        **model_parameters,
+    ) -> None:
+        """
+        Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
+        :param name:                Name of the shared model (should be unique in the graph)
+        :param model_class:         Model class name
+        :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
+            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
+                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
+                Lock (GIL).
+            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
+                tasks that also require significant Runnable-specific initialization (e.g. a large model).
+            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+                otherwise block the main event loop thread.
+            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
+                event loop to continue running while waiting for a response.
+            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
+                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
+                useful when:
+                - You want to share a heavy resource like a large model loaded onto a GPU.
+                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
+                memory and hardware accelerators.
+            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
+                It means that the runnable will not actually be run in parallel to anything else.
+
+            :param model_artifact:      model artifact or mlrun model artifact uri
+            :param override:            bool allow override existing model on the current ModelRunnerStep.
+            :param model_parameters:    Parameters for model instantiation
+        """
+        if isinstance(model_class, Model) and model_parameters:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
+            )
+
+        if execution_mechanism == ParallelExecutionMechanisms.shared_executor:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot add a shared model with execution mechanism 'shared_executor'"
+            )
+        ParallelExecutionMechanisms.validate(execution_mechanism)
+
+        model_parameters = model_parameters or (
+            model_class.to_dict() if isinstance(model_class, Model) else {}
+        )
+        model_artifact = (
+            model_artifact.uri
+            if isinstance(model_artifact, mlrun.artifacts.Artifact)
+            else model_artifact
+        )
+        model_artifact = mlrun.utils.remove_tag_from_artifact_uri(model_artifact)
+        model_parameters["artifact_uri"] = model_parameters.get(
+            "artifact_uri", model_artifact
+        )
+
+        if model_parameters.get("name", name) != name or (
+            isinstance(model_class, Model) and model_class.name != name
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Inconsistent name for the added model."
+            )
+        model_parameters["name"] = name
+
+        if name in self.shared_models and not override:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Model with name {name} already exists in this graph."
+            )
+
+        model_class = (
+            model_class
+            if isinstance(model_class, str)
+            else model_class.__class__.__name__
+        )
+        self.shared_models[name] = (model_class, model_parameters)
+        self.shared_models_mechanism[name] = execution_mechanism
+
+    def get_shared_model_name_by_artifact_uri(self, artifact_uri: str) -> Optional[str]:
+        """
+        Get a shared model by its artifact URI.
+        :param artifact_uri: The artifact URI of the model.
+        :return: A tuple of (model_class, model_parameters) if found, otherwise None.
+        """
+        for model_name, (model_class, model_params) in self.shared_models.items():
+            if model_params.get("artifact_uri") == artifact_uri:
+                return model_name
+        return None
+
+    def config_pool_resource(
+        self,
+        max_processes: Optional[int] = None,
+        max_threads: Optional[int] = None,
+        pool_factor: Optional[int] = None,
+    ) -> None:
+        """
+        Configure the resource limits for the shared models in the graph.
+        :param max_processes: Maximum number of processes to spawn (excluding dedicated processes).
+                             Defaults to the number of CPUs or 16 if undetectable.
+        :param max_threads: Maximum number of threads to spawn. Defaults to 32.
+        :param pool_factor: Multiplier to scale the number of process/thread workers per runnable. Defaults to 1.
+        """
+        self.shared_max_processes = max_processes
+        self.shared_max_threads = max_threads
+        self.pool_factor = pool_factor
+
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        self.context = context
+        if self.shared_models:
+            self.context.executor = storey.flow.RunnableExecutor(
+                max_processes=self.shared_max_processes,
+                max_threads=self.shared_max_threads,
+                pool_factor=self.pool_factor,
+            )
+            monitored_steps = self.get_monitored_steps().values()
+            for monitored_step in monitored_steps:
+                if isinstance(monitored_step, ModelRunnerStep):
+                    for model, model_params in self.shared_models.values():
+                        if "shared_proxy_mapping" in model_params:
+                            model_params["shared_proxy_mapping"].update(
+                                deepcopy(
+                                    monitored_step._shared_proxy_mapping.get(
+                                        model_params.get("name"), {}
+                                    )
+                                )
+                            )
+                        else:
+                            model_params["shared_proxy_mapping"] = deepcopy(
+                                monitored_step._shared_proxy_mapping.get(
+                                    model_params.get("name"), {}
+                                )
+                            )
+            for model, model_params in self.shared_models.values():
+                model = get_class(model, namespace).from_dict(
+                    model_params, init_with_params=True
+                )
+                model._raise_exception = False
+                self.context.executor.add_runnable(
+                    model, self._shared_models_mechanism[model.name]
+                )
+        super().init_object(context, namespace, mode, reset=reset, **extra_kwargs)
 
     @property
     def model_endpoints_names(self) -> list[str]:
@@ -2120,6 +2753,48 @@ class RootFlowStep(FlowStep):
     @track_models.setter
     def track_models(self, track_models: bool):
         self._track_models = track_models
+
+    @property
+    def shared_models(self) -> dict[str, tuple[str, dict]]:
+        return self._shared_models
+
+    @shared_models.setter
+    def shared_models(self, shared_models: dict[str, tuple[str, dict]]):
+        self._shared_models = shared_models
+
+    @property
+    def shared_models_mechanism(self) -> dict[str, ParallelExecutionMechanisms]:
+        return self._shared_models_mechanism
+
+    @shared_models_mechanism.setter
+    def shared_models_mechanism(
+        self, shared_models_mechanism: dict[str, ParallelExecutionMechanisms]
+    ):
+        self._shared_models_mechanism = shared_models_mechanism
+
+    @property
+    def shared_max_processes(self) -> Optional[int]:
+        return self._shared_max_processes
+
+    @shared_max_processes.setter
+    def shared_max_processes(self, max_processes: Optional[int]):
+        self._shared_max_processes = max_processes
+
+    @property
+    def shared_max_threads(self) -> Optional[int]:
+        return self._shared_max_threads
+
+    @shared_max_threads.setter
+    def shared_max_threads(self, max_threads: Optional[int]):
+        self._shared_max_threads = max_threads
+
+    @property
+    def pool_factor(self) -> Optional[int]:
+        return self._pool_factor
+
+    @pool_factor.setter
+    def pool_factor(self, pool_factor: Optional[int]):
+        self._pool_factor = pool_factor
 
     def update_model_endpoints_routes_names(self, model_endpoints_names: list):
         self._route_models.update(model_endpoints_names)
@@ -2350,7 +3025,7 @@ def params_to_step(
         step = QueueStep(name, **class_args)
 
     elif class_name and hasattr(class_name, "to_dict"):
-        struct = class_name.to_dict()
+        struct = deepcopy(class_name.to_dict())
         kind = struct.get("kind", StepKinds.task)
         name = (
             name
@@ -2469,6 +3144,8 @@ def _init_async_objects(context, steps):
                             context=context,
                             **options,
                         )
+                    elif stream_path.startswith("dummy://"):
+                        step._async_object = _DummyStream(context=context, **options)
                     else:
                         if stream_path.startswith("v3io://"):
                             endpoint, stream_path = parse_path(step.path)

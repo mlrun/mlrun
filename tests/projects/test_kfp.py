@@ -25,6 +25,8 @@ import plotly.graph_objects as go
 import pytest
 import yaml
 
+import mlrun
+import mlrun.projects.pipelines
 import mlrun_pipelines.common.ops
 from mlrun import mlconf, new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
@@ -33,6 +35,7 @@ from mlrun.utils import logger
 model_body = "abc is 123"
 results_body = "<b> Some HTML <b>"
 tests_dir = Path(__file__).absolute().parent
+assets_dir = tests_dir / "assets"
 
 
 def my_job(context, p1=1, p2="a-string"):
@@ -125,6 +128,23 @@ def test_kfp_function_run_with_hyper_params(rundb_mock, kfp_dirs):
     assert result.output("accuracy") == expected_accuracy
     assert result.output("loss") == expected_loss
     assert result.status.state == "completed"
+
+
+def test_run_function_with_retry_validation():
+    project = mlrun.new_project("test-retry-validation")
+    project.set_workflow("test-workflow", str(assets_dir / "localpipe.py"))
+    workflow_spec = mlrun.projects.pipelines.WorkflowSpec(engine="kfp")
+    workflow_spec.merge_args(project.workflows[0])
+    mlrun.projects.pipeline_context.set(project, workflow_spec)
+    function = new_function(
+        "test-function",
+        kind="job",
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Retrying jobs is not supported when running a workflow with the kfp engine. Use KFP set_retry instead.",
+    ):
+        project.run_function(function, retry={"count": 3})
 
 
 def _assert_output_dir(output_dir, name, iterations=1):

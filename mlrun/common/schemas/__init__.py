@@ -133,6 +133,7 @@ from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
 from .model_monitoring import (
     DriftStatus,
+    EndpointMode,
     EndpointType,
     EndpointUID,
     EventFieldType,
@@ -147,6 +148,7 @@ from .model_monitoring import (
     GrafanaTable,
     ModelEndpoint,
     ModelEndpointCreationStrategy,
+    ModelEndpointDriftValues,
     ModelEndpointList,
     ModelEndpointMetadata,
     ModelEndpointSchema,
@@ -214,7 +216,7 @@ from .secret import (
     SecretsData,
     UserSecretCreationRequest,
 )
-from .serving import ModelRunnerStepData, MonitoringData
+from .serving import ModelRunnerStepData, ModelsData, MonitoringData
 from .tag import Tag, TagObjects
 from .workflow import (
     GetWorkflowResponse,

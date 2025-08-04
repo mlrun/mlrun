@@ -28,9 +28,13 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import mlrun.utils
+from server.py.framework.api.utils import (
+    _generate_function_and_task_from_submit_run_body,
+)
 
 import framework.api.utils
 import framework.utils.clients.iguazio
@@ -65,15 +69,25 @@ def test_submit_run_sync(db: Session, client: TestClient):
             "metadata": {"credentials": {"access_key": "some-access-key-override"}},
         },
     }
+    fn, task = _generate_function_and_task_from_submit_run_body(db, submit_job_body)
     _, _, _, response_data = framework.api.utils.submit_run_sync(
-        db, auth_info, submit_job_body
+        db,
+        auth_info,
+        fn,
+        task,
+        submit_job_body,
     )
     assert response_data["data"]["action"] == "created"
 
     # submit again, make sure it was modified
     submit_job_body["schedule"] = "0 1 * * *"  # change schedule
+    fn, task = _generate_function_and_task_from_submit_run_body(db, submit_job_body)
     _, _, _, response_data = framework.api.utils.submit_run_sync(
-        db, auth_info, submit_job_body
+        db,
+        auth_info,
+        fn,
+        task,
+        submit_job_body,
     )
     assert response_data["data"]["action"] == "modified"
 
@@ -119,8 +133,9 @@ def test_submit_run_sync_schedule_with_function_overrides(
             },
         },
     }
+    fn, task = _generate_function_and_task_from_submit_run_body(db, submit_job_body)
     _, _, _, response_data = framework.api.utils.submit_run_sync(
-        db, auth_info, submit_job_body
+        db, auth_info, fn, task, submit_job_body
     )
     assert response_data["data"]["action"] == "created"
 

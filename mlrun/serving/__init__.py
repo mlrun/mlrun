@@ -28,6 +28,7 @@ __all__ = [
     "Model",
     "ModelSelector",
     "MonitoredStep",
+    "LLModel",
 ]
 
 from .routers import ModelRouter, VotingEnsemble  # noqa
@@ -47,6 +48,7 @@ from .states import (
     Model,
     ModelSelector,
     MonitoredStep,
+    LLModel,
 )  # noqa
 from .v1_serving import MLModelServer, new_v1_model_server  # noqa
 from .v2_serving import V2ModelServer  # noqa

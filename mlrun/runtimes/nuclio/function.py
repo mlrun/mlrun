@@ -29,6 +29,7 @@ from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.common.constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
@@ -154,6 +155,10 @@ class NuclioSpec(KubeResourceSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        serving_spec=None,
+        graph=None,
+        parameters=None,
+        track_models=None,
     ):
         super().__init__(
             command=command,
@@ -183,6 +188,10 @@ class NuclioSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             state_thresholds=state_thresholds,
+            serving_spec=serving_spec,
+            graph=graph,
+            parameters=parameters,
+            track_models=track_models,
         )
 
         self.base_spec = base_spec or {}
@@ -822,7 +831,8 @@ class RemoteRuntime(KubeResource):
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
         runtime_env = {
-            "MLRUN_ACTIVE_PROJECT": self.metadata.project or mlconf.active_project,
+            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
+            or mlconf.active_project,
         }
         if mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url

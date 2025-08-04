@@ -168,6 +168,10 @@ class Spark3JobSpec(KubeResourceSpec):
         executor_cores=None,
         security_context=None,
         state_thresholds=None,
+        serving_spec=None,
+        graph=None,
+        parameters=None,
+        track_models=None,
     ):
         super().__init__(
             command=command,
@@ -197,6 +201,10 @@ class Spark3JobSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             state_thresholds=state_thresholds,
+            serving_spec=serving_spec,
+            graph=graph,
+            parameters=parameters,
+            track_models=track_models,
         )
 
         self.driver_resources = driver_resources or {}

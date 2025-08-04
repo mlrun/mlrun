@@ -119,3 +119,8 @@ MLRUN_HTTPDB__HTTP__VERIFY:
 
 MILVUS_HOST:
 MILVUS_PORT:
+
+OPENAI_BASE_URL:
+OPENAI_API_KEY:
+#  Optional because hf system tests model is free to use without authentication.
+HF_TOKEN:

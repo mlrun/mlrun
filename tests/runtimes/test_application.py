@@ -73,6 +73,26 @@ def test_create_application_runtime_with_command(rundb_mock, igz_version_mock):
     _assert_function_handler(fn)
 
 
+def test_create_application_runtime_many_ports(rundb_mock, igz_version_mock):
+    # deploy with default value
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun", command="echo"
+    )
+    # both should be the same
+    assert fn.spec.internal_application_port == 8050
+    assert fn.spec.application_ports == [8050]
+
+    # should replace both application_ports and internal application port
+    fn.with_sidecar("echo", command="echo", ports=[80, 22])
+    fn.deploy()
+    assert fn.spec.application_ports == [80, 22]
+
+    # should reset internal application port and reorder application ports
+    fn.spec.internal_application_port = 22
+    assert fn.spec.application_ports == [22, 80]
+    assert fn.spec.internal_application_port == 22
+
+
 def test_deploy_application_runtime(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(

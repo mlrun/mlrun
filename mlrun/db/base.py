@@ -44,7 +44,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_log(self, uid, project="", offset=0, size=0):
+    def get_log(self, uid, project="", offset=0, size=0, attempt=None):
         pass
 
     @abstractmethod
@@ -53,6 +53,12 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def update_run(self, updates: dict, uid, project="", iter=0):
+        pass
+
+    @abstractmethod
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool
+    ):
         pass
 
     @abstractmethod
@@ -638,6 +644,11 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def wait_for_background_task_to_reach_terminal_state(
+        self, name: str, project: str = ""
+    ) -> mlrun.common.schemas.BackgroundTask:
+        pass
+
     @abstractmethod
     def retry_pipeline(
         self,
@@ -645,6 +656,7 @@ class RunDBInterface(ABC):
         project: str,
         namespace: Optional[str] = None,
         timeout: int = 30,
+        submit_mode: str = "",
     ):
         pass
 
@@ -729,6 +741,7 @@ class RunDBInterface(ABC):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
+        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -1131,5 +1144,25 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
+        pass
+
+    @abstractmethod
     def get_project_summary(self, project: str) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    @abstractmethod
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         pass

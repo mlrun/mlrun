@@ -149,6 +149,12 @@ class RuntimeKinds:
         ]
 
     @staticmethod
+    def retriable_runtimes():
+        return [
+            RuntimeKinds.job,
+        ]
+
+    @staticmethod
     def nuclio_runtimes():
         return [
             RuntimeKinds.remote,

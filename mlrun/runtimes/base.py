@@ -33,6 +33,7 @@ import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+from mlrun.common.runtimes.constants import RunStates
 from mlrun.model import (
     BaseMetadata,
     HyperParamOptions,
@@ -319,6 +320,7 @@ class BaseRuntime(ModelObj):
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = "",
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -377,6 +379,7 @@ class BaseRuntime(ModelObj):
                              This ensures latest code changes are executed. This argument must be used in
                              conjunction with the local=True argument.
         :param output_path:    Default artifact output path.
+        :param retry:          Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         if artifact_path or out_path:
@@ -414,6 +417,7 @@ class BaseRuntime(ModelObj):
             returns=returns,
             state_thresholds=state_thresholds,
             reset_on_run=reset_on_run,
+            retry=retry,
         )
 
     def _get_db_run(
@@ -443,14 +447,17 @@ class BaseRuntime(ModelObj):
         :return: Dictionary with all the variables that could be parsed
         """
         runtime_env = {
-            "MLRUN_ACTIVE_PROJECT": self.metadata.project or config.active_project
+            mlrun_constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
+            or config.active_project
         }
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True
             )
             if runobj.metadata.project:
-                runtime_env["MLRUN_ACTIVE_PROJECT"] = runobj.metadata.project
+                runtime_env[mlrun_constants.MLRUN_ACTIVE_PROJECT] = (
+                    runobj.metadata.project
+                )
             if runobj.spec.verbose:
                 runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:
@@ -570,12 +577,27 @@ class BaseRuntime(ModelObj):
         updates = None
         last_state = get_in(resp, "status.state", "")
         kind = get_in(resp, "metadata.labels.kind", "")
-        if last_state == "error" or err:
+        if last_state in RunStates.error_states() or err:
+            new_state = RunStates.error
+            status_text = None
+            max_retries = get_in(resp, "spec.retry.count", 0)
+            retry_count = get_in(resp, "status.retry_count", 0) or 0
+            attempts = retry_count + 1
+            if max_retries:
+                if retry_count < max_retries:
+                    new_state = RunStates.pending_retry
+                    status_text = f"Run failed attempt {attempts} of {max_retries + 1}"
+                elif retry_count >= max_retries:
+                    status_text = f"Run failed after {attempts} attempts"
+
             updates = {
                 "status.last_update": now_date().isoformat(),
-                "status.state": "error",
+                "status.state": new_state,
             }
-            update_in(resp, "status.state", "error")
+            update_in(resp, "status.state", new_state)
+            if status_text:
+                updates["status.status_text"] = status_text
+                update_in(resp, "status.status_text", status_text)
             if err:
                 update_in(resp, "status.error", err_to_str(err))
             err = get_in(resp, "status.error")
@@ -584,9 +606,8 @@ class BaseRuntime(ModelObj):
 
         elif (
             not was_none
-            and last_state != mlrun.common.runtimes.constants.RunStates.completed
-            and last_state
-            not in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
+            and last_state != RunStates.completed
+            and last_state not in RunStates.error_and_abortion_states()
         ):
             try:
                 runtime_cls = mlrun.runtimes.get_runtime_class(kind)

@@ -1111,7 +1111,7 @@ class Scheduler:
                     schedule_name,
                 )
 
-            _, _, _, response = framework.api.utils.submit_run_sync(
+            _, _, _, response = framework.api.utils.submit_run_from_body(
                 db_session, auth_info, scheduled_object
             )
 

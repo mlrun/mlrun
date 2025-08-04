@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Union
 from unittest.mock import Mock, patch
@@ -23,6 +24,7 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.utils
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.model_monitoring.applications import (
@@ -294,7 +296,17 @@ def test_window_generator_validation(
     expectation: AbstractContextManager,
 ) -> None:
     with expectation:
-        next(ModelMonitoringApplicationBase._window_generator(start, end, base_period))
+        next(
+            ModelMonitoringApplicationBase._window_generator(
+                start=start,
+                end=end,
+                base_period=base_period,
+                application_schedules=None,
+                endpoint_id="",
+                application_name="",
+                fail_on_overlap=True,
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -313,7 +325,7 @@ def test_window_generator_validation(
         ),
         (
             datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
             600,
             [
                 (
@@ -323,10 +335,6 @@ def test_window_generator_validation(
                 (
                     datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
                     datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
-                ),
-                (
-                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
-                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
                 ),
             ],
         ),
@@ -364,11 +372,63 @@ def test_windows(
     assert (
         list(
             ModelMonitoringApplicationBase._window_generator(
-                start=start.isoformat(), end=end.isoformat(), base_period=base_period
+                start=start.isoformat(),
+                end=end.isoformat(),
+                base_period=base_period,
+                application_schedules=None,
+                endpoint_id="",
+                application_name="",
+                fail_on_overlap=True,
             )
         )
         == expected_windows
     ), "The generated windows are different than expected"
+
+
+@pytest.mark.parametrize(
+    ("base_period", "start_dt", "end_dt", "expectation"),
+    [
+        (
+            600,
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The difference between `end` and `start` must be a multiple of "
+                "`base_period`:.*Consider changing the `end` time to.*",
+            ),
+        ),
+        (
+            10,
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            does_not_raise(),
+        ),
+        (
+            15,
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The difference between `end` and `start` must be a multiple of "
+                "`base_period`:.*The `base_period` is longer than the difference between `end` and `start`.*",
+            ),
+        ),
+    ],
+)
+def test_validate_and_get_window_length(
+    base_period: int,
+    start_dt: datetime,
+    end_dt: datetime,
+    expectation: AbstractContextManager,
+) -> None:
+    with expectation:
+        window_length = ModelMonitoringApplicationBase._validate_and_get_window_length(
+            base_period=base_period, start_dt=start_dt, end_dt=end_dt
+        )
+        assert window_length == timedelta(
+            minutes=base_period
+        ), "The window length is different than expected"
 
 
 def test_job_handler() -> None:
@@ -457,30 +517,179 @@ class TestToJob:
         assert run.state() == "completed"
 
 
+@pytest.fixture
+def project(tmpdir: Path) -> mlrun.MlrunProject:
+    return mlrun.get_or_create_project("test-endpoints-handler", context=str(tmpdir))
+
+
 @pytest.mark.parametrize(
-    "endpoints",
-    [
-        "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-        ["2e312eb7-bbcc-4752-9140-be9e9395fc13"],
-        [
-            (
-                "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-                "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-            )
-        ],
-    ],
+    "endpoints", ["all", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
 )
+@pytest.mark.usefixtures("rundb_mock")
 def test_handle_endpoints_type_evaluate(
-    rundb_mock, endpoints: Union[str, list[str], list[tuple]]
+    project: mlrun.MlrunProject, endpoints: Union[str, list[str], list[tuple[str, str]]]
 ) -> None:
-    project = "test-endpoints-handler"
     endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
         project, endpoints
     )
+    assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]
 
-    assert endpoints_output == [
-        (
-            "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-            "2e312eb7-bbcc-4752-9140-be9e9395fc13",
+
+@pytest.mark.parametrize(
+    ("endpoints", "err_msg"),
+    [
+        ("*", 'A string input for `endpoints` can only be "all"'),
+        ([], "The endpoints list cannot be empty"),
+        ([1], r"Could not resolve endpoints as list of \[\(name, uid\)\]"),
+    ],
+)
+def test_handle_endpoints_type_evaluate_error(
+    project: mlrun.MlrunProject, endpoints: Union[str, list[str]], err_msg: str
+) -> None:
+    with pytest.raises(mlrun.errors.MLRunValueError, match=err_msg):
+        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+            project, endpoints
         )
-    ]
+
+
+@pytest.mark.parametrize(
+    (
+        "class_name",
+        "func_name",
+        "class_handler",
+        "handler_to_class",
+        "expectation",
+        "expected_log",
+    ),
+    [
+        (
+            "App1",
+            None,
+            None,
+            "App1::_handler",
+            does_not_raise("app1-batch"),
+            True,
+        ),
+        (
+            "App1",
+            None,
+            "remote_module.AppClass",
+            "remote_module.AppClass::_handler",
+            does_not_raise("appclass-batch"),
+            True,
+        ),
+        (
+            "App1",
+            "keep-my-batch",
+            None,
+            "AppClass::_handler",
+            does_not_raise("keep-my-batch"),
+            False,
+        ),
+        (
+            "App",
+            " app with space",
+            None,
+            None,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The function name does not comply with the required pattern",
+            ),
+            False,
+        ),
+    ],
+)
+@patch("mlrun.utils.logger", spec=mlrun.utils.Logger)
+def test_determine_job_name(
+    logger: Mock,
+    class_name: str,
+    func_name: Optional[str],
+    class_handler: Optional[str],
+    handler_to_class: str,
+    expectation: AbstractContextManager,
+    expected_log: bool,
+) -> None:
+    app_class = type(class_name, (ModelMonitoringApplicationBase,), {})
+    with expectation as expected_result:
+        assert (
+            app_class._determine_job_name(
+                func_name=func_name,
+                class_handler=class_handler,
+                handler_to_class=handler_to_class,
+            )
+            == expected_result
+        )
+    if expected_log:
+        logger.info.assert_called_once()
+    else:
+        logger.info.assert_not_called()
+
+
+@pytest.fixture
+def run_context() -> mlrun.MLClientCtx:
+    return mlrun.MLClientCtx.from_dict(
+        {
+            "kind": "run",
+            "metadata": {
+                "annotations": {},
+                "iteration": 0,
+                "labels": {
+                    "host": "M-K",
+                    "kind": "local",
+                    "owner": "admin",
+                    "v3io_user": "admin",
+                },
+                "name": "take-my-name-hold-my-hand--handler",
+                "project": "mm-job-mep-data",
+                "uid": "c8da9e6d9d9447b48109a29adb4bd4c2",
+            },
+            "spec": {
+                "affinity": {},
+                "data_stores": [],
+                "function": "mm-job-mep-data/take-my-name-hold-my-hand@588be7f7fb3dcab77e59c5f3003056f90fa2b55b",
+                "handler": "Some_application::_handler",
+                "hyper_param_options": {},
+                "hyperparams": {},
+                "inputs": {},
+                "log_level": "info",
+                "node_selector": {},
+                "notifications": [],
+                "output_path": "v3io:///projects/mm-job-mep-data/artifacts",
+                "outputs": [],
+                "parameters": {
+                    "application_name": "take-my-name-hold-my_hand",
+                    "base_period": None,
+                    "end": "2025-07-27T10:01:36.665785+00:00",
+                    "endpoints": ["classifier-0"],
+                    "fail_on_overlap": True,
+                    "start": "2025-07-27T10:00:31.527024+00:00",
+                    "stream_profile": None,
+                    "write_output": False,
+                },
+                "retry": {},
+                "state_thresholds": {
+                    "executing": "24h",
+                    "image_pull_backoff": "1h",
+                    "pending_not_scheduled": "-1",
+                    "pending_scheduled": "1h",
+                },
+                "tolerations": {},
+            },
+            "status": {
+                "artifact_uris": {},
+                "last_update": "2025-07-27T15:31:38.482028+00:00",
+                "results": {},
+                "retries": [],
+                "retry_count": None,
+                "start_time": "2025-07-27T15:31:38.482028+00:00",
+                "state": "running",
+            },
+        }
+    )
+
+
+def test_get_application_name(run_context: mlrun.MLClientCtx) -> None:
+    assert (
+        ModelMonitoringApplicationBase._get_application_name(run_context)
+        == "take-my-name-hold-my-hand"
+    ), "The application name is different than expected"

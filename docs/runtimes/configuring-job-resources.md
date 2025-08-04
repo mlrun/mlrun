@@ -1,7 +1,7 @@
 (configuring-job-resources)=
 # Configuring runs and functions
 
-MLRun orchestrates serverless functions over Kubernetes: you can specify the resource requirements (CPU, memory, GPUs), preferences, and pod priorities in the logical function ßobject. You can also configure how MLRun prevents stuck pods.
+MLRun orchestrates serverless functions over Kubernetes: you can specify the resource requirements (CPU, memory, GPUs), preferences, and pod priorities in the logical function object. You can also configure how MLRun prevents stuck pods.
 All of these are used during the function deployment.
 
 Configuring runs and functions is relevant for all supported cloud platforms.
@@ -136,7 +136,7 @@ Configure volumes attached to a function by using the `apply` function modifier 
 
 For example, using v3io storage:
 ```
-# import the training function from the Function Hub (hub://)
+# import the training function from the MLRun Hub (hub://)
 train = mlrun.import_function('hub://sklearn_classifier')# Import the function:
 open_archive_function = mlrun.import_function("hub://open_archive")
 

@@ -2702,7 +2702,7 @@ class MlrunProject(ModelObj):
 
             | Object (s3://, v3io://, ..)
             | MLRun DB e.g. db://project/func:ver
-            | Functions hub/market: e.g. hub://auto-trainer:master
+            | Hub/market: e.g. hub://auto-trainer:master
 
         Examples::
 

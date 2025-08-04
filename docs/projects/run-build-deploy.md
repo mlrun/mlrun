@@ -32,7 +32,7 @@ The first parameter in all three methods is either the function name (in the pro
 specify functions that you imported/created or to modify a function spec. For example:
 
 ```python
-# import a serving function from the Function Hub and deploy a trained model over it
+# import a serving function from the MLRun Hub and deploy a trained model over it
 serving = import_function("hub://v2_model_server", new_name="serving")
 serving.spec.replicas = 2
 deploy = deploy_function(
@@ -76,7 +76,7 @@ parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch fu
 Usage examples:
 
 ```python
-# create a project with two functions (local and from Function Hub)
+# create a project with two functions (local and from the MLRun Hub)
 project = mlrun.new_project(project_name, "./proj")
 project.set_function("mycode.py", "prep", image="mlrun/mlrun")
 project.set_function("hub://auto_trainer", "train")

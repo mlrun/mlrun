@@ -26,7 +26,7 @@ A typical scenario may utilize multiple models over an entire flow. The simpler 
 probably do not need an LLM, whereas the main model does require an LLM. Make sure you understand your various models so that you can 
 apportion your resources appropriately. (See {ref}`mlops-dev-flow` for more details about non-LLM models.)
  
-[MLRun's Function hub](https://www.mlrun.org/hub/functions) provides a collection of reusable functions 
+[MLRun's hub](https://www.mlrun.org/hub/functions) provides a collection of reusable functions 
 and assets that are optimized and tested to simplify and accelerate the move to production.
 
 **See also**

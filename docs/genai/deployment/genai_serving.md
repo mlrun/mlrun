@@ -7,9 +7,9 @@ The main differences between serving a gen AI model and any other model are the 
 Another common use case is to serve the model as part of an inference pipeline, where the model is used as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This is covered in the {ref}`gen AI serving graph section <genai-serving-graph>`.
 
 
-## Serving using the function hub
+## Serving using the MLRun hub
 
-The function hub has a serving class called [`hugging_face_serving`](https://www.mlrun.org/hub/functions/master/hugging_face_serving/) to run Hugging Face models. The following code shows how to import the function to your project:
+The MLRun hub has a serving class called [`hugging_face_serving`](https://www.mlrun.org/hub/functions/master/hugging_face_serving/) to run Hugging Face models. The following code shows how to import the function to your project:
 
 ```python
 hugging_face_serving = project.set_function("hub://hugging_face_serving")

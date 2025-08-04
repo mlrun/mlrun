@@ -107,7 +107,7 @@ def get_or_create_model_endpoint(
             sample_set_statistics=sample_set_statistics,
         )
 
-    except (mlrun.errors.MLRunNotFoundError, mlrun.errors.MLRunInvalidArgumentError):
+    except mlrun.errors.MLRunNotFoundError:
         # Create a new model endpoint with the provided details
         pass
     if not model_endpoint:

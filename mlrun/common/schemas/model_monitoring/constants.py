@@ -34,6 +34,7 @@ class ModelEndpointSchema(MonitoringStrEnum):
     UID = "uid"
     PROJECT = "project"
     ENDPOINT_TYPE = "endpoint_type"
+    MODE = "mode"
     NAME = "name"
     CREATED = "created"
     UPDATED = "updated"
@@ -335,9 +336,9 @@ class EndpointType(IntEnum):
         return [cls.BATCH_EP]
 
 
-class EndpointMode(StrEnum):
-    REAL_TIME = "real_time"
-    BATCH = "batch"
+class EndpointMode(IntEnum):
+    REAL_TIME = 0
+    BATCH = 1
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):

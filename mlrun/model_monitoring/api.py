@@ -14,6 +14,7 @@
 
 import hashlib
 import typing
+import warnings
 from datetime import datetime
 
 import numpy as np
@@ -82,7 +83,14 @@ def get_or_create_model_endpoint(
 
     :return: A ModelEndpoint object
     """
-
+    warnings.warn(
+        "This function is deprecated and will be removed in 1.12. "
+        "You can generate a model endpoint by either deploying a monitored serving function as a real-time service or "
+        "running it as an offline job. "
+        "To retrieve model endpoints, use `project.list_model_endpoints()`",
+        # TODO: Remove this in 1.12.0
+        FutureWarning,
+    )
     if not db_session:
         # Generate a runtime database
         db_session = mlrun.get_run_db()
@@ -160,6 +168,13 @@ def record_results(
 
     :return: A ModelEndpoint object
     """
+
+    warnings.warn(
+        "This function is deprecated and will be removed in 1.12. "
+        "Please use a monitored serving function executed as a job instead.",
+        # TODO: Remove this in 1.12.0
+        FutureWarning,
+    )
 
     db = mlrun.get_run_db()
 
@@ -325,12 +340,15 @@ def _generate_model_endpoint(
 
     :return `mlrun.common.schemas.ModelEndpoint` object.
     """
+
     current_time = datetime_now()
     model_endpoint = mlrun.common.schemas.ModelEndpoint(
         metadata=mlrun.common.schemas.ModelEndpointMetadata(
             project=project,
             name=model_endpoint_name,
             endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP,
+            # Due to backwards compatibility, old batch model endpoint will be analyzed as real time endpoint
+            mode=mlrun.common.schemas.model_monitoring.EndpointMode.REAL_TIME,
         ),
         spec=mlrun.common.schemas.ModelEndpointSpec(
             function_name=function_name or "function",

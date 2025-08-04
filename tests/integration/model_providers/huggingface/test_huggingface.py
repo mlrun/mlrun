@@ -143,6 +143,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             invoke_response_format=InvokeResponseFormat.STATS,
         )
         assert EXPECTED_RESULTS[0] in response["str_response"].lower()
+        assert isinstance(response, dict)
         assert response["stats"]["completion_tokens"] in (50, 51)
 
         prompt = model_provider.client.tokenizer.apply_chat_template(

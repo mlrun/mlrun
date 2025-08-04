@@ -205,7 +205,7 @@ class HuggingFaceProvider(ModelProvider):
 
     def invoke(
         self,
-        messages: Union[str, list[str], "ChatType", list["ChatType"]] = None,
+        messages: Union[str, list[str], "ChatType", list["ChatType"]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, list, dict[str, Any]]:

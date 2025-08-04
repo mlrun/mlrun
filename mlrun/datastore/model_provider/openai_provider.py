@@ -222,7 +222,7 @@ class OpenAIProvider(ModelProvider):
 
     def invoke(
         self,
-        messages: Optional[list[dict]] = None,
+        messages: list[dict],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[dict[str, Any], str, "ChatCompletion"]:
@@ -264,7 +264,7 @@ class OpenAIProvider(ModelProvider):
 
     async def async_invoke(
         self,
-        messages: Optional[list[dict]] = None,
+        messages: list[dict],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, "ChatCompletion", dict]:

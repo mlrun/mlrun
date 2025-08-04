@@ -185,7 +185,7 @@ class ModelProvider(BaseRemoteClient):
 
     def invoke(
         self,
-        messages: Optional[list[dict], Any] = None,
+        messages: Union[list[dict], Any],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, Any]:
@@ -198,7 +198,7 @@ class ModelProvider(BaseRemoteClient):
         :param messages:            A list of dictionaries representing the conversation history or input messages.
                                     Each dictionary should follow the format::
                                     {"role": "system"| "user" | "assistant" ..., "content":
-                                     "Message content as a string"}
+                                    "Message content as a string"}
 
                                     Example:
 
@@ -242,7 +242,7 @@ class ModelProvider(BaseRemoteClient):
 
     async def async_invoke(
         self,
-        messages: Optional[list[dict]] = None,
+        messages: list[dict],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, Any]:

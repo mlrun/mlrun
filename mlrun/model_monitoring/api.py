@@ -67,8 +67,8 @@ def get_or_create_model_endpoint(
     :param model_endpoint_name:      If a new model endpoint is created, the model endpoint name will be presented
                                      under this endpoint (applicable only to new endpoint_id).
     :param model_path:               The model store path (applicable only to new endpoint_id).
-    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
-                                     on the provided `endpoint_id`.
+    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record with a
+                                     newly generated ID.
     :param function_name:            If a new model endpoint is created, use this function name.
     :param function_tag:             If a new model endpoint is created, use this function tag.
     :param context:                  MLRun context. If `function_name` not provided, use the context to generate the
@@ -144,8 +144,8 @@ def record_results(
     :param model_path:               The model Store path.
     :param model_endpoint_name:      If a new model endpoint is generated, the model endpoint name will be presented
                                      under this endpoint.
-    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
-                                     on the provided `endpoint_id`.
+    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record with a
+                                     newly generated ID.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
     :param context:                  MLRun context. Note that the context is required generating the model endpoint.

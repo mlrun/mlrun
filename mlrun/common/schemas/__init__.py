@@ -214,6 +214,7 @@ from .secret import (
     SecretProviderName,
     SecretsData,
     SecretToken,
+    StoreSecretTokensResponse,
 )
 from .tag import Tag, TagObjects
 from .workflow import (

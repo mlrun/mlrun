@@ -52,3 +52,9 @@ class SecretKeysData(BaseModel):
 class SecretToken(BaseModel):
     name: str
     token: str
+
+
+class StoreSecretTokensResponse(BaseModel):
+    created_tokens: list[str] = []
+    updated_tokens: list[str] = []
+    skipped_tokens: list[str] = []

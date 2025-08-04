@@ -427,11 +427,14 @@ class Secrets(
         secret_tokens: list[mlrun.common.schemas.SecretToken],
         authenticated_user_id: str,
         authenticated_username: str,
-    ):
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
         Validate and store offline tokens as Kubernetes secrets.
 
-        Returns a dict indicating which tokens were created, updated, or skipped.
+        :param secret_tokens: List of SecretToken objects to store.
+        :param authenticated_user_id: User ID to validate token ownership.
+        :param authenticated_username: Username used to name Kubernetes secrets.
+        :return: StoreSecretTokensResponse object with created, updated, and skipped tokens.
         """
         if not secret_tokens:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -462,11 +465,11 @@ class Secrets(
             elif action == mlrun.common.schemas.SecretEventActions.skipped:
                 skipped_tokens.append(token_name)
 
-        return {
-            "createdTokens": created_tokens,
-            "updatedTokens": updated_tokens,
-            "skippedTokens": skipped_tokens,
-        }
+        return mlrun.common.schemas.StoreSecretTokensResponse(
+            created_tokens=created_tokens,
+            updated_tokens=updated_tokens,
+            skipped_tokens=skipped_tokens,
+        )
 
     def _validate_and_decode_offline_tokens(
         self,

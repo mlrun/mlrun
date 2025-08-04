@@ -50,11 +50,9 @@ async def store_secret_tokens(
         )
     )
 
-    await run_in_threadpool(
+    return await run_in_threadpool(
         services.api.crud.Secrets().store_secret_tokens,
         secret_tokens,
         auth_info.user_id,
         auth_info.username,
     )
-
-    return fastapi.Response(status_code=HTTPStatus.OK.value)

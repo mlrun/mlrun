@@ -810,9 +810,9 @@ def test_store_secret_tokens_return_values(
     )
 
     assert result == {
-        "createdTokens": ["token1"],
-        "updatedTokens": ["token2"],
-        "skippedTokens": ["token3"],
+        "created_tokens": ["token1"],
+        "updated_tokens": ["token2"],
+        "skipped_tokens": ["token3"],
     }
 
     assert mock_secrets_provider.create_or_update_user_token_secret.call_count == 3

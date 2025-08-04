@@ -860,6 +860,91 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         )
         assert metric_fqn == expected_metric_fqn
 
+    def test_monitoring_with_model_runner_dict_infer(self):
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        self.set_mm_credentials()
+
+        # Log a model artifact
+        model_name = "sklearn_RandomForestClassifier"
+        # Upload the model through the projects API so that it is available to the serving function
+        model = self.project.log_model(
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            artifact_path=f"v3io:///projects/{self.project.name}",
+        )
+        function.save(versioned=False)
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
+        model_runner_step.add_model(
+            model_class="MyDictModel",
+            endpoint_name="model",
+            execution_mechanism="naive",
+            input_path="dict_inputs",
+            result_path="dict_outputs",
+            model_artifact=model.uri,
+        )
+        model_runner_step.add_model(
+            model_class="MyModel",
+            endpoint_name="model-1",
+            input_path="inputs",
+            result_path="outputs",
+            execution_mechanism="naive",
+            model_artifact=model.uri,
+        )
+        graph.to(model_runner_step, "runner").respond()
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+        function.deploy()
+        function.invoke(
+            "/",
+            body={
+                "dict_inputs": {
+                    "sepal_length_cm": 0.5,
+                    "sepal_width_cm": 1.2,
+                    "petal_length_cm": 0.5,
+                    "petal_width_cm": 1.1,
+                },
+                "inputs": [[0.5, 1.2, 0.5, 1.1]],
+            },
+        )
+        sleep(5)
+        model_endpoints = (
+            mlrun.get_run_db()
+            .list_model_endpoints(
+                self.project_name,
+            )
+            .endpoints
+        )
+
+        assert model_endpoints[0].metadata.name == "model"
+        assert model_endpoints[0].spec.feature_names == [
+            "sepal_length_cm",
+            "sepal_width_cm",
+            "petal_length_cm",
+            "petal_width_cm",
+        ]
+        assert model_endpoints[0].spec.label_names == ["label"]
+
+        assert model_endpoints[1].metadata.name == "model-1"
+        assert model_endpoints[1].spec.feature_names == [
+            "f0",
+            "f1",
+            "f2",
+            "f3",
+        ]
+        assert model_endpoints[1].spec.label_names == ["p0"]
+
     def _assert_model_endpoint_tags_and_labels(
         self,
         endpoint: mlrun.common.schemas.ModelEndpoint,

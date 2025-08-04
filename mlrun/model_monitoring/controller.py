@@ -137,7 +137,7 @@ class _BatchWindow:
         ):
             entered = True
             start_time = datetime.datetime.fromtimestamp(
-                timestamp, tz=datetime.timezone.utc
+                timestamp - self.TIMESTAMP_RESOLUTION_MICRO, tz=datetime.timezone.utc
             )
             end_time = datetime.datetime.fromtimestamp(
                 timestamp - self.TIMESTAMP_RESOLUTION_MICRO + self._step,

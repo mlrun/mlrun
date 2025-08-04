@@ -1878,7 +1878,6 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystemModelMonitoring):
         out_model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,
             model_path=model_obj.uri,
-            endpoint_id=model_obj.metadata.uid,
             function_name="dummy_func",
             model_endpoint_name="dummy_ep",
             feature_analysis=True,

@@ -1212,12 +1212,12 @@ class LLModel(Model):
         self,
         name: str,
         input_path: Optional[Union[str, list[str]]] = None,
-        output_path: Optional[Union[str, list[str]]] = None,
+        result_path: Optional[Union[str, list[str]]] = None,
         **kwargs,
     ):
         super().__init__(name, **kwargs)
         self._input_path = split_path(input_path)
-        self._output_path = split_path(output_path)
+        self._result_path = split_path(result_path)
 
     def predict(
         self,
@@ -1235,7 +1235,7 @@ class LLModel(Model):
                 **(model_configuration or {}),
             )
             set_data_by_path(
-                path=self._output_path, data=body, value=response_with_stats
+                path=self._result_path, data=body, value=response_with_stats
             )
         return body
 

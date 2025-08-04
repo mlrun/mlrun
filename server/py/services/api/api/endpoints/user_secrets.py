@@ -42,7 +42,6 @@ async def store_secret_tokens(
             "Missing required authentication details (user_id or username)"
         )
 
-    # TODO: add user-secrets to orca resources?
     await (
         framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.user_secrets,
@@ -51,7 +50,6 @@ async def store_secret_tokens(
         )
     )
 
-    # TODO we need to define MLRUN_NAMESPACE?
     await run_in_threadpool(
         services.api.crud.Secrets().store_secret_tokens,
         secret_tokens,

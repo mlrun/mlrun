@@ -19,8 +19,6 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-import mlrun.artifacts
-import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.datastore.base
 import mlrun.feature_store
@@ -538,9 +536,13 @@ def _create_model_monitoring_function_base(
     This function does not set the labels or mounts v3io.
     """
     if name in mm_constants._RESERVED_FUNCTION_NAMES:
-        raise mlrun.errors.MLRunInvalidArgumentError(
+        raise mlrun.errors.MLRunValueError(
             "An application cannot have the following names: "
             f"{mm_constants._RESERVED_FUNCTION_NAMES}"
+        )
+    if name and name.endswith(mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX):
+        raise mlrun.errors.MLRunValueError(
+            "Model monitoring application names cannot end with `-batch`"
         )
     if func is None:
         func = ""

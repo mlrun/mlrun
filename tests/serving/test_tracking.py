@@ -196,6 +196,41 @@ def test_child_function_tracking(
             )
 
 
+def test_child_function_tracking_with_model_runner(rundb_mock):
+    project = mlrun.new_project("test-child", save=False)
+    fn = mlrun.new_function("test-fn", kind="serving", project=project.name)
+    graph = fn.set_topology("flow")
+    model_runner_step = ModelRunnerStep(name="my_model_runner_0", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_0",
+        input_path="n",
+        result_path="n",
+        raise_error=False,
+        inc=1,
+    )
+    graph.to(">>", name="in", path="dummy://in").to(
+        model_runner_step, function="c1"
+    ).to(">>", name="out", path="dummy://out")
+    fn.set_tracking("dummy://", enable_tracking=True)
+    fn.add_child_function("c1", f"{assets_path}/child_function.py", "mlrun/mlrun")
+    server = fn.to_mock_server()
+    server.test("/", {"n": 1})
+    server.wait_for_completion()
+
+    assert server.graph.steps["my_model_runner_0_error_raise"].function == "c1"
+    assert server.graph.steps["my_model_runner_0"].function == "c1"
+
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
+
+    output_stream = graph.steps["out"].async_object
+    assert len(output_stream.event_list) == 1
+
+
 def rec_to_data(rec):
     data = json.loads(rec["data"])
     inputs = data["request"]["inputs"]
@@ -581,6 +616,19 @@ def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
         ["1_output", "2_output", "3_output", "4_output"],
         ["2_output", "3_output", "4_output", "5_output"],
     ]
+    assert dummy_stream.event_list[0].get("request", {}).get("input_schema") == [
+        "f1",
+        "f2",
+        "f3",
+        "f4",
+    ]
+    assert dummy_stream.event_list[0].get("resp", {}).get("output_schema") == [
+        "o1",
+        "o2",
+        "o3",
+        "o4",
+    ]
+
     assert dummy_stream.event_list[1].get("request", {}).get("inputs") == ["1", "2"]
     assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [
         "1_output",
@@ -600,6 +648,8 @@ def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
     ]
     assert dummy_stream.event_list[4].get("request", {}).get("inputs") == ["1"]
     assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == ["1_output"]
+    assert dummy_stream.event_list[4].get("request", {}).get("input_schema") == ["f1"]
+    assert dummy_stream.event_list[4].get("resp", {}).get("output_schema") == ["o1"]
 
 
 def test_tracked_model_runner_multiple_steps(rundb_mock):
@@ -1045,13 +1095,13 @@ def test_tracked_model_runner_with_error_handler(
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
         assert (
             dummy_stream.event_list[0].get("error")
-            == "<class 'TypeError'>: can only concatenate str (not \"int\") to str"
+            == 'TypeError: can only concatenate str (not "int") to str'
         )
         assert dummy_stream.event_list[0].get("request", {}).get("inputs") == "1"
     elif not enable_tracking and as_responder:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
         assert resp == {
-            "error": "<class 'TypeError'>: can only concatenate str (not \"int\") to str"
+            "error": 'TypeError: can only concatenate str (not "int") to str'
         }
 
     _test_graph_structure(server.graph, enable_tracking)
@@ -1065,10 +1115,11 @@ def test_transpose_by_key_with_str():
         "extra": 123,
         "time": "2020-01-01T01:00:00Z",
     }
-    result = MonitoringPreProcessor.transpose_by_key(data)
+    result, new_schema = MonitoringPreProcessor.transpose_by_key(data)
     expected_result = [[30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"]]
 
     assert result == expected_result
+    assert new_schema == ["Price", "Product", "Stock", "extra", "time"]
 
     data = {
         "Price": [30.0, 6.0],
@@ -1077,10 +1128,62 @@ def test_transpose_by_key_with_str():
         "extra": [123, 80],
         "time": ["2020-01-01T01:00:00Z", "2020-01-01T02:00:00Z"],
     }
-    result = MonitoringPreProcessor.transpose_by_key(data)
+    result, new_schema = MonitoringPreProcessor.transpose_by_key(data)
 
     expected_result = [
         [30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"],
         [6.0, "Mouse", 200, 80, "2020-01-01T02:00:00Z"],
     ]
     assert result == expected_result
+    assert new_schema == ["Price", "Product", "Stock", "extra", "time"]
+
+
+def test_negative_schema_with_dict_model(rundb_mock):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="DictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="my_dict_model",
+        input_path="inputs.my_dict_model",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"],
+        raise_error=False,
+    )
+    graph.to(model_runner_step).respond()
+
+    function.set_tracking("dummy://", enable_tracking=True)
+    server = function.to_mock_server()
+    # bad key right length
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": 1, "f2": 2, "f3": 3, "f4": 4},
+            }
+        },
+    )
+    # missing keys
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": 1, "f1": 2, "f2": 3},
+            }
+        },
+    )
+    # wrong lengthes
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": [1, 2], "f1": 2, "f2": 3, "f4": 4},
+            }
+        },
+    )
+
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 0, "expected stream to get zero messages"

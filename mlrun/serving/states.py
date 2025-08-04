@@ -1287,6 +1287,7 @@ class LLModel(Model):
                 {
                     place_holder: input_data.get(body_map["field"])
                     for place_holder, body_map in prompt_legend.items()
+                    if input_data.get(body_map["field"])
                 }
                 if prompt_legend
                 else {}

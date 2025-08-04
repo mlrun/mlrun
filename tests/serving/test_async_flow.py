@@ -887,6 +887,9 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
             "profession": {"field": "profession", "description": "Great"},
             "some_other_ph": {"field": "some_other_ph", "description": "Great"},
         },
+        {
+            "country": {"field": "not-exist", "description": "Great"},
+        },
     ),
 )
 def test_llm_with_missing_legends(legend: dict):

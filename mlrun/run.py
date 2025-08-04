@@ -395,20 +395,20 @@ def import_function_to_dict(url, secrets=None):
                 fp.write(code)
         elif cmd:
             if not path.isfile(code_file):
-                # look for the file in a relative path to the yaml
-                slash = url.rfind("/")
-                if slash >= 0:
-                    base_dir = os.path.normpath(url[: url.rfind("/") + 1])
-                    candidate_path = os.path.normpath(os.path.join(base_dir, code_file))
-                    # Ensure candidate_path is within base_dir
-                    if not candidate_path.startswith(base_dir + os.sep):
-                        raise ValueError(
-                            f"exec file spec.command={code_file} is outside of allowed directory"
-                        )
-                    if path.isfile(candidate_path):
-                        raise ValueError(
-                            f"exec file spec.command={code_file} is relative, change working dir"
-                        )
+                slash_index = url.rfind("/")
+                if slash_index < 0:
+                    raise ValueError(f"no file in exec path (spec.command={code_file})")
+                base_dir = os.path.normpath(url[: slash_index + 1])
+                candidate_path = os.path.normpath(os.path.join(base_dir, code_file))
+                # Ensure candidate_path is within base_dir
+                if not candidate_path.startswith(base_dir + os.sep):
+                    raise ValueError(
+                        f"exec file spec.command={code_file} is outside of allowed directory"
+                    )
+                if path.isfile(candidate_path):
+                    raise ValueError(
+                        f"exec file spec.command={code_file} is relative, change working dir"
+                    )
                 raise ValueError(f"no file in exec path (spec.command={code_file})")
         else:
             raise ValueError("command or code not specified in function spec")

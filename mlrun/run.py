@@ -141,7 +141,7 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
         else:
             is_remote = "://" in command
             data = get_object(command, secrets)
-            runtime = yaml.load(data, Loader=yaml.FullLoader)
+            runtime = yaml.safe_load(data)
             runtime = new_function(runtime=runtime)
 
         command = runtime.spec.command or ""

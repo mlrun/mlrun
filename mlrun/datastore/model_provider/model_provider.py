@@ -106,7 +106,7 @@ class ModelProvider(BaseRemoteClient):
                                                  typically for single-answer responses.
                                        - STATS: Return a dictionary combining the string response with
                                                 additional metadata or statistics, in this format:
-                                                {"str_response": <string>, "stats": <dict>}
+                                                {"answer": <string>, "stats": <dict>}
 
                                        - FULL: Return the full raw response object unmodified.
 
@@ -215,26 +215,34 @@ class ModelProvider(BaseRemoteClient):
 
                                         [
                                             {"role": "system", "content": "You are a helpful assistant."},
-                                            {"role": "user", "content": "What is the capital of France?"},
+                                            {"role": "user", "content": "What is the capital of France?"}
                                         ]
 
                                     This format is consistent across all backends. Defaults to None if no messages
                                     are provided.
 
-        :param invoke_response_format:
-                                    Determines how the model response is returned:
+        :param invoke_response_format:   Determines how the model response is returned:
 
-                                    - string: Returns only the generated text content from the model output,
-                                              for single-answer responses only.
-                                    - stats:  Combines the STRING response with additional metadata (e.g. token usage),
-                                              and returns the result in a dictionary.
+                                    - string:   Returns only the generated text content from the model output,
+                                                for single-answer responses only.
 
-                                              .. code-block:: json
+                                    - stats:    Combines the STRING response with additional metadata (token usage),
+                                                and returns the result in a dictionary.
 
-                                                   {
-                                                       "str_response": "The capital of France is Paris.",
-                                                       "stats": { ... }
-                                                   }
+                                                Note: The stats dictionary may contain additional
+                                                keys depending on the model provider:
+
+                                    .. code-block:: json
+
+                                    {
+                                        "answer": "<generated_text>",
+                                        "stats": {
+                                        "prompt_tokens": <int>,
+                                        "completion_tokens": <int>,
+                                        "total_tokens": <int>
+                                        }
+
+                                    }
 
                                     - full:   Returns the full model output.
 

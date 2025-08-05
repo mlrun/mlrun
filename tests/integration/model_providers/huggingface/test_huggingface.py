@@ -149,9 +149,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             max_new_tokens=50,
             invoke_response_format=InvokeResponseFormat.STATS,
         )
-        assert EXPECTED_RESULTS[0] in response["str_response"].lower()
+        assert EXPECTED_RESULTS[0] in response[ResponseStatsKeys.ANSWER.value].lower()
         assert isinstance(response, dict)
-        assert response["stats"]["completion_tokens"] in (50, 51)
+        assert response[ResponseStatsKeys.STATS.value]["completion_tokens"] in (50, 51)
 
         prompt = model_provider.client.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
@@ -159,11 +159,11 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         prompt_tokens = len(
             model_provider.client.tokenizer.encode(prompt, add_special_tokens=False)
         )
-        assert response["stats"]["prompt_tokens"] == prompt_tokens
+        assert response[ResponseStatsKeys.STATS.value]["prompt_tokens"] == prompt_tokens
         assert (
-            response["stats"]["total_tokens"]
-            == response["stats"]["prompt_tokens"]
-            + response["stats"]["completion_tokens"]
+            response[ResponseStatsKeys.STATS.value]["total_tokens"]
+            == response[ResponseStatsKeys.STATS.value]["prompt_tokens"]
+            + response[ResponseStatsKeys.STATS.value]["completion_tokens"]
         )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])

@@ -171,10 +171,10 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
         assert isinstance(response, dict)
         # TODO update stats to const
-        completion_tokens = response["stats"]["completion_tokens"]
-        prompt_tokens = response["stats"]["prompt_tokens"]
-        total_tokens = response["stats"]["total_tokens"]
-        assert EXPECTED_RESULTS[0] in response["str_response"].lower()
+        completion_tokens = response[ResponseStatsKeys.STATS.value]["completion_tokens"]
+        prompt_tokens = response[ResponseStatsKeys.STATS.value]["prompt_tokens"]
+        total_tokens = response[ResponseStatsKeys.STATS.value]["total_tokens"]
+        assert EXPECTED_RESULTS[0] in response[ResponseStatsKeys.ANSWER.value].lower()
         assert completion_tokens == 50
         assert prompt_tokens > 0
         assert total_tokens == prompt_tokens + completion_tokens

@@ -233,7 +233,7 @@ class HuggingFaceProvider(ModelProvider):
 
             .. code-block:: json
                 {
-                    "str_response": "<generated_text>",
+                    "answer": "<generated_text>",
                     "stats": {
                         "prompt_tokens": <int>,
                         "completion_tokens": <int>,

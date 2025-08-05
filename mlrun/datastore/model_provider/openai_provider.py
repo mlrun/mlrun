@@ -246,7 +246,7 @@ class OpenAIProvider(ModelProvider):
 
               .. code-block:: json
                  {
-                     "str_response": "<generated_text>",
+                     "answer": "<generated_text>",
                      "stats": <ChatCompletion>.to_dict()["usage"]
                  }
 

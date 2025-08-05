@@ -217,10 +217,10 @@ class OpenAIProvider(ModelProvider):
             if invoke_response_format == InvokeResponseFormat.STRING:
                 return str_response
             if invoke_response_format == InvokeResponseFormat.STATS:
-                response = response.to_dict()
+                stats = response.to_dict()["usage"]
                 response = {
                     ResponseStatsKeys.ANSWER.value: str_response,
-                    ResponseStatsKeys.STATS.value: response,
+                    ResponseStatsKeys.STATS.value: stats,
                 }
         return response
 
@@ -247,7 +247,7 @@ class OpenAIProvider(ModelProvider):
               .. code-block:: json
                  {
                      "str_response": "<generated_text>",
-                     "stats": <ChatCompletion>.to_dict()
+                     "stats": <ChatCompletion>.to_dict()["usage"]
                  }
 
             - "full": Returns the full OpenAI `ChatCompletion` object.

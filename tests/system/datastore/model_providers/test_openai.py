@@ -96,11 +96,10 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         assert len(encoding.encode(answer)) == 100
 
         stats = response[ResponseStatsKeys.STATS.value]
-        assert stats["usage"]["completion_tokens"] == 100
-        assert stats["usage"]["prompt_tokens"] > 0
+        assert stats["completion_tokens"] == 100
+        assert stats["prompt_tokens"] > 0
         assert (
-            stats["usage"]["total_tokens"]
-            == stats["usage"]["completion_tokens"] + stats["usage"]["prompt_tokens"]
+            stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]
         )
 
     def test_model_runner_with_openai_async(self):

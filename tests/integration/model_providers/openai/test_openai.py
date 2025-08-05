@@ -171,9 +171,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
         assert isinstance(response, dict)
         # TODO update stats to const
-        completion_tokens = response["stats"]["usage"]["completion_tokens"]
-        prompt_tokens = response["stats"]["usage"]["prompt_tokens"]
-        total_tokens = response["stats"]["usage"]["total_tokens"]
+        completion_tokens = response["stats"]["completion_tokens"]
+        prompt_tokens = response["stats"]["prompt_tokens"]
+        total_tokens = response["stats"]["total_tokens"]
         assert EXPECTED_RESULTS[0] in response["str_response"].lower()
         assert completion_tokens == 50
         assert prompt_tokens > 0
@@ -311,11 +311,11 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             assert len(encoding.encode(answer)) == 100
 
             stats = response[ResponseStatsKeys.STATS.value]
-            assert stats["usage"]["completion_tokens"] == 100
-            assert stats["usage"]["prompt_tokens"] > 0
+            assert stats["completion_tokens"] == 100
+            assert stats["prompt_tokens"] > 0
             assert (
-                stats["usage"]["total_tokens"]
-                == stats["usage"]["completion_tokens"] + stats["usage"]["prompt_tokens"]
+                stats["total_tokens"]
+                == stats["completion_tokens"] + stats["prompt_tokens"]
             )
         finally:
             server.wait_for_completion()

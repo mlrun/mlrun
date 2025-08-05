@@ -90,12 +90,12 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             json.dumps(INPUT_DATA[0]),
         )["output"]
         assert len(response) == 2
-        answer = response[ResponseStatsKeys.ANSWER.value]
+        answer = response[ResponseStatsKeys.ANSWER]
         assert EXPECTED_RESULTS[0] in answer.lower()
         encoding = tiktoken.encoding_for_model(self.basic_llm_model)
         assert len(encoding.encode(answer)) == 100
 
-        stats = response[ResponseStatsKeys.STATS.value]
+        stats = response[ResponseStatsKeys.STATS]
         assert stats["completion_tokens"] == 100
         assert stats["prompt_tokens"] > 0
         assert (

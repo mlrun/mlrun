@@ -149,9 +149,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             max_new_tokens=50,
             invoke_response_format=InvokeResponseFormat.STATS,
         )
-        assert EXPECTED_RESULTS[0] in response[ResponseStatsKeys.ANSWER.value].lower()
+        assert EXPECTED_RESULTS[0] in response[ResponseStatsKeys.ANSWER].lower()
         assert isinstance(response, dict)
-        assert response[ResponseStatsKeys.STATS.value]["completion_tokens"] in (50, 51)
+        assert response[ResponseStatsKeys.STATS]["completion_tokens"] in (50, 51)
 
         prompt = model_provider.client.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
@@ -159,11 +159,11 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         prompt_tokens = len(
             model_provider.client.tokenizer.encode(prompt, add_special_tokens=False)
         )
-        assert response[ResponseStatsKeys.STATS.value]["prompt_tokens"] == prompt_tokens
+        assert response[ResponseStatsKeys.STATS]["prompt_tokens"] == prompt_tokens
         assert (
-            response[ResponseStatsKeys.STATS.value]["total_tokens"]
-            == response[ResponseStatsKeys.STATS.value]["prompt_tokens"]
-            + response[ResponseStatsKeys.STATS.value]["completion_tokens"]
+            response[ResponseStatsKeys.STATS]["total_tokens"]
+            == response[ResponseStatsKeys.STATS]["prompt_tokens"]
+            + response[ResponseStatsKeys.STATS]["completion_tokens"]
         )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
@@ -294,14 +294,14 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
             response = server.test(body=INPUT_DATA[0])["output"]
 
             assert len(response) == 2
-            answer = response[ResponseStatsKeys.ANSWER.value]
+            answer = response[ResponseStatsKeys.ANSWER]
             assert EXPECTED_RESULTS[0] in answer.lower()
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
             token_count = len(tokenizer.encode(answer, add_special_tokens=False))
             # Extra token is due to the EOS token, which signals end of generation.
             assert token_count in (100, 101)
 
-            stats = response[ResponseStatsKeys.STATS.value]
+            stats = response[ResponseStatsKeys.STATS]
             assert stats["completion_tokens"] == token_count
             assert stats["prompt_tokens"] > 0
             assert (

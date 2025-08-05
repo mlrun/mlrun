@@ -1656,7 +1656,9 @@ class ModelRunnerStep(MonitoredStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
-        if isinstance(model_class, LLModel) or (isinstance(model_class, str) and model_class == LLModel.__name__):
+        if isinstance(model_class, LLModel) or (
+            isinstance(model_class, str) and model_class == LLModel.__name__
+        ):
             if outputs:
                 warnings.warn(
                     "LLModel with existing outputs detected, overriding to default"

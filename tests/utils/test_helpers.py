@@ -17,8 +17,9 @@ import json
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timedelta, timezone
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from pandas import Timedelta, Timestamp
 
@@ -1828,9 +1829,17 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
         # Test case 8: Path is None, updating an empty dictionary
         (None, {}, {"full_dict_data": "example", "number_field": 100}),
         # Test case 9: Path is None, updating an existing dictionary
-        (None, {"existing_item": "abc"}, {"new_item": "xyz", "existing_item": "override"}),
+        (
+            None,
+            {"existing_item": "abc"},
+            {"new_item": "xyz", "existing_item": "override"},
+        ),
         # Test case 10: Mixed data types in nested path
-        (["config", "settings", "enabled"], {"config": {"settings": {"enabled": False}}}, True),
+        (
+            ["config", "settings", "enabled"],
+            {"config": {"settings": {"enabled": False}}},
+            True,
+        ),
         (["list_data", "items", "first"], {"list_data": {"items": []}}, "item_one"),
     ],
 )

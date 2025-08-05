@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Awaitable
-from enum import Enum
 from typing import Any, Callable, Optional, Union
 
 import mlrun.errors
+from mlrun.common.types import StrEnum
 from mlrun.datastore.remote_client import (
     BaseRemoteClient,
 )
 
 
-class InvokeResponseFormat(Enum):
+class InvokeResponseFormat(StrEnum):
     STRING = "string"
     STATS = "stats"
     FULL = "full"
@@ -32,18 +32,18 @@ class InvokeResponseFormat(Enum):
         Returns True if the response key corresponds to a string-based response (not a full generation object).
         """
         return invoke_response_format in {
-            cls.STATS.value,
-            cls.STRING.value,
+            cls.STATS,
+            cls.STRING,
         }
 
 
-class ResponseStatsKeys(str, Enum):
+class ResponseStatsKeys(StrEnum):
     ANSWER = "answer"
     STATS = "stats"
 
     @classmethod
     def fields(cls) -> list[str]:
-        return [cls.ANSWER.value, cls.STATS.value]
+        return [cls.ANSWER, cls.STATS]
 
 
 class ModelProvider(BaseRemoteClient):

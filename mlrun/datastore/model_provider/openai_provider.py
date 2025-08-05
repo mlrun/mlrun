@@ -219,8 +219,8 @@ class OpenAIProvider(ModelProvider):
             if invoke_response_format == InvokeResponseFormat.STATS:
                 stats = response.to_dict()["usage"]
                 response = {
-                    ResponseStatsKeys.ANSWER.value: str_response,
-                    ResponseStatsKeys.STATS.value: stats,
+                    ResponseStatsKeys.ANSWER: str_response,
+                    ResponseStatsKeys.STATS: stats,
                 }
         return response
 

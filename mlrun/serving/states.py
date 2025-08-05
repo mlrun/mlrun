@@ -1771,7 +1771,7 @@ class ModelRunnerStep(MonitoredStep):
                 ][model][schemas.MonitoringData.INPUTS]
                 if not output_schema or not input_schema:
                     # if output or input schema is not provided, try to get it from the model endpoint
-                    mep_output_schema, mep_input_schema = (
+                    mep_input_schema, mep_output_schema = (
                         self._get_model_endpoint_schema(
                             model,
                             self.context.project,

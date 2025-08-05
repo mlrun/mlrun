@@ -16,6 +16,7 @@ import enum
 import json
 import typing
 import uuid
+from collections import defaultdict
 
 import jwt
 
@@ -449,7 +450,7 @@ class Secrets(
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
         iguazio_client.refresh_access_tokens(secret_tokens)
 
-        created_tokens, updated_tokens, skipped_tokens = [], [], []
+        token_actions = defaultdict(list)
 
         for token_name, decoded_token in valid_tokens.items():
             action = self.secrets_provider.create_or_update_user_token_secret(
@@ -458,17 +459,18 @@ class Secrets(
                 token=decoded_token["raw_token"],
                 expiration=decoded_token["exp"],
             )
-            if action == mlrun.common.schemas.SecretEventActions.created:
-                created_tokens.append(token_name)
-            elif action == mlrun.common.schemas.SecretEventActions.updated:
-                updated_tokens.append(token_name)
-            elif action == mlrun.common.schemas.SecretEventActions.skipped:
-                skipped_tokens.append(token_name)
+            token_actions[action].append(token_name)
 
         return mlrun.common.schemas.StoreSecretTokensResponse(
-            created_tokens=created_tokens,
-            updated_tokens=updated_tokens,
-            skipped_tokens=skipped_tokens,
+            created_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.created
+            ],
+            updated_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.updated
+            ],
+            skipped_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.skipped
+            ],
         )
 
     def _validate_and_decode_offline_tokens(
@@ -518,6 +520,8 @@ class Secrets(
 
     def _decode_offline_token(self, token_name: str, token: str) -> dict:
         try:
+            # The token is expected to be a JWT. We don't verify its signature here, as it will be verified later
+            # using the Iguazio client when refreshing the token.
             return jwt.decode(token, options={"verify_signature": False})
         except jwt.DecodeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -31,19 +31,20 @@ class Client(BaseClient):
         super().__init__(*args, **kwargs)
         self._client = iguazio.Client(api_url=self._api_url)
 
-    def refresh_access_token(self, token_name: str, token: str) -> None:
+    def refresh_access_token(
+        self, secret_token: mlrun.common.schemas.SecretToken
+    ) -> None:
         """
-        Refresh the access token using the Iguazio client to validate the offline token.
+        Refreshes the access token by validating the provided offline token using the Iguazio client.
 
-        :param token_name: Logical name of the token (used for error messages)
-        :param token: The offline token string
-        :raises mlrun.errors.MLRunUnauthorizedError: If the token is invalid or expired
+        :param secret_token: SecretToken object containing the token name and the offline token string.
+        :raises mlrun.errors.MLRunUnauthorizedError: If the offline token is invalid or expired.
         """
         try:
-            self._client.refresh_access_token(token)
+            self._client.refresh_access_token(secret_token.token)
         except Exception as exc:
             raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to refresh access token '{token_name}': token is invalid or expired"
+                f"Failed to refresh access token '{secret_token.name}': token is invalid or expired"
             ) from exc
 
     def refresh_access_tokens(

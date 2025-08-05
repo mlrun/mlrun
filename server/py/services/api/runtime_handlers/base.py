@@ -1746,7 +1746,7 @@ class BaseRuntimeHandler(ABC):
                 )
 
         logger.info(
-            "Updating run state yacouby",
+            "Updating run state",
             run_uid=uid,
             run_state=run_state,
             reason=reason,
@@ -1836,9 +1836,9 @@ class BaseRuntimeHandler(ABC):
             db_terminal = db_run_state in RunStates.terminal_states()
             runtime_terminal = run_state in RunStates.terminal_states()
 
-            # if the runtime has reached a terminal state but the DB hasn't, then debounce the status update
+            # If the runtime has reached a terminal state but the DB still shows a recent non-terminal state,
+            # debounce the update to avoid prematurely overriding the newer DB state.
             if not db_terminal and runtime_terminal and last_update > debounce_cutoff:
-                logger.info("yacouby: yes")
                 logger.warning(
                     "Monitoring found terminal state on runtime resource but DB record was recently updated and is "
                     "still non-terminal. Debouncing.",
@@ -1850,12 +1850,12 @@ class BaseRuntimeHandler(ABC):
                 )
                 return True
 
-            # if the current run state isu terminal and different from the desired - log
+            # if the current run state is terminal and different from the runtime state, handle accordingly
             if db_terminal:
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
+                # In this case, we debounce to avoid reverting the state prematurely.
                 if not runtime_terminal and last_update > debounce_cutoff:
-                    logger.info("yacouby: yes 2")
                     logger.warning(
                         "Monitoring found non-terminal state on runtime resource but record has recently "
                         "updated to terminal state. Debouncing",
@@ -1870,7 +1870,6 @@ class BaseRuntimeHandler(ABC):
                     return True
 
                 elif run_state != db_run_state:
-                    logger.info("yacouby: yes 3")
                     logger.warning(
                         "Run record has terminal state but monitoring found different state on runtime resource. "
                         "Changing",

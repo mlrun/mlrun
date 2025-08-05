@@ -1653,14 +1653,6 @@ class ModelRunnerStep(MonitoredStep):
             except mlrun.errors.MLRunNotFoundError:
                 raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
 
-        artifact_outputs, artifact_inputs = None, None
-        if not outputs or not inputs:
-            artifact_outputs, artifact_inputs = self._get_model_artifact_schema(
-                model_artifact
-            )
-        outputs = outputs or artifact_outputs
-        inputs = inputs or artifact_inputs
-
         model_artifact = (
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
@@ -1724,28 +1716,6 @@ class ModelRunnerStep(MonitoredStep):
         }
         self.class_args[schemas.ModelRunnerStepData.MODELS] = models
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
-
-    @staticmethod
-    def _get_model_artifact_schema(
-        model_artifact: Union[ModelArtifact, LLMPromptArtifact],
-    ) -> Union[tuple[list[str], list[str]], tuple[None, None]]:
-        if isinstance(
-            model_artifact,
-            ModelArtifact,
-        ):
-            return [feature.name for feature in model_artifact.spec.outputs], [
-                feature.name for feature in model_artifact.spec.inputs
-            ]
-        elif isinstance(
-            model_artifact,
-            LLMPromptArtifact,
-        ):
-            _model_artifact = model_artifact.model_artifact
-            return [feature.name for feature in _model_artifact.spec.outputs], [
-                feature.name for feature in _model_artifact.spec.inputs
-            ]
-        else:
-            return None, None
 
     @staticmethod
     def _get_model_endpoint_schema(

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import random
+from copy import copy
 from datetime import timedelta
 from typing import Any, Optional, Union
 
@@ -22,6 +23,7 @@ import storey
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.feature_store
 import mlrun.serving
 from mlrun.common.schemas import MonitoringData
 from mlrun.utils import get_data_from_path, logger
@@ -54,6 +56,7 @@ class MonitoringPreProcessor(storey.MapClass):
         if isinstance(result, dict):
             # transpose by key the outputs:
             outputs, new_output_schema = self.transpose_by_key(result, output_schema)
+            new_output_schema = new_output_schema or output_schema
             if not output_schema:
                 logger.warn(
                     "Output schema was not provided using Project:log_model or by ModelRunnerStep:add_model order "
@@ -67,6 +70,7 @@ class MonitoringPreProcessor(storey.MapClass):
         if isinstance(event_inputs, dict):
             # transpose by key the inputs:
             inputs, new_input_schema = self.transpose_by_key(event_inputs, input_schema)
+            new_input_schema = new_input_schema or input_schema
             if not input_schema:
                 logger.warn(
                     "Input schema was not provided using by ModelRunnerStep:add_model, order "
@@ -101,9 +105,9 @@ class MonitoringPreProcessor(storey.MapClass):
         request = {
             "inputs": inputs,
             "id": getattr(event, "id", None),
-            "input_schema": input_schema or new_input_schema,
+            "input_schema": new_input_schema,
         }
-        resp = {"outputs": outputs, "output_schema": output_schema or new_output_schema}
+        resp = {"outputs": outputs, "output_schema": new_output_schema}
 
         return request, resp
 
@@ -145,6 +149,11 @@ class MonitoringPreProcessor(storey.MapClass):
                 mlrun.MLRunInvalidArgumentError if the schema keys are not contained in the data keys.
         """
         new_schema = None
+        # Normalize keys in data:
+        data = {
+            mlrun.feature_store.api.norm_column_name(k): copy(v)
+            for k, v in data.items()
+        }
         # Normalize schema to list
         if not schema:
             keys = list(data.keys())
@@ -152,7 +161,7 @@ class MonitoringPreProcessor(storey.MapClass):
         elif isinstance(schema, str):
             keys = [schema]
         else:
-            keys = schema
+            keys = [mlrun.feature_store.api.norm_column_name(key) for key in schema]
 
         values = [data[key] for key in keys if key in data]
         if len(values) != len(keys):

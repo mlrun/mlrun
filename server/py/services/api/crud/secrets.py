@@ -447,8 +447,10 @@ class Secrets(
         )
 
         # TODO: move init iguazio_client
-        iguazio_client = framework.utils.clients.iguazio.v4.Client()
-        iguazio_client.refresh_access_tokens(secret_tokens)
+        # iguazio_client = framework.utils.clients.iguazio.v4.Client()
+
+        # TODO: Enable this once it is implemented in the Iguazio client.
+        # iguazio_client.refresh_access_tokens(secret_tokens)
 
         token_actions = defaultdict(list)
 

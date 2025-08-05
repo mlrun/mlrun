@@ -196,6 +196,41 @@ def test_child_function_tracking(
             )
 
 
+def test_child_function_tracking_with_model_runner(rundb_mock):
+    project = mlrun.new_project("test-child", save=False)
+    fn = mlrun.new_function("test-fn", kind="serving", project=project.name)
+    graph = fn.set_topology("flow")
+    model_runner_step = ModelRunnerStep(name="my_model_runner_0", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_0",
+        input_path="n",
+        result_path="n",
+        raise_error=False,
+        inc=1,
+    )
+    graph.to(">>", name="in", path="dummy://in").to(
+        model_runner_step, function="c1"
+    ).to(">>", name="out", path="dummy://out")
+    fn.set_tracking("dummy://", enable_tracking=True)
+    fn.add_child_function("c1", f"{assets_path}/child_function.py", "mlrun/mlrun")
+    server = fn.to_mock_server()
+    server.test("/", {"n": 1})
+    server.wait_for_completion()
+
+    assert server.graph.steps["my_model_runner_0_error_raise"].function == "c1"
+    assert server.graph.steps["my_model_runner_0"].function == "c1"
+
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
+
+    output_stream = graph.steps["out"].async_object
+    assert len(output_stream.event_list) == 1
+
+
 def rec_to_data(rec):
     data = json.loads(rec["data"])
     inputs = data["request"]["inputs"]

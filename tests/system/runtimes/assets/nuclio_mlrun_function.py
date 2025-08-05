@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,25 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from mlrun.serving import Model, V2ModelServer
-
-
-class OneToMany(V2ModelServer):
-    def load(self):
-        pass
-
-    def predict(self, event: dict) -> list:
-        inputs = event.get("inputs")
-        return inputs
+import mlrun
 
 
-class MyModel(Model):
-    def __init__(self, *args, inc: int, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.inc = inc
-
-    def predict(self, body, **kwargs):
-        body["n"] += self.inc
-        body.pop("models", None)
-        return body
+def my_func(context, event):
+    return mlrun.get_current_project().to_json()

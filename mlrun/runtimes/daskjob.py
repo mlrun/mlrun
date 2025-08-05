@@ -541,6 +541,7 @@ class DaskCluster(KubejobRuntime):
             notifications=notifications,
             returns=returns,
             state_thresholds=state_thresholds,
+            retry=retry,
             **launcher_kwargs,
         )
 

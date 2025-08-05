@@ -2429,6 +2429,16 @@ def get_data_from_path(
     return output_data
 
 
+def is_valid_port(port: int, raise_on_error: bool = False) -> bool:
+    if not port:
+        return False
+    if 0 <= port <= 65535:
+        return True
+    if raise_on_error:
+        raise ValueError("Port must be in the range 0–65535")
+    return False
+
+
 def set_data_by_path(
     path: typing.Union[str, list[str], None], data: dict, value
 ) -> None:

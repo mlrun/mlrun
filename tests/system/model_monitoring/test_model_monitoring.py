@@ -1743,6 +1743,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
             model_path=self.project.get_artifact_uri(
                 key=self.model_name, category="model", tag="latest"
             ),
+            function_name=self.model_name,
             model_endpoint_name=self.model_endpoint_name,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
@@ -1833,6 +1834,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             project=self.project_name,
             infer_results_df=self.infer_results_df,
             model_path=model_uri,
+            function_name=self.model_name,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             # TODO: activate ad-hoc mode when ML-5792 is done

@@ -168,7 +168,7 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
 
     def update_application_time(self, application: str, timestamp: float) -> None:
         self._check_open_schedules()
-        self._schedules[application] = timestamp
+        self._schedules[application] = float(timestamp)
 
     def get_application_list(self) -> set[str]:
         self._check_open_schedules()
@@ -212,8 +212,12 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
     ) -> None:
         self._check_open_schedules()
         self._schedules[endpoint_uid] = {
-            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST: last_request,
-            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED: last_analyzed,
+            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST: float(
+                last_request
+            ),
+            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED: float(
+                last_analyzed
+            ),
         }
 
     def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[float]:

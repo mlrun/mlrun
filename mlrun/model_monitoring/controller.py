@@ -620,7 +620,10 @@ class MonitoringApplicationController:
                                 endpoint_id=endpoint_id,
                             )
                             self._push_to_applications(
-                                start_infer_time=start_infer_time,
+                                start_infer_time=start_infer_time
+                                - datetime.timedelta(
+                                    batch_window_generator.batch_window.TIMESTAMP_RESOLUTION_MICRO
+                                ),
                                 end_infer_time=end_infer_time,
                                 endpoint_id=endpoint_id,
                                 endpoint_name=endpoint_name,

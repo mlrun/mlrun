@@ -21,6 +21,7 @@ import tiktoken
 from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
 )
+from mlrun.datastore.model_provider.model_provider import ResponseStatsKeys
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
@@ -87,12 +88,20 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         response = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",
             json.dumps(INPUT_DATA[0]),
-        )
-        result = response["result"]
-        assert EXPECTED_RESULTS[0] in result.lower()
+        )["output"]
+        assert len(response) == 2
+        answer = response[ResponseStatsKeys.ANSWER.value]
+        assert EXPECTED_RESULTS[0] in answer.lower()
         encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-        token_count = len(encoding.encode(result))
-        assert token_count == 100
+        assert len(encoding.encode(answer)) == 100
+
+        stats = response[ResponseStatsKeys.STATS.value]
+        assert stats["usage"]["completion_tokens"] == 100
+        assert stats["usage"]["prompt_tokens"] > 0
+        assert (
+            stats["usage"]["total_tokens"]
+            == stats["usage"]["completion_tokens"] + stats["usage"]["prompt_tokens"]
+        )
 
     def test_model_runner_with_openai_async(self):
         mlrun_model_name = "async_invoke_model"

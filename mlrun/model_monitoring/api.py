@@ -236,7 +236,7 @@ def _model_endpoint_validations(
             key=model_obj.key,
             iter=model_obj.iter,
             tree=model_obj.tree,
-            uid= model_obj.uid,
+            uid=model_obj.uid,
         )
 
         # Enrich the uri schema with the store prefix

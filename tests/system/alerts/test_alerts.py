@@ -190,7 +190,7 @@ class TestAlerts(TestMLRunSystem):
             project=self.project.metadata.name,
             model_endpoint_name="test-endpoint",
             context=mlrun.get_or_create_ctx("demo"),
-            endpoint_id=uuid.uuid4().hex # either endpoint-id or function_name and function_tag must be provided
+            endpoint_id=uuid.uuid4().hex,  # either endpoint-id or function_name and function_tag must be provided
         )
 
         # waits for the writer function to be deployed

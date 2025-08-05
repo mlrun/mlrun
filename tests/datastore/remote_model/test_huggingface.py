@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,25 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
 
-from mlrun.serving import Model, V2ModelServer
-
-
-class OneToMany(V2ModelServer):
-    def load(self):
-        pass
-
-    def predict(self, event: dict) -> list:
-        inputs = event.get("inputs")
-        return inputs
+from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
 
 
-class MyModel(Model):
-    def __init__(self, *args, inc: int, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.inc = inc
-
-    def predict(self, body, **kwargs):
-        body["n"] += self.inc
-        body.pop("models", None)
-        return body
+@pytest.mark.parametrize(
+    "response, expected_str_response",
+    [
+        (
+            [{"generated_text": "The capital of Germany is Berlin."}],
+            "The capital of Germany is Berlin.",
+        ),
+    ],
+)
+def test_response_to_str(response, expected_str_response):
+    extracted_string = HuggingFaceProvider._extract_string_output(result=response)
+    assert extracted_string == expected_str_response

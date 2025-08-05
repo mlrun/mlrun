@@ -196,15 +196,19 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
-            fn, ready = services.api.utils.functions.build_function(
+            fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=fn,
+                project=self.project,
+                name=fn.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
             logger.debug(
                 "Submitted the stream deployment",
                 stream_data=fn.to_dict(),
-                stream_ready=ready,
             )
 
     def deploy_model_monitoring_controller(
@@ -253,15 +257,19 @@ class MonitoringDeployment:
                     interval=f"{self._get_trigger_frequency(base_period)}m"
                 ),
             )
-            fn, ready = services.api.utils.functions.build_function(
+            fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=fn,
+                project=self.project,
+                name=fn.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
             logger.debug(
                 "Submitted the controller deployment",
                 controller_data=fn.to_dict(),
-                controller_ready=ready,
             )
 
     def deploy_model_monitoring_writer_application(
@@ -287,15 +295,19 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_writer_function(
                 writer_image=writer_image
             )
-            fn, ready = services.api.utils.functions.build_function(
+            fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=fn,
+                project=self.project,
+                name=fn.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
             logger.debug(
                 "Submitted the writer deployment",
                 writer_data=fn.to_dict(),
-                writer_ready=ready,
             )
 
     def apply_and_create_stream_trigger(
@@ -786,16 +798,20 @@ class MonitoringDeployment:
                 mm_constants.ModelMonitoringAppLabel.VAL,
             )
 
-            fn, ready = services.api.utils.functions.build_function(
+            fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=func,
+                project=self.project,
+                name=func.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
 
             logger.debug(
                 "Submitted the histogram data drift app deployment",
                 app_data=fn.to_dict(),
-                app_ready=ready,
             )
 
     def _create_tsdb_tables(
@@ -1964,6 +1980,17 @@ class MonitoringDeployment:
             ]
         ]
         function_tag = function.metadata.tag or "latest"
+        parent_function_name = function.metadata.labels.get("mlrun/parent-function")
+        user_function_name = (
+            None  # This indicates that the function is not a child of another function
+        )
+        if parent_function_name:
+            user_function_name = (
+                function_name[len(f"{parent_function_name}-") :]
+                if function_name.startswith(f"{parent_function_name}-")
+                else None
+            )
+
         model_endpoints_dict: dict[str, ModelEndpoint] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
@@ -1986,6 +2013,7 @@ class MonitoringDeployment:
                 model_endpoints_dict=model_endpoints_dict,
                 project=project,
                 override_type=mm_constants.EndpointType.BATCH_EP if is_batch else None,
+                user_function_name=user_function_name,
             )
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
@@ -2003,6 +2031,7 @@ class MonitoringDeployment:
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> tuple[
         list[
             tuple[
@@ -2025,6 +2054,7 @@ class MonitoringDeployment:
                     sampling_percentage=sampling_percentage,
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
+                    user_function_name=user_function_name,
                 )
             )
         elif isinstance(graph, mlrun.serving.states.RootFlowStep):
@@ -2038,6 +2068,7 @@ class MonitoringDeployment:
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
                     override_type=override_type,
+                    user_function_name=user_function_name,
                 )
             )
         return model_endpoints_instructions, graph
@@ -2052,6 +2083,7 @@ class MonitoringDeployment:
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2065,6 +2097,10 @@ class MonitoringDeployment:
             if (
                 route.model_endpoint_creation_strategy
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
+                and (
+                    (not route.function and not user_function_name)
+                    or route.function == user_function_name
+                )
             ):
                 uid = self._get_or_create_uid(
                     project=project,
@@ -2105,6 +2141,10 @@ class MonitoringDeployment:
         if (
             router_step.model_endpoint_creation_strategy
             != mm_constants.ModelEndpointCreationStrategy.SKIP
+            and (
+                (not router_step.function and not user_function_name)
+                or router_step.function == user_function_name
+            )
         ):
             uid = self._get_or_create_uid(
                 project=project,
@@ -2149,6 +2189,7 @@ class MonitoringDeployment:
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2168,6 +2209,7 @@ class MonitoringDeployment:
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
                         override_type=override_type,
+                        user_function_name=user_function_name,
                     )
                 )
             elif isinstance(step, mlrun.serving.states.ModelRunnerStep):
@@ -2181,12 +2223,17 @@ class MonitoringDeployment:
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
                         override_type=override_type,
+                        user_function_name=user_function_name,
                     )
                 )
             else:
                 if (
                     step.model_endpoint_creation_strategy
                     != mm_constants.ModelEndpointCreationStrategy.SKIP
+                    and (
+                        (not user_function_name and not step.function)
+                        or step.function == user_function_name
+                    )
                 ):
                     uid = self._get_or_create_uid(
                         project=project,
@@ -2331,6 +2378,7 @@ class MonitoringDeployment:
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2345,11 +2393,11 @@ class MonitoringDeployment:
             mlrun.common.schemas.ModelRunnerStepData.MODELS, {}
         ).keys():
             monitoring_data[endpoint_name] = monitoring_data[endpoint_name] or {}
-            if (
-                monitoring_data[endpoint_name].get(
-                    mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
-                )
-                != mm_constants.ModelEndpointCreationStrategy.SKIP
+            if monitoring_data[endpoint_name].get(
+                mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
+            ) != mm_constants.ModelEndpointCreationStrategy.SKIP and (
+                (not user_function_name and not model_runner.function)
+                or model_runner.function == user_function_name
             ):
                 uid = self._get_or_create_uid(
                     project=project,

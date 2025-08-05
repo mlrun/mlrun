@@ -48,3 +48,4 @@ openai~=1.88
 transformers~=4.53
 # for hugging face image classifier test:
 tf-keras~=2.18
+pillow~=11.3

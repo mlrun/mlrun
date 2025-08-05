@@ -1711,7 +1711,8 @@ class SQLDB(DBInterface):
                     tree=parent.producer_id,
                     uid=parent.uid,
                     tag=parent_tag
-                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or []),
+                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or [])
+                    or None,
                 ),
             )
         else:
@@ -3926,6 +3927,10 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
+        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+            logger.debug("Partition management not supported for SQLite")
+            return {}, {}, {}
+
         project_to_endpoint_alerts_count = collections.defaultdict(int)
         project_to_job_alerts_count = collections.defaultdict(int)
         project_to_other_alerts_count = collections.defaultdict(int)
@@ -6777,7 +6782,7 @@ class SQLDB(DBInterface):
                 * MySQL: the "LESS THAN" boundary value for the partition.
                 * Postgres: a string "lower,upper" defining the range.
         """
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def drop_partitions(
@@ -6792,7 +6797,7 @@ class SQLDB(DBInterface):
         :param table_name: The name of the table with partitions.
         :param cutoff_partition_name: The cutoff partition name for dropping old partitions.
         """
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def get_partition_expression_for_table(
@@ -6809,7 +6814,7 @@ class SQLDB(DBInterface):
         - dayofmonth(`activation_time`)
         - yearweek(`activation_time`, 1)
         """
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def table_exists(
@@ -6824,7 +6829,7 @@ class SQLDB(DBInterface):
 
         :return: True if the table exists, False otherwise.
         """
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def _transform_alert_template_schema_to_record(

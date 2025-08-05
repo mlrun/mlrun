@@ -365,7 +365,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 def import_function_to_dict(url, secrets=None):
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
-    runtime = yaml.load(obj, Loader=yaml.FullLoader)
+    runtime = yaml.safe_load(obj)
     remote = "://" in url
 
     code = get_in(runtime, "spec.build.functionSourceCode")
@@ -1184,11 +1184,13 @@ def get_model_provider(
     raise_missing_schema_exception=True,
 ) -> ModelProvider:
     """get mlrun dataitem object (from path/url)"""
-    store_manager.set(secrets, db=db)
+    #  without caching secrets
+    store_manager.set(db=db)
     return store_manager.model_provider_object(
         url=url,
         default_invoke_kwargs=default_invoke_kwargs,
         raise_missing_schema_exception=raise_missing_schema_exception,
+        secrets=secrets,
     )
 
 

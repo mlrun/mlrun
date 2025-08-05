@@ -2582,3 +2582,13 @@ class TestModelMonitoring:
         assert (
             mock.call_args_list[0].args[0] == mm_consts.MonitoringFunctionNames.list()
         ), "Expected to wait for the infra functions"
+
+    @staticmethod
+    def test_function_with_invalid_name() -> None:
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="application names cannot end with `-batch`",
+        ):
+            mlrun.projects.MlrunProject().create_model_monitoring_function(
+                name="my-invalid-app-name-batch", application_class="NoApp"
+            )

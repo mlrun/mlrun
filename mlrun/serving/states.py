@@ -48,7 +48,7 @@ from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import get_data_from_path, logger, split_path
 
 from ..config import config
-from ..datastore import get_stream_pusher
+from ..datastore import _DummyStream, get_stream_pusher
 from ..datastore.utils import (
     get_kafka_brokers_from_dict,
     parse_kafka_url,
@@ -1206,7 +1206,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
 class LLModel(Model):
     def __init__(
-        self, name: str, input_path: Optional[Union[str, list[str]]], **kwargs
+        self, name: str, input_path: Optional[Union[str, list[str]]] = None, **kwargs
     ):
         super().__init__(name, **kwargs)
         self._input_path = split_path(input_path)
@@ -1287,6 +1287,7 @@ class LLModel(Model):
                 {
                     place_holder: input_data.get(body_map["field"])
                     for place_holder, body_map in prompt_legend.items()
+                    if input_data.get(body_map["field"])
                 }
                 if prompt_legend
                 else {}
@@ -3099,6 +3100,8 @@ def _init_async_objects(context, steps):
                             context=context,
                             **options,
                         )
+                    elif stream_path.startswith("dummy://"):
+                        step._async_object = _DummyStream(context=context, **options)
                     else:
                         if stream_path.startswith("v3io://"):
                             endpoint, stream_path = parse_path(step.path)

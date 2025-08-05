@@ -65,7 +65,7 @@ class HuggingFaceProvider(ModelProvider):
         self.load_client()
 
     @staticmethod
-    def _extract_string_output(response) -> str:
+    def _extract_string_output(response: list[dict]) -> str:
         """
         Extracts the first generated string from Hugging Face pipeline output,
         regardless of whether it's plain text-generation or chat-style output.

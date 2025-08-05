@@ -106,7 +106,11 @@ class HuggingFaceProvider(ModelProvider):
                                         prompt_tokens, completion_tokens and total_tokens.
 
         :param kwargs:                  Same as in `ModelProvider._response_handler`.
-        :return:                        See `ModelProvider._response_handler`.
+
+        :return: The result formatted according to the `invoke_response_format`.
+
+        :raises MLRunInvalidArgumentError: If extracting the string response fails.
+        :raises MLRunRuntimeError: If applying the chat template to the model fails.
         """
         if InvokeResponseFormat.is_str_response(invoke_response_format.value):
             str_response = self._extract_string_output(response)
@@ -154,7 +158,7 @@ class HuggingFaceProvider(ModelProvider):
 
         Note: Hugging Face pipelines are synchronous and do not support async invocation.
 
-        Raises:
+        :raises:
             ImportError: If the `transformers` package is not installed.
         """
         try:
@@ -241,8 +245,9 @@ class HuggingFaceProvider(ModelProvider):
                     }
                 }
 
-            - "full":   Returns the full raw response object from the HuggingFace model,
+            - "full":   Returns the raw response object from the HuggingFace model,
                         typically a list of generated sequences (dictionaries).
+                        This format does not include token usage statistics.
 
         :param invoke_kwargs:
             Additional keyword arguments passed to the HuggingFace client. Same as in `ModelProvider.invoke`.

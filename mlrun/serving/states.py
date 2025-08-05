@@ -1625,6 +1625,9 @@ class ModelRunnerStep(MonitoredStep):
           :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
+
+                                      When using LLModel, the output will be overridden with ResponseStatsKeys.fields().
+
           :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
                                       this require that the event body will behave like a dict, expects scopes to be
                                       defined by dot notation (e.g "data.d").
@@ -1653,7 +1656,7 @@ class ModelRunnerStep(MonitoredStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
-        if isinstance(model_class, str) and model_class == LLModel.__name__:
+        if isinstance(model_class, LLModel) or (isinstance(model_class, str) and model_class == LLModel.__name__):
             if outputs:
                 warnings.warn(
                     "LLModel with existing outputs detected, overriding to default"

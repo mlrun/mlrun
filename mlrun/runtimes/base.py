@@ -556,6 +556,7 @@ class BaseRuntime(ModelObj):
         run_format: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> typing.Optional[dict]:
         """update the task state in the DB"""
+        logger.debug("yacouby: in update run state", err=err)
         was_none = False
         if resp is None and task:
             was_none = True
@@ -576,6 +577,7 @@ class BaseRuntime(ModelObj):
 
         updates = None
         last_state = get_in(resp, "status.state", "")
+        logger.debug("yacouby: in update run state 2", last_state=last_state)
         kind = get_in(resp, "metadata.labels.kind", "")
         if last_state in RunStates.error_states() or err:
             new_state = RunStates.error
@@ -617,7 +619,7 @@ class BaseRuntime(ModelObj):
 
         uid = get_in(resp, "metadata.uid")
         logger.debug(
-            "Run updates",
+            "Run updates yacouby",
             name=get_in(resp, "metadata.name"),
             uid=uid,
             kind=kind,

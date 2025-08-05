@@ -100,7 +100,11 @@ class HuggingFaceProvider(ModelProvider):
 
         :param messages:                Same as in `ModelProvider._response_handler`.
         :param response:                Same as in `ModelProvider._response_handler`.
-        :param invoke_response_format:  Same as in `ModelProvider._response_handler`.
+        :param invoke_response_format:  Same as in `ModelProvider._response_handler`, in full and string modes.
+
+                                        For stats mode, generate 3 statistics:
+                                        prompt_tokens, completion_tokens and total_tokens.
+
         :param kwargs:                  Same as in `ModelProvider._response_handler`.
         :return:                        See `ModelProvider._response_handler`.
         """

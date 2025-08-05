@@ -542,7 +542,7 @@ def test_tracked_model_runner_dict(rundb_mock, with_schema):
     assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == [2]
 
 
-@pytest.mark.parametrize("with_schema", [True])
+@pytest.mark.parametrize("with_schema", [True, False])
 def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")

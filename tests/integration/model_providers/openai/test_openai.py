@@ -15,7 +15,7 @@ import os
 import time
 import unittest.mock
 from typing import cast
-from mlrun.datastore.model_provider.model_provider import ResponseStatsKeys
+
 import openai.types.chat
 import pytest
 import tiktoken
@@ -31,7 +31,10 @@ from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
     register_temporary_client_datastore_profile,
 )
-from mlrun.datastore.model_provider.model_provider import InvokeResponseFormat
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ResponseStatsKeys,
+)
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
@@ -310,8 +313,10 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             stats = response[ResponseStatsKeys.STATS.value]
             assert stats["usage"]["completion_tokens"] == 100
             assert stats["usage"]["prompt_tokens"] > 0
-            assert stats["usage"]["total_tokens"] == stats["usage"]["completion_tokens"] +\
-                   stats["usage"]["prompt_tokens"]
+            assert (
+                stats["usage"]["total_tokens"]
+                == stats["usage"]["completion_tokens"] + stats["usage"]["prompt_tokens"]
+            )
         finally:
             server.wait_for_completion()
 

@@ -29,7 +29,10 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
-from mlrun.datastore.model_provider.model_provider import InvokeResponseFormat
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ResponseStatsKeys,
+)
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
@@ -119,7 +122,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         if expected_torch_dtype:
             assert model_provider.client.model.dtype == expected_torch_dtype
 
-        token_count = len(model_provider.client.tokenizer.encode(result))
+        token_count = len(
+            model_provider.client.tokenizer.encode(result, add_special_tokens=False)
+        )
         # Extra token is due to the EOS token, which signals end of generation.
         assert token_count in (100, 101)
         # checking invoke_response_format=InvokeResponseFormat.FULL
@@ -132,7 +137,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
         assistant_response = response[0]["generated_text"][1]
         result = assistant_response["content"]
-        token_count = len(model_provider.client.tokenizer.encode(result))
+        token_count = len(
+            model_provider.client.tokenizer.encode(result, add_special_tokens=False)
+        )
         assert assistant_response["role"] == "assistant"
         assert token_count in (50, 51)
 
@@ -284,11 +291,22 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         ):
             server = function.to_mock_server()
         try:
-            result = server.test(body=INPUT_DATA[0])["result"]
-            assert EXPECTED_RESULTS[0] in result.lower()
+            response = server.test(body=INPUT_DATA[0])["output"]
+
+            assert len(response) == 2
+            answer = response[ResponseStatsKeys.ANSWER.value]
+            assert EXPECTED_RESULTS[0] in answer.lower()
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
-            token_count = len(tokenizer.encode(result))
+            token_count = len(tokenizer.encode(answer, add_special_tokens=False))
             # Extra token is due to the EOS token, which signals end of generation.
             assert token_count in (100, 101)
+
+            stats = response[ResponseStatsKeys.STATS.value]
+            assert stats["completion_tokens"] == token_count
+            assert stats["prompt_tokens"] > 0
+            assert (
+                stats["total_tokens"]
+                == stats["completion_tokens"] + stats["prompt_tokens"]
+            )
         finally:
             server.wait_for_completion()

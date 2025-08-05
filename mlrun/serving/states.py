@@ -46,7 +46,8 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
-    ModelProvider, ResponseStatsKeys,
+    ModelProvider,
+    ResponseStatsKeys,
 )
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import get_data_from_path, logger, set_data_by_path, split_path

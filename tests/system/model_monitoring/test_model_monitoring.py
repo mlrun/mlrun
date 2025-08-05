@@ -860,7 +860,8 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         )
         assert metric_fqn == expected_metric_fqn
 
-    def test_monitoring_with_model_runner_dict_infer(self):
+    @pytest.mark.parametrize("with_training_set", [True, False])
+    def test_monitoring_with_model_runner_dict_infer(self, with_training_set: bool):
         function = mlrun.code_to_function(
             name="function_with_model",
             kind="serving",
@@ -872,13 +873,22 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         self.set_mm_credentials()
 
         # Log a model artifact
+        train_set = None
+        if with_training_set:
+            iris = load_iris()
+            train_set = pd.DataFrame(
+                data=np.c_[iris["data"], iris["target"]],
+                columns=iris.feature_names + ["label"],
+            )
         model_name = "sklearn_RandomForestClassifier"
         # Upload the model through the projects API so that it is available to the serving function
         model = self.project.log_model(
             model_name,
             model_dir=os.path.relpath(self.assets_path),
             model_file="model.pkl",
+            training_set=train_set,
             artifact_path=f"v3io:///projects/{self.project.name}",
+            label_column="label" if with_training_set else None,
         )
         function.save(versioned=False)
         graph = function.set_topology("flow", engine="async")
@@ -910,10 +920,10 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             "/",
             body={
                 "dict_inputs": {
-                    "sepal_length_cm": 0.5,
-                    "sepal_width_cm": 1.2,
-                    "petal_length_cm": 0.5,
-                    "petal_width_cm": 1.1,
+                    "sepal length (cm)": 0.5,
+                    "sepal width (cm)": 1.2,
+                    "petal length (cm)": 0.5,
+                    "petal width (cm)": 1.1,
                 },
                 "inputs": [[0.5, 1.2, 0.5, 1.1]],
             },
@@ -937,13 +947,27 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         assert model_endpoints[0].spec.label_names == ["label"]
 
         assert model_endpoints[1].metadata.name == "model-1"
-        assert model_endpoints[1].spec.feature_names == [
-            "f0",
-            "f1",
-            "f2",
-            "f3",
-        ]
-        assert model_endpoints[1].spec.label_names == ["p0"]
+        assert (
+            model_endpoints[1].spec.feature_names
+            == [
+                "f0",
+                "f1",
+                "f2",
+                "f3",
+            ]
+            if not with_training_set
+            else [
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ]
+        )
+        assert (
+            model_endpoints[1].spec.label_names == ["p0"]
+            if not with_training_set
+            else ["label"]
+        )
 
     def _assert_model_endpoint_tags_and_labels(
         self,

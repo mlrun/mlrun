@@ -18,6 +18,23 @@ MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKE
 
 GO_VERSION=$(shell grep -m1 'go ' ../go/go.mod | awk '{split($$2,a,"."); print a[1] "." a[2]}')
 
+
+PROTO_DIR := proto
+
+GO_OUT_DIR  := proto/build/go
+GO_PKG_DIR  := $(GO_OUT_DIR)/$(PROTO_DIR)
+PROTO_SRCS  := $(wildcard $(PROTO_DIR)/*.proto)
+GO_TARGETS  := $(patsubst $(PROTO_DIR)/%.proto,\
+                       $(GO_PKG_DIR)/%.pb.go,\
+                       $(PROTO_SRCS))
+
+PY_OUT_DIR   := proto/build/py
+PROTO_PY_SRCS := $(wildcard $(PROTO_DIR)/*.proto)
+PY_TARGETS := $(patsubst $(PROTO_DIR)/%.proto,$(PY_OUT_DIR)/%_pb2.py,$(PROTO_PY_SRCS)) \
+              $(patsubst $(PROTO_DIR)/%.proto,$(PY_OUT_DIR)/%_pb2_grpc.py,$(PROTO_PY_SRCS))
+
+PY_TARGET_DIR := ../py/schemas/proto
+
 #
 # Build
 #
@@ -31,16 +48,19 @@ schemas-compiler:
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--tag $(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
 		.
+
 #
 # Protobuf
 #
+
 .PHONY: compile-schemas
 compile-schemas: compile-schemas-dockerized
 	@echo Done
 
-.PHONY: compile-schemas-local
-compile-schemas-local: cleanup compile-schemas-go compile-schemas-python
-	@echo Done
+.PHONY: reset-schemas
+reset-schemas: cleanup
+
+compile-schemas-local: compile-schemas-go compile-schemas-python
 
 .PHONY: compile-schemas-dockerized
 compile-schemas-dockerized: schemas-compiler
@@ -51,25 +71,33 @@ compile-schemas-dockerized: schemas-compiler
 		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
 		make compile-schemas-local
 
-.PHONY: compile-schemas-go
-compile-schemas-go: cleanup
-	@echo Compiling go schemas
-	@mkdir -p proto/tmp
-	protoc --go_out=proto/tmp --go-grpc_out=proto/tmp --go-grpc_opt=require_unimplemented_servers=false proto/*.proto
-	@mkdir -p proto/build/go
-	@mv proto/tmp/proto/build/* proto/build/go
-	@rm -rf proto/tmp
+compile-schemas-go: $(GO_TARGETS)
 	@mkdir -p ../go/proto/build
-	@cp -RL proto/build/go/* ../go/proto/build
+	@cp -RL $(GO_PKG_DIR)/* ../go/proto/build/
 
-.PHONY: compile-schemas-python
-compile-schemas-python:
-	@echo Compiling python schemas
-	python3 -m grpc_tools.protoc --proto_path=. --python_out=proto/build/ --grpc_python_out=proto/build/ proto/*.proto
-	@echo Fixing Python GRPC Dir and Imports
-	@sh hack/scripts/fix_python_grpc_imports.sh
-	@cp -RL proto/build/py/* ../py/schemas/proto
-	@chmod -R 755 ../py/schemas/proto
+compile-schemas-python: $(PY_TARGETS)
+	@echo "Syncing → $(PY_TARGET_DIR)"
+	@mkdir -p $(PY_TARGET_DIR)
+	cp -RL $(PY_OUT_DIR)/* $(PY_TARGET_DIR)/
+
+$(GO_PKG_DIR)/%.pb.go: $(PROTO_DIR)/%.proto
+	@mkdir -p $(@D)
+	@protoc \
+		--go_out=$(GO_OUT_DIR) \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=$(GO_OUT_DIR) \
+		--go-grpc_opt=paths=source_relative,require_unimplemented_servers=false \
+		$<
+
+$(PY_OUT_DIR)/%_pb2.py $(PY_OUT_DIR)/%_pb2_grpc.py: $(PROTO_DIR)/%.proto
+	@mkdir -p $(PY_OUT_DIR)
+	python -m grpc_tools.protoc -I$(PROTO_DIR) \
+	    --python_out=$(PY_OUT_DIR) \
+	    --grpc_python_out=$(PY_OUT_DIR) $<
+
+.PHONY: clean
+clean:
+	rm -rf $(GO_OUT_DIR) ../go/proto/build
 
 .PHONY: cleanup
 cleanup:

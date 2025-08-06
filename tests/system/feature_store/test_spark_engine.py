@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import pathlib
 import sys
@@ -183,11 +183,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         if not cls.spark_image_deployed:
+            # TestMLRunSystem will create this project later in the initialization process, but we need it now
+            # to avoid a "project does not exist" error because the default project was dropped in 1.8.0
+            mlrun.get_or_create_project(cls.project_name, allow_cross_project=True)
+
             if not cls.test_branch:
                 RemoteSparkRuntime.deploy_default_image()
             else:
                 sj = new_function(
-                    kind="remote-spark", name="remote-spark-default-image-deploy-temp"
+                    kind="remote-spark",
+                    project=cls.project_name,
+                    name="remote-spark-default-image-deploy-temp",
                 )
 
                 sj.spec.build.image = RemoteSparkRuntime.default_image

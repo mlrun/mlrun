@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 
 import pytest
@@ -49,12 +49,13 @@ class TestApplicationRuntime(TestRuntimeBase):
         requirements = ["requests", "numpy"]
         function.with_requirements(requirements=requirements)
         function.spec.build.base_image = "my-base-image"
+        function.spec.build.source = "v3io://my-source.tar.gz"
         (
             _,
             _,
             config,
         ) = services.api.crud.runtimes.nuclio.function._compile_function_config(
-            function
+            function, builder_env={}
         )
         assert not mlrun.utils.get_in(
             config,
@@ -63,6 +64,10 @@ class TestApplicationRuntime(TestRuntimeBase):
         assert not mlrun.utils.get_in(
             config,
             "spec.build.baseImage",
+        )
+        assert not mlrun.utils.get_in(
+            config,
+            "spec.build.codeEntryType",
         )
 
     def test_create_function_validate_min_nuclio_version(

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import http
 from typing import Optional
 
@@ -463,8 +463,7 @@ async def load_project(
         spec=mlrun.common.schemas.ProjectSpec(source=url),
     )
 
-    # We must create the project before we run the remote load_project function because
-    # we want this function will be running under the project itself instead of the default project.
+    # Ensure the project exists before calling the remote load_project function
     project, _ = await fastapi.concurrency.run_in_threadpool(
         get_project_member().create_project,
         db_session=db_session,

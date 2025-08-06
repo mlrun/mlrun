@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 
 class BackgroundTaskKinds:
@@ -22,3 +21,4 @@ class BackgroundTaskKinds:
     refresh_smtp_configuration = "smtp.configuration.refresh"
     push_notification = "notification.push.{0}.{1}"
     push_kfp_notification = "notification.kfp.push.{0}.{1}.{2}"
+    terminate_pipeline = "terminate.kfp.pipeline.{0}.{1}.{2}"

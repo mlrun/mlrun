@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import inspect
+import io
 import os
 import shutil
-import tempfile
+import sys
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -32,7 +33,7 @@ import v3io.dataplane.object
 import v3io.dataplane.response
 from aioresponses import aioresponses as aioresponses_
 
-import mlrun.common.constants as mlrun_constants
+import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
@@ -98,8 +99,6 @@ def config_test_base():
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.mlconf.log_collector.mode = "legacy"
 
-    # revert change of default project after project creation
-    mlrun.mlconf.default_project = "default"
     mlrun.projects.project.pipeline_context.set(None)
 
     # reset factory container overrides
@@ -118,8 +117,8 @@ def aioresponses_mock():
 
 
 @pytest.fixture
-def ensure_default_project() -> mlrun.projects.project.MlrunProject:
-    return mlrun.get_or_create_project("default", allow_cross_project=True)
+def ensure_project() -> mlrun.projects.project.MlrunProject:
+    return mlrun.get_or_create_project("test-project", allow_cross_project=True)
 
 
 @pytest.fixture()
@@ -248,6 +247,7 @@ class RunDBMock:
         self._runs = {}
         self._api_gateways = {}
         self._get_model_endpoint_calls = 0
+        self._get_background_task_calls = 1
 
     def reset(self):
         self._functions = {}
@@ -448,11 +448,6 @@ class RunDBMock:
         if self._project_name and name == self._project_name:
             return self._project
 
-        elif name == config.default_project and not self._project:
-            project = mlrun.projects.MlrunProject(mlrun.ProjectMetadata(name))
-            self.store_project(name, project)
-            return project
-
         raise mlrun.errors.MLRunNotFoundError(f"Project '{name}' not found")
 
     def remote_builder(
@@ -522,7 +517,7 @@ class RunDBMock:
     ):
         key = self._generate_api_gateway_key(api_gateway.metadata.name, project)
         api_gateway.metadata.labels = {
-            mlrun_constants.MLRunInternalLabels.nuclio_project_name: project
+            mlrun.common.constants.MLRunInternalLabels.nuclio_project_name: project
         }
         self._api_gateways[key] = api_gateway
         return api_gateway
@@ -707,6 +702,7 @@ class RunDBMock:
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         self._get_model_endpoint_calls += 1
@@ -715,7 +711,7 @@ class RunDBMock:
         return mlrun.common.schemas.model_monitoring.ModelEndpoint(
             metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
                 name=name,
-                project=project,
+                project=project or "project",
                 labels={},
                 uid=model_uid,
             ),
@@ -736,7 +732,7 @@ class RunDBMock:
 
     def list_model_endpoints(
         self,
-        project: str = "default",
+        project: str = "project",
         names: Optional[Union[str, list[str]]] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
@@ -745,7 +741,9 @@ class RunDBMock:
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        tsdb_metrics: bool = True,
+        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
+        tsdb_metrics: bool = False,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -753,7 +751,7 @@ class RunDBMock:
         if isinstance(names, str):
             names = [names]
         endpoints = []
-        for name in names:
+        for name in names or ["model-ep-1"]:
             endpoints.append(
                 mlrun.common.schemas.model_monitoring.ModelEndpoint(
                     metadata=mlrun.common.schemas.ModelEndpointMetadata(
@@ -767,6 +765,34 @@ class RunDBMock:
         return mlrun.common.schemas.model_monitoring.ModelEndpointList(
             endpoints=endpoints
         )
+
+    def get_project_background_task(self, project, task_name):
+        if self._get_background_task_calls == 0:
+            task = mlrun.common.schemas.BackgroundTask(
+                kind=mlrun.common.schemas.object.ObjectKind.background_task,
+                metadata=mlrun.common.schemas.BackgroundTaskMetadata(
+                    name="name", project=project
+                ),
+                spec=mlrun.common.schemas.BackgroundTaskSpec(),
+                status=mlrun.common.schemas.BackgroundTaskStatus(
+                    state=mlrun.common.schemas.BackgroundTaskState.running,
+                    error="No error",
+                ),
+            )
+            self._get_background_task_calls += 1
+        else:
+            task = mlrun.common.schemas.BackgroundTask(
+                kind=mlrun.common.schemas.object.ObjectKind.background_task,
+                metadata=mlrun.common.schemas.BackgroundTaskMetadata(
+                    name="name", project=project
+                ),
+                spec=mlrun.common.schemas.BackgroundTaskSpec(),
+                status=mlrun.common.schemas.BackgroundTaskStatus(
+                    state=mlrun.common.schemas.BackgroundTaskState.succeeded,
+                    error="No error",
+                ),
+            )
+        return task
 
 
 @pytest.fixture()
@@ -783,19 +809,13 @@ def rundb_mock() -> RunDBMock:
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
 
-    # Create the default project to mimic real MLRun DB (the default project is always available for use):
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        mlrun.get_or_create_project(
-            "default", context=tmp_dir, allow_cross_project=True
-        )
+    yield mock_object
 
-        yield mock_object
-
-        # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
-        mlrun.db.get_run_db = orig_get_run_db
-        mlrun.get_run_db = orig_get_run_db
-        BaseRuntime._get_db = orig_get_db
-        config.dbpath = orig_db_path
+    # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
+    mlrun.db.get_run_db = orig_get_run_db
+    mlrun.get_run_db = orig_get_run_db
+    BaseRuntime._get_db = orig_get_db
+    config.dbpath = orig_db_path
 
 
 class RemoteBuilderMock(RunDBMock):
@@ -807,15 +827,34 @@ class RemoteBuilderMock(RunDBMock):
             *args,
             **kwargs,
         ):
-            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
-            # it overrides the mock args - this way the value will remain as it was.
+            # Need to fill in source_code_target_dir in the response since the code is copying it back to the
+            # function, so it overrides the mock args - this way the value will remain as it was.
+            image = f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest"
             return {
                 "ready": True,
                 "data": {
                     "spec": {
-                        "clone_target_dir": func.spec.clone_target_dir,
                         "build": {
-                            "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
+                            "image": image,
+                            "source_code_target_dir": func.spec.build.source_code_target_dir,
+                        },
+                        "env": [
+                            {"name": "SIDECAR_PORT", "value": "8050"},
+                        ],
+                        "config": {
+                            "spec.sidecars": [
+                                {
+                                    "image": image,
+                                    "name": "application-test-sidecar",
+                                    "ports": [
+                                        {
+                                            "containerPort": 8050,
+                                            "name": "application-t-0",
+                                            "protocol": "TCP",
+                                        }
+                                    ],
+                                }
+                            ],
                         },
                     },
                     "status": {
@@ -837,7 +876,7 @@ class RemoteBuilderMock(RunDBMock):
         call_args = self.remote_builder.call_args
 
         build_runtime = call_args.args[0]
-        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+        return build_runtime.spec.build, build_runtime.spec.build.source_code_target_dir
 
     def get_builder_status(
         self,
@@ -875,3 +914,12 @@ def remote_builder_mock(monkeypatch):
         mlrun, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
     )
     return builder_mock
+
+
+@pytest.fixture
+def logs_stream():
+    """Fixture to capture logs for verifying console output in tests."""
+    stream = io.StringIO()
+    mlrun.utils.logger.replace_handler_stream("default", stream)
+    yield stream
+    mlrun.utils.logger.replace_handler_stream("default", sys.stdout)

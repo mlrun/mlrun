@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import datetime
 import re
@@ -48,8 +47,6 @@ class Alerts(
         alert_data: mlrun.common.schemas.AlertConfig,
         force_reset: bool = False,
     ) -> mlrun.common.schemas.AlertConfig:
-        project = project or mlrun.mlconf.default_project
-
         existing_alert, existing_alert_state = (
             framework.utils.singletons.db.get_db().get_alert(session, project, name, with_state=True)
         )
@@ -106,7 +103,6 @@ class Alerts(
         limit: typing.Optional[int] = None,
         offset: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
-        project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().list_alerts(
             session=session,
             project=project,
@@ -141,8 +137,6 @@ class Alerts(
         project: str,
         name: str,
     ):
-        project = project or mlrun.mlconf.default_project
-
         alert = framework.utils.singletons.db.get_db().get_alert(session, project, name)
 
         if alert is None:
@@ -163,7 +157,6 @@ class Alerts(
         session: sqlalchemy.orm.Session,
         project: str,
     ):
-        project = project or mlrun.mlconf.default_project
         logger.debug("Deleting project alerts and cleaning up cache", project=project)
         services.alerts.crud.Events().delete_project_alert_events(project)
 

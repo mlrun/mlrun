@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import traceback
 import typing
 import uuid
@@ -241,6 +241,7 @@ class BaseRuntimeHandler(ABC):
         label_selector: Optional[str] = None,
         class_mode: Union[RuntimeClassMode, str] = None,
         with_main_runtime_resource_label_selector: bool = False,
+        retry_count: Optional[int] = None,
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
@@ -269,6 +270,15 @@ class BaseRuntimeHandler(ABC):
                 label_selector = ",".join(
                     [label_selector, main_runtime_resource_label_selector]
                 )
+
+        if retry_count is not None:
+            # If retry attempt is provided, add it to the label selector to avoid conflicts with previous runs
+            label_selector = ",".join(
+                [
+                    label_selector,
+                    f"{mlrun_constants.MLRunInternalLabels.retry}={retry_count}",
+                ]
+            )
 
         return label_selector
 
@@ -623,15 +633,18 @@ class BaseRuntimeHandler(ABC):
                         "possibly it was preempted or evicted. "
                         "Additional details may be available from Kubernetes events."
                     )
-                logger.info(
-                    "Updating run state", run_uid=run_uid, run_state=RunStates.error
-                )
-                run.setdefault("status", {})["state"] = RunStates.error
 
-                run.setdefault("status", {})["reason"] = reason
-                run.setdefault("status", {})["last_update"] = now.isoformat()
-                run.setdefault("status", {})["end_time"] = now.isoformat()
-                db.store_run(db_session, run, run_uid, project)
+                # Check if the run should be retried, and update its status accordingly
+                run_state, message = self._evaluate_run_retry_state(run, reason)
+                logger.info("Updating run state", run_uid=run_uid, run_state=run_state)
+                run_updates = {
+                    "status.state": run_state,
+                    "status.reason": reason,
+                    "status.status_text": message,
+                }
+                db.update_run(
+                    db_session, updates=run_updates, uid=run_uid, project=project
+                )
 
     def _get_runtime_resources(self, label_selector: str, namespace: str):
         """
@@ -1380,7 +1393,7 @@ class BaseRuntimeHandler(ABC):
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
-        if updated_run_state in RunStates.terminal_states():
+        if updated_run_state in RunStates.terminal_or_error_states():
             self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _resolve_resource_state_and_apply_threshold(
@@ -1602,9 +1615,7 @@ class BaseRuntimeHandler(ABC):
         resource: mlrun.common.schemas.RuntimeResource,
     ):
         if mlrun_constants.MLRunInternalLabels.uid in resource.labels:
-            project = resource.labels.get(
-                mlrun_constants.MLRunInternalLabels.project, config.default_project
-            )
+            project = resource.labels.get(mlrun_constants.MLRunInternalLabels.project)
             uid = resource.labels[mlrun_constants.MLRunInternalLabels.uid]
             self._add_resource_to_grouped_by_field_resources_response(
                 project, uid, resources, resource_field_name, resource
@@ -1754,6 +1765,11 @@ class BaseRuntimeHandler(ABC):
                 # Try resolving the error reason
                 reason, message = self._resolve_container_error_status(runtime_resource)
 
+                # Check if the run should be retried, and update its status accordingly
+                run_state, message = self._evaluate_run_retry_state(
+                    run, reason, message
+                )
+
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
         run_updates = {
             "status.state": run_state,
@@ -1761,7 +1777,7 @@ class BaseRuntimeHandler(ABC):
             "status.status_text": message or "",
             "status.error": "",
         }
-        run = db.update_run(db_session, run_updates, uid, project)
+        run = db.update_run(db_session, updates=run_updates, uid=uid, project=project)
 
         return True, run_state, run
 
@@ -1822,7 +1838,7 @@ class BaseRuntimeHandler(ABC):
             .get(mlrun_constants.MLRunInternalLabels.project)
         )
         if not project:
-            project = config.default_project
+            raise mlrun.errors.MLRunMissingProjectError()
         uid = (
             runtime_resource.get("metadata", {})
             .get("labels", {})
@@ -1889,3 +1905,26 @@ class BaseRuntimeHandler(ABC):
         else:
             new_meta.generate_name = norm_name
         return new_meta
+
+    @staticmethod
+    def _evaluate_run_retry_state(
+        run: dict, reason: str, message: str = ""
+    ) -> tuple[str, str]:
+        """
+        Determine if the run should be retried or marked as failed, based on the retry policy and current attempt count.
+        """
+        retry_spec = run.get("spec", {}).get("retry", {})
+        max_retries = retry_spec.get("count", -1) if retry_spec else -1
+        # Run status retry_count may be `None` if the run has never been retried
+        retry_count = run.get("status", {}).get("retry_count") or 0
+        current_attempt = retry_count + 1
+
+        if retry_count < max_retries:
+            new_state = RunStates.pending_retry
+            message = f"Run failed attempt {current_attempt} of {max_retries + 1} with error: {message or reason}"
+        elif 0 < max_retries <= retry_count:
+            new_state = RunStates.error
+            message = f"Run failed after {current_attempt} attempts with error: {message or reason}"
+        else:
+            new_state = RunStates.error
+        return new_state, message

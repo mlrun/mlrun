@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 from http import HTTPStatus
 from typing import Optional
@@ -476,12 +476,12 @@ async def ingest_feature_set(
     )
 
 
-# TODO: Remove in 1.9.0
+# TODO: Remove in 1.10.0
 @router.get(
     "/features",
     response_model=mlrun.common.schemas.FeaturesOutput,
     deprecated=True,
-    description="/features v1 is deprecated in 1.7.0 and will be removed in 1.9.0. Use v2 instead.",
+    description="/features v1 is deprecated in 1.7.0 and will be removed in 1.10.0. Use v2 instead.",
 )
 async def list_features(
     project: str,
@@ -516,46 +516,6 @@ async def list_features(
         auth_info,
     )
     return mlrun.common.schemas.FeaturesOutput(features=features)
-
-
-# TODO: Remove in 1.9.0
-@router.get(
-    "/entities",
-    response_model=mlrun.common.schemas.EntitiesOutput,
-    deprecated=True,
-    description="/entities v1 is deprecated in 1.7.0 and will be removed in 1.9.0. Use v2 instead.",
-)
-async def list_entities(
-    project: str,
-    name: Optional[str] = None,
-    tag: Optional[str] = None,
-    labels: list[str] = Query(None, alias="label"),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
-    )
-    entities = await run_in_threadpool(
-        services.api.crud.FeatureStore().list_entities,
-        db_session,
-        project,
-        name,
-        tag,
-        labels,
-    )
-    entities = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.entity,
-        entities.entities,
-        lambda entity_list_output: (
-            entity_list_output.feature_set_digest.metadata.project,
-            entity_list_output.entity.name,
-        ),
-        auth_info,
-    )
-    return mlrun.common.schemas.EntitiesOutput(entities=entities)
 
 
 @router.post(

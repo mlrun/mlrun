@@ -7,15 +7,15 @@ objgraph~=3.6
 igz-mgmt~=0.4.1
 humanfriendly~=10.0
 fastapi~=0.115.6
-# in sqlalchemy>=2.0 there is breaking changes (such as in Table class autoload argument is removed)
-sqlalchemy~=1.4
+sqlalchemy~=2.0
+sqlalchemy-utils~=0.41.2
 pymysql~=1.1
+psycopg2-binary~=2.9
 alembic~=1.14
 timelength~=1.1
 memray~=1.12; sys_platform != 'win32'
 aiosmtplib~=3.0
 # until https://github.com/fastapi/fastapi/issues/10360 is solved
 pydantic>=1,<2
-# ensure kfp is installed
-mlrun-pipelines-kfp-v1-8[kfp]~=0.3.9; python_version < "3.11"
+mlrun-pipelines-kfp-v1-8~=0.5.7
 grpcio~=1.70.0

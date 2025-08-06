@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
 import json
 import os
@@ -309,27 +309,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             "volumeMount": {"mountPath": local_path, "name": "v3io", "subPath": ""},
         }
 
-        expected_cm_volume = {
-            "volume": {
-                "name": "serving-conf",
-                "configMap": {"name": "serving-conf-test-project-test-function"},
-            },
-            "volumeMount": {
-                "name": "serving-conf",
-                "mountPath": "/tmp/mlrun/serving-conf",
-                "readOnly": True,
-            },
-        }
-        expected = (
-            [expected_volume, expected_cm_volume]
-            if self.runtime_kind == "serving"
-            else [expected_volume]
-        )
-
         assert (
             deepdiff.DeepDiff(
                 deploy_spec["volumes"],
-                expected,
+                [expected_volume],
                 ignore_order=True,
             )
             == {}
@@ -1887,7 +1870,9 @@ def get_archive_spec(function, secrets):
     spec = nuclio.ConfigSpec()
     config = {}
     services.api.crud.runtimes.nuclio.helpers.compile_nuclio_archive_config(
-        spec, function, secrets
+        function,
+        spec,
+        secrets,
     )
     spec.merge(config)
     return config

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable, ClassVar, Literal, Optional, Union
 
 import pandas as pd
@@ -81,8 +81,24 @@ class TSDBConnector(ABC):
         """
 
     @abstractmethod
+    def get_drift_data(
+        self,
+        start: datetime,
+        end: datetime,
+    ) -> mm_schemas.ModelEndpointDriftValues:
+        """
+        Fetches drift counts per interval in the specified time range.
+
+        :param start: The start time of the query.
+        :param end:   The end time of the query.
+
+        :return: A ModelEndpointDriftValues object containing drift data.
+        """
+
+    @abstractmethod
     def delete_tsdb_records(
-        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+        self,
+        endpoint_ids: list[str],
     ) -> None:
         """
         Delete model endpoint records from the TSDB connector.
@@ -327,11 +343,94 @@ class TSDBConnector(ABC):
         If an endpoint has not been invoked within the specified time range, it will not appear in the result.
         """
 
+    @abstractmethod
+    def count_results_by_status(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        endpoint_ids: Optional[Union[str, list[str]]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+        result_status_list: Optional[list[int]] = None,
+    ) -> dict[tuple[str, int], int]:
+        """
+        Read results status from the TSDB and return a dictionary of results statuses by application name.
+
+        :param start:              The start time in which to read the results. By default, the last 24 hours are read.
+        :param end:                The end time in which to read the results. Default is the current time (now).
+        :param endpoint_ids:       Optional list of endpoint ids to filter the results by. By default, all
+                                   endpoint ids are included.
+        :param application_names:  Optional list of application names to filter the results by. By default, all
+                                   application are included.
+        :param result_status_list: Optional list of result statuses to filter the results by. By default, all
+                                   result statuses are included.
+
+        :return: A dictionary where the key is a tuple of (application_name, result_status) and the value is the total
+                 number of results with that status for that application.
+                 For example:
+                 {
+                    ('app1', 1): 10,
+                    ('app1', 2): 5
+                 }
+        """
+
+    @abstractmethod
+    def count_processed_model_endpoints(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> dict[str, int]:
+        """
+        Count the number of processed model endpoints within a given time range for specific applications.
+        :param start:              The start time of the query. Last 24 hours is used by default.
+        :param end:                The end time of the query. The current time is used by default.
+        :param application_names:  A list of application names to filter the results by. If not provided, all
+                                   applications are included.
+        :return:                   The count of processed model endpoints.
+        """
+
+    @abstractmethod
+    def calculate_latest_metrics(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> list[
+        Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
+    ]:
+        """
+        Calculate the latest metrics and results across applications.
+        :param start:              The start time of the query. Last 24 hours is used by default.
+        :param end:                The end time of the query. The current time is used by default.
+        :param application_names:  A list of application names to filter the results by. If not provided, all
+                                   applications are included.
+        :return:                   A list containing the latest metrics and results for each application.
+                                   example::
+                                   [
+                                       {
+                                           "type": "metric",
+                                           "time": "2025-06-29 13:36:37 +00:00",
+                                           "metric_name": "hellinger_mean",
+                                           "value": 0.123456,
+                                       },
+                                        {
+                                             "type": "result",
+                                             "time": "2025-06-29 13:36:37 +00:00",
+                                             "result_name": "drift_status",
+                                             "kind": "2",
+                                             "status": 0,
+                                             "value": 15.4,
+                                        },
+                                       ...
+                                   ]
+        """
+
     async def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
         run_in_threadpool: Callable,
+        metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         raise NotImplementedError()
 
@@ -621,20 +720,57 @@ class TSDBConnector(ABC):
         return {dict_key: metrics}
 
     @staticmethod
-    def _get_start_end(
-        start: Union[datetime, None],
-        end: Union[datetime, None],
-    ) -> tuple[datetime, datetime]:
-        """
-        static utils function for tsdb start end format
-        :param start:       Either None or datetime, None is handled as datetime.min(tz=timezone.utc)
-        :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
-        :return:            start datetime, end datetime
-        """
-        start = start or mlrun.utils.datetime_min()
-        end = end or mlrun.utils.datetime_now()
-        if not (isinstance(start, datetime) and isinstance(end, datetime)):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Both start and end must be datetime objects"
+    def _prepare_aligned_start_end(
+        start: datetime, end: datetime
+    ) -> tuple[datetime, datetime, str]:
+        delta = end - start
+        if delta <= timedelta(hours=6):
+            interval = "10m"
+            start = start.replace(
+                minute=start.minute // 10 * 10, second=0, microsecond=0
             )
-        return start, end
+        elif delta <= timedelta(hours=72):
+            interval = "1h"
+            start = start.replace(minute=0, second=0, microsecond=0)
+        else:
+            interval = "1d"
+            start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        interval_map = {
+            "10m": timedelta(minutes=10),
+            "1h": timedelta(hours=1),
+            "1d": timedelta(days=1),
+        }
+        delta = end - start
+        interval_td = interval_map[interval]
+        end = start + (delta // interval_td) * interval_td
+        return start, end, interval
+
+    @staticmethod
+    def _df_to_drift_data(df: pd.DataFrame) -> mm_schemas.ModelEndpointDriftValues:
+        suspected_val = mm_schemas.constants.ResultStatusApp.potential_detection.value
+        detected_val = mm_schemas.constants.ResultStatusApp.detected.value
+        aggregated_df = (
+            df.groupby(["_wstart", f"max({mm_schemas.ResultData.RESULT_STATUS})"])
+            .size()  # add size column for each interval x result-status combination
+            .unstack()  # create a size column for each result-status
+            .reindex(
+                columns=[suspected_val, detected_val], fill_value=0
+            )  # ensure both columns exists
+            .fillna(0)
+            .astype(int)
+            .rename(
+                columns={
+                    suspected_val: "count_suspected",
+                    detected_val: "count_detected",
+                }
+            )
+        )
+        values = list(
+            zip(
+                aggregated_df.index,
+                aggregated_df["count_suspected"],
+                aggregated_df["count_detected"],
+            )
+        )
+        return mm_schemas.ModelEndpointDriftValues(values=values)

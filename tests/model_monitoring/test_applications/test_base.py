@@ -15,7 +15,7 @@
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Union
 from unittest.mock import Mock, patch
@@ -24,7 +24,9 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.utils
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
     ModelMonitoringApplicationMetric,
@@ -85,6 +87,7 @@ class SampleDFAccessApp(ModelMonitoringApplicationBase):
             project=monitoring_context.project_name,
         )
         sample_df = monitoring_context.sample_df
+        assert sample_df is not None
         monitoring_context.logger.info(
             "Read the sample data",
             sample_df=sample_df,
@@ -100,9 +103,12 @@ class TestEvaluate:
     @staticmethod
     @pytest.fixture(autouse=True)
     def _set_project() -> Iterator[None]:
-        project = mlrun.get_or_create_project("test")
-        with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
-            yield
+        project = mlrun.get_or_create_project("test", allow_cross_project=True)
+        with patch.object(
+            project, "get_function", Mock(side_effect=mlrun.errors.MLRunNotFoundError)
+        ):
+            with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
+                yield
 
     @staticmethod
     def test_local_no_params() -> None:
@@ -146,17 +152,27 @@ class TestEvaluate:
         ), "The error message is different than expected or was not captured"
 
     @staticmethod
+    @pytest.mark.parametrize("method", ["to_job", "evaluate"])
     def test_valid_sample_df_access(
-        tmp_path: Path, capsys: pytest.CaptureFixture
+        method: str, tmp_path: Path, capsys: pytest.CaptureFixture
     ) -> None:
         project = mlrun.get_or_create_project(
             "local-test-sample-df", context=str(tmp_path)
         )
         project.artifact_path = str(tmp_path)
         sample_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-        ds_artifact = project.log_dataset("sample-df", df=sample_df)
-        job = SampleDFAccessApp.to_job(func_path=__file__)
-        run = job.run(local=True, inputs={"sample_data": ds_artifact.target_path})
+        ds_artifact_path = project.log_dataset("sample-df", df=sample_df).target_path
+
+        if method == "to_job":
+            job = SampleDFAccessApp.to_job(func_path=__file__)
+            run = job.run(local=True, inputs={"sample_data": ds_artifact_path})
+        elif method == "evaluate":
+            run = SampleDFAccessApp.evaluate(
+                func_path=__file__, run_local=True, sample_data=ds_artifact_path
+            )
+        else:
+            raise NotImplementedError
+
         assert run.state() == "completed"
         captured = capsys.readouterr()
         assert (
@@ -167,6 +183,89 @@ class TestEvaluate:
         assert (
             "Read the sample data" in captured.out
         ), "The expected log message was not found in the captured output"
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("endpoints", "start", "end", "run_local", "write_output", "error_msg"),
+        [
+            (
+                [("ep-name", "ep-uid")],
+                datetime(2025, 5, 3),
+                datetime(2025, 5, 4),
+                False,
+                True,
+                "`stream_profile` is relevant only when running locally",
+            ),
+            (
+                [("ep-name", "ep-uid")],
+                datetime(2025, 5, 3),
+                datetime(2025, 5, 4),
+                True,
+                False,
+                "`stream_profile` is relevant only when writing the outputs",
+            ),
+            (
+                None,
+                datetime(2025, 5, 3),
+                datetime(2025, 5, 4),
+                False,
+                True,
+                "Custom `start` and `end` times .+ supported only with endpoints data",
+            ),
+            (
+                None,
+                None,
+                None,
+                False,
+                False,
+                "or passing `stream_profile` are supported only with endpoints data",
+            ),
+        ],
+    )
+    def test_invalid_params(
+        endpoints: Optional[list[tuple[str, str]]],
+        start: Optional[datetime],
+        end: Optional[datetime],
+        run_local: bool,
+        write_output: bool,
+        error_msg: str,
+    ) -> None:
+        with pytest.raises(mlrun.errors.MLRunValueError, match=error_msg):
+            ModelEndpointAccessApp.evaluate(
+                func_path=__file__,
+                endpoints=endpoints,
+                start=start,
+                end=end,
+                run_local=run_local,
+                write_output=write_output,
+                stream_profile=DatastoreProfileKafkaSource(
+                    name="should-not-be-passed-on-remote",
+                    brokers=["broker-address:9092"],
+                    topics=[],
+                ),
+            )
+
+    @staticmethod
+    def test_invalid_infra(capsys: pytest.CaptureFixture) -> None:
+        ModelEndpointAccessApp.evaluate(
+            func_path=__file__,
+            endpoints=[("ep-name", "ep-uid")],
+            start=datetime(2025, 5, 3),
+            end=datetime(2025, 5, 4),
+            run_local=True,
+            write_output=True,
+            stream_profile=DatastoreProfileKafkaSource(
+                name="should-not-be-passed-on-remote",
+                brokers=["broker-address:9092"],
+                topics=[],
+            ),
+        )
+        captured = capsys.readouterr()
+        assert (
+            "Writing outputs to the databases is blocked as the model monitoring infrastructure is disabled.\n"
+            "To unblock, enable model monitoring with `project.enable_model_monitoring()`."
+            in captured.out
+        ), "The error message is different than expected or was not captured"
 
 
 @pytest.mark.parametrize(
@@ -197,7 +296,17 @@ def test_window_generator_validation(
     expectation: AbstractContextManager,
 ) -> None:
     with expectation:
-        next(ModelMonitoringApplicationBase._window_generator(start, end, base_period))
+        next(
+            ModelMonitoringApplicationBase._window_generator(
+                start=start,
+                end=end,
+                base_period=base_period,
+                application_schedules=None,
+                endpoint_id="",
+                application_name="",
+                fail_on_overlap=True,
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -216,7 +325,7 @@ def test_window_generator_validation(
         ),
         (
             datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
             600,
             [
                 (
@@ -226,10 +335,6 @@ def test_window_generator_validation(
                 (
                     datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
                     datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
-                ),
-                (
-                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
-                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
                 ),
             ],
         ),
@@ -267,11 +372,63 @@ def test_windows(
     assert (
         list(
             ModelMonitoringApplicationBase._window_generator(
-                start=start.isoformat(), end=end.isoformat(), base_period=base_period
+                start=start.isoformat(),
+                end=end.isoformat(),
+                base_period=base_period,
+                application_schedules=None,
+                endpoint_id="",
+                application_name="",
+                fail_on_overlap=True,
             )
         )
         == expected_windows
     ), "The generated windows are different than expected"
+
+
+@pytest.mark.parametrize(
+    ("base_period", "start_dt", "end_dt", "expectation"),
+    [
+        (
+            600,
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The difference between `end` and `start` must be a multiple of "
+                "`base_period`:.*Consider changing the `end` time to.*",
+            ),
+        ),
+        (
+            10,
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            does_not_raise(),
+        ),
+        (
+            15,
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The difference between `end` and `start` must be a multiple of "
+                "`base_period`:.*The `base_period` is longer than the difference between `end` and `start`.*",
+            ),
+        ),
+    ],
+)
+def test_validate_and_get_window_length(
+    base_period: int,
+    start_dt: datetime,
+    end_dt: datetime,
+    expectation: AbstractContextManager,
+) -> None:
+    with expectation:
+        window_length = ModelMonitoringApplicationBase._validate_and_get_window_length(
+            base_period=base_period, start_dt=start_dt, end_dt=end_dt
+        )
+        assert window_length == timedelta(
+            minutes=base_period
+        ), "The window length is different than expected"
 
 
 def test_job_handler() -> None:
@@ -360,15 +517,179 @@ class TestToJob:
         assert run.state() == "completed"
 
 
+@pytest.fixture
+def project(tmpdir: Path) -> mlrun.MlrunProject:
+    return mlrun.get_or_create_project("test-endpoints-handler", context=str(tmpdir))
+
+
 @pytest.mark.parametrize(
-    "endpoints", ["model-ep-1", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
+    "endpoints", ["all", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
 )
+@pytest.mark.usefixtures("rundb_mock")
 def test_handle_endpoints_type_evaluate(
-    rundb_mock, endpoints: Union[str, list[str], list[tuple]]
+    project: mlrun.MlrunProject, endpoints: Union[str, list[str], list[tuple[str, str]]]
 ) -> None:
-    project = "test-endpoints-handler"
     endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
         project, endpoints
     )
-
     assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]
+
+
+@pytest.mark.parametrize(
+    ("endpoints", "err_msg"),
+    [
+        ("*", 'A string input for `endpoints` can only be "all"'),
+        ([], "The endpoints list cannot be empty"),
+        ([1], r"Could not resolve endpoints as list of \[\(name, uid\)\]"),
+    ],
+)
+def test_handle_endpoints_type_evaluate_error(
+    project: mlrun.MlrunProject, endpoints: Union[str, list[str]], err_msg: str
+) -> None:
+    with pytest.raises(mlrun.errors.MLRunValueError, match=err_msg):
+        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+            project, endpoints
+        )
+
+
+@pytest.mark.parametrize(
+    (
+        "class_name",
+        "func_name",
+        "class_handler",
+        "handler_to_class",
+        "expectation",
+        "expected_log",
+    ),
+    [
+        (
+            "App1",
+            None,
+            None,
+            "App1::_handler",
+            does_not_raise("app1-batch"),
+            True,
+        ),
+        (
+            "App1",
+            None,
+            "remote_module.AppClass",
+            "remote_module.AppClass::_handler",
+            does_not_raise("appclass-batch"),
+            True,
+        ),
+        (
+            "App1",
+            "keep-my-batch",
+            None,
+            "AppClass::_handler",
+            does_not_raise("keep-my-batch"),
+            False,
+        ),
+        (
+            "App",
+            " app with space",
+            None,
+            None,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The function name does not comply with the required pattern",
+            ),
+            False,
+        ),
+    ],
+)
+@patch("mlrun.utils.logger", spec=mlrun.utils.Logger)
+def test_determine_job_name(
+    logger: Mock,
+    class_name: str,
+    func_name: Optional[str],
+    class_handler: Optional[str],
+    handler_to_class: str,
+    expectation: AbstractContextManager,
+    expected_log: bool,
+) -> None:
+    app_class = type(class_name, (ModelMonitoringApplicationBase,), {})
+    with expectation as expected_result:
+        assert (
+            app_class._determine_job_name(
+                func_name=func_name,
+                class_handler=class_handler,
+                handler_to_class=handler_to_class,
+            )
+            == expected_result
+        )
+    if expected_log:
+        logger.info.assert_called_once()
+    else:
+        logger.info.assert_not_called()
+
+
+@pytest.fixture
+def run_context() -> mlrun.MLClientCtx:
+    return mlrun.MLClientCtx.from_dict(
+        {
+            "kind": "run",
+            "metadata": {
+                "annotations": {},
+                "iteration": 0,
+                "labels": {
+                    "host": "M-K",
+                    "kind": "local",
+                    "owner": "admin",
+                    "v3io_user": "admin",
+                },
+                "name": "take-my-name-hold-my-hand--handler",
+                "project": "mm-job-mep-data",
+                "uid": "c8da9e6d9d9447b48109a29adb4bd4c2",
+            },
+            "spec": {
+                "affinity": {},
+                "data_stores": [],
+                "function": "mm-job-mep-data/take-my-name-hold-my-hand@588be7f7fb3dcab77e59c5f3003056f90fa2b55b",
+                "handler": "Some_application::_handler",
+                "hyper_param_options": {},
+                "hyperparams": {},
+                "inputs": {},
+                "log_level": "info",
+                "node_selector": {},
+                "notifications": [],
+                "output_path": "v3io:///projects/mm-job-mep-data/artifacts",
+                "outputs": [],
+                "parameters": {
+                    "application_name": "take-my-name-hold-my_hand",
+                    "base_period": None,
+                    "end": "2025-07-27T10:01:36.665785+00:00",
+                    "endpoints": ["classifier-0"],
+                    "fail_on_overlap": True,
+                    "start": "2025-07-27T10:00:31.527024+00:00",
+                    "stream_profile": None,
+                    "write_output": False,
+                },
+                "retry": {},
+                "state_thresholds": {
+                    "executing": "24h",
+                    "image_pull_backoff": "1h",
+                    "pending_not_scheduled": "-1",
+                    "pending_scheduled": "1h",
+                },
+                "tolerations": {},
+            },
+            "status": {
+                "artifact_uris": {},
+                "last_update": "2025-07-27T15:31:38.482028+00:00",
+                "results": {},
+                "retries": [],
+                "retry_count": None,
+                "start_time": "2025-07-27T15:31:38.482028+00:00",
+                "state": "running",
+            },
+        }
+    )
+
+
+def test_get_application_name(run_context: mlrun.MLClientCtx) -> None:
+    assert (
+        ModelMonitoringApplicationBase._get_application_name(run_context)
+        == "take-my-name-hold-my-hand"
+    ), "The application name is different than expected"

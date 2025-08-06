@@ -141,6 +141,14 @@ class ModelEndpoints:
                 model_endpoint.metadata.labels.update(
                     model_obj.labels
                 )  # todo : check if we still need this
+                if db_artifact.kind == mlrun.artifacts.LLMPromptArtifact.kind:
+                    artifact = db_artifact.parent.full_object
+                    model_obj = mlrun.artifacts.dict_to_artifact(
+                        mlrun.common.formatters.ArtifactFormat.format_obj(
+                            artifact, "full"
+                        )
+                    )
+
             except mlrun.errors.MLRunNotFoundError:
                 logger.info("The model endpoint is created on a non-existing model")
 
@@ -792,6 +800,11 @@ class ModelEndpoints:
         else:
             uids = [endpoint_id]
 
+        if not uids:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Model endpoint '{name}' with function '{function_name}' and tag '{function_tag}' not found"
+            )
+
         await run_in_threadpool(
             framework.utils.singletons.db.get_db().delete_model_endpoint,
             session=db_session,
@@ -851,11 +864,9 @@ class ModelEndpoints:
             ModelEndpoints.delete_tsdb_records,
             mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers,
             background_task_name,
+            None,
             project,
             uids,
-            int(
-                mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers
-            ),
         )
 
         # delete feature sets
@@ -875,9 +886,7 @@ class ModelEndpoints:
         )
 
     @staticmethod
-    async def delete_tsdb_records(
-        project: str, uids: list[str], delete_timeout: Optional[int] = None
-    ):
+    async def delete_tsdb_records(project: str, uids: list[str]):
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=project,
@@ -885,9 +894,7 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-            tsdb_connector.delete_tsdb_records(
-                endpoint_ids=uids, delete_timeout=delete_timeout
-            )
+            tsdb_connector.delete_tsdb_records(endpoint_ids=uids)
             logger.info("TSDB resources were deleted")
         except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.info(
@@ -904,6 +911,7 @@ class ModelEndpoints:
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """Get a single model endpoint object.
@@ -916,6 +924,9 @@ class ModelEndpoints:
         :param endpoint_id:                The unique id of the model endpoint.
         :param tsdb_metrics:               When True, the time series metrics will be added to the output
                                            of the resulting.
+        :param metric_list:                List of metrics to include from the time series DB. Defaults to all metrics.
+                                           If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                           will be included.
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
 
@@ -931,6 +942,7 @@ class ModelEndpoints:
             function_tag=function_tag,
             endpoint_id=endpoint_id,
             tsdb_metrics=tsdb_metrics,
+            metric_list=metric_list,
             feature_analysis=feature_analysis,
         )
 
@@ -952,6 +964,7 @@ class ModelEndpoints:
                 await self._add_basic_metrics(
                     model_endpoint_objects=[model_endpoint_object],
                     project=project,
+                    metric_list=metric_list,
                 )
             )[0]
         if feature_analysis:
@@ -979,7 +992,9 @@ class ModelEndpoints:
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
         top_level: typing.Optional[bool] = None,
+        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
         tsdb_metrics: typing.Optional[bool] = None,
+        metric_list: Optional[list[str]] = None,
         uids: typing.Optional[list[str]] = None,
         latest_only: typing.Optional[bool] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -995,7 +1010,12 @@ class ModelEndpoints:
         :param start:               The start time of the model endpoint creation.
         :param end:                 The end time of the model endpoint creation.
         :param top_level:           When True, only top level model endpoints will be returned.
+        :param mode:                Specifies the mode of the model endpoint. Can be "real-time", "batch", or both
+                                    if set to None.
         :param tsdb_metrics:        When True, the time series metrics will be added to the output of the resulting
+        :param metric_list:         List of metrics to include from the time series DB. Defaults to all metrics.
+                                    If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                    will be included.
         :param uids:                A list of unique ids of the model endpoints.
         :param latest_only:         When True, only the latest model endpoint will be returned.
         :return:                    A list of `ModelEndpoint` objects.
@@ -1017,7 +1037,9 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
+            mode=mode,
             tsdb_metrics=tsdb_metrics,
+            metric_list=metric_list,
             uids=uids,
             latest_only=latest_only,
         )
@@ -1036,6 +1058,7 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
+            mode=mode,
             uids=uids,
             latest_only=latest_only,
         )
@@ -1044,6 +1067,7 @@ class ModelEndpoints:
             endpoint_list.endpoints = await self._add_basic_metrics(
                 model_endpoint_objects=endpoint_list.endpoints,
                 project=project,
+                metric_list=metric_list,
             )
 
         return endpoint_list
@@ -1073,11 +1097,13 @@ class ModelEndpoints:
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
-        logger.debug(
-            "Deleting model monitoring endpoints resources", project_name=project_name
-        )
         stream_path = mlrun.model_monitoring.get_stream_path(
             project=project_name, profile=stream_profile
+        )
+        logger.debug(
+            "Deleting model monitoring endpoints resources",
+            project_name=project_name,
+            stream_path=stream_path,
         )
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
@@ -1115,17 +1141,6 @@ class ModelEndpoints:
                 error=mlrun.errors.err_to_str(e),
             )
             tsdb_connector = None
-        except mlrun.errors.MLRunInvalidMMStoreTypeError:
-            # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
-            if not mlrun.mlconf.is_ce_mode():
-                tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                    project=project_name,
-                    profile=mlrun.datastore.datastore_profile.DatastoreProfileV3io(
-                        name="tmp"
-                    ),
-                )
-            else:
-                tsdb_connector = None
         if tsdb_connector:
             tsdb_connector.delete_tsdb_resources()
         cls._delete_model_monitoring_stream_resources(
@@ -1160,7 +1175,8 @@ class ModelEndpoints:
         :param project:         The name of the project.
         :param endpoint_id:     The unique id of the model endpoint, Can be a single id or a list of ids.
         :param type:            metric or result.
-        :param metrics_format:  Determines the format of the result. Can be either 'list' or 'dict'.
+        :param metrics_format:  Determines the format of the result, which can be `single`, `separation`, or
+                                `intersection`.
         :return: metrics in the chosen format.
         """
         try:
@@ -1193,6 +1209,16 @@ class ModelEndpoints:
                 df=df, type=type, project=project
             )
         elif metrics_format == mm_constants.GetEventsFormat.INTERSECTION:
+            endpoint_id_set = (
+                set(endpoint_id) if isinstance(endpoint_id, list) else {endpoint_id}
+            )
+            if set(df["endpoint_id"].unique().tolist()) != endpoint_id_set:
+                logger.info(
+                    f"some endpoints does not have {type}s, intersection is empty"
+                )
+                return {
+                    mlrun.common.schemas.model_monitoring.INTERSECT_DICT_KEYS[type]: []
+                }
             return tsdb_connector.df_to_events_intersection_dict(
                 df=df, type=type, project=project
             )
@@ -1357,13 +1383,17 @@ class ModelEndpoints:
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
+        metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object.
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
-                                        be filled with the relevant basic metrics.
+                                       be filled with the relevant basic metrics.
         :param project:                The name of the project.
+        :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
+                                       If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                       will be included.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
@@ -1384,7 +1414,10 @@ class ModelEndpoints:
             return model_endpoint_objects
 
         return await tsdb_connector.add_basic_metrics(
-            model_endpoint_objects, project, run_in_threadpool
+            model_endpoint_objects,
+            project,
+            run_in_threadpool,
+            metric_list,
         )
 
     @classmethod
@@ -1401,11 +1434,11 @@ class ModelEndpoints:
         """
 
         run_db = framework.api.utils.get_run_db_instance(session)
-        model_obj: mlrun.artifacts.ModelArtifact = (
-            mlrun.datastore.store_resources.get_store_resource(
-                model_endpoint_object.spec.model_uri, db=run_db
-            )
+        model_obj = mlrun.datastore.store_resources.get_store_resource(
+            model_endpoint_object.spec.model_uri, db=run_db
         )
+        if isinstance(model_obj, mlrun.artifacts.LLMPromptArtifact):
+            model_obj = model_obj.model_artifact
         feature_stats: dict = model_obj.spec.feature_stats or {}
         mlrun.common.model_monitoring.helpers.pad_features_hist(
             mlrun.common.model_monitoring.helpers.FeatureStats(feature_stats)

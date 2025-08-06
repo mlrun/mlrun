@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import os
 import random
@@ -180,7 +180,7 @@ class TestDask(TestMLRunSystem):
             filename=str(self.assets_path / "dask_function.py"),
         ).apply(mount_v3io())
 
-        dask_function.spec.image = "mlrun/ml-base"
+        dask_function.spec.image = "mlrun/mlrun"
         dask_function.spec.remote = True
         dask_function.spec.replicas = 1
         dask_function.spec.service_type = "NodePort"

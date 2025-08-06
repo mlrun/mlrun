@@ -26,11 +26,13 @@ from dateutil import parser
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 from mlrun.artifacts import (
     Artifact,
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
+    LLMPromptArtifact,
     ModelArtifact,
 )
 from mlrun.datastore.store_resources import get_store_resource
@@ -90,6 +92,9 @@ class MLClientCtx:
         self._autocommit = autocommit
         self._notifications = []
         self._state_thresholds = {}
+        self._retry_spec = {}
+        self._retry_count = None
+        self._retries = []
 
         self._labels = {}
         self._annotations = {}
@@ -243,6 +248,11 @@ class MLClientCtx:
     def annotations(self):
         """Dictionary with annotations (read-only)"""
         return deepcopy(self._annotations)
+
+    @property
+    def host(self):
+        """Execution host"""
+        return self._host
 
     def get_child_context(self, with_parent_params=False, **params):
         """Get child context (iteration)
@@ -426,6 +436,7 @@ class MLClientCtx:
             self._tolerations = spec.get("tolerations", self._tolerations)
             self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
+            self._retry_spec = spec.get("retry", self._retry_spec)
 
         self._init_dbs(rundb)
 
@@ -444,10 +455,11 @@ class MLClientCtx:
         if start:
             start = parser.parse(start) if isinstance(start, str) else start
             self._start_time = start
-        self._state = "running"
+        self._state = mlrun.common.runtimes.constants.RunStates.running
 
         status = attrs.get("status")
-        if include_status and status:
+        retry_configured = self._retry_spec and self._retry_spec.get("count")
+        if (include_status or retry_configured) and status:
             self._results = status.get("results", self._results)
             for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
@@ -456,7 +468,11 @@ class MLClientCtx:
                 )
             for key, uri in status.get("artifact_uris", {}).items():
                 self._artifacts_manager.artifact_uris[key] = uri
-            self._state = status.get("state", self._state)
+            self._retry_count = status.get("retry_count", self._retry_count)
+            self._retries = status.get("retries", self._retries)
+            # if run is a retry, the state needs to move to running
+            if include_status:
+                self._state = status.get("state", self._state)
 
         # No need to store the run for every worker
         if store_run and self.is_logging_worker():
@@ -803,6 +819,8 @@ class MLClientCtx:
         label_column: Optional[Union[str, list]] = None,
         extra_data=None,
         db_key=None,
+        model_url: Optional[str] = None,
+        default_config=None,
         **kwargs,
     ) -> ModelArtifact:
         """Log a model artifact and optionally upload it to datastore
@@ -845,6 +863,9 @@ class MLClientCtx:
                                 value can be absolute path | relative path (to model dir) | bytes | artifact object
         :param db_key:          The key to use in the artifact DB table, by default its run name + '_' + key
                                 db_key=False will not register it in the artifacts table
+        :param model_url:       Remote model url.
+        :param default_config:  Default configuration for client building
+                                Saved as a sub-dictionary under the parameter.
 
         :returns: Model artifact object
         """
@@ -853,7 +874,6 @@ class MLClientCtx:
             raise MLRunInvalidArgumentError(
                 "Cannot specify inputs and training set together"
             )
-
         model = ModelArtifact(
             key,
             body,
@@ -868,6 +888,8 @@ class MLClientCtx:
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
+            model_url=model_url,
+            default_config=default_config,
             **kwargs,
         )
         if training_set is not None:
@@ -882,6 +904,96 @@ class MLClientCtx:
                 tag=tag,
                 upload=upload,
                 db_key=db_key,
+                labels=labels,
+            ),
+        )
+        self._update_run()
+        return item
+
+    def log_llm_prompt(
+        self,
+        key,
+        prompt_template: Optional[list[dict]] = None,
+        prompt_path: Optional[str] = None,
+        prompt_legend: Optional[dict] = None,
+        model_artifact: Union[ModelArtifact, str] = None,
+        model_configuration: Optional[dict] = None,
+        description: Optional[str] = None,
+        target_path: Optional[str] = None,
+        artifact_path: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[list[str], str]] = None,
+        upload: Optional[bool] = None,
+        **kwargs,
+    ) -> LLMPromptArtifact:
+        """Log an LLM prompt artifact and optionally upload it to the artifact store.
+
+        This function allows you to log a prompt artifact for large language model (LLM) usage. Prompts can be defined
+        as a string or by referencing a file path. Optionally, you can link the prompt to a parent model artifact and
+        provide metadata like a prompt legend (e.g., input variable mapping) and generation configuration.
+
+        Examples::
+
+            # Log an inline prompt
+            context.log_llm_prompt(
+                key="qa-prompt",
+                prompt_template=[{"role: "user", "content": "question with {place_holder}"}],
+                model_artifact=model,
+                prompt_legend={"question": "user_input"},
+                model_configuration={"temperature": 0.7, "max_tokens": 128},
+                tag="latest",
+            )
+
+        :param key: Unique name of the artifact.
+        :param prompt_template: Raw prompt list of dicts -
+         [{"role": "system", "content": "You are a {profession} advisor"},
+         "role": "user", "content": "I need your help with {profession}"]. only "role" and "content" keys allow in any
+         str format (upper/lower case), keys will be modified to lower case.
+         Cannot be used with `prompt_path`.
+        :param prompt_path: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
+        :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
+               and the value is a dictionary holding two keys, "field", "description". "field" points to the field in
+               the event where the value of the place-holder inside the event, if None or not exist will be replaced
+               with the place-holder name. "description" will point to explanation of what that placeholder represents.
+               Useful for documenting and clarifying dynamic parts of the prompt.
+        :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
+        :param model_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).
+        :param description: Optional description of the prompt.
+        :param target_path: Path to write the artifact locally.
+        :param artifact_path: Path in the artifact store (defaults to project artifact path).
+        :param tag: Tag/version to assign to the prompt artifact.
+        :param labels: Labels to tag the artifact (e.g., list or dict of key-value pairs).
+        :param upload: Whether to upload the artifact to the store (defaults to True).
+        :param kwargs: Additional fields to pass to the `LLMPromptArtifact` constructor.
+
+        :returns: The logged `LLMPromptArtifact` object.
+        """
+
+        if not prompt_template and not prompt_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Either 'prompt_template' or 'prompt_path' must be provided"
+            )
+
+        llm_prompt = LLMPromptArtifact(
+            key=key,
+            project=self.project or "",
+            prompt_template=prompt_template,
+            prompt_path=prompt_path,
+            prompt_legend=prompt_legend,
+            model_artifact=model_artifact,
+            model_configuration=model_configuration,
+            target_path=target_path,
+            description=description,
+            **kwargs,
+        )
+
+        item = cast(
+            LLMPromptArtifact,
+            self.log_artifact(
+                llm_prompt,
+                artifact_path=artifact_path,
+                tag=tag,
+                upload=upload,
                 labels=labels,
             ),
         )
@@ -990,7 +1102,7 @@ class MLClientCtx:
     def get_cached_artifact(self, key):
         """Return a logged artifact from cache (for potential updates)"""
         warnings.warn(
-            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.10.0. Use get_artifact instead.",
+            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.11.0. Use get_artifact instead.",
             FutureWarning,
         )
         return self.get_artifact(key)
@@ -1016,13 +1128,13 @@ class MLClientCtx:
         :param completed: Mark run as completed
         """
         # Changing state to completed is allowed only when the execution is in running state
-        if self._state != "running":
+        if self._state != mlrun.common.runtimes.constants.RunStates.running:
             completed = False
 
         if message:
             self._annotations["message"] = message
         if completed:
-            self._state = "completed"
+            self._state = mlrun.common.runtimes.constants.RunStates.completed
 
         if self._parent:
             self._parent.update_child_iterations()
@@ -1056,9 +1168,15 @@ class MLClientCtx:
         updates = {"status.last_update": now_date().isoformat()}
 
         if error is not None:
-            self._state = "error"
+            state = mlrun.common.runtimes.constants.RunStates.error
+            max_retries = self._retry_spec.get("count", 0)
+            self._retry_count = self._retry_count or 0
+            if max_retries and self._retry_count < max_retries:
+                state = mlrun.common.runtimes.constants.RunStates.pending_retry
+
+            self._state = state
             self._error = str(error)
-            updates["status.state"] = "error"
+            updates["status.state"] = state
             updates["status.error"] = error
         elif (
             execution_state
@@ -1150,11 +1268,14 @@ class MLClientCtx:
                 "node_selector": self._node_selector,
                 "tolerations": self._tolerations,
                 "affinity": self._affinity,
+                "retry": self._retry_spec,
             },
             "status": {
                 "results": self._results,
                 "start_time": to_date_str(self._start_time),
                 "last_update": to_date_str(self._last_update),
+                "retry_count": self._retry_count,
+                "retries": self._retries,
             },
         }
 
@@ -1192,6 +1313,18 @@ class MLClientCtx:
         self._write_tmpfile()
         if self._rundb:
             self._rundb.store_run(
+                self.to_dict(), self._uid, self.project, iter=self._iteration
+            )
+
+    def update_run(self):
+        """
+        Store the run object in the DB - removes missing fields.
+        Use _update_run for coherent updates.
+        Should be called by the logging worker only (see is_logging_worker()).
+        """
+        self._write_tmpfile()
+        if self._rundb:
+            self._rundb.update_run(
                 self.to_dict(), self._uid, self.project, iter=self._iteration
             )
 

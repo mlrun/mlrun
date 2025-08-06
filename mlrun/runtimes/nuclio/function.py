@@ -16,7 +16,6 @@ import asyncio
 import copy
 import json
 import typing
-import warnings
 from datetime import datetime
 from time import sleep
 
@@ -30,6 +29,7 @@ from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.common.constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
@@ -153,9 +153,12 @@ class NuclioSpec(KubeResourceSpec):
         security_context=None,
         service_type=None,
         add_templated_ingress_host_mode=None,
-        clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        serving_spec=None,
+        graph=None,
+        parameters=None,
+        track_models=None,
     ):
         super().__init__(
             command=command,
@@ -184,8 +187,11 @@ class NuclioSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
-            clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
+            serving_spec=serving_spec,
+            graph=graph,
+            parameters=parameters,
+            track_models=track_models,
         )
 
         self.base_spec = base_spec or {}
@@ -577,13 +583,9 @@ class RemoteRuntime(KubeResource):
             access_key = self._resolve_v3io_access_key()
         engine = "sync"
         explicit_ack_mode = kwargs.pop("explicit_ack_mode", None)
-        if (
-            self.spec
-            and hasattr(self.spec, "graph")
-            and self.spec.graph
-            and self.spec.graph.engine
-        ):
-            engine = self.spec.graph.engine
+        if self.spec and hasattr(self.spec, "graph"):
+            engine = getattr(self.spec.graph, "engine", None) or engine
+
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             explicit_ack_mode = explicit_ack_mode or "explicitOnly"
 
@@ -613,7 +615,6 @@ class RemoteRuntime(KubeResource):
         project="",
         tag="",
         verbose=False,
-        auth_info: AuthInfo = None,
         builder_env: typing.Optional[dict] = None,
         force_build: bool = False,
     ):
@@ -622,16 +623,9 @@ class RemoteRuntime(KubeResource):
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
-        :param auth_info:  service AuthInfo (deprecated and ignored)
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
-        if auth_info:
-            # TODO: remove in 1.9.0
-            warnings.warn(
-                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.9.0",
-                FutureWarning,
-            )
 
         old_http_session = getattr(self, "_http_session", None)
         if old_http_session:
@@ -655,6 +649,11 @@ class RemoteRuntime(KubeResource):
         logger.info("Starting remote function deploy")
         data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
+
+        # Extract the spec to avoid overwriting server-side updates during the later save in
+        # _enrich_command_from_status.
+        self.spec = data["data"].get("spec")
+
         self._update_credentials_from_remote_build(data["data"])
 
         # when a function is deployed, we wait for it to be ready by default
@@ -832,7 +831,8 @@ class RemoteRuntime(KubeResource):
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
         runtime_env = {
-            "MLRUN_DEFAULT_PROJECT": self.metadata.project or mlconf.default_project,
+            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
+            or mlconf.active_project,
         }
         if mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url
@@ -1004,7 +1004,7 @@ class RemoteRuntime(KubeResource):
             else:
                 http_client_kwargs["json"] = body
         try:
-            logger.info("Invoking function", method=method, path=path)
+            logger.debug("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
             resp = self._http_session.request(

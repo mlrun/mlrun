@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import typing
 
@@ -41,6 +40,8 @@ class ArtifactFormat(ObjectFormat, mlrun.common.types.StrEnum):
                     "spec.algorithm",
                     "spec.metrics",
                     "spec.target_path",
+                    "spec.parent_uri",
+                    "spec.has_children",
                 ]
             ),
         }[_format]

@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-import enum
+
 import typing
 
 import mlrun.common.constants as mlrun_constants
@@ -140,6 +139,7 @@ class RunStates:
     aborted = "aborted"
     aborting = "aborting"
     skipped = "skipped"
+    pending_retry = "pendingRetry"
 
     @staticmethod
     def all():
@@ -153,6 +153,7 @@ class RunStates:
             RunStates.aborted,
             RunStates.aborting,
             RunStates.skipped,
+            RunStates.pending_retry,
         ]
 
     @staticmethod
@@ -169,6 +170,7 @@ class RunStates:
         return [
             RunStates.error,
             RunStates.aborted,
+            RunStates.pending_retry,
         ]
 
     @staticmethod
@@ -187,11 +189,17 @@ class RunStates:
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 
     @staticmethod
+    def terminal_or_error_states():
+        return list(
+            set(RunStates.terminal_states())
+            | set(RunStates.error_and_abortion_states())
+        )
+
+    @staticmethod
     def not_allowed_for_deletion_states():
         return [
             RunStates.running,
             RunStates.pending,
-            # TODO: add aborting state once we have it
         ]
 
     @staticmethod
@@ -235,19 +243,6 @@ class RunStates:
             mlrun_pipelines.common.models.RunStatuses.paused: RunStates.unknown,
             mlrun_pipelines.common.models.RunStatuses.unknown: RunStates.unknown,
         }[pipeline_run_status]
-
-
-# TODO: remove this class in 1.9.0 - use only MlrunInternalLabels
-class RunLabels(enum.Enum):
-    owner = mlrun_constants.MLRunInternalLabels.owner
-    v3io_user = mlrun_constants.MLRunInternalLabels.v3io_user
-
-    @staticmethod
-    def all():
-        return [
-            RunLabels.owner,
-            RunLabels.v3io_user,
-        ]
 
 
 class SparkApplicationStates:

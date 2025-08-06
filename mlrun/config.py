@@ -78,12 +78,12 @@ default_config = {
     "vendor_images_registry": "",
     # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
     # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
-    # mlrun/ml-base, etc...)
-    "images_to_enrich_registry": "^mlrun/*,python:3.9",
+    # mlrun/mlrun-kfp, etc...)
+    "images_to_enrich_registry": "^mlrun/*,^python:3.(9|11)$",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
-    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner
+    "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
@@ -94,7 +94,7 @@ default_config = {
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
     # template for project default image name. Parameter {name} will be replaced with project name
     "default_project_image_name": ".mlrun-project-image-{name}",
-    "default_project": "default",  # default project name
+    "active_project": "",  # active project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     "ipython_widget": True,
@@ -107,6 +107,8 @@ default_config = {
     "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
+    "background_task_cleanup_interval": "86400",  # 24 hours in seconds
+    "background_task_max_age": "21600",  # 6 hours in seconds
     "monitoring": {
         "runs": {
             # runs monitoring interval in seconds
@@ -118,6 +120,14 @@ default_config = {
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
             "list_runs_time_period_in_days": 7,  # days
+            "retry": {
+                # periodic job for triggering retries interval in seconds
+                "interval": "30",
+                # runs limit to fetch for retrying
+                "fetch_runs_limit": 1000,
+                # minutes until a run is considered stale and will be aborted
+                "staleness_threshold": 60 * 24 * 3,
+            },
         },
         "projects": {
             "summaries": {
@@ -182,6 +192,10 @@ default_config = {
         "url": "",
     },
     "v3io_framesd": "http://framesd:8080",
+    "model_providers": {
+        "openai_default_model": "gpt-4o",
+        "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
+    },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
     # default priority class to be applied to functions running on k8s cluster
@@ -233,8 +247,12 @@ default_config = {
                 "delete_function": "900",
                 "model_endpoint_creation": "600",
                 "model_endpoint_tsdb_leftovers": "900",
+                "terminate_pipeline": "300",
             },
-            "runtimes": {"dask": "600"},
+            "runtimes": {
+                "dask": "600",
+                "dask_cluster_start": "300",
+            },
             "push_notifications": "60",
         },
     },
@@ -264,6 +282,12 @@ default_config = {
                     "executing": "24h",
                 }
             },
+            "retry": {
+                "backoff": {
+                    "default_base_delay": "30s",
+                    "min_base_delay": "30s",
+                },
+            },
             # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
             # function is used to prevent infinite loop
             "reload_max_recursion_depth": 100,
@@ -284,9 +308,9 @@ default_config = {
             "serving": "mlrun/mlrun",
             "nuclio": "mlrun/mlrun",
             "remote": "mlrun/mlrun",
-            "dask": "mlrun/ml-base",
+            "dask": "mlrun/mlrun",
             "mpijob": "mlrun/mlrun",
-            "application": "python:3.9",
+            "application": "python",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
@@ -310,6 +334,7 @@ default_config = {
                     "project_summaries": "enabled",
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
+                    "retry_jobs": "enabled",
                 },
             },
             "worker": {
@@ -382,11 +407,7 @@ default_config = {
                 #
                 # if set to "nil" or "none", nothing would be set
                 "modes": (
-                    "STRICT_TRANS_TABLES"
-                    ",NO_ZERO_IN_DATE"
-                    ",NO_ZERO_DATE"
-                    ",ERROR_FOR_DIVISION_BY_ZERO"
-                    ",NO_ENGINE_SUBSTITUTION",
+                    "STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
                 )
             },
         },
@@ -486,6 +507,11 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            "summaries": {
+                # Number of days back to include when calculating the project pipeline summary.
+                "list_pipelines_time_period_in_days": 7,
+            },
+            "resource_deletion_batch_size": 10000,
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -508,7 +534,7 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.23.2",  # kaniko builder image
-            "kaniko_init_container_image": "alpine:3.18",
+            "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
@@ -528,7 +554,7 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
-        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
+        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not perform any
         # run db operations.
         "nop_db": {
             # if set to true, will raise an error for trying to use run db functionality
@@ -587,17 +613,17 @@ default_config = {
         },
         "writer_stream_args": {
             "v3io": {
-                "shard_count": 1,
+                "shard_count": 4,
                 "retention_period_hours": 24,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
             "kafka": {
-                "partition_count": 1,
+                "partition_count": 4,
                 # TODO: add retention period configuration
                 "replication_factor": 1,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
@@ -630,12 +656,7 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        "tdengine": {
-            "run_directly": True,
-            # timeout and retry are ignored when run_directly is set to True
-            "timeout": 10,
-            "retries": 1,
-        },
+        "model_endpoint_creation_check_period": 15,
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -894,11 +915,7 @@ class Config:
         return result
 
     def __setattr__(self, attr, value):
-        # in order for the dbpath setter to work
-        if attr == "dbpath":
-            super().__setattr__(attr, value)
-        else:
-            self._cfg[attr] = value
+        self._cfg[attr] = value
 
     def __dir__(self):
         return list(self._cfg) + dir(self.__class__)
@@ -1217,9 +1234,23 @@ class Config:
         """
         Get the default value for the ssl_redirect configuration.
         In Iguazio we always want to redirect to HTTPS, in other cases we don't.
+
         :return: True if we should redirect to HTTPS, False otherwise.
         """
         return self.is_running_on_iguazio()
+
+    @staticmethod
+    def get_run_retry_staleness_threshold_timedelta() -> timedelta:
+        """
+        Get the staleness threshold in timedelta for run retries.
+        This is used to determine if a run is stale and should be retried.
+
+        :return: The staleness threshold in timedelta.
+        """
+        staleness_threshold = int(
+            mlrun.mlconf.monitoring.runs.retry.staleness_threshold
+        )
+        return timedelta(minutes=staleness_threshold)
 
     def to_dict(self):
         return copy.deepcopy(self._cfg)
@@ -1241,23 +1272,6 @@ class Config:
         # since the config class is used in a "recursive" way, we can't use property like we used in other places
         # since the property will need to be url, which exists in other structs as well
         return config.ui.url or config.ui_url
-
-    @property
-    def dbpath(self):
-        return self._dbpath
-
-    @dbpath.setter
-    def dbpath(self, value):
-        self._dbpath = value
-        if value:
-            # importing here to avoid circular dependency
-            import mlrun.db
-
-            # It ensures that SSL verification is set before establishing a connection
-            _configure_ssl_verification(self.httpdb.http.verify)
-
-            # when dbpath is set we want to connect to it which will sync configuration from it to the client
-            mlrun.db.get_run_db(value, force_reconnect=True)
 
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
@@ -1433,6 +1447,12 @@ def _do_populate(env=None, skip_errors=False):
 
     _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
+
+    if config.dbpath:
+        from mlrun.db import get_run_db
+
+        # when dbpath is set we want to connect to it which will sync configuration from it to the client
+        get_run_db(config.dbpath, force_reconnect=True)
 
 
 def _validate_config(config):

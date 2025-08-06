@@ -1,3 +1,8 @@
+[build-system]
+requires = [
+    "setuptools>=80.9.0",
+]
+
 [tool.ruff]
 target-version = "py39"
 required-version = ">=0.8.0"
@@ -34,8 +39,11 @@ author = "Iguazio"
 [tool.ruff.format]
 docstring-code-format = true
 
+[tool.uv]
+required-version = ">=0.7.14"
+
 [tool.uv.pip]
-python-version = "3.9"  # the same as MLRUN_PYTHON_VERSION in the Makefile
+python-version = "3.9"  # TODO: change to 3.11 when 3.9 is no longer supported
 generate-hashes = true
 universal = true
 
@@ -157,3 +165,16 @@ ignore_imports = [
     "server.py.framework.tests.unit.common_fixtures -> services",
     "server.py.framework.tests.unit.db.common_fixtures -> services",
 ]
+
+[tool.coverage.run]
+# TODO Files in 'pipeline-adapters' are excluded from coverage unless imported directly. See issue ML-9729.
+source=["mlrun", "server/py", "pipeline-adapters"]
+
+omit = [
+    "test_*.py" ,
+    "**/tests/*" ,
+    "**/conftest.py" ,
+    "server/py/schemas/proto/*"
+    ]
+
+relative_files = true

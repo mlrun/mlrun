@@ -1,9 +1,7 @@
 (logging_datasets)=
 # Logging datasets 
 
-Storing datasets is important in order to have a record of the data that was used to train 
-models, as well as storing any processed data. MLRun comes with built-in support for the DataFrame format. MLRun not 
-only stores the DataFrame, but it also provides information about the data, such as statistics.
+Storing datasets is important in order to have a record of the data that was used to train models, as well as storing any processed data. MLRun comes with built-in support for the DataFrame format. MLRun not only stores the DataFrame, but it also provides information about the data, such as statistics.
 
 The simplest way to store a dataset is with the following code:
 
@@ -14,7 +12,7 @@ context.log_dataset(key="my_data", df=df)
 Where `key` is the name of the artifact and `df` is the DataFrame. By default, MLRun stores a short preview of 20 lines.
 You can change the number of lines by changing the value of the `preview` parameter.
 
-MLRun also calculates statistics on the DataFrame on all numeric fields. You can enable statistics regardless to the 
+MLRun also calculates statistics on the DataFrame on all numeric fields. You can enable statistics regardless of the 
 DataFrame size by setting the `stats` parameter to `True`.
 
 ## Logging a dataset from a job
@@ -58,8 +56,6 @@ project = new_project(project_name, project_path, init_git=True)
 
 # Target location for storing pipeline artifacts
 artifact_path = path.abspath("jobs")
-# MLRun DB path or API service URL
-mlconf.dbpath = mlconf.dbpath or "http://mlrun-api:8080"
 
 source_url = "https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv"
 

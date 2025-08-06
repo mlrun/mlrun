@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import http
 import json
 import unittest.mock
@@ -281,10 +281,6 @@ def test_submit_job_service_accounts(
 ):
     project = "my-proj1"
     services.api.tests.unit.api.utils.create_project(client, project)
-
-    # must set the default project since new_function creates the function object and ignores the project parameter.
-    # Instead, the function always gets the default project name. This may be a bug, need to check.
-    mlconf.default_project = project
 
     function_name = "test-function"
     function_tag = "latest"

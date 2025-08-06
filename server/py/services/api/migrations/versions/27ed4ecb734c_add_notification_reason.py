@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 """add notifications reason
 
 Revision ID: 27ed4ecb734c
@@ -23,7 +23,7 @@ Create Date: 2023-09-10 12:55:27.620429
 import sqlalchemy as sa
 from alembic import op
 
-from framework.utils.db.sql_types import SQLTypesUtil
+from framework.db.sqldb.sql_types import SQLTypesUtil
 
 # revision identifiers, used by Alembic.
 revision = "27ed4ecb734c"

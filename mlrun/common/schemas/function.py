@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 
 import pydantic.v1
@@ -47,6 +47,7 @@ class FunctionState:
 
     # for pipeline steps
     skipped = "skipped"
+    initialized = "initialized"
 
     @classmethod
     def get_function_state_from_pod_state(cls, pod_state: str):
@@ -113,11 +114,21 @@ class StateThresholds(pydantic.v1.BaseModel):
     default: typing.Optional[dict[str, str]]
 
 
+class Backoff(pydantic.v1.BaseModel):
+    default_base_delay: typing.Optional[str]
+    min_base_delay: typing.Optional[str]
+
+
+class RetrySpec(pydantic.v1.BaseModel):
+    backoff: Backoff
+
+
 class FunctionSpec(pydantic.v1.BaseModel):
     image_pull_secret: typing.Optional[ImagePullSecret]
     security_context: typing.Optional[SecurityContext]
     service_account: typing.Optional[ServiceAccount]
     state_thresholds: typing.Optional[StateThresholds]
+    retry: typing.Optional[RetrySpec]
 
     class Config:
         extra = pydantic.v1.Extra.allow

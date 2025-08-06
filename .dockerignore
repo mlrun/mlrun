@@ -12,6 +12,7 @@
 .ruff_cache
 
 # Build
+.build/
 build/
 mlrun.egg-info
 
@@ -29,7 +30,7 @@ playground/
 
 # Virtual environment
 .venv*/
-venv*/
+*venv*/
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
@@ -47,6 +48,8 @@ kubeconfig*
 **/test-google-cloud-storage.yml
 **/test-dbfs-store.yml
 **/test-redis.yml
+**/test-openai.yml
+**/test-huggingface.yml
 **/tests
 **/env.yml
 **/patch[_\-]env.yml
@@ -56,3 +59,8 @@ kubeconfig*
 # this is just a template
 !dockerfiles/jupyter/mlrun.env
 **/hack/*.env
+
+# Coverage reports
+*.coverage
+**/coverage_reports/*.xml
+**/coverage_reports/*.html

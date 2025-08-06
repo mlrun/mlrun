@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import uuid
 from http import HTTPStatus
@@ -175,7 +175,12 @@ async def list_runs(
     name: Optional[str] = None,
     uid: list[str] = Query([]),
     labels: list[str] = Query([], alias="label"),
-    states: list[str] = Query([], alias="state"),
+    state: list[str] = Query(
+        [],
+        deprecated=True,
+        description="'state' query param is deprecated in 1.10.0 and will be removed in 1.12.0, Use 'states' instead",
+    ),
+    states: list[str] = Query([]),
     sort: bool = True,
     iter: bool = True,
     start_time_from: Optional[str] = None,
@@ -202,6 +207,8 @@ async def list_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     allowed_project_names = (
         await services.api.crud.Projects().list_allowed_project_names(
             db_session, auth_info, project=project
@@ -215,7 +222,7 @@ async def list_runs(
             mlrun.common.schemas.AuthorizationResourceTypes.run,
             _runs,
             lambda run: (
-                run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                run.get("metadata", {}).get("project"),
                 run.get("metadata", {}).get("uid"),
             ),
             auth_info,
@@ -233,7 +240,7 @@ async def list_runs(
         uid=uid,
         project=allowed_project_names,
         labels=labels,
-        states=states,
+        states=list(set(state + states)),
         sort=sort,
         iter=iter,
         start_time_from=start_time_from,
@@ -265,16 +272,18 @@ async def delete_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     runs = []
 
     # TODO: handle project permissions like in the list endpoints
-    if not project or project != "*":
+    if project != "*":
         # Currently we don't differentiate between runs permissions inside a project.
         # Meaning there is no reason at the moment to query the permission for each run under the project
         # TODO check for every run when we will manage permission per run inside a project
         await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.run,
-            project or mlrun.mlconf.default_project,
+            project,
             "",
             mlrun.common.schemas.AuthorizationAction.delete,
             auth_info,
@@ -291,11 +300,11 @@ async def delete_runs(
             name,
             project=project,
             labels=labels,
-            state=state,
+            states=[state] if state else None,
             start_time_from=start_time_from,
             return_as_run_structs=False,
         )
-        projects = set(run.project or mlrun.mlconf.default_project for run in runs)
+        projects = set(run.project for run in runs)
         for run_project in projects:
             # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
             # TODO: Delete only runs from projects that user has permissions to
@@ -469,6 +478,7 @@ async def abort_run(
         services.api.crud.Runs().abort_run,
         mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
         new_background_task_id,
+        None,
         # args for abort_run
         db_session,
         project,
@@ -521,6 +531,7 @@ async def push_notifications(
         framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
             project, uid
         ),
+        None,
         db_session,
         run,
     )

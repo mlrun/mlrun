@@ -31,7 +31,7 @@ from mlrun.common.model_monitoring.helpers import (
     pad_features_hist,
     pad_hist,
 )
-from mlrun.common.schemas import EndpointType, ModelEndpoint
+from mlrun.common.schemas import EndpointMode, EndpointType, ModelEndpoint
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.datastore import KafkaOutputStream, OutputStream
 from mlrun.datastore.datastore_profile import (
@@ -54,6 +54,7 @@ from mlrun.model_monitoring.helpers import (
     filter_results_by_regex,
     get_invocations_fqn,
     get_output_stream,
+    get_start_end,
     update_model_endpoint_last_request,
 )
 
@@ -380,12 +381,21 @@ class TestBatchWindowGenerator:
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request, not_batch_endpoint=True
+            last_request=last_request, endpoint_mode=EndpointMode.REAL_TIME
         )
         assert last_updated
         assert (
             last_updated < last_request.timestamp()
         ), "The last updated time should be before the last request"
+
+        last_updated = _BatchWindowGenerator._get_last_updated_time(
+            last_request=last_request, endpoint_mode=EndpointMode.BATCH
+        )
+
+        assert last_updated
+        assert (
+            last_updated == last_request.timestamp()
+        ), "The last updated time should similar to the last request time for batch endpoints"
 
 
 class TestBumpModelEndpointLastRequest:
@@ -606,4 +616,56 @@ def test_get_output_stream_unsupported() -> None:
             profile=DatastoreProfileKafkaTarget(
                 name="k-tgt", brokers="localhost", topic="t1"
             ),
+        )
+
+
+def test_get_start_end():
+    now = mlrun.utils.datetime_now()
+
+    # Test default when only end is provided
+    start, end = get_start_end(
+        start=None,
+        end=now,
+    )
+
+    assert start == mlrun.utils.datetime_min()
+    assert end == now
+
+    # Test when delta is provided
+    start, end = get_start_end(
+        start=None,
+        end=now,
+        delta=datetime.timedelta(seconds=1),
+    )
+
+    assert start == now - datetime.timedelta(seconds=1)
+
+    # Test when start, end and delta are provided (in this case delta should be ignored)
+    start, end = get_start_end(
+        start=now - datetime.timedelta(seconds=10),
+        end=now,
+        delta=datetime.timedelta(seconds=1),
+    )
+
+    assert start == now - datetime.timedelta(seconds=10)
+    assert end == now
+
+    # Test when start and delta are provided
+    start, end = get_start_end(
+        start=now - datetime.timedelta(seconds=10),
+        end=None,
+        delta=datetime.timedelta(seconds=1),
+    )
+
+    assert start == now - datetime.timedelta(seconds=10)
+    assert end == start + datetime.timedelta(seconds=1)
+
+    # Test when start time is later than end time
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="The start time must be before the end time",
+    ):
+        get_start_end(
+            start=now + datetime.timedelta(seconds=10),
+            end=now,
         )

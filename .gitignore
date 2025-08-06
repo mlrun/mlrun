@@ -4,7 +4,6 @@ __pycache__/
 
 # Python virtual environments and environment files
 *venv*
-.python-version
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
@@ -20,6 +19,8 @@ tests/temp*
 tests/*.pkl
 tests/project.yaml
 tests/system/env.yml
+server/py/services/api/db/mlrun.db
+migration_tests.log
 # Coverage reports
 *.coverage
 
@@ -28,15 +29,19 @@ tests/system/env.yml
 .vscode/
 # PyCharm settings
 .idea/
+# Global tags
+GPATH
+GRTAGS
+GTAGS
 # macOS Finder metadata
 .DS_Store
 
 # Secrets and credentials
 # AWS credentials and other secret files
 .aws-secrets
-credentials.txt  
-credentials.json  
-google-big-query-credentials.json  
+credentials.txt
+credentials.json
+google-big-query-credentials.json
 kubeconfig
 
 # Build artifacts and generated files
@@ -48,7 +53,8 @@ mlrun.egg-info/
 mlrun/utils/version/version.json
 Dockerfile.mlrun-test-nb
 **/Dockerfile.dockerignore
-
+server/common/compile-schemas-go
+server/py/schemas/proto/proto/
 # Dask worker spaces
 dask-worker-space/
 
@@ -101,3 +107,7 @@ server/py/schemas/proto/*pb2*.py
 # <= 1.7.x legacy project structure
 # on >= 1.8.0, server/api has been moved to server/py/services/api
 server/api
+tests/coverage_reports/*.xml
+tests/coverage_reports/*.html
+**/test-openai.yml
+**/test-huggingface.yml

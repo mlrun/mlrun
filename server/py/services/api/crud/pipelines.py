@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import ast
 import concurrent.futures
 import http
@@ -23,22 +23,30 @@ import kfp_server_api
 import sqlalchemy.orm
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import mlrun_pipelines.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.imports
 import mlrun_pipelines.mixins
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
+from mlrun.common.schemas import WorkflowResponse
+from mlrun.k8s_utils import sanitize_label_value
 
 import framework.api.utils
+import framework.utils.singletons.db
 import services.api.crud
+from services.api.crud.workflows import RerunRunner
+from services.api.utils.helpers import resolve_client_default_kfp_image
 
 
 class Pipelines(
@@ -82,7 +90,9 @@ class Pipelines(
                 "Applying project-based filter for project to match pipelines with project name as a substring",
                 project=project_names[0],
             )
-            filter_ = mlrun.utils.get_kfp_project_filter(project_name=project_names[0])
+            filter_ = mlrun.utils.get_kfp_list_runs_filter(
+                project_name=project_names[0]
+            )
         runs, next_page_token = self._paginate_runs(
             kfp_client, page_token, page_size, sort_by, filter_
         )
@@ -194,16 +204,28 @@ class Pipelines(
                     failed=experiments_failed,
                 )
 
-    def get_pipeline(
+    def get_run(
         self,
-        db_session: sqlalchemy.orm.Session,
         run_id: str,
-        project: typing.Optional[str] = None,
+        project: str,
         namespace: typing.Optional[str] = None,
-        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
-    ):
+    ) -> mlrun_pipelines.models.PipelineRun:
+        """
+        Get a Kubeflow Pipeline (KFP) run by its ID.
+
+        :param run_id: The unique identifier of the pipeline run.
+        :param project: The name of the MLRun project associated with the pipeline run.
+        :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
+                          Defaults to the configured namespace if not specified.
+        :raises MLRunNotFoundError: If the pipeline run does not belong to the specified project
+                                    or if the run ID is not found.
+        :raises MLRunRuntimeError: If there is an error retrieving the pipeline run details.
+        :raises MLRunHTTPStatusError: If there is an HTTP error interacting with KFP.
+        :return: The pipeline run object.
+        :rtype: mlrun_pipelines.models.PipelineRun
+        """
+
         kfp_client = self.initialize_kfp_client(namespace)
-        run = None
         try:
             api_run_detail = kfp_client.get_run(run_id)
             run = mlrun_pipelines.models.PipelineRun(api_run_detail)
@@ -215,14 +237,6 @@ class Pipelines(
                             f"Pipeline run with id {run_id} is not of project {project}"
                         )
 
-                mlrun.utils.logger.debug(
-                    "Got kfp run",
-                    run_id=run_id,
-                    run_name=run.get("name"),
-                    project=project,
-                    format_=format_,
-                )
-                run = self._format_run(run, format_, kfp_client)
         except kfp_server_api.ApiException as exc:
             raise mlrun.errors.err_for_status_code(
                 exc.status, mlrun.errors.err_to_str(exc)
@@ -233,12 +247,102 @@ class Pipelines(
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
             ) from exc
-
         return run
 
-    def retry_pipeline(
+    def get_formatted_pipeline(
+        self,
+        run_id: str,
+        project: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
+    ) -> dict:
+        kfp_client = self.initialize_kfp_client(namespace)
+        try:
+            run = self.get_run(
+                run_id=run_id,
+                project=project,
+                namespace=namespace,
+            )
+            run = self._format_run(run, format_, kfp_client)
+        except mlrun.errors.MLRunHTTPError as exc:
+            raise exc
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
+            ) from exc
+        return run
+
+    def get_original_workflow_run(
         self,
         db_session: sqlalchemy.orm.Session,
+        run_id: str,
+        project: str,
+    ) -> tuple[typing.Optional[mlrun.model.RunObject], str]:
+        """
+        Given any KFP pipeline run UID (whether the very first run or a retry),
+        resolve back to the *original* workflow‐runner RunObject and its workflow ID.
+
+        1. Look for a workflow‐runner job whose "workflow-id" label == run_id.
+           If found, that *is* our original runner.
+        2. Otherwise, find rerun-runner (workflow-id == run_id), grab its original_workflow_id,
+         then fetch that original workflow-runner.
+
+        :returns:
+          Tuple of:
+            * the RunObject for the original workflow‐runner
+            * the original_workflow_id (str)
+
+        :raises:
+            MLRunNotFoundError: If the run ID doesn't correspond to any remote workflow.
+        """
+        job_type_label = mlrun_constants.MLRunInternalLabels.job_type
+        workflow_id_label = mlrun_constants.MLRunInternalLabels.workflow_id
+
+        def _list_runs(labels: list[str]) -> list[mlrun.model.RunObject]:
+            return services.api.crud.Runs().list_runs(
+                db_session=db_session,
+                project=project,
+                labels=labels,
+                sort=True,
+                with_notifications=True,
+            )
+
+        def _first_or_none(labels: list[str]) -> typing.Optional[mlrun.model.RunObject]:
+            runs = _list_runs(labels)
+            return runs.to_objects()[0] if runs else None
+
+        def _get_original_workflow(
+            workflow_id: str,
+        ) -> typing.Optional[mlrun.model.RunObject]:
+            """Find a workflow‐runner run by its workflow_id."""
+            labels = [
+                f"{workflow_id_label}={workflow_id}",
+                f"{job_type_label}={mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER}",
+            ]
+            return _first_or_none(labels)
+
+        # direct workflow-runner
+        if original := _get_original_workflow(run_id):
+            return original, run_id
+
+        # rerun-runner → original_workflow_id → workflow-runner
+        rerun_labels = [
+            f"{workflow_id_label}={run_id}",
+            f"{job_type_label}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
+        ]
+        if rerun := _first_or_none(rerun_labels):
+            original_workflow_id = rerun.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.original_workflow_id
+            ]
+            if original := _get_original_workflow(original_workflow_id):
+                return original, original_workflow_id
+
+        raise mlrun.errors.MLRunNotFoundError(
+            f"No remote workflow runner found with workflow-id={run_id} in project '{project}'"
+        )
+
+    def rerun_pipeline_direct(
+        self,
         run_id: str,
         project: str,
         namespace: typing.Optional[str] = None,
@@ -246,7 +350,6 @@ class Pipelines(
         """
         Retry a Kubeflow Pipeline (KFP) run.
 
-        :param db_session: The SQLAlchemy session used for retrieving and storing pipeline information.
         :param run_id: The unique identifier of the pipeline run to retry.
         :param project: The name of the MLRun project associated with the pipeline run.
         :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
@@ -259,27 +362,11 @@ class Pipelines(
         :return: The unique identifier of the retried pipeline run.
         :rtype: str
         """
-        kfp_client = self.initialize_kfp_client(namespace)
-        try:
-            api_run_detail = kfp_client.get_run(run_id)
-        except kfp_server_api.ApiException as exc:
-            raise mlrun.errors.err_for_status_code(
-                exc.status, mlrun.errors.err_to_str(exc)
-            ) from exc
-        except mlrun.errors.MLRunHTTPStatusError:
-            raise
-        except Exception as exc:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
-            ) from exc
-        run = mlrun_pipelines.models.PipelineRun(api_run_detail)
-
-        if project:
-            run_project = self.resolve_project_from_pipeline(run)
-            if run_project != project:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Pipeline run with id {run_id} is not of project {project}"
-                )
+        run = self.get_run(
+            run_id=run_id,
+            project=project,
+            namespace=namespace,
+        )
 
         # Check if the pipeline is in a completed state
         if (
@@ -296,9 +383,201 @@ class Pipelines(
             run_name=run.get("name"),
             project=project,
         )
+        kfp_client = self.initialize_kfp_client(namespace)
         return kfp_client.retry_run(
             run_id=run_id,
-            project=run_project,
+            project=project,
+        )
+
+    def rerun_pipeline_via_runner(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run_id: str,
+        project: mlrun.common.schemas.ProjectOut,
+        original_runner: mlrun.run.RunObject,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        client_version: typing.Optional[str] = None,
+        rerun_index: typing.Optional[int] = None,
+    ):
+        """
+        Re-run a completed KFP pipeline by launching an MLRun RerunRunner job.
+
+        This will:
+        1. Choose a KFP image (honoring any client_version header).
+        2. Create & save an MLRun function (the RerunRunner) that invokes `mlrun.projects.rerun_workflow`
+           with the original run_id.
+        3. Submit that function to Kubernetes, returning a WorkflowResponse for the new MLRun-run.
+
+        :param db_session:       SQLAlchemy session for persisting the runner function.
+        :param run_id:           The pipeline run ID to retry (the original KFP run UID).
+        :param project:          The MLRun project description (ProjectOut).
+        :param original_runner:  The RunObject of the original workflow-runner function.
+        :param auth_info:        Caller’s authentication info.
+        :param client_version:   Optional SDK version header, to pin the runner image.
+        :param rerun_index:      The index of this retry (e.g. 1 for first retry, 2 for second, etc.).
+        :return:                 A WorkflowResponse with:
+                                   - project: same project name
+                                   - name:    the MLRun function name for the rerun
+                                   - status:  `"running"`
+                                   - run_id:  the new MLRun-run UID for the RerunRunner job
+        """
+        client_image = resolve_client_default_kfp_image(
+            project,
+            workflow_spec=None,
+            client_version=client_version,
+        )
+        run_name = f"rerun-runner-{run_id[:8]}"
+
+        rerun_runner: mlrun.run.KubejobRuntime = RerunRunner().create_runner(
+            run_name=run_name,
+            project=project.metadata.name,
+            db_session=db_session,
+            auth_info=auth_info,
+            image=client_image,
+        )
+
+        mlrun.utils.logger.debug(
+            "Saved function for rerun workflow",
+            project_name=rerun_runner.metadata.project,
+            function_name=rerun_runner.metadata.name,
+            kind=rerun_runner.kind,
+            image=rerun_runner.spec.image,
+        )
+
+        if client_version is not None:
+            rerun_runner.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.client_version
+            ] = sanitize_label_value(client_version)
+
+        original_runner_notifications = (
+            original_runner.spec.notifications.to_dict()
+            if original_runner.spec.notifications
+            else []
+        )
+
+        rerun_notifications = [
+            self._augment_notification_for_retry(n, rerun_index)
+            for n in original_runner_notifications
+        ]
+
+        rerun_request = mlrun.common.schemas.RerunWorkflowRequest(
+            run_name=run_name,
+            run_id=run_id,
+            notifications=rerun_notifications,
+            workflow_runner_node_selector=original_runner.spec.node_selector,
+            original_workflow_runner_uid=original_runner.metadata.uid,
+            original_workflow_name=original_runner.spec.parameters["workflow_name"],
+            rerun_index=rerun_index,
+        )
+
+        run = RerunRunner().run(
+            runner=rerun_runner,
+            project=project,
+            run_uid=run_id,
+            rerun_request=rerun_request,
+            auth_info=auth_info,
+        )
+        status = mlrun_pipelines.common.models.RunStatuses.running
+        runner_uid = run.uid()
+
+        return mlrun.common.schemas.WorkflowResponse(
+            project=project.metadata.name,
+            name=rerun_request.run_name,
+            status=str(status),
+            run_id=runner_uid,
+        )
+
+    def lock_run_and_mark_retrying(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        run_id: str,
+        retrying: bool = True,
+    ) -> int:
+        """
+        Lock the specified run row, toggle its `retrying` label (adding by default),
+        bump the `rerun_counter` as needed, and return the updated counter.
+        """
+        run_struct = services.api.crud.RerunRunner().set_run_retrying_status(
+            db_session=db_session,
+            project=project,
+            run_id=run_id,
+            retrying=retrying,
+        )
+        return run_struct["metadata"]["labels"].get(
+            mlrun_constants.MLRunInternalLabels.rerun_counter, 1
+        )
+
+    def get_running_rerun_runner(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        original_workflow_id: str,
+    ):
+        running_rerun_runners = services.api.crud.Runs().list_runs(
+            db_session=db_session,
+            project=project,
+            labels=[
+                f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
+                f"{mlrun_constants.MLRunInternalLabels.original_workflow_id}={original_workflow_id}",
+            ],
+            states=[mlrun.common.runtimes.constants.RunStates.running],
+        )
+        if running_rerun_runners:
+            run = running_rerun_runners.to_objects()[0]
+            return WorkflowResponse(
+                project=project,
+                name=run.metadata.name,
+                run_id=run.metadata.uid,
+                status=str(run.status),
+            )
+        raise mlrun.errors.MLRunNotFoundError
+
+    def terminate_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: typing.Optional[str] = None,
+    ) -> str:
+        """
+        Terminate a Kubeflow Pipeline (KFP) run.
+
+        :param run_id: The unique identifier of the pipeline run to terminate.
+        :param project: The name of the MLRun project associated with the pipeline run.
+        :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
+                          Defaults to the configured namespace if not specified.
+        :raises MLRunBadRequestError: If the pipeline run is not in a terminable state.
+        :raises MLRunNotFoundError: If the pipeline run does not belong to the specified project
+                                    or if the run ID is not found.
+        :raises MLRunRuntimeError: If there is an error retrieving the pipeline run details.
+        :raises MLRunHTTPStatusError: If there is an HTTP error interacting with KFP.
+        :return: The unique identifier of the terminated pipeline run.
+        :rtype: str
+        """
+        run = self.get_run(
+            run_id=run_id,
+            project=project,
+            namespace=namespace,
+        )
+
+        # Check if the pipeline is in a terminable state
+        if (
+            run.status
+            not in mlrun_pipelines.common.models.RunStatuses.terminable_statuses()
+        ):
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Pipeline run {run_id} is not in a terminable state. Current status: {run.status}"
+            )
+
+        mlrun.utils.logger.info(
+            "Terminating KFP run",
+            run_id=run_id,
+            run_name=run.get("name"),
+            project=project,
+        )
+        kfp_client = self.initialize_kfp_client(namespace)
+        kfp_client.terminate_run(
+            run_id=run_id,
         )
 
     def create_pipeline(
@@ -365,12 +644,20 @@ class Pipelines(
         return run
 
     @staticmethod
-    def initialize_kfp_client(namespace: typing.Optional[str] = None):
-        return mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url, namespace)
+    def initialize_kfp_client(
+        namespace: typing.Optional[str] = None,
+    ) -> mlrun_pipelines.client.Client:
+        if namespace is None:
+            namespace = mlrun.mlconf.namespace
+        return mlrun_pipelines.utils.get_client(
+            logger=mlrun.utils.logger,
+            url=mlrun.mlconf.kfp_url,
+            namespace=namespace,
+        )
 
     def _paginate_runs(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -406,7 +693,7 @@ class Pipelines(
 
     def _list_runs_from_kfp(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -437,7 +724,7 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:
@@ -448,7 +735,7 @@ class Pipelines(
         self,
         run: mlrun_pipelines.models.PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
         if kfp_client:
@@ -540,3 +827,15 @@ class Pipelines(
             return False
 
         return list(filter(filter_by, runs))
+
+    @staticmethod
+    def _augment_notification_for_retry(
+        notification: dict[str, typing.Any], rerun_index: int
+    ) -> dict[str, typing.Any]:
+        """
+        Return a new notification dict with its `name` suffixed by "– Retry #<idx>".
+        """
+        return {
+            **notification,
+            "name": f"{notification.get('name','')} – Retry #{rerun_index}",
+        }

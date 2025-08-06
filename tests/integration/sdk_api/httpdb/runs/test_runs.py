@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import http
 import json
@@ -202,7 +202,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             assert run["metadata"]["uid"] in uid_list
             uid_list.remove(run["metadata"]["uid"])
 
-    def test_job_file(self, ensure_default_project):
+    def test_job_file(self, ensure_project):
         filename = f"{examples_path}/training.py"
         fn = mlrun.code_to_function(filename=filename, kind="job")
         assert fn.kind == "job", "kind not set, test failed"

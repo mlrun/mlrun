@@ -21,7 +21,7 @@ import typing
 import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
-from os import path, remove
+from os import environ, path, remove
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
@@ -46,10 +46,12 @@ import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
+from mlrun.secrets import get_secret_or_env
 from mlrun_pipelines.utils import compile_pipeline
 
 from ..artifacts import Artifact
 from ..common.schemas import AlertActivations
+from ..common.schemas.model_monitoring import FunctionSummary
 from ..config import config
 from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
@@ -88,9 +90,9 @@ class HTTPRunDB(RunDBInterface):
 
     - Every object in MLRun exists in the context of a project (except projects themselves). When referencing an object
       through any API, a project name must be provided. The default for most APIs is for an empty project name, which
-      will be replaced by the name of the default project (usually ``default``). Therefore, if performing an API to
+      will be replaced by the name of the active project (if set). Therefore, if performing an API to
       list functions, for example, and not providing a project name - the result will not be functions from all
-      projects but rather from the ``default`` project.
+      projects but rather from the active project.
     - Many objects can be assigned labels, and listed/queried by label. The label parameter for query APIs allows for
       listing objects that:
 
@@ -129,7 +131,9 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
-        self.python_version = str(version.Version().get_python_version())
+        self.python_version = environ.get("MLRUN_PYTHON_VERSION") or str(
+            version.Version().get_python_version()
+        )
 
         self._enrich_and_validate(url)
 
@@ -153,9 +157,9 @@ class HTTPRunDB(RunDBInterface):
 
         if config.auth_with_client_id.enabled:
             self.token_provider = OAuthClientIDTokenProvider(
-                token_endpoint=mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
-                client_id=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
-                client_secret=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
+                token_endpoint=get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
+                client_id=get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
+                client_secret=get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
                 timeout=config.auth_with_client_id.request_timeout,
             )
         else:
@@ -396,7 +400,7 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def _path_of(self, resource, project, uid=None):
-        project = project or config.default_project
+        project = project or config.active_project
         _path = f"projects/{project}/{resource}"
         if uid:
             _path += f"/{uid}"
@@ -604,7 +608,7 @@ class HTTPRunDB(RunDBInterface):
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
 
-    def get_log(self, uid, project="", offset=0, size=None):
+    def get_log(self, uid, project="", offset=0, size=None, attempt=None):
         """Retrieve 1 MB data of log.
 
         :param uid: Log unique ID
@@ -612,6 +616,8 @@ class HTTPRunDB(RunDBInterface):
         :param offset: Retrieve partial log, get up to ``size`` bytes starting at offset ``offset``
             from beginning of log (must be >= 0)
         :param size: If set to ``-1`` will retrieve and print all data to end of the log by chunks of 1MB each.
+        :param attempt: For retriable runs, the attempt number to retrieve the log for.
+            1 is the initial attempt.
         :returns: The following objects:
 
             - state - The state of the runtime object which generates this log, if it exists. In case no known state
@@ -632,6 +638,8 @@ class HTTPRunDB(RunDBInterface):
             return state, offset
 
         params = {"offset": offset, "size": size}
+        if attempt:
+            params["attempt"] = attempt
         path = self._path_of("logs", project, uid)
         error = f"get log {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
@@ -654,7 +662,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error)
         return resp.json()["size"]
 
-    def watch_log(self, uid, project="", watch=True, offset=0):
+    def watch_log(self, uid, project="", watch=True, offset=0, attempt=None):
         """Retrieve logs of a running process by chunks of 1MB, and watch the progress of the execution until it
         completes. This method will print out the logs and continue to periodically poll for, and print,
         new logs as long as the state of the runtime which generates this log is either ``pending`` or ``running``.
@@ -664,10 +672,11 @@ class HTTPRunDB(RunDBInterface):
         :param watch: If set to ``True`` will continue tracking the log as described above. Otherwise this function
             is practically equivalent to the :py:func:`~get_log` function.
         :param offset: Minimal offset in the log to watch.
+        :param attempt: For retriable runs, the attempt number to retrieve the log for. 1 is the initial attempt.
         :returns: The final state of the log being watched and the final offset.
         """
 
-        state, text = self.get_log(uid, project, offset=offset)
+        state, text = self.get_log(uid, project, offset=offset, attempt=attempt)
         if text:
             print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
         nil_resp = 0
@@ -683,7 +692,7 @@ class HTTPRunDB(RunDBInterface):
                         mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
                     )
                 )
-            state, text = self.get_log(uid, project, offset=offset)
+            state, text = self.get_log(uid, project, offset=offset, attempt=attempt)
             if text:
                 nil_resp = 0
                 print(
@@ -731,7 +740,7 @@ class HTTPRunDB(RunDBInterface):
         Abort a running run - will remove the run's runtime resources and mark its state as aborted.
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         params = {"iter": iter}
         updates = {}
         if status_text:
@@ -748,7 +757,7 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            return self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
         return None
@@ -766,7 +775,7 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the run belongs to.
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         response = self.api_call(
             "POST",
             path=f"projects/{project}/runs/{uid}/push-notifications",
@@ -775,7 +784,7 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
             if (
@@ -819,7 +828,7 @@ class HTTPRunDB(RunDBInterface):
                 "The 'notifications' parameter must be a list."
             )
 
-        project = project or config.default_project
+        project = project or config.active_project
 
         response = self.api_call(
             "POST",
@@ -830,7 +839,7 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
             if (
@@ -898,9 +907,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -937,7 +943,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
-        :param project: Project that the runs belongs to.
+        :param project: Project that the runs belongs to. If not specified, the active project will be used.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.
@@ -945,7 +951,6 @@ class HTTPRunDB(RunDBInterface):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.9.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -973,7 +978,6 @@ class HTTPRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            state=state,
             states=states,
             sort=sort,
             iter=iter,
@@ -1078,7 +1082,7 @@ class HTTPRunDB(RunDBInterface):
         :param days_ago: Filter runs whose start time is newer than this parameter.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -1111,7 +1115,7 @@ class HTTPRunDB(RunDBInterface):
         :param tree: The tree (producer id) which generated this artifact.
         :returns: The stored artifact dictionary.
         """
-        project = project or mlrun.mlconf.default_project
+        project = project or mlrun.mlconf.active_project
         endpoint_path = f"projects/{project}/artifacts/{key}"
 
         error = f"store artifact {project}/{key}"
@@ -1151,7 +1155,7 @@ class HTTPRunDB(RunDBInterface):
         :param format_: The format in which to return the artifact. Default is 'full'.
         """
 
-        project = project or mlrun.mlconf.default_project
+        project = project or mlrun.mlconf.active_project
         tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
@@ -1189,7 +1193,7 @@ class HTTPRunDB(RunDBInterface):
         :param deletion_strategy: The artifact deletion strategy types.
         :param secrets: Credentials needed to access the artifact data.
         """
-        project = project or mlrun.mlconf.default_project
+        project = project or mlrun.mlconf.active_project
         endpoint_path = f"projects/{project}/artifacts/{key}"
         params = {
             "key": key,
@@ -1223,6 +1227,7 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
         producer_uri: Optional[str] = None,
+        parent: Optional[str] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -1251,6 +1256,8 @@ class HTTPRunDB(RunDBInterface):
                 "results", tag="*", project="iris", labels=["uploaded", "type=binary"]
             )
 
+        :param parent: The URI or <parent_name>:<parent_tag> string of the parent artifact.
+                Used to filter and return only artifacts that are direct children of the specified parent.
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
             case-sensitive. This means that querying for ``~name`` may return artifacts named
             ``my_Name_1`` or ``surname``.
@@ -1276,8 +1283,8 @@ class HTTPRunDB(RunDBInterface):
         :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
-        :param format_:         The format in which to return the artifacts. Default is 'full'.
-        :param limit:           Maximum number of artifacts to return.
+        :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -1307,6 +1314,7 @@ class HTTPRunDB(RunDBInterface):
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
             return_all=not limit,
+            parent=parent,
         )
         return artifacts
 
@@ -1400,7 +1408,7 @@ class HTTPRunDB(RunDBInterface):
         :param days_ago: This parameter is deprecated and not used.
         :param tree: Delete artifacts filtered by tree.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
 
         params = {
@@ -1421,7 +1429,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> list[str]:
         """Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         error_message = f"Failed listing artifact tags. project={project}"
         params = {"category": category} if category else {}
 
@@ -1444,7 +1452,7 @@ class HTTPRunDB(RunDBInterface):
             function = function.to_dict()
 
         params = {"tag": tag, "versioned": versioned}
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/functions/{name}"
 
         error = f"store function {project}/{name}"
@@ -1459,7 +1467,7 @@ class HTTPRunDB(RunDBInterface):
         """Retrieve details of a specific function, identified by its name and potentially a tag or function hash."""
 
         params = {"tag": tag, "hash_key": hash_key}
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/functions/{name}"
         error = f"get function {project}/{name}"
         resp = self.api_call("GET", path, error, params=params)
@@ -1468,7 +1476,7 @@ class HTTPRunDB(RunDBInterface):
     def delete_function(self, name: str, project: str = ""):
         """Delete a function belonging to a specific project."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/functions/{name}"
         error_message = f"Failed deleting function {project}/{name}"
         response = self.api_call("DELETE", path, error_message, version="v2")
@@ -1477,7 +1485,7 @@ class HTTPRunDB(RunDBInterface):
                 "Function is being deleted", project_name=project, function_name=name
             )
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
             if (
@@ -1513,7 +1521,7 @@ class HTTPRunDB(RunDBInterface):
         """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
-        :param project: Return functions belonging to this project. If not specified, the default project is used.
+        :param project: Return functions belonging to this project. If not specified, the active project is used.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
@@ -1738,7 +1746,7 @@ class HTTPRunDB(RunDBInterface):
     ):
         """Update an existing schedule, replace it with the details contained in the schedule object."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/schedules/{name}"
 
         error_message = f"Failed updating schedule {project}/{name}"
@@ -1756,7 +1764,7 @@ class HTTPRunDB(RunDBInterface):
         :param include_last_run: Whether to include the results of the schedule's last run in the response.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed getting schedule for {project}/{name}"
         resp = self.api_call(
@@ -1784,7 +1792,7 @@ class HTTPRunDB(RunDBInterface):
         :param next_run_time_until: Return only schedules with next run time before this date.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         params = {
             "kind": kind,
             "name": name,
@@ -1800,7 +1808,7 @@ class HTTPRunDB(RunDBInterface):
     def delete_schedule(self, project: str, name: str):
         """Delete a specific schedule by name."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed deleting schedule {project}/{name}"
         self.api_call("DELETE", path, error_message)
@@ -1808,7 +1816,7 @@ class HTTPRunDB(RunDBInterface):
     def invoke_schedule(self, project: str, name: str):
         """Execute the object referenced by the schedule immediately."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/schedules/{name}/invoke"
         error_message = f"Failed invoking schedule {project}/{name}"
         self.api_call("POST", path, error_message)
@@ -1869,7 +1877,7 @@ class HTTPRunDB(RunDBInterface):
         :param func:            Function to build.
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
         """
-        func.metadata.project = func.metadata.project or config.default_project
+        func.metadata.project = func.metadata.project or config.active_project
         self.warn_on_s3_and_ecr_permissions_conflict(func)
         try:
             req = {
@@ -2055,7 +2063,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.BackgroundTask:
         """Retrieve updated information on a project background task being executed."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/background-tasks/{name}"
         error_message = (
             f"Failed getting project background task. project={project}, name={name}"
@@ -2076,7 +2084,7 @@ class HTTPRunDB(RunDBInterface):
         Retrieve updated information on project background tasks being executed.
         If no filter is provided, will return background tasks from the last week.
 
-        :param project: Project name (defaults to mlrun.mlconf.default_project).
+        :param project: Project name (defaults to mlrun.mlconf.active_project).
         :param state:   List only background tasks whose state is specified.
         :param created_from: Filter by background task created time in ``[created_from, created_to]``.
         :param created_to:  Filter by background task created time in ``[created_from, created_to]``.
@@ -2085,7 +2093,7 @@ class HTTPRunDB(RunDBInterface):
         :param last_update_time_to: Filter by background task last update time in
             ``(last_update_time_from, last_update_time_to)``.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         if (
             not state
             and not created_from
@@ -2221,18 +2229,20 @@ class HTTPRunDB(RunDBInterface):
         elif pipe_file.endswith(".zip"):
             headers = {"content-type": "application/zip"}
         else:
-            raise ValueError("pipeline file must be .yaml or .zip")
+            raise ValueError("'pipeline' file must be .yaml or .zip")
         if arguments:
             if not isinstance(arguments, dict):
-                raise ValueError("arguments must be dict type")
+                raise ValueError("'arguments' must be dict type")
             headers[mlrun.common.schemas.HeaderNames.pipeline_arguments] = str(
                 arguments
             )
 
         if not path.isfile(pipe_file):
-            raise OSError(f"file {pipe_file} doesnt exist")
+            raise OSError(f"File {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
             data = fp.read()
+            if not data:
+                raise ValueError("The compiled pipe file is empty")
         if not isinstance(pipeline, str):
             remove(pipe_file)
 
@@ -2345,16 +2355,17 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         namespace: Optional[str] = None,
         timeout: int = 30,
+        submit_mode: str = "",
     ):
         """
         Retry a specific pipeline run using its run ID. This function sends an API request
-        to retry a pipeline run. If a project is specified, the run must belong to that
-        project; otherwise, all projects are queried.
+        to retry a pipeline run.
 
         :param run_id: The unique ID of the pipeline run to retry.
         :param namespace: Kubernetes namespace where the pipeline is running. Optional.
         :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
         :param project: Name of the MLRun project associated with the pipeline.
+        :param submit_mode: Whether to submit the pipeline directly to the API.
 
         :raises ValueError: Raised if the API response is not successful or contains an
             error.
@@ -2365,6 +2376,9 @@ class HTTPRunDB(RunDBInterface):
         params = {}
         if namespace:
             params["namespace"] = namespace
+
+        if submit_mode:
+            params["submit-mode"] = submit_mode
 
         resp_text = ""
         resp_code = None
@@ -2390,7 +2404,7 @@ class HTTPRunDB(RunDBInterface):
                 namespace=namespace,
                 response_code=resp_code,
                 response_text=resp_text,
-                error=str(exc),
+                error=err_to_str(exc),
             )
             if isinstance(exc, mlrun.errors.MLRunHTTPError):
                 raise exc  # Re-raise known HTTP errors
@@ -2400,6 +2414,72 @@ class HTTPRunDB(RunDBInterface):
 
         logger.info(
             "Successfully retried pipeline run",
+            run_id=run_id,
+            project=project,
+            namespace=namespace,
+        )
+        return resp.json()
+
+    def terminate_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+    ):
+        """
+        Terminate a specific pipeline run using its run ID. This function sends an API request
+        to terminate a pipeline run.
+
+        :param run_id: The unique ID of the pipeline run to terminate.
+        :param namespace: Kubernetes namespace where the pipeline is running. Optional.
+        :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
+        :param project: Name of the MLRun project associated with the pipeline.
+
+        :raises ValueError: Raised if the API response is not successful or contains an
+            error.
+
+        :return: JSON response containing details of the terminate pipeline run background task.
+        """
+
+        params = {}
+        if namespace:
+            params["namespace"] = namespace
+
+        resp_text = ""
+        resp_code = None
+        try:
+            resp = self.api_call(
+                "POST",
+                f"projects/{project}/pipelines/{run_id}/terminate",
+                params=params,
+                timeout=timeout,
+            )
+            resp_code = resp.status_code
+            resp_text = resp.text
+            if not resp.ok:
+                raise mlrun.errors.MLRunHTTPError(
+                    f"Failed to retry pipeline run '{run_id}'. "
+                    f"HTTP {resp_code}: {resp_text}"
+                )
+        except Exception as exc:
+            logger.error(
+                "Failed to invoke terminate pipeline API",
+                run_id=run_id,
+                project=project,
+                namespace=namespace,
+                response_code=resp_code,
+                response_text=resp_text,
+                error=err_to_str(exc),
+            )
+            if isinstance(exc, mlrun.errors.MLRunHTTPError):
+                raise exc  # Re-raise known HTTP errors
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Unexpected error while terminating pipeline run '{run_id}'."
+            ) from exc
+
+        logger.info(
+            "Successfully scheduled terminate pipeline run background task",
             run_id=run_id,
             project=project,
             namespace=namespace,
@@ -2435,7 +2515,7 @@ class HTTPRunDB(RunDBInterface):
         project = (
             project
             or feature_set["metadata"].get("project", None)
-            or config.default_project
+            or config.active_project
         )
         path = f"projects/{project}/feature-sets"
         params = {"versioned": versioned}
@@ -2467,7 +2547,7 @@ class HTTPRunDB(RunDBInterface):
         :param uid: uid of the object to retrieve (can only be used for versioned objects).
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
@@ -2503,7 +2583,7 @@ class HTTPRunDB(RunDBInterface):
             of the feature-set.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2545,7 +2625,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: A list of features, and a list of their corresponding feature sets.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2559,44 +2639,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing features, project: {project}, query: {params}"
         resp = self.api_call("GET", path, error_message, params=params, version="v2")
         return resp.json()
-
-    def list_entities(
-        self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> list[dict]:
-        """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
-        to the :py:func:`~list_features` function, and uses the same logic. However, the entities are matched
-        against the name rather than the features.
-
-        :param project: The project containing the entities.
-        :param name: The name of the entities to retrieve.
-        :param tag: The tag of the specific entity version to retrieve.
-        :param labels: Filter entities by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :returns: A list of entities.
-        """
-
-        project = project or config.default_project
-        labels = self._parse_labels(labels)
-        params = {
-            "name": name,
-            "tag": tag,
-            "label": labels,
-        }
-
-        path = f"projects/{project}/entities"
-
-        error_message = f"Failed listing entities, project: {project}, query: {params}"
-        resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["entities"]
 
     def list_entities_v2(
         self,
@@ -2622,7 +2664,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: A list of entities.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2703,7 +2745,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureSet` objects.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2768,7 +2810,7 @@ class HTTPRunDB(RunDBInterface):
 
         name = name or feature_set["metadata"]["name"]
         project = (
-            project or feature_set["metadata"].get("project") or config.default_project
+            project or feature_set["metadata"].get("project") or config.active_project
         )
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed storing feature-set {project}/{name}"
@@ -2807,7 +2849,7 @@ class HTTPRunDB(RunDBInterface):
         :param patch_mode: The strategy for merging the changes with the existing object. Can be either ``replace``
             or ``additive``.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         reference = self._resolve_reference(tag, uid)
         headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
@@ -2826,7 +2868,7 @@ class HTTPRunDB(RunDBInterface):
         is not allowed.
         If none are specified, then all instances of the object whose name is ``name`` will be deleted.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/feature-sets/{name}"
 
         if tag or uid:
@@ -2858,7 +2900,7 @@ class HTTPRunDB(RunDBInterface):
         project = (
             project
             or feature_vector["metadata"].get("project", None)
-            or config.default_project
+            or config.active_project
         )
         path = f"projects/{project}/feature-vectors"
         params = {"versioned": versioned}
@@ -2884,7 +2926,7 @@ class HTTPRunDB(RunDBInterface):
         """Return a specific feature-vector referenced by its tag or uid. If none are provided, ``latest`` tag will
         be used."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-vector {project}/{name}"
@@ -2930,7 +2972,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureVector` objects.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2994,7 +3036,7 @@ class HTTPRunDB(RunDBInterface):
         project = (
             project
             or feature_vector["metadata"].get("project")
-            or config.default_project
+            or config.active_project
         )
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed storing feature-vector {project}/{name}"
@@ -3029,7 +3071,7 @@ class HTTPRunDB(RunDBInterface):
             or ``additive``.
         """
         reference = self._resolve_reference(tag, uid)
-        project = project or config.default_project
+        project = project or config.active_project
         headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed updating feature-vector {project}/{name}"
@@ -3047,7 +3089,7 @@ class HTTPRunDB(RunDBInterface):
         is not allowed.
         If none are specified, then all instances of the object whose name is ``name`` will be deleted.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/feature-vectors/{name}"
         if tag or uid:
             reference = self._resolve_reference(tag, uid)
@@ -3232,7 +3274,7 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             logger.info("Waiting for project to be deleted", project_name=name)
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name
             )
             if (
@@ -3345,7 +3387,7 @@ class HTTPRunDB(RunDBInterface):
             _verify_project_in_terminal_state,
         )
 
-    def _wait_for_background_task_to_reach_terminal_state(
+    def wait_for_background_task_to_reach_terminal_state(
         self, name: str, project: str = ""
     ) -> mlrun.common.schemas.BackgroundTask:
         def _verify_background_task_in_terminal_state():
@@ -3366,6 +3408,7 @@ class HTTPRunDB(RunDBInterface):
             logger,
             False,
             _verify_background_task_in_terminal_state,
+            fatal_exceptions=(mlrun.errors.MLRunAccessDeniedError,),
         )
 
     def create_project_secrets(
@@ -3584,7 +3627,7 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "type": type,
             "endpoint-id": endpoint_ids,
-            "events_format": events_format,
+            "events-format": events_format,
         }
         error_message = (
             f"Failed to get model monitoring metrics,"
@@ -3720,7 +3763,7 @@ class HTTPRunDB(RunDBInterface):
             path=path,
             body=model_endpoint.json(),
             params={
-                "creation_strategy": creation_strategy,
+                "creation-strategy": creation_strategy,
             },
         )
         return mlrun.common.schemas.ModelEndpoint(**response.json())
@@ -3750,9 +3793,9 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.DELETE,
             path=path,
             params={
-                "function_name": function_name,
-                "function_tag": function_tag,
-                "endpoint_id": endpoint_id,
+                "function-name": function_name,
+                "function-tag": function_tag,
+                "endpoint-id": endpoint_id,
             },
         )
 
@@ -3767,8 +3810,10 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
+        mode: mm_constants.EndpointMode = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -3785,7 +3830,12 @@ class HTTPRunDB(RunDBInterface):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param tsdb_metrics:    Whether to include metrics from the time series DB.
+        :param metric_list:     List of metrics to include from the time series DB. Defaults to all metrics.
+                                If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                will be included.
         :param top_level:       Whether to return only top level model endpoints.
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set
+                                to None.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
         :return:                A list of model endpoints.
@@ -3799,17 +3849,19 @@ class HTTPRunDB(RunDBInterface):
             path=path,
             params={
                 "name": names,
-                "model_name": model_name,
-                "model_tag": model_tag,
-                "function_name": function_name,
-                "function_tag": function_tag,
+                "model-name": model_name,
+                "model-tag": model_tag,
+                "function-name": function_name,
+                "function-tag": function_tag,
                 "label": labels,
                 "start": datetime_to_iso(start),
                 "end": datetime_to_iso(end),
-                "tsdb_metrics": tsdb_metrics,
+                "tsdb-metrics": tsdb_metrics,
+                "metric": metric_list,
                 "top-level": top_level,
+                "mode": mode,
                 "uid": uids,
-                "latest_only": latest_only,
+                "latest-only": latest_only,
             },
         )
 
@@ -3823,6 +3875,7 @@ class HTTPRunDB(RunDBInterface):
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
@@ -3834,6 +3887,9 @@ class HTTPRunDB(RunDBInterface):
         :param function_tag:               The tag of the function
         :param endpoint_id:                The id of the endpoint
         :param tsdb_metrics:               Whether to include metrics from the time series DB.
+        :param metric_list:                List of metrics to include from the time series DB. Defaults to all metrics.
+                                           If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                           will be included.
         :param feature_analysis:           Whether to include feature analysis data (feature_stats,
                                             current_stats & drift_measures).
 
@@ -3847,11 +3903,12 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
-                "function_name": function_name,
-                "function_tag": function_tag,
-                "endpoint_id": endpoint_id,
-                "tsdb_metrics": tsdb_metrics,
-                "feature_analysis": feature_analysis,
+                "function-name": function_name,
+                "function-tag": function_tag,
+                "endpoint-id": endpoint_id,
+                "tsdb-metrics": tsdb_metrics,
+                "metric": metric_list,
+                "feature-analysis": feature_analysis,
             },
         )
 
@@ -3971,6 +4028,7 @@ class HTTPRunDB(RunDBInterface):
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
                 "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             },
+            timeout=300,  # 5 minutes
         )
 
     def disable_model_monitoring(
@@ -4029,7 +4087,7 @@ class HTTPRunDB(RunDBInterface):
                 **response.json()
             ).background_tasks
             for task in background_tasks:
-                task = self._wait_for_background_task_to_reach_terminal_state(
+                task = self.wait_for_background_task_to_reach_terminal_state(
                     task.metadata.name, project=project
                 )
                 if (
@@ -4066,7 +4124,7 @@ class HTTPRunDB(RunDBInterface):
                 **response.json()
             ).background_tasks
             for task in background_tasks:
-                task = self._wait_for_background_task_to_reach_terminal_state(
+                task = self.wait_for_background_task_to_reach_terminal_state(
                     task.metadata.name, project=project
                 )
                 if (
@@ -4098,6 +4156,82 @@ class HTTPRunDB(RunDBInterface):
             path=f"projects/{project}/model-monitoring/credentials",
             params={**credentials, "replace_creds": replace_creds},
         )
+
+    def get_monitoring_function_summaries(
+        self,
+        project: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        names: Optional[Union[list[str], str]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        include_stats: bool = False,
+        include_infra: bool = True,
+    ) -> list[FunctionSummary]:
+        """
+        Get monitoring function summaries for the specified project.
+
+        :param project: The name of the project.
+        :param start: Start time for filtering the results (optional).
+        :param end: End time for filtering the results (optional).
+        :param names: List of function names to filter by (optional).
+        :param labels: Labels to filter by (optional).
+        :param include_stats: Whether to include statistics in the response (default is False).
+        :param include_infra: whether to include model monitoring infrastructure functions (default is True).
+
+        :return: A list of FunctionSummary objects containing information about the monitoring functions.
+        """
+
+        path = f"projects/{project}/model-monitoring/function-summaries"
+        labels = self._parse_labels(labels)
+        if names and isinstance(names, str):
+            names = [names]
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=path,
+            params={
+                "start": datetime_to_iso(start),
+                "end": datetime_to_iso(end),
+                "name": names,
+                "label": labels,
+                "include-stats": include_stats,
+                "include-infra": include_infra,
+            },
+        )
+
+        results = []
+        for item in response.json():
+            results.append(FunctionSummary(**item))
+        return results
+
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> FunctionSummary:
+        """
+        Get a monitoring function summary for the specified project and function.
+        :param project:                The name of the project.
+        :param function_name:          The name of the function.
+        :param start:                  Start time for filtering the results (optional).
+        :param end:                    End time for filtering the results (optional).
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
+
+        :return: A FunctionSummary object containing information about the monitoring function.
+        """
+
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{project}/model-monitoring/function-summaries/{function_name}",
+            params={
+                "start": datetime_to_iso(start),
+                "end": datetime_to_iso(end),
+                "include-latest-metrics": include_latest_metrics,
+            },
+        )
+        return FunctionSummary(**response.json())
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
@@ -4343,11 +4477,11 @@ class HTTPRunDB(RunDBInterface):
         """
         Returns a list of Nuclio api gateways
 
-        :param project: optional str parameter to filter by project, if not passed, default project value is taken
+        :param project: optional str parameter to filter by project, if not passed, active project value is taken
 
         :returns: :py:class:`~mlrun.common.schemas.APIGateways`.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         error = "list api gateways"
         endpoint_path = f"projects/{project}/api-gateways"
         response = self.api_call("GET", endpoint_path, error)
@@ -4358,11 +4492,11 @@ class HTTPRunDB(RunDBInterface):
         Returns an API gateway
 
         :param name: API gateway name
-        :param project: optional str parameter to filter by project, if not passed, default project value is taken
+        :param project: optional str parameter to filter by project, if not passed, active project value is taken
 
         :returns:  :py:class:`~mlrun.common.schemas.APIGateway`.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         error = "get api gateway"
         endpoint_path = f"projects/{project}/api-gateways/{name}"
         response = self.api_call("GET", endpoint_path, error)
@@ -4375,7 +4509,7 @@ class HTTPRunDB(RunDBInterface):
         :param name: API gateway name
         :param project: Project name
         """
-        project = project or config.default_project
+        project = project or config.active_project
         error = "delete api gateway"
         endpoint_path = f"projects/{project}/api-gateways/{name}"
         self.api_call("DELETE", endpoint_path, error)
@@ -4611,6 +4745,28 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.common.schemas.GetWorkflowResponse(**response.json())
 
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool = False
+    ):
+        """
+        Toggle the “retrying” label on a workflow-runner run.
+
+        This will POST to the workflows endpoint to either add or remove the
+        `retrying` flag on a specific run, which prevents parallel retries.
+
+        :param project:   The project name under which the workflow is defined.
+        :param name:      The workflow name (as in the URL path).
+        :param run_id:    The UID of the workflow-runner run to update.
+        :param retrying:  True to add the `retrying` label, False to remove it.
+
+        :raises MLRunHTTPError: If the HTTP request fails or returns an error status.
+        """
+        path = f"projects/{project}/workflows/{name}/runs/{run_id}/set-retry-status"
+        params = {"retrying": retrying}
+        self.api_call(
+            "POST", path, f"set retrying on {project}/{run_id}", params=params
+        )
+
     def load_project(
         self,
         name: str,
@@ -4659,7 +4815,7 @@ class HTTPRunDB(RunDBInterface):
     def get_datastore_profile(
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
-        project = project or config.default_project
+        project = project or config.active_project
         _path = self._path_of("datastore-profiles", project, name)
 
         res = self.api_call(method="GET", path=_path)
@@ -4672,7 +4828,7 @@ class HTTPRunDB(RunDBInterface):
         return None
 
     def delete_datastore_profile(self, name: str, project: str):
-        project = project or config.default_project
+        project = project or config.active_project
         _path = self._path_of("datastore-profiles", project, name)
         self.api_call(method="DELETE", path=_path)
         return None
@@ -4680,7 +4836,7 @@ class HTTPRunDB(RunDBInterface):
     def list_datastore_profiles(
         self, project: str
     ) -> list[mlrun.common.schemas.DatastoreProfile]:
-        project = project or config.default_project
+        project = project or config.active_project
         _path = self._path_of("datastore-profiles", project)
 
         res = self.api_call(method="GET", path=_path)
@@ -4700,7 +4856,7 @@ class HTTPRunDB(RunDBInterface):
         Create or replace a datastore profile.
         :returns: None
         """
-        project = project or config.default_project
+        project = project or config.active_project
         _path = self._path_of("datastore-profiles", project)
 
         self.api_call(method="PUT", path=_path, json=profile.dict())
@@ -4735,7 +4891,7 @@ class HTTPRunDB(RunDBInterface):
         if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
             logger.warning("Alerts are disabled, event will not be generated")
 
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/events/{name}"
         error_message = f"post event {project}/events/{name}"
         if isinstance(event_data, mlrun.common.schemas.Event):
@@ -4768,7 +4924,7 @@ class HTTPRunDB(RunDBInterface):
                 "Alerts are disabled, alert will still be stored but will not be triggered"
             )
 
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"put alert {project}/alerts/{alert_name}"
         alert_instance = (
@@ -4797,7 +4953,7 @@ class HTTPRunDB(RunDBInterface):
 
         :returns:           The alert object.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"get alert {project}/alerts/{alert_name}"
         response = self.api_call("GET", endpoint_path, error_message)
@@ -4816,7 +4972,7 @@ class HTTPRunDB(RunDBInterface):
 
         :returns: All the alerts objects of the project.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts"
         error_message = f"get alerts {project}/alerts"
         params = {}
@@ -4839,7 +4995,7 @@ class HTTPRunDB(RunDBInterface):
         :param alert_name: The name of the alert to delete.
         :param project: The project that the alert belongs to.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"delete alert {project}/alerts/{alert_name}"
         self.api_call("DELETE", endpoint_path, error_message)
@@ -4851,7 +5007,7 @@ class HTTPRunDB(RunDBInterface):
         :param alert_name: The name of the alert to reset.
         :param project: The project that the alert belongs to.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}/reset"
         error_message = f"post alert {project}/alerts/{alert_name}/reset"
         self.api_call("POST", endpoint_path, error_message)
@@ -5004,7 +5160,7 @@ class HTTPRunDB(RunDBInterface):
         :param activation_id: alert activation id.
         :returns: alert activation object.
         """
-        project = project or config.default_project
+        project = project or config.active_project
 
         error = "get alert activation"
         path = f"projects/{project}/alert-activations/{activation_id}"
@@ -5022,12 +5178,44 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project name for which the summary belongs.
         :returns: A summary of the project.
         """
-        project = project or config.default_project
+        project = project or config.active_project
 
         endpoint_path = f"project-summaries/{project}"
         error_message = f"Failed retrieving project summary for {project}"
         response = self.api_call("GET", endpoint_path, error_message)
         return mlrun.common.schemas.ProjectSummary(**response.json())
+
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
+        """
+        Get drift counts over time for the project.
+
+        This method returns a list of tuples, each representing a time-interval (in a granularity set by the
+        duration of the given time range) and the number of suspected drifts and detected drifts in that interval.
+        For a range of 6 hours or less, the granularity is 10 minute, for a range of 2 hours to 72 hours, the
+        granularity is 1 hour, and for a range of more than 72 hours, the granularity is 24 hours.
+
+        :param project: The name of the project for which to retrieve drift counts.
+        :param start: Start time of the range to retrieve drift counts from.
+        :param end: End time of the range to retrieve drift counts from.
+
+        :return: A ModelEndpointDriftValues object containing the drift counts over time.
+        """
+        endpoint_path = f"projects/{project}/model-endpoints/drift-over-time"
+        error_message = f"Failed retrieving drift data for {project}"
+        response = self.api_call(
+            method="GET",
+            path=endpoint_path,
+            error=error_message,
+            params={"start": start, "end": end},
+        )
+        return mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues(
+            **response.json()
+        )
 
     @staticmethod
     def _parse_labels(
@@ -5065,6 +5253,7 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
         producer_uri: Optional[str] = None,
+        parent: Optional[str] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -5086,8 +5275,15 @@ class HTTPRunDB(RunDBInterface):
     ) -> tuple[ArtifactList, Optional[str]]:
         """Handles list artifacts, both paginated and not."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
+
+        if limit:
+            # TODO: Remove this in 1.11.0
+            warnings.warn(
+                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
+                FutureWarning,
+            )
 
         params = {
             "name": name,
@@ -5106,6 +5302,7 @@ class HTTPRunDB(RunDBInterface):
             "page": page,
             "page-size": page_size,
             "page-token": page_token,
+            "parent": parent,
         }
 
         if partition_by:
@@ -5155,7 +5352,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> tuple[list, Optional[str]]:
         """Handles list functions, both paginated and not."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -5188,9 +5385,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -5217,18 +5411,11 @@ class HTTPRunDB(RunDBInterface):
     ) -> tuple[RunList, Optional[str]]:
         """Handles list runs, both paginated and not."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         if with_notifications:
             logger.warning(
                 "Local run notifications are not persisted in the DB, therefore local runs will not be returned when "
                 "using the `with_notifications` flag."
-            )
-
-        if state:
-            # TODO: Remove this in 1.9.0
-            warnings.warn(
-                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
-                FutureWarning,
             )
 
         labels = self._parse_labels(labels)
@@ -5237,7 +5424,6 @@ class HTTPRunDB(RunDBInterface):
             not name
             and not uid
             and not labels
-            and not state
             and not states
             and not start_time_from
             and not start_time_to
@@ -5258,11 +5444,7 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "uid": uid,
             "label": labels,
-            "state": (
-                mlrun.utils.helpers.as_list(state)
-                if state is not None
-                else states or None
-            ),
+            "states": states or None,
             "sort": bool2str(sort),
             "iter": bool2str(iter),
             "start_time_from": datetime_to_iso(start_time_from),
@@ -5320,7 +5502,7 @@ class HTTPRunDB(RunDBInterface):
         page_token: Optional[str] = None,
         return_all: bool = False,
     ) -> tuple[mlrun.common.schemas.AlertActivations, Optional[str]]:
-        project = project or config.default_project
+        project = project or config.active_project
         params = {
             "name": name,
             "since": datetime_to_iso(since),
@@ -5355,7 +5537,7 @@ class HTTPRunDB(RunDBInterface):
     def _wait_for_background_task_from_response(self, response):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            return self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name
             )
         return None

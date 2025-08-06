@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 
 import pydantic.v1
@@ -44,6 +44,16 @@ class WorkflowRequest(pydantic.v1.BaseModel):
     run_name: typing.Optional[str] = None
     namespace: typing.Optional[str] = None
     notifications: typing.Optional[list[Notification]] = None
+
+
+class RerunWorkflowRequest(pydantic.v1.BaseModel):
+    run_name: typing.Optional[str] = None
+    run_id: typing.Optional[str] = None
+    notifications: typing.Optional[list[Notification]] = None
+    workflow_runner_node_selector: typing.Optional[dict[str, str]] = None
+    original_workflow_runner_uid: typing.Optional[str] = None
+    original_workflow_name: typing.Optional[str] = None
+    rerun_index: typing.Optional[int] = None
 
 
 class WorkflowResponse(pydantic.v1.BaseModel):

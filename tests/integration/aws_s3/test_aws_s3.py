@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import os.path
 import tempfile
@@ -178,16 +178,7 @@ class TestAwsS3:
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param))
 
     def test_using_env_variables(self):
-        # Use "naked" env variables, useful in client-side sdk.
-        for param in credential_params:
-            os.environ[param] = self.env[param]
-            os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
-
         self._perform_aws_s3_tests()
-
-        # cleanup
-        for param in credential_params:
-            os.environ.pop(param)
 
     def test_using_dataitem_secrets(
         self,

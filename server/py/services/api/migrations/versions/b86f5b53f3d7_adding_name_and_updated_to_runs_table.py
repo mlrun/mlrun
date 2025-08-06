@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 """Adding name and updated to runs table
 
 Revision ID: b86f5b53f3d7
@@ -25,7 +25,7 @@ import datetime
 import sqlalchemy as sa
 from alembic import op
 
-import framework.utils.db.sql_types
+import framework.db.sqldb.sql_types
 
 # revision identifiers, used by Alembic.
 revision = "b86f5b53f3d7"
@@ -42,7 +42,7 @@ def upgrade():
             "name",
             sa.String(
                 length=255,
-                collation=framework.utils.db.sql_types.SQLTypesUtil.collation(),
+                collation=framework.db.sqldb.sql_types.SQLTypesUtil.collation(),
             ),
             default="no-name",
         ),

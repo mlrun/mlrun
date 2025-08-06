@@ -15,14 +15,17 @@ import unittest.mock
 
 import pytest
 
+import mlrun.utils
+import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 
 @pytest.fixture
-def client():
-    client_klass = mlrun_pipelines.utils.ExtendedKfpClient
+def client(monkeypatch):
+    client_klass = mlrun_pipelines.client.Client
     client_klass.get_kfp_healthz = unittest.mock.MagicMock()
-    return client_klass()
+    monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
+    return client_klass(logger=mlrun.utils.logger)
 
 
 @pytest.mark.parametrize(
@@ -41,3 +44,32 @@ def client():
 )
 def test_normalize_retry_run(client, original_name, project, expected):
     assert client._normalize_retry_run(original_name, project) == expected
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("simple", "simple"),  # lowercase, already valid
+        ("MiXeD_CaSe", "mixed_case"),  # mixed case → lower-case kept
+        ("with space", "with_space"),  # spaces → underscore
+        ("double  space", "double_space"),  # condensed invalid runs → single _
+        ("leading_", "leading"),  # leading stripped
+        ("trailing!", "trailing"),  # trailing invalid char stripped
+        ("--many!!bad$$chars--", "--many_bad_chars--"),  # multiple invalid segments
+        ("___already_ok___", "already_ok"),  # leading/trailing underscores removed
+        ("", ""),  # empty string stays empty
+    ],
+)
+def test_sanitize_expected(raw, expected):
+    assert mlrun_pipelines.client.sanitize_input_name(raw) == expected
+
+
+def test_idempotent():
+    """Calling the function twice should be a no-op."""
+    name = "a__valid_name"
+    assert (
+        mlrun_pipelines.client.sanitize_input_name(
+            mlrun_pipelines.client.sanitize_input_name(name)
+        )
+        == name
+    )

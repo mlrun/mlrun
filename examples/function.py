@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 # for this function to run in nuclio you need to:
 # - set the python base image e.g.:
 #     python:3.6-jessie

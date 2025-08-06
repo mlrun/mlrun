@@ -43,7 +43,12 @@ def test_extras_requirement_file_aligned():
     )
     # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
     # we exclude them from the comparison
-    excluded_packages = ["mlrun_pipelines_kfp_v1_8", "mlrun_pipelines_kfp_v2"]
+    excluded_packages = [
+        "mlrun_pipelines_kfp_v1_8",
+        "mlrun_pipelines_kfp_v1_8[kfp]",
+        "pytest-mock-resources[postgres]",
+        "mlrun_pipelines_kfp_v2",
+    ]
     for package in excluded_packages:
         if package in setup_py_extras_requirements_specifiers_map:
             setup_py_extras_requirements_specifiers_map.pop(package)
@@ -72,8 +77,12 @@ def test_requirement_specifiers_convention():
     invalid_requirement_specifiers_map = collections.defaultdict(set)
     for requirement_name, requirement_specifiers in requirement_specifiers_map.items():
         for requirement_specifier in requirement_specifiers:
-            # we don't care about what's coming after the ; (it will be something like "python_version < '3.7'")
-            tested_requirement_specifier = requirement_specifier.split(";")[0]
+            # Remove any optional extras ([…]) and environment markers (; …) so we only
+            # validate the core "~=X.Y(.Z)" specifier.
+            raw = requirement_specifier.split(";", 1)[0]
+            if raw.startswith("["):
+                raw = raw.split("]", 1)[1]
+            tested_requirement_specifier = raw
             invalid_requirement = False
             if not tested_requirement_specifier.startswith("~="):
                 invalid_requirement = True
@@ -118,10 +127,9 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.8.11"},
+        "storey": {"~=1.10.9"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
-        "sphinx-book-theme": {"~=1.0.1"},
         "scipy": {"~=1.13.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
@@ -134,19 +142,22 @@ def test_requirement_specifiers_convention():
         "databricks-sdk": {"~=0.20.0"},
         "docstring_parser": {"~=0.16"},
         "gitpython": {"~=3.1, >=3.1.41"},
-        "jinja2": {"~=3.1, >=3.1.3"},
+        "jinja2": {"~=3.1, >=3.1.6"},
         "pyopenssl": {">=23"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
         "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
         "aioresponses": {"~=0.7"},
+        "testcontainers[k3s]": {"~=4.10.0"},
         "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
+        "dask[array,dataframe,distributed]": {
+            '~=2023.12.1; python_version < "3.11"',
+        },
         "dask": {
             '~=2024.12.1; python_version >= "3.11"',
-            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
@@ -157,8 +168,13 @@ def test_requirement_specifiers_convention():
             '~=1.4,<1.9.0; python_version < "3.11"',
             '~=2024.4.4; python_version >= "3.11"',
         },
+        "dask[complete]": {
+            '~=2024.12.1; python_version >= "3.11"',
+        },
         "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
         "grpcio": {"~=1.70.0"},
+        "snowballstemmer": {"!=3.0.0"},
+        "kafka-python": {"~=2.1.0"},
     }
 
     for (
@@ -205,7 +221,6 @@ def test_requirement_specifiers_inconsistencies():
         },
         "dask": {
             '~=2024.12.1; python_version >= "3.11"',
-            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
@@ -258,10 +273,58 @@ def test_requirement_from_remote():
     }
 
 
-def _generate_all_requirement_specifiers_map() -> dict[str, set]:
-    requirements_file_paths = list(
-        pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
+def parse_gitignore_dirs(gitignore_path: pathlib.Path) -> tuple[set[str], set[str]]:
+    exact_dir_names = set()
+    substring_tokens = set()
+
+    if gitignore_path.exists():
+        for raw_line in gitignore_path.read_text().splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.endswith("/"):
+                exact_dir_names.add(line.lstrip("*/").rstrip("/"))
+            elif line.startswith("*") and line.endswith("*"):
+                substring_tokens.add(line.strip("*").rstrip("/"))
+
+    return exact_dir_names, substring_tokens
+
+
+def find_requirement_files() -> list[pathlib.Path]:
+    always_skip = {"venv", ".git", "__pycache__"}
+
+    project_root = pathlib.Path(tests.conftest.root_path)
+
+    exact_skips, substring_skips = parse_gitignore_dirs(project_root / ".gitignore")
+    exact_skips.update(always_skip)
+
+    extra_search_roots = (
+        project_root / "dockerfiles",
+        project_root / "automation",
+        project_root / "docs",
     )
+
+    def is_valid(path: pathlib.Path) -> bool:
+        if path.name == "locked-requirements.txt":
+            return False
+        for part in path.parts:
+            if part in exact_skips or any(token in part for token in substring_skips):
+                return False
+        return True
+
+    requirement_files = [
+        path for path in project_root.glob("*requirements.txt") if is_valid(path)
+    ]
+    for search_root in extra_search_roots:
+        requirement_files.extend(
+            path for path in search_root.rglob("**/*requirements.txt") if is_valid(path)
+        )
+
+    return requirement_files
+
+
+def _generate_all_requirement_specifiers_map() -> dict[str, set]:
+    requirements_file_paths = find_requirement_files()
     venv_path = pathlib.Path(tests.conftest.root_path) / "venv"
     requirements_file_paths = [
         path
@@ -283,8 +346,8 @@ def _parse_requirement_specifiers_list(
 ) -> dict[str, set]:
     specific_module_regex = (
         r"^"
-        r"(?P<requirementName>[a-zA-Z\-0-9_]+)"
-        r"(?P<requirementExtra>\[[a-zA-Z\-0-9_]+\])?"
+        r"(?P<requirementName>[a-zA-Z0-9_\-]+)"
+        r"(?P<requirementExtra>\[[a-zA-Z0-9_\-,]+\])?"
         r"(?P<requirementSpecifier>.*)"
     )
     remote_location_regex = (
@@ -301,8 +364,14 @@ def _parse_requirement_specifiers_list(
         assert (
             match is not None
         ), f"Requirement specifier did not matched regex. {requirement_specifier}"
-        requirement_name = match.groupdict()["requirementName"].lower()
-        requirement_specifier = match.groupdict()["requirementSpecifier"]
+        gd = match.groupdict()
+        extras = gd.get("requirementExtra")
+        if extras:
+            extras = (
+                "[" + ",".join(sorted(e.strip() for e in extras[1:-1].split(","))) + "]"
+            )
+        requirement_name = (gd["requirementName"] + (extras or "")).lower()
+        requirement_specifier = gd["requirementSpecifier"]
         requirement_specifiers_map[requirement_name].add(requirement_specifier)
     return requirement_specifiers_map
 

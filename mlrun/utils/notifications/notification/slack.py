@@ -16,6 +16,7 @@ import typing
 
 import aiohttp
 
+import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.utils.helpers
@@ -177,7 +178,10 @@ class SlackNotification(NotificationBase):
         # Only show the URL if the run is not a function (serving or mlrun function)
         kind = run.get("step_kind")
         state = run["status"].get("state", "")
-        if state != "skipped" and (url and not kind or kind == "run"):
+
+        if state != runtimes_constants.RunStates.skipped and (
+            url and not kind or kind == "run"
+        ):
             line = f'<{url}|*{meta.get("name")}*>'
         else:
             line = meta.get("name")

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import copy
 import json
@@ -1111,7 +1111,7 @@ class Scheduler:
                     schedule_name,
                 )
 
-            _, _, _, response = framework.api.utils.submit_run_sync(
+            _, _, _, response = framework.api.utils.submit_run_from_body(
                 db_session, auth_info, scheduled_object
             )
 

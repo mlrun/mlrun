@@ -16,10 +16,13 @@ import base64
 import json
 import os
 import pathlib
+import re
 import sys
 import typing
+import urllib.parse
 from tempfile import NamedTemporaryFile
 
+import git
 import igz_mgmt
 import kubernetes.client as k8s_client
 import kubernetes.config
@@ -435,3 +438,51 @@ class TestMLRunSystem:
                     source_path
                 )
         self.uploaded_code = True
+
+    @staticmethod
+    def _resolve_current_git_branch_and_fork():
+        """
+        Resolve the current git branch and fork name.
+        Falls back to any available remote if 'origin' is not found.
+        """
+        repo = git.Repo(search_parent_directories=True)
+
+        # Try to get the 'origin' remote, or fall back to the first available remote
+        remote = (
+            repo.remotes.origin
+            if "origin" in repo.remotes
+            else next(iter(repo.remotes), None)
+        )
+        if remote is None:
+            raise RuntimeError("No remotes found in the Git repository.")
+
+        git_url = remote.url
+        fork = TestMLRunSystem._extract_fork(git_url)
+        branch = repo.active_branch.name
+
+        return branch, fork
+
+    @staticmethod
+    def _extract_fork(git_url: str) -> str:
+        """
+        Return the user / organisation part (“fork”) from common Git remote URLs.
+        Supports:
+          • git@github.com:<fork>/<repo>.git      (classic SSH / scp-like)
+          • https://github.com/<fork>/<repo>.git  (HTTPS)
+          • ssh://git@github.com/<fork>/<repo>.git
+          • git://github.com/<fork>/<repo>.git
+        """
+        # 1) scp-like SSH form: git@github.com:fork/repo(.git)
+        match = re.match(r"git@[^:]+:([^/]+)/", git_url)
+        if match:
+            return match.group(1)
+
+        # 2) Anything with “://” – let urlparse do the heavy lifting
+        if "://" in git_url:
+            parsed = urllib.parse.urlparse(git_url)
+            # parsed.path -> "/fork/repo.git"; we only need the first component
+            parts = [p for p in parsed.path.split("/") if p]
+            if len(parts) >= 2:
+                return parts[0]
+
+        raise ValueError(f"Could not extract fork from git URL: {git_url}")

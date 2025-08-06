@@ -46,7 +46,7 @@ def get_url_and_storage_options(path, external_storage_options=None):
         storage_options = merge(external_storage_options, storage_options)
     else:
         storage_options = storage_options or external_storage_options
-    return url, DataStore._sanitize_storage_options(storage_options)
+    return url, DataStore._sanitize_options(storage_options)
 
 
 class TDEngineStoreyTarget(storey.TDEngineTarget):
@@ -152,9 +152,7 @@ class KafkaStoreyTarget(storey.KafkaTarget):
                 parsed.path.strip("/") if parsed.path else datastore_profile.get_topic()
             )
         else:
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
+            brokers = attributes.pop("brokers", None)
             topic, brokers = parse_kafka_url(path, brokers)
 
         if not topic:
@@ -175,8 +173,7 @@ class RedisNoSqlStoreyTarget(storey.NoSqlTarget):
     def __init__(self, *args, **kwargs):
         path = kwargs.pop("path")
         endpoint, uri = mlrun.datastore.targets.RedisNoSqlTarget.get_server_endpoint(
-            path,
-            kwargs.pop("credentials_prefix", None),
+            path
         )
         kwargs["path"] = endpoint + "/" + uri
         super().__init__(*args, **kwargs)

@@ -16,8 +16,7 @@
 ### Default Owners ###
 ######################
 
-# The main owner of this repo is platform team,
-# any change that won't match a specific owner will automatically be assigned to them.
+# By default, any change that won't match a specific owner will be assigned to platform-owners.
 # (The last match is the one that applies, keep that in mind when adding new lines)
 ** @mlrun/platform-owners
 
@@ -89,6 +88,8 @@ server/go/** @TomerShor @mlrun/platform-owners
 # so quaark owns the server/py/framework directory and all its subdirectories
 # any specific file that has a different owner should be listed explicitly
 server/py/framework/** @quaark @mlrun/platform-owners
+server/py/framework/db/sqldb/db.py @quaark @davesh0812 @mlrun/platform-owners @mlrun/data-flows-owners
+server/py/framework/db/sqldb/models.py @quaark @davesh0812 @mlrun/platform-owners @mlrun/data-flows-owners
 mlrun/api/** @quaark @mlrun/platform-owners
 mlrun/common/schemas/** @quaark @mlrun/platform-owners
 mlrun/common/formatters/** @quaark @mlrun/platform-owners
@@ -200,7 +201,7 @@ mlrun/data_types/** @mlrun/data-flows-owners
 mlrun/model_monitoring/** @mlrun/data-flows-owners
 mlrun/common/model_monitoring/** @mlrun/data-flows-owners
 
-# framewarks, packagers and trackers are owned by mle-owners
+# frameworks, packagers and trackers are owned by mle-owners
 mlrun/frameworks/** @mlrun/mle-owners
 mlrun/package/** @mlrun/mle-owners
 mlrun/track/** @mlrun/mle-owners

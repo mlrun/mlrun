@@ -1,6 +1,8 @@
 (test-deploy-model-server)=
 # Test and deploy a model server
 
+Use MLRun's mock server to test your model before deploying it. 
+
 **In this section**
 - [Testing the model](#testing-the-model)
 - [Deploying the model](#deploying-the-model)

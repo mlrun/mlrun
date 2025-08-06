@@ -36,9 +36,9 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ("fqn", "expected_result", "expectation"),
     [
         (
-            "1infer-model-tsdb-t3.histogram-data-drift.result.general_drift",
+            "infer-model-tsdb-t3.histogram-data-drift.result.general_drift",
             ModelEndpointMonitoringMetric(
-                project="1infer-model-tsdb-t3",
+                project="infer-model-tsdb-t3",
                 app="histogram-data-drift",
                 type=ModelEndpointMonitoringMetricType.RESULT,
                 name="general_drift",
@@ -46,12 +46,12 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
             does_not_raise(),
         ),
         (
-            "proj_j.app-123.metric.error-count",
+            "proj-j.app-123.metric.error_count",
             ModelEndpointMonitoringMetric(
-                project="proj_j",
+                project="proj-j",
                 app="app-123",
                 type=ModelEndpointMonitoringMetricType.METRIC,
-                name="error-count",
+                name="error_count",
             ),
             does_not_raise(),
         ),
@@ -69,12 +69,21 @@ def test_fqn_parsing(
 
 
 @pytest.mark.parametrize(
-    ("flat_mep", "expectation"),
+    ("flat_mep", "validate", "expectation"),
     [
-        ({"project": "proj-1", "uid": "ok_30", "name": "test"}, does_not_raise()),
-        ({}, pytest.raises(pydantic.v1.ValidationError)),
+        (
+            {
+                "project": "proj-1",
+                "uid": "81d488cf-0104-4bb4-98c4-e4fd1204e82f",
+                "name": "test",
+            },
+            True,
+            does_not_raise(),
+        ),
+        ({}, True, pytest.raises(pydantic.v1.ValidationError)),
         (
             {"project": "im-fine-10"},
+            True,
             pytest.raises(
                 pydantic.v1.ValidationError,
                 match=(
@@ -87,24 +96,28 @@ def test_fqn_parsing(
         ),
         (
             {"project": "im-fine-10", "uid": "xx' OR '1'='1", "name": "test"},
+            True,
             pytest.raises(
                 pydantic.v1.ValidationError,
-                match=(
-                    re.escape(
-                        "1 validation error for ModelEndpointMetadata\nuid\n  "
-                        "string does not match regex "
-                        '"^[a-zA-Z0-9_-]+$" (type=value_error.str.regex; pattern=^[a-zA-Z0-9_-]+$)'
-                    )
+                match=re.escape(
+                    "1 validation error for ModelEndpointMetadata\nuid\n  "
+                    "string does not match regex "
+                    '"^[a-zA-Z0-9_-]+$" (type=value_error.str.regex; pattern=^[a-zA-Z0-9_-]+$)'
                 ),
             ),
+        ),
+        (
+            {"project": "im-fine-10", "uid": "xx' OR '1'='1", "name": "test"},
+            False,
+            does_not_raise(),
         ),
     ],
 )
 def test_model_endpoint_from_flat_dict(
-    flat_mep: dict[str, Any], expectation: AbstractContextManager
+    flat_mep: dict[str, Any], validate: bool, expectation: AbstractContextManager
 ) -> None:
     with expectation:
-        ModelEndpoint.from_flat_dict(flat_mep)
+        ModelEndpoint.from_flat_dict(flat_mep, validate=validate)
 
 
 def test_project_pattern() -> None:

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import pytest
 
@@ -44,10 +43,9 @@ def test_compiled_function_config_nuclio_golang():
 
 def test_compiled_function_config_nuclio_python():
     name = f"{assets_path}/training.py"
-    fn = mlrun.code_to_function(
-        "nuclio", filename=name, kind="nuclio", handler="my_hand"
-    )
-    fn.metadata.annotations = {"something": "somewhat"}
+    project = mlrun.get_or_create_project("test")
+    fn = project.set_function(name, name="nuclio", kind="nuclio", handler="my_hand")
+    fn.with_annotations({"something": "somewhat"})
     (
         name,
         project,

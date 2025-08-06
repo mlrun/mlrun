@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import tempfile
 import unittest.mock
@@ -77,22 +77,26 @@ def test_add_code_metadata_stale_remote(repo):
             None,
             {
                 mlrun_constants.MLRunInternalLabels.owner: mlrun_constants.MLRunInternalLabels.v3io_user,
-                mlrun_constants.MLRunInternalLabels.v3io_user: mlrun_constants.MLRunInternalLabels.v3io_user,
             },
             None,
         ),
         (
             {},
-            {},
+            None,
             {mlrun_constants.MLRunInternalLabels.owner: "test_user"},
             {"LOGNAME": "test_user", "V3IO_USERNAME": ""},
         ),
         (
-            {mlrun_constants.MLRunInternalLabels.owner: "Mahatma"},
             {},
+            {},
+            {},
+            {"LOGNAME": "test_user", "V3IO_USERNAME": ""},
+        ),
+        (
+            {mlrun_constants.MLRunInternalLabels.owner: "Mahatma"},
+            None,
             {
                 mlrun_constants.MLRunInternalLabels.owner: "Mahatma",
-                mlrun_constants.MLRunInternalLabels.v3io_user: mlrun_constants.MLRunInternalLabels.v3io_user,
             },
             None,
         ),
@@ -110,7 +114,7 @@ def test_add_code_metadata_stale_remote(repo):
         ),
         (
             {"a": "A", "b": "B"},
-            {mlrun.common.runtimes.constants.RunLabels.owner},
+            {mlrun_constants.MLRunInternalLabels.owner},
             {
                 "a": "A",
                 "b": "B",

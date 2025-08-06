@@ -11,15 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from sqlalchemy.orm import Session
 
 import mlrun.utils.helpers
-from mlrun.common.db.sql_session import create_session as sqldb_create_session
+
+import framework.db.sqldb.sql_session
 
 
 def create_session() -> Session:
-    return sqldb_create_session()
+    return framework.db.sqldb.sql_session.create_session()
 
 
 def close_session(db_session):

@@ -31,8 +31,9 @@ from typing import Optional
 
 import dotenv
 
+from .common.constants import MLRUN_ACTIVE_PROJECT
 from .config import config as mlconf
-from .datastore import DataItem, store_manager
+from .datastore import DataItem, ModelProvider, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
@@ -55,12 +56,14 @@ from .run import (
     code_to_function,
     function_to_module,
     get_dataitem,
+    get_model_provider,
     get_object,
     get_or_create_ctx,
     get_pipeline,
     import_function,
     new_function,
     retry_pipeline,
+    terminate_pipeline,
     wait_for_pipeline_completion,
 )
 from .runtimes import mounts, new_model_server
@@ -120,7 +123,7 @@ def set_environment(
     :param mock_functions: set to True to create local/mock functions instead of real containers,
                            set to "auto" to auto determine based on the presence of k8s/Nuclio
     :returns:
-        default project name
+        active project name
         actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
     if env_file:
@@ -161,15 +164,33 @@ def set_environment(
             )
         mlconf.artifact_path = artifact_path
 
-    return mlconf.default_project, mlconf.artifact_path
+    return mlconf.active_project, mlconf.artifact_path
 
 
 def get_current_project(silent: bool = False) -> Optional[MlrunProject]:
-    if not pipeline_context.project and not silent:
+    if pipeline_context.project:
+        return pipeline_context.project
+
+    project_name = environ.get(MLRUN_ACTIVE_PROJECT, None)
+    if not project_name:
+        if not silent:
+            raise MLRunInvalidArgumentError(
+                "No current project is initialized. Use new, get or load project functions first."
+            )
+        return None
+
+    project = load_project(
+        name=project_name,
+        url=project_name,
+        save=False,
+        sync_functions=False,
+    )
+
+    if not project and not silent:
         raise MLRunInvalidArgumentError(
             "No current project is initialized. Use new, get or load project functions first."
         )
-    return pipeline_context.project
+    return project
 
 
 def get_sample_path(subpath=""):
@@ -217,5 +238,6 @@ def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict
     for key, value in env_vars.items():
         environ[key] = value
 
-    mlconf.reload()  # reload mlrun configuration
+    # reload mlrun configuration
+    mlconf.reload()
     return env_vars if return_dict else None

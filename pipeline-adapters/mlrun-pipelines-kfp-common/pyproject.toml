@@ -1,0 +1,39 @@
+[project]
+name = "mlrun-pipelines-kfp-common"
+version = "0.5.8"
+description = "MLRun Pipelines adapter package for providing KFP common functionality"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  { name = "Yaron Haviv", email = "yaronh@iguazio.com" }
+]
+license = { text = "Apache License 2.0" }
+keywords = ["mlrun", "kfp"]
+urls = { homepage = "https://github.com/mlrun/mlrun" }
+dependencies = [
+   # TODO remove the kfp_server_api version requirement once KFP 1.8 support is removed
+  "kfp_server_api~=1.8",
+  "kubernetes>=25.3"
+]
+
+[project.optional-dependencies]
+ipython = [
+  "graphviz>=0.20",
+  "ipython>=8.10"
+]
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["mlrun_pipelines.common"]
+
+# TODO: Uncomment once mlrun is removed as a dependency
+#[[tool.importlinter.contracts]]
+#name = "forbid-mlrun-import"
+#forbidden = ["mlrun"]

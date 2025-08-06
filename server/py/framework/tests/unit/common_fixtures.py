@@ -33,7 +33,6 @@ import mlrun.launcher.factory
 import mlrun.runtimes.utils
 import mlrun.utils.singleton
 from mlrun import mlconf
-from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
@@ -45,6 +44,7 @@ import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
+from framework.db.sqldb.sql_session import _init_engine, create_session
 from services.api.initial_data import init_data
 
 
@@ -154,6 +154,18 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 
 class TestServiceBase:
+    @classmethod
+    def setup_class(cls):
+        cls.custom_setup_class()
+
+    @classmethod
+    def custom_setup_class(cls):
+        """
+        This method is called after the class is created, allowing for custom setup.
+        It can be overridden by inheriting classes to perform additional setup.
+        """
+        pass
+
     @pytest.fixture(scope="module")
     def app(self) -> fastapi.FastAPI:
         raise NotImplementedError(
@@ -214,9 +226,8 @@ class TestServiceBase:
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
 
-            # forcing from scratch because we created an empty file for the db
             # TODO: init data initializes the tables, we should remove this coupling with the API service code
-            init_data(from_scratch=True)
+            init_data()
             framework.utils.singletons.db.initialize_db()
             framework.utils.singletons.project_member.initialize_project_member()
 

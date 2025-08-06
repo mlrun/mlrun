@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 """adding artifacts_v2 table
 
 Revision ID: b268044fa2f7
@@ -24,7 +24,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
 
-from framework.utils.db.sql_types import SQLTypesUtil
+from framework.db.sqldb.sql_types import SQLTypesUtil
 
 # revision identifiers, used by Alembic.
 revision = "b268044fa2f7"

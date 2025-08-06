@@ -85,8 +85,9 @@ def handler(context, event):
 
     # Query vector store
     results = context.user_data.collection.query(
-        query_texts=[question], n_results=3, where={"topic": {"$eq": topic.upper()}}
+        query_texts=[question], n_results=1, where={"topic": {"$eq": topic.upper()}}
     )
+
     sources = list({r["link"] for r in results["metadatas"][0]})
 
     # Construct prompt
@@ -95,6 +96,7 @@ def handler(context, event):
 
     # Generate result
     resp = context.user_data.pipe(prompt)
+
     generated = resp[0]["generated_text"][len(prompt) :].split("#")[0]
 
     return {"sources": sources, "prompt": prompt, "response": generated}

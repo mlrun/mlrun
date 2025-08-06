@@ -25,6 +25,8 @@ import plotly.graph_objects as go
 import pytest
 import yaml
 
+import mlrun
+import mlrun.projects.pipelines
 import mlrun_pipelines.common.ops
 from mlrun import mlconf, new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
@@ -33,6 +35,7 @@ from mlrun.utils import logger
 model_body = "abc is 123"
 results_body = "<b> Some HTML <b>"
 tests_dir = Path(__file__).absolute().parent
+assets_dir = tests_dir / "assets"
 
 
 def my_job(context, p1=1, p2="a-string"):
@@ -127,6 +130,23 @@ def test_kfp_function_run_with_hyper_params(rundb_mock, kfp_dirs):
     assert result.status.state == "completed"
 
 
+def test_run_function_with_retry_validation():
+    project = mlrun.new_project("test-retry-validation")
+    project.set_workflow("test-workflow", str(assets_dir / "localpipe.py"))
+    workflow_spec = mlrun.projects.pipelines.WorkflowSpec(engine="kfp")
+    workflow_spec.merge_args(project.workflows[0])
+    mlrun.projects.pipeline_context.set(project, workflow_spec)
+    function = new_function(
+        "test-function",
+        kind="job",
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Retrying jobs is not supported when running a workflow with the kfp engine. Use KFP set_retry instead.",
+    ):
+        project.run_function(function, retry={"count": 3})
+
+
 def _assert_output_dir(output_dir, name, iterations=1):
     output_prefix = f"{output_dir}/{name}/"
     for iteration in range(1, iterations):
@@ -200,16 +220,14 @@ def _generate_task(p1, out_path):
 
 
 def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
-    ensure_default_project,
+    ensure_project,
 ):
-    function = new_function(
-        kfp=True, kind="job", project=ensure_default_project.metadata.name
-    )
+    function = new_function(kfp=True, kind="job", project=ensure_project.metadata.name)
     function_node_selector, function_val = "ns1", "val1"
     function.spec.node_selector = {function_node_selector: function_val}
 
     project_node_selector, project_val = "ns2", "val2"
-    ensure_default_project.spec.default_function_node_selector = {
+    ensure_project.spec.default_function_node_selector = {
         project_node_selector: project_val
     }
 
@@ -226,13 +244,73 @@ def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
 
 
 def test_kfp_pod_sets_gpu_resources_to_zero_when_gpu_requested(
-    ensure_default_project,
+    ensure_project,
 ):
-    function = new_function(
-        kfp=True, kind="job", project=ensure_default_project.metadata.name
-    )
+    function = new_function(kfp=True, kind="job", project=ensure_project.metadata.name)
     gpu_type = "nvidia.com/gpu"
     function.with_limits(gpus=1, gpu_type=gpu_type)
     cop = function.as_step()
     assert gpu_type in cop.container.resources.limits
     assert cop.container.resources.limits[gpu_type] == 0
+
+
+def test_enrich_node_selector_with_preemption_mode_prevent_on_kfp_pod(
+    ensure_project,
+):
+    function = new_function(kfp=True, kind="job", project=ensure_project.metadata.name)
+
+    # Set preemption mode to 'prevent'
+    function.with_preemption_mode("prevent")
+
+    # Set function-level node selector
+    function_node_selector, function_val = "ns1", "val1"
+
+    # Set project-level node selector
+    project_node_selector, project_val = "ns2", "val2"
+    ensure_project.spec.default_function_node_selector = {
+        project_node_selector: project_val
+    }
+
+    # Set config-level (global) node selector
+    config_node_selector, config_val = "ns3", "val3"
+    mlconf.default_function_node_selector = base64.b64encode(
+        json.dumps({config_node_selector: config_val}).encode("utf-8")
+    )
+
+    # Set config-level preemptible node selector (should be removed due to prevent mode)
+    preemptible_node_selector, preemptioble_val = "spot", "true"
+    mlconf.preemptible_nodes.node_selector = base64.b64encode(
+        json.dumps({preemptible_node_selector: preemptioble_val}).encode("utf-8")
+    )
+    function.spec.node_selector = {
+        function_node_selector: function_val,
+        preemptible_node_selector: preemptioble_val,
+    }
+
+    # Convert function to step (triggers enrichment)
+    cop = function.as_step()
+
+    # Assert final node selector contains only non-preemptible ones
+    assert cop.node_selector == {
+        function_node_selector: function_val,
+        project_node_selector: project_val,
+        config_node_selector: config_val,
+    }
+
+    # Assert tolerations are pruned
+    assert cop.tolerations == []
+
+    # Assert affinity was enriched with anti-affinity for preemptible nodes
+    affinity = cop.affinity
+    assert affinity is not None
+    assert affinity.node_affinity is not None
+    required = (
+        affinity.node_affinity.required_during_scheduling_ignored_during_execution
+    )
+    assert required is not None
+    assert len(required.node_selector_terms) > 0
+    match_expressions = required.node_selector_terms[0].match_expressions
+    assert any(
+        expr.key == "spot" and expr.operator == "NotIn" and "true" in expr.values
+        for expr in match_expressions
+    )

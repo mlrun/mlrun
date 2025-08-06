@@ -11,12 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 
-import mlrun.errors
-import mlrun.run
-import mlrun.utils.helpers
 import mlrun_pipelines
 import mlrun_pipelines.common.helpers
 
@@ -240,10 +237,6 @@ def test_resolve_pipeline_project():
                     ]
                 }
             },
-        },
-        {
-            "expected_project": mlrun.mlconf.default_project,
-            "template": {"dag": {"asdasd": "asdasd"}},
         },
         {
             "expected_project": "project-from-annotation",

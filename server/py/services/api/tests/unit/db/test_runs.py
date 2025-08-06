@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import time
 import unittest.mock
 from datetime import datetime, timezone
@@ -25,7 +25,6 @@ from tests.conftest import new_run
 
 import framework.db.sqldb.helpers
 import framework.db.sqldb.models
-import services.api.initial_data
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
 
@@ -284,62 +283,6 @@ class TestRuns(TestDatabaseBase):
             == runs[0].struct["status"]["start_time"]
         )
         assert runs[0].struct["status"]["start_time"] == run["status"]["start_time"]
-
-    def test_data_migration_align_runs_table(self):
-        time_before_creation = datetime.now(tz=timezone.utc)
-        # Create runs
-        for project in ["run-project-1", "run-project-2", "run-project-3"]:
-            for name in ["run-name-1", "run-name-2", "run-name-3"]:
-                for index in range(3):
-                    uid = f"{name}-uid-{index}"
-                    for iteration in range(3):
-                        self._create_new_run(
-                            project,
-                            name,
-                            uid,
-                            iteration,
-                            state=mlrun.common.runtimes.constants.RunStates.completed,
-                        )
-        # get all run records, and change to be as they will be in field (before the migration)
-        runs = self._db._find_runs(self._db_session, None, "*", None).all()
-        for run in runs:
-            self._change_run_record_to_before_align_runs_migration(
-                run, time_before_creation
-            )
-            self._db._upsert(self._db_session, [run], ignore=True)
-
-        # run the migration
-        services.api.initial_data._align_runs_table(self._db, self._db_session)
-
-        # assert after migration column start time aligned to the body start time
-        runs = self._db._find_runs(self._db_session, None, "*", None).all()
-        for run in runs:
-            self._ensure_run_after_align_runs_migration(run, time_before_creation)
-
-    def test_data_migration_align_runs_table_with_empty_run_body(self):
-        time_before_creation = datetime.now(tz=timezone.utc)
-        # First store - fills the start_time
-        project, name, uid, iteration, run = self._create_new_run(
-            state=mlrun.common.runtimes.constants.RunStates.completed
-        )
-        # get all run records, and change to be as they will be in field (before the migration)
-        runs = self._db._find_runs(self._db_session, None, "*", None).all()
-        assert len(runs) == 1
-        run = runs[0]
-        # change to be as it will be in field (before the migration) and then empty the body
-        self._change_run_record_to_before_align_runs_migration(
-            run, time_before_creation
-        )
-        run.struct = {}
-        self._db._upsert(self._db_session, [run], ignore=True)
-
-        # run the migration
-        services.api.initial_data._align_runs_table(self._db, self._db_session)
-
-        runs = self._db._find_runs(self._db_session, None, "*", None).all()
-        assert len(runs) == 1
-        run = runs[0]
-        self._ensure_run_after_align_runs_migration(run)
 
     def test_store_run_success(self):
         project, name, uid, iteration, run_dict = self._create_new_run()
@@ -608,13 +551,12 @@ class TestRuns(TestDatabaseBase):
             )
 
             # Set the same `start_time` timestamp for all runs
-            db_run = self._db._query(
-                self._db_session, framework.db.sqldb.models.Run, name=run_name
-            ).one_or_none()
-            db_run.start_time = t1
-            self._db_session.add(db_run)
-            self._db._commit(self._db_session, db_run)
-            self._db_session.flush()
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.Run,
+                filters={"name": run_name},
+                start_time=t1,
+            )
 
         runs = self._db.list_runs(
             self._db_session,
@@ -631,6 +573,22 @@ class TestRuns(TestDatabaseBase):
             assert (
                 run_name == expected_name
             ), f"Expected {expected_name}, got {run_name}"
+
+    def test_list_runs_with_missing_milliseconds_in_timestamp(self):
+        self._create_new_run(project="my-project")
+
+        t1 = datetime.now().replace(microsecond=0)
+
+        # Set the `start_time` and `end_time` timestamps without microseconds
+        self._db.update_db_object(
+            self._db_session, framework.db.sqldb.models.Run, start_time=t1, end_time=t1
+        )
+
+        runs = self._db.list_runs(self._db_session, project="my-project")
+        assert len(runs) == 1
+
+        assert runs[0]["status"]["start_time"].endswith(".000000+00:00")
+        assert runs[0]["status"]["end_time"].endswith(".000000+00:00")
 
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

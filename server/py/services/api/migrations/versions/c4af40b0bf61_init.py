@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 """init
 
 Revision ID: c4af40b0bf61
@@ -24,7 +24,7 @@ import sqlalchemy as sa
 import sqlalchemy.dialects.mysql
 from alembic import op
 
-from framework.utils.db.sql_types import SQLTypesUtil
+from framework.db.sqldb.sql_types import SQLTypesUtil
 
 # revision identifiers, used by Alembic.
 revision = "c4af40b0bf61"

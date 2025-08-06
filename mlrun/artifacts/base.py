@@ -16,7 +16,6 @@ import os
 import pathlib
 import tempfile
 import typing
-import warnings
 import zipfile
 
 import yaml
@@ -106,6 +105,8 @@ class ArtifactSpec(ModelObj):
         "extra_data",
         "unpackaging_instructions",
         "producer",
+        "parent_uri",
+        "has_children",
     ]
 
     _extra_fields = ["annotations", "sources", "license", "encoding"]
@@ -128,6 +129,7 @@ class ArtifactSpec(ModelObj):
         extra_data=None,
         body=None,
         unpackaging_instructions: typing.Optional[dict] = None,
+        parent_uri: typing.Optional[str] = None,
     ):
         self.src_path = src_path
         self.target_path = target_path
@@ -138,6 +140,8 @@ class ArtifactSpec(ModelObj):
         self.db_key = db_key
         self.extra_data = extra_data or {}
         self.unpackaging_instructions = unpackaging_instructions
+        self.parent_uri = parent_uri
+        self.has_children = False
 
         self._body = body
         self.encoding = None
@@ -218,28 +222,9 @@ class Artifact(ModelObj):
         target_path=None,
         project=None,
         src_path: typing.Optional[str] = None,
-        # All params up until here are legacy params for compatibility with legacy artifacts.
-        # TODO: remove them in 1.9.0.
         metadata: ArtifactMetadata = None,
         spec: ArtifactSpec = None,
     ):
-        if (
-            key
-            or body
-            or viewer
-            or is_inline
-            or format
-            or size
-            or target_path
-            or project
-            or src_path
-        ):
-            warnings.warn(
-                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
-                "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
-            )
-
         self._metadata = None
         self.metadata = metadata
         self._spec = None
@@ -247,13 +232,16 @@ class Artifact(ModelObj):
 
         self.metadata.key = key or self.metadata.key
         self.metadata.project = (
-            project or mlrun.mlconf.default_project or self.metadata.project
+            project or mlrun.mlconf.active_project or self.metadata.project
         )
         self.spec.size = size or self.spec.size
         self.spec.target_path = target_path or self.spec.target_path
         self.spec.format = format or self.spec.format
         self.spec.viewer = viewer or self.spec.viewer
-        self.spec.src_path = src_path
+        self.spec.src_path = src_path or self.spec.src_path
+
+        # temp flag to indicate if the source path is a temporary file (if True it will be deleted after upload)
+        self._src_is_temp = False
 
         if body:
             self.spec._body = body
@@ -341,7 +329,7 @@ class Artifact(ModelObj):
 
     def before_log(self):
         for key, item in self.spec.extra_data.items():
-            if hasattr(item, "get_target_path"):
+            if hasattr(item, "get_target_path") and item.get_target_path():
                 self.spec.extra_data[key] = item.get_target_path()
 
     @property
@@ -450,6 +438,10 @@ class Artifact(ModelObj):
         mlrun.datastore.store_manager.object(
             url=target_path or self.spec.target_path
         ).upload(source_path)
+
+        if self._src_is_temp and os.path.exists(self.spec.src_path):
+            # delete the temporary file if it was created for the upload
+            os.remove(self.spec.src_path)
 
     def resolve_body_target_hash_path(
         self, body: typing.Union[bytes, str], artifact_path: str
@@ -757,17 +749,9 @@ class LinkArtifact(Artifact):
         link_key=None,
         link_tree=None,
         project=None,
-        # All params up until here are legacy params for compatibility with legacy artifacts.
-        # TODO: remove them in 1.9.0.
         metadata: ArtifactMetadata = None,
         spec: LinkArtifactSpec = None,
     ):
-        if key or target_path or link_iteration or link_key or link_tree or project:
-            warnings.warn(
-                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
-                "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
-            )
         super().__init__(
             key, target_path=target_path, project=project, metadata=metadata, spec=spec
         )
@@ -854,9 +838,7 @@ def get_artifact_meta(artifact):
         artifact = artifact.artifact_url
 
     if mlrun.datastore.is_store_uri(artifact):
-        artifact_spec, target = mlrun.datastore.store_manager.get_store_artifact(
-            artifact
-        )
+        artifact_spec, _ = mlrun.datastore.store_manager.get_store_artifact(artifact)
 
     elif artifact.lower().endswith(".yaml"):
         data = mlrun.datastore.store_manager.object(url=artifact).get()
@@ -893,36 +875,6 @@ def generate_target_path(item: Artifact, artifact_path, producer):
     return f"{artifact_path}{item.key}{suffix}"
 
 
-# TODO: Remove once data migration v5 is obsolete
-def convert_legacy_artifact_to_new_format(
-    legacy_artifact: dict,
-) -> Artifact:
-    """Converts a legacy artifact to a new format.
-    :param legacy_artifact: The legacy artifact to convert.
-    :return: The converted artifact.
-    """
-    artifact_key = legacy_artifact.get("key", "")
-    artifact_tag = legacy_artifact.get("tag", "")
-    if artifact_tag:
-        artifact_key = f"{artifact_key}:{artifact_tag}"
-    # TODO: Remove once data migration v5 is obsolete
-    warnings.warn(
-        f"Converting legacy artifact '{artifact_key}' to new format. This will not be supported in MLRun 1.9.0. "
-        f"Make sure to save the artifact/project in the new format.",
-        FutureWarning,
-    )
-
-    artifact = mlrun.artifacts.artifact_types.get(
-        legacy_artifact.get("kind", "artifact"), mlrun.artifacts.Artifact
-    )()
-
-    artifact.metadata = artifact.metadata.from_dict(legacy_artifact)
-    artifact.spec = artifact.spec.from_dict(legacy_artifact)
-    artifact.status = artifact.status.from_dict(legacy_artifact)
-
-    return artifact
-
-
 def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
     # remove artifact related fields before calculating hash
     object_dict.setdefault("metadata", {})
@@ -957,3 +909,11 @@ def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
             object_dict["spec"][key] = value
 
     return uid
+
+
+def verify_target_path(artifact: Artifact):
+    if not artifact.get_target_path():
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"artifact {artifact.uri} "
+            f"does not have a valid/persistent offline target"
+        )

@@ -198,7 +198,7 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
             project=self._project
         )
 
-    def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[int]:
+    def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[float]:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
             return self._schedules[endpoint_uid].get(

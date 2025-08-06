@@ -183,5 +183,7 @@ def assert_async_invocations(results_with_times, model_name, total_duration):
     for i in range(len(EXPECTED_RESULTS)):
         assert EXPECTED_RESULTS[i] in results[i].lower()
         number_of_tokens = len(encoding.encode(results[i]))
-        assert number_of_tokens == 100, f"Expected 100 tokens for input #{i}, but got {number_of_tokens}"
+        assert (
+            number_of_tokens == 100
+        ), f"Expected 100 tokens for input #{i}, but got {number_of_tokens}"
     assert total_duration < sum(invoke_times)

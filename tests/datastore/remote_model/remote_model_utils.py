@@ -182,5 +182,6 @@ def assert_async_invocations(results_with_times, model_name, total_duration):
     encoding = tiktoken.encoding_for_model(model_name)
     for i in range(len(EXPECTED_RESULTS)):
         assert EXPECTED_RESULTS[i] in results[i].lower()
-        assert len(encoding.encode(results[i])) == 100
+        number_of_tokens = len(encoding.encode(results[i]))
+        assert number_of_tokens == 100, f"Expected 100 tokens for input #{i}, but got {number_of_tokens}"
     assert total_duration < sum(invoke_times)

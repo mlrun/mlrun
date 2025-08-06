@@ -19,7 +19,7 @@ import mlrun
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
     ModelProvider,
-    ResponseStatsKeys,
+    UsageResponseKeys,
 )
 from mlrun.datastore.utils import accepts_param
 
@@ -216,11 +216,11 @@ class OpenAIProvider(ModelProvider):
             str_response = self._extract_string_output(response)
             if invoke_response_format == InvokeResponseFormat.STRING:
                 return str_response
-            if invoke_response_format == InvokeResponseFormat.STATS:
+            if invoke_response_format == InvokeResponseFormat.USAGE:
                 stats = response.to_dict()["usage"]
                 response = {
-                    ResponseStatsKeys.ANSWER: str_response,
-                    ResponseStatsKeys.STATS: stats,
+                    UsageResponseKeys.ANSWER: str_response,
+                    UsageResponseKeys.USAGE: stats,
                 }
         return response
 

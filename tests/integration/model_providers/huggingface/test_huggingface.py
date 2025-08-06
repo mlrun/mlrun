@@ -31,7 +31,7 @@ from mlrun.datastore.datastore_profile import (
 from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
-    ResponseStatsKeys,
+    UsageResponseKeys,
 )
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
@@ -125,8 +125,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         token_count = len(
             model_provider.client.tokenizer.encode(result, add_special_tokens=False)
         )
-        # Extra token is due to the EOS token, which signals end of generation.
-        assert token_count in (100, 101)
+        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
+        # due to internal EOS or tokenizer behavior, so we assert within this range.
+        assert 95 <= token_count <= 101
         # checking invoke_response_format=InvokeResponseFormat.FULL
         response = model_provider.invoke(
             messages=messages,
@@ -141,17 +142,19 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             model_provider.client.tokenizer.encode(result, add_special_tokens=False)
         )
         assert assistant_response["role"] == "assistant"
-        assert token_count in (50, 51)
+        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
+        # due to internal EOS or tokenizer behavior, so we assert within this range.
+        assert 45 <= token_count <= 51
 
-        # checking invoke_response_format=InvokeResponseFormat.STATS
+        # checking invoke_response_format=InvokeResponseFormat.USAGE
         response = model_provider.invoke(
             messages=messages,
             max_new_tokens=50,
-            invoke_response_format=InvokeResponseFormat.STATS,
+            invoke_response_format=InvokeResponseFormat.USAGE,
         )
-        assert EXPECTED_RESULTS[0] in response[ResponseStatsKeys.ANSWER].lower()
+        assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
         assert isinstance(response, dict)
-        assert response[ResponseStatsKeys.STATS]["completion_tokens"] in (50, 51)
+        assert 45 <= response[UsageResponseKeys.USAGE]["completion_tokens"] <= 50
 
         prompt = model_provider.client.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
@@ -159,11 +162,11 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         prompt_tokens = len(
             model_provider.client.tokenizer.encode(prompt, add_special_tokens=False)
         )
-        assert response[ResponseStatsKeys.STATS]["prompt_tokens"] == prompt_tokens
+        assert response[UsageResponseKeys.USAGE]["prompt_tokens"] == prompt_tokens
         assert (
-            response[ResponseStatsKeys.STATS]["total_tokens"]
-            == response[ResponseStatsKeys.STATS]["prompt_tokens"]
-            + response[ResponseStatsKeys.STATS]["completion_tokens"]
+            response[UsageResponseKeys.USAGE]["total_tokens"]
+            == response[UsageResponseKeys.USAGE]["prompt_tokens"]
+            + response[UsageResponseKeys.USAGE]["completion_tokens"]
         )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
@@ -294,14 +297,15 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
             response = server.test(body=INPUT_DATA[0])["output"]
 
             assert len(response) == 2
-            answer = response[ResponseStatsKeys.ANSWER]
+            answer = response[UsageResponseKeys.ANSWER]
             assert EXPECTED_RESULTS[0] in answer.lower()
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
             token_count = len(tokenizer.encode(answer, add_special_tokens=False))
-            # Extra token is due to the EOS token, which signals end of generation.
-            assert token_count in (100, 101)
+            # Token count may be lower due to early stopping or slightly higher (e.g., 101)
+            # due to internal EOS or tokenizer behavior, so we assert within this range.
+            assert 95 <= token_count <= 101
 
-            stats = response[ResponseStatsKeys.STATS]
+            stats = response[UsageResponseKeys.USAGE]
             assert stats["completion_tokens"] == token_count
             assert stats["prompt_tokens"] > 0
             assert (

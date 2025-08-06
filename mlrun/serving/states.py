@@ -47,7 +47,7 @@ from mlrun.datastore.datastore_profile import (
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
     ModelProvider,
-    ResponseStatsKeys,
+    UsageResponseKeys,
 )
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import get_data_from_path, logger, set_data_by_path, split_path
@@ -1233,7 +1233,7 @@ class LLModel(Model):
         ) and isinstance(self.model_provider, ModelProvider):
             response_with_stats = self.model_provider.invoke(
                 messages=messages,
-                invoke_response_format=InvokeResponseFormat.STATS,
+                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(model_configuration or {}),
             )
             set_data_by_path(
@@ -1253,7 +1253,7 @@ class LLModel(Model):
         ) and isinstance(self.model_provider, ModelProvider):
             response_with_stats = await self.model_provider.async_invoke(
                 messages=messages,
-                invoke_response_format=InvokeResponseFormat.STATS,
+                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(model_configuration or {}),
             )
             set_data_by_path(
@@ -1626,7 +1626,7 @@ class ModelRunnerStep(MonitoredStep):
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
 
-                                      When using LLModel, the output will be overridden with ResponseStatsKeys.fields().
+                                      When using LLModel, the output will be overridden with UsageResponseKeys.fields().
 
           :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
                                       this require that the event body will behave like a dict, expects scopes to be
@@ -1663,7 +1663,7 @@ class ModelRunnerStep(MonitoredStep):
                 warnings.warn(
                     "LLModel with existing outputs detected, overriding to default"
                 )
-            outputs = ResponseStatsKeys.fields()
+            outputs = UsageResponseKeys.fields()
         model_parameters = model_parameters or (
             model_class.to_dict() if isinstance(model_class, Model) else {}
         )

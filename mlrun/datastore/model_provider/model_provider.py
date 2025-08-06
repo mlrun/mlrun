@@ -23,7 +23,7 @@ from mlrun.datastore.remote_client import (
 
 class InvokeResponseFormat(StrEnum):
     STRING = "string"
-    STATS = "stats"
+    USAGE = "usage"
     FULL = "full"
 
     @classmethod
@@ -32,18 +32,18 @@ class InvokeResponseFormat(StrEnum):
         Returns True if the response key corresponds to a string-based response (not a full generation object).
         """
         return invoke_response_format in {
-            cls.STATS,
+            cls.USAGE,
             cls.STRING,
         }
 
 
-class ResponseStatsKeys(StrEnum):
+class UsageResponseKeys(StrEnum):
     ANSWER = "answer"
-    STATS = "stats"
+    USAGE = "usage"
 
     @classmethod
     def fields(cls) -> list[str]:
-        return [cls.ANSWER, cls.STATS]
+        return [cls.ANSWER, cls.USAGE]
 
 
 class ModelProvider(BaseRemoteClient):
@@ -104,16 +104,16 @@ class ModelProvider(BaseRemoteClient):
 
                                        - STRING: Return only the main generated content as a string,
                                                  typically for single-answer responses.
-                                       - STATS: Return a dictionary combining the string response with
-                                                additional metadata or statistics, in this format:
-                                                {"answer": <string>, "stats": <dict>}
+                                       - USAGE: Return a dictionary combining the string response with
+                                                additional metadata or token usage statistics, in this format:
+                                                {"answer": <string>, "usage": <dict>}
 
                                        - FULL: Return the full raw response object unmodified.
 
-        :param kwargs: Additional parameters that may be required by specific implementations.
+        :param kwargs:                  Additional parameters that may be required by specific implementations.
 
-        :return: The processed response in the format specified by `invoke_response_format`.
-                 Can be a string, dictionary, or the original response object.
+        :return:                        The processed response in the format specified by `invoke_response_format`.
+                                        Can be a string, dictionary, or the original response object.
         """
         return None
 
@@ -226,17 +226,17 @@ class ModelProvider(BaseRemoteClient):
                                     - string:   Returns only the generated text content from the model output,
                                                 for single-answer responses only.
 
-                                    - stats:    Combines the STRING response with additional metadata (token usage),
+                                    - usage:    Combines the STRING response with additional metadata (token usage),
                                                 and returns the result in a dictionary.
 
-                                                Note: The stats dictionary may contain additional
+                                                Note: The usage dictionary may contain additional
                                                 keys depending on the model provider:
 
                                     .. code-block:: json
 
                                     {
                                         "answer": "<generated_text>",
-                                        "stats": {
+                                        "usage": {
                                         "prompt_tokens": <int>,
                                         "completion_tokens": <int>,
                                         "total_tokens": <int>

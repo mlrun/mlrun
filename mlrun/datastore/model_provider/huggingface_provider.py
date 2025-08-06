@@ -18,7 +18,7 @@ import mlrun
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
     ModelProvider,
-    ResponseStatsKeys,
+    UsageResponseKeys,
 )
 
 if TYPE_CHECKING:
@@ -102,7 +102,7 @@ class HuggingFaceProvider(ModelProvider):
         :param response:                Same as in `ModelProvider._response_handler`.
         :param invoke_response_format:  Same as in `ModelProvider._response_handler`, in full and string modes.
 
-                                        For stats mode, generate 3 statistics:
+                                        For usage mode, generate 3 statistics:
                                         prompt_tokens, completion_tokens and total_tokens.
 
         :param kwargs:                  Same as in `ModelProvider._response_handler`.
@@ -116,7 +116,7 @@ class HuggingFaceProvider(ModelProvider):
             str_response = self._extract_string_output(response)
             if invoke_response_format == InvokeResponseFormat.STRING:
                 return str_response
-            if invoke_response_format == InvokeResponseFormat.STATS:
+            if invoke_response_format == InvokeResponseFormat.USAGE:
                 tokenizer = self.client.tokenizer
                 if not isinstance(messages, str):
                     try:
@@ -137,14 +137,14 @@ class HuggingFaceProvider(ModelProvider):
                     tokenizer.encode(str_response, add_special_tokens=False)
                 )
                 total_tokens = prompt_tokens + completion_tokens
-                stats = {
+                usage = {
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
                     "total_tokens": total_tokens,
                 }
                 response = {
-                    ResponseStatsKeys.ANSWER: str_response,
-                    ResponseStatsKeys.STATS: stats,
+                    UsageResponseKeys.ANSWER: str_response,
+                    UsageResponseKeys.USAGE: usage,
                 }
         return response
 
@@ -233,12 +233,12 @@ class HuggingFaceProvider(ModelProvider):
             Specifies the format of the returned response. Options:
 
             - "string": Returns only the generated text content, extracted from a single response.
-            - "stats":  Combines the generated text with metadata (e.g., token usage), returning a dictionary:
+            - "usage":  Combines the generated text with metadata (e.g., token usage), returning a dictionary:
 
             .. code-block:: json
                 {
                     "answer": "<generated_text>",
-                    "stats": {
+                    "usage": {
                         "prompt_tokens": <int>,
                         "completion_tokens": <int>,
                         "total_tokens": <int>

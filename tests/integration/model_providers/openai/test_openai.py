@@ -33,7 +33,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
-    ResponseStatsKeys,
+    UsageResponseKeys,
 )
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
@@ -160,21 +160,21 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             response = await model_provider.async_invoke(
                 messages=messages,
                 max_tokens=50,
-                invoke_response_format=InvokeResponseFormat.STATS,
+                invoke_response_format=InvokeResponseFormat.USAGE,
             )
         else:
             response = model_provider.invoke(
                 messages=messages,
                 max_tokens=50,
-                invoke_response_format=InvokeResponseFormat.STATS,
+                invoke_response_format=InvokeResponseFormat.USAGE,
             )
 
         assert isinstance(response, dict)
         # TODO update stats to const
-        completion_tokens = response[ResponseStatsKeys.STATS]["completion_tokens"]
-        prompt_tokens = response[ResponseStatsKeys.STATS]["prompt_tokens"]
-        total_tokens = response[ResponseStatsKeys.STATS]["total_tokens"]
-        assert EXPECTED_RESULTS[0] in response[ResponseStatsKeys.ANSWER].lower()
+        completion_tokens = response[UsageResponseKeys.USAGE]["completion_tokens"]
+        prompt_tokens = response[UsageResponseKeys.USAGE]["prompt_tokens"]
+        total_tokens = response[UsageResponseKeys.USAGE]["total_tokens"]
+        assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
         assert completion_tokens == 50
         assert prompt_tokens > 0
         assert total_tokens == prompt_tokens + completion_tokens
@@ -305,12 +305,12 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         try:
             response = server.test(body=INPUT_DATA[0])["output"]
             assert len(response) == 2
-            answer = response[ResponseStatsKeys.ANSWER]
+            answer = response[UsageResponseKeys.ANSWER]
             assert EXPECTED_RESULTS[0] in answer.lower()
             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
             assert len(encoding.encode(answer)) == 100
 
-            stats = response[ResponseStatsKeys.STATS]
+            stats = response[UsageResponseKeys.USAGE]
             assert stats["completion_tokens"] == 100
             assert stats["prompt_tokens"] > 0
             assert (

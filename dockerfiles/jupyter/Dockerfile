@@ -19,7 +19,8 @@ ARG MLRUN_CACHE_DATE=initial
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM quay.io/jupyter/scipy-notebook:python-${MLRUN_PYTHON_VERSION}
-
+ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_PIP_VERSION
 USER root
 
 # System dependencies
@@ -36,8 +37,6 @@ RUN apt-get update && \
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/
-
-# Redeclare python version (used above in FROM)
 
 # Create and activate mlrun conda environment
 RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \

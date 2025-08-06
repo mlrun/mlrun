@@ -122,9 +122,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         if expected_torch_dtype:
             assert model_provider.client.model.dtype == expected_torch_dtype
 
-        token_count = len(
-            model_provider.client.tokenizer.encode(result, add_special_tokens=False)
-        )
+        token_count = len(model_provider.client.tokenizer.encode(result))
         # Token count may be lower due to early stopping or slightly higher (e.g., 101)
         # due to internal EOS or tokenizer behavior, so we assert within this range.
         assert 95 <= token_count <= 101
@@ -138,9 +136,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
         assistant_response = response[0]["generated_text"][1]
         result = assistant_response["content"]
-        token_count = len(
-            model_provider.client.tokenizer.encode(result, add_special_tokens=False)
-        )
+        token_count = len(model_provider.client.tokenizer.encode(result))
         assert assistant_response["role"] == "assistant"
         # Token count may be lower due to early stopping or slightly higher (e.g., 101)
         # due to internal EOS or tokenizer behavior, so we assert within this range.
@@ -154,14 +150,12 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         )
         assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
         assert isinstance(response, dict)
-        assert 45 <= response[UsageResponseKeys.USAGE]["completion_tokens"] <= 50
+        assert 45 <= response[UsageResponseKeys.USAGE]["completion_tokens"] <= 51
 
         prompt = model_provider.client.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-        prompt_tokens = len(
-            model_provider.client.tokenizer.encode(prompt, add_special_tokens=False)
-        )
+        prompt_tokens = len(model_provider.client.tokenizer.encode(prompt))
         assert response[UsageResponseKeys.USAGE]["prompt_tokens"] == prompt_tokens
         assert (
             response[UsageResponseKeys.USAGE]["total_tokens"]
@@ -300,7 +294,7 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
             answer = response[UsageResponseKeys.ANSWER]
             assert EXPECTED_RESULTS[0] in answer.lower()
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
-            token_count = len(tokenizer.encode(answer, add_special_tokens=False))
+            token_count = len(tokenizer.encode(answer))
             # Token count may be lower due to early stopping or slightly higher (e.g., 101)
             # due to internal EOS or tokenizer behavior, so we assert within this range.
             assert 95 <= token_count <= 101

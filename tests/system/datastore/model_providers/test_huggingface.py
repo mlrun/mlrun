@@ -87,7 +87,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         answer = response[UsageResponseKeys.ANSWER]
         assert EXPECTED_RESULTS[0] in answer.lower()
         tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
-        token_count = len(tokenizer.encode(answer, add_special_tokens=False))
+        token_count = len(tokenizer.encode(answer))
         # Token count may be lower due to early stopping or slightly higher (e.g., 101)
         # due to internal EOS or tokenizer behavior, so we assert within this range.
         assert 45 <= token_count <= 51

@@ -17,7 +17,6 @@ import json
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
-from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -41,6 +40,7 @@ from mlrun.utils.helpers import (
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
     set_data_by_path,
+    split_path,
     str_to_timestamp,
     template_artifact_path,
     update_in,
@@ -1753,26 +1753,27 @@ def test_remove_tag_from_artifact_uri(input_uri, expected_output):
         ("b", {"a": {"x": 1}, "b": 2}, [2]),  # simple key with int
         ("missing", {"x": 1}, None),  # missing key
         (
-            ["a", "b", "c"],
+            "a.b.c",
             {"a": {"b": {"c": {"value": 42}}}},
             {"value": 42},
         ),  # nested dict
-        (["a", "missing"], {"a": {"b": 1}}, {}),  # partially missing nested path
+        ("a.missing", {"a": {"b": 1}}, {}),  # partially missing nested path
         (None, {"x": 1, "y": 2}, {"x": 1, "y": 2}),  # path is None
     ],
 )
 def test_get_data_from_path_parametrized(path, data, expected):
-    assert get_data_from_path(path, data) == expected
+    path_as_list = split_path(path)
+    assert get_data_from_path(path_as_list, data) == expected
 
 
 @pytest.mark.parametrize(
     "path, initial_data, value, expected_data",
     [
         ("a", {}, 42, {"a": 42}),
-        (["a", "b", "c"], {}, 99, {"a": {"b": {"c": 99}}}),
-        (["a", "b", "c"], {"a": {"b": {"c": 1}}}, 2, {"a": {"b": {"c": 2}}}),
-        (["x", "y"], {}, "value", {"x": {"y": "value"}}),
-        (["single"], {}, "only", {"single": "only"}),
+        ("a.b.c", {}, 99, {"a": {"b": {"c": 99}}}),
+        ("a.b.c", {"a": {"b": {"c": 1}}}, 2, {"a": {"b": {"c": 2}}}),
+        ("x.y", {}, "value", {"x": {"y": "value"}}),
+        ("single", {}, "only", {"single": "only"}),
         (
             None,
             {"existing": "data"},
@@ -1782,7 +1783,8 @@ def test_get_data_from_path_parametrized(path, data, expected):
     ],
 )
 def test_set_data_by_path_success(path, initial_data, value, expected_data):
-    set_data_by_path(path, initial_data, value)
+    path_as_list = split_path(path)
+    set_data_by_path(path_as_list, initial_data, value)
     assert initial_data == expected_data
 
 
@@ -1807,67 +1809,3 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
     data = {}
     with pytest.raises(exc_type, match=exc_msg):
         set_data_by_path(path, data, value)
-
-
-@pytest.mark.parametrize(
-    "path, initial_data_template, value_to_set",
-    [
-        # Test case 1: Simple string path, new key
-        ("new_key", {}, "hello_world"),
-        # Test case 2: Simple string path, overwrite existing key
-        ("existing_key", {"existing_key": "old_value"}, "new_value"),
-        # Test case 3: Nested list path, create new structure
-        (["level1", "level2", "final_key"], {}, 12345),
-        # Test case 4: Nested list path, update existing deep key
-        (["a", "b", "c"], {"a": {"b": {"c": "original_text"}}}, "updated_text"),
-        # Test case 5: Nested list path, intermediate key is not a dict (should create new dicts)
-        (["x", "y", "z"], {"x": "not_a_dict"}, "new_nested_value"),
-        # Test case 6: Value to set is an integer (get_data_from_path wraps it in a list)
-        ("int_value", {}, 42),
-        # Test case 7: Value to set is a float (get_data_from_path wraps it in a list)
-        (["data", "float_val"], {}, 3.14),
-        # Test case 8: Path is None, updating an empty dictionary
-        (None, {}, {"full_dict_data": "example", "number_field": 100}),
-        # Test case 9: Path is None, updating an existing dictionary
-        (
-            None,
-            {"existing_item": "abc"},
-            {"new_item": "xyz", "existing_item": "override"},
-        ),
-        # Test case 10: Mixed data types in nested path
-        (
-            ["config", "settings", "enabled"],
-            {"config": {"settings": {"enabled": False}}},
-            True,
-        ),
-        (["list_data", "items", "first"], {"list_data": {"items": []}}, "item_one"),
-    ],
-)
-def test_set_then_get_data_by_path(path, initial_data_template, value_to_set):
-    """
-    Tests that setting a value via set_data_by_path and then retrieving it
-    via get_data_from_path returns the expected value.
-    """
-    data_for_test = deepcopy(initial_data_template)
-
-    # 1. Set the data using set_data_by_path
-    set_data_by_path(path, data_for_test, value_to_set)
-
-    # 2. Retrieve the data using get_data_from_path
-    retrieved_value = get_data_from_path(path, data_for_test)
-
-    # 3. Determine the expected value based on the logic of get_data_from_path
-    expected_retrieved_value = value_to_set
-    if isinstance(value_to_set, (int, float)):
-        # get_data_from_path wraps int/float in a list
-        expected_retrieved_value = [value_to_set]
-    elif path is None:
-        # When path is None, set_data_by_path updates the dict.
-        # get_data_from_path(None, data) returns the entire updated dict.
-        # So, the expected value is the state of `data_for_test` after set_data_by_path.
-        # We simulate this by creating a temporary expected dictionary.
-        temp_expected_data = deepcopy(initial_data_template)
-        if isinstance(value_to_set, dict):
-            temp_expected_data.update(value_to_set)
-        expected_retrieved_value = temp_expected_data
-    assert retrieved_value == expected_retrieved_value

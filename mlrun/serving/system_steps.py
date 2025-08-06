@@ -150,20 +150,20 @@ class MonitoringPreProcessor(storey.MapClass):
         """
         new_schema = None
         # Normalize keys in data:
-        data = {
+        normalize_data = {
             mlrun.feature_store.api.norm_column_name(k): copy(v)
             for k, v in data.items()
         }
         # Normalize schema to list
         if not schema:
-            keys = list(data.keys())
+            keys = list(normalize_data.keys())
             new_schema = keys
         elif isinstance(schema, str):
             keys = [schema]
         else:
             keys = [mlrun.feature_store.api.norm_column_name(key) for key in schema]
 
-        values = [data[key] for key in keys if key in data]
+        values = [normalize_data[key] for key in keys if key in normalize_data]
         if len(values) != len(keys):
             raise mlrun.MLRunInvalidArgumentError(
                 f"Schema keys {keys} are not contained in the data keys {list(data.keys())}."

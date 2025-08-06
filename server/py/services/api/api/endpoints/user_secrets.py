@@ -36,11 +36,6 @@ async def store_secret_tokens(
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
-    # TODO: Support this operation for System Admin users as well.
-    #   To do that, when calling _decode_and_verify_offline_token and checking that the offline token belongs to the
-    #   authenticated user, we should not fail if the token does not belong to the user, in case the user is a System
-    #   Admin. For that, we will use the query authorization for the AuthorizationResourceTypes.user_secrets endpoint.
-
     return await run_in_threadpool(
         services.api.crud.Secrets().store_secret_tokens,
         secret_tokens,

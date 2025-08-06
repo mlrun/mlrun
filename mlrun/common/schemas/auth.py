@@ -53,7 +53,6 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     background_task = "background-task"
     schedule = "schedule"
     secret = "secret"
-    user_secrets = "user-secrets"
     run = "run"
     model_endpoint = "model-endpoint"
     pipeline = "pipeline"
@@ -106,7 +105,6 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
             AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
             AuthorizationResourceTypes.api_gateway: "/projects/{project_name}/api-gateways/{resource_name}",
-            AuthorizationResourceTypes.user_secrets: "/tokens",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 

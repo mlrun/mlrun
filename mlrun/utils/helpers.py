@@ -464,17 +464,11 @@ def to_date_str(d):
     return ""
 
 
-def normalize_name(name: str, verbose: bool = True):
+def normalize_name(name: str):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
     if "_" in name:
-        if verbose:
-            warnings.warn(
-                "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                f"Replacing '{name}' underscores with dashes.",
-                FutureWarning,
-            )
         name = name.replace("_", "-")
     return name.lower()
 
@@ -835,7 +829,7 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid character '/' in function name or source name"
             ) from exc
-    name = normalize_name(name=name, verbose=False)
+    name = normalize_name(name=name)
     if not source_name:
         # Searching item in all sources
         sources = db.list_hub_sources(item_name=name, tag=tag)

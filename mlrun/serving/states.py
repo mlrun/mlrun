@@ -24,6 +24,7 @@ import inspect
 import os
 import pathlib
 import traceback
+import warnings
 from abc import ABC
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
@@ -43,9 +44,13 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
     datastore_profile_read,
 )
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+    UsageResponseKeys,
+)
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
-from mlrun.utils import get_data_from_path, logger, split_path
+from mlrun.utils import get_data_from_path, logger, set_data_by_path, split_path
 
 from ..config import config
 from ..datastore import _DummyStream, get_stream_pusher
@@ -1206,10 +1211,15 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
 class LLModel(Model):
     def __init__(
-        self, name: str, input_path: Optional[Union[str, list[str]]] = None, **kwargs
+        self,
+        name: str,
+        input_path: Optional[Union[str, list[str]]] = None,
+        result_path: Optional[Union[str, list[str]]] = None,
+        **kwargs,
     ):
         super().__init__(name, **kwargs)
         self._input_path = split_path(input_path)
+        self._result_path = split_path(result_path)
 
     def predict(
         self,
@@ -1221,10 +1231,13 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            body["result"] = self.model_provider.invoke(
+            response_with_stats = self.model_provider.invoke(
                 messages=messages,
-                as_str=True,
+                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(model_configuration or {}),
+            )
+            set_data_by_path(
+                path=self._result_path, data=body, value=response_with_stats
             )
         return body
 
@@ -1238,10 +1251,13 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            body["result"] = await self.model_provider.async_invoke(
+            response_with_stats = await self.model_provider.async_invoke(
                 messages=messages,
-                as_str=True,
+                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(model_configuration or {}),
+            )
+            set_data_by_path(
+                path=self._result_path, data=body, value=response_with_stats
             )
         return body
 
@@ -1609,6 +1625,9 @@ class ModelRunnerStep(MonitoredStep):
           :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
+
+                                      When using LLModel, the output will be overridden with UsageResponseKeys.fields().
+
           :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
                                       this require that the event body will behave like a dict, expects scopes to be
                                       defined by dot notation (e.g "data.d").
@@ -1637,7 +1656,14 @@ class ModelRunnerStep(MonitoredStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
-
+        if type(model_class) is LLModel or (
+            isinstance(model_class, str) and model_class == LLModel.__name__
+        ):
+            if outputs:
+                warnings.warn(
+                    "LLModel with existing outputs detected, overriding to default"
+                )
+            outputs = UsageResponseKeys.fields()
         model_parameters = model_parameters or (
             model_class.to_dict() if isinstance(model_class, Model) else {}
         )
@@ -1802,6 +1828,13 @@ class ModelRunnerStep(MonitoredStep):
                 )
                 .get(model_params.get("name"), {})
                 .get(schemas.MonitoringData.INPUT_PATH)
+            )
+            model_params[schemas.MonitoringData.RESULT_PATH] = (
+                self.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
+                )
+                .get(model_params.get("name"), {})
+                .get(schemas.MonitoringData.RESULT_PATH)
             )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True

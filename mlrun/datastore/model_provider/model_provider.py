@@ -15,9 +15,35 @@ from collections.abc import Awaitable
 from typing import Any, Callable, Optional, Union
 
 import mlrun.errors
+from mlrun.common.types import StrEnum
 from mlrun.datastore.remote_client import (
     BaseRemoteClient,
 )
+
+
+class InvokeResponseFormat(StrEnum):
+    STRING = "string"
+    USAGE = "usage"
+    FULL = "full"
+
+    @classmethod
+    def is_str_response(cls, invoke_response_format: str) -> bool:
+        """
+        Returns True if the response key corresponds to a string-based response (not a full generation object).
+        """
+        return invoke_response_format in {
+            cls.USAGE,
+            cls.STRING,
+        }
+
+
+class UsageResponseKeys(StrEnum):
+    ANSWER = "answer"
+    USAGE = "usage"
+
+    @classmethod
+    def fields(cls) -> list[str]:
+        return [cls.ANSWER, cls.USAGE]
 
 
 class ModelProvider(BaseRemoteClient):
@@ -55,6 +81,41 @@ class ModelProvider(BaseRemoteClient):
         self.default_invoke_kwargs = default_invoke_kwargs or {}
         self._client = None
         self._async_client = None
+
+    @staticmethod
+    def _extract_string_output(response: Any) -> str:
+        """
+        Extracts string response from response object
+        """
+        pass
+
+    def _response_handler(
+        self,
+        response: Any,
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **kwargs,
+    ) -> Union[str, dict, Any]:
+        """
+        Handles the model response according to the specified response format.
+
+        :param response: The raw response returned from the model invocation.
+        :param invoke_response_format: Determines how the response should be processed and returned.
+                                       Options include:
+
+                                       - STRING: Return only the main generated content as a string,
+                                                 typically for single-answer responses.
+                                       - USAGE: Return a dictionary combining the string response with
+                                                additional metadata or token usage statistics, in this format:
+                                                {"answer": <string>, "usage": <dict>}
+
+                                       - FULL: Return the full raw response object unmodified.
+
+        :param kwargs:                  Additional parameters that may be required by specific implementations.
+
+        :return:                        The processed response in the format specified by `invoke_response_format`.
+                                        Can be a string, dictionary, or the original response object.
+        """
+        return None
 
     def get_client_options(self) -> dict:
         """
@@ -133,57 +194,74 @@ class ModelProvider(BaseRemoteClient):
 
     def invoke(
         self,
-        messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        messages: Union[list[dict], Any],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, Any]:
+    ) -> Union[str, dict[str, Any], Any]:
         """
         Invokes a generative AI model with the provided messages and additional parameters.
         This method is designed to be a flexible interface for interacting with various
         generative AI backends (e.g., OpenAI, Hugging Face, etc.). It allows users to send
-        a list of messages (following a standardized format) and receive a response. The
-        response can be returned as plain text or in its full structured format, depending
-        on the `as_str` parameter.
+        a list of messages (following a standardized format) and receive a response.
 
-        :param messages:    A list of dictionaries representing the conversation history or input messages.
-                            Each dictionary should follow the format::
-                            {"role": "system"| "user" | "assistant" ..., "content": "Message content as a string"}
-                            Example:
+        :param messages:            A list of dictionaries representing the conversation history or input messages.
+                                    Each dictionary should follow the format::
+                                    {"role": "system"| "user" | "assistant" ..., "content":
+                                    "Message content as a string"}
 
-                            .. code-block:: json
+                                    Example:
 
-                                [
-                                    {"role": "system", "content": "You are a helpful assistant."},
-                                    {"role": "user", "content": "What is the capital of France?"}
-                                ]
+                                    .. code-block:: json
 
-                            This format is consistent across all backends. Defaults to None if no messages
-                            are provided.
+                                        [
+                                            {"role": "system", "content": "You are a helpful assistant."},
+                                            {"role": "user", "content": "What is the capital of France?"}
+                                        ]
 
-        :param as_str:      A boolean flag indicating whether to return the response as a plain string.
-                            - If True, the function extracts and returns the main content of the first
-                            response.
-                            - If False, the function returns the full response object,
-                            which may include additional metadata or multiple response options.
-                            Defaults to False.
+                                    This format is consistent across all backends. Defaults to None if no messages
+                                    are provided.
+
+        :param invoke_response_format:   Determines how the model response is returned:
+
+                                    - string:   Returns only the generated text content from the model output,
+                                                for single-answer responses only.
+
+                                    - usage:    Combines the STRING response with additional metadata (token usage),
+                                                and returns the result in a dictionary.
+
+                                                Note: The usage dictionary may contain additional
+                                                keys depending on the model provider:
+
+                                    .. code-block:: json
+
+                                    {
+                                        "answer": "<generated_text>",
+                                        "usage": {
+                                        "prompt_tokens": <int>,
+                                        "completion_tokens": <int>,
+                                        "total_tokens": <int>
+                                        }
+
+                                    }
+
+                                    - full:   Returns the full model output.
 
         :param invoke_kwargs:
-                            Additional keyword arguments to be passed to the underlying model API call.
-                            These can include parameters such as temperature, max tokens, etc.,
-                            depending on the capabilities of the specific backend being used.
+                                    Additional keyword arguments to be passed to the underlying model API call.
+                                    These can include parameters such as temperature, max tokens, etc.,
+                                    depending on the capabilities of the specific backend being used.
 
-        :return:
-                            - If `as_str` is True: Returns the main content of the first response as a string.
-                            - If `as_str` is False: Returns the full response object.
+        :return:                    The invoke result formatted according to the specified
+                                    invoke_response_format parameter.
 
         """
         raise NotImplementedError("invoke method is not implemented")
 
     async def async_invoke(
         self,
-        messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        messages: list[dict],
+        invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, Any]:
+    ) -> Union[str, dict[str, Any], Any]:
         """Async version of `invoke`. See `invoke` for full documentation."""
         raise NotImplementedError("async_invoke is not implemented")

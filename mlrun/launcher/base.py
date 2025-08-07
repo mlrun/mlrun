@@ -281,12 +281,6 @@ class BaseLauncher(abc.ABC):
 
         run.metadata.name = mlrun.utils.normalize_name(
             name=name or run.metadata.name or def_name,
-            # if name or runspec.metadata.name are set then it means that is user defined name and we want to warn the
-            # user that the passed name needs to be set without underscore, if its not user defined but rather enriched
-            # from the handler(function) name then we replace the underscore without warning the user.
-            # most of the time handlers will have `_` in the handler name (python convention is to separate function
-            # words with `_`), therefore we don't want to be noisy when normalizing the run name
-            verbose=bool(name or run.metadata.name),
         )
         mlrun.utils.verify_field_regex(
             "run.metadata.name", run.metadata.name, mlrun.utils.regex.run_name

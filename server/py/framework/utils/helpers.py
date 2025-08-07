@@ -91,24 +91,23 @@ def time_string_to_seconds(time_str: str, min_time_str: str = "60s") -> Optional
 
 
 def extract_image_tag(image_reference):
-    # This matches any word character,dots,hyphens after a colon (:) anchored to the end of the string
+    # Extracts the tag from an image reference (e.g. repo/image:tag)
     pattern = r"(?<=:)[\w.-]+$"
     match = re.search(pattern, image_reference)
-
     tag = None
-    is_semver = False
     has_py_package = False
     if match:
         tag = match.group()
-        is_semver = semver.Version.is_valid(tag)
-
-        if is_semver:
+        # Remove -pyXY suffix if present (e.g. 1.2.3-py39 -> 1.2.3)
+        tag = re.sub(r"-py\d+$", "", tag)
+        if semver.Version.is_valid(tag):
             version = semver.Version.parse(tag)
-            # If the version is a prerelease, and it has a hyphen, it means it's a feature branch build
-            has_py_package = (
-                not version.prerelease or version.prerelease.find("-") == -1
-            )
-
+            is_ga = not version.prerelease
+            if is_ga:
+                # GA version always has a python package
+                return tag, True
+            # Allow -rc suffix to indicate python package exists
+            has_py_package = re.search(r"-rc\d+$", tag) is not None
     return tag, has_py_package
 
 

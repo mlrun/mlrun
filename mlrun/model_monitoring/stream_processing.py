@@ -614,11 +614,11 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         return None
 
     def _infer_label_columns_from_data(self, event):
-        for endpoint_id in self.label_columns:
-            if len(self.label_columns[endpoint_id]) >= len(
-                event[EventFieldType.PREDICTION]
-            ):
-                return self.label_columns[endpoint_id]
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
+        if endpoint_id in self.label_columns and len(
+            self.label_columns[endpoint_id]
+        ) >= len(event[EventFieldType.PREDICTION]):
+            return self.label_columns[endpoint_id]
         return None
 
     def do(self, event: dict):

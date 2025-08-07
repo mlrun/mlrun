@@ -860,7 +860,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         )
         assert metric_fqn == expected_metric_fqn
 
-    @pytest.mark.parametrize("with_training_set", [True, False])
+    @pytest.mark.parametrize("with_training_set", [False, True])
     def test_monitoring_with_model_runner_dict_infer(self, with_training_set: bool):
         function = mlrun.code_to_function(
             name="function_with_model",
@@ -912,8 +912,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         graph.to(model_runner_step, "runner").respond()
         function.set_tracking()
         self.project.enable_model_monitoring(
-            deploy_histogram_data_drift_app=False,
-            **({} if self.image is None else {"image": self.image}),
+            deploy_histogram_data_drift_app=False, image=self.image
         )
         function.deploy()
         function.invoke(

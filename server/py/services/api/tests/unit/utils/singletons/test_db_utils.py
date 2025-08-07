@@ -36,4 +36,4 @@ import framework.utils.db.dsn
 )
 def test_masked_dsn(dsn, expected_masked_dsn):
     masked_dsn = framework.utils.db.dsn.Dsn(dsn)
-    assert masked_dsn == str(expected_masked_dsn)
+    assert str(masked_dsn) == str(expected_masked_dsn)

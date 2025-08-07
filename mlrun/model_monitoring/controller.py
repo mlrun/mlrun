@@ -623,8 +623,7 @@ class MonitoringApplicationController:
                                 start_infer_time=start_infer_time
                                 - datetime.timedelta(
                                     batch_window_generator.batch_window.TIMESTAMP_RESOLUTION_MICRO
-                                ),  # We subtract a microsecond to ensure that the apps will retrieve start time data,
-                                # Note that sample_df reads (start_time, end_time] nots including start time.
+                                ),  # We subtract a microsecond to ensure that the apps will retrieve start time data.
                                 end_infer_time=end_infer_time,
                                 endpoint_id=endpoint_id,
                                 endpoint_name=endpoint_name,

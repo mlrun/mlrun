@@ -1711,7 +1711,8 @@ class SQLDB(DBInterface):
                     tree=parent.producer_id,
                     uid=parent.uid,
                     tag=parent_tag
-                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or []),
+                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or [])
+                    or None,
                 ),
             )
         else:

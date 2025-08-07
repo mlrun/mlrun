@@ -24,6 +24,7 @@ import inspect
 import os
 import pathlib
 import traceback
+import warnings
 from abc import ABC
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
@@ -43,12 +44,16 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
     datastore_profile_read,
 )
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+    UsageResponseKeys,
+)
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
-from mlrun.utils import get_data_from_path, logger, split_path
+from mlrun.utils import get_data_from_path, logger, set_data_by_path, split_path
 
 from ..config import config
-from ..datastore import get_stream_pusher
+from ..datastore import _DummyStream, get_stream_pusher
 from ..datastore.utils import (
     get_kafka_brokers_from_dict,
     parse_kafka_url,
@@ -1206,10 +1211,15 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
 class LLModel(Model):
     def __init__(
-        self, name: str, input_path: Optional[Union[str, list[str]]] = None, **kwargs
+        self,
+        name: str,
+        input_path: Optional[Union[str, list[str]]] = None,
+        result_path: Optional[Union[str, list[str]]] = None,
+        **kwargs,
     ):
         super().__init__(name, **kwargs)
         self._input_path = split_path(input_path)
+        self._result_path = split_path(result_path)
 
     def predict(
         self,
@@ -1221,10 +1231,13 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            body["result"] = self.model_provider.invoke(
+            response_with_stats = self.model_provider.invoke(
                 messages=messages,
-                as_str=True,
+                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(model_configuration or {}),
+            )
+            set_data_by_path(
+                path=self._result_path, data=body, value=response_with_stats
             )
         return body
 
@@ -1238,10 +1251,13 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            body["result"] = await self.model_provider.async_invoke(
+            response_with_stats = await self.model_provider.async_invoke(
                 messages=messages,
-                as_str=True,
+                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(model_configuration or {}),
+            )
+            set_data_by_path(
+                path=self._result_path, data=body, value=response_with_stats
             )
         return body
 
@@ -1287,6 +1303,7 @@ class LLModel(Model):
                 {
                     place_holder: input_data.get(body_map["field"])
                     for place_holder, body_map in prompt_legend.items()
+                    if input_data.get(body_map["field"])
                 }
                 if prompt_legend
                 else {}
@@ -1608,6 +1625,9 @@ class ModelRunnerStep(MonitoredStep):
           :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
+
+                                      When using LLModel, the output will be overridden with UsageResponseKeys.fields().
+
           :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
                                       this require that the event body will behave like a dict, expects scopes to be
                                       defined by dot notation (e.g "data.d").
@@ -1636,7 +1656,14 @@ class ModelRunnerStep(MonitoredStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
-
+        if type(model_class) is LLModel or (
+            isinstance(model_class, str) and model_class == LLModel.__name__
+        ):
+            if outputs:
+                warnings.warn(
+                    "LLModel with existing outputs detected, overriding to default"
+                )
+            outputs = UsageResponseKeys.fields()
         model_parameters = model_parameters or (
             model_class.to_dict() if isinstance(model_class, Model) else {}
         )
@@ -1651,8 +1678,6 @@ class ModelRunnerStep(MonitoredStep):
                 )
             except mlrun.errors.MLRunNotFoundError:
                 raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
-
-        outputs = outputs or self._get_model_output_schema(model_artifact)
 
         model_artifact = (
             model_artifact.uri
@@ -1719,28 +1744,13 @@ class ModelRunnerStep(MonitoredStep):
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
 
     @staticmethod
-    def _get_model_output_schema(
-        model_artifact: Union[ModelArtifact, LLMPromptArtifact],
-    ) -> Optional[list[str]]:
-        if isinstance(
-            model_artifact,
-            ModelArtifact,
-        ):
-            return [feature.name for feature in model_artifact.spec.outputs]
-        elif isinstance(
-            model_artifact,
-            LLMPromptArtifact,
-        ):
-            _model_artifact = model_artifact.model_artifact
-            return [feature.name for feature in _model_artifact.spec.outputs]
-
-    @staticmethod
-    def _get_model_endpoint_output_schema(
+    def _get_model_endpoint_schema(
         name: str,
         project: str,
         uid: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         output_schema = None
+        input_schema = None
         try:
             model_endpoint: mlrun.common.schemas.model_monitoring.ModelEndpoint = (
                 mlrun.db.get_run_db().get_model_endpoint(
@@ -1751,6 +1761,7 @@ class ModelRunnerStep(MonitoredStep):
                 )
             )
             output_schema = model_endpoint.spec.label_names
+            input_schema = model_endpoint.spec.feature_names
         except (
             mlrun.errors.MLRunNotFoundError,
             mlrun.errors.MLRunInvalidArgumentError,
@@ -1759,7 +1770,7 @@ class ModelRunnerStep(MonitoredStep):
                 f"Model endpoint not found, using default output schema for model {name}",
                 error=f"{type(ex).__name__}: {ex}",
             )
-        return output_schema
+        return input_schema, output_schema
 
     def _calculate_monitoring_data(self) -> dict[str, dict[str, str]]:
         monitoring_data = deepcopy(
@@ -1774,6 +1785,36 @@ class ModelRunnerStep(MonitoredStep):
                 )
                 monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = split_path(
                     monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
+                )
+
+                mep_output_schema, mep_input_schema = None, None
+
+                output_schema = self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.OUTPUTS]
+                input_schema = self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.INPUTS]
+                if not output_schema or not input_schema:
+                    # if output or input schema is not provided, try to get it from the model endpoint
+                    mep_input_schema, mep_output_schema = (
+                        self._get_model_endpoint_schema(
+                            model,
+                            self.context.project,
+                            monitoring_data[model].get(
+                                schemas.MonitoringData.MODEL_ENDPOINT_UID, ""
+                            ),
+                        )
+                    )
+                self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.OUTPUTS] = (
+                    output_schema or mep_output_schema
+                )
+                self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.INPUTS] = (
+                    input_schema or mep_input_schema
                 )
             return monitoring_data
         else:
@@ -1801,6 +1842,13 @@ class ModelRunnerStep(MonitoredStep):
                 )
                 .get(model_params.get("name"), {})
                 .get(schemas.MonitoringData.INPUT_PATH)
+            )
+            model_params[schemas.MonitoringData.RESULT_PATH] = (
+                self.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
+                )
+                .get(model_params.get("name"), {})
+                .get(schemas.MonitoringData.RESULT_PATH)
             )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True
@@ -3099,6 +3147,8 @@ def _init_async_objects(context, steps):
                             context=context,
                             **options,
                         )
+                    elif stream_path.startswith("dummy://"):
+                        step._async_object = _DummyStream(context=context, **options)
                     else:
                         if stream_path.startswith("v3io://"):
                             endpoint, stream_path = parse_path(step.path)

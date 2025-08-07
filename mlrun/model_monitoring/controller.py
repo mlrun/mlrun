@@ -595,12 +595,6 @@ class MonitoringApplicationController:
 
                 endpoint_mode = mm_constants.EndpointMode.REAL_TIME
 
-                warnings.warn(
-                    "Analyzing batch model endpoints with real time processing events is deprecated. "
-                    "Please run serving as a job to invoke and analyze offline batch model endpoints.",
-                    # TODO: Remove this in 1.12.0
-                    FutureWarning,
-                )
                 not_old_batch_endpoint = (
                     event[ControllerEvent.ENDPOINT_TYPE] != EndpointType.BATCH_EP
                 )
@@ -637,6 +631,14 @@ class MonitoringApplicationController:
                                 data_in_window = True
                         else:
                             # Old batch endpoint - get the relevant window data from the parquet target
+                            warnings.warn(
+                                "Analyzing batch model endpoints with real time processing events is "
+                                "deprecated. Instead, use job-based serving to invoke and analyze offline batch model "
+                                "endpoints.",
+                                # TODO: Remove this in 1.12.0
+                                FutureWarning,
+                            )
+
                             if endpoint_id not in self.feature_sets:
                                 self.feature_sets[endpoint_id] = fstore.get_feature_set(
                                     event[ControllerEvent.FEATURE_SET_URI]

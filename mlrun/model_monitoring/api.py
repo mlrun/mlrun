@@ -14,11 +14,11 @@
 
 import hashlib
 import typing
-import warnings
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
+from deprecated import deprecated
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.datastore.base
@@ -46,6 +46,14 @@ DatasetType = typing.Union[
 ]
 
 
+# TODO: Remove this in 1.12.0
+@deprecated(
+    version="1.10.0",
+    reason="This function is deprecated and will be removed in 1.12. You can generate a model endpoint by either "
+    "deploying a monitored serving function as a real-time service or running it as an offline job. "
+    "To retrieve model endpoints, use `project.list_model_endpoints()`",
+    category=FutureWarning,
+)
 def get_or_create_model_endpoint(
     project: str,
     model_endpoint_name: str,
@@ -83,14 +91,7 @@ def get_or_create_model_endpoint(
 
     :return: A ModelEndpoint object
     """
-    warnings.warn(
-        "This function is deprecated and will be removed in 1.12. "
-        "You can generate a model endpoint by either deploying a monitored serving function as a real-time service or "
-        "running it as an offline job. "
-        "To retrieve model endpoints, use `project.list_model_endpoints()`",
-        # TODO: Remove this in 1.12.0
-        FutureWarning,
-    )
+
     if not db_session:
         # Generate a runtime database
         db_session = mlrun.get_run_db()
@@ -131,6 +132,13 @@ def get_or_create_model_endpoint(
     return model_endpoint
 
 
+# TODO: Remove this in 1.12.0
+@deprecated(
+    version="1.10.0",
+    reason="This function is deprecated and will be removed in 1.12. "
+    "Please use a monitored serving function executed as a job instead.",
+    category=FutureWarning,
+)
 def record_results(
     project: str,
     model_path: str,
@@ -168,13 +176,6 @@ def record_results(
 
     :return: A ModelEndpoint object
     """
-
-    warnings.warn(
-        "This function is deprecated and will be removed in 1.12. "
-        "Please use a monitored serving function executed as a job instead.",
-        # TODO: Remove this in 1.12.0
-        FutureWarning,
-    )
 
     db = mlrun.get_run_db()
 

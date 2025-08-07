@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, Header, Path, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 import framework.api.utils
 import framework.utils.auth.verifier
@@ -49,7 +50,7 @@ class _CommonParams:
             self.model_monitoring_access_key = process_model_monitoring_secret(
                 self.db_session,
                 self.project,
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                mm_constants.ProjectSecretKeys.ACCESS_KEY,
             )
 
 
@@ -70,20 +71,19 @@ async def _verify_authorization(
             reason=f"Model monitoring is supported from client version {MINIMUM_CLIENT_VERSION_FOR_MM}. "
             f"Please upgrade your client accordingly.",
         )
-    await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project_name=project,
-        resource_name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        action=action,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
+            project_name=project,
+            resource_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            action=action,
+            auth_info=auth_info,
+        )
     )
 
 
 async def _common_parameters(
-    project: Annotated[
-        str,
-        Path(pattern=mlrun.common.schemas.model_monitoring.constants.PROJECT_PATTERN),
-    ],
+    project: mm_constants.ProjectAnnotation,
     auth_info: Annotated[
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
@@ -182,7 +182,7 @@ async def update_model_monitoring_controller(
     try:
         # validate that the model monitoring stream has not yet been deployed
         mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-            name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             project=commons.project,
             tag="",
             auth_info=commons.auth_info,
@@ -190,7 +190,7 @@ async def update_model_monitoring_controller(
 
     except mlrun.errors.MLRunNotFoundError:
         raise mlrun.errors.MLRunNotFoundError(
-            f"{mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER} does not exist. "
+            f"{mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} does not exist. "
             f"Run `project.enable_model_monitoring()` first."
         )
 
@@ -343,10 +343,7 @@ class _FunctionSummariesParams:
 
 
 async def _common_function_parameters(
-    project: Annotated[
-        str,
-        Path(pattern=mlrun.common.schemas.model_monitoring.constants.PROJECT_PATTERN),
-    ],
+    project: mm_constants.ProjectAnnotation,
     auth_info: Annotated[
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],

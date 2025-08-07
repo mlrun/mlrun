@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from typing import Annotated, Literal, Optional, Union
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -39,10 +39,8 @@ from framework.api import deps
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
-ProjectAnnotation = Annotated[str, Path(pattern=mm_constants.PROJECT_PATTERN)]
-EndpointIDAnnotation = Annotated[
-    str, Path(pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN)
-]
+ProjectAnnotation = mm_constants.ProjectAnnotation
+EndpointIDAnnotation = mm_constants.EndpointIDAnnotation
 
 
 @router.post(

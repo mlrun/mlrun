@@ -159,7 +159,7 @@ class MonitoringPreProcessor(storey.MapClass):
             keys = list(normalize_data.keys())
             new_schema = keys
         elif isinstance(schema, str):
-            keys = [schema]
+            keys = [mlrun.feature_store.api.norm_column_name(schema)]
         else:
             keys = [mlrun.feature_store.api.norm_column_name(key) for key in schema]
 

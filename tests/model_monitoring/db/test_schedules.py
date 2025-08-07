@@ -167,8 +167,8 @@ class TestModelMonitoringSchedulesFileChief:
         schedules_file: ModelMonitoringSchedulesFileChief,
     ) -> None:
         mep1_name = "app-A"
-        mep1_last_analyzed = 1716720842
-        mep1_last_request = 1716720841
+        mep1_last_analyzed = 1716720842.0
+        mep1_last_request = 1716720841.0
 
         with schedules_file as f:
             f.update_endpoint_timestamps(

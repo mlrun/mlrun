@@ -50,6 +50,3 @@ def initialize_db(override_db=None):
     finally:
         db_session.close()
 
-
-def _mask_dsn(dsn: str) -> str:
-    return

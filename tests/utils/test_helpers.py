@@ -32,12 +32,15 @@ from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
     extend_hub_uri_if_needed,
+    get_data_from_path,
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
     parse_artifact_uri,
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
+    set_data_by_path,
+    split_path,
     str_to_timestamp,
     template_artifact_path,
     update_in,
@@ -1742,3 +1745,67 @@ def test_validate_and_convert_date(date_input, expected_output, expectation):
 )
 def test_remove_tag_from_artifact_uri(input_uri, expected_output):
     assert remove_tag_from_artifact_uri(input_uri) == expected_output
+
+
+@pytest.mark.parametrize(
+    "path, data, expected",
+    [
+        ("b", {"a": {"x": 1}, "b": 2}, [2]),  # simple key with int
+        ("missing", {"x": 1}, None),  # missing key
+        (
+            "a.b.c",
+            {"a": {"b": {"c": {"value": 42}}}},
+            {"value": 42},
+        ),  # nested dict
+        ("a.missing", {"a": {"b": 1}}, {}),  # partially missing nested path
+        (None, {"x": 1, "y": 2}, {"x": 1, "y": 2}),  # path is None
+    ],
+)
+def test_get_data_from_path_parametrized(path, data, expected):
+    path_as_list = split_path(path)
+    assert get_data_from_path(path_as_list, data) == expected
+
+
+@pytest.mark.parametrize(
+    "path, initial_data, value, expected_data",
+    [
+        ("a", {}, 42, {"a": 42}),
+        ("a.b.c", {}, 99, {"a": {"b": {"c": 99}}}),
+        ("a.b.c", {"a": {"b": {"c": 1}}}, 2, {"a": {"b": {"c": 2}}}),
+        ("x.y", {}, "value", {"x": {"y": "value"}}),
+        ("single", {}, "only", {"single": "only"}),
+        (
+            None,
+            {"existing": "data"},
+            {"new_key": 123},
+            {"existing": "data", "new_key": 123},
+        ),
+    ],
+)
+def test_set_data_by_path_success(path, initial_data, value, expected_data):
+    path_as_list = split_path(path)
+    set_data_by_path(path_as_list, initial_data, value)
+    assert initial_data == expected_data
+
+
+@pytest.mark.parametrize(
+    "path, value, exc_type, exc_msg",
+    [
+        # For path=None, test that non-dict value raises ValueError
+        (None, "not a dict", ValueError, "value must be a dictionary"),
+        # For path=None with dict value, no exception expected, so not included here
+        # For invalid path types, test MLRunInvalidArgumentError is raised
+        (123, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
+        (3.14, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
+        (
+            {"not": "a path"},
+            "some_value",
+            mlrun.errors.MLRunInvalidArgumentError,
+            "Expected path",
+        ),
+    ],
+)
+def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
+    data = {}
+    with pytest.raises(exc_type, match=exc_msg):
+        set_data_by_path(path, data, value)

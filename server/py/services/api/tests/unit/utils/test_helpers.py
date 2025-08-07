@@ -41,3 +41,23 @@ def test_validate_client_version(client_version, min_versions, expected_compatib
         framework.utils.helpers.validate_client_version(client_version, *min_versions)
         == expected_compatible
     )
+
+
+@pytest.mark.parametrize(
+    "image_reference,expected_tag,expected_has_py_package",
+    [
+        ("mlrun/mlrun:1.9.0", "1.9.0", True),
+        ("mlrun/mlrun:1.9.0-rc5", "1.9.0-rc5", True),
+        ("mlrun/mlrun:1.9.0-py39", "1.9.0", True),
+        ("mlrun/mlrun:1.9.0-rc1-py38", "1.9.0-rc1", True),
+        ("mlrun/mlrun:1.9.0-rc5-somefeature", "1.9.0-rc5-somefeature", False),
+        ("mlrun/mlrun:1.9.0-rc5-somefeature-py39", "1.9.0-rc5-somefeature", False),
+        ("mlrun/mlrun:latest", "latest", False),
+        ("mlrun/mlrun", None, False),
+        ("mlrun/mlrun:unstable", "unstable", False),
+    ],
+)
+def test_extract_image_tag(image_reference, expected_tag, expected_has_py_package):
+    tag, has_py_package = framework.utils.helpers.extract_image_tag(image_reference)
+    assert tag == expected_tag
+    assert has_py_package == expected_has_py_package

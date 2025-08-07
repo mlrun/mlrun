@@ -362,24 +362,6 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     return function
 
 
-def _ensure_path_confined_to_base_dir(
-    base_directory: str,
-    relative_path: str,
-    error_message_on_escape: str,
-) -> str:
-    """
-    Join `user_supplied_relative_path` to `allowed_base_directory`, normalise the result,
-    and guarantee it stays inside `allowed_base_directory`.
-    """
-    absolute_base_directory = path.abspath(base_directory)
-    absolute_candidate_path = path.abspath(
-        path.join(absolute_base_directory, relative_path)
-    )
-    if not absolute_candidate_path.startswith(absolute_base_directory + path.sep):
-        raise ValueError(error_message_on_escape)
-    return absolute_candidate_path
-
-
 def import_function_to_dict(
     url: str,
     secrets: Optional[dict] = None,
@@ -1291,3 +1273,21 @@ def wait_for_runs_completion(
         runs = running
 
     return completed
+
+
+def _ensure_path_confined_to_base_dir(
+    base_directory: str,
+    relative_path: str,
+    error_message_on_escape: str,
+) -> str:
+    """
+    Join `user_supplied_relative_path` to `allowed_base_directory`, normalise the result,
+    and guarantee it stays inside `allowed_base_directory`.
+    """
+    absolute_base_directory = path.abspath(base_directory)
+    absolute_candidate_path = path.abspath(
+        path.join(absolute_base_directory, relative_path)
+    )
+    if not absolute_candidate_path.startswith(absolute_base_directory + path.sep):
+        raise ValueError(error_message_on_escape)
+    return absolute_candidate_path

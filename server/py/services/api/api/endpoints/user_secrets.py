@@ -25,10 +25,10 @@ import framework.api.deps
 import framework.utils.auth.verifier
 import services.api.crud
 
-router = fastapi.APIRouter(prefix="/user-secrets/tokens")
+router = fastapi.APIRouter(prefix="/user-secrets")
 
 
-@router.put("", status_code=HTTPStatus.OK.value)
+@router.put("/tokens", status_code=HTTPStatus.OK.value)
 async def store_secret_tokens(
     secret_tokens: list[mlrun.common.schemas.SecretToken],
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(

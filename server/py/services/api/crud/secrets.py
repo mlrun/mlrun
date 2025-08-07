@@ -447,7 +447,7 @@ class Secrets(
         )
 
         # TODO: move init iguazio_client
-        # iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
 
         # TODO: Enable this once it is implemented in the Iguazio client.
         # iguazio_client.refresh_access_tokens(secret_tokens)
@@ -455,6 +455,9 @@ class Secrets(
         token_actions = defaultdict(list)
 
         for token_name, decoded_token in valid_tokens.items():
+            # TODO remove this and use refresh_access_tokens once it is implemented in Iguazio client
+            iguazio_client.refresh_access_token(decoded_token["raw_token"])
+
             action = self.secrets_provider.create_or_update_user_token_secret(
                 username=authenticated_username,
                 token_name=token_name,

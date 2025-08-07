@@ -49,4 +49,3 @@ def initialize_db(override_db=None):
         db.initialize(db_session)
     finally:
         db_session.close()
-

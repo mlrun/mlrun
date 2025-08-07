@@ -1707,6 +1707,28 @@ class BaseRuntimeHandler(ABC):
         search_run: bool = True,
         runtime_resource: Optional[dict] = None,
     ) -> tuple[bool, str, dict]:
+        """
+        Retrieves the run from the database, compares its current state with the desired state,
+        and updates it only if needed.
+        Skips updates when the current state matches the desired one, when the run is in an aborting state, or
+        when the update should be debounced.
+
+        :param db:               Database interface
+        :param db_session:       Db session
+        :param project:          Project name
+        :param uid:              UID of the run
+        :param name:             Name of the function or job
+        :param run_state:        Desired run state
+        :param run:              Optional pre-fetched run object
+        :param search_run:       Whether to search for the run
+        :param runtime_resource: Optional runtime resource (used to resolve error reason)
+
+        :return: Tuple with:
+            was_updated (bool): True if the run state was updated
+            final_state (str): Final state after evaluation
+            run (dict): The updated (or unchanged) run object
+        """
+
         reason, message = "", ""
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid

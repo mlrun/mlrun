@@ -464,17 +464,11 @@ def to_date_str(d):
     return ""
 
 
-def normalize_name(name: str, verbose: bool = True):
+def normalize_name(name: str):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
     if "_" in name:
-        if verbose:
-            warnings.warn(
-                "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                f"Replacing '{name}' underscores with dashes.",
-                FutureWarning,
-            )
         name = name.replace("_", "-")
     return name.lower()
 
@@ -835,7 +829,7 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid character '/' in function name or source name"
             ) from exc
-    name = normalize_name(name=name, verbose=False)
+    name = normalize_name(name=name)
     if not source_name:
         # Searching item in all sources
         sources = db.list_hub_sources(item_name=name, tag=tag)
@@ -2427,3 +2421,37 @@ def get_data_from_path(
     if isinstance(output_data, (int, float)):
         output_data = [output_data]
     return output_data
+
+
+def is_valid_port(port: int, raise_on_error: bool = False) -> bool:
+    if not port:
+        return False
+    if 0 <= port <= 65535:
+        return True
+    if raise_on_error:
+        raise ValueError("Port must be in the range 0–65535")
+    return False
+
+
+def set_data_by_path(
+    path: typing.Union[str, list[str], None], data: dict, value
+) -> None:
+    if path is None:
+        if not isinstance(value, dict):
+            raise ValueError("When path is None, value must be a dictionary.")
+        data.update(value)
+
+    elif isinstance(path, str):
+        data[path] = value
+
+    elif isinstance(path, list):
+        current = data
+        for key in path[:-1]:
+            if key not in current or not isinstance(current[key], dict):
+                current[key] = {}
+            current = current[key]
+        current[path[-1]] = value
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected path to be of type str or list of str"
+        )

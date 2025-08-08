@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.serving import Model, V2ModelServer
+ARG MLRUN_PYTHON_VERSION=3.11
 
-
-class OneToMany(V2ModelServer):
-    def load(self):
-        pass
-
-    def predict(self, event: dict) -> list:
-        inputs = event.get("inputs")
-        return inputs
-
-
-class MyModel(Model):
-    def __init__(self, *args, inc: int, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.inc = inc
-
-    def predict(self, body, **kwargs):
-        body["n"] += self.inc
-        body.pop("models", None)
-        return body
+FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    DEBIAN_FRONTEND=noninteractive apt-get update -q && \
+    apt-get -y upgrade -o Acquire::Check-Valid-Until=false && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+        libffi-dev \
+        python3-dev \
+        unzip

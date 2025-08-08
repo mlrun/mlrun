@@ -157,6 +157,19 @@ class BaseLauncher(abc.ABC):
         ]:
             mlrun.utils.helpers.warn_on_deprecated_image(image)
 
+        # Raise an error if retry is configured for a runtime that doesn't support retries.
+        # For local runs, we intentionally skip this validation and allow the run to proceed, since they are typically
+        # used for debugging purposes, and in such cases we avoid blocking their execution.
+        if (
+            not mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
+            and run.spec.retry.count
+            and runtime.kind not in mlrun.runtimes.RuntimeKinds.retriable_runtimes()
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Retry is not supported for {runtime.kind} runtime, supported runtimes are: "
+                f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"
+            )
+
     @staticmethod
     def _validate_output_path(
         runtime: "mlrun.runtimes.BaseRuntime",
@@ -268,12 +281,6 @@ class BaseLauncher(abc.ABC):
 
         run.metadata.name = mlrun.utils.normalize_name(
             name=name or run.metadata.name or def_name,
-            # if name or runspec.metadata.name are set then it means that is user defined name and we want to warn the
-            # user that the passed name needs to be set without underscore, if its not user defined but rather enriched
-            # from the handler(function) name then we replace the underscore without warning the user.
-            # most of the time handlers will have `_` in the handler name (python convention is to separate function
-            # words with `_`), therefore we don't want to be noisy when normalizing the run name
-            verbose=bool(name or run.metadata.name),
         )
         mlrun.utils.verify_field_regex(
             "run.metadata.name", run.metadata.name, mlrun.utils.regex.run_name

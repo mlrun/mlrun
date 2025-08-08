@@ -447,14 +447,17 @@ class BaseRuntime(ModelObj):
         :return: Dictionary with all the variables that could be parsed
         """
         runtime_env = {
-            "MLRUN_ACTIVE_PROJECT": self.metadata.project or config.active_project
+            mlrun_constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
+            or config.active_project
         }
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True
             )
             if runobj.metadata.project:
-                runtime_env["MLRUN_ACTIVE_PROJECT"] = runobj.metadata.project
+                runtime_env[mlrun_constants.MLRUN_ACTIVE_PROJECT] = (
+                    runobj.metadata.project
+                )
             if runobj.spec.verbose:
                 runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:

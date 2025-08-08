@@ -20,9 +20,10 @@ import traceback
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import Any, NamedTuple, Optional, Union, cast
+from typing import Any, Final, NamedTuple, Optional, Union, cast
 
 import nuclio_sdk
+import numpy as np
 import pandas as pd
 
 import mlrun
@@ -49,14 +50,16 @@ class _Interval(NamedTuple):
 
 
 class _BatchWindow:
+    TIMESTAMP_RESOLUTION_MICRO: Final = 1e-6  # 0.000001 seconds or 1 microsecond
+
     def __init__(
         self,
         *,
         schedules_file: schedules.ModelMonitoringSchedulesFileEndpoint,
         application: str,
         timedelta_seconds: int,
-        last_updated: int,
-        first_request: int,
+        last_updated: float,
+        first_request: float,
         endpoint_mode: mm_constants.EndpointMode = mm_constants.EndpointMode.REAL_TIME,
     ) -> None:
         """
@@ -73,15 +76,17 @@ class _BatchWindow:
         self._endpoint_mode = endpoint_mode
         self._start = self._get_last_analyzed()
 
-    def _get_saved_last_analyzed(self) -> Optional[int]:
-        return cast(int, self._db.get_application_time(self._application))
+    def _get_saved_last_analyzed(
+        self,
+    ) -> Optional[float]:
+        return self._db.get_application_time(self._application)
 
-    def _update_last_analyzed(self, last_analyzed: int) -> None:
+    def _update_last_analyzed(self, last_analyzed: float) -> None:
         self._db.update_application_time(
             application=self._application, timestamp=last_analyzed
         )
 
-    def _get_initial_last_analyzed(self) -> int:
+    def _get_initial_last_analyzed(self) -> float:
         if self._endpoint_mode == mm_constants.EndpointMode.BATCH:
             logger.info(
                 "No last analyzed time was found for this endpoint and application, as this is "
@@ -107,7 +112,7 @@ class _BatchWindow:
             self._stop - first_period_in_seconds,
         )
 
-    def _get_last_analyzed(self) -> int:
+    def _get_last_analyzed(self) -> float:
         saved_last_analyzed = self._get_saved_last_analyzed()
         if saved_last_analyzed is not None:
             if self._endpoint_mode == mm_constants.EndpointMode.BATCH:
@@ -127,13 +132,16 @@ class _BatchWindow:
         # Iterate timestamp from start until timestamp <= stop - step
         # so that the last interval will end at (timestamp + step) <= stop.
         # Add 1 to stop - step to get <= and not <.
-        for timestamp in range(self._start, self._stop - self._step + 1, self._step):
+        for timestamp in np.arange(
+            self._start, self._stop - self._step + 1, self._step
+        ):
             entered = True
             start_time = datetime.datetime.fromtimestamp(
                 timestamp, tz=datetime.timezone.utc
             )
             end_time = datetime.datetime.fromtimestamp(
-                timestamp + self._step, tz=datetime.timezone.utc
+                timestamp - self.TIMESTAMP_RESOLUTION_MICRO + self._step,
+                tz=datetime.timezone.utc,
             )
             yield _Interval(start_time, end_time)
 
@@ -149,7 +157,7 @@ class _BatchWindow:
             # If the endpoint is a batch endpoint, we need to update the last analyzed time
             # to the end of the batch time.
             if last_analyzed:
-                if last_analyzed < self._stop:
+                if last_analyzed - self.TIMESTAMP_RESOLUTION_MICRO < self._stop:
                     # If the last analyzed time is earlier than the stop time,
                     # yield the final partial interval from last_analyzed to stop
                     yield _Interval(
@@ -223,7 +231,7 @@ class _BatchWindowGenerator(AbstractContextManager):
     def get_application_list(self) -> set[str]:
         return self._schedules_file.get_application_list()
 
-    def get_min_last_analyzed(self) -> Optional[int]:
+    def get_min_last_analyzed(self) -> Optional[float]:
         return self._schedules_file.get_min_timestamp()
 
     @classmethod
@@ -231,22 +239,19 @@ class _BatchWindowGenerator(AbstractContextManager):
         cls,
         last_request: datetime.datetime,
         endpoint_mode: mm_constants.EndpointMode,
-    ) -> int:
+    ) -> float:
         """
         Get the last updated time of a model endpoint.
         """
 
         if endpoint_mode == mm_constants.EndpointMode.REAL_TIME:
-            last_updated = int(
-                last_request.timestamp()
-                - cast(
-                    float,
-                    mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
-                )
+            last_updated = last_request.timestamp() - cast(
+                float,
+                mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
             )
 
             return last_updated
-        return int(last_request.timestamp())
+        return last_request.timestamp()
 
     def get_intervals(
         self,
@@ -267,7 +272,7 @@ class _BatchWindowGenerator(AbstractContextManager):
             application=application,
             timedelta_seconds=self._timedelta,
             last_updated=self._get_last_updated_time(last_request, endpoint_mode),
-            first_request=int(first_request.timestamp()),
+            first_request=first_request.timestamp(),
             endpoint_mode=endpoint_mode,
         )
         yield from self.batch_window.get_intervals()
@@ -433,15 +438,14 @@ class MonitoringApplicationController:
                         base_period_minutes, current_min_last_analyzed, current_time
                     )
                     and (
-                        int(endpoint.status.last_request.timestamp())
-                        != last_timestamp_sent
+                        endpoint.status.last_request.timestamp() != last_timestamp_sent
                         or current_min_last_analyzed != last_analyzed_sent
                     )
                 ):
                     # Write to schedule chief file the last_request, min_last_analyzed we pushed event to stream
                     schedules_file.update_endpoint_timestamps(
                         endpoint_uid=endpoint.metadata.uid,
-                        last_request=int(endpoint.status.last_request.timestamp()),
+                        last_request=endpoint.status.last_request.timestamp(),
                         last_analyzed=current_min_last_analyzed,
                     )
                     return True
@@ -466,7 +470,7 @@ class MonitoringApplicationController:
     @staticmethod
     def _should_send_nop_event(
         base_period_minutes: int,
-        min_last_analyzed: int,
+        min_last_analyzed: float,
         current_time: datetime.datetime,
     ):
         if min_last_analyzed:
@@ -616,7 +620,10 @@ class MonitoringApplicationController:
                                 endpoint_id=endpoint_id,
                             )
                             self._push_to_applications(
-                                start_infer_time=start_infer_time,
+                                start_infer_time=start_infer_time
+                                - datetime.timedelta(
+                                    batch_window_generator.batch_window.TIMESTAMP_RESOLUTION_MICRO
+                                ),  # We subtract a microsecond to ensure that the apps will retrieve start time data.
                                 end_infer_time=end_infer_time,
                                 endpoint_id=endpoint_id,
                                 endpoint_name=endpoint_name,

@@ -16,7 +16,11 @@ from collections.abc import Awaitable
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import mlrun
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+    UsageResponseKeys,
+)
 from mlrun.datastore.utils import accepts_param
 
 if TYPE_CHECKING:
@@ -38,6 +42,7 @@ class OpenAIProvider(ModelProvider):
     """
 
     support_async = True
+    response_class = None
 
     def __init__(
         self,
@@ -63,6 +68,27 @@ class OpenAIProvider(ModelProvider):
         )
         self.options = self.get_client_options()
         self.load_client()
+
+    @classmethod
+    def _import_response_class(cls) -> None:
+        if not cls.response_class:
+            try:
+                from openai.types.chat.chat_completion import ChatCompletion
+            except ImportError as exc:
+                raise ImportError("openai package is not installed") from exc
+            cls.response_class = ChatCompletion
+
+    @staticmethod
+    def _extract_string_output(response: "ChatCompletion") -> str:
+        """
+        Extracts the first generated string from Hugging Face pipeline output,
+        regardless of whether it's plain text-generation or chat-style output.
+        """
+        if len(response.choices) != 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "OpenAIProvider: extracting string from response is only supported for single-response outputs"
+            )
+        return response.choices[0].message.content
 
     @classmethod
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
@@ -180,60 +206,90 @@ class OpenAIProvider(ModelProvider):
                 **invoke_kwargs, **model_kwargs
             )
 
+    def _response_handler(
+        self,
+        response: "ChatCompletion",
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **kwargs,
+    ) -> ["ChatCompletion", str, dict[str, Any]]:
+        if InvokeResponseFormat.is_str_response(invoke_response_format.value):
+            str_response = self._extract_string_output(response)
+            if invoke_response_format == InvokeResponseFormat.STRING:
+                return str_response
+            if invoke_response_format == InvokeResponseFormat.USAGE:
+                stats = response.to_dict()["usage"]
+                response = {
+                    UsageResponseKeys.ANSWER: str_response,
+                    UsageResponseKeys.USAGE: stats,
+                }
+        return response
+
     def invoke(
         self,
-        messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        messages: list[dict],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, "ChatCompletion"]:
+    ) -> Union[dict[str, Any], str, "ChatCompletion"]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
-        Invokes an OpenAI model operation using the sync client.
+        Invokes an OpenAI model operation using the synchronous client.
         For full details, see `ModelProvider.invoke`.
 
-        :param messages:    Same as ModelProvider.invoke.
+        :param messages:
+            Same as `ModelProvider.invoke`.
 
-        :param as_str: bool
-                            If `True`, returns only the main content of the first response
-                            (`response.choices[0].message.content`).
-                            If `False`, returns the full response object, whose type depends on
-                            the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
+        :param invoke_response_format: InvokeResponseFormat
+            Specifies the format of the returned response. Options:
+
+            - "string": Returns only the generated text content, taken from a single response.
+            - "stats": Combines the generated text with metadata (e.g., token usage), returning a dictionary:
+
+              .. code-block:: json
+                 {
+                     "answer": "<generated_text>",
+                     "stats": <ChatCompletion>.to_dict()["usage"]
+                 }
+
+            - "full": Returns the full OpenAI `ChatCompletion` object.
 
         :param invoke_kwargs:
-                            Same as ModelProvider.invoke.
-        :return:            Same as ModelProvider.invoke.
+            Additional keyword arguments passed to the OpenAI client. Same as in `ModelProvider.invoke`.
 
+        :return:
+            A string, dictionary, or `ChatCompletion` object, depending on `invoke_response_format`.
         """
+
         response = self.custom_invoke(messages=messages, **invoke_kwargs)
-        if as_str:
-            return response.choices[0].message.content
-        return response
+        return self._response_handler(
+            messages=messages,
+            invoke_response_format=invoke_response_format,
+            response=response,
+        )
 
     async def async_invoke(
         self,
-        messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        messages: list[dict],
+        invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, "ChatCompletion"]:
+    ) -> Union[str, "ChatCompletion", dict]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
         Invokes an OpenAI model operation using the async client.
-        For full details, see `ModelProvider.async_invoke`.
+        For full details, see `ModelProvider.async_invoke` and `OpenAIProvider.invoke`.
 
-        :param messages:    Same as ModelProvider.async_invoke.
+        :param messages:    Same as `OpenAIProvider.invoke`.
 
-        :param as_str: bool
-                            If `True`, returns only the main content of the first response
-                            (`response.choices[0].message.content`).
-                            If `False`, returns the full awaited response object, whose type depends on
-                            the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
+        :param invoke_response_format: InvokeResponseFormat
+                            Same as `OpenAIProvider.invoke`.
 
         :param invoke_kwargs:
-                            Same as ModelProvider.async_invoke.
-        :returns            Same as ModelProvider.async_invoke.
+                            Same as `OpenAIProvider.invoke`.
+        :returns            Same as `ModelProvider.async_invoke`.
 
         """
         response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
-        if as_str:
-            return response.choices[0].message.content
-        return response
+        return self._response_handler(
+            messages=messages,
+            invoke_response_format=invoke_response_format,
+            response=response,
+        )

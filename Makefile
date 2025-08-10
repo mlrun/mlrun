@@ -334,7 +334,7 @@ MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_KFP_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-kfp
-mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
+mlrun-kfp: common-image-3.9 update-version-file ## Build mlrun docker image with KFP
 	$(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-kfp/Dockerfile \
@@ -490,6 +490,9 @@ COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
 
 common-image-3.11:
 	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.11
+
+common-image-3.9:
+	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.9
 
 # --- Build (cached) ----------------------------------------------------------
 ifeq ($(strip $(MLRUN_NO_CACHE)),)

@@ -311,10 +311,7 @@ class TDEngineConnector(TSDBConnector):
             flush_after_seconds=tsdb_batching_timeout_secs,
         )
 
-    def delete_tsdb_records(
-        self,
-        endpoint_ids: list[str],
-    ):
+    def delete_tsdb_records(self, endpoint_ids: list[str]) -> None:
         """
         To delete subtables within TDEngine, we first query the subtables names with the provided endpoint_ids.
         Then, we drop each subtable.
@@ -332,9 +329,7 @@ class TDEngineConnector(TSDBConnector):
                 get_subtable_query = self.tables[table]._get_subtables_query_by_tag(
                     filter_tag="endpoint_id", filter_values=endpoint_ids
                 )
-                subtables_result = self.connection.run(
-                    query=get_subtable_query,
-                )
+                subtables_result = self.connection.run(query=get_subtable_query)
                 subtables.extend([subtable[0] for subtable in subtables_result.data])
         except Exception as e:
             logger.warning(
@@ -346,15 +341,12 @@ class TDEngineConnector(TSDBConnector):
             )
 
         # Prepare the drop statements
-        drop_statements = []
-        for subtable in subtables:
-            drop_statements.append(
-                self.tables[table].drop_subtable_query(subtable=subtable)
-            )
+        drop_statements = [
+            self.tables[table].drop_subtable_query(subtable=subtable)
+            for subtable in subtables
+        ]
         try:
-            self.connection.run(
-                statements=drop_statements,
-            )
+            self.connection.run(statements=drop_statements)
         except Exception as e:
             logger.warning(
                 "Failed to delete model endpoint resources. You may need to delete them manually. "

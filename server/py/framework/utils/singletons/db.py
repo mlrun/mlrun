@@ -13,8 +13,6 @@
 # limitations under the License.
 
 
-from urllib.parse import urlparse, urlunparse
-
 import mlrun.db
 from mlrun.config import config
 from mlrun.utils import logger
@@ -22,6 +20,7 @@ from mlrun.utils import logger
 from framework.db.base import DBInterface
 from framework.db.session import create_session
 from framework.db.sqldb.db import SQLDB
+from framework.utils.db.dsn import Dsn
 
 # TODO: something nicer
 db: DBInterface = None
@@ -38,7 +37,7 @@ def initialize_db(override_db=None):
         db = override_db
         return
 
-    logger.info("Creating sql db", dsn=_mask_dsn(config.httpdb.dsn))
+    logger.info("Creating sql db", dsn=str(Dsn(config.httpdb.dsn)))
 
     db = SQLDB(config.httpdb.dsn)
     # set the run db path to the sql db dsn
@@ -50,24 +49,3 @@ def initialize_db(override_db=None):
         db.initialize(db_session)
     finally:
         db_session.close()
-
-
-def _mask_dsn(dsn: str) -> str:
-    parsed = urlparse(dsn)
-
-    # Fast-path – nothing to mask
-    if parsed.username is None and parsed.password is None:
-        return dsn
-
-    host_port = parsed.hostname or ""
-    if parsed.port:
-        host_port += f":{parsed.port}"
-
-    # Rebuild netloc with masked credentials (*** or ***:***)
-    if parsed.password is not None:
-        netloc = f"***:***@{host_port}"
-    else:
-        netloc = f"***@{host_port}"
-
-    masked = parsed._replace(netloc=netloc)
-    return urlunparse(masked)

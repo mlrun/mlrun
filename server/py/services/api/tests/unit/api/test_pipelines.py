@@ -37,7 +37,6 @@ from kfp_server_api import (
     ApiRunDetail,
 )
 
-import mlrun.api.schemas
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun_pipelines.client
@@ -330,7 +329,7 @@ def test_list_pipelines_specific_project(
 
 
 def mock_authenticate_request():
-    return mlrun.api.schemas.AuthInfo(username="test_user", token="mock_token")
+    return mlrun.common.schemas.AuthInfo(username="test_user", token="mock_token")
 
 
 def test_create_pipeline(

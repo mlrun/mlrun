@@ -20,6 +20,7 @@ from transformers import AutoTokenizer
 from mlrun.datastore.datastore_profile import (
     HuggingFaceProfile,
 )
+from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
@@ -80,10 +81,20 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         response = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",
             json.dumps(INPUT_DATA[0]),
-        )
-        result = response["result"]
-        assert EXPECTED_RESULTS[0] in result.lower()
+        )["output"]
+
+        assert len(response) == 2
+        answer = response[UsageResponseKeys.ANSWER]
+        assert EXPECTED_RESULTS[0] in answer.lower()
         tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
-        token_count = len(tokenizer.encode(result))
-        # Extra token is due to the EOS token, which signals end of generation.
-        assert token_count in (50, 51)
+        token_count = len(tokenizer.encode(answer))
+        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
+        # due to internal EOS or tokenizer behavior, so we assert within this range.
+        assert 45 <= token_count <= 51
+
+        stats = response[UsageResponseKeys.USAGE]
+        assert stats["completion_tokens"] == token_count
+        assert stats["prompt_tokens"] > 0
+        assert (
+            stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]
+        )

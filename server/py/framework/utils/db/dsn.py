@@ -13,9 +13,7 @@
 # limitations under the License.
 import re
 from typing import Any, Optional, Union
-from urllib.parse import parse_qs, quote, unquote, urlparse
-
-import sqlalchemy
+from urllib.parse import parse_qs, quote, quote_plus, unquote, urlencode, urlparse
 
 import mlrun
 import mlrun.common.db.dialects
@@ -141,22 +139,71 @@ class Dsn:
             "configurations": self.configurations,
         }
 
-    def as_sqlalchemy_dsn(self):
-        drivername = (
+    def as_dsn(
+        self,
+        mask_credentials: bool = True,
+    ) -> str:
+        """Return a SQLAlchemy-compatible DSN string **without** using `sqlalchemy.URL`.
+
+        When `mask_credentials` is `True`, any user-info segment is replaced with literal
+        asterisks (`***`) so nothing is percent-encoded.
+        """
+        # Dialect+driver
+        dialect_and_driver = (
             self.dialect if self.driver is None else f"{self.dialect}+{self.driver}"
         )
-        return sqlalchemy.URL(
-            drivername=drivername,
-            username=self.username,
-            password=self.password,
-            host=self.host,
-            port=self.port,
-            database=self.database,
-            query=self.configurations or None,  # keep query params
+
+        # User-info
+        if mask_credentials:
+            user_info_segment = ""
+            for item in (
+                self.username,
+                self.password,
+            ):
+                if item is not None:
+                    if user_info_segment:
+                        user_info_segment += ":"
+                    user_info_segment += "***"
+            if user_info_segment:
+                user_info_segment += "@"
+        else:
+            if self.username is None:
+                user_info_segment = ""
+            else:
+                safe_username = quote_plus(self.username)
+                safe_password = quote_plus(self.password) if self.password else None
+
+                if safe_password is not None:
+                    user_info_segment = f"{safe_username}:{safe_password}@"
+                else:
+                    user_info_segment = f"{safe_username}@"
+
+        # Host / port
+        host_segment = self.host or ""
+        port_segment = f":{self.port}" if self.port is not None else ""
+
+        # Database or file path
+        if self.dialect == mlrun.common.db.dialects.Dialects.SQLITE:
+            # Keep original path exactly as given (includes leading slash if present)
+            database_or_path_segment = self._parsed.path
+        else:
+            database_or_path_segment = f"/{self.database}" if self.database else ""
+
+        query_segment = (
+            "?" + urlencode(self.configurations, doseq=True)
+            if getattr(self, "configurations", None)
+            else ""
+        )
+
+        return (
+            f"{dialect_and_driver}://"
+            f"{user_info_segment}{host_segment}{port_segment}"
+            f"{database_or_path_segment}{query_segment}"
         )
 
     def __str__(self) -> str:
-        return self.as_sqlalchemy_dsn().render_as_string()
+        """Human-readable representation with masked credentials."""
+        return self.as_dsn(mask_credentials=True)
 
     @staticmethod
     def _split_scheme(scheme: str) -> tuple[str, Optional[str]]:

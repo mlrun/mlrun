@@ -2176,7 +2176,6 @@ class MonitoringDeployment:
                     router_step.model_endpoint_creation_strategy,
                 )
             )
-        print("[EYAL]: model endpoint instructions: ", model_endpoints_instructions)
         return model_endpoints_instructions
 
     def _extract_meps_from_root_flow_step(

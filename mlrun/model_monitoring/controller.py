@@ -18,7 +18,6 @@ import json
 import os
 import traceback
 import warnings
-from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
@@ -259,7 +258,7 @@ class _BatchWindowGenerator(AbstractContextManager):
                 # the minimum between the current time and the last updated time.
                 # This compensates for the bumping mechanism - see
                 # `update_model_endpoint_last_request`.
-                last_updated = min(int(datetime_now().timestamp()), last_updated)
+                last_updated = min(datetime_now().timestamp(), last_updated)
                 logger.debug(
                     "The endpoint does not have a stream", last_updated=last_updated
                 )
@@ -348,9 +347,9 @@ class MonitoringApplicationController:
                 mlrun.platforms.iguazio.KafkaOutputStream,
             ],
         ] = {}
-        self.feature_sets: OrderedDict[str, mlrun.feature_store.FeatureSet] = (
-            collections.OrderedDict()
-        )
+        self.feature_sets: collections.OrderedDict[
+            str, mlrun.feature_store.FeatureSet
+        ] = collections.OrderedDict()
         self.tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project
         )
@@ -637,7 +636,8 @@ class MonitoringApplicationController:
                             # Old batch endpoint - get the relevant window data from the parquet target
                             warnings.warn(
                                 "Analyzing batch model endpoints with real time processing events is "
-                                "deprecated. Instead, use job-based serving to invoke and analyze offline batch model "
+                                "deprecated in 1.10.0 and will be removed in 1.12.0. "
+                                "Instead, use job-based serving to invoke and analyze offline batch model"
                                 "endpoints.",
                                 # TODO: Remove this in 1.12.0
                                 FutureWarning,

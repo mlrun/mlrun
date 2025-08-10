@@ -456,7 +456,10 @@ class Secrets(
 
         for token_name, decoded_token in valid_tokens.items():
             # TODO remove this and use refresh_access_tokens once it is implemented in Iguazio client
-            iguazio_client.refresh_access_token(decoded_token["raw_token"])
+            secret_token = mlrun.common.schemas.SecretToken(
+                name=token_name, token=decoded_token["raw_token"]
+            )
+            iguazio_client.refresh_access_token(secret_token)
 
             action = self.secrets_provider.create_or_update_user_token_secret(
                 username=authenticated_username,

@@ -136,7 +136,7 @@ def get_or_create_model_endpoint(
 @deprecated(
     version="1.10.0",
     reason="This function is deprecated and will be removed in 1.12. "
-    "Please use a monitored serving function executed as a job instead.",
+    "Instead, run a monitored serving function as a job",
     category=FutureWarning,
 )
 def record_results(

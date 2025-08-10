@@ -1,6 +1,7 @@
 import json
 import os
-
+import shutil
+from mlrun.artifacts import get_model
 import chromadb
 import torch
 from transformers import (
@@ -43,7 +44,15 @@ class StopOnTokens(StoppingCriteria):
 def init_context(context):
     model_id = os.environ["MODEL_ID"]
     cache_dir = os.environ["CACHE_DIR"]
+    if cache_dir.startswith("s3://"):
+        cache_dir = "./"
 
+    vdb_path = os.environ["VECTORDB_PATH"]
+    context.logger.info(f"vdb_path: {vdb_path}")
+    vdb_file, model_obj, _ = get_model(vdb_path)
+    context.logger.info(f"vdb_file: {vdb_file}")
+    local_file = "./chroma.sqlite3"
+    shutil.copy(vdb_file, local_file)
     # Initialize HF models
     tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir)
     lm_model = AutoModelForCausalLM.from_pretrained(model_id, cache_dir=cache_dir)

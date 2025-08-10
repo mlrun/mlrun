@@ -2403,9 +2403,7 @@ def split_path(path: str) -> typing.Union[str, list[str], None]:
     return path
 
 
-def get_data_from_path(
-    path: typing.Union[str, list[str], None], data: dict
-) -> dict[str, Any]:
+def get_data_from_path(path: typing.Union[str, list[str], None], data: dict) -> Any:
     if isinstance(path, str):
         output_data = data.get(path)
     elif isinstance(path, list):
@@ -2418,8 +2416,6 @@ def get_data_from_path(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected path be of type str or list of str or None"
         )
-    if isinstance(output_data, (int, float)):
-        output_data = [output_data]
     return output_data
 
 

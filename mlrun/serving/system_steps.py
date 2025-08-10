@@ -62,6 +62,8 @@ class MonitoringPreProcessor(storey.MapClass):
                     "Output schema was not provided using Project:log_model or by ModelRunnerStep:add_model order "
                     "may not preserved"
                 )
+        elif not isinstance(result, list):
+            outputs = [result]
         else:
             outputs = result
 
@@ -76,6 +78,8 @@ class MonitoringPreProcessor(storey.MapClass):
                     "Input schema was not provided using by ModelRunnerStep:add_model, order "
                     "may not preserved"
                 )
+        elif not isinstance(event_inputs, list):
+            inputs = [event_inputs]
         else:
             inputs = event_inputs
 

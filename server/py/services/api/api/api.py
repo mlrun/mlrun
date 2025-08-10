@@ -145,6 +145,11 @@ api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoint
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
 api_router.include_router(model_monitoring.router, tags=["model-monitoring"])
 api_router.include_router(
+    model_monitoring.metrics_router,
+    tags=["model-monitoring"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
     hub.router,
     tags=["hub"],
     dependencies=[Depends(deps.authenticate_request)],

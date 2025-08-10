@@ -34,6 +34,9 @@ from services.api.crud.model_monitoring.deployment import MonitoringDeployment
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
 
+# See https://iguazio.atlassian.net/browse/ML-10164?focusedCommentId=183283
+metrics_router = APIRouter(prefix="/projects/{project}/model-monitoring-metrics")
+
 
 @dataclass
 class _CommonParams:
@@ -455,3 +458,42 @@ async def get_model_monitoring_function_summary(
         name=function_name,
         include_latest_metrics=include_latest_metrics,
     )
+
+
+@metrics_router.delete("/", status_code=http.HTTPStatus.NO_CONTENT)
+async def delete_model_endpoints_metrics_values(
+    project: mm_constants.ProjectAnnotation,
+    application_name: Annotated[
+        str,
+        Query(pattern=mm_constants.APP_NAME_REGEX.pattern, alias="application-name"),
+    ],
+    endpoint_id: Annotated[
+        Optional[list[str]],
+        Path(
+            pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN,
+            alias="endpoint-id",
+            description=(
+                "The unique id of the model endpoint. If none is provided, the metrics "
+                "values will be deleted from all project's model endpoints."
+            ),
+        ),
+    ] = None,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+) -> None:
+    """
+    Delete model endpoints metrics values.
+
+    :param project:          The name of the project.
+    :param application_name: The name of the application.
+    :param endpoint_id:      The unique IDs of the model endpoint to delete metrics values from. If none is
+                             provided, the metrics values will be deleted from all project's model endpoints.
+    :param auth_info:        The auth info of the request.
+    """
+    await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_monitoring_metrics,
+        project_name=project,
+        resource_name=application_name,
+        action=mlrun.common.schemas.AuthorizationAction.delete,
+        auth_info=auth_info,
+    )
+    # TODO: implement the actual deletion logic

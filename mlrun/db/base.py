@@ -1131,6 +1131,15 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        pass
+
+    @abstractmethod
     def get_monitoring_function_summaries(
         self,
         project: str,

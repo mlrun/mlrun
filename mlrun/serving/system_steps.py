@@ -109,8 +109,8 @@ class MonitoringPreProcessor(storey.MapClass):
             new_schema = new_schema or schema
             if not schema:
                 logger.warn(
-                    "Schema was not provided using by ModelRunnerStep:add_model, order "
-                    f"may not preserved for {data_from_path}"
+                    f"No schema provided through add_model(); the order of {data_from_path} "
+                    "may not be preserved."
                 )
         elif not isinstance(data_from_path, list):
             output_data = [data_from_path]

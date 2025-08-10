@@ -606,19 +606,19 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         self.endpoint_type = {}
 
     def _infer_feature_names_from_data(self, event):
-        for endpoint_id in self.feature_names:
-            if len(self.feature_names[endpoint_id]) >= len(
-                event[EventFieldType.FEATURES]
-            ):
-                return self.feature_names[endpoint_id]
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
+        if endpoint_id in self.feature_names and len(
+            self.feature_names[endpoint_id]
+        ) >= len(event[EventFieldType.FEATURES]):
+            return self.feature_names[endpoint_id]
         return None
 
     def _infer_label_columns_from_data(self, event):
-        for endpoint_id in self.label_columns:
-            if len(self.label_columns[endpoint_id]) >= len(
-                event[EventFieldType.PREDICTION]
-            ):
-                return self.label_columns[endpoint_id]
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
+        if endpoint_id in self.label_columns and len(
+            self.label_columns[endpoint_id]
+        ) >= len(event[EventFieldType.PREDICTION]):
+            return self.label_columns[endpoint_id]
         return None
 
     def do(self, event: dict):

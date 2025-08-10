@@ -874,6 +874,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             feature_analysis=True,
             tsdb_metrics=True,
         )
+        assert (
+            mep.status.last_request is not None
+        ), "The last request is not set in the MEP status"
         # Model predict timestamp is slightly differ than storey timestamp
         assert (
             (mep.status.last_request - last_request) < timedelta(milliseconds=1)
@@ -970,7 +973,7 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
         df = pd.DataFrame(d)
         input_df = df.set_index(
-            pd.date_range("2025-07-24 05:00:10", freq="40s", periods=len(df))
+            pd.date_range("2025-07-24 05:00:10", freq="120s", periods=len(df))
         )
         input_df.reset_index(inplace=True)
         return input_df
@@ -1097,10 +1100,10 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
             assert result_values[
                 "values"
             ], f"The values list is empty for result {result_values['full_name']}"
+            assert len(result_values["values"]) == 3
 
         first_result = response_content[0]
         assert first_result["full_name"] in results_full_names
-        assert len(first_result["values"]) == 2
 
     def test_serving_as_a_job(self) -> None:
         self._log_model()

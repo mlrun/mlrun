@@ -537,6 +537,12 @@ class ModelEndpoints:
                     for f in model_obj.spec.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
+            elif model_endpoint.spec.label_names:
+                model_label_names = [
+                    mlrun.feature_store.api.norm_column_name(name)
+                    for name in model_endpoint.spec.label_names
+                ]
+                model_endpoint.spec.label_names = model_label_names
 
             if not model_endpoint.spec.feature_names:
                 features = self._get_features(
@@ -550,6 +556,12 @@ class ModelEndpoints:
                     for feature in features
                     if feature.name not in model_endpoint.spec.label_names
                 ]
+            elif model_endpoint.spec.feature_names:
+                model_endpoint_feature_names = [
+                    mlrun.feature_store.api.norm_column_name(name)
+                    for name in model_endpoint.spec.feature_names
+                ]
+                model_endpoint.spec.feature_names = model_endpoint_feature_names
 
         return model_endpoint, features
 

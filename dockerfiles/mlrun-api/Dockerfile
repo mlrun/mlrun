@@ -13,69 +13,57 @@
 # limitations under the License.
 
 ARG MLRUN_PYTHON_VERSION=3.11
+ARG UID=1000
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
+
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-
-FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
-
-
-ARG UID=1000
-# this creates both user and group with the same id
-RUN useradd -u $UID mlrun
-
-# Update OS packages:
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
-    rm -rf /var/lib/apt/lists/*
+FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
+ARG MLRUN_PYTHON_VERSION
+ARG UID
 
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
-  tini \
-  gcc \
-  git-core \
-  procps \
-  sqlite3 \
-  vim \
-  mariadb-client \
-  curl \
-  ca-certificates \
-  libpq-dev \
-  python3-dev \
- && rm -rf /var/lib/apt/lists/*
+RUN useradd -u $UID mlrun
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -o Acquire::Check-Valid-Until=false \
+        libpq-dev \
+        mariadb-client \
+        sqlite3 \
+        tini
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
-
-WORKDIR /mlrun
-
-# need to be redeclared since used in the from
-ARG MLRUN_PYTHON_VERSION=3.11
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun-api/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
+    uv pip sync  --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
-COPY ./pipeline-adapters ./pipeline-adapters
-
+WORKDIR /tmp/mlrun
+COPY *.txt *.md *.py *.toml ./
+COPY mlrun mlrun
+COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --python-version ${MLRUN_PYTHON_VERSION} && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
+    uv pip install .[complete-api] --python-version ${MLRUN_PYTHON_VERSION}
 
-COPY . .
+COPY pipeline-adapters pipeline-adapters
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
+WORKDIR /mlrun
+COPY dockerfiles/mlrun-api/start_api.sh /mlrun/start_api.sh
+COPY server/py ./server/py
 RUN chmod -R a+rX /mlrun/server/py/schemas/proto
-
-RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete-api,kfp18] --python-version ${MLRUN_PYTHON_VERSION}
 
 # Remove server related files that are not needed in the base image
 # Remove ensurepip folders from both conda and system python
 # Remove pip is not needed anymore
-RUN rm -rf ./server/go \
-    && python -m pip uninstall pip -y \
-    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
+RUN python -m pip uninstall pip -y \
+    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    /tmp/mlrun /var/lib/apt/lists/*
+
 
 VOLUME /mlrun/db
 ENV PYTHONPATH=/mlrun/server/py
@@ -95,5 +83,4 @@ ENV MLRUN_SERVICES__SERVICE_NAME=api
 # use tini as entrypoint to allow signal handling
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
-
-CMD ["bash", "./dockerfiles/mlrun-api/start_api.sh"]
+CMD ["bash", "/mlrun/start_api.sh"]

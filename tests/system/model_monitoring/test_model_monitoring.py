@@ -860,7 +860,8 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         )
         assert metric_fqn == expected_metric_fqn
 
-    def test_monitoring_with_model_runner_dict_infer(self):
+    @pytest.mark.parametrize("with_training_set", [False, True])
+    def test_monitoring_with_model_runner_dict_infer(self, with_training_set: bool):
         function = mlrun.code_to_function(
             name="function_with_model",
             kind="serving",
@@ -872,13 +873,22 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         self.set_mm_credentials()
 
         # Log a model artifact
+        train_set = None
+        if with_training_set:
+            iris = load_iris()
+            train_set = pd.DataFrame(
+                data=np.c_[iris["data"], iris["target"]],
+                columns=iris.feature_names + ["label"],
+            )
         model_name = "sklearn_RandomForestClassifier"
         # Upload the model through the projects API so that it is available to the serving function
         model = self.project.log_model(
             model_name,
             model_dir=os.path.relpath(self.assets_path),
             model_file="model.pkl",
+            training_set=train_set,
             artifact_path=f"v3io:///projects/{self.project.name}",
+            label_column="label" if with_training_set else None,
         )
         function.save(versioned=False)
         graph = function.set_topology("flow", engine="async")
@@ -902,18 +912,17 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         graph.to(model_runner_step, "runner").respond()
         function.set_tracking()
         self.project.enable_model_monitoring(
-            deploy_histogram_data_drift_app=False,
-            **({} if self.image is None else {"image": self.image}),
+            deploy_histogram_data_drift_app=False, image=self.image
         )
         function.deploy()
         function.invoke(
             "/",
             body={
                 "dict_inputs": {
-                    "sepal_length_cm": 0.5,
-                    "sepal_width_cm": 1.2,
-                    "petal_length_cm": 0.5,
-                    "petal_width_cm": 1.1,
+                    "sepal length (cm)": 0.5,
+                    "sepal width (cm)": 1.2,
+                    "petal length (cm)": 0.5,
+                    "petal width (cm)": 1.1,
                 },
                 "inputs": [[0.5, 1.2, 0.5, 1.1]],
             },
@@ -937,13 +946,27 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         assert model_endpoints[0].spec.label_names == ["label"]
 
         assert model_endpoints[1].metadata.name == "model-1"
-        assert model_endpoints[1].spec.feature_names == [
-            "f0",
-            "f1",
-            "f2",
-            "f3",
-        ]
-        assert model_endpoints[1].spec.label_names == ["p0"]
+        assert (
+            model_endpoints[1].spec.feature_names
+            == [
+                "f0",
+                "f1",
+                "f2",
+                "f3",
+            ]
+            if not with_training_set
+            else [
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ]
+        )
+        assert (
+            model_endpoints[1].spec.label_names == ["p0"]
+            if not with_training_set
+            else ["label"]
+        )
 
     def _assert_model_endpoint_tags_and_labels(
         self,
@@ -1667,6 +1690,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
     def custom_setup_class(cls) -> None:
         cls.classif = SVC()
         cls.model_name = "classif_model"
+        cls.function_name = "classif-function"
         cls.columns = ["feat 1", "b (C)", "Last   for df "]
         cls.y_name = "class (0-4) "
         cls.num_rows = 20
@@ -1743,6 +1767,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
             model_path=self.project.get_artifact_uri(
                 key=self.model_name, category="model", tag="latest"
             ),
+            function_name=self.function_name,
             model_endpoint_name=self.model_endpoint_name,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
@@ -1778,6 +1803,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             ],
         )
         cls.model_name = "clf_model"
+        cls.function_name = "clf_function"
 
         cls.infer_results_df = cls.train_set.copy()
 
@@ -1833,6 +1859,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             project=self.project_name,
             infer_results_df=self.infer_results_df,
             model_path=model_uri,
+            function_name=self.function_name,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             # TODO: activate ad-hoc mode when ML-5792 is done
@@ -1878,7 +1905,6 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystemModelMonitoring):
         out_model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,
             model_path=model_obj.uri,
-            endpoint_id=model_obj.metadata.uid,
             function_name="dummy_func",
             model_endpoint_name="dummy_ep",
             feature_analysis=True,

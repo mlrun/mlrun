@@ -184,6 +184,7 @@ class TestAlerts(TestMLRunSystem):
         nuclio_function_url = notification_helpers.deploy_notification_nuclio(
             self.project, self.image
         )
+        # generate a new model-endpoint
         model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=self.project.metadata.name,
             model_endpoint_name="test-endpoint",

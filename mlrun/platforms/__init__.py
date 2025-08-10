@@ -25,6 +25,7 @@ from .iguazio import (
 )
 
 
+# TODO: Remove in 1.11.0
 class _DeprecationHelper:
     """A helper class to deprecate old schemas"""
 
@@ -48,12 +49,12 @@ class _DeprecationHelper:
     def _warn(self):
         warnings.warn(
             f"mlrun.platforms.{self._new_target} is deprecated since version {self._version}, "
-            f"and will be removed in 1.10. Use mlrun.runtimes.mounts.{self._new_target} instead.",
+            f"and will be removed in 1.11.0. Use mlrun.runtimes.mounts.{self._new_target} instead.",
             FutureWarning,
         )
 
 
-# TODO: Remove in 1.10
+# TODO: Remove in 1.11.0
 # For backwards compatibility
 VolumeMount = _DeprecationHelper("VolumeMount")
 auto_mount = _DeprecationHelper("auto_mount")

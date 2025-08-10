@@ -30,6 +30,9 @@ def handler_chroma(
         download_object=False,
     )
 
+    if cache_dir.startswith("s3://"):
+        cache_dir = "./"
+
     # Create chroma client
     chroma_client = chromadb.PersistentClient(path=cache_dir)
 
@@ -73,4 +76,10 @@ def handler_chroma(
             document_loader_spec=spec,
         )
 
-    context.logger.info("Vector DB was created")
+    vectordb = context.log_model(
+            "vect_db",
+            artifact_path=context.artifact_subpath("vect_db"),
+            model_file=f"{cache_dir}/chroma.sqlite3",
+        )
+
+    context.logger.info(f"Vector DB was created {vectordb}")

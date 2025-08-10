@@ -1690,6 +1690,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
     def custom_setup_class(cls) -> None:
         cls.classif = SVC()
         cls.model_name = "classif_model"
+        cls.function_name = "classif-function"
         cls.columns = ["feat 1", "b (C)", "Last   for df "]
         cls.y_name = "class (0-4) "
         cls.num_rows = 20
@@ -1766,6 +1767,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
             model_path=self.project.get_artifact_uri(
                 key=self.model_name, category="model", tag="latest"
             ),
+            function_name=self.function_name,
             model_endpoint_name=self.model_endpoint_name,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
@@ -1801,6 +1803,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             ],
         )
         cls.model_name = "clf_model"
+        cls.function_name = "clf_function"
 
         cls.infer_results_df = cls.train_set.copy()
 
@@ -1856,6 +1859,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             project=self.project_name,
             infer_results_df=self.infer_results_df,
             model_path=model_uri,
+            function_name=self.function_name,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             # TODO: activate ad-hoc mode when ML-5792 is done
@@ -1901,7 +1905,6 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystemModelMonitoring):
         out_model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,
             model_path=model_obj.uri,
-            endpoint_id=model_obj.metadata.uid,
             function_name="dummy_func",
             model_endpoint_name="dummy_ep",
             feature_analysis=True,

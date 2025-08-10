@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 from os import environ, path, remove
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
+from uuid import UUID
 
 import pydantic.v1
 import requests
@@ -3968,6 +3969,13 @@ class HTTPRunDB(RunDBInterface):
             raise MLRunInvalidArgumentError(
                 "Either endpoint_uid or function_name and function_tag must be provided"
             )
+        if uid:
+            try:
+                UUID(uid)
+            except (ValueError, TypeError):
+                raise MLRunInvalidArgumentError(
+                    "endpoint_id must be a valid UUID string"
+                )
 
     def update_model_monitoring_controller(
         self,

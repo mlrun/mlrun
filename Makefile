@@ -483,8 +483,10 @@ endif
 # Common base image
 ###############################################################################
 
-COMMON_IMAGE_TAG     ?= mlrun_common_image:$(MLRUN_PYTHON_VERSION)
-COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).stamp
+COMMON_PLATFORM_TAG := $(subst /,_,$(DOCKER_DEFAULT_PLATFORM))
+
+COMMON_IMAGE_TAG     ?= mlrun_common_image:$(MLRUN_PYTHON_VERSION)-$(COMMON_PLATFORM_TAG)
+COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).$(COMMON_PLATFORM_TAG).stamp
 COMMON_DOCKER_ARGS   := --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION)
 COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
 

@@ -571,7 +571,7 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 	docker build \
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg COMMON_PLATFORM_TAG=$(COMMON_PLATFORM_TAG) \
+		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_PIPELINES_KFP_VERSION=$(MLRUN_PIPELINES_KFP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
@@ -592,7 +592,7 @@ build-test-system: common-image compile-schemas update-version-file ## Build sys
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg COMMON_PLATFORM_TAG=$(COMMON_PLATFORM_TAG) \
+		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .

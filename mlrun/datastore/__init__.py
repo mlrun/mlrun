@@ -14,6 +14,7 @@
 
 __all__ = [
     "DataItem",
+    "ModelProvider",
     "get_store_resource",
     "ParquetTarget",
     "CSVTarget",
@@ -32,12 +33,13 @@ __all__ = [
     "get_stream_pusher",
     "ConfigProfile",
     "VectorStoreCollection",
+    "store_manager",
 ]
 
 from urllib.parse import urlparse
 
 import fsspec
-from mergedeep import merge
+import storey
 
 import mlrun.datastore.wasbfs
 from mlrun.datastore.datastore_profile import (
@@ -45,6 +47,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
 )
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.platforms.iguazio import (
     HTTPOutputStream,
     KafkaOutputStream,
@@ -166,15 +169,22 @@ def get_stream_pusher(stream_path: str, **kwargs):
             raise ValueError(f"unsupported stream path {stream_path}")
 
 
-class _DummyStream:
+class _DummyStream(storey.MapClass):
     """stream emulator for tests and debug"""
 
     def __init__(self, event_list=None, **kwargs):
         self.event_list = event_list or []
+        super().__init__(**kwargs)
 
     def push(self, data, **kwargs):
         if not isinstance(data, list):
             data = [data]
         for item in data:
             logger.info(f"dummy stream got event: {item}, kwargs={kwargs}")
+            self.event_list.append(item)
+
+    def do(self, event):
+        if not isinstance(event, list):
+            event = [event]
+        for item in event:
             self.event_list.append(item)

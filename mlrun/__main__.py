@@ -261,7 +261,13 @@ def run(
     config = environ.get("MLRUN_EXEC_CONFIG")
     if from_env and config:
         config = json.loads(config)
-        runobj = RunTemplate.from_dict(config)
+        # If run is a retry we need to maintain the run status therefore using RunObject instead of RunTemplate
+        retry_count = config.get("status", {}).get("retry_count")
+        if retry_count:
+            logger.info(f"Retrying run - attempt: {retry_count + 1}")
+            runobj = mlrun.RunObject.from_dict(config)
+        else:
+            runobj = RunTemplate.from_dict(config)
     elif task:
         obj = get_object(task)
         task = yaml.load(obj, Loader=yaml.FullLoader)

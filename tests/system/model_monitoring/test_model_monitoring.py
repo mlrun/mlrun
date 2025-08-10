@@ -16,21 +16,23 @@ import json
 import os
 import pickle
 import string
-import typing
 from datetime import datetime, timedelta, timezone
 from random import choice, randint, uniform
 from time import monotonic, sleep
 from typing import Optional, Union
+from uuid import uuid4
 
 import fsspec
 import numpy as np
 import pandas as pd
 import pytest
+import v3io
 import v3iofs
 from sklearn.datasets import load_diabetes, load_iris, make_classification
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
+from v3io.dataplane.response import HttpResponseError as V3ioHttpResponseError
 
 import mlrun.artifacts.model
 import mlrun.common.schemas.alert as alert_objects
@@ -42,6 +44,7 @@ import mlrun.runtimes.mounts
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
+from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpoint,
     ModelEndpointList,
@@ -49,6 +52,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
 from mlrun.model import BaseMetadata
 from mlrun.model_monitoring.helpers import get_output_stream, get_result_instance_fqn
 from mlrun.runtimes import BaseRuntime
+from mlrun.serving import ModelRunnerStep
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
@@ -62,6 +66,7 @@ def mock_random_endpoint(
     function_tag: Optional[str] = "v1",
     model_path: Optional[str] = None,
     add_labels=True,
+    endpoint_type: EndpointType = EndpointType.NODE_EP,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
@@ -71,6 +76,7 @@ def mock_random_endpoint(
             name=name,
             project=project_name,
             labels=random_labels() if add_labels else {},
+            endpoint_type=endpoint_type,
         ),
         spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
             function_name=function_name,
@@ -263,6 +269,39 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
         endpoints_intersect = in_endpoint_names.intersection(out_endpoint_names)
         assert len(endpoints_intersect) == number_of_endpoints
+
+    def test_list_endpoints_mode(self):
+        db = mlrun.get_run_db()
+
+        number_of_real_time_eps = 2
+        number_of_batch_eps = 3
+        real_time_eps = [
+            mock_random_endpoint(self.project_name, f"real-time-{i}")
+            for i in range(number_of_real_time_eps)
+        ]
+
+        batch_eps = [
+            mock_random_endpoint(
+                self.project_name, f"batch-{i}", endpoint_type=EndpointType.BATCH_EP
+            )
+            for i in range(number_of_batch_eps)
+        ]
+
+        for endpoint in real_time_eps + batch_eps:
+            db.create_model_endpoint(endpoint)
+
+        eps = self.project.list_model_endpoints().endpoints
+        assert len(eps) == number_of_real_time_eps + number_of_batch_eps
+
+        real_time_eps = self.project.list_model_endpoints(
+            mode=mm_constants.EndpointMode.REAL_TIME
+        ).endpoints
+        assert len(real_time_eps) == number_of_real_time_eps
+
+        batch_eps = self.project.list_model_endpoints(
+            mode=mm_constants.EndpointMode.BATCH
+        ).endpoints
+        assert len(batch_eps) == number_of_batch_eps
 
     def test_labels(self):
         db = mlrun.get_run_db()
@@ -574,6 +613,47 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert mep_3.spec.feature_names == ["f1"]
         assert mep_3.spec.label_names == ["l1", "l2"]
 
+    def test_mep_with_llm(self):
+        model_obj = self.project.log_model(
+            "my-model",
+            model_dir=str(self.assets_path),
+            model_file="model.pkl",
+            artifact_path=f"v3io:///projects/{self.project.metadata.name}",
+            outputs=[mlrun.feature_store.Feature(name="l1", value_type="float")],
+            inputs=[mlrun.feature_store.Feature(name="f1", value_type="float")],
+            tag="latest",
+        )
+
+        llm_prompt = self.project.log_llm_prompt(
+            "my-llm-prompt",
+            prompt_template=[
+                {"role": "user", "content": "What is the capital of France?"}
+            ],
+            artifact_path=f"v3io:///projects/{self.project.metadata.name}",
+            model_artifact=model_obj,
+        )
+
+        model_endpoint = mock_random_endpoint(
+            self.project_name,
+            "llm-testing",
+            model_path=f"store://llm-prompts/{self.project_name}/{llm_prompt.key}:latest",
+        )
+
+        db = mlrun.get_run_db()
+        db.create_model_endpoint(model_endpoint)
+
+        mep = db.get_model_endpoint(
+            project=model_endpoint.metadata.project,
+            name=model_endpoint.metadata.name,
+            function_name=model_endpoint.spec.function_name,
+            function_tag=model_endpoint.spec.function_tag,
+            feature_analysis=True,
+        )
+        assert mep.spec.feature_names == ["f1"]
+        assert mep.spec.label_names == ["l1"]
+        assert mep.spec.model_name == "my-llm-prompt"
+        assert mep.spec.model_uri == llm_prompt.get_store_url(with_tag=False)
+
     def test_mep_with_model_runner(self):
         function = mlrun.code_to_function(
             name="function_with_model",
@@ -587,10 +667,16 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         graph = function.set_topology("flow", engine="async")
         model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
         model_runner_step.add_model(
-            model_class="IncModel", endpoint_name="my-model-1", inc=1
+            model_class="IncModel",
+            endpoint_name="my-model-1",
+            execution_mechanism="naive",
+            inc=1,
         )
         model_runner_step.add_model(
-            model_class="IncModel", endpoint_name="my-model-2", inc=2
+            model_class="IncModel",
+            endpoint_name="my-model-2",
+            execution_mechanism="naive",
+            inc=2,
         )
         graph.to(name="echo", class_name="Echo").to(
             model_runner_step, "runner"
@@ -637,6 +723,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         )
         model_runner_step.add_model(
             model_class="MyRemoteModel",
+            execution_mechanism="naive",
             endpoint_name="my-model-1",
             model_artifact=model_artifact.uri,
         )
@@ -772,6 +859,91 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             result_name=metrics[0].name,
         )
         assert metric_fqn == expected_metric_fqn
+
+    def test_monitoring_with_model_runner_dict_infer(self):
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        self.set_mm_credentials()
+
+        # Log a model artifact
+        model_name = "sklearn_RandomForestClassifier"
+        # Upload the model through the projects API so that it is available to the serving function
+        model = self.project.log_model(
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            artifact_path=f"v3io:///projects/{self.project.name}",
+        )
+        function.save(versioned=False)
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
+        model_runner_step.add_model(
+            model_class="MyDictModel",
+            endpoint_name="model",
+            execution_mechanism="naive",
+            input_path="dict_inputs",
+            result_path="dict_outputs",
+            model_artifact=model.uri,
+        )
+        model_runner_step.add_model(
+            model_class="MyModel",
+            endpoint_name="model-1",
+            input_path="inputs",
+            result_path="outputs",
+            execution_mechanism="naive",
+            model_artifact=model.uri,
+        )
+        graph.to(model_runner_step, "runner").respond()
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+        function.deploy()
+        function.invoke(
+            "/",
+            body={
+                "dict_inputs": {
+                    "sepal_length_cm": 0.5,
+                    "sepal_width_cm": 1.2,
+                    "petal_length_cm": 0.5,
+                    "petal_width_cm": 1.1,
+                },
+                "inputs": [[0.5, 1.2, 0.5, 1.1]],
+            },
+        )
+        sleep(5)
+        model_endpoints = (
+            mlrun.get_run_db()
+            .list_model_endpoints(
+                self.project_name,
+            )
+            .endpoints
+        )
+
+        assert model_endpoints[0].metadata.name == "model"
+        assert model_endpoints[0].spec.feature_names == [
+            "sepal_length_cm",
+            "sepal_width_cm",
+            "petal_length_cm",
+            "petal_width_cm",
+        ]
+        assert model_endpoints[0].spec.label_names == ["label"]
+
+        assert model_endpoints[1].metadata.name == "model-1"
+        assert model_endpoints[1].spec.feature_names == [
+            "f0",
+            "f1",
+            "f2",
+            "f3",
+        ]
+        assert model_endpoints[1].spec.label_names == ["p0"]
 
     def _assert_model_endpoint_tags_and_labels(
         self,
@@ -1730,7 +1902,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-endpoint-get-metrics"
-    image: typing.Optional[str] = None
+    image: Optional[str] = None
 
     @staticmethod
     def _generate_event(
@@ -1779,8 +1951,12 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
         model_endpoint2 = mock_random_endpoint(self.project_name, "testing2")
         model_endpoint2 = db.create_model_endpoint(model_endpoint2)
 
+        model_endpoint3 = mock_random_endpoint(self.project_name, "testing3")
+        model_endpoint3 = db.create_model_endpoint(model_endpoint3)
+
         mep_uid = model_endpoint.metadata.uid
         mep2_uid = model_endpoint2.metadata.uid
+        mep3_uid = model_endpoint3.metadata.uid
         mep_name = model_endpoint.metadata.name
         mep2_name = model_endpoint2.metadata.name
 
@@ -1882,26 +2058,185 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
             [result.name for result in intersection_events_by_type[results_key]]
         )
 
+        # test that intersection with mep with no metrics returns only invocations metric and nor results
+        intersection_events_empty = self._run_db.get_metrics_by_multiple_endpoints(
+            project=self.project.name,
+            endpoint_ids=[mep_uid, mep3_uid],
+            events_format=mm_constants.GetEventsFormat.INTERSECTION,
+        )
+        assert ["invocations"] == [
+            metric.name for metric in intersection_events_empty[metrics_key]
+        ]
+        assert [] == [metric.name for metric in intersection_events_empty[results_key]]
+
         # get nonexistent MEP IDs:
         result_for_non_exist = self._run_db.get_model_endpoint_monitoring_metrics(
             project=self.project.name, endpoint_id="not_exist", type="results"
         )
         assert result_for_non_exist == []
 
-        result_for_non_exist = self._run_db.get_metrics_by_multiple_endpoints(
-            project=self.project.name, endpoint_ids=["not_exist"], type="results"
-        )
-        assert result_for_non_exist == {"not_exist": []}
+        with pytest.raises(mlrun.errors.MLRunNotFoundError) as err:
+            self._run_db.get_metrics_by_multiple_endpoints(
+                project=self.project.name, endpoint_ids=[uuid4().hex], type="results"
+            )
+        assert "were not found in project" in str(err.value)
 
-        intersection_results_for_non_exist = (
+        with pytest.raises(mlrun.errors.MLRunNotFoundError) as err:
             self._run_db.get_metrics_by_multiple_endpoints(
                 project=self.project.name,
-                endpoint_ids=["not_exist", "not_exist2"],
+                endpoint_ids=[uuid4().hex, uuid4().hex],
                 events_format=mm_constants.GetEventsFormat.INTERSECTION,
                 type="results",
             )
+        assert "were not found in project" in str(err.value)
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
+    """Test get_model_endpoint_monitoring_metrics functionality."""
+
+    project_name = "model-monitoring-over-job"
+    image = "mlrun/mlrun"
+
+    @pytest.mark.parametrize("with_timestamp_column", [False, True])
+    def test_job_from_serving_runtime_with_model_tracking(self, with_timestamp_column):
+        function = self.project.set_function(
+            func=str(self.assets_path / "function_with_model.py"),
+            name="test",
+            kind="serving",
+            image=self.image,
         )
-        assert intersection_results_for_non_exist[results_key] == []
+        graph = function.set_topology("flow", engine="async")
+
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+        model_runner_step.add_model(
+            endpoint_name="my_model",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+            model_endpoint_creation_strategy=mm_constants.ModelEndpointCreationStrategy.OVERWRITE,
+        )
+
+        graph.to(model_runner_step).to(
+            name="parquet",
+            class_name="storey.ParquetTarget",
+            path=f"v3io:///projects/{self.project_name}/out.parquet",
+        )
+
+        function.set_tracking()
+
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        job = function.to_job()
+
+        with open(str(self.assets_path / "test_data.csv")) as f:
+            csv_content = f.read()
+
+        v3io_client = v3io.Client(endpoint=mlrun.mlconf.v3io_api)
+        try:
+            v3io_client.object.put(
+                "projects", f"{self.project_name}/in.csv", body=csv_content
+            )
+            inputs = {"data": f"v3io:///projects/{self.project_name}/in.csv"}
+            params = {}
+            if with_timestamp_column:
+                params["timestamp_column"] = "time"
+            start_time = datetime.now(timezone.utc)  # any time zone will do
+            self.project.run_function(job, inputs=inputs, params=params, local=False)
+            end_time = datetime.now(timezone.utc)
+            read_back_df = pd.read_parquet(
+                f"v3io:///projects/{self.project_name}/out.parquet"
+            )
+            assert (
+                "extra" in read_back_df.columns
+            ), "Extra column was not added by model"
+
+            model_endpoints = (
+                mlrun.get_run_db().list_model_endpoints(self.project_name).endpoints
+            )
+
+            assert len(model_endpoints) == 1
+            assert model_endpoints[0].metadata.name == "my_model"
+            assert model_endpoints[0].metadata.endpoint_type == EndpointType.BATCH_EP
+
+            container, stream_path = self.get_stream_path(
+                mm_constants.MonitoringFunctionNames.STREAM
+            )
+            describe_output = v3io_client.stream.describe(
+                container,
+                stream_path,
+            ).output
+            shard_count = describe_output.shard_count
+            read_back_records = []
+            for shard in range(shard_count):
+                try:
+                    location = v3io_client.stream.seek(
+                        container, stream_path, shard, "EARLIEST"
+                    ).output.location
+                except V3ioHttpResponseError as response_error:
+                    if response_error.status_code == 404:
+                        continue
+                    raise response_error
+                while True:
+                    get_records_result = v3io_client.stream.get_records(
+                        container, stream_path, shard, location
+                    ).output
+                    location = get_records_result.next_location
+                    for record in get_records_result.records:
+                        read_back_records.append(json.loads(record.data))
+                    if get_records_result.records_behind_latest == 0:
+                        break
+            assert len(read_back_records) == 5
+            earliest_time_in_dataset = datetime(2020, 1, 1, 1, tzinfo=timezone.utc)
+            latest_time_in_dataset = datetime(2020, 1, 1, 4, tzinfo=timezone.utc)
+            for record in read_back_records:
+                if record.get("kind") == "batch_complete":
+                    assert "endpoint_id" in record
+                    assert record["kind"] == "batch_complete"
+                    assert record["project"] == self.project_name
+                    if with_timestamp_column:
+                        assert record["first_timestamp"] == "2020-01-01T01:00:00+00:00"
+                        assert record["last_timestamp"] == "2020-01-01T04:00:00+00:00"
+                    else:
+                        first_timestamp = datetime.fromisoformat(
+                            record["first_timestamp"]
+                        )
+                        last_timestamp = datetime.fromisoformat(
+                            record["last_timestamp"]
+                        )
+                        assert end_time > last_timestamp > first_timestamp > start_time
+                    assert (
+                        end_time
+                        > datetime.fromisoformat(record["batch_completion_time"])
+                        > start_time
+                    )
+                else:
+                    assert {
+                        "model",
+                        "model_class",
+                        "when",
+                        "request",
+                        "resp",
+                        "endpoint_id",
+                    }.issubset(record)
+                    assert record.get("error") is None
+                    assert (
+                        record["request"]["inputs"][0] + [123]
+                        == record["resp"]["outputs"][0]
+                    )
+                    when = datetime.fromisoformat(record["when"])
+                    if with_timestamp_column:
+                        assert (
+                            latest_time_in_dataset >= when >= earliest_time_in_dataset
+                        )
+                    else:
+                        assert end_time > when > start_time
+        finally:
+            v3io_client.close()
 
 
 def _validate_model_uri(model_obj, model_endpoint):

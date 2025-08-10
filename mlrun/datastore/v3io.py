@@ -97,7 +97,7 @@ class V3ioStore(DataStore):
             v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"),
             v3io_api=mlrun.mlconf.v3io_api,
         )
-        return self._sanitize_storage_options(res)
+        return self._sanitize_options(res)
 
     def _upload(
         self,

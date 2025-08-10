@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
+
+from urllib.parse import urlparse, urlunparse
 
 import mlrun.db
 from mlrun.config import config
 from mlrun.utils import logger
 
-import framework.utils.db.mysql
 from framework.db.base import DBInterface
 from framework.db.session import create_session
 from framework.db.sqldb.db import SQLDB
@@ -52,15 +52,22 @@ def initialize_db(override_db=None):
         db_session.close()
 
 
-def _mask_dsn(dsn):
-    match = re.match(framework.utils.db.mysql.MySQLUtil.dsn_regex, dsn)
-    if match:
-        # Mask the username and password
-        masked_dsn = dsn.replace(match.group("username"), "***")
-        if match.group("password"):
-            masked_dsn = masked_dsn.replace(match.group("password"), "***")
-    else:
-        # If regex fails, use the original DSN
-        masked_dsn = dsn
+def _mask_dsn(dsn: str) -> str:
+    parsed = urlparse(dsn)
 
-    return masked_dsn
+    # Fast-path – nothing to mask
+    if parsed.username is None and parsed.password is None:
+        return dsn
+
+    host_port = parsed.hostname or ""
+    if parsed.port:
+        host_port += f":{parsed.port}"
+
+    # Rebuild netloc with masked credentials (*** or ***:***)
+    if parsed.password is not None:
+        netloc = f"***:***@{host_port}"
+    else:
+        netloc = f"***@{host_port}"
+
+    masked = parsed._replace(netloc=netloc)
+    return urlunparse(masked)

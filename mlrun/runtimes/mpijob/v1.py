@@ -49,6 +49,10 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         preemption_mode=None,
         security_context=None,
         state_thresholds=None,
+        serving_spec=None,
+        graph=None,
+        parameters=None,
+        track_models=None,
     ):
         super().__init__(
             command=command,
@@ -79,6 +83,10 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             state_thresholds=state_thresholds,
+            serving_spec=serving_spec,
+            graph=graph,
+            parameters=parameters,
+            track_models=track_models,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 

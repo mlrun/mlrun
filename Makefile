@@ -580,6 +580,7 @@ test: clean ## Run mlrun tests
 	set -e ; \
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
 	--ignore=tests/integration \
+	--ignore=server/py/services/api/tests/integration \
 	--ignore=tests/system \
 	--ignore=tests/rundb/test_httpdb.py \
 	--ignore=server/py/services/api/migrations \
@@ -629,6 +630,7 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-e RUN_COVERAGE=$(RUN_COVERAGE) \
+		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
 .PHONY: test-integration
@@ -644,6 +646,7 @@ test-integration: clean ## Run mlrun integration tests
 		--durations=100 \
 		-rf \
 		tests/integration \
+		server/py/services/api/tests/integration \
 		tests/rundb/test_httpdb.py && \
 	$(PRINT_COVERAGE_REPORT);
 
@@ -749,22 +752,6 @@ run-api: api ## Run mlrun api (dockerized)
 		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
-.PHONY: run-test-db
-run-test-db:
-	# clean up any previous test db container. Don't remove it after run to be able to debug failures
-	docker rm test-db --force || true
-	docker run \
-		--name=test-db \
-		--volume $(shell pwd):/mlrun \
-		--publish 3306:3306 \
-		--env MYSQL_ROOT_PASSWORD="" \
-		--env MYSQL_ALLOW_EMPTY_PASSWORD="true" \
-		--env MYSQL_ROOT_HOST=% \
-		--env MYSQL_DATABASE="mlrun" \
-		--detach \
-		gcr.io/iguazio/mlrun-mysql:8.0 \
-		--character-set-server=utf8 \
-		--collation-server=utf8_bin
 
 .PHONY: clean-html-docs
 clean-html-docs: ## Clean html docs

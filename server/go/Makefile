@@ -25,6 +25,10 @@ KUBECONFIG := $(if $(KUBECONFIG),$(KUBECONFIG),$(HOME)/.kube/config)
 CI_BIN_DIR=$(shell pwd)/.bin
 DOCKER_IMAGES = log-collector
 
+GOLANGCI_LINT_VERSION := 2.2.1
+GOLANGCI_LINT_BIN := $(CI_BIN_DIR)/golangci-lint
+GOLANGCI_LINT_INSTALL_COMMAND := GOBIN=$(CI_BIN_DIR) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)
+
 #
 # Build
 #
@@ -113,13 +117,13 @@ test-integration-dockerized: schemas-compiler
 fmt: ensure-golangci compile-schemas-go
 	@echo Formatting...
 	gofmt -s -w .
-	$(CI_BIN_DIR)/golangci-lint run --fix ./...
+	$(GOLANGCI_LINT_BIN) run --fix ./...
 	@echo Done.
 
 .PHONY: lint
 lint: ensure-golangci compile-schemas-go ensure-test-files-annotated
 	@echo Linting...
-	$(CI_BIN_DIR)/golangci-lint run --verbose ./...
+	$(GOLANGCI_LINT_BIN) run --verbose ./...
 	@echo Done.
 
 .PHONY: security
@@ -140,18 +144,15 @@ ensure-test-files-annotated:
 	@echo "All go test files have //go:build test_X annotation"
 	@exit $(.SHELLSTATUS)
 
-GOLANGCI_LINT_VERSION := v1.64.6
-GOLANGCI_LINT_BIN := $(CI_BIN_DIR)/golangci-lint
-
 .PHONY: ensure-golangci
 ensure-golangci:
 	@if ! command -v $(GOLANGCI_LINT_BIN) >/dev/null 2>&1; then \
 		echo "golangci-lint not found. Installing..."; \
-		GOBIN=$(CI_BIN_DIR) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+		$(GOLANGCI_LINT_INSTALL_COMMAND); \
 	else \
-		installed_version=$$($(GOLANGCI_LINT_BIN) version | awk '/version/ {print $$4}'); \
+		installed_version=$$($(GOLANGCI_LINT_BIN) version | awk '/version/ {print $$4}' | sed 's/^v//'); \
 		if [ "$$installed_version" != "$(GOLANGCI_LINT_VERSION)" ]; then \
 			echo "golangci-lint version mismatch ($$installed_version != $(GOLANGCI_LINT_VERSION)). Reinstalling..."; \
-			GOBIN=$(CI_BIN_DIR) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+			$(GOLANGCI_LINT_INSTALL_COMMAND); \
 		fi \
 	fi

@@ -36,6 +36,7 @@ from mlrun.utils.helpers import (
     get_pretty_types_names,
     get_regex_list_as_string,
     parse_artifact_uri,
+    remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
     str_to_timestamp,
     template_artifact_path,
@@ -812,6 +813,30 @@ def test_validate_v3io_consumer_group(value, expected):
             "images_registry": "",
             "expected_output": "mlrun/ml-base:1.9.0",
         },
+        {
+            # explicit older tag in image should keep ml-base without replacement despite newer client version
+            "image": "mlrun/ml-base:1.7.2",
+            "client_version": "1.10.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/ml-base:1.7.2",
+        },
+        {
+            # image tag > 1.10.0, the image should be switched to mlrun/mlrun
+            "image": "mlrun/ml-base",
+            "client_version": None,
+            "images_tag": "1.10.0",
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0",
+        },
+        {
+            # images_tag takes precedence over client_version and triggers replacement even if client_version is older
+            "image": "mlrun/ml-base",
+            "client_version": "1.9.0",
+            "images_tag": "1.10.0",
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0",
+        },
     ],
 )
 def test_enrich_image(case):
@@ -1204,7 +1229,8 @@ def test_create_step_backoff():
                 assert step_value, next(backoff)
 
 
-def test_retry_until_successful():
+@pytest.mark.parametrize("fatal_exception", (False, True))
+def test_retry_until_successful(fatal_exception):
     def test_run(backoff):
         call_count = {"count": 0}
         unsuccessful_mock = unittest.mock.Mock()
@@ -1224,20 +1250,23 @@ def test_retry_until_successful():
             successful_mock()
             return "Finished"
 
-        result = mlrun.utils.retry_until_successful(
-            backoff,
-            120,
-            logger,
-            True,
-            some_func,
-            call_count,
-            5,
-            [1, 8],
-            some_other_thing="Just",
-        )
-        assert result, "Finished"
-        assert unsuccessful_mock.call_count, 3
-        assert successful_mock.call_count, 1
+        with pytest.raises(Exception) if fatal_exception else does_not_raise():
+            result = mlrun.utils.retry_until_successful(
+                backoff,
+                120,
+                logger,
+                True,
+                some_func,
+                call_count,
+                5,
+                [1, 8],
+                fatal_exceptions=(Exception,) if fatal_exception else (),
+                some_other_thing="Just",
+            )
+        if not fatal_exception:
+            assert result, "Finished"
+            assert unsuccessful_mock.call_count, 3
+            assert successful_mock.call_count, 1
 
     test_run(0.02)
 
@@ -1688,3 +1717,28 @@ def test_validate_and_convert_date(date_input, expected_output, expectation):
         assert (
             mlrun.utils.helpers.validate_and_convert_date(date_input) == expected_output
         )
+
+
+@pytest.mark.parametrize(
+    "input_uri,expected_output",
+    [
+        ("store://proj/key:latest", "store://proj/key"),
+        ("key#1:dev@tree^uid", "key#1@tree^uid"),
+        ("store://key:tag", "store://key"),
+        (
+            "store://models/remote-model-project/my_model#0@tree",
+            "store://models/remote-model-project/my_model#0@tree",
+        ),
+        (
+            "store://llm-prompts/test-nuclio-runtime/my_llm#0:v1@0eb15a5a-b093-4ca3-9e7d-c22482a6c990^c4f4dcc412acd61460adf9b4a4e799567c4793c8",
+            "store://llm-prompts/test-nuclio-runtime/my_llm#0@0eb15a5a-b093-4ca3-9e7d-c22482a6c990^c4f4dcc412acd61460adf9b4a4e799567c4793c8",
+        ),
+        ("key:tag", "key"),
+        ("key#1:tag", "key#1"),
+        ("key#1@tree", "key#1@tree"),
+        ("key#1@tree^uid", "key#1@tree^uid"),
+        ("store://key#1:tag@tree", "store://key#1@tree"),
+    ],
+)
+def test_remove_tag_from_artifact_uri(input_uri, expected_output):
+    assert remove_tag_from_artifact_uri(input_uri) == expected_output

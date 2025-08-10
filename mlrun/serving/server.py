@@ -15,14 +15,18 @@
 __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 
 import asyncio
+import base64
 import copy
 import json
 import os
 import socket
 import traceback
 import uuid
-from typing import Optional, Union
+from datetime import datetime, timezone
+from typing import Any, Optional, Union
 
+import pandas as pd
+import storey
 from nuclio import Context as NuclioContext
 from nuclio.request import Logger as NuclioLogger
 
@@ -38,9 +42,11 @@ from mlrun.secrets import SecretsStore
 
 from ..common.helpers import parse_versioned_object_uri
 from ..common.schemas.model_monitoring.constants import FileTargetKind
-from ..datastore import get_stream_pusher
+from ..common.schemas.serving import MAX_BATCH_JOB_DURATION
+from ..datastore import DataItem, get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
+from ..execution import MLClientCtx
 from ..model import ModelObj
 from ..utils import get_caller_globals
 from .states import (
@@ -322,7 +328,11 @@ class GraphServer(ModelObj):
 
     def _process_response(self, context, response, get_body):
         body = response.body
-        if isinstance(body, context.Response) or get_body:
+        if (
+            isinstance(context, MLClientCtx)
+            or isinstance(body, context.Response)
+            or get_body
+        ):
             return body
 
         if body and not isinstance(body, (str, bytes)):
@@ -343,33 +353,34 @@ def add_error_raiser_step(
     monitored_steps_raisers = {}
     user_steps = list(graph.steps.values())
     for monitored_step in monitored_steps.values():
-        if monitored_step.raise_exception:
-            error_step = graph.add_step(
-                class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
-                name=f"{monitored_step.name}_error_raise",
-                after=monitored_step.name,
-                full_event=True,
-                raise_exception=monitored_step.raise_exception,
-                models_names=list(monitored_step.class_args["models"].keys()),
-                model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
-            )
-            if monitored_step.responder:
-                monitored_step.responder = False
-                error_step.respond()
-            monitored_steps_raisers[monitored_step.name] = error_step.name
-            error_step.on_error = monitored_step.on_error
-    for step in user_steps:
-        if step.after:
-            if isinstance(step.after, list):
-                for i in range(len(step.after)):
-                    if step.after[i] in monitored_steps_raisers:
-                        step.after[i] = monitored_steps_raisers[step.after[i]]
-            else:
-                if (
-                    isinstance(step.after, str)
-                    and step.after in monitored_steps_raisers
-                ):
-                    step.after = monitored_steps_raisers[step.after]
+        error_step = graph.add_step(
+            class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
+            name=f"{monitored_step.name}_error_raise",
+            after=monitored_step.name,
+            full_event=True,
+            raise_exception=monitored_step.raise_exception,
+            models_names=list(monitored_step.class_args["models"].keys()),
+            model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+            function=monitored_step.function,
+        )
+        if monitored_step.responder:
+            monitored_step.responder = False
+            error_step.respond()
+        monitored_steps_raisers[monitored_step.name] = error_step.name
+        error_step.on_error = monitored_step.on_error
+    if monitored_steps_raisers:
+        for step in user_steps:
+            if step.after:
+                if isinstance(step.after, list):
+                    for i in range(len(step.after)):
+                        if step.after[i] in monitored_steps_raisers:
+                            step.after[i] = monitored_steps_raisers[step.after[i]]
+                else:
+                    if (
+                        isinstance(step.after, str)
+                        and step.after in monitored_steps_raisers
+                    ):
+                        step.after = monitored_steps_raisers[step.after]
     return graph
 
 
@@ -378,6 +389,7 @@ def add_monitoring_general_steps(
     graph: RootFlowStep,
     context,
     serving_spec,
+    pause_until_background_task_completion: bool,
 ) -> tuple[RootFlowStep, FlowStep]:
     """
     Adding the monitoring flow connection steps, this steps allow the graph to reconstruct the serving event enrich it
@@ -386,25 +398,27 @@ def add_monitoring_general_steps(
         "background_task_status_step" --> "filter_none" --> "monitoring_pre_processor_step" --> "flatten_events"
         --> "sampling_step" --> "filter_none_sampling" --> "model_monitoring_stream"
     """
+    background_task_status_step = None
+    if pause_until_background_task_completion:
+        background_task_status_step = graph.add_step(
+            "mlrun.serving.system_steps.BackgroundTaskStatus",
+            "background_task_status_step",
+            model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+        )
     monitor_flow_step = graph.add_step(
-        "mlrun.serving.system_steps.BackgroundTaskStatus",
-        "background_task_status_step",
-        context=context,
-        model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
-    )
-    graph.add_step(
         "storey.Filter",
         "filter_none",
         _fn="(event is not None)",
-        after="background_task_status_step",
+        after="background_task_status_step" if background_task_status_step else None,
         model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
+    if background_task_status_step:
+        monitor_flow_step = background_task_status_step
     graph.add_step(
         "mlrun.serving.system_steps.MonitoringPreProcessor",
         "monitoring_pre_processor_step",
         after="filter_none",
         full_event=True,
-        context=context,
         model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
     # flatten the events
@@ -462,14 +476,28 @@ def add_monitoring_general_steps(
 
 
 def add_system_steps_to_graph(
-    project: str, graph: RootFlowStep, track_models: bool, context, serving_spec
+    project: str,
+    graph: RootFlowStep,
+    track_models: bool,
+    context,
+    serving_spec,
+    pause_until_background_task_completion: bool = True,
 ) -> RootFlowStep:
+    if not (isinstance(graph, RootFlowStep) and graph.include_monitored_step()):
+        return graph
     monitored_steps = graph.get_monitored_steps()
     graph = add_error_raiser_step(graph, monitored_steps)
     if track_models:
+        background_task_status_step = None
         graph, monitor_flow_step = add_monitoring_general_steps(
-            project, graph, context, serving_spec
+            project,
+            graph,
+            context,
+            serving_spec,
+            pause_until_background_task_completion,
         )
+        if background_task_status_step:
+            monitor_flow_step = background_task_status_step
         # Connect each model runner to the monitoring step:
         for step_name, step in monitored_steps.items():
             if monitor_flow_step.after:
@@ -481,6 +509,10 @@ def add_system_steps_to_graph(
                 monitor_flow_step.after = [
                     step_name,
                 ]
+    context.logger.info_with(
+        "Server graph after adding system steps",
+        graph=str(graph.steps),
+    )
     return graph
 
 
@@ -490,18 +522,13 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
-    if isinstance(server.graph, RootFlowStep) and server.graph.include_monitored_step():
-        server.graph = add_system_steps_to_graph(
-            server.project,
-            copy.deepcopy(server.graph),
-            spec.get("track_models"),
-            context,
-            spec,
-        )
-        context.logger.info_with(
-            "Server graph after adding system steps",
-            graph=str(server.graph.steps),
-        )
+    server.graph = add_system_steps_to_graph(
+        server.project,
+        copy.deepcopy(server.graph),
+        spec.get("track_models"),
+        context,
+        spec,
+    )
 
     if config.log_level.lower() == "debug":
         server.verbose = True
@@ -533,6 +560,228 @@ def v2_serving_init(context, namespace=None):
         context.logger.info(server.to_yaml())
 
     _set_callbacks(server, context)
+
+
+async def async_execute_graph(
+    context: MLClientCtx,
+    data: DataItem,
+    timestamp_column: Optional[str],
+    batching: bool,
+    batch_size: Optional[int],
+    read_as_lists: bool,
+    nest_under_inputs: bool,
+) -> list[Any]:
+    spec = mlrun.utils.get_serving_spec()
+
+    namespace = {}
+    code = os.getenv("MLRUN_EXEC_CODE")
+    if code:
+        code = base64.b64decode(code).decode("utf-8")
+        exec(code, namespace)
+    else:
+        # TODO: find another way to get the local file path, or ensure that MLRUN_EXEC_CODE
+        #  gets set in local flow and not just in the remote pod
+        source_filename = spec.get("filename", None)
+        if source_filename:
+            with open(source_filename) as f:
+                exec(f.read(), namespace)
+
+    server = GraphServer.from_dict(spec)
+
+    if server.model_endpoint_creation_task_name:
+        context.logger.info(
+            f"Waiting for model endpoint creation task '{server.model_endpoint_creation_task_name}'..."
+        )
+        background_task = (
+            mlrun.get_run_db().wait_for_background_task_to_reach_terminal_state(
+                project=server.project,
+                name=server.model_endpoint_creation_task_name,
+            )
+        )
+        task_state = background_task.status.state
+        if task_state == mlrun.common.schemas.BackgroundTaskState.failed:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Aborting job due to model endpoint creation background task failure"
+            )
+        elif task_state != mlrun.common.schemas.BackgroundTaskState.succeeded:
+            # this shouldn't happen, but we need to know if it does
+            raise mlrun.errors.MLRunRuntimeError(
+                "Aborting job because the model endpoint creation background task did not succeed "
+                f"(status='{task_state}')"
+            )
+
+    df = data.as_df()
+
+    if df.empty:
+        context.logger.warn("Job terminated due to empty inputs (0 rows)")
+        return []
+
+    track_models = spec.get("track_models")
+
+    if track_models and timestamp_column:
+        context.logger.info(f"Sorting dataframe by {timestamp_column}")
+        df[timestamp_column] = pd.to_datetime(  # in case it's a string
+            df[timestamp_column]
+        )
+        df.sort_values(by=timestamp_column, inplace=True)
+        if len(df) > 1:
+            start_time = df[timestamp_column].iloc[0]
+            end_time = df[timestamp_column].iloc[-1]
+            time_range = end_time - start_time
+            start_time = start_time.isoformat()
+            end_time = end_time.isoformat()
+            # TODO: tie this to the controller's base period
+            if time_range > pd.Timedelta(MAX_BATCH_JOB_DURATION):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Dataframe time range is too long: {time_range}. "
+                    "Please disable tracking or reduce the input dataset's time range below the defined limit "
+                    f"of {MAX_BATCH_JOB_DURATION}."
+                )
+        else:
+            start_time = end_time = df["timestamp"].iloc[0].isoformat()
+    else:
+        # end time will be set from clock time when the batch completes
+        start_time = datetime.now(tz=timezone.utc).isoformat()
+
+    server.graph = add_system_steps_to_graph(
+        server.project,
+        copy.deepcopy(server.graph),
+        track_models,
+        context,
+        spec,
+        pause_until_background_task_completion=False,  # we've already awaited it
+    )
+
+    if config.log_level.lower() == "debug":
+        server.verbose = True
+    context.logger.info_with("Initializing states", namespace=namespace)
+    kwargs = {}
+    if hasattr(context, "is_mock"):
+        kwargs["is_mock"] = context.is_mock
+    server.init_states(
+        context=None,  # this context is expected to be a nuclio context, which we don't have in this flow
+        namespace=namespace,
+        **kwargs,
+    )
+    context.logger.info("Initializing graph steps")
+    server.init_object(namespace)
+
+    context.logger.info_with("Graph was initialized", verbose=server.verbose)
+
+    if server.verbose:
+        context.logger.info(server.to_yaml())
+
+    async def run(body):
+        event = storey.Event(id=index, body=body)
+        if timestamp_column:
+            if batching:
+                # we use the first row in the batch to determine the timestamp for the whole batch
+                body = body[0]
+            if not isinstance(body, dict):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"When timestamp_column=True, event body must be a dict – got {type(body).__name__} instead"
+                )
+            if timestamp_column not in body:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Event body '{body}' did not contain timestamp column '{timestamp_column}'"
+                )
+            event._original_timestamp = body[timestamp_column]
+        return await server.run(event, context)
+
+    if batching and not batch_size:
+        batch_size = len(df)
+
+    batch = []
+    tasks = []
+    for index, row in df.iterrows():
+        data = row.to_list() if read_as_lists else row.to_dict()
+        if nest_under_inputs:
+            data = {"inputs": data}
+        if batching:
+            batch.append(data)
+            if len(batch) == batch_size:
+                tasks.append(asyncio.create_task(run(batch)))
+                batch = []
+        else:
+            tasks.append(asyncio.create_task(run(data)))
+
+    if batch:
+        tasks.append(asyncio.create_task(run(batch)))
+
+    responses = await asyncio.gather(*tasks)
+
+    termination_result = server.wait_for_completion()
+    if asyncio.iscoroutine(termination_result):
+        await termination_result
+
+    model_endpoint_uids = spec.get("model_endpoint_uids", [])
+
+    # needed for output_stream to be created
+    server = GraphServer.from_dict(spec)
+    server.init_states(None, namespace)
+
+    batch_completion_time = datetime.now(tz=timezone.utc).isoformat()
+
+    if not timestamp_column:
+        end_time = batch_completion_time
+
+    mm_stream_record = dict(
+        kind="batch_complete",
+        project=context.project,
+        first_timestamp=start_time,
+        last_timestamp=end_time,
+        batch_completion_time=batch_completion_time,
+    )
+    output_stream = server.context.stream.output_stream
+    for mep_uid in spec.get("model_endpoint_uids", []):
+        mm_stream_record["endpoint_id"] = mep_uid
+        output_stream.push(mm_stream_record, partition_key=mep_uid)
+
+    context.logger.info(
+        f"Job completed processing {len(df)} rows",
+        timestamp_column=timestamp_column,
+        model_endpoint_uids=model_endpoint_uids,
+    )
+
+    return responses
+
+
+def execute_graph(
+    context: MLClientCtx,
+    data: DataItem,
+    timestamp_column: Optional[str] = None,
+    batching: bool = False,
+    batch_size: Optional[int] = None,
+    read_as_lists: bool = False,
+    nest_under_inputs: bool = False,
+) -> (list[Any], Any):
+    """
+    Execute graph as a job, from start to finish.
+
+    :param context: The job's execution client context.
+    :param data: The input data to the job, to be pushed into the graph row by row, or in batches.
+    :param timestamp_column: The name of the column that will be used as the timestamp for model monitoring purposes.
+        when timestamp_column is used in conjunction with batching, the first timestamp will be used for the entire
+        batch.
+    :param batching: Whether to push one or more batches into the graph rather than row by row.
+    :param batch_size: The number of rows to push per batch. If not set, and batching=True, the entire dataset will
+        be pushed into the graph in one batch.
+    :param read_as_lists: Whether to read each row as a list instead of a dictionary.
+    :param nest_under_inputs: Whether to wrap each row with {"inputs": ...}.
+
+    :return: A list of responses.
+    """
+    return asyncio.run(
+        async_execute_graph(
+            context,
+            data,
+            timestamp_column,
+            batching,
+            batch_size,
+            read_as_lists,
+            nest_under_inputs,
+        )
+    )
 
 
 def _set_callbacks(server, context):
@@ -696,6 +945,7 @@ class GraphContext:
         self.verbose = False
         self.stream = None
         self.root = None
+        self.executor: Optional[storey.flow.RunnableExecutor] = None
 
         if nuclio_context:
             self.logger: NuclioLogger = nuclio_context.logger

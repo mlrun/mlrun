@@ -26,7 +26,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..features import Feature
 from ..model import ObjectList
 from ..utils import StorePrefix, is_relative_path
-from .base import Artifact, ArtifactSpec, upload_extra_data
+from .base import Artifact, ArtifactSpec, upload_extra_data, verify_target_path
 
 model_spec_filename = "model_spec.yaml"
 MODEL_OPTIONAL_SUFFIXES = [".tar.gz", ".pkl", ".bin", ".pickle"]
@@ -493,7 +493,6 @@ def get_model(
     :returns: model filename, model artifact object, extra data dict
 
     """
-    # TODO support LLMPromptArtifact
     model_file = ""
     model_spec = None
     extra_dataitems = {}
@@ -518,6 +517,7 @@ def get_model(
             model_spec, target = mlrun.datastore.store_manager.get_store_artifact(
                 model_dir
             )
+            verify_target_path(model_spec)
         else:
             model_spec, target = model_dir, model_dir.get_target_path()
         if not model_spec or model_spec.kind != "model":

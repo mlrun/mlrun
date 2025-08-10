@@ -31,8 +31,9 @@ from typing import Optional
 
 import dotenv
 
+from .common.constants import MLRUN_ACTIVE_PROJECT
 from .config import config as mlconf
-from .datastore import DataItem, store_manager
+from .datastore import DataItem, ModelProvider, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
@@ -55,6 +56,7 @@ from .run import (
     code_to_function,
     function_to_module,
     get_dataitem,
+    get_model_provider,
     get_object,
     get_or_create_ctx,
     get_pipeline,
@@ -166,11 +168,29 @@ def set_environment(
 
 
 def get_current_project(silent: bool = False) -> Optional[MlrunProject]:
-    if not pipeline_context.project and not silent:
+    if pipeline_context.project:
+        return pipeline_context.project
+
+    project_name = environ.get(MLRUN_ACTIVE_PROJECT, None)
+    if not project_name:
+        if not silent:
+            raise MLRunInvalidArgumentError(
+                "No current project is initialized. Use new, get or load project functions first."
+            )
+        return None
+
+    project = load_project(
+        name=project_name,
+        url=project_name,
+        save=False,
+        sync_functions=False,
+    )
+
+    if not project and not silent:
         raise MLRunInvalidArgumentError(
             "No current project is initialized. Use new, get or load project functions first."
         )
-    return pipeline_context.project
+    return project
 
 
 def get_sample_path(subpath=""):

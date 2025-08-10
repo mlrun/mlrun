@@ -21,6 +21,7 @@ import typing
 
 import kubernetes.client.rest as k8s_client_rest
 import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
+import urllib3
 from kubernetes import client, config
 
 import mlrun
@@ -78,14 +79,33 @@ class SecretTypes:
 
 
 class K8sHelper(mlsecrets.SecretProviderInterface):
-    def __init__(self, namespace=None, silent=False, log=True):
+    def __init__(
+        self,
+        namespace=None,
+        silent=False,
+        log=True,
+        kube_config_path: typing.Optional[str] = None,
+    ):
         self.namespace = namespace or mlrun.mlconf.namespace
-        self.config_file = mlrun.mlconf.kubernetes.kubeconfig_path or None
+        self.config_file = (
+            mlrun.mlconf.kubernetes.kubeconfig_path or kube_config_path or None
+        )
         self.running_inside_kubernetes_cluster = False
+        self._create_clients(log, silent)
+
+    def _create_clients(
+        self,
+        log: bool,
+        silent: bool,
+    ):
         try:
-            self._init_k8s_config(log)
-            self.v1api = client.CoreV1Api()
-            self.crdapi = client.CustomObjectsApi()
+            self._api_config = self._init_k8s_config(log)
+
+            self._api_config.retries = urllib3.util.Retry(read=3, connect=3)
+
+            self._api_client = client.ApiClient(self._api_config)
+            self.v1api = client.CoreV1Api(api_client=self._api_client)
+            self.crdapi = client.CustomObjectsApi(api_client=self._api_client)
         except Exception as exc:
             logger.warning(
                 "Cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc)
@@ -93,14 +113,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             if not silent:
                 raise
 
-    def resolve_namespace(self, namespace=None):
+    def resolve_namespace(
+        self,
+        namespace=None,
+    ):
         return namespace or self.namespace
 
     def is_running_inside_kubernetes_cluster(self):
         return self.running_inside_kubernetes_cluster
 
     @raise_for_status_code
-    def list_pods(self, namespace=None, selector="", states=None):
+    def list_pods(
+        self,
+        namespace=None,
+        selector="",
+        states=None,
+    ):
         resp = self.v1api.list_namespaced_pod(
             self.resolve_namespace(namespace), label_selector=selector
         )
@@ -214,7 +242,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             if not _continue:
                 break
 
-    def create_pod(self, pod, max_retry=3, retry_interval=3):
+    def create_pod(
+        self,
+        pod,
+        max_retry=3,
+        retry_interval=3,
+    ):
         if "pod" in dir(pod):
             pod = pod.pod
         pod.metadata.namespace = self.resolve_namespace(pod.metadata.namespace)
@@ -256,7 +289,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 logger.info("Pod created", pod_name=resp.metadata.name)
                 return resp.metadata.name, resp.metadata.namespace
 
-    def delete_pod(self, name, namespace=None, grace_period_seconds=None):
+    def delete_pod(
+        self,
+        name,
+        namespace=None,
+        grace_period_seconds=None,
+    ):
         try:
             api_response = self.v1api.delete_namespaced_pod(
                 name,
@@ -277,7 +315,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     exc.status, message=mlrun.errors.err_to_str(exc)
                 ) from exc
 
-    def get_pod(self, name, namespace=None, raise_on_not_found=False):
+    def get_pod(
+        self,
+        name,
+        namespace=None,
+        raise_on_not_found=False,
+    ):
         try:
             api_response = self.v1api.read_namespaced_pod(
                 name=name, namespace=self.resolve_namespace(namespace)
@@ -296,12 +339,20 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
             return None
 
-    def get_pod_phase(self, name, namespace=None):
+    def get_pod_phase(
+        self,
+        name,
+        namespace=None,
+    ):
         return self._get_pod_status(
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
 
-    def get_pod_status(self, name, namespace=None) -> client.V1PodStatus:
+    def get_pod_status(
+        self,
+        name,
+        namespace=None,
+    ) -> client.V1PodStatus:
         return self._get_pod_status(name, namespace, raise_on_not_found=True).status
 
     def delete_crd(
@@ -389,7 +440,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return {p.metadata.name: p.status.phase for p in pods}
 
     def get_project_vault_secret_name(
-        self, project, service_account_name, namespace=""
+        self,
+        project,
+        service_account_name,
+        namespace="",
     ):
         namespace = self.resolve_namespace(namespace)
 
@@ -429,7 +483,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
 
     def store_project_secrets(
-        self, project, secrets, namespace=""
+        self,
+        project,
+        secrets,
+        namespace="",
     ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
         secret_name = self.get_project_secret_name(project)
         action = self.store_secrets_with_retry(secret_name, secrets, namespace)
@@ -472,7 +529,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return username, access_key
 
     def store_auth_secret(
-        self, username: str, access_key: str, namespace=""
+        self,
+        username: str,
+        access_key: str,
+        namespace="",
     ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
         """
         Store the given access key as a secret in the cluster. The secret name is generated from the access key
@@ -580,7 +640,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return mlrun.common.schemas.SecretEventActions.updated
 
     def read_secret(
-        self, secret_name: str, namespace: str = "", silent=False
+        self,
+        secret_name: str,
+        namespace: str = "",
+        silent=False,
     ) -> typing.Optional[client.V1Secret]:
         namespace = self.resolve_namespace(namespace)
         if not silent:
@@ -602,7 +665,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return k8s_secret
 
     def read_secret_data(
-        self, secret_name: str, namespace: str = "", load_as_json=False, silent=False
+        self,
+        secret_name: str,
+        namespace: str = "",
+        load_as_json=False,
+        silent=False,
     ) -> typing.Optional[dict[str, str]]:
         k8s_secret = self.read_secret(secret_name, namespace, silent)
         if k8s_secret is None:
@@ -676,7 +743,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     @raise_for_status_code
     def delete_secrets(
-        self, secret_name, secrets, namespace=""
+        self,
+        secret_name,
+        secrets,
+        namespace="",
     ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         """
         Delete secrets from a kubernetes secret object
@@ -800,7 +870,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return configmap_name
 
     @raise_for_status_code
-    def get_configmap(self, name: str, namespace: str = ""):
+    def get_configmap(
+        self,
+        name: str,
+        namespace: str = "",
+    ):
         namespace = self.resolve_namespace(namespace)
         label_name = mlrun_constants.MLRunInternalLabels.resource_name
         configmaps_with_label = self.v1api.list_namespaced_config_map(
@@ -814,7 +888,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return configmaps_with_label.items[0] if configmaps_with_label.items else None
 
     @raise_for_status_code
-    def delete_configmap(self, name: str, namespace: str = "", raise_on_error=True):
+    def delete_configmap(
+        self,
+        name: str,
+        namespace: str = "",
+        raise_on_error=True,
+    ):
         namespace = self.resolve_namespace(namespace)
 
         try:
@@ -913,14 +992,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
 
     @raise_for_status_code
-    def _list_events(self, namespace=None, field_selector=""):
+    def _list_events(
+        self,
+        namespace=None,
+        field_selector="",
+    ):
         resp = self.v1api.list_namespaced_event(
             self.resolve_namespace(namespace), field_selector=field_selector
         )
         return resp.items
 
     @staticmethod
-    def _decode_secret_data(secrets_data, secret_keys=None, load_as_json=False):
+    def _decode_secret_data(
+        secrets_data,
+        secret_keys=None,
+        load_as_json=False,
+    ):
         results = {}
         if not secrets_data:
             return results
@@ -983,7 +1070,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             random.choice(string.ascii_lowercase + string.digits) for _ in range(length)
         )
 
-    def _init_k8s_config(self, log=True):
+    def _init_k8s_config(self, log: bool = True) -> client.Configuration:
         try:
             config.load_incluster_config()
             self.running_inside_kubernetes_cluster = True
@@ -991,16 +1078,19 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 logger.info("Using in-cluster config.")
         except Exception:
             try:
-                config.load_kube_config(self.config_file)
+                config.load_kube_config(
+                    config_file=self.config_file,
+                )
                 self.running_inside_kubernetes_cluster = True
                 if log:
                     logger.info("Using local kubernetes config.")
-            except Exception:
+            except Exception as exc:
                 raise RuntimeError(
-                    "Cannot find local kubernetes config file,"
-                    " place it in ~/.kube/config or specify it in "
-                    "KUBECONFIG env var"
-                )
+                    "Cannot find local kubernetes config file, "
+                    "place it in ~/.kube/config or specify it in KUBECONFIG env var"
+                ) from exc
+
+        return client.Configuration.get_default_copy()
 
     @staticmethod
     def _hash_access_key(access_key: str):

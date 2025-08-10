@@ -265,7 +265,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "--some-arg",
                 ],
                 True,
-                "status: completed",
+                'status.state":"completed"',
             ],
         ],
     )

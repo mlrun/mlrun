@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # THIS BLOCK IS FOR VARIABLES USER MAY OVERRIDE
+DOCKER_DEFAULT_PLATFORM ?= linux/amd64
 MLRUN_VERSION ?= unstable
 # pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
 # allows us to have free text (like unstable) after the "+". on the contrary in a docker tag "+" is not a valid
@@ -307,6 +308,7 @@ mlrun: common-image update-version-file ## Build mlrun docker image
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
@@ -341,6 +343,7 @@ mlrun-kfp: common-image-3.9 update-version-file ## Build mlrun docker image with
 		--build-arg MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) .
@@ -484,10 +487,8 @@ endif
 ###############################################################################
 
 COMMON_PLATFORM_TAG := $(subst /,_,$(DOCKER_DEFAULT_PLATFORM))
-
-COMMON_IMAGE_TAG     ?= mlrun_common_image:$(MLRUN_PYTHON_VERSION)-$(COMMON_PLATFORM_TAG)
+COMMON_IMAGE_TAG     ?= $(MLRUN_PYTHON_VERSION)-$(COMMON_PLATFORM_TAG)
 COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).$(COMMON_PLATFORM_TAG).stamp
-COMMON_DOCKER_ARGS   := --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION)
 COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
 
 common-image-3.11:
@@ -503,7 +504,7 @@ common-image: $(COMMON_STAMP)
 $(COMMON_STAMP): $(COMMON_DOCKERFILE)
 	@if ! docker image inspect $(COMMON_IMAGE_TAG) >/dev/null 2>&1; then \
 	    echo "Building $(COMMON_IMAGE_TAG)…";                   \
-	    docker build $(COMMON_DOCKER_ARGS) -f $(COMMON_DOCKERFILE)     \
+	    docker build --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) -f $(COMMON_DOCKERFILE)     \
 	                -t $(COMMON_IMAGE_TAG) . ;                         \
 	fi
 	@mkdir -p $(dir $@) && touch $@
@@ -541,6 +542,7 @@ api: common-image-3.11	 compile-schemas update-version-file ## Build mlrun-api d
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
+		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
@@ -569,6 +571,7 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 	docker build \
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg COMMON_PLATFORM_TAG=$(COMMON_PLATFORM_TAG) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_PIPELINES_KFP_VERSION=$(MLRUN_PIPELINES_KFP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
@@ -589,6 +592,7 @@ build-test-system: common-image compile-schemas update-version-file ## Build sys
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg COMMON_PLATFORM_TAG=$(COMMON_PLATFORM_TAG) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .

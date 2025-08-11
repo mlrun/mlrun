@@ -267,8 +267,8 @@ async def list_model_endpoints(
                             If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                             will be included.
     :param top_level:       Whether to return only top level model endpoints.
-    :param mode:            Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set to
-                            None.
+    :param mode:            Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or both if
+                            set to None.
     :param uids:            A list of unique ids to filter by.
     :param latest_only:     Whether to return only the latest model endpoint for each name.
     :param auth_info:       The auth info of the request.

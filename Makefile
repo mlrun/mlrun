@@ -504,11 +504,8 @@ ifeq ($(strip $(MLRUN_NO_CACHE)),)
 common-image: $(COMMON_STAMP)
 
 $(COMMON_STAMP): $(COMMON_DOCKERFILE)
-	    docker build --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) -f $(COMMON_DOCKERFILE)     \
-	                -t $(COMMON_IMAGE_NAME) . ;
-	fi
+	docker build --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_NAME) . ;
 	@mkdir -p $(dir $@) && touch $@
-
 else  # when MLRUN_NO_CACHE is set
 .PHONY: common-image
 common-image:

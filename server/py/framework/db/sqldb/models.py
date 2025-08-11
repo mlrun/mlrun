@@ -988,6 +988,9 @@ with warnings.catch_warnings():
         )
         name = Column(framework.db.sqldb.sql_types.Utf8BinText)
         endpoint_type = Column(Integer, nullable=False)
+        mode = Column(
+            Integer, default=mlrun.common.schemas.EndpointMode.REAL_TIME.value
+        )
         project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         body = Column(framework.db.sqldb.sql_types.Blob)
         created = Column(

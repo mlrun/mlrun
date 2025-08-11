@@ -391,7 +391,9 @@ class TestBatchWindowGenerator:
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request, endpoint_mode=EndpointMode.REAL_TIME
+            last_request=last_request,
+            endpoint_mode=EndpointMode.REAL_TIME,
+            not_old_batch_endpoint=True,
         )
         assert last_updated
         assert (
@@ -399,7 +401,9 @@ class TestBatchWindowGenerator:
         ), "The last updated time should be before the last request"
 
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request, endpoint_mode=EndpointMode.BATCH
+            last_request=last_request,
+            endpoint_mode=EndpointMode.BATCH,
+            not_old_batch_endpoint=False,
         )
 
         assert last_updated

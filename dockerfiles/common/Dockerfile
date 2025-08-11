@@ -13,8 +13,9 @@
 # limitations under the License.
 
 ARG MLRUN_PYTHON_VERSION=3.11
+ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
 
-FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
+FROM --platform=${DOCKER_DEFAULT_PLATFORM} gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     DEBIAN_FRONTEND=noninteractive apt-get update -q && \
     apt-get -y upgrade -o Acquire::Check-Valid-Until=false && \

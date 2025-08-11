@@ -503,13 +503,18 @@ ifeq ($(strip $(MLRUN_NO_CACHE)),)
 common-image: $(COMMON_STAMP)
 
 $(COMMON_STAMP): $(COMMON_DOCKERFILE)
-	docker build --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_NAME) . ;
-	@mkdir -p $(dir $@) && touch $@
+	docker build  \
+	--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+	--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+	-f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_NAME) .  && mkdir -p $(dir $@) && touch $@
 else  # when MLRUN_NO_CACHE is set
 .PHONY: common-image
 common-image:
-	docker build --no-cache $(COMMON_DOCKER_ARGS) -f $(COMMON_DOCKERFILE) \
-	            -t $(COMMON_IMAGE_NAME) .
+	docker build --no-cache $(COMMON_DOCKER_ARGS) \
+ 	  -f $(COMMON_DOCKERFILE) \
+ 	  --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+ 	  --build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+	  -t $(COMMON_IMAGE_NAME) .
 endif
 
 .PHONY: clean-common-image

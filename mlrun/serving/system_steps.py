@@ -105,7 +105,7 @@ class MonitoringPreProcessor(storey.MapClass):
         data_from_path = get_data_from_path(data_path, raw_data)
         if isinstance(data_from_path, dict):
             # transpose by key the inputs:
-            output_data, new_schema = self.transpose_by_key(data_from_path, schema)
+            listed_data, new_schema = self.transpose_by_key(data_from_path, schema)
             new_schema = new_schema or schema
             if not schema:
                 logger.warn(
@@ -113,10 +113,10 @@ class MonitoringPreProcessor(storey.MapClass):
                     "may not be preserved."
                 )
         elif not isinstance(data_from_path, list):
-            output_data = [data_from_path]
+            listed_data = [data_from_path]
         else:
-            output_data = data_from_path
-        return output_data, new_schema
+            listed_data = data_from_path
+        return listed_data, new_schema
 
     @staticmethod
     def transpose_by_key(

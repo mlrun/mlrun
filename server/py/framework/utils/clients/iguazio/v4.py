@@ -37,7 +37,7 @@ class Client(BaseClient):
         :param secret_token: SecretToken object containing the token name and the offline token string.
         :raises mlrun.errors.MLRunUnauthorizedError: If the offline token is invalid or expired.
         """
-        # TODO: implement this method when it is available in iguazio package
+        # TODO: Implement this method once it is available in the Iguazio package
         pass
 
     def refresh_access_tokens(
@@ -49,7 +49,7 @@ class Client(BaseClient):
         :param secret_tokens: List of SecretToken objects
         :raises mlrun.errors.MLRunUnauthorizedError: If any token is invalid or expired
         """
-        # TODO: implement this method when it is available in iguazio package
+        # TODO: Implement this method once it is available in the Iguazio package
         pass
 
     def _generate_auth_info_from_session_verification_response(

@@ -336,7 +336,6 @@ MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_KFP_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-kfp
-mlrun-kfp: export MLRUN_PYTHON_VERSION = 3.9
 mlrun-kfp: common-image-3.9 update-version-file ## Build mlrun docker image with KFP
 	$(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
@@ -503,17 +502,20 @@ ifeq ($(strip $(MLRUN_NO_CACHE)),)
 common-image: $(COMMON_STAMP)
 
 $(COMMON_STAMP): $(COMMON_DOCKERFILE)
-	docker build  \
+	docker build \
 	--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 	--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
-	-f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_NAME) .  && mkdir -p $(dir $@) && touch $@
+	-f $(COMMON_DOCKERFILE) \
+	-t $(COMMON_IMAGE_NAME) . \
+	 && mkdir -p $(dir $@) && touch $@
 else  # when MLRUN_NO_CACHE is set
 .PHONY: common-image
 common-image:
-	docker build --no-cache $(COMMON_DOCKER_ARGS) \
- 	  -f $(COMMON_DOCKERFILE) \
+	docker build \
+	  --no-cache $(COMMON_DOCKER_ARGS) \
  	  --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
  	  --build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+ 	  -f $(COMMON_DOCKERFILE) \
 	  -t $(COMMON_IMAGE_NAME) .
 endif
 

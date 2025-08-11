@@ -487,11 +487,11 @@ endif
 # Common base image
 ###############################################################################
 
-COMMON_PLATFORM_TAG  = $(subst /,_,$(DOCKER_DEFAULT_PLATFORM))
-COMMON_IMAGE_TAG     = $(MLRUN_PYTHON_VERSION)-$(COMMON_PLATFORM_TAG)
-COMMON_STAMP         = build/common-image.$(MLRUN_PYTHON_VERSION).$(COMMON_PLATFORM_TAG).stamp
-COMMON_DOCKERFILE    := dockerfiles/common/Dockerfile
-
+COMMON_PLATFORM_TAG := $(subst /,_,$(DOCKER_DEFAULT_PLATFORM))
+COMMON_IMAGE_TAG     ?= $(MLRUN_PYTHON_VERSION)-$(COMMON_PLATFORM_TAG)
+COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).$(COMMON_PLATFORM_TAG).stamp
+COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
+COMMON_IMAGE_NAME := mlrun_common_image:$(COMMON_IMAGE_TAG)
 common-image-3.11:
 	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.11
 
@@ -506,7 +506,7 @@ $(COMMON_STAMP): $(COMMON_DOCKERFILE)
 	@if ! docker image inspect $(COMMON_IMAGE_TAG) >/dev/null 2>&1; then \
 	    echo "Building $(COMMON_IMAGE_TAG)…";                   \
 	    docker build --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) -f $(COMMON_DOCKERFILE)     \
-	                -t $(COMMON_IMAGE_TAG) . ;                         \
+	                -t $(COMMON_IMAGE_NAME) . ;                         \
 	fi
 	@mkdir -p $(dir $@) && touch $@
 

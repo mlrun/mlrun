@@ -2176,7 +2176,6 @@ class MonitoringDeployment:
                     router_step.model_endpoint_creation_strategy,
                 )
             )
-
         return model_endpoints_instructions
 
     def _extract_meps_from_root_flow_step(
@@ -2316,7 +2315,14 @@ class MonitoringDeployment:
         )
         return mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                project=self.project, name=name, endpoint_type=endpoint_type, uid=uid
+                project=self.project,
+                name=name,
+                endpoint_type=endpoint_type,
+                uid=uid,
+                mode=mlrun.common.schemas.model_monitoring.EndpointMode.BATCH
+                if endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP
+                else mlrun.common.schemas.model_monitoring.EndpointMode.REAL_TIME,
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=function_name,

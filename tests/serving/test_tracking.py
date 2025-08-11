@@ -1175,7 +1175,7 @@ def test_tracked_model_runner_with_error_handler(
             dummy_stream.event_list[0].get("error")
             == 'TypeError: can only concatenate str (not "int") to str'
         )
-        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == "1"
+        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == ["1"]
     elif not enable_tracking and as_responder:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
         assert resp == {

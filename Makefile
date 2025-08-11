@@ -505,7 +505,7 @@ common-image: $(COMMON_STAMP)
 
 $(COMMON_STAMP): $(COMMON_DOCKERFILE)
 	    docker build --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) -f $(COMMON_DOCKERFILE)     \
-	                -t $(COMMON_IMAGE_NAME) . ;                         \
+	                -t $(COMMON_IMAGE_NAME) . ;
 	fi
 	@mkdir -p $(dir $@) && touch $@
 

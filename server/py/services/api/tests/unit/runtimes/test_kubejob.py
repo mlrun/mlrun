@@ -232,6 +232,7 @@ class TestKubejobRuntime(TestRuntimeBase):
     def assert_node_selection(
         self, node_name=None, node_selector=None, affinity=None, tolerations=None
     ):
+        api_client = k8s_client.ApiClient()
         pod = self._get_pod_creation_args()
         # doesn't need a special case because the default it to be set with default node selector
         assert pod.spec.node_selector == (node_selector or {})
@@ -242,12 +243,14 @@ class TestKubejobRuntime(TestRuntimeBase):
             assert pod.spec.node_name is None
 
         if affinity:
-            assert pod.spec.affinity == affinity
+            assert pod.spec.affinity == api_client.sanitize_for_serialization(affinity)
         else:
             assert pod.spec.affinity is None
 
         if tolerations:
-            assert pod.spec.tolerations == tolerations
+            assert pod.spec.tolerations == api_client.sanitize_for_serialization(
+                tolerations
+            )
         else:
             assert pod.spec.tolerations is None
 
@@ -434,14 +437,12 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                     {
                         "key": "some-key",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                 ],
@@ -478,7 +479,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "some-key",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                 ],
@@ -496,7 +496,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                 ],
@@ -528,7 +527,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     }
                 ],
@@ -548,7 +546,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     }
                 ],
@@ -586,7 +583,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     }
                 ],
@@ -630,6 +626,11 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
 
         self.execute_function(runtime)
+        expected_node_selector, expected_tolerations, expected_affinity = (
+            mlrun.k8s_utils.sanitize_scheduling_configuration(
+                expected_node_selector, expected_tolerations, expected_affinity
+            )
+        )
         self._assert_pod_creation_config(
             expected_node_selector=expected_node_selector,
             expected_affinity=expected_affinity,

@@ -269,8 +269,8 @@ def enrich_preemption_mode(
         )
 
     enriched_node_selector = copy.deepcopy(node_selector or {})
-    enriched_tolerations = copy.deepcopy(tolerations or [])
-    enriched_affinity = copy.deepcopy(affinity)
+    enriched_tolerations = _safe_copy_tolerations(tolerations or [])
+    enriched_affinity = _safe_copy_affinity(affinity)
     preemptible_tolerations = generate_preemptible_tolerations()
 
     if handler := _get_mode_handler(preemption_mode):
@@ -286,6 +286,81 @@ def enrich_preemption_mode(
         enriched_tolerations,
         _prune_empty_affinity(enriched_affinity),
     )
+
+
+def _safe_copy_tolerations(
+    tolerations: list[kubernetes.client.V1Toleration],
+) -> list[kubernetes.client.V1Toleration]:
+    """
+    Safe deep copy of tolerations to avoid modifying the original list.
+    """
+    return [
+        kubernetes.client.V1Toleration(
+            effect=toleration.effect,
+            key=toleration.key,
+            value=toleration.value,
+            operator=toleration.operator,
+            toleration_seconds=toleration.toleration_seconds,
+        )
+        for toleration in tolerations
+    ]
+
+
+def sanitize_scheduling_configuration(
+    node_selector: typing.Optional[dict[str, str]] = None,
+    tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
+    affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
+) -> tuple[
+    typing.Optional[dict[str, str]],
+    typing.Optional[list[dict]],
+    typing.Optional[dict],
+]:
+    """
+    Sanitizes pod scheduling configuration for serialization.
+
+    Takes node selector, affinity, and tolerations and converts them to
+    JSON-serializable dictionaries using the Kubernetes API client's
+    sanitization method.
+
+    Args:
+        node_selector: Label selector for node selection
+        affinity: Pod affinity/anti-affinity rules
+        tolerations: List of toleration rules
+
+    Returns:
+        Tuple of (sanitized_node_selector, sanitized_affinity, sanitized_tolerations)
+        - node_selector: Returns as-is (already a dict) or None
+        - affinity: Sanitized dict representation or None
+        - tolerations: List of sanitized dict representations or None
+    """
+    api_client = kubernetes.client.ApiClient()
+
+    # Node selector is already a dict, so just return it as-is
+    sanitized_node_selector = node_selector
+
+    # Sanitize affinity if provided
+    sanitized_affinity = None
+    if affinity is not None:
+        sanitized_affinity = api_client.sanitize_for_serialization(affinity)
+
+    # Sanitize tolerations if provided
+    sanitized_tolerations = None
+    if tolerations is not None:
+        sanitized_tolerations = [
+            api_client.sanitize_for_serialization(toleration)
+            for toleration in tolerations
+        ]
+
+    return sanitized_node_selector, sanitized_tolerations, sanitized_affinity
+
+
+def _safe_copy_affinity(affinity):
+    if not affinity:
+        return None
+    api_client = kubernetes.client.ApiClient()
+    # Convert to dict then back to object properly
+    affinity_dict = api_client.sanitize_for_serialization(affinity)
+    return api_client._ApiClient__deserialize(affinity_dict, "V1Affinity")
 
 
 def _get_mode_handler(mode: str):
@@ -307,8 +382,10 @@ def _handle_prevent_mode(
     typing.Optional[kubernetes.client.V1Affinity],
 ]:
     # Ensure no preemptible node tolerations
-    tolerations = [t for t in tolerations if t not in preemptible_tolerations]
-
+    original_count = len(tolerations)
+    tolerations = [
+        t for t in tolerations if not _toleration_in_list(t, preemptible_tolerations)
+    ]
     # Purge affinity preemption-related configuration
     affinity = _prune_affinity_node_selector_requirement(
         generate_preemptible_node_selector_requirements(
@@ -333,6 +410,27 @@ def _handle_prevent_mode(
         )
 
     return node_selector, tolerations, affinity
+
+
+def _tolerations_equal(toleration1, toleration2):
+    """
+    Compare two tolerations for equality based on their key fields.
+    This handles the case where objects have been recreated after serialization.
+    """
+    return (
+        toleration1.key == toleration2.key
+        and toleration1.value == toleration2.value
+        and toleration1.operator == toleration2.operator
+        and toleration1.effect == toleration2.effect
+        and toleration1.toleration_seconds == toleration2.toleration_seconds
+    )
+
+
+def _toleration_in_list(toleration, toleration_list):
+    """
+    Check if a toleration exists in a list of tolerations using field-based comparison.
+    """
+    return any(_tolerations_equal(toleration, t) for t in toleration_list)
 
 
 def _handle_constrain_mode(

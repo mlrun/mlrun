@@ -807,19 +807,42 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
                 )
                 == {}
             )
+        api_client = client.ApiClient()
         if expected_affinity:
+            # Handle both sanitized dicts and V1Affinity objects
+            if pod.spec.affinity:
+                if hasattr(pod.spec.affinity, "to_dict"):
+                    # It's a V1Affinity object - convert to dict
+                    pod_affinity = api_client.sanitize_for_serialization(
+                        pod.spec.affinity
+                    )
+                else:
+                    # It's already a dictionary
+                    pod_affinity = pod.spec.affinity
+            else:
+                pod_affinity = None
             assert (
                 deepdiff.DeepDiff(
-                    pod.spec.affinity.to_dict(),
-                    expected_affinity.to_dict(),
+                    pod_affinity,
+                    expected_affinity,
                     ignore_order=True,
                 )
                 == {}
             )
         if expected_tolerations:
-            pod_tolerations = [
-                toleration.to_dict() for toleration in pod.spec.tolerations
-            ]
+            # Handle both V1Toleration objects and sanitized dictionaries
+            pod_tolerations = []
+            if pod.spec.tolerations:
+                for toleration in pod.spec.tolerations:
+                    if hasattr(toleration, "to_dict"):
+                        # It's a V1Toleration object - convert to dict
+                        pod_tolerations.append(
+                            api_client.sanitize_for_serialization(toleration)
+                        )
+                    else:
+                        # It's already a dictionary (sanitized)
+                        pod_tolerations.append(toleration)
+
             assert (
                 deepdiff.DeepDiff(
                     pod_tolerations,

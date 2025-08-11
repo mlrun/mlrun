@@ -426,14 +426,12 @@ class Secrets(
     def store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
-        authenticated_user_id: str,
         authenticated_username: str,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
         Validate and store offline tokens as Kubernetes secrets.
 
         :param secret_tokens: List of SecretToken objects to store.
-        :param authenticated_user_id: User ID to validate token ownership.
         :param authenticated_username: Username used to name Kubernetes secrets.
         :return: StoreSecretTokensResponse object with created, updated, and skipped tokens.
         """
@@ -442,9 +440,10 @@ class Secrets(
                 "Failed to store secret tokens – no tokens provided"
             )
 
-        valid_tokens = self._validate_and_decode_offline_tokens(
-            secret_tokens, authenticated_user_id
-        )
+        # First validate all token names
+        seen_names = set()
+        for secret_token in secret_tokens:
+            self._validate_token_name(secret_token.name, seen_names)
 
         # TODO: move init iguazio_client
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
@@ -454,18 +453,20 @@ class Secrets(
 
         token_actions = defaultdict(list)
 
-        for token_name, decoded_token in valid_tokens.items():
+        for secret_token in secret_tokens:
+            token_name = secret_token.name
+            token = secret_token.token
+
             # TODO remove this and use refresh_access_tokens once it is implemented in Iguazio client
-            secret_token = mlrun.common.schemas.SecretToken(
-                name=token_name, token=decoded_token["raw_token"]
-            )
             iguazio_client.refresh_access_token(secret_token)
+
+            expiration = self._extract_and_validate_expiration(token_name, token)
 
             action = self.secrets_provider.create_or_update_user_token_secret(
                 username=authenticated_username,
                 token_name=token_name,
-                token=decoded_token["raw_token"],
-                expiration=decoded_token["exp"],
+                token=token,
+                expiration=expiration,
             )
             token_actions[action].append(token_name)
 
@@ -481,55 +482,28 @@ class Secrets(
             ],
         )
 
-    def _validate_and_decode_offline_tokens(
-        self,
-        secret_tokens: list[mlrun.common.schemas.SecretToken],
-        expected_user_id: str,
-    ) -> dict[str, dict]:
-        seen_names = set()
-        result = {}
-
-        for token in secret_tokens:
-            self._validate_token_name(token.name, seen_names)
-            decoded = self._decode_and_verify_offline_token(
-                token.name, token.token, expected_user_id
-            )
-            decoded["raw_token"] = token.token  # Add original token string
-            result[token.name] = decoded
-
-        return result
-
-    def _validate_token_name(self, token_name: str, seen_names: set):
+    @staticmethod
+    def _validate_token_name(token_name: str, seen_names: set):
         if not token_name or token_name in seen_names:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid or duplicate token name '{token_name}' found in request payload"
             )
         seen_names.add(token_name)
 
-    def _decode_and_verify_offline_token(
-        self, token_name: str, token: str, expected_user_id: str
-    ) -> dict:
+    def _extract_and_validate_expiration(self, token_name: str, token: str) -> int:
         decoded = self._decode_offline_token(token_name, token)
-
-        sub = decoded.get("sub")
         exp = decoded.get("exp")
-
-        if not sub or not exp:
+        if exp is None or not isinstance(exp, int):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Offline token '{token_name}' is missing required claims (exp/sub)"
+                f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
             )
+        return exp
 
-        if sub != expected_user_id:
-            raise mlrun.errors.MLRunAccessDeniedError(
-                f"Offline token '{token_name}' does not belong to the authenticated user"
-            )
-
-        return decoded
-
-    def _decode_offline_token(self, token_name: str, token: str) -> dict:
+    @staticmethod
+    def _decode_offline_token(token_name: str, token: str) -> dict:
         try:
-            # The token is expected to be a JWT. We don't verify its signature here, as it will be verified later
-            # using the Iguazio client when refreshing the token.
+            # The token is expected to be a JWT. We don't verify its signature here, because it has already been
+            # verified earlier during the refresh_access_token call.
             return jwt.decode(token, options={"verify_signature": False})
         except jwt.DecodeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(

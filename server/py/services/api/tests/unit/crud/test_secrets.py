@@ -780,11 +780,7 @@ def test_store_secret_tokens_sub_mismatch():
         )
 
 
-# TODO: Enable this once it is implemented in the Iguazio client.
-# @unittest.mock.patch("framework.utils.clients.iguazio.v4.Client.refresh_access_tokens")
-def test_store_secret_tokens_return_values(
-    # mock_refresh_access_tokens,
-):
+def test_store_secret_tokens_return_values():
     token_payload = {"sub": "user-id-123", "exp": 9999999999}
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
@@ -817,27 +813,6 @@ def test_store_secret_tokens_return_values(
     }
 
     assert mock_secrets_provider.create_or_update_user_token_secret.call_count == 3
-    # mock_refresh_access_tokens.assert_called_once_with(secret_tokens)
-
-
-# TODO: Enable this once it is implemented in the Iguazio client.
-# @unittest.mock.patch("framework.utils.clients.iguazio.v4.Client.refresh_access_tokens")
-# def test_store_secret_tokens_refresh_access_tokens_failure(mock_refresh_access_tokens):
-#     mock_refresh_access_tokens.side_effect = mlrun.errors.MLRunUnauthorizedError(
-#         "Refresh failed"
-#     )
-#
-#     secret_tokens = [
-#         mlrun.common.schemas.SecretToken(
-#             name="token1",
-#             token=_generate_token({"sub": "user-id-123", "exp": 9999999999}),
-#         ),
-#     ]
-#
-#     with pytest.raises(mlrun.errors.MLRunUnauthorizedError, match="Refresh failed"):
-#         services.api.crud.Secrets().store_secret_tokens(
-#             secret_tokens, "user-id-123", "dummy-username"
-#         )
 
 
 def _generate_token(payload: dict) -> str:

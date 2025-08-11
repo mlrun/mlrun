@@ -13,8 +13,6 @@
 # limitations under the License.
 import typing
 
-import iguazio
-
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
@@ -29,7 +27,6 @@ _GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
 class Client(BaseClient):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._client = iguazio.Client(api_url=self._api_url)
 
     def refresh_access_token(
         self, secret_token: mlrun.common.schemas.SecretToken
@@ -40,12 +37,8 @@ class Client(BaseClient):
         :param secret_token: SecretToken object containing the token name and the offline token string.
         :raises mlrun.errors.MLRunUnauthorizedError: If the offline token is invalid or expired.
         """
-        try:
-            self._client.refresh_access_token(secret_token.token)
-        except Exception as exc:
-            raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to refresh access token '{secret_token.name}': token is invalid or expired"
-            ) from exc
+        # TODO: implement this method when it is available in iguazio package
+        pass
 
     def refresh_access_tokens(
         self, secret_tokens: list[mlrun.common.schemas.SecretToken]
@@ -56,12 +49,8 @@ class Client(BaseClient):
         :param secret_tokens: List of SecretToken objects
         :raises mlrun.errors.MLRunUnauthorizedError: If any token is invalid or expired
         """
-        try:
-            self._client.refresh_access_tokens(secret_tokens)
-        except Exception as exc:
-            raise mlrun.errors.MLRunUnauthorizedError(
-                "Failed to refresh one or more access tokens: token(s) are invalid or expired"
-            ) from exc
+        # TODO: implement this method when it is available in iguazio package
+        pass
 
     def _generate_auth_info_from_session_verification_response(
         self,

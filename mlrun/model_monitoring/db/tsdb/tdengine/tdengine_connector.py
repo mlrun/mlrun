@@ -344,6 +344,7 @@ class TDEngineConnector(TSDBConnector):
             for subtable in subtables
         ]
         try:
+            logger.debug("Dropping subtables", drop_statements=drop_statements)
             self.connection.run(statements=drop_statements)
         except Exception as e:
             logger.warning(
@@ -358,6 +359,48 @@ class TDEngineConnector(TSDBConnector):
             project=self.project,
             number_of_endpoints_to_delete=len(endpoint_ids),
         )
+
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete application records from the TSDB for the given model endpoints or all if ``endpoint_ids`` is ``None``.
+        """
+        logger.debug(
+            "Deleting application records",
+            project=self.project,
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        tables = [
+            self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS],
+            self.tables[mm_schemas.TDEngineSuperTables.METRICS],
+        ]
+
+        filter_query = self._generate_filter_query(
+            filter_column=mm_schemas.ApplicationEvent.APPLICATION_NAME,
+            filter_values=application_name,
+        )
+        if endpoint_ids:
+            endpoint_ids_filter = self._generate_filter_query(
+                filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
+                filter_values=endpoint_ids,
+            )
+            filter_query += f" AND {endpoint_ids_filter}"
+
+        drop_statements: list[str] = []
+        for table in tables:
+            get_subtable_query = table._get_tables_query_by_condition(filter_query)
+            subtables_result = self.connection.run(query=get_subtable_query)
+            drop_statements.extend(
+                [
+                    table.drop_subtable_query(subtable=subtable[0])
+                    for subtable in subtables_result.data
+                ]
+            )
+
+        logger.debug("Dropping application records", drop_statements=drop_statements)
+        self.connection.run(statements=drop_statements)
 
     def delete_tsdb_resources(self):
         """

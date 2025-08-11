@@ -746,23 +746,24 @@ async def async_execute_graph(
     return responses
 
 
-def _workaround_asyncio_nesting():
-    """Workaround for running with local=True in Jupyter (ML-10620)"""
+def _is_inside_asyncio_loop():
     try:
         asyncio.get_running_loop()
-        in_loop = True
+        return True
     except RuntimeError:
-        in_loop = False
+        return False
 
-    if in_loop:
-        try:
-            import nest_asyncio
-        except ImportError:
-            raise mlrun.errors.MLRunRuntimeError(
-                "Cannot execute graph from within an already running asyncio loop. "
-                "Attempt to import nest_asyncio as a workaround failed as well."
-            )
-        nest_asyncio.apply()
+
+# Workaround for running with local=True in Jupyter (ML-10620)
+def _workaround_asyncio_nesting():
+    try:
+        import nest_asyncio
+    except ImportError:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Cannot execute graph from within an already running asyncio loop. "
+            "Attempt to import nest_asyncio as a workaround failed as well."
+        )
+    nest_asyncio.apply()
 
 
 def execute_graph(
@@ -790,7 +791,8 @@ def execute_graph(
 
     :return: A list of responses.
     """
-    _workaround_asyncio_nesting()
+    if _is_inside_asyncio_loop():
+        _workaround_asyncio_nesting()
 
     return asyncio.run(
         async_execute_graph(

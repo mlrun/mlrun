@@ -17,7 +17,7 @@ ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 ARG OMPI_VERSION=4.1.5
 ARG MICROMAMBA_VERSION=2.3.0
-ARG COMMON_IMAGE_TAG=3.11-linux_amd64
+ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
 
 FROM mambaorg/micromamba:${MICROMAMBA_VERSION} AS conda-build
 ARG MLRUN_PYTHON_VERSION
@@ -43,7 +43,8 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
     micromamba clean -afy
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-FROM mlrun_common_image:${COMMON_IMAGE_TAG}
+FROM --platform=${DOCKER_DEFAULT_PLATFORM} mlrun_common_image:${MLRUN_PYTHON_VERSION}
+
 ARG MLRUN_PYTHON_VERSION
 ARG MLRUN_PIP_VERSION
 

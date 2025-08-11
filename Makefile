@@ -308,9 +308,9 @@ mlrun: common-image update-version-file ## Build mlrun docker image
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
@@ -344,7 +344,7 @@ mlrun-kfp: common-image-3.9 update-version-file ## Build mlrun docker image with
 		--build-arg MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) .
@@ -492,6 +492,7 @@ COMMON_IMAGE_TAG     ?= $(MLRUN_PYTHON_VERSION)-$(COMMON_PLATFORM_TAG)
 COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).$(COMMON_PLATFORM_TAG).stamp
 COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
 COMMON_IMAGE_NAME := mlrun_common_image:$(COMMON_IMAGE_TAG)
+
 common-image-3.11:
 	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.11
 
@@ -503,8 +504,6 @@ ifeq ($(strip $(MLRUN_NO_CACHE)),)
 common-image: $(COMMON_STAMP)
 
 $(COMMON_STAMP): $(COMMON_DOCKERFILE)
-	@if ! docker image inspect $(COMMON_IMAGE_TAG) >/dev/null 2>&1; then \
-	    echo "Building $(COMMON_IMAGE_TAG)…";                   \
 	    docker build --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) -f $(COMMON_DOCKERFILE)     \
 	                -t $(COMMON_IMAGE_NAME) . ;                         \
 	fi
@@ -543,7 +542,7 @@ api: common-image-3.11	 compile-schemas update-version-file ## Build mlrun-api d
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
-		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
@@ -572,10 +571,10 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 	docker build \
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_PIPELINES_KFP_VERSION=$(MLRUN_PIPELINES_KFP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) .
@@ -593,8 +592,8 @@ build-test-system: common-image compile-schemas update-version-file ## Build sys
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg COMMON_IMAGE_TAG=$(COMMON_IMAGE_TAG) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 

@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-from mlrun.artifacts import get_model
+
 import chromadb
 import torch
 from transformers import (
@@ -12,6 +12,8 @@ from transformers import (
     pipeline,
     set_seed,
 )
+
+from mlrun.artifacts import get_model
 
 PROMPT_TEMPLATE = """The instruction below describes a task. Write a response that appropriately completes the request.
 

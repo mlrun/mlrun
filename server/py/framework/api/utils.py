@@ -873,9 +873,22 @@ def submit_run_sync(
             )
             .secrets
         )
-        param_file_secrets["V3IO_ACCESS_KEY"] = (
-            auth_info.data_session or auth_info.access_key
+
+        # extract V3IO access key from auth_info or function environment.
+        # auth_info may be empty in internal retry flows that are not triggered by an HTTP request,
+        # so we fall back to checking the function's environment variables for the access key.
+        v3io_access_key = (
+            auth_info.data_session
+            or auth_info.access_key
+            or fn.get_env("V3IO_ACCESS_KEY")
         )
+
+        if not v3io_access_key:
+            raise mlrun.errors.MLRunBadRequestError(
+                "V3IO access key is required for hyperparameter run but was not found in auth_info or function spec"
+            )
+
+        param_file_secrets["V3IO_ACCESS_KEY"] = v3io_access_key
 
         run = fn.run(
             task,

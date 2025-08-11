@@ -509,7 +509,7 @@ else  # when MLRUN_NO_CACHE is set
 .PHONY: common-image
 common-image:
 	docker build --no-cache $(COMMON_DOCKER_ARGS) -f $(COMMON_DOCKERFILE) \
-	            -t $(COMMON_IMAGE_TAG) .
+	            -t $(COMMON_IMAGE_NAME) .
 endif
 
 .PHONY: clean-common-image

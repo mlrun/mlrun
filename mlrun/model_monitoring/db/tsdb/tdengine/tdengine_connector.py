@@ -22,7 +22,6 @@ import taosws
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.types
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
-import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
@@ -205,7 +204,7 @@ class TDEngineConnector(TSDBConnector):
     @staticmethod
     def _generate_filter_query(
         filter_column: str, filter_values: Union[str, list[Union[str, int]]]
-    ) -> Optional[str]:
+    ) -> str:
         """
         Generate a filter query for TDEngine based on the provided column and values.
 
@@ -213,15 +212,14 @@ class TDEngineConnector(TSDBConnector):
         :param filter_values: A single value or a list of values to filter by.
 
         :return: A string representing the filter query.
-        :raise: MLRunInvalidArgumentError if the filter values are not of type string or list.
+        :raise: ``MLRunValueError`` if the filter values are not of type string or list.
         """
-
         if isinstance(filter_values, str):
             return f"{filter_column}='{filter_values}'"
         elif isinstance(filter_values, list):
             return f"{filter_column} IN ({', '.join(repr(v) for v in filter_values)}) "
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunValueError(
                 f"Invalid filter values {filter_values}: must be a string or a list, "
                 f"got {type(filter_values).__name__}; filter values: {filter_values}"
             )

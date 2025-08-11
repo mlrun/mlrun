@@ -746,6 +746,25 @@ async def async_execute_graph(
     return responses
 
 
+def _workaround_asyncio_nesting():
+    """Workaround for running with local=True in Jupyter (ML-10620)"""
+    try:
+        asyncio.get_running_loop()
+        in_loop = True
+    except RuntimeError:
+        in_loop = False
+
+    if in_loop:
+        try:
+            import nest_asyncio
+        except ImportError:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Cannot execute graph from within an already running asyncio loop. "
+                "Attempt to import nest_asyncio as a workaround failed as well."
+            )
+        nest_asyncio.apply()
+
+
 def execute_graph(
     context: MLClientCtx,
     data: DataItem,
@@ -771,6 +790,8 @@ def execute_graph(
 
     :return: A list of responses.
     """
+    _workaround_asyncio_nesting()
+
     return asyncio.run(
         async_execute_graph(
             context,

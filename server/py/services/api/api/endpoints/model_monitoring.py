@@ -56,6 +56,15 @@ class _CommonParams:
                 mm_constants.ProjectSecretKeys.ACCESS_KEY,
             )
 
+    def get_monitoring_deployment(self) -> MonitoringDeployment:
+        """Get the MonitoringDeployment instance for the current project"""
+        return MonitoringDeployment(
+            project=self.project,
+            auth_info=self.auth_info,
+            db_session=self.db_session,
+            model_monitoring_access_key=self.model_monitoring_access_key,
+        )
+
 
 async def _verify_authorization(
     project: str,
@@ -152,12 +161,7 @@ async def enable_model_monitoring(
     :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
 
     """
-    MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).deploy_monitoring_functions(
+    commons.get_monitoring_deployment().deploy_monitoring_functions(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
@@ -197,12 +201,7 @@ async def update_model_monitoring_controller(
             f"Run `project.enable_model_monitoring()` first."
         )
 
-    return MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).deploy_model_monitoring_controller(
+    return commons.get_monitoring_deployment().deploy_model_monitoring_controller(
         controller_image=image,
         base_period=base_period,
         overwrite=True,
@@ -251,12 +250,7 @@ async def disable_model_monitoring(
                                                 in order to delete the desired application.
 
     """
-    tasks = await MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).disable_model_monitoring(
+    tasks = await commons.get_monitoring_deployment().disable_model_monitoring(
         delete_resources=delete_resources,
         delete_stream_function=delete_stream_function,
         delete_histogram_data_drift_app=delete_histogram_data_drift_app,
@@ -290,12 +284,7 @@ async def delete_model_monitoring_function(
     :param response:                            The response.
     :param functions:                           List of the user's model monitoring application to delete.
     """
-    tasks = await MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).disable_model_monitoring(
+    tasks = await commons.get_monitoring_deployment().disable_model_monitoring(
         delete_resources=False,
         delete_stream_function=False,
         delete_histogram_data_drift_app=False,
@@ -324,12 +313,7 @@ def set_model_monitoring_credentials(
                                       The profile can be V3IO or KafkaSource.
     :param replace_creds:             If True, it will force the credentials update. By default, False.
     """
-    MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).set_credentials(
+    commons.get_monitoring_deployment().set_credentials(
         tsdb_profile_name=tsdb_profile_name,
         stream_profile_name=stream_profile_name,
         replace_creds=replace_creds,

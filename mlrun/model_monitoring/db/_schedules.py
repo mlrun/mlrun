@@ -275,6 +275,17 @@ class ModelMonitoringSchedulesFileApplication(ModelMonitoringSchedulesFileBase):
             timezone.utc
         ).isoformat()
 
+    def delete_endpoints_last_analyzed(self, endpoint_uids: list[str]) -> None:
+        self._check_open_schedules()
+        for endpoint_uid in endpoint_uids:
+            if endpoint_uid in self._schedules:
+                logger.debug(
+                    "Deleting endpoint last analyzed from schedules",
+                    endpoint_uid=endpoint_uid,
+                    application=self._application,
+                )
+                del self._schedules[endpoint_uid]
+
 
 def _delete_folder(folder: str) -> None:
     fs = mlrun.datastore.store_manager.object(folder).store.filesystem

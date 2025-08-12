@@ -27,6 +27,7 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.types
 import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.errors
 import mlrun.model_monitoring.api as mm_api
@@ -37,6 +38,12 @@ import mlrun.model_monitoring.helpers as mm_helpers
 import mlrun.utils
 from mlrun.serving.utils import MonitoringApplicationToDict
 from mlrun.utils import logger
+
+
+class ExistingDataHandling(mlrun.common.types.StrEnum):
+    fail_on_overlap = "fail_on_overlap"
+    skip_overlap = "skip_overlap"
+    delete_all = "delete_all"
 
 
 def _serialize_context_and_result(
@@ -288,7 +295,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[str] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
-        fail_on_overlap: bool = True,
+        existing_data_handling: ExistingDataHandling = ExistingDataHandling.fail_on_overlap,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ):
         """
@@ -350,6 +357,24 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 resolved_endpoints = self._handle_endpoints_type_evaluate(
                     project=project, endpoints=endpoints
                 )
+                if (
+                    write_output
+                    and existing_data_handling == ExistingDataHandling.delete_all
+                ):
+                    endpoint_ids = [
+                        endpoint_id for _, endpoint_id in resolved_endpoints
+                    ]
+                    context.logger.info(
+                        "Deleting all the application data before running the application",
+                        application_name=application_name,
+                        endpoint_ids=endpoint_ids,
+                    )
+                    self._delete_application_data(
+                        project_name=project.name,
+                        application_name=application_name,
+                        endpoint_ids=endpoint_ids,
+                        application_schedules=application_schedules,
+                    )
                 for endpoint_name, endpoint_id in resolved_endpoints:
                     for window_start, window_end in self._window_generator(
                         start=start,
@@ -358,7 +383,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         application_schedules=application_schedules,
                         endpoint_id=endpoint_id,
                         application_name=application_name,
-                        fail_on_overlap=fail_on_overlap,
+                        existing_data_handling=existing_data_handling,
                     ):
                         result = call_do_tracking(
                             event={
@@ -481,7 +506,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end_dt: datetime,
         base_period: Optional[int],
         application_name: str,
-        fail_on_overlap: bool,
+        existing_data_handling: ExistingDataHandling,
     ) -> datetime:
         """Make sure that the (app, endpoint) pair doesn't write output before the last analyzed window"""
         if application_schedules:
@@ -490,7 +515,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
             if last_analyzed:
                 if start_dt < last_analyzed:
-                    if not fail_on_overlap:
+                    if existing_data_handling == ExistingDataHandling.skip_overlap:
                         if last_analyzed < end_dt and base_period is None:
                             logger.warn(
                                 "Setting the start time to last_analyzed since the original start time precedes "
@@ -525,6 +550,25 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
         return start_dt
 
+    @staticmethod
+    def _delete_application_data(
+        project_name: str,
+        application_name: str,
+        endpoint_ids: list[str],
+        application_schedules: Optional[
+            mm_schedules.ModelMonitoringSchedulesFileApplication
+        ],
+    ) -> None:
+        mlrun.get_run_db().delete_model_monitoring_metrics(
+            project=project_name,
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        if application_schedules:
+            application_schedules.delete_endpoints_last_analyzed(
+                endpoint_uids=endpoint_ids
+            )
+
     @classmethod
     def _window_generator(
         cls,
@@ -537,7 +581,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         ],
         endpoint_id: str,
         application_name: str,
-        fail_on_overlap: bool,
+        existing_data_handling: ExistingDataHandling,
     ) -> Iterator[tuple[Optional[datetime], Optional[datetime]]]:
         if start is None or end is None:
             # A single window based on the `sample_data` input - see `_handler`.
@@ -547,15 +591,16 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)
 
-        start_dt = cls._validate_monotonically_increasing_data(
-            application_schedules=application_schedules,
-            endpoint_id=endpoint_id,
-            start_dt=start_dt,
-            end_dt=end_dt,
-            base_period=base_period,
-            application_name=application_name,
-            fail_on_overlap=fail_on_overlap,
-        )
+        if existing_data_handling != ExistingDataHandling.delete_all:
+            start_dt = cls._validate_monotonically_increasing_data(
+                application_schedules=application_schedules,
+                endpoint_id=endpoint_id,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                base_period=base_period,
+                application_name=application_name,
+                existing_data_handling=existing_data_handling,
+            )
 
         if base_period is None:
             yield start_dt, end_dt
@@ -702,7 +747,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``end``, ``datetime``
         * ``base_period``, ``int``
         * ``write_output``, ``bool``
-        * ``fail_on_overlap``, ``bool``
+        * ``existing_data_handling``, ``str``
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -788,7 +833,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
-        fail_on_overlap: bool = True,
+        existing_data_handling: ExistingDataHandling = ExistingDataHandling.fail_on_overlap,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ) -> "mlrun.RunObject":
         """
@@ -856,11 +901,18 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param write_output:      Whether to write the results and metrics to the time-series DB. Can be ``True`` only
                                   if ``endpoints`` are passed.
                                   Note: the model monitoring infrastructure must be up for the writing to work.
-        :param fail_on_overlap:   Relevant only when ``write_output=True``. When ``True``, and the
-                                  requested ``start`` time precedes the ``end`` time of a previous run that also
-                                  wrote to the database - an error is raised.
-                                  If ``False``, when the previously described situation occurs, the relevant time
-                                  window is cut so that it starts at the earliest possible time after ``start``.
+        :param existing_data_handling:
+                                  How to handle the existing application data for the model endpoints when writing the
+                                  new data. Relevant only when ``write_output=True``. The default is
+                                  ``"fail_on_overlap"``. The options are:
+
+                                  - ``"fail_on_overlap"``: when the requested ``start`` time precedes the
+                                    ``end`` time of a previous run that also wrote to the database - an error is raised.
+                                  - ``"skip_overlap"``: when the previously described situation occurs, the relevant
+                                    time window is cut so that it starts at the earliest possible time after ``start``.
+                                  - ``"delete_all"``: delete all the data that was written by the application to the
+                                    model endpoints, regardless of the time window, and write the new data.
+
         :param stream_profile:    The stream datastore profile. It should be provided only when running locally and
                                   writing the outputs to the database (i.e., when both ``run_local`` and
                                   ``write_output`` are set to ``True``).
@@ -900,7 +952,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 params["end"] = end.isoformat() if isinstance(end, datetime) else end
                 params["base_period"] = base_period
                 params["write_output"] = write_output
-                params["fail_on_overlap"] = fail_on_overlap
+                params["existing_data_handling"] = existing_data_handling
                 if stream_profile:
                     if not run_local:
                         raise mlrun.errors.MLRunValueError(

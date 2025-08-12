@@ -700,13 +700,11 @@ def test_store_secret_tokens_missing_tokens(
     tokens,
 ):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        services.api.crud.Secrets().store_secret_tokens(
-            tokens, "dummy-user-id", "dummy-username"
-        )
+        services.api.crud.Secrets().store_secret_tokens(tokens, "dummy-username")
 
 
 def test_store_secret_tokens_duplicate_names():
-    token_payload = {"sub": "user-123", "exp": 9999999999}
+    token_payload = {"exp": 9999999999}
 
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
@@ -720,9 +718,7 @@ def test_store_secret_tokens_duplicate_names():
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError, match="Invalid or duplicate token name"
     ):
-        services.api.crud.Secrets().store_secret_tokens(
-            secret_tokens, "user-123", "dummy-username"
-        )
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
 
 
 def test_store_secret_tokens_invalid_offline_token_jwt_decode():
@@ -735,15 +731,17 @@ def test_store_secret_tokens_invalid_offline_token_jwt_decode():
         match="Failed to decode offline token 'bad'",
     ):
         services.api.crud.Secrets().store_secret_tokens(
-            secret_tokens, "dummy-user-id", "dummy-username"
+            secret_tokens,
+            "dummy-user-id",
         )
 
 
 @pytest.mark.parametrize(
     "payload",
     [
-        {"exp": 9999999999},  # missing sub
         {"sub": "user-123"},  # missing exp
+        {"sub": "user-123", "exp": None},  # exp is None
+        {"sub": "user-123", "exp": ""},  # exp is empty
     ],
 )
 def test_store_secret_tokens_missing_required_claims_in_offline_token(payload):
@@ -753,31 +751,10 @@ def test_store_secret_tokens_missing_required_claims_in_offline_token(payload):
     ]
 
     with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError, match="missing required claims"
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"missing the 'exp' \(expiration\) claim",
     ):
-        services.api.crud.Secrets().store_secret_tokens(
-            secret_tokens, "dummy-user-id", "dummy-username"
-        )
-
-
-def test_store_secret_tokens_sub_mismatch():
-    # Create a token with a different sub (user ID)
-    payload = {
-        "sub": "other-user-id",
-        "exp": 9999999999,
-    }
-    token = _generate_token(payload)
-    secret_tokens = [
-        mlrun.common.schemas.SecretToken(name="wrong-user-token", token=token)
-    ]
-
-    with pytest.raises(
-        mlrun.errors.MLRunAccessDeniedError,
-        match="does not belong to the authenticated user",
-    ):
-        services.api.crud.Secrets().store_secret_tokens(
-            secret_tokens, "dummy-user-id", "dummy-username"
-        )
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
 
 
 # TODO: Enable this once it is implemented in the Iguazio client.
@@ -807,7 +784,7 @@ def test_store_secret_tokens_return_values(
     ]
 
     result = services.api.crud.Secrets().store_secret_tokens(
-        secret_tokens, "user-id-123", "dummy-username"
+        secret_tokens, "dummy-username"
     )
 
     assert result == {

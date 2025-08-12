@@ -352,6 +352,23 @@ class StrDictOutputModel(Model):
         return body
 
 
+class SubDictOutputModel(Model):
+    def predict(self, body, **kwargs):
+        body["outputs"] = {}
+        for key, value in body["inputs"][self.name].items():
+            if isinstance(value, list):
+                body["outputs"][key.replace("f", "o")] = []
+                for single_value in value:
+                    body["outputs"][key.replace("f", "o")].append(
+                        {f"key_{single_value}": f"value_{single_value}"}
+                    )
+            else:
+                body["outputs"][key.replace("f", "o")] = {
+                    f"key_{value}": f"value_{value}"
+                }
+        return body
+
+
 def _test_monitoring_system_steps_structure(
     graph: RootFlowStep, model_runners_names: list[str]
 ):
@@ -616,6 +633,19 @@ def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
         ["1_output", "2_output", "3_output", "4_output"],
         ["2_output", "3_output", "4_output", "5_output"],
     ]
+    assert dummy_stream.event_list[0].get("request", {}).get("input_schema") == [
+        "f1",
+        "f2",
+        "f3",
+        "f4",
+    ]
+    assert dummy_stream.event_list[0].get("resp", {}).get("output_schema") == [
+        "o1",
+        "o2",
+        "o3",
+        "o4",
+    ]
+
     assert dummy_stream.event_list[1].get("request", {}).get("inputs") == ["1", "2"]
     assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [
         "1_output",
@@ -635,6 +665,69 @@ def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
     ]
     assert dummy_stream.event_list[4].get("request", {}).get("inputs") == ["1"]
     assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == ["1_output"]
+    assert dummy_stream.event_list[4].get("request", {}).get("input_schema") == ["f1"]
+    assert dummy_stream.event_list[4].get("resp", {}).get("output_schema") == ["o1"]
+
+
+@pytest.mark.parametrize("with_schema", [True, False])
+def test_tracked_subdict(rundb_mock, with_schema):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="SubDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model",
+        input_path="inputs.dict_model",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"] if with_schema else None,
+        outputs=["o1", "o2", "o3", "o4"] if with_schema else None,
+        raise_error=False,
+    )
+    graph.to(model_runner_step).respond()
+    function.set_tracking("dummy://", enable_tracking=True)
+    server = function.to_mock_server()
+    inputs_model = (
+        {"f1": ["1", "2"], "f2": ["2", "3"], "f3": ["3", "4"], "f4": ["4", "5"]}
+        if not with_schema
+        else {"f4": ["4", "5"], "f2": ["2", "3"], "f1": ["1", "2"], "f3": ["3", "4"]}
+    )
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "dict_model": inputs_model,
+                "dict_model_2": {"f1": ["1", "2"]},
+                "dict_model_single_event": {"f1": "1", "f2": "2", "f3": "3", "f4": "4"},
+                "dict_model_single_event_wrapped": {
+                    "f1": ["1"],
+                    "f2": ["2"],
+                    "f3": ["3"],
+                    "f4": ["4"],
+                },
+                "dict_model_scalar": {"f1": "1"},
+            }
+        },
+    )
+    server.wait_for_completion()
+    dummy_stream = server.context.stream.output_stream
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [
+        ["1", "2", "3", "4"],
+        ["2", "3", "4", "5"],
+    ]
+    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs")[0] == [
+        {"key_1": "value_1"},
+        {"key_2": "value_2"},
+        {"key_3": "value_3"},
+        {"key_4": "value_4"},
+    ]
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs")[1] == [
+        {"key_2": "value_2"},
+        {"key_3": "value_3"},
+        {"key_4": "value_4"},
+        {"key_5": "value_5"},
+    ]
 
 
 def test_tracked_model_runner_multiple_steps(rundb_mock):
@@ -1082,7 +1175,7 @@ def test_tracked_model_runner_with_error_handler(
             dummy_stream.event_list[0].get("error")
             == 'TypeError: can only concatenate str (not "int") to str'
         )
-        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == "1"
+        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == ["1"]
     elif not enable_tracking and as_responder:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
         assert resp == {
@@ -1100,10 +1193,11 @@ def test_transpose_by_key_with_str():
         "extra": 123,
         "time": "2020-01-01T01:00:00Z",
     }
-    result = MonitoringPreProcessor.transpose_by_key(data)
+    result, new_schema = MonitoringPreProcessor.transpose_by_key(data)
     expected_result = [[30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"]]
 
     assert result == expected_result
+    assert new_schema == ["Price", "Product", "Stock", "extra", "time"]
 
     data = {
         "Price": [30.0, 6.0],
@@ -1112,10 +1206,62 @@ def test_transpose_by_key_with_str():
         "extra": [123, 80],
         "time": ["2020-01-01T01:00:00Z", "2020-01-01T02:00:00Z"],
     }
-    result = MonitoringPreProcessor.transpose_by_key(data)
+    result, new_schema = MonitoringPreProcessor.transpose_by_key(data)
 
     expected_result = [
         [30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"],
         [6.0, "Mouse", 200, 80, "2020-01-01T02:00:00Z"],
     ]
     assert result == expected_result
+    assert new_schema == ["Price", "Product", "Stock", "extra", "time"]
+
+
+def test_negative_schema_with_dict_model(rundb_mock):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="DictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="my_dict_model",
+        input_path="inputs.my_dict_model",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"],
+        raise_error=False,
+    )
+    graph.to(model_runner_step).respond()
+
+    function.set_tracking("dummy://", enable_tracking=True)
+    server = function.to_mock_server()
+    # bad key right length
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": 1, "f2": 2, "f3": 3, "f4": 4},
+            }
+        },
+    )
+    # missing keys
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": 1, "f1": 2, "f2": 3},
+            }
+        },
+    )
+    # wrong lengthes
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": [1, 2], "f1": 2, "f2": 3, "f4": 4},
+            }
+        },
+    )
+
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 0, "expected stream to get zero messages"

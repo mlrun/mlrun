@@ -338,11 +338,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
                 # This is necessary since the item names are originally collected from the yaml files
                 # which may can contain underscores.
                 object_details_dict.update(
-                    {
-                        "name": mlrun.utils.helpers.normalize_name(
-                            object_name, verbose=False
-                        )
-                    }
+                    {"name": mlrun.utils.helpers.normalize_name(object_name)}
                 )
                 metadata = mlrun.common.schemas.hub.HubItemMetadata(
                     tag=version_tag, **object_details_dict
@@ -373,5 +369,5 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
         :return:   list of item objects from catalog
         """
-        normalized_name = mlrun.utils.helpers.normalize_name(item_name, verbose=False)
+        normalized_name = mlrun.utils.helpers.normalize_name(item_name)
         return [item for item in catalog if item.metadata.name == normalized_name]

@@ -396,6 +396,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         request_id = event.get("request", {}).get("id") or event.get("resp", {}).get(
             "id"
         )
+        feature_names = event.get("request", {}).get("input_schema")
+        labels_names = event.get("resp", {}).get("output_schema")
         latency = event.get("microsec")
         features = event.get("request", {}).get("inputs")
         predictions = event.get("resp", {}).get("outputs")
@@ -496,6 +498,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     ),
                     EventFieldType.EFFECTIVE_SAMPLE_COUNT: effective_sample_count,
                     EventFieldType.ESTIMATED_PREDICTION_COUNT: estimated_prediction_count,
+                    EventFieldType.FEATURE_NAMES: feature_names,
+                    EventFieldType.LABEL_NAMES: labels_names,
                 }
             )
 
@@ -602,19 +606,19 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         self.endpoint_type = {}
 
     def _infer_feature_names_from_data(self, event):
-        for endpoint_id in self.feature_names:
-            if len(self.feature_names[endpoint_id]) >= len(
-                event[EventFieldType.FEATURES]
-            ):
-                return self.feature_names[endpoint_id]
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
+        if endpoint_id in self.feature_names and len(
+            self.feature_names[endpoint_id]
+        ) >= len(event[EventFieldType.FEATURES]):
+            return self.feature_names[endpoint_id]
         return None
 
     def _infer_label_columns_from_data(self, event):
-        for endpoint_id in self.label_columns:
-            if len(self.label_columns[endpoint_id]) >= len(
-                event[EventFieldType.PREDICTION]
-            ):
-                return self.label_columns[endpoint_id]
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
+        if endpoint_id in self.label_columns and len(
+            self.label_columns[endpoint_id]
+        ) >= len(event[EventFieldType.PREDICTION]):
+            return self.label_columns[endpoint_id]
         return None
 
     def do(self, event: dict):
@@ -659,7 +663,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     "Feature names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
-                feature_names = [
+                feature_names = event.get(EventFieldType.FEATURE_NAMES) or [
                     f"f{i}" for i, _ in enumerate(event[EventFieldType.FEATURES])
                 ]
 
@@ -682,7 +686,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     "label column names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
-                label_columns = [
+                label_columns = event.get(EventFieldType.LABEL_NAMES) or [
                     f"p{i}" for i, _ in enumerate(event[EventFieldType.PREDICTION])
                 ]
                 attributes_to_update[EventFieldType.LABEL_NAMES] = label_columns

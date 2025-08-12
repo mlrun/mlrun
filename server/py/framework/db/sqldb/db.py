@@ -1711,7 +1711,8 @@ class SQLDB(DBInterface):
                     tree=parent.producer_id,
                     uid=parent.uid,
                     tag=parent_tag
-                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or []),
+                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or [])
+                    or None,
                 ),
             )
         else:
@@ -4374,72 +4375,6 @@ class SQLDB(DBInterface):
 
         return query
 
-    def list_features(
-        self,
-        session,
-        project: str,
-        name: typing.Optional[str] = None,
-        tag: typing.Optional[str] = None,
-        entities: typing.Optional[list[str]] = None,
-        labels: typing.Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
-        # We don't filter by feature-set name here, as the name parameter refers to features
-        feature_set_id_tags = self._get_records_to_tags_map(
-            session, FeatureSet, project, tag, name=None
-        )
-
-        query = self._generate_feature_or_entity_list_query(
-            session, Feature, project, feature_set_id_tags.keys(), name, tag, labels
-        )
-
-        if entities:
-            query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
-
-        features_results = []
-        transform_feature_set_model_to_schema = MemoizationCache(
-            self._transform_feature_set_model_to_schema
-        ).memoize
-        generate_feature_set_digest = MemoizationCache(
-            self._generate_feature_set_digest
-        ).memoize
-
-        for row in query:
-            feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
-            feature_name = feature_record.name
-
-            feature_sets = self._generate_records_with_tags_assigned(
-                row.FeatureSet,
-                transform_feature_set_model_to_schema,
-                feature_set_id_tags,
-                tag,
-            )
-
-            for feature_set in feature_sets:
-                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
-                # in the DB)
-                feature = next(
-                    (
-                        feature
-                        for feature in feature_set.spec.features
-                        if feature.name == feature_name
-                    ),
-                    None,
-                )
-                if not feature:
-                    raise mlrun.errors.MLRunInternalServerError(
-                        "Inconsistent data in DB - features in DB not in feature-set document"
-                    )
-
-                feature_set_digest = generate_feature_set_digest(feature_set)
-
-                features_results.append(
-                    mlrun.common.schemas.FeatureListOutput(
-                        feature=feature,
-                        feature_set_digest=feature_set_digest,
-                    )
-                )
-        return mlrun.common.schemas.FeaturesOutput(features=features_results)
-
     @staticmethod
     def _dedup_and_append_feature_set(
         feature_set, feature_set_id_to_index, feature_set_digests_v2
@@ -5832,7 +5767,7 @@ class SQLDB(DBInterface):
         :param model_name: The model name of the model endpoint.
         :param model_tag: The model tag associated with the model endpoint.
         :param top_level: If True, filters for top-level model endpoints.
-        :param mode: Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set to None.
+        :param mode: Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or both if set to None.
         :param labels: The labels to filter model endpoints.
         :param start: Start date-time filter.
         :param end: End date-time filter.
@@ -5882,17 +5817,19 @@ class SQLDB(DBInterface):
             query = query.filter(
                 ModelEndpoint.endpoint_type.in_(EndpointType.top_level_list())
             )
-        if mode:
+        if mode is not None:
             if mode == EndpointMode.REAL_TIME:
-                # Real Time EP
+                # Real Time + Old Batch EP (none value)
                 query = query.filter(
-                    ModelEndpoint.endpoint_type.in_(EndpointType.real_time_list())
+                    or_(
+                        ModelEndpoint.mode == EndpointMode.REAL_TIME,
+                        ModelEndpoint.mode.is_(None),
+                    )
                 )
+
             else:
                 # Batch EP
-                query = query.filter(
-                    ModelEndpoint.endpoint_type.in_(EndpointType.batch_list())
-                )
+                query = query.filter(ModelEndpoint.mode == EndpointMode.BATCH)
 
         # Apply function-related filters
         if function_name or function_tag:
@@ -7940,6 +7877,7 @@ class SQLDB(DBInterface):
             function_id=function_record.id if function_record else None,
             model_id=model_endpoint.spec._model_id or None,
             endpoint_type=model_endpoint.metadata.endpoint_type.value,
+            mode=model_endpoint.metadata.mode.value,
             created=current_time,
             updated=current_time,
         )

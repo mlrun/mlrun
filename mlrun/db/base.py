@@ -16,8 +16,6 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Literal, Optional, Union
 
-from deprecated import deprecated
-
 import mlrun.alerts
 import mlrun.common
 import mlrun.common.formatters
@@ -443,23 +441,6 @@ class RunDBInterface(ABC):
         tag: Optional[str] = None,
         uid: Optional[str] = None,
     ) -> dict:
-        pass
-
-    # TODO: remove in 1.10.0
-    @deprecated(
-        version="1.7.0",
-        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_features(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
     @abstractmethod

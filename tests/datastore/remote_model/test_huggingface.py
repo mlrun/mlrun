@@ -13,6 +13,7 @@
 # limitations under the License.
 import pytest
 
+import mlrun
 from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
 
 
@@ -26,5 +27,19 @@ from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvi
     ],
 )
 def test_response_to_str(response, expected_str_response):
-    extracted_string = HuggingFaceProvider._extract_string_output(result=response)
+    extracted_string = HuggingFaceProvider._extract_string_output(response=response)
     assert extracted_string == expected_str_response
+
+
+def test_response_to_str_error():
+    # This response can be reproduced with Hugging Face Provider by invoking with num_return_sequences=2:
+    response = [
+        {"generated_text": "The capital of Germany is Berlin."},
+        {"generated_text": "The capital of Japan is Tokyo"},
+    ]
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="HuggingFaceProvider: extracting string from response is only"
+        " supported for single-response outputs",
+    ):
+        HuggingFaceProvider._extract_string_output(response=response)

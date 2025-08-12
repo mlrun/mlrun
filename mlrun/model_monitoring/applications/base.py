@@ -647,7 +647,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             else:
                 class_name = handler_to_class.split(".")[-1].split("::")[0]
 
-            job_name = mlrun.utils.normalize_name(class_name, verbose=False)
+            job_name = mlrun.utils.normalize_name(class_name)
 
         if not mm_constants.APP_NAME_REGEX.fullmatch(job_name):
             raise mlrun.errors.MLRunValueError(

@@ -3939,8 +3939,8 @@ class MlrunProject(ModelObj):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
-        :param mode:            Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set
-                                to None.
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
+                                both if set to None.
         :param uids:            If passed will return a list `ModelEndpoint` object with uid in uids.
         :param tsdb_metrics:    When True, the time series metrics will be added to the output
                                 of the resulting.

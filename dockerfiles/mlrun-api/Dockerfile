@@ -15,10 +15,11 @@
 ARG MLRUN_PYTHON_VERSION=3.11
 ARG UID=1000
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
-
+ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
+FROM --platform=${DOCKER_DEFAULT_PLATFORM} mlrun_common_image:${MLRUN_PYTHON_VERSION}
+
 ARG MLRUN_PYTHON_VERSION
 ARG UID
 
@@ -66,7 +67,7 @@ RUN python -m pip uninstall pip -y \
 
 
 VOLUME /mlrun/db
-ENV PYTHONPATH=/mlrun/server/py
+ENV PYTHONPATH=/mlrun/server/py:/mlrun/server/py/schemas/proto
 ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs
 ENV MLRUN_HTTPDB__DIRPATH=/mlrun/db

@@ -1750,7 +1750,7 @@ def test_remove_tag_from_artifact_uri(input_uri, expected_output):
 @pytest.mark.parametrize(
     "path, data, expected",
     [
-        ("b", {"a": {"x": 1}, "b": 2}, [2]),  # simple key with int
+        ("b", {"a": {"x": 1}, "b": 2}, 2),  # simple key with int
         ("missing", {"x": 1}, None),  # missing key
         (
             "a.b.c",

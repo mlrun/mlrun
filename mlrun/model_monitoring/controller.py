@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import collections
 import concurrent.futures
 import datetime
 import json
 import os
 import traceback
+import warnings
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
@@ -28,17 +29,19 @@ import pandas as pd
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db._schedules as schedules
 import mlrun.model_monitoring.helpers
 import mlrun.platforms.iguazio
+from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEvent,
     ControllerEventEndpointPolicy,
 )
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import batch_dict2timedelta
-from mlrun.utils import logger
+from mlrun.utils import datetime_now, logger
 
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
 _SECONDS_IN_MINUTE = 60
@@ -239,6 +242,7 @@ class _BatchWindowGenerator(AbstractContextManager):
         cls,
         last_request: datetime.datetime,
         endpoint_mode: mm_constants.EndpointMode,
+        not_old_batch_endpoint: bool,
     ) -> float:
         """
         Get the last updated time of a model endpoint.
@@ -249,6 +253,15 @@ class _BatchWindowGenerator(AbstractContextManager):
                 float,
                 mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
             )
+            if not not_old_batch_endpoint:
+                # If the endpoint does not have a stream, `last_updated` should be
+                # the minimum between the current time and the last updated time.
+                # This compensates for the bumping mechanism - see
+                # `update_model_endpoint_last_request`.
+                last_updated = min(datetime_now().timestamp(), last_updated)
+                logger.debug(
+                    "The endpoint does not have a stream", last_updated=last_updated
+                )
 
             return last_updated
         return last_request.timestamp()
@@ -260,6 +273,7 @@ class _BatchWindowGenerator(AbstractContextManager):
         first_request: datetime.datetime,
         last_request: datetime.datetime,
         endpoint_mode: mm_constants.EndpointMode,
+        not_old_batch_endpoint: bool,
     ) -> Iterator[_Interval]:
         """
         Get the batch window for a specific endpoint and application.
@@ -271,7 +285,9 @@ class _BatchWindowGenerator(AbstractContextManager):
             schedules_file=self._schedules_file,
             application=application,
             timedelta_seconds=self._timedelta,
-            last_updated=self._get_last_updated_time(last_request, endpoint_mode),
+            last_updated=self._get_last_updated_time(
+                last_request, endpoint_mode, not_old_batch_endpoint
+            ),
             first_request=first_request.timestamp(),
             endpoint_mode=endpoint_mode,
         )
@@ -295,6 +311,8 @@ class MonitoringApplicationController:
     to manage the main monitoring drift detection process based on the current batch.
     Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
+
+    _MAX_FEATURE_SET_PER_WORKER = 1000
 
     def __init__(self) -> None:
         """Initialize Monitoring Application Controller"""
@@ -329,6 +347,9 @@ class MonitoringApplicationController:
                 mlrun.platforms.iguazio.KafkaOutputStream,
             ],
         ] = {}
+        self.feature_sets: collections.OrderedDict[
+            str, mlrun.feature_store.FeatureSet
+        ] = collections.OrderedDict()
         self.tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project
         )
@@ -464,6 +485,7 @@ class MonitoringApplicationController:
                 last_request=endpoint.status.last_request,
                 first_request=endpoint.status.first_request,
                 endpoint_type=endpoint.metadata.endpoint_type,
+                feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             )
         return False
 
@@ -519,7 +541,7 @@ class MonitoringApplicationController:
         try:
             project_name = event[ControllerEvent.PROJECT]
             endpoint_id = event[ControllerEvent.ENDPOINT_ID]
-
+            not_old_batch_endpoint = True
             if (
                 event[ControllerEvent.KIND]
                 == mm_constants.ControllerEventKind.BATCH_COMPLETE
@@ -576,6 +598,10 @@ class MonitoringApplicationController:
 
                 endpoint_mode = mm_constants.EndpointMode.REAL_TIME
 
+                not_old_batch_endpoint = (
+                    event[ControllerEvent.ENDPOINT_TYPE] != EndpointType.BATCH_EP
+                )
+
             logger.info(
                 "Starting to analyze", timestamp=last_stream_timestamp.isoformat()
             )
@@ -594,16 +620,49 @@ class MonitoringApplicationController:
                         first_request=first_request,
                         last_request=last_stream_timestamp,
                         endpoint_mode=endpoint_mode,
+                        not_old_batch_endpoint=not_old_batch_endpoint,
                     ):
                         data_in_window = False
-                        # Serving endpoint - get the relevant window data from the TSDB
-                        prediction_metric = self.tsdb_connector.read_predictions(
-                            start=start_infer_time,
-                            end=end_infer_time,
-                            endpoint_id=endpoint_id,
-                        )
-                        if prediction_metric.data:
-                            data_in_window = True
+                        if not_old_batch_endpoint:
+                            # Serving endpoint - get the relevant window data from the TSDB
+                            prediction_metric = self.tsdb_connector.read_predictions(
+                                start=start_infer_time,
+                                end=end_infer_time,
+                                endpoint_id=endpoint_id,
+                            )
+                            if prediction_metric.data:
+                                data_in_window = True
+                        else:
+                            # Old batch endpoint - get the relevant window data from the parquet target
+                            warnings.warn(
+                                "Analyzing batch model endpoints with real time processing events is "
+                                "deprecated in 1.10.0 and will be removed in 1.12.0. "
+                                "Instead, use job-based serving to invoke and analyze offline batch model"
+                                "endpoints.",
+                                # TODO: Remove this in 1.12.0
+                                FutureWarning,
+                            )
+
+                            if endpoint_id not in self.feature_sets:
+                                self.feature_sets[endpoint_id] = fstore.get_feature_set(
+                                    event[ControllerEvent.FEATURE_SET_URI]
+                                )
+                            self.feature_sets.move_to_end(endpoint_id, last=False)
+                            if (
+                                len(self.feature_sets)
+                                > self._MAX_FEATURE_SET_PER_WORKER
+                            ):
+                                self.feature_sets.popitem(last=True)
+                            m_fs = self.feature_sets.get(endpoint_id)
+
+                            df = m_fs.to_dataframe(
+                                start_time=start_infer_time,
+                                end_time=end_infer_time,
+                                time_column=mm_constants.EventFieldType.TIMESTAMP,
+                                storage_options=self.storage_options,
+                            )
+                            if len(df) > 0:
+                                data_in_window = True
 
                         if not data_in_window:
                             logger.info(
@@ -659,6 +718,9 @@ class MonitoringApplicationController:
                             ],
                             ControllerEvent.ENDPOINT_TYPE: event[
                                 ControllerEvent.ENDPOINT_TYPE
+                            ],
+                            ControllerEvent.FEATURE_SET_URI: event[
+                                ControllerEvent.FEATURE_SET_URI
                             ],
                             ControllerEvent.FIRST_REQUEST: event[
                                 ControllerEvent.FIRST_REQUEST
@@ -849,6 +911,7 @@ class MonitoringApplicationController:
                     sep=" ", timespec="microseconds"
                 ),
                 endpoint_type=endpoint.metadata.endpoint_type,
+                feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
                 endpoint_policy=json.dumps(policy),
             )
             policy[ControllerEventEndpointPolicy.ENDPOINT_UPDATED] = (
@@ -866,6 +929,7 @@ class MonitoringApplicationController:
                     sep=" ", timespec="microseconds"
                 ),
                 endpoint_type=endpoint.metadata.endpoint_type.value,
+                feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
                 endpoint_policy=policy,
             )
 
@@ -878,6 +942,7 @@ class MonitoringApplicationController:
         timestamp: str,
         first_request: str,
         endpoint_type: int,
+        feature_set_uri: str,
         endpoint_policy: dict[str, Any],
     ) -> None:
         """
@@ -890,6 +955,7 @@ class MonitoringApplicationController:
         :param endpoint_id: endpoint id string
         :param endpoint_name: the endpoint name string
         :param endpoint_type: Enum of the endpoint type
+        :param feature_set_uri: the feature set uri string
         """
         event = {
             ControllerEvent.KIND.value: kind,
@@ -899,6 +965,7 @@ class MonitoringApplicationController:
             ControllerEvent.TIMESTAMP.value: timestamp,
             ControllerEvent.FIRST_REQUEST.value: first_request,
             ControllerEvent.ENDPOINT_TYPE.value: endpoint_type,
+            ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
             ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy,
         }
         logger.info(

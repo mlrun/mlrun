@@ -34,13 +34,14 @@ from mlrun.utils import logger
 
 import framework.api.deps
 import framework.utils.auth.verifier
+import services.api.common.constants as api_constants
 import services.api.crud
 from framework.api import deps
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
-ProjectAnnotation = mm_constants.ProjectAnnotation
-EndpointIDAnnotation = mm_constants.EndpointIDAnnotation
+ProjectAnnotation = api_constants.ProjectAnnotation
+EndpointIDAnnotation = api_constants.EndpointIDAnnotation
 
 
 @router.post(

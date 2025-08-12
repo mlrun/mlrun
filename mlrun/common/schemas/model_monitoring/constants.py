@@ -16,9 +16,7 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Annotated, Optional
-
-import fastapi
+from typing import Optional
 
 import mlrun.common.constants
 import mlrun.common.helpers
@@ -508,10 +506,6 @@ FQN_PATTERN = (
 FQN_REGEX = re.compile(FQN_PATTERN)
 APP_NAME_REGEX = re.compile(_FQN_PART_PATTERN)
 RESULT_NAME_REGEX = re.compile(_RESULT_NAME_PATTERN)
-
-
-ProjectAnnotation = Annotated[str, fastapi.Path(pattern=PROJECT_PATTERN)]
-EndpointIDAnnotation = Annotated[str, fastapi.Path(pattern=MODEL_ENDPOINT_ID_PATTERN)]
 
 
 INTERSECT_DICT_KEYS = {

@@ -29,10 +29,14 @@ import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import framework.api.utils
 import framework.utils.auth.verifier
 import services.api.api.endpoints.model_endpoints
+import services.api.common.constants as api_constants
 from framework.api import deps
 from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api.endpoints.nuclio import process_model_monitoring_secret
 from services.api.crud.model_monitoring.deployment import MonitoringDeployment
+
+ProjectAnnotation = api_constants.ProjectAnnotation
+EndpointIDAnnotation = api_constants.EndpointIDAnnotation
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
 
@@ -97,7 +101,7 @@ async def _verify_authorization(
 
 
 async def _common_parameters(
-    project: mm_constants.ProjectAnnotation,
+    project: ProjectAnnotation,
     auth_info: Annotated[
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
@@ -332,7 +336,7 @@ class _FunctionSummariesParams:
 
 
 async def _common_function_parameters(
-    project: mm_constants.ProjectAnnotation,
+    project: api_constants.ProjectAnnotation,
     auth_info: Annotated[
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
@@ -453,7 +457,7 @@ async def get_model_monitoring_function_summary(
 async def get_model_endpoints_metrics_values(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     type: Literal["results", "metrics", "all"] = "all",
-    endpoint_ids: list[mm_constants.EndpointIDAnnotation] = Query(
+    endpoint_ids: list[api_constants.EndpointIDAnnotation] = Query(
         [], alias="endpoint-id"
     ),
     events_format: mm_constants.GetEventsFormat = Query(None, alias="events-format"),

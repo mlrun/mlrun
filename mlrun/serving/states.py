@@ -1332,6 +1332,14 @@ class LLModel(Model):
 class ModelSelector(ModelObj):
     """Used to select which models to run on each event."""
 
+    def __init_subclass__(cls):
+        super().__init_subclass__()
+        cls._dict_fields = list(
+            set(cls._dict_fields)
+            | set(inspect.signature(cls.__init__).parameters.keys())
+        )
+        cls._dict_fields.remove("self")
+
     def select(
         self, event, available_models: list[Model]
     ) -> Union[list[str], list[Model]]:
@@ -1843,14 +1851,17 @@ class ModelRunnerStep(MonitoredStep):
         if not self._is_local_function(context):
             # skip init of non local functions
             return
-        model_selector, model_selector_params = self.class_args.get("model_selector")
+        model_selector, model_selector_params = self.class_args.get(
+            "model_selector", (None, None)
+        )
         execution_mechanism_by_model_name = self.class_args.get(
             schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM
         )
         models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
-        model_selector = get_class(model_selector, namespace).from_dict(
-            model_selector_params, init_with_params=True
-        )
+        if model_selector:
+            model_selector = get_class(model_selector, namespace).from_dict(
+                model_selector_params, init_with_params=True
+            )
         model_objects = []
         for model, model_params in models.values():
             model_params[schemas.MonitoringData.INPUT_PATH] = (

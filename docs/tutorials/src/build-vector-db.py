@@ -77,9 +77,9 @@ def handler_chroma(
         )
 
     vectordb = context.log_model(
-            "vect_db",
-            artifact_path=context.artifact_subpath("vect_db"),
-            model_file=f"{cache_dir}/chroma.sqlite3",
-        )
+        "vect_db",
+        artifact_path=context.artifact_subpath("vect_db"),
+        model_file=f"{cache_dir}/chroma.sqlite3",
+    )
 
     context.logger.info(f"Vector DB was created {vectordb}")

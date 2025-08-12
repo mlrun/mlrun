@@ -165,7 +165,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         assert deployment == function.get_url()  # check function url
 
         resp = function.invoke("/", {"x": "y", "models": ["my-model"]})
-        assert resp == {'my-model': {'extra': 123, 'x': 'y'}}
+        assert resp == {"my-model": {"extra": 123, "x": "y"}}
 
     def test_model_runner_with_llm_and_shared_models(self):
         code_path = str(self.assets_path / "function_with_llm.py")

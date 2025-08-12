@@ -1332,6 +1332,9 @@ class LLModel(Model):
 class ModelSelector(ModelObj):
     """Used to select which models to run on each event."""
 
+    def __init__(self, **kwargs):
+        super().__init__()
+
     def __init_subclass__(cls):
         super().__init_subclass__()
         cls._dict_fields = list(
@@ -1459,16 +1462,17 @@ class ModelRunnerStep(MonitoredStep):
                 "Cannot provide a model_selector object as argument to `model_selector` and also provide "
                 "`model_selector_parameters`."
             )
-        model_selector_parameters = model_selector_parameters or (
-            model_selector.to_dict()
-            if isinstance(model_selector, ModelSelector)
-            else {}
-        )
-        model_selector = (
-            model_selector
-            if isinstance(model_selector, str)
-            else model_selector.__class__.__name__
-        )
+        if model_selector:
+            model_selector = (
+                model_selector
+                if isinstance(model_selector, str)
+                else model_selector.__class__.__name__
+            )
+            model_selector_parameters = model_selector_parameters or (
+                model_selector.to_dict()
+                if isinstance(model_selector, ModelSelector)
+                else {}
+            )
         super().__init__(
             *args,
             name=name,

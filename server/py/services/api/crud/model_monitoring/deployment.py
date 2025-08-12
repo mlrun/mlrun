@@ -2465,6 +2465,33 @@ class MonitoringDeployment:
                 )
         return model_endpoints_instructions
 
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Deletes the application records from the model monitoring database.
+        This method is used to delete the records of a specific application.
+
+        :param application_name: The name of the application to delete records for.
+        :param endpoint_ids:     List of endpoint IDs to delete records for.
+        """
+        if not endpoint_ids:
+            logger.warning(
+                "No endpoint IDs provided for deletion",
+                application_name=application_name,
+            )
+            # TODO: list all project endpoints and delete all of them
+
+        self._tsdb_connector.delete_application_records(
+            application_name=application_name, endpoint_ids=endpoint_ids
+        )
+        # TODO: Delete last analyzed time from schedules
+        logger.info(
+            "Deleted application records",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+
 
 def get_endpoint_features(
     feature_names: list[str],

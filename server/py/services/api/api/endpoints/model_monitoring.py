@@ -446,7 +446,7 @@ async def get_model_monitoring_function_summary(
 
 @metrics_router.delete("/", status_code=http.HTTPStatus.NO_CONTENT)
 async def delete_model_endpoints_metrics_values(
-    project: mm_constants.ProjectAnnotation,
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
     application_name: Annotated[
         str,
         Query(pattern=mm_constants.APP_NAME_REGEX.pattern, alias="application-name"),
@@ -462,22 +462,23 @@ async def delete_model_endpoints_metrics_values(
             ),
         ),
     ] = None,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ) -> None:
     """
     Delete model endpoints metrics values.
 
-    :param project:          The name of the project.
+    :param commons:          The common parameters of the request.
     :param application_name: The name of the application.
     :param endpoint_id:      The unique IDs of the model endpoint to delete metrics values from. If none is
                              provided, the metrics values will be deleted from all project's model endpoints.
-    :param auth_info:        The auth info of the request.
     """
     await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_monitoring_metrics,
-        project_name=project,
+        project_name=commons.project,
         resource_name=application_name,
         action=mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info=auth_info,
+        auth_info=commons.auth_info,
     )
-    # TODO: implement the actual deletion logic
+    # call delete_application_records of the tsdb connector
+    commons.get_monitoring_deployment().delete_application_records(
+        application_name=application_name, endpoint_ids=endpoint_id
+    )

@@ -1329,7 +1329,14 @@ class LLModel(Model):
         return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 
-class ModelSelector:
+class JsonSerializable(dict):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
+class ModelSelector(JsonSerializable):
     """Used to select which models to run on each event."""
 
     def select(

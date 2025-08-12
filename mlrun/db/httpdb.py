@@ -5027,6 +5027,13 @@ class HTTPRunDB(RunDBInterface):
         """
         Store or update a single secret token in the MLRun backend.
 
+        Example::
+
+            from mlrun.common.schemas import SecretToken
+
+            secret = SecretToken(name="my-token", token="dummy-token")
+            db.store_secret_token(secret)
+
         :param secret_token: A SecretToken object with name and token fields.
         :param log_warning: Whether to log a warning about local config sync. Defaults to True.
         :return: A structured response indicating which tokens were created, updated, or skipped.
@@ -5053,6 +5060,16 @@ class HTTPRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
         Store or update multiple secret tokens in the MLRun backend.
+
+        Example::
+
+            from mlrun.common.schemas import SecretToken
+
+            tokens = [
+                SecretToken(name="token1", token="dummy-token-1"),
+                SecretToken(name="token2", token="dummy-token-2"),
+            ]
+            db.store_secret_tokens(tokens)
 
         :param secret_tokens: List of SecretToken objects with 'name' and 'token' fields.
         :param log_warning: Whether to log a warning about local config file sync. Defaults to True.

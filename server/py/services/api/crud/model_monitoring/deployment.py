@@ -50,7 +50,10 @@ import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
+from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFileChief,
+    ModelMonitoringSchedulesFileEndpoint,
+)
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
@@ -2475,17 +2478,41 @@ class MonitoringDeployment:
         :param application_name: The name of the application to delete records for.
         :param endpoint_ids:     List of endpoint IDs to delete records for.
         """
-        if not endpoint_ids:
-            logger.warning(
-                "No endpoint IDs provided for deletion",
-                application_name=application_name,
-            )
-            # TODO: list all project endpoints and delete all of them
+        if endpoint_ids:
+            endpoint_id_list = endpoint_ids
+        else:
+            endpoint_id_list = [
+                mep.metadata.uid
+                for mep in mlrun.get_run_db()
+                .list_model_endpoints(
+                    project=self.project,
+                )
+                .endpoints
+            ]
 
+        logger.debug(
+            "Deleting application records from the TSDB",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
         self._tsdb_connector.delete_application_records(
             application_name=application_name, endpoint_ids=endpoint_ids
         )
-        # TODO: Delete last analyzed time from schedules
+
+        if not application_name.endswith(
+            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+        ):
+            # The schedules file of "batch" applications is handled on the user side
+            logger.debug(
+                "Deleting the last_analyzed time of the application from the schedules files",
+                application_name=application_name,
+                endpoint_ids=endpoint_ids,
+            )
+            for endpoint_id in endpoint_id_list:
+                ModelMonitoringSchedulesFileEndpoint(
+                    endpoint_id=endpoint_id, project=self.project
+                ).delete_application_time(application=application_name)
+
         logger.info(
             "Deleted application records",
             application_name=application_name,

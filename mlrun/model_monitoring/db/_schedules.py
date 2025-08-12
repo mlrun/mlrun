@@ -170,6 +170,16 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
         self._check_open_schedules()
         self._schedules[application] = float(timestamp)
 
+    def delete_application_time(self, application: str) -> None:
+        self._check_open_schedules()
+        if application in self._schedules:
+            logger.debug(
+                "Deleting application time from schedules",
+                application=application,
+                endpoint_id=self._endpoint_id,
+            )
+            del self._schedules[application]
+
     def get_application_list(self) -> set[str]:
         self._check_open_schedules()
         return set(self._schedules.keys())

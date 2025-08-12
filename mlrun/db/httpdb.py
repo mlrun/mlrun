@@ -3624,7 +3624,7 @@ class HTTPRunDB(RunDBInterface):
                                 intersection {"intersect_metrics":[], "intersect_results":[]}
         :return: A dictionary of application metrics and/or results for the model endpoints formatted by events_format.
         """
-        path = f"projects/{project}/model-endpoints/metrics"
+        path = f"projects/{project}/model-monitoring-metrics"
         params = {
             "type": type,
             "endpoint-id": endpoint_ids,

@@ -15,7 +15,7 @@
 import http
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 
 import fastapi
 import semver
@@ -24,9 +24,11 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 
 import framework.api.utils
 import framework.utils.auth.verifier
+import services.api.api.endpoints.model_endpoints
 from framework.api import deps
 from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api.endpoints.nuclio import process_model_monitoring_secret
@@ -441,6 +443,39 @@ async def get_model_monitoring_function_summary(
         end=commons.end,
         name=function_name,
         include_latest_metrics=include_latest_metrics,
+    )
+
+
+@metrics_router.get(
+    "/",
+    response_model=dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
+)
+async def get_model_endpoints_metrics_values(
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
+    type: Literal["results", "metrics", "all"] = "all",
+    endpoint_ids: list[mm_constants.EndpointIDAnnotation] = Query(
+        [], alias="endpoint-id"
+    ),
+    events_format: mm_constants.GetEventsFormat = Query(None, alias="events-format"),
+) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
+    """
+    :param commons:          The common parameters of the request.
+    :param type:          The type of the metrics to return. "all" means "results"
+                          and "metrics".
+    :param endpoint_ids:  The unique id of the model endpoint. Can be a single id or a list of ids.
+    :param events_format: response format:
+                          separation: {"mep_id1":[...], "mep_id2":[...]}
+                          intersection {"intersect_metrics":[], "intersect_results":[]}
+    :returns:             A dictionary of application metrics and/or results for the model endpoints,
+                          formatted by events_format.
+    """
+    return await services.api.api.endpoints.model_endpoints.get_metrics_by_multiple_endpoints(
+        project=commons.project,
+        auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        type=type,
+        endpoint_ids=endpoint_ids,
+        events_format=events_format,
     )
 
 

@@ -1329,14 +1329,7 @@ class LLModel(Model):
         return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 
-class JsonSerializable(dict):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
-
-class ModelSelector(JsonSerializable):
+class ModelSelector(ModelObj):
     """Used to select which models to run on each event."""
 
     def select(
@@ -1449,15 +1442,31 @@ class ModelRunnerStep(MonitoredStep):
         *args,
         name: Optional[str] = None,
         model_selector: Optional[Union[str, ModelSelector]] = None,
+        model_selector_parameters: Optional[dict] = None,
         raise_exception: bool = True,
         **kwargs,
     ):
+        if isinstance(model_selector, ModelSelector) and model_selector_parameters:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide a model_selector object as argument to `model_selector` and also provide "
+                "`model_selector_parameters`."
+            )
+        model_selector_parameters = model_selector_parameters or (
+            model_selector.to_dict()
+            if isinstance(model_selector, ModelSelector)
+            else {}
+        )
+        model_selector = (
+            model_selector
+            if isinstance(model_selector, str)
+            else model_selector.__class__.__name__
+        )
         super().__init__(
             *args,
             name=name,
             raise_exception=raise_exception,
             class_name="mlrun.serving.ModelRunner",
-            class_args=dict(model_selector=model_selector),
+            class_args=dict(model_selector=(model_selector, model_selector_parameters)),
             **kwargs,
         )
         self.raise_exception = raise_exception
@@ -1834,13 +1843,14 @@ class ModelRunnerStep(MonitoredStep):
         if not self._is_local_function(context):
             # skip init of non local functions
             return
-        model_selector = self.class_args.get("model_selector")
+        model_selector, model_selector_params = self.class_args.get("model_selector")
         execution_mechanism_by_model_name = self.class_args.get(
             schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM
         )
         models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
-        if isinstance(model_selector, str):
-            model_selector = get_class(model_selector, namespace)()
+        model_selector = get_class(model_selector, namespace).from_dict(
+            model_selector_params, init_with_params=True
+        )
         model_objects = []
         for model, model_params in models.values():
             model_params[schemas.MonitoringData.INPUT_PATH] = (

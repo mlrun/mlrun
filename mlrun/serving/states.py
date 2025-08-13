@@ -1249,11 +1249,9 @@ class LLModel(Model):
     ]
 
     :param name: Name of the model.
-    :param input_path: Path(s) in the request body where input data for the prompt
-                       is located.
-    :param result_path: Path(s) in the request body where model outputs or statistics
+    :param input_path: Path in the request body where input data is located.
+    :param result_path: Path in the response body where model outputs and the statistics
                         will be stored.
-    :param kwargs: Additional arguments passed to the parent `Model` initializer.
     """
 
     def __init__(

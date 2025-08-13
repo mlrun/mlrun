@@ -13,6 +13,7 @@
 # limitations under the License.
 import pathlib
 import unittest.mock
+from copy import deepcopy
 from types import SimpleNamespace
 from typing import Optional, Union
 
@@ -537,8 +538,17 @@ def _test_model_runner_raise_error_output(
 
 
 class MyModelSelector(ModelSelector):
-    def select(self, event, available_models: list[Model]) -> Optional[list[str]]:
-        return event.body.get("models")
+    def __init__(self, models: Union[list[str], list[Model]]):
+        super().__init__()
+        self.models = deepcopy(models)
+
+    def select(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        current_models = event.body.get("models")
+        if current_models and set(current_models).issubset(set(self.models)):
+            return current_models
+        return []
 
 
 @pytest.mark.parametrize(
@@ -557,7 +567,7 @@ def test_model_runner_with_selector(execution_mechanism: str):
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(
         name="my_model_runner",
-        model_selector="MyModelSelector",
+        model_selector=MyModelSelector(models=["m1", "m2"]),
     )
     model_runner_step.add_model(
         endpoint_name=m1.name,
@@ -574,7 +584,7 @@ def test_model_runner_with_selector(execution_mechanism: str):
     server = function.to_mock_server()
     try:
         # both models
-        resp = server.test(body={"n": 1})
+        resp = server.test(body={"n": 1, "models": ["m1", "m2"]})
         expected = {
             "m1": {"n": 2},
             "m2": {"n": 3},

@@ -515,6 +515,6 @@ async def delete_model_endpoints_metrics_values(
         auth_info=commons.auth_info,
     )
     # call delete_application_records of the tsdb connector
-    commons.get_monitoring_deployment().delete_application_records(
+    await commons.get_monitoring_deployment().delete_application_records(
         application_name=application_name, endpoint_ids=endpoint_id
     )

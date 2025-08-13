@@ -63,8 +63,8 @@ import framework.db.session
 import framework.utils.background_tasks
 import framework.utils.clients.async_nuclio
 import framework.utils.singletons.k8s
+import services.api.crud
 import services.api.crud.model_monitoring.helpers
-import services.api.utils.functions
 from framework.db.sqldb.models import ModelEndpoint
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
@@ -2468,7 +2468,7 @@ class MonitoringDeployment:
                 )
         return model_endpoints_instructions
 
-    def delete_application_records(
+    async def delete_application_records(
         self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
     ) -> None:
         """
@@ -2481,13 +2481,15 @@ class MonitoringDeployment:
         if endpoint_ids:
             endpoint_id_list = endpoint_ids
         else:
-            endpoint_id_list = [
-                mep.metadata.uid
-                for mep in mlrun.get_run_db()
-                .list_model_endpoints(
+            endpoints_data = (
+                await services.api.crud.ModelEndpoints().list_model_endpoints(
                     project=self.project,
+                    uids=endpoint_ids,
+                    db_session=self.db_session,
                 )
-                .endpoints
+            )
+            endpoint_id_list = [
+                endpoint.metadata.uid for endpoint in endpoints_data.endpoints
             ]
 
         logger.debug(

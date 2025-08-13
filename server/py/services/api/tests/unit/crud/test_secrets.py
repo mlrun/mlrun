@@ -18,6 +18,7 @@ import unittest.mock
 
 import deepdiff
 import fastapi.testclient
+import jwt
 import pytest
 import sqlalchemy.orm
 
@@ -692,3 +693,104 @@ def test_store_auth_secret(
         ),
     )
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
+
+
+@pytest.mark.parametrize("tokens", [[], None])
+def test_store_secret_tokens_missing_tokens(
+    tokens,
+):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        services.api.crud.Secrets().store_secret_tokens(tokens, "dummy-username")
+
+
+def test_store_secret_tokens_duplicate_names():
+    token_payload = {"exp": 9999999999}
+
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="dup-token", token=_generate_token(token_payload)
+        ),
+        mlrun.common.schemas.SecretToken(
+            name="dup-token", token=_generate_token(token_payload)
+        ),
+    ]
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Invalid or duplicate token name"
+    ):
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
+
+
+def test_store_secret_tokens_invalid_offline_token_jwt_decode():
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(name="bad", token="this-is-not-a-jwt"),
+    ]
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Failed to decode offline token 'bad'",
+    ):
+        services.api.crud.Secrets().store_secret_tokens(
+            secret_tokens,
+            "dummy-user-id",
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"sub": "user-123"},  # missing exp
+        {"sub": "user-123", "exp": None},  # exp is None
+        {"sub": "user-123", "exp": ""},  # exp is empty
+    ],
+)
+def test_store_secret_tokens_missing_required_claims_in_offline_token(payload):
+    token = _generate_token(payload)
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(name="bad-token", token=token),
+    ]
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"missing the 'exp' \(expiration\) claim",
+    ):
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
+
+
+def test_store_secret_tokens_return_values():
+    token_payload = {"sub": "user-id-123", "exp": 9999999999}
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1", token=_generate_token(token_payload)
+        ),
+        mlrun.common.schemas.SecretToken(
+            name="token2", token=_generate_token(token_payload)
+        ),
+        mlrun.common.schemas.SecretToken(
+            name="token3", token=_generate_token(token_payload)
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.create_or_update_user_token_secret.side_effect = [
+        mlrun.common.schemas.SecretEventActions.created,
+        mlrun.common.schemas.SecretEventActions.updated,
+        mlrun.common.schemas.SecretEventActions.skipped,
+    ]
+
+    result = services.api.crud.Secrets().store_secret_tokens(
+        secret_tokens, "dummy-username"
+    )
+
+    assert result == {
+        "created_tokens": ["token1"],
+        "updated_tokens": ["token2"],
+        "skipped_tokens": ["token3"],
+    }
+
+    assert mock_secrets_provider.create_or_update_user_token_secret.call_count == 3
+
+
+def _generate_token(payload: dict) -> str:
+    return jwt.encode(payload, key="dummy", algorithm="HS256")

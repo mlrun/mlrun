@@ -106,6 +106,7 @@ async def test_verify_request_session_success(
     )
 
     assert auth_info.username == "dummy-user"
+    assert auth_info.user_id == "dummy-user-id"
     assert auth_info.user_group_ids == ["dummy-group-id-g1", "dummy-group-id-g2"]
 
 
@@ -122,6 +123,16 @@ async def test_verify_request_session_success(
                     "metadata": {
                         "id": "dummy-group-id-g1",
                     },
+                },
+            ],
+        },
+        # Missing user ID
+        {
+            "metadata": {"username": "dummy-user"},
+            "relationships": [
+                {
+                    "@type": "type.googleapis.com/group.Group",
+                    "metadata": {"id": "dummy-group-id-g1"},
                 },
             ],
         },
@@ -193,14 +204,20 @@ async def test_verify_request_session_malformed_response(
         # Missing relationships → valid, no groups
         (
             {
-                "metadata": {"username": "dummy-user"},
+                "metadata": {
+                    "username": "dummy-user",
+                    "id": "dummy-id",
+                },
             },
             [],
         ),
         # Empty relationships list → valid, no groups
         (
             {
-                "metadata": {"username": "dummy-user"},
+                "metadata": {
+                    "username": "dummy-user",
+                    "id": "dummy-id",
+                },
                 "relationships": [],
             },
             [],
@@ -243,6 +260,7 @@ async def test_verify_request_session_valid_no_groups(
     )
 
     assert auth_info.username == "dummy-user"
+    assert auth_info.user_id == "dummy-id"
     assert auth_info.user_group_ids == expected_groups
 
 
@@ -262,7 +280,7 @@ async def test_verify_request_session_single_group_untyped(
 
     # Include one valid group and one with invalid type
     response = {
-        "metadata": {"username": "dummy-user"},
+        "metadata": {"username": "dummy-user", "id": "dummy-id"},
         "relationships": [
             {
                 "@type": "type.googleapis.com/group.Group",
@@ -291,13 +309,14 @@ async def test_verify_request_session_single_group_untyped(
     )
 
     assert auth_info.username == "dummy-user"
+    assert auth_info.user_id == "dummy-id"
     assert auth_info.user_group_ids == ["valid-group-id"]
 
 
-def sample_user_info(username="dummy-user", group_ids=None):
+def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=None):
     group_ids = group_ids or ["dummy-group-id-g1", "dummy-group-id-g2"]
     return {
-        "metadata": {"resourceType": "user", "username": username},
+        "metadata": {"resourceType": "user", "username": username, "id": user_id},
         "relationships": [
             {
                 "@type": "type.googleapis.com/group.Group",

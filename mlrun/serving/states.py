@@ -1463,16 +1463,17 @@ class ModelRunnerStep(MonitoredStep):
                 "`model_selector_parameters`."
             )
         if model_selector:
-            model_selector = (
-                model_selector
-                if isinstance(model_selector, str)
-                else model_selector.__class__.__name__
-            )
             model_selector_parameters = model_selector_parameters or (
                 model_selector.to_dict()
                 if isinstance(model_selector, ModelSelector)
                 else {}
             )
+            model_selector = (
+                model_selector
+                if isinstance(model_selector, str)
+                else model_selector.__class__.__name__
+            )
+
         super().__init__(
             *args,
             name=name,

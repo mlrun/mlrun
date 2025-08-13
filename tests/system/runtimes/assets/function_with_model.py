@@ -20,7 +20,6 @@ from mlrun.serving import Model, ModelSelector
 class DummyModel(Model):
     def predict(self, body, **kwargs):
         body["extra"] = 123
-        body.pop("models", None)
         return body
 
 
@@ -32,7 +31,7 @@ class MyModelSelector(ModelSelector):
     def select(
         self, event, available_models: list[Model]
     ) -> Union[list[str], list[Model]]:
-        current_models = event.body.get("models")
-        if set(current_models).issubset(set(self.models)):
+        current_models = event.body.pop("models", [])
+        if current_models and set(current_models).issubset(set(self.models)):
             return current_models
         return []

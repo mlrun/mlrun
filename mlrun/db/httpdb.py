@@ -438,6 +438,7 @@ class HTTPRunDB(RunDBInterface):
     def _is_retry_put_allowed(self, method: str, path: str) -> bool:
         """
         Determine if PUT request to the given path should be retried.
+
         :param method: HTTP method
         :param path: API path to check
         :return: True if retry is allowed, False otherwise

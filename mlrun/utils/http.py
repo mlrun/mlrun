@@ -79,6 +79,8 @@ class HTTPSessionWithRetry(requests.Session):
         :param retry_on_exception:      Retry on the HTTP_RETRYABLE_EXCEPTIONS. defaults to True.
         :param retry_on_status:         Retry on error status codes. defaults to True.
         :param retry_on_post:           Retry on POST requests. defaults to False.
+        :param retry_on_put:            Whether to allow retries on PUT requests. Actual behavior may exclude specific
+                                        paths from retrying. defaults to True.
         :param verbose:                 Print debug messages.
         """
         super().__init__()

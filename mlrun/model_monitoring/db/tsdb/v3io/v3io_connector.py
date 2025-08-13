@@ -544,9 +544,9 @@ class V3IOTSDBConnector(TSDBConnector):
         if endpoint_ids:
             for i in range(0, len(endpoint_ids), V3IO_FRAMESD_MEPS_LIMIT):
                 endpoint_id_chunk = endpoint_ids[i : i + V3IO_FRAMESD_MEPS_LIMIT]
-                endpoints_list = ", ".join(endpoint_id_chunk)
+                endpoints_list = "', '".join(endpoint_id_chunk)
                 filter_queries.append(
-                    f"{base_filter_query} AND endpoint_id IN({endpoints_list})"
+                    f"{base_filter_query} AND endpoint_id IN ('{endpoints_list}')"
                 )
         else:
             filter_queries = [base_filter_query]

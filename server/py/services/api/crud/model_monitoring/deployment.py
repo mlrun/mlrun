@@ -2511,9 +2511,10 @@ class MonitoringDeployment:
                 endpoint_ids=endpoint_ids,
             )
             for endpoint_id in endpoint_id_list:
-                ModelMonitoringSchedulesFileEndpoint(
+                with ModelMonitoringSchedulesFileEndpoint(
                     endpoint_id=endpoint_id, project=self.project
-                ).delete_application_time(application=application_name)
+                ) as schedules_file:
+                    schedules_file.delete_application_time(application=application_name)
 
         logger.info(
             "Deleted application records",

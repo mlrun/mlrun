@@ -13,6 +13,7 @@
 # limitations under the License.
 import typing
 
+import httpx
 import iguazio
 
 import mlrun.common.schemas
@@ -35,16 +36,51 @@ class Client(BaseClient):
         self, secret_token: mlrun.common.schemas.SecretToken
     ) -> None:
         """
-        Refreshes the access token by validating the provided offline token using the Iguazio client.
+        Refreshes the access token by validating the provided token via the Iguazio client.
 
-        :param secret_token: SecretToken object containing the token name and the offline token string.
-        :raises mlrun.errors.MLRunUnauthorizedError: If the offline token is invalid or expired.
+        :param secret_token: SecretToken object containing the token name and offline token string.
+        :raises mlrun.errors.MLRunInvalidArgumentError: If the offline token is empty.
+        :raises mlrun.errors.MLRunUnauthorizedError: If the offline token is invalid, expired, or an error
+        occurs while refreshing.
         """
+        if not secret_token.token:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Offline token for '{secret_token.name}' is empty"
+            )
+
+        self._logger.info(
+            "Refreshing access token via Iguazio", token_name=secret_token.name
+        )
+
         try:
+            # Validate the offline token by sending it to Iguazio
             self._client.refresh_access_token(secret_token.token)
-        except Exception as exc:
+            self._logger.info(
+                "Successfully refreshed access token via Iguazio",
+                token_name=secret_token.name,
+            )
+        except httpx.HTTPStatusError as exc:
+            error_message, ctx = self._extract_response_error(exc.response)
+            self._logger.warning(
+                "Failed to refresh access token from Iguazio",
+                token_name=secret_token.name,
+                status_code=exc.response.status_code,
+                error_message=error_message,
+                ctx=ctx,
+                exc=mlrun.errors.err_to_str(exc),
+            )
             raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to refresh access token '{secret_token.name}': token is invalid or expired"
+                f"Failed to refresh token '{secret_token.name}' from Iguazio: {error_message}, ctx={ctx}"
+            ) from exc
+        except Exception as exc:
+            exc_str = mlrun.errors.err_to_str(exc)
+            self._logger.warning(
+                "Failed to refresh access token from Iguazio (unexpected error)",
+                token_name=secret_token.name,
+                exc=exc_str,
+            )
+            raise mlrun.errors.MLRunUnauthorizedError(
+                f"Failed to refresh token '{secret_token.name}' from Iguazio: {exc_str}"
             ) from exc
 
     def refresh_access_tokens(
@@ -62,6 +98,28 @@ class Client(BaseClient):
             raise mlrun.errors.MLRunUnauthorizedError(
                 "Failed to refresh one or more access tokens: token(s) are invalid or expired"
             ) from exc
+
+    def _extract_response_error(
+        self, response: httpx.Response
+    ) -> tuple[str | None, str | None]:
+        """
+        Extracts 'errorMessage' and 'ctx' from an Iguazio HTTP response.
+
+        :param response: httpx.Response object from Iguazio.
+        :return: Tuple of (error_message, ctx), both can be None if not present.
+        """
+        error_message = ctx = None
+        try:
+            response_body = response.json()
+            error_message = self._extract_error_message(response_body)
+            ctx = self._extract_ctx(response_body)
+        except Exception as exc:
+            self._logger.debug(
+                "Failed to parse JSON from Iguazio response",
+                content=response.text,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+        return error_message, ctx
 
     def _generate_auth_info_from_session_verification_response(
         self,

@@ -175,6 +175,10 @@ def test_requirement_specifiers_convention():
         "grpcio": {"~=1.70.0"},
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
+        "urllib3": {
+            '>=1.26.20; python_version < "3.11"',
+            '>=2.5.0; python_version >= "3.11"',
+        },
     }
 
     for (
@@ -226,6 +230,10 @@ def test_requirement_specifiers_inconsistencies():
         "distributed": {
             '~=2024.12.1; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
+        },
+        "urllib3": {
+            '>=1.26.20; python_version < "3.11"',
+            '>=2.5.0; python_version >= "3.11"',
         },
     }
 

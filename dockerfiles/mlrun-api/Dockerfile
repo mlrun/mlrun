@@ -67,7 +67,7 @@ RUN python -m pip uninstall pip -y \
 
 
 VOLUME /mlrun/db
-ENV PYTHONPATH=/mlrun/server/py
+ENV PYTHONPATH=/mlrun/server/py:/mlrun/server/py/schemas/proto
 ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs
 ENV MLRUN_HTTPDB__DIRPATH=/mlrun/db

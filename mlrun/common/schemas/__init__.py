@@ -216,6 +216,8 @@ from .secret import (
     SecretKeysData,
     SecretProviderName,
     SecretsData,
+    SecretToken,
+    StoreSecretTokensResponse,
 )
 from .serving import ModelRunnerStepData, ModelsData, MonitoringData
 from .tag import Tag, TagObjects

@@ -996,3 +996,17 @@ class NopDB(RunDBInterface):
         end: Optional[datetime.datetime] = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         pass
+
+    def store_secret_token(
+        self,
+        secret_token: mlrun.common.schemas.SecretToken,
+        log_warning: bool = True,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        pass
+
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        pass

@@ -5191,6 +5191,95 @@ class HTTPRunDB(RunDBInterface):
             **response.json()
         )
 
+    def store_secret_token(
+        self,
+        secret_token: mlrun.common.schemas.SecretToken,
+        log_warning: bool = True,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        """
+        Store or update a single secret token in the MLRun backend.
+
+        Example::
+
+            from mlrun.common.schemas import SecretToken
+
+            secret = SecretToken(name="my-token", token="dummy-token")
+            db.store_secret_token(secret)
+
+        :param secret_token: A SecretToken object with name and token fields.
+        :param log_warning: Whether to log a warning about local config sync. Defaults to True.
+        :return: A structured response indicating which tokens were created, updated, or skipped.
+        """
+        if not secret_token:
+            raise MLRunInvalidArgumentError("No secret token provided")
+
+        response = self._store_secret_tokens(
+            secret_tokens=[secret_token],
+            error=f"store user secret token {secret_token.name}",
+        )
+        if log_warning:
+            logger.warning(
+                f"Token '{secret_token.name}' was stored in the backend, "
+                "but the local configuration file (~/.igz.yaml) was not updated. "
+                "Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
+            )
+        return response
+
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        """
+        Store or update multiple secret tokens in the MLRun backend.
+
+        Example::
+
+            from mlrun.common.schemas import SecretToken
+
+            tokens = [
+                SecretToken(name="token1", token="dummy-token-1"),
+                SecretToken(name="token2", token="dummy-token-2"),
+            ]
+            db.store_secret_tokens(tokens)
+
+        :param secret_tokens: List of SecretToken objects with 'name' and 'token' fields.
+        :param log_warning: Whether to log a warning about local config file sync. Defaults to True.
+        :return: StoreSecretTokensResponse object indicating which tokens were created, updated, or skipped.
+        """
+        if not secret_tokens:
+            raise MLRunInvalidArgumentError("No secret tokens provided")
+
+        response = self._store_secret_tokens(
+            secret_tokens=secret_tokens,
+            error="store multiple user secret tokens",
+        )
+        if log_warning:
+            token_names = "', '".join(token.name for token in secret_tokens)
+            logger.warning(
+                f"Tokens '{token_names}' were stored in the backend, "
+                "but the local configuration file (~/.igz.yaml) was not updated. "
+                "Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
+            )
+        return response
+
+    def _store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        error: str,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        body = [token.dict() for token in secret_tokens]
+        endpoint_path = "user-secrets/tokens"
+
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.PUT,
+            endpoint_path,
+            error,
+            body=dict_to_json(body),
+        )
+
+        return mlrun.common.schemas.StoreSecretTokensResponse(**response)
+
     @staticmethod
     def _parse_labels(
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],

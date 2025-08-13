@@ -1210,6 +1210,27 @@ def test_store_alert_config_missing_alert_name(
         )
 
 
+def test_store_secret_token_invalid_inputs(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="No secret token provided"
+    ):
+        db.store_secret_token(None)
+
+
+@pytest.mark.parametrize("secret_tokens", [None, []])
+def test_store_secret_tokens_invalid_inputs(create_server, secret_tokens):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="No secret tokens provided"
+    ):
+        db.store_secret_tokens(secret_tokens)
+
+
 def _assert_projects(expected_project, project):
     assert (
         deepdiff.DeepDiff(

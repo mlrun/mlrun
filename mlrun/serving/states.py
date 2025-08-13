@@ -1232,7 +1232,7 @@ class LLModel(Model):
       to retrieve `messages` directly from the request body.
 
     **Simplified Example**:
-    ```python
+
     # Input body:
     {"city": "Paris", "days": 3}
 
@@ -1247,7 +1247,6 @@ class LLModel(Model):
         {"role": "system", "content": "You are a travel planning assistant."},
         {"role": "user", "content": "Create a 3-day itinerary for Paris."},
     ]
-    ```
 
     :param name: Name of the model.
     :param input_path: Path(s) in the request body where input data for the prompt

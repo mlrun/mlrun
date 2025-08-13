@@ -172,7 +172,7 @@ def test_requirement_specifiers_convention():
             '~=2024.12.1; python_version >= "3.11"',
         },
         "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
-        "grpcio": {"~=1.70.0"},
+        "grpcio": {"~=1.74.0"},
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
         "urllib3": {

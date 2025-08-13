@@ -628,9 +628,9 @@ cycler==0.12.1 \
     --hash=sha256:85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30 \
     --hash=sha256:88bb128f02ba341da8ef447245a9e138fae777f6a23943da4540077d3601eb1c
     # via matplotlib
-dask==2024.12.1 \
-    --hash=sha256:1f32acddf1a6994e3af6734756f0a92467c47050bc29f3555bb9b140420e8e19 \
-    --hash=sha256:bac809af21c2dd7eb06827bccbfc612504f3ee6435580e548af912828f823195
+dask==2024.8.2 \
+    --hash=sha256:1d05e09166ac7927a54401e998aa1599e86aac666edbdaeb3096bf4b957029e0 \
+    --hash=sha256:484c317ee870140dbeccc759a91fd98821bba98d71a43eda7856fc9e859b03a1
     # via
     #   -r extras-requirements.txt
     #   dask-kubernetes
@@ -711,9 +711,9 @@ deprecated==1.2.18 \
     # via
     #   -r requirements.txt
     #   igz-mgmt
-distributed==2024.12.1 \
-    --hash=sha256:438aa3ae48bfac9c2bb2ad03f9d47899286f9cb3db8a627b3b8c0de9e26f53dd \
-    --hash=sha256:87e31abaa0ee3dc517b44fec4993d4b5d92257f926a8d2a12d52c005227154e7
+distributed==2024.8.2 \
+    --hash=sha256:0c75888bd1208e59990a373ea139eed8fba3927fff6ea1e56e43536d8fd4f105 \
+    --hash=sha256:3fceae46d6e7b771c15cc1e2c8349f2900f003bb9846c471c14c19a0c0025197
     # via
     #   -r extras-requirements.txt
     #   dask-kubernetes
@@ -1742,13 +1742,9 @@ mlflow-skinny==2.22.1 \
     --hash=sha256:3b3f9a17a4b9e60c7683b3458909aff15f3c6f5dc898a6cec13a6efb939e7e79 \
     --hash=sha256:d9d4ae77288a3f216aed3c4e6607607baadcb2fd7d299adee6227358f662048d
     # via mlflow
-mlrun-pipelines-kfp-common==0.5.8 \
-    --hash=sha256:62d90ca5e3df06b4af9e04c65c9fb159d10c79373b4749475e0d16052c4a2666 \
-    --hash=sha256:94a12e03f48ab216278ca752d8f6914f2c549044981eba3ed3e8b3b0705c095c
+./pipeline-adapters/mlrun-pipelines-kfp-common
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.5.7 \
-    --hash=sha256:0db96ad5bb13672d5156823181c3fb0a5208f2fc5af862d65a34707108447150 \
-    --hash=sha256:9aefc2fcbbfbd141ab6ae22fbb91d0b59a5da07caf683ad7daa9379391ac4bf6
+./pipeline-adapters/mlrun-pipelines-kfp-v1-8
     # via
     #   -r dockerfiles/mlrun-api/requirements.txt
     #   -r requirements.txt

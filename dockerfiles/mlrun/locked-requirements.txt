@@ -777,9 +777,9 @@ dask==2023.12.1 ; python_full_version < '3.11' \
     #   dask-kubernetes
     #   dask-ml
     #   distributed
-dask==2024.12.1 ; python_full_version >= '3.11' \
-    --hash=sha256:1f32acddf1a6994e3af6734756f0a92467c47050bc29f3555bb9b140420e8e19 \
-    --hash=sha256:bac809af21c2dd7eb06827bccbfc612504f3ee6435580e548af912828f823195
+dask==2024.8.2 ; python_full_version >= '3.11' \
+    --hash=sha256:1d05e09166ac7927a54401e998aa1599e86aac666edbdaeb3096bf4b957029e0 \
+    --hash=sha256:484c317ee870140dbeccc759a91fd98821bba98d71a43eda7856fc9e859b03a1
     # via
     #   -r dockerfiles/mlrun/requirements.txt
     #   -r extras-requirements.txt
@@ -788,9 +788,9 @@ dask==2024.12.1 ; python_full_version >= '3.11' \
     #   dask-kubernetes
     #   dask-ml
     #   distributed
-dask-expr==1.1.21 ; python_full_version >= '3.11' \
-    --hash=sha256:2c2a9a0b0e66b26cf918679988f97e947bc936544f3a106102055adb9a9edeba \
-    --hash=sha256:eb45de8e6fea1ce2608a431b4e03a484592defb1796665530c91386ffac581d3
+dask-expr==1.1.13 ; python_full_version >= '3.11' \
+    --hash=sha256:0a68a8d18cae72b172ee3afc3f33253f065becbf8fbf9f3ee43e665ec5499112 \
+    --hash=sha256:7e00b2c6538e6c633e22db262abfe3aeb6dc65c1de4a8eadcb2bbf44ad8729da
     # via dask
 dask-glm==0.3.2 \
     --hash=sha256:649e55f24e5e0d91a51e0d8d45a9b005dde3c3e6b6480e1290422adec91d4da6 \
@@ -887,9 +887,9 @@ distributed==2023.12.1 ; python_full_version < '3.11' \
     #   dask-glm
     #   dask-kubernetes
     #   dask-ml
-distributed==2024.12.1 ; python_full_version >= '3.11' \
-    --hash=sha256:438aa3ae48bfac9c2bb2ad03f9d47899286f9cb3db8a627b3b8c0de9e26f53dd \
-    --hash=sha256:87e31abaa0ee3dc517b44fec4993d4b5d92257f926a8d2a12d52c005227154e7
+distributed==2024.8.2 ; python_full_version >= '3.11' \
+    --hash=sha256:0c75888bd1208e59990a373ea139eed8fba3927fff6ea1e56e43536d8fd4f105 \
+    --hash=sha256:3fceae46d6e7b771c15cc1e2c8349f2900f003bb9846c471c14c19a0c0025197
     # via
     #   -r extras-requirements.txt
     #   dask
@@ -2152,13 +2152,9 @@ mlflow-skinny==2.22.1 \
     --hash=sha256:3b3f9a17a4b9e60c7683b3458909aff15f3c6f5dc898a6cec13a6efb939e7e79 \
     --hash=sha256:d9d4ae77288a3f216aed3c4e6607607baadcb2fd7d299adee6227358f662048d
     # via mlflow
-mlrun-pipelines-kfp-common==0.5.8 \
-    --hash=sha256:62d90ca5e3df06b4af9e04c65c9fb159d10c79373b4749475e0d16052c4a2666 \
-    --hash=sha256:94a12e03f48ab216278ca752d8f6914f2c549044981eba3ed3e8b3b0705c095c
+./pipeline-adapters/mlrun-pipelines-kfp-common
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.5.7 \
-    --hash=sha256:0db96ad5bb13672d5156823181c3fb0a5208f2fc5af862d65a34707108447150 \
-    --hash=sha256:9aefc2fcbbfbd141ab6ae22fbb91d0b59a5da07caf683ad7daa9379391ac4bf6
+./pipeline-adapters/mlrun-pipelines-kfp-v1-8
     # via -r requirements.txt
 mpi4py==3.1.6 \
     --hash=sha256:1de7f6bd22ea6c9b1d6cb42e9d8092217552ffc8267f81df884b61f46aef557c \

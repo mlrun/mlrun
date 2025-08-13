@@ -107,8 +107,6 @@ MLRUN_PYTHON_VERSION_SUFFIX := $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANA
 # expected to be in the form of 'py<major><minor>' e.g. 'py39'
 MLRUN_LINT_PYTHON_VERSION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "py"$$1$$2}')
 
-MLRUN_PIPELINES_KFP_VERSION := $(if $(filter 3.9,$(MLRUN_PYTHON_VERSION)),1-8,2)
-
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 # if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
@@ -576,7 +574,6 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg MLRUN_PIPELINES_KFP_VERSION=$(MLRUN_PIPELINES_KFP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
@@ -1003,7 +1000,7 @@ upgrade-mlrun-mlrun-deps-lock: ## Upgrade mlrun-mlrun locked requirements file
 		extras-requirements.txt \
 		dockerfiles/mlrun/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/mlrun/locked-requirements.txt
+		--output-file dockerfiles/mlrun/locked-requirements.txt -v
 
 .PHONY: upgrade-mlrun-gpu-deps-lock
 upgrade-mlrun-gpu-deps-lock: ## Upgrade mlrun-gpu locked requirements file
@@ -1050,7 +1047,7 @@ upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
-		--python-version 3.9 \
+		--python-version $(MLRUN_PYTHON_VERSION) \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 

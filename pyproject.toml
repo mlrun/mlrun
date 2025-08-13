@@ -1,3 +1,11 @@
+[project]
+requires-python = ">=3.9,<3.12"
+name = "mlrun-pipelines"
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = { attr = "mlrun_pipelines.__version__" }
+
 [build-system]
 requires = [
     "setuptools>=80.9.0",

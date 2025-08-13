@@ -331,8 +331,10 @@ class MLRunPatcher:
                 if python_39_target in targets:
                     target_to_image[
                         f"{python_39_target}`{Constants.python_39_suffix}"
-                    ] = (f"{mlrun_docker_registry}/{Constants.targets_to_image_name[python_39_target]}:"
-                         f"{image_tag}{Constants.python_39_suffix}")
+                    ] = (
+                        f"{mlrun_docker_registry}/{Constants.targets_to_image_name[python_39_target]}:"
+                        f"{image_tag}{Constants.python_39_suffix}"
+                    )
                     python_39_targets_to_build.append(python_39_target)
             self._exec_local(
                 ["make", *python_39_targets_to_build],

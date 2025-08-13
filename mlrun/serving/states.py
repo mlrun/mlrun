@@ -1218,14 +1218,16 @@ class LLModel(Model):
     invocation of language models.
 
     **Model Invocation**:
+
     - The execution of enriched prompts is delegated to the `model_provider`
       configured for the model (e.g., **Hugging Face** or **OpenAI**).
     - The `model_provider` is responsible for sending the prompt to the correct
       backend API and returning the generated output.
-    - User can override the `predict` and `predict_async` methods to customize
+    - Users can override the `predict` and `predict_async` methods to customize
       the behavior of the model invocation.
 
     **Prompt Enrichment Overview**:
+
     - If an `LLMPromptArtifact` is found, load its prompt template and fill in
       placeholders using values from the request body.
     - If the artifact is not an `LLMPromptArtifact`, skip formatting and attempt
@@ -1233,20 +1235,23 @@ class LLModel(Model):
 
     **Simplified Example**:
 
-    # Input body:
-    {"city": "Paris", "days": 3}
+    Input body::
 
-    # Prompt template in artifact:
-    [
-        {"role": "system", "content": "You are a travel planning assistant."},
-        {"role": "user", "content": "Create a {{days}}-day itinerary for {{city}}."},
-    ]
+        {"city": "Paris", "days": 3}
 
-    # Result after enrichment:
-    [
-        {"role": "system", "content": "You are a travel planning assistant."},
-        {"role": "user", "content": "Create a 3-day itinerary for Paris."},
-    ]
+    Prompt template in artifact::
+
+        [
+            {"role": "system", "content": "You are a travel planning assistant."},
+            {"role": "user", "content": "Create a {{days}}-day itinerary for {{city}}."},
+        ]
+
+    Result after enrichment::
+
+        [
+            {"role": "system", "content": "You are a travel planning assistant."},
+            {"role": "user", "content": "Create a 3-day itinerary for Paris."},
+        ]
 
     :param name: Name of the model.
     :param input_path: Path in the request body where input data is located.

@@ -13,6 +13,7 @@
 # limitations under the License.
 import pathlib
 import unittest.mock
+from copy import deepcopy
 from types import SimpleNamespace
 from typing import Optional, Union
 
@@ -539,7 +540,7 @@ def _test_model_runner_raise_error_output(
 class MyModelSelector(ModelSelector):
     def __init__(self, models: Union[list[str], list[Model]]):
         super().__init__()
-        self.models = copy(models)
+        self.models = deepcopy(models)
 
     def select(
         self, event, available_models: list[Model]

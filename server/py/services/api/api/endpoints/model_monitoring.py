@@ -19,7 +19,7 @@ from typing import Annotated, Literal, Optional
 
 import fastapi
 import semver
-from fastapi import APIRouter, Depends, Header, Path, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -489,7 +489,7 @@ async def delete_model_endpoints_metrics_values(
     ],
     endpoint_id: Annotated[
         Optional[list[str]],
-        Path(
+        Query(
             pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN,
             alias="endpoint-id",
             description=(

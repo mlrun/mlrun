@@ -38,7 +38,20 @@ def mock_delete_application_records() -> Iterator[Mock]:
     ("params", "expected_status"),
     [
         ({}, HTTPStatus.UNPROCESSABLE_ENTITY),
-        ({"application-name": "app1"}, HTTPStatus.NO_CONTENT),
+        (
+            {"application-name": "app1"},
+            HTTPStatus.NO_CONTENT,
+        ),
+        (
+            {
+                "application-name": "app2",
+                "endpoint-id": [
+                    "0ca48b46b0de460599faf6bead10dbe8",
+                    "1ab23c45d6ef7890123456789abcdef0",
+                ],
+            },
+            HTTPStatus.NO_CONTENT,
+        ),
     ],
 )
 def test_delete_model_monitoring_metrics(
@@ -53,5 +66,8 @@ def test_delete_model_monitoring_metrics(
         headers={"x-mlrun-client-version": "1.10.0"},
     )
     assert resp.status_code == expected_status, resp.text
-    if expected_status == HTTPStatus.NO_CONTENT:
-        mock_delete_application_records.assert_called_once()
+    if expected_status == HTTPStatus.NO_CONTENT and params:
+        mock_delete_application_records.assert_called_once_with(
+            application_name=params.get("application-name"),
+            endpoint_ids=params.get("endpoint-id"),
+        )

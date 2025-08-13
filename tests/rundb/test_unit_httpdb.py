@@ -234,7 +234,6 @@ def test_resolve_artifacts_to_tag_objects():
             1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         ("POST", "/run/default/uid", 1 + mlrun.mlconf.http_retry_defaults.max_retries),
-
         # non-retriable
         ("POST", "/not/retriable", 1),
         ("PUT", "user-secrets/tokens", 1),
@@ -243,8 +242,6 @@ def test_resolve_artifacts_to_tag_objects():
 def test_retriable_requests(method, path, call_amount):
     mlrun.mlconf.httpdb.retry_api_call_on_exception = "enabled"
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
-    # init the session to make sure it will be reinitialized when needed
-    # db.session = db._init_session(False)
     original_request = requests.Session.request
     requests.Session.request = unittest.mock.Mock()
     requests.Session.request.side_effect = ConnectionRefusedError(

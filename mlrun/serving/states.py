@@ -1145,7 +1145,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
     def _get_artifact_object(
         self, proxy_uri: Optional[str] = None
-    ) -> Union[ModelArtifact, LLMPromptArtifact, None]:
+    ) -> Optional[Union[ModelArtifact, LLMPromptArtifact, None]]:
         uri = proxy_uri or self.artifact_uri
         if uri:
             if mlrun.datastore.is_store_uri(uri):
@@ -1210,6 +1210,53 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
 
 class LLModel(Model):
+    """
+    A model wrapper for handling LLM (Large Language Model) prompt-based inference.
+
+    This class extends the base `Model` to provide specialized handling for
+    `LLMPromptArtifact` objects, enabling both synchronous and asynchronous
+    invocation of language models.
+
+    **Model Invocation**:
+    - The execution of enriched prompts is delegated to the `model_provider`
+      configured for the model (e.g., **Hugging Face** or **OpenAI**).
+    - The `model_provider` is responsible for sending the prompt to the correct
+      backend API and returning the generated output.
+    - User can override the `predict` and `predict_async` methods to customize
+      the behavior of the model invocation.
+
+    **Prompt Enrichment Overview**:
+    - If an `LLMPromptArtifact` is found, load its prompt template and fill in
+      placeholders using values from the request body.
+    - If the artifact is not an `LLMPromptArtifact`, skip formatting and attempt
+      to retrieve `messages` directly from the request body.
+
+    **Simplified Example**:
+    ```python
+    # Input body:
+    {"city": "Paris", "days": 3}
+
+    # Prompt template in artifact:
+    [
+        {"role": "system", "content": "You are a travel planning assistant."},
+        {"role": "user", "content": "Create a {{days}}-day itinerary for {{city}}."},
+    ]
+
+    # Result after enrichment:
+    [
+        {"role": "system", "content": "You are a travel planning assistant."},
+        {"role": "user", "content": "Create a 3-day itinerary for Paris."},
+    ]
+    ```
+
+    :param name: Name of the model.
+    :param input_path: Path(s) in the request body where input data for the prompt
+                       is located.
+    :param result_path: Path(s) in the request body where model outputs or statistics
+                        will be stored.
+    :param kwargs: Additional arguments passed to the parent `Model` initializer.
+    """
+
     def __init__(
         self,
         name: str,
@@ -1287,14 +1334,16 @@ class LLModel(Model):
             llm_prompt_artifact = (
                 self.invocation_artifact or self._get_artifact_object()
             )
-        if not (
+        if not llm_prompt_artifact or not (
             llm_prompt_artifact and isinstance(llm_prompt_artifact, LLMPromptArtifact)
         ):
             logger.warning(
-                "LLMModel must be provided with LLMPromptArtifact",
-                llm_prompt_artifact=llm_prompt_artifact,
+                "LLMModel must be provided with LLMPromptArtifact. "
+                "Attempting to retrieve messages from the request body.",
+                llm_prompt_artifact_type=type(llm_prompt_artifact).__name__,
             )
-            return None, None
+            # if the prompt artifact is not provided, we will try to retrieve messages from the request body
+            return body.get("messages"), None
         prompt_legend = llm_prompt_artifact.spec.prompt_legend
         prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
         input_data = copy(get_data_from_path(self._input_path, body))
@@ -1321,6 +1370,14 @@ class LLModel(Model):
                     message["content"] = message["content"].format_map(
                         default_place_holders
                     )
+            if not prompt_template:
+                # if the prompt template is empty, we will try to retrieve messages from the request body
+                logger.warning(
+                    "LLMPromptArtifact prompt template is empty, "
+                    "please check the prompt template artifact."
+                    "Attempting to retrieve messages from the request body.",
+                )
+                prompt_template = body.get("messages")
         else:
             logger.warning(
                 f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt "

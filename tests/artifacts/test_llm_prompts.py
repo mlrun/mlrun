@@ -94,6 +94,8 @@ def test_prompt_limitation():
         [{"role": "user", "content": "A", "should_not_be_prompted": "I am here"}],
         "just a regular str",
         {"role": "user", "content": "A"},
+        [{"role": "user"}],
+        [{"content": "A"}],
     ],
 )
 def test_prompt_template_verification(prompt_template):

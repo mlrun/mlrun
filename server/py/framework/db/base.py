@@ -17,7 +17,6 @@ import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
-from deprecated import deprecated
 from sqlalchemy.orm import Session
 
 import mlrun.alerts
@@ -637,24 +636,6 @@ class DBInterface(ABC):
         tag: Optional[str] = None,
         uid: Optional[str] = None,
     ) -> mlrun.common.schemas.FeatureSet:
-        pass
-
-    # TODO: remove in 1.10.0
-    @deprecated(
-        version="1.7.0",
-        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_features(
-        self,
-        session,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
     @abstractmethod

@@ -17,8 +17,9 @@ ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 ARG OMPI_VERSION=4.1.5
 ARG MICROMAMBA_VERSION=2.3.0
+ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
 
-FROM mambaorg/micromamba:${MICROMAMBA_VERSION} AS conda-build
+FROM --platform=${DOCKER_DEFAULT_PLATFORM} mambaorg/micromamba:${MICROMAMBA_VERSION} AS conda-build
 ARG MLRUN_PYTHON_VERSION
 ARG MLRUN_PIP_VERSION
 ARG OMPI_VERSION
@@ -42,14 +43,14 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
     micromamba clean -afy
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
+FROM --platform=${DOCKER_DEFAULT_PLATFORM} mlrun_common_image:${MLRUN_PYTHON_VERSION}
+
 ARG MLRUN_PYTHON_VERSION
 ARG MLRUN_PIP_VERSION
 
 COPY --from=conda-build /opt/conda /opt/conda
 ENV PATH="/opt/conda/bin:${PATH}"
-# Install Python
-# use /usr/local/bin/python to ensure system pip is also upgraded
+
 RUN --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
     /opt/conda/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION}
 
@@ -57,15 +58,14 @@ WORKDIR /mlrun
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
 
+ARG MLRUN_PYTHON_VERSION
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
+
 # Install MLRun:
 # no-deps to ignore existing dependencies, just add the locked requirements
 # mainly because of how the image is built with conda.
 # see https://iguazio.atlassian.net/browse/ML-8712 for example
 # where 'tqdm' is given by conda env but will get remove if we omit the `--no-deps`.
-
-ARG MLRUN_PYTHON_VERSION
-
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun/locked-requirements.txt,target=locked-requirements.txt \

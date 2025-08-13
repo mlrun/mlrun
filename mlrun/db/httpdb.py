@@ -2555,50 +2555,6 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error_message)
         return FeatureSet.from_dict(resp.json())
 
-    def list_features(
-        self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> list[dict]:
-        """List feature-sets which contain specific features. This function may return multiple versions of the same
-        feature-set if a specific tag is not requested. Note that the various filters of this function actually
-        refer to the feature-set object containing the features, not to the features themselves.
-
-        :param project: Project which contains these features.
-        :param name: Name of the feature to look for. The name is used in a like query, and is not case-sensitive. For
-            example, looking for ``feat`` will return features which are named ``MyFeature`` as well as ``defeat``.
-        :param tag: Return feature-sets which contain the features looked for, and are tagged with the specific tag.
-        :param entities: Return only feature-sets which contain an entity whose name is contained in this list.
-        :param labels: Filter feature-sets by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :returns: A list of mapping from feature to a digest of the feature-set, which contains the feature-set
-            meta-data. Multiple entries may be returned for any specific feature due to multiple tags or versions
-            of the feature-set.
-        """
-
-        project = project or config.active_project
-        labels = self._parse_labels(labels)
-        params = {
-            "name": name,
-            "tag": tag,
-            "entity": entities or [],
-            "label": labels,
-        }
-
-        path = f"projects/{project}/features"
-
-        error_message = f"Failed listing features, project: {project}, query: {params}"
-        resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["features"]
-
     def list_features_v2(
         self,
         project: Optional[str] = None,

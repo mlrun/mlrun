@@ -12,13 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterator
 from http import HTTPStatus
 from typing import Any
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-TEST_PROJECT = "test-model-endpoints"
+
+@pytest.fixture
+def mock_delete_application_records() -> Iterator[Mock]:
+    with patch("framework.api.deps.authenticate_request"):
+        with patch("services.api.api.endpoints.model_monitoring._verify_authorization"):
+            with patch(
+                "services.api.api.endpoints.model_monitoring.process_model_monitoring_secret"
+            ):
+                with patch(
+                    "services.api.crud.model_monitoring.deployment.MonitoringDeployment.delete_application_records"
+                ) as mock:
+                    yield mock
 
 
 @pytest.mark.parametrize(
@@ -28,11 +41,17 @@ TEST_PROJECT = "test-model-endpoints"
         ({"application-name": "app1"}, HTTPStatus.NO_CONTENT),
     ],
 )
-def test_delete_model_endpoint(
-    client: TestClient, params: dict[str, Any], expected_status: HTTPStatus
+def test_delete_model_monitoring_metrics(
+    mock_delete_application_records: Mock,
+    client: TestClient,
+    params: dict[str, Any],
+    expected_status: HTTPStatus,
 ) -> None:
     resp = client.delete(
-        f"projects/{TEST_PROJECT}/model-monitoring-metrics",
+        "projects/test-model-monitoring/model-monitoring-metrics",
         params=params,
+        headers={"x-mlrun-client-version": "1.10.0"},
     )
     assert resp.status_code == expected_status, resp.text
+    if expected_status == HTTPStatus.NO_CONTENT:
+        mock_delete_application_records.assert_called_once()

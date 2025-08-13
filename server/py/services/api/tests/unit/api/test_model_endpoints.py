@@ -279,8 +279,7 @@ async def test_get_metrics_values_no_tsdb(get_project_secret_mock: Mock) -> None
     "services.api.crud.model_monitoring.model_endpoints.ModelEndpoints.delete_model_endpoint"
 )
 def test_delete_model_endpoint(
-    delete_model_endpoint_mock: Mock,
-    client: TestClient,
+    delete_model_endpoint_mock: Mock, client: TestClient
 ) -> None:
     endpoint = _mock_random_endpoint(name="metrics-values")
     resp = client.delete(

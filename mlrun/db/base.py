@@ -1110,3 +1110,19 @@ class RunDBInterface(ABC):
     @abstractmethod
     def get_project_summary(self, project: str) -> mlrun.common.schemas.ProjectSummary:
         pass
+
+    @abstractmethod
+    def store_secret_token(
+        self,
+        secret_token: mlrun.common.schemas.SecretToken,
+        log_warning: bool = True,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        pass
+
+    @abstractmethod
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        pass

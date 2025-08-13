@@ -2766,7 +2766,9 @@ mlflow-skinny==2.22.1 \
     --hash=sha256:3b3f9a17a4b9e60c7683b3458909aff15f3c6f5dc898a6cec13a6efb939e7e79 \
     --hash=sha256:d9d4ae77288a3f216aed3c4e6607607baadcb2fd7d299adee6227358f662048d
     # via mlflow
-./pipeline-adapters/mlrun-pipelines-kfp-common
+mlrun-pipelines-kfp-common==0.5.8 \
+    --hash=sha256:62d90ca5e3df06b4af9e04c65c9fb159d10c79373b4749475e0d16052c4a2666 \
+    --hash=sha256:94a12e03f48ab216278ca752d8f6914f2c549044981eba3ed3e8b3b0705c095c
     # via -r requirements.txt
 ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
     # via

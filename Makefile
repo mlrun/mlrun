@@ -1000,7 +1000,7 @@ upgrade-mlrun-mlrun-deps-lock: ## Upgrade mlrun-mlrun locked requirements file
 		extras-requirements.txt \
 		dockerfiles/mlrun/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/mlrun/locked-requirements.txt -v
+		--output-file dockerfiles/mlrun/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-gpu-deps-lock
 upgrade-mlrun-gpu-deps-lock: ## Upgrade mlrun-gpu locked requirements file

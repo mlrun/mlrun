@@ -1375,8 +1375,7 @@ class LLModel(Model):
             if not prompt_template:
                 # if the prompt template is empty, we will try to retrieve messages from the request body
                 logger.warning(
-                    "LLMPromptArtifact prompt template is empty, "
-                    "please check the prompt template artifact."
+                    "LLMPromptArtifact prompt template is empty."
                     "Attempting to retrieve messages from the request body.",
                 )
                 prompt_template = body.get("messages")

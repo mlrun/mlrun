@@ -16,6 +16,9 @@ import enum
 import json
 import typing
 import uuid
+from collections import defaultdict
+
+import jwt
 
 import mlrun.common
 import mlrun.common.schemas
@@ -28,6 +31,7 @@ import mlrun.utils.vault
 from mlrun.config import config as mlconf
 from mlrun.utils import logger
 
+import framework.utils.clients.iguazio.v4
 import framework.utils.singletons.k8s
 import services.api
 import services.api.utils.events.events_factory as events_factory
@@ -418,6 +422,97 @@ class Secrets(
 
     def is_internal_project_secret_key(self, key: str) -> bool:
         return key.startswith(self.internal_secrets_key_prefix)
+
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        authenticated_username: str,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        """
+        Validate and store offline tokens as Kubernetes secrets.
+
+        :param secret_tokens: List of SecretToken objects to store.
+        :param authenticated_username: Username used to name Kubernetes secrets.
+        :return: StoreSecretTokensResponse object with created, updated, and skipped tokens.
+        """
+        if not secret_tokens:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Failed to store secret tokens – no tokens provided"
+            )
+
+        # First validate all token names
+        seen_names = set()
+        for secret_token in secret_tokens:
+            self._validate_token_name(secret_token.name, seen_names)
+
+        # TODO: move init iguazio_client
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+
+        # TODO: Enable this once it is implemented in the Iguazio client.
+        # iguazio_client.refresh_access_tokens(secret_tokens)
+
+        token_actions = defaultdict(list)
+
+        for secret_token in secret_tokens:
+            token_name = secret_token.name
+            token = secret_token.token
+
+            # TODO remove this and use refresh_access_tokens once it is implemented in Iguazio client
+            iguazio_client.refresh_access_token(secret_token)
+
+            expiration = self._extract_and_validate_expiration(token_name, token)
+
+            action = self.secrets_provider.create_or_update_user_token_secret(
+                username=authenticated_username,
+                token_name=token_name,
+                token=token,
+                expiration=expiration,
+            )
+            token_actions[action].append(token_name)
+
+        return mlrun.common.schemas.StoreSecretTokensResponse(
+            created_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.created
+            ],
+            updated_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.updated
+            ],
+            skipped_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.skipped
+            ],
+        )
+
+    @staticmethod
+    def _validate_token_name(token_name: str, seen_names: set):
+        if not token_name or token_name in seen_names:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid or duplicate token name '{token_name}' found in request payload"
+            )
+        seen_names.add(token_name)
+
+    def _extract_and_validate_expiration(self, token_name: str, token: str) -> int:
+        decoded = self._decode_offline_token(token_name, token)
+        exp = decoded.get("exp")
+        if exp is None or not isinstance(exp, int):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
+            )
+        return exp
+
+    @staticmethod
+    def _decode_offline_token(token_name: str, token: str) -> dict:
+        try:
+            # The token is expected to be a JWT. We don't verify its signature here, because it has already been
+            # verified earlier during the refresh_access_token call.
+            return jwt.decode(token, options={"verify_signature": False})
+        except jwt.DecodeError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Failed to decode offline token '{token_name}'"
+            ) from exc
+        except Exception as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected error decoding token '{token_name}'"
+            ) from exc
 
     def _resolve_project_secret_key(
         self,

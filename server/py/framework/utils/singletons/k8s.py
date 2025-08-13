@@ -1006,6 +1006,16 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def _hash_access_key(access_key: str):
         return hashlib.sha224(access_key.encode()).hexdigest()
 
+    def create_or_update_user_token_secret(
+        self,
+        username: str,
+        token_name: str,
+        token: str,
+        expiration: int,
+    ) -> mlrun.common.schemas.SecretEventActions:
+        # TODO: Implement this method to create or update a user token secret in k8s
+        raise NotImplementedError()
+
 
 class BasePod:
     def __init__(

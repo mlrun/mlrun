@@ -40,9 +40,6 @@ EndpointIDAnnotation = api_constants.EndpointIDAnnotation
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
 
-# See https://iguazio.atlassian.net/browse/ML-10164?focusedCommentId=183283
-metrics_router = APIRouter(prefix="/projects/{project}/model-monitoring-metrics")
-
 
 @dataclass
 class _CommonParams:
@@ -450,8 +447,8 @@ async def get_model_monitoring_function_summary(
     )
 
 
-@metrics_router.get(
-    "/",
+@router.get(
+    "/metrics",
     response_model=dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
 )
 async def get_model_endpoints_metrics_values(
@@ -483,7 +480,7 @@ async def get_model_endpoints_metrics_values(
     )
 
 
-@metrics_router.delete("/", status_code=http.HTTPStatus.NO_CONTENT)
+@router.delete("/metrics", status_code=http.HTTPStatus.NO_CONTENT)
 async def delete_model_endpoints_metrics_values(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     application_name: Annotated[
@@ -511,7 +508,7 @@ async def delete_model_endpoints_metrics_values(
                              provided, the metrics values will be deleted from all project's model endpoints.
     """
     await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_monitoring_metrics,
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_monitoring,
         project_name=commons.project,
         resource_name=application_name,
         action=mlrun.common.schemas.AuthorizationAction.delete,

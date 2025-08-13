@@ -48,7 +48,7 @@ def test_delete_model_monitoring_metrics(
     expected_status: HTTPStatus,
 ) -> None:
     resp = client.delete(
-        "projects/test-model-monitoring/model-monitoring-metrics",
+        "projects/test-model-monitoring/model-monitoring/metrics",
         params=params,
         headers={"x-mlrun-client-version": "1.10.0"},
     )

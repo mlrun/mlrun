@@ -14,6 +14,13 @@
 
 import json
 import tempfile
+import pytest
+
+pytest.importorskip(
+    "tensorflow",
+    reason="tensorflow not installed",
+)
+
 
 import numpy as np
 import pytest

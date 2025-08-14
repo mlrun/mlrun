@@ -302,7 +302,9 @@ class MLRunPatcher:
                 # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
                 # so that workflow pods will use the correct KFP image from the internal registry.
                 _, overwrite_registry = self._resolve_overwrite_registry()
-                kfp_image_uri = f"{overwrite_registry}/mlrun/{Constants.mlrun_kfp}-python-3.11:{image_tag}"
+                kfp_image_uri = (
+                    f"{overwrite_registry}/mlrun/{Constants.mlrun_kfp}:{image_tag}"
+                )
 
                 mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
                     "template"

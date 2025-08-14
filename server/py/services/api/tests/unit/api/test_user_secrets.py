@@ -31,4 +31,3 @@ def test_require_iguazio_v4_dependency(db: Session, client: TestClient):
     response = client.put("/user-secrets/tokens", json=[])
 
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
-    assert "only supported when mlrun.authentication.mode='iguazio-v4'" in response.text

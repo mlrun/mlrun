@@ -1344,13 +1344,13 @@ class LLModel(Model):
                 "Attempting to retrieve messages from the request body.",
                 llm_prompt_artifact_type=type(llm_prompt_artifact).__name__,
             )
-            prompt_legend, prompt_template, model_configuration = None, None, None
+            prompt_legend, prompt_template, model_configuration = {}, [], {}
         else:
             prompt_legend = llm_prompt_artifact.spec.prompt_legend
             prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
             model_configuration = llm_prompt_artifact.spec.model_configuration
         input_data = copy(get_data_from_path(self._input_path, body))
-        if isinstance(input_data, dict) and prompt_legend and prompt_template:
+        if isinstance(input_data, dict) and prompt_template:
             kwargs = (
                 {
                     place_holder: input_data.get(body_map["field"])

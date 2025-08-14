@@ -542,9 +542,6 @@ click==8.2.1 \
     --hash=sha256:27c491cc05d968d271d5a1db13e3b5a184636d9d930f148c50b038f0d0646202 \
     --hash=sha256:61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b
     # via
-    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
-    #   -r dockerfiles/mlrun-kfp/requirements.txt
-    #   -r extras-requirements.txt
     #   -r requirements.txt
     #   black
     #   dask
@@ -652,9 +649,7 @@ contourpy==1.3.3 \
     --hash=sha256:fd907ae12cd483cd83e414b12941c632a969171bf90fc937d0c9f268a31cafff \
     --hash=sha256:fd914713266421b7536de2bfa8181aa8c699432b6763a0ea64195ebe28bff6a9 \
     --hash=sha256:fde6c716d51c04b1c25d0b90364d0be954624a0ee9d60e23e850e8d48353d07a
-    # via
-    #   -r dockerfiles/mlrun-kfp/requirements.txt
-    #   matplotlib
+    # via matplotlib
 coverage==7.10.3 \
     --hash=sha256:03db599f213341e2960430984e04cf35fb179724e052a3ee627a068653cf4a7c \
     --hash=sha256:07009152f497a0464ffdf2634586787aea0e69ddd023eafb23fc38267db94b84 \
@@ -1718,7 +1713,6 @@ ipython==8.37.0 \
     --hash=sha256:ca815841e1a41a1e6b73a0b08f3038af9b2252564d01fc405356d34033012216 \
     --hash=sha256:ed87326596b878932dbcb171e3e698845434d8c61b8d8cd474bf663041a9dcf2
     # via
-    #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   -r requirements.txt
     #   ipykernel
     #   nuclio-jupyter
@@ -2020,9 +2014,7 @@ kiwisolver==1.4.9 \
     --hash=sha256:fb3b8132019ea572f4611d770991000d7f58127560c4889729248eb5852a102f \
     --hash=sha256:fb940820c63a9590d31d88b815e7a3aa5915cad3ce735ab45f0c730b39547de1 \
     --hash=sha256:fc1795ac5cd0510207482c3d1d3ed781143383b8cfd36f5c645f3897ce066220
-    # via
-    #   -r dockerfiles/mlrun-kfp/requirements.txt
-    #   matplotlib
+    # via matplotlib
 kubernetes==25.3.0 \
     --hash=sha256:213befbb4e5aed95f94950c7eed0c2322fc5a2f8f40932e58d28fdd42d90836c \
     --hash=sha256:eb42333dad0bb5caf4e66460c6a4a1a36f0f057a040f35018f6c05a699baed86
@@ -2206,7 +2198,6 @@ matplotlib==3.10.5 \
     --hash=sha256:f6adb644c9d040ffb0d3434e440490a66cf73dbfa118a6f79cd7568431f7a012
     # via
     #   -r dev-requirements.txt
-    #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   mlflow
 matplotlib-inline==0.1.7 \
     --hash=sha256:8423b23ec666be3d16e16b60bdd8ac4e86e840ebd1dd11a30b9f117f2fa0ab90 \

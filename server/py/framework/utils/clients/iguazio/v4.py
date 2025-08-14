@@ -30,7 +30,7 @@ _GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
 class Client(BaseClient):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._client = iguazio.Client(api_url=self._api_url)
+        self._client = iguazio.Client(api_url=self._api_url, auto_login=False)
 
     def refresh_access_token(
         self, secret_token: mlrun.common.schemas.SecretToken

@@ -1145,7 +1145,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
     def _get_artifact_object(
         self, proxy_uri: Optional[str] = None
-    ) -> Optional[Union[ModelArtifact, LLMPromptArtifact, None]]:
+    ) -> Union[ModelArtifact, LLMPromptArtifact, None]:
         uri = proxy_uri or self.artifact_uri
         if uri:
             if mlrun.datastore.is_store_uri(uri):

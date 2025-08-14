@@ -1231,7 +1231,7 @@ class LLModel(Model):
     - If an `LLMPromptArtifact` is found, load its prompt template and fill in
       placeholders using values from the request body.
     - If the artifact is not an `LLMPromptArtifact`, skip formatting and attempt
-      to retrieve `messages` directly from the request body.
+      to retrieve `messages` directly from the request body using the input path.
 
     **Simplified Example**:
 
@@ -1344,12 +1344,13 @@ class LLModel(Model):
                 "Attempting to retrieve messages from the request body.",
                 llm_prompt_artifact_type=type(llm_prompt_artifact).__name__,
             )
-            # if the prompt artifact is not provided, we will try to retrieve messages from the request body
-            return body.get("messages"), None
-        prompt_legend = llm_prompt_artifact.spec.prompt_legend
-        prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
+            prompt_legend, prompt_template, model_configuration = None, None, None
+        else:
+            prompt_legend = llm_prompt_artifact.spec.prompt_legend
+            prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
+            model_configuration = llm_prompt_artifact.spec.model_configuration
         input_data = copy(get_data_from_path(self._input_path, body))
-        if isinstance(input_data, dict):
+        if isinstance(input_data, dict) and prompt_legend and prompt_template:
             kwargs = (
                 {
                     place_holder: input_data.get(body_map["field"])
@@ -1372,19 +1373,15 @@ class LLModel(Model):
                     message["content"] = message["content"].format_map(
                         default_place_holders
                     )
-            if not prompt_template:
-                # if the prompt template is empty, we will try to retrieve messages from the request body
-                logger.warning(
-                    "LLMPromptArtifact prompt template is empty."
-                    "Attempting to retrieve messages from the request body.",
-                )
-                prompt_template = body.get("messages")
+        elif isinstance(input_data, dict) and not prompt_template:
+            # If there is no prompt template, we assume the input data is already in the correct format.
+            prompt_template = input_data.get("messages", [])
         else:
             logger.warning(
                 f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt "
                 f"template stay unformatted",
             )
-        return prompt_template, llm_prompt_artifact.spec.model_configuration
+        return prompt_template, model_configuration
 
 
 class ModelSelector(ModelObj):

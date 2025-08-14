@@ -14,22 +14,24 @@
 
 import json
 import tempfile
-import pytest
-
-pytest.importorskip(
-    "tensorflow",
-    reason="tensorflow not installed",
-)
-
 
 import numpy as np
 import pytest
-import tensorflow as tf
+
+try:
+    import tensorflow as tf
+except ImportError:
+    pass
 from sklearn.model_selection import train_test_split
 
 import mlrun
 from mlrun.frameworks.tf_keras import TFKerasModelHandler, apply_mlrun
 from mlrun.frameworks.tf_keras.utils import is_keras_3
+
+pytest.importorskip(
+    "tensorflow",
+    reason="tensorflow not installed",
+)
 
 
 def preprocess_data(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

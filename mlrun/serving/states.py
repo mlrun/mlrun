@@ -1269,6 +1269,12 @@ class LLModel(Model):
         super().__init__(name, **kwargs)
         self._input_path = split_path(input_path)
         self._result_path = split_path(result_path)
+        logger.info(
+            "LLModel initialized",
+            model_name=name,
+            input_path=input_path,
+            result_path=result_path,
+        )
 
     def predict(
         self,
@@ -1280,6 +1286,12 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
+            logger.debug(
+                "Invoking model provider",
+                model_name=self.name,
+                messages=messages,
+                model_configuration=model_configuration,
+            )
             response_with_stats = self.model_provider.invoke(
                 messages=messages,
                 invoke_response_format=InvokeResponseFormat.USAGE,
@@ -1287,6 +1299,19 @@ class LLModel(Model):
             )
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
+            )
+            logger.debug(
+                "LLModel prediction completed",
+                model_name=self.name,
+                answer=response_with_stats.get("answer"),
+                usage=response_with_stats.get("usage"),
+            )
+        else:
+            logger.warning(
+                "LLModel invocation artifact or model provider not set, skipping prediction",
+                model_name=self.name,
+                invocation_artifact_type=type(self.invocation_artifact).__name__,
+                model_provider_type=type(self.model_provider).__name__,
             )
         return body
 
@@ -1300,6 +1325,12 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
+            logger.debug(
+                "Async invoking model provider",
+                model_name=self.name,
+                messages=messages,
+                model_configuration=model_configuration,
+            )
             response_with_stats = await self.model_provider.async_invoke(
                 messages=messages,
                 invoke_response_format=InvokeResponseFormat.USAGE,
@@ -1308,10 +1339,29 @@ class LLModel(Model):
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
             )
+            logger.debug(
+                "LLModel async prediction completed",
+                model_name=self.name,
+                answer=response_with_stats.get("answer"),
+                usage=response_with_stats.get("usage"),
+            )
+        else:
+            logger.warning(
+                "LLModel invocation artifact or model provider not set, skipping async prediction",
+                model_name=self.name,
+                invocation_artifact_type=type(self.invocation_artifact).__name__,
+                model_provider_type=type(self.model_provider).__name__,
+            )
         return body
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         messages, model_configuration = self.enrich_prompt(body, origin_name)
+        logger.info(
+            "Calling LLModel predict",
+            model_name=self.name,
+            model_endpoint_name=origin_name,
+            messages_len=len(messages) if messages else 0,
+        )
         return self.predict(
             body, messages=messages, model_configuration=model_configuration
         )
@@ -1320,6 +1370,12 @@ class LLModel(Model):
         self, body: Any, path: str, origin_name: Optional[str] = None
     ) -> Any:
         messages, model_configuration = self.enrich_prompt(body, origin_name)
+        logger.info(
+            "Calling LLModel async predict",
+            model_name=self.name,
+            model_endpoint_name=origin_name,
+            messages_len=len(messages) if messages else 0,
+        )
         return await self.predict_async(
             body, messages=messages, model_configuration=model_configuration
         )
@@ -1327,6 +1383,11 @@ class LLModel(Model):
     def enrich_prompt(
         self, body: dict, origin_name: str
     ) -> Union[tuple[list[dict], dict], tuple[None, None]]:
+        logger.info(
+            "Enriching prompt",
+            model_name=self.name,
+            model_endpoint_name=origin_name,
+        )
         if origin_name and self.shared_proxy_mapping:
             llm_prompt_artifact = self.shared_proxy_mapping.get(origin_name)
             if isinstance(llm_prompt_artifact, str):
@@ -1340,9 +1401,10 @@ class LLModel(Model):
             llm_prompt_artifact and isinstance(llm_prompt_artifact, LLMPromptArtifact)
         ):
             logger.warning(
-                "LLMModel must be provided with LLMPromptArtifact. "
-                "Attempting to retrieve messages from the request body.",
-                llm_prompt_artifact_type=type(llm_prompt_artifact).__name__,
+                "LLModel must be provided with LLMPromptArtifact",
+                model_name=self.name,
+                artifact_type=type(llm_prompt_artifact).__name__,
+                llm_prompt_artifact=llm_prompt_artifact,
             )
             prompt_legend, prompt_template, model_configuration = {}, [], {}
         else:
@@ -1367,19 +1429,22 @@ class LLModel(Model):
                     message["content"] = message["content"].format(**input_data)
                 except KeyError as e:
                     logger.warning(
-                        "Input data was missing a placeholder, placeholder stay unformatted",
-                        key_error=e,
+                        "Input data missing placeholder, content stays unformatted",
+                        model_name=self.name,
+                        key_error=mlrun.errors.err_to_str(e),
                     )
                     message["content"] = message["content"].format_map(
                         default_place_holders
                     )
         elif isinstance(input_data, dict) and not prompt_template:
             # If there is no prompt template, we assume the input data is already in the correct format.
+            logger.debug("Attempting to retrieve messages from the request body.")
             prompt_template = input_data.get("messages", [])
         else:
             logger.warning(
-                f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt "
-                f"template stay unformatted",
+                "Expected input data to be a dict, prompt template stays unformatted",
+                model_name=self.name,
+                input_data_type=type(input_data).__name__,
             )
         return prompt_template, model_configuration
 

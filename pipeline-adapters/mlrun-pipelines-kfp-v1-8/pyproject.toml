@@ -17,8 +17,8 @@ dependencies = [
 
 [project.optional-dependencies]
 kfp = [
-  "kfp~=1.8.23; python_version > '3.9' and python_version < '3.12'",
-  "kfp==1.8.22; python_version <= '3.9'",
+  "kfp~=1.8.23; python_version >= '3.11' and python_version < '3.12'",
+  "kfp==1.8.22; python_version < '3.11'",
 ]
 
 

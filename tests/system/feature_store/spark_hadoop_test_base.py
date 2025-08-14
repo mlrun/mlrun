@@ -100,7 +100,7 @@ class SparkHadoopTestBase(TestMLRunSystem):
 
             # TestMLRunSystem will create this project later in the initialization process, but we need it now
             # to avoid a "project does not exist" error now because the default project was dropped in 1.8.0
-            mlrun.get_or_create_project(cls.project_name)
+            mlrun.get_or_create_project(cls.project_name, allow_cross_project=True)
 
             sj = new_function(
                 kind="remote-spark",

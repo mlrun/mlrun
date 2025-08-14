@@ -15,6 +15,7 @@ import typing
 
 import httpx
 import iguazio
+from iguazio.schemas.v1.resources.access_token import RefreshAccessTokenOptions
 
 import mlrun.common.schemas
 import mlrun.common.types
@@ -54,7 +55,8 @@ class Client(BaseClient):
 
         try:
             # Validate the offline token by sending it to Iguazio
-            self._client.refresh_access_token(secret_token.token)
+            options = RefreshAccessTokenOptions(refresh_token=secret_token.token)
+            self._client.refresh_access_token(options=options)
             self._logger.info(
                 "Successfully refreshed access token via Iguazio",
                 token_name=secret_token.name,

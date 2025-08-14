@@ -26,6 +26,7 @@ import urllib3.exceptions
 import mlrun.artifacts.base
 import mlrun.config
 import mlrun.db.httpdb
+from mlrun.common.types import AuthenticationMode
 
 
 class SomeEnumClass(str, enum.Enum):
@@ -340,3 +341,21 @@ def test_resolve_page_params(params, expected_page_params):
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     resolved_page_params = db._resolve_page_params(params)
     assert expected_page_params == resolved_page_params
+
+
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "store_secret_token",
+        "store_secret_tokens",
+    ],
+)
+def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.BASIC
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    method = getattr(db, method_name)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+        method(None)
+    assert "only supported when mlrun.authentication.mode='iguazio-v4'" in str(
+        exc_info.value
+    )

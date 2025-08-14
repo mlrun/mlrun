@@ -21,10 +21,10 @@ import starlette.datastructures
 
 import mlrun.common.schemas
 import mlrun.common.types
+from mlrun.common.types import AuthenticationMode
 from tests.common_fixtures import aioresponses_mock
 
 import framework.utils.auth.verifier
-from framework.utils.auth.verifier import AuthenticationMode
 
 
 def test_verify_authorization(

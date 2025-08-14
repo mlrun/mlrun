@@ -194,6 +194,8 @@ class Service(ABC):
         if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:
             await self.move_service_to_online()
 
+        await run_async_function_with_new_db_session(self._sync_system_metadata)
+
     async def _setup_mounted_service(self):
         await self._custom_setup_service()
 
@@ -403,6 +405,23 @@ class Service(ABC):
         for mounted_service in self._mounted_services:
             for cls, method in mounted_service._paginated_methods:
                 yield cls, method
+
+    def _sync_system_metadata(self, db_session):
+        """
+        Sync system metadata values from the database to the config.
+        Currently, it synchronizes only the system ID but can be extended for other new metadata values in the future.
+
+        :param db_session: The database session to use for the synchronization.
+        """
+
+        db = framework.db.sqldb.db.SQLDB()
+        system_id = db.get_system_id(db_session)
+        if system_id is not None:
+            self._logger.debug(
+                "Existing system ID found in the database",
+                system_id=system_id,
+            )
+            mlrun.mlconf.system_id = system_id
 
 
 class Daemon(ABC):

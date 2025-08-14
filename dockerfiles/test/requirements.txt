@@ -1,1 +1,1 @@
-./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp]
+mlrun-pipelines-kfp-v1-8[kfp]~=0.5.7

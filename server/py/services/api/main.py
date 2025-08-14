@@ -160,6 +160,7 @@ class Service(framework.service.Service):
 
     async def _custom_setup_service(self):
         initialize_logs_dir()
+        await fastapi.concurrency.run_in_threadpool(self._initialize_data)
 
     async def _custom_teardown_service(self):
         if get_project_member():

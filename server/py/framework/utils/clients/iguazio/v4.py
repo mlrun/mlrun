@@ -92,12 +92,8 @@ class Client(BaseClient):
         :param secret_tokens: List of SecretToken objects
         :raises mlrun.errors.MLRunUnauthorizedError: If any token is invalid or expired
         """
-        try:
-            self._client.refresh_access_tokens(secret_tokens)
-        except Exception as exc:
-            raise mlrun.errors.MLRunUnauthorizedError(
-                "Failed to refresh one or more access tokens: token(s) are invalid or expired"
-            ) from exc
+        # TODO: Implement this method once it is available in the Iguazio package
+        pass
 
     def _extract_response_error(
         self, response: httpx.Response

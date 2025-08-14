@@ -37,7 +37,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         gnupg2 \
         graphviz \
         make \
-        software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
 # set initial git config

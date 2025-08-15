@@ -34,7 +34,7 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun.serving import ModelRunnerStep
 from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
 from tests.system.runtimes.assets.function_with_llm import MyLLM
-from tests.system.runtimes.assets.function_with_model import DummyModel
+from tests.system.runtimes.assets.function_with_model import DummyModel, MyModelSelector
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -115,6 +115,57 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         resp = function.invoke("/", {"x": "y"})
         assert resp == {"x": "y", "extra": 123}
+
+    @pytest.mark.parametrize("with_object", [True, False])
+    def test_deploy_function_with_model_runner_with_selector(self, with_object):
+        code_path = str(self.assets_path / "function_with_model.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        if with_object:
+            dummy_model = DummyModel(name="my-model")
+            dummy_model_2 = DummyModel(name="another-model")
+            model_selector = MyModelSelector(models=["my-model", "another-model"])
+        else:
+            dummy_model = "DummyModel"
+            dummy_model_2 = "DummyModel"
+            model_selector = "MyModelSelector"
+        model_runner_step = ModelRunnerStep(
+            name="model-runner",
+            model_selector=model_selector,
+            model_selector_parameters={"models": ["my-model", "another-model"]}
+            if not with_object
+            else None,
+        )
+
+        model_runner_step.add_model(
+            model_class=dummy_model,
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+        )
+        model_runner_step.add_model(
+            model_class=dummy_model_2,
+            execution_mechanism="naive",
+            endpoint_name="another-model",
+        )
+
+        graph.to(model_runner_step).respond()
+
+        self._logger.debug("Deploying nuclio function with model selector")
+        deployment = function.deploy()
+
+        assert deployment == function.get_url()  # check function url
+
+        resp = function.invoke("/", {"x": "y", "models": ["my-model"]})
+        assert resp == {"my-model": {"extra": 123, "x": "y"}}
 
     def test_model_runner_with_llm_and_shared_models(self):
         code_path = str(self.assets_path / "function_with_llm.py")

@@ -2468,16 +2468,16 @@ class MonitoringDeployment:
                 )
         return model_endpoints_instructions
 
-    async def delete_application_records(
+    async def _delete_app_from_schedules_files(
         self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
     ) -> None:
         """
-        Deletes the application records from the model monitoring database.
-        This method is used to delete the records of a specific application.
-
-        :param application_name: The name of the application to delete records for.
-        :param endpoint_ids:     List of endpoint IDs to delete records for.
+        Delete the application from the schedules file.
         """
+        logger.debug(
+            "Deleting application from the schedules file",
+            application_name=application_name,
+        )
         if endpoint_ids:
             endpoint_id_list = endpoint_ids
         else:
@@ -2491,7 +2491,28 @@ class MonitoringDeployment:
             endpoint_id_list = [
                 endpoint.metadata.uid for endpoint in endpoints_data.endpoints
             ]
+        logger.debug(
+            "Deleting the last_analyzed time of the application from the schedules files",
+            application_name=application_name,
+            endpoint_id_list=endpoint_id_list,
+        )
+        for endpoint_id in endpoint_id_list:
+            with ModelMonitoringSchedulesFileEndpoint(
+                endpoint_id=endpoint_id, project=self.project
+            ) as schedules_file:
+                schedules_file.delete_application_time(application=application_name)
 
+    async def delete_application_records(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Deletes the application records from the model monitoring database.
+        This method is used to delete the records of a specific application.
+
+        :param application_name: The name of the application to delete records for.
+        :param endpoint_ids:     List of endpoint IDs to delete records for. If ``None``, all the project's
+                                 endpoints will be deleted.
+        """
         logger.debug(
             "Deleting application records from the TSDB",
             application_name=application_name,
@@ -2505,16 +2526,9 @@ class MonitoringDeployment:
             mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
         ):
             # The schedules file of "batch" applications is handled on the user side
-            logger.debug(
-                "Deleting the last_analyzed time of the application from the schedules files",
-                application_name=application_name,
-                endpoint_ids=endpoint_ids,
+            await self._delete_app_from_schedules_files(
+                application_name=application_name, endpoint_ids=endpoint_ids
             )
-            for endpoint_id in endpoint_id_list:
-                with ModelMonitoringSchedulesFileEndpoint(
-                    endpoint_id=endpoint_id, project=self.project
-                ) as schedules_file:
-                    schedules_file.delete_application_time(application=application_name)
 
         logger.info(
             "Deleted application records",

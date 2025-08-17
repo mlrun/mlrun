@@ -132,25 +132,37 @@ class OpenAIProvider(ModelProvider):
         self, operation: Optional[Callable] = None, **invoke_kwargs
     ) -> Union["ChatCompletion", "BaseModel"]:
         """
-        OpenAI-specific implementation of `ModelProvider.custom_invoke`.
+        Invokes a model operation from the OpenAI client with the given keyword arguments.
 
-        Invokes an OpenAI model operation using the sync client. For full details, see
-        `ModelProvider.custom_invoke`.
+        This method provides flexibility to either:
+        - Call a specific OpenAI client operation (e.g., `client.images.generate`).
+        - Default to `chat.completions.create` when no operation is provided.
+
+        The operation must be a callable that accepts keyword arguments. If the callable
+        does not accept a `model` parameter, it will be omitted from the call.
 
         Example:
             ```python
-            result = openai_model_provider.invoke(
+            result = openai_model_provider.custom_invoke(
                 openai_model_provider.client.images.generate,
                 prompt="A futuristic cityscape at sunset",
                 n=1,
                 size="1024x1024",
             )
             ```
-        :param      operation:      Same as ModelProvider.custom_invoke.
-        :param      invoke_kwargs:  Same as ModelProvider.custom_invoke.
-        :return:                    Same as ModelProvider.custom_invoke.
 
+        :param operation:       A callable representing the OpenAI operation to invoke.
+                                If not provided, defaults to `client.chat.completions.create`.
+
+        :param invoke_kwargs:   Additional keyword arguments to pass to the operation.
+                                These are merged with `default_invoke_kwargs` and may
+                                include parameters such as `temperature`, `max_tokens`,
+                                or `messages`.
+
+        :return:                The full response returned by the operation, typically
+                                an OpenAI `ChatCompletion` or other OpenAI SDK model.
         """
+
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
 
@@ -171,24 +183,35 @@ class OpenAIProvider(ModelProvider):
         **invoke_kwargs,
     ) -> Union["ChatCompletion", "BaseModel"]:
         """
-        OpenAI-specific implementation of `ModelProvider.async_custom_invoke`.
+        Asynchronously invokes a model operation from the OpenAI client with the given keyword arguments.
 
-        Invokes an OpenAI model operation using the async client. For full details, see
-        `ModelProvider.async_custom_invoke`.
+        This method provides flexibility to either:
+        - Call a specific async OpenAI client operation (e.g., `async_client.images.generate`).
+        - Default to `chat.completions.create` when no operation is provided.
+
+        The operation must be an async callable that accepts keyword arguments.
+        If the callable does not accept a `model` parameter, it will be omitted from the call.
 
         Example:
-        ```python
-            result = openai_model_provider.invoke(
+            ```python
+            result = await openai_model_provider.async_custom_invoke(
                 openai_model_provider.async_client.images.generate,
                 prompt="A futuristic cityscape at sunset",
                 n=1,
                 size="1024x1024",
             )
-        ```
+            ```
 
-        :param operation:       Same as ModelProvider.async_custom_invoke.
-        :param invoke_kwargs:   Same as ModelProvider.async_custom_invoke.
-        :return:                Same as ModelProvider.async_custom_invoke.
+        :param operation:       An async callable representing the OpenAI operation to invoke.
+                                If not provided, defaults to `async_client.chat.completions.create`.
+
+        :param invoke_kwargs:   Additional keyword arguments to pass to the operation.
+                                These are merged with `default_invoke_kwargs` and may
+                                include parameters such as `temperature`, `max_tokens`,
+                                or `messages`.
+
+        :return:                The full response returned by the awaited operation,
+                                typically an OpenAI `ChatCompletion` or other OpenAI SDK model.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)

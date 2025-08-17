@@ -256,27 +256,39 @@ class OpenAIProvider(ModelProvider):
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
         Invokes an OpenAI model operation using the synchronous client.
-        For full details, see `ModelProvider.invoke`.
 
         :param messages:
-            Same as `ModelProvider.invoke`.
+            A list of dictionaries representing the conversation history or input messages.
+            Each dictionary should follow the format::
+                {"role": "system" | "user" | "assistant", "content": "Message content as a string"}
 
-        :param invoke_response_format: InvokeResponseFormat
+            Example:
+
+            .. code-block:: json
+
+                [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "What is the capital of France?"}
+                ]
+
+            Defaults to None if no messages are provided.
+
+        :param invoke_response_format:
             Specifies the format of the returned response. Options:
 
             - "string": Returns only the generated text content, taken from a single response.
-            - "stats": Combines the generated text with metadata (e.g., token usage), returning a dictionary:
+            - "stats": Combines the generated text with metadata (e.g., token usage), returning a dictionary::
 
-              .. code-block:: json
-                 {
-                     "answer": "<generated_text>",
-                     "stats": <ChatCompletion>.to_dict()["usage"]
-                 }
+                .. code-block:: json
+                   {
+                       "answer": "<generated_text>",
+                       "stats": <ChatCompletion>.to_dict()["usage"]
+                   }
 
             - "full": Returns the full OpenAI `ChatCompletion` object.
 
         :param invoke_kwargs:
-            Additional keyword arguments passed to the OpenAI client. Same as in `ModelProvider.invoke`.
+            Additional keyword arguments passed to the OpenAI client.
 
         :return:
             A string, dictionary, or `ChatCompletion` object, depending on `invoke_response_format`.

@@ -292,6 +292,7 @@ default_config = {
             # function is used to prevent infinite loop
             "reload_max_recursion_depth": 100,
             "source_code_max_bytes": 10000,
+            "foo": {"default": None},
         },
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"

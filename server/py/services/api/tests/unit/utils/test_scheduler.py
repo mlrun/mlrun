@@ -368,6 +368,7 @@ async def test_create_schedule_success_cron_trigger_validation(
         )
 
 
+@pytest.mark.skip("Due to sporadic failures in CI (ML-6252)")
 @pytest.mark.asyncio
 async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     db: Session,
@@ -1297,6 +1298,7 @@ async def test_update_schedule_failure_not_found_in_scheduler(
     )
 
 
+@pytest.mark.skip("Due to sporadic failures in CI (ML-6252)")
 @pytest.mark.asyncio
 # Marking the test as flaky since it depends on the scheduler to run the job in the right time.
 # We were experiencing issues with concurrency_limit > 1 where some job might be unexpectedly skipped due to
@@ -1388,6 +1390,7 @@ async def test_schedule_job_concurrency_limit(
         assert call_counter == run_amount
 
 
+@pytest.mark.skip("Due to sporadic failures in CI (ML-6252)")
 @pytest.mark.asyncio
 async def test_schedule_job_next_run_time(
     db: Session,

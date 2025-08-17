@@ -309,18 +309,43 @@ class OpenAIProvider(ModelProvider):
     ) -> Union[str, "ChatCompletion", dict]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
-        Invokes an OpenAI model operation using the async client.
-        For full details, see `ModelProvider.async_invoke` and `OpenAIProvider.invoke`.
+        Invokes an OpenAI model operation using the asynchronous client.
 
-        :param messages:    Same as `OpenAIProvider.invoke`.
+        :param messages:
+            A list of dictionaries representing the conversation history or input messages.
+            Each dictionary should follow the format::
+                {"role": "system" | "user" | "assistant", "content": "Message content as a string"}
 
-        :param invoke_response_format: InvokeResponseFormat
-                            Same as `OpenAIProvider.invoke`.
+            Example:
+
+            .. code-block:: json
+
+                [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "What is the capital of France?"}
+                ]
+
+            Defaults to None if no messages are provided.
+
+        :param invoke_response_format:
+            Specifies the format of the returned response. Options:
+
+            - "string": Returns only the generated text content, taken from a single response.
+            - "stats": Combines the generated text with metadata (e.g., token usage), returning a dictionary::
+
+                .. code-block:: json
+                   {
+                       "answer": "<generated_text>",
+                       "stats": <ChatCompletion>.to_dict()["usage"]
+                   }
+
+            - "full": Returns the full OpenAI `ChatCompletion` object.
 
         :param invoke_kwargs:
-                            Same as `OpenAIProvider.invoke`.
-        :returns            Same as `ModelProvider.async_invoke`.
+            Additional keyword arguments passed to the OpenAI client.
 
+        :return:
+            A string, dictionary, or `ChatCompletion` object, depending on `invoke_response_format`.
         """
         response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
         return self._response_handler(

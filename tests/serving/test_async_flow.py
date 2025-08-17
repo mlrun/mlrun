@@ -968,3 +968,40 @@ def test_llm_with_missing_legends(legend: dict):
         )
         server.wait_for_completion()
         assert resp["prompt"] == expected_prompt
+
+
+def test_llm_with_missing_llm_prompt():
+    project = mlrun.new_project("get-model-path-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
+    ):
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="model-runner", raise_exception=True)
+
+        model_runner_step.add_model(
+            model_class="MyLLM",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+            model_artifact=model_artifact,
+        )
+        graph.to(model_runner_step).respond()
+        server = function.to_mock_server()
+        expected_prompt = [
+            {"role": "user", "content": "What is the capital city of Israel ?!"},
+            {"role": "system", "content": "you are answer as Data scientist"},
+        ]
+
+        resp = server.test(
+            body={
+                "messages": expected_prompt,
+            }
+        )
+        server.wait_for_completion()
+        assert resp["prompt"] == expected_prompt

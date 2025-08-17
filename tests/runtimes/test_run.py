@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import os
 import pathlib
 
 import pytest
@@ -306,3 +307,21 @@ def test_set_envs_file_not_find():
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
         function.set_envs(file_path=file_name)
     assert f"{file_name} does not exist" in str(excinfo.value)
+
+
+def test_foo_created():
+    function = mlrun.new_function("tst", kind="job")
+    assert function.spec.foo is None
+
+def test_with_foo():
+    function = mlrun.new_function("tst", kind="job")
+    function.spec.with_foo("bar")
+    assert function.spec.foo == "bar"
+
+def test_foo_from_env():
+    os.environ["MLRUN_FUNCTION__SPEC__FOO__DEFAULT"] = "bar"
+    mlrun.mlconf.reload()
+    function = mlrun.new_function("tst", kind="job")
+    assert function.spec.foo == "bar"
+
+

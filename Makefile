@@ -311,6 +311,7 @@ mlrun: common-image update-version-file ## Build mlrun docker image
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
@@ -344,6 +345,7 @@ mlrun-kfp: common-image-3.9 update-version-file ## Build mlrun docker image with
 		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) .
@@ -386,6 +388,7 @@ mlrun-gpu: update-version-file ## Build mlrun gpu docker image
 		--build-arg MLRUN_GPU_BASE_IMAGE=$(MLRUN_GPU_BASE_IMAGE) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) \
@@ -407,6 +410,7 @@ prebake-mlrun-gpu: ## Build prebake mlrun GPU based docker image
 		--build-arg CUDA_VER=$(MLRUN_GPU_CUDA_VERSION) \
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		--tag $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
 		.
 
@@ -432,6 +436,7 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 		--build-arg MLRUN_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED) \
@@ -505,6 +510,7 @@ $(COMMON_STAMP): $(COMMON_DOCKERFILE)
 	docker build \
 	--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 	--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+	--platform $(DOCKER_DEFAULT_PLATFORM) \
 	-f $(COMMON_DOCKERFILE) \
 	-t $(COMMON_IMAGE_NAME) . \
 	 && mkdir -p $(dir $@) && touch $@
@@ -515,6 +521,7 @@ common-image:
 	  --no-cache $(COMMON_DOCKER_ARGS) \
  	  --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
  	  --build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+	  --platform $(DOCKER_DEFAULT_PLATFORM) \
  	  -f $(COMMON_DOCKERFILE) \
 	  -t $(COMMON_IMAGE_NAME) .
 endif
@@ -546,6 +553,7 @@ api: common-image-3.11	 compile-schemas update-version-file ## Build mlrun-api d
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
@@ -578,6 +586,7 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--build-arg MLRUN_PIPELINES_KFP_VERSION=$(MLRUN_PIPELINES_KFP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) .
@@ -597,6 +606,7 @@ build-test-system: common-image compile-schemas update-version-file ## Build sys
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 

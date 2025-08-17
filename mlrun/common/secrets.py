@@ -65,6 +65,34 @@ class SecretProviderInterface(ABC):
     ) -> mlrun.common.schemas.SecretEventActions:
         pass
 
+        # secret_name = f"mlrun-auth-{username}-{token_name}"
+        #
+        # encoded_token_yaml = base64.b64encode(
+        #     yaml.safe_dump(
+        #         {"secretTokens": [{"name": token_name, "token": token}]}
+        #     ).encode()
+        # ).decode()
+        #
+        # secret_data = {
+        #     "tokensFile": encoded_token_yaml,
+        #     "tokenExpiration": str(expiration),
+        #     "labels": {"mlrun/user": username},
+        # }
+        #
+        # # TODO get existing by the label mlrun/user
+        # existing_secret = self.get_secret_data(secret_name)
+        #
+        # if not existing_secret:
+        #     self.store_secret(secret_name, secret_data)
+        #     return mlrun.common.schemas.SecretEventActions.created
+        #
+        # existing_exp = int(existing_secret.get("tokenExpiration", 0))
+        # if expiration > existing_exp:
+        #     self.store_secret(secret_name, secret_data)
+        #     return mlrun.common.schemas.SecretEventActions.updated
+        #
+        # return mlrun.common.schemas.SecretEventActions.skipped
+
 
 class InMemorySecretProvider(SecretProviderInterface):
     def __init__(self):
@@ -148,7 +176,6 @@ class InMemorySecretProvider(SecretProviderInterface):
         token: str,
         expiration: int,
     ) -> mlrun.common.schemas.SecretEventActions:
-        # TODO: Implement storing user token secrets in the in-memory provider.
         raise NotImplementedError()
 
     @staticmethod

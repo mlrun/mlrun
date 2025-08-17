@@ -21,6 +21,7 @@ import typing
 
 import kubernetes.client.rest as k8s_client_rest
 import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
+import yaml
 from kubernetes import client, config
 
 import mlrun
@@ -1013,9 +1014,81 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token: str,
         expiration: int,
     ) -> mlrun.common.schemas.SecretEventActions:
-        # TODO: Implement this method to create or update a user token secret in k8s
-        raise NotImplementedError()
+        """
+        Creates or updates a Kubernetes secret for a user's offline token.
 
+        :param username: The user who owns the token.
+        :param token_name: The logical name for the token.
+        :param token: The offline token string (JWT).
+        :param exp: The token's expiration timestamp (int UNIX epoch).
+        :return: SecretEventActions.{created, updated, skipped}
+        """
+        secret_name = f"mlrun-auth-{username}-{token_name}"
+
+        secret_data, labels = self._prepare_token_secret_data_and_labels(
+            username, token_name, token, exp
+        )
+
+        try:
+            existing_secret = self._k8s.get_secret(secret_name)
+        except Exception:
+            existing_secret = None
+
+        if existing_secret:
+            existing_data = existing_secret.get("data", {})
+            existing_exp_b64 = existing_data.get("tokenExpiration")
+
+            try:
+                existing_exp = int(base64.b64decode(existing_exp_b64).decode("utf-8"))
+            except Exception:
+                existing_exp = 0  # fallback: force update if invalid
+
+            if exp <= existing_exp:
+                # New token is older or equal — skip update
+                return mlrun.common.schemas.SecretEventActions.skipped
+
+            try:
+                self._k8s.update_secret(secret_name, secret_data, labels)
+                return mlrun.common.schemas.SecretEventActions.updated
+            except Exception as exc:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"Failed to update secret '{secret_name}': {exc}"
+                ) from exc
+
+        # Secret does not exist — create it
+        try:
+            self._k8s.create_secret(secret_name, secret_data, labels)
+            return mlrun.common.schemas.SecretEventActions.created
+        except Exception as exc:
+            raise MLRunInternalServerError(
+                f"Failed to create secret '{secret_name}': {exc}"
+            ) from exc
+
+    def _prepare_token_secret_data_and_labels(
+        self,
+        username: str,
+        token_name: str,
+        token: str,
+        token_expiration: int,
+    ) -> tuple[dict, dict]:
+        encoded_tokens_file = base64.b64encode(
+            yaml.safe_dump(
+                {"secretTokens": [{"name": token_name, "token": token}]}
+            ).encode()
+        ).decode()
+
+        secret_data = {
+            "tokensFile": encoded_tokens_file,
+            "tokenExpiration": base64.b64encode(
+                str(token_expiration).encode()
+            ).decode(),
+        }
+
+        labels = {
+            "mlrun/user": username,
+        }
+
+        return secret_data, labels
 
 class BasePod:
     def __init__(

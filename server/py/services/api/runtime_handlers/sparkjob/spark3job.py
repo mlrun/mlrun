@@ -800,7 +800,7 @@ with ctx:
             )
             node_selector, enriched_tolerations, enriched_affinity = (
                 mlrun.k8s_utils.sanitize_scheduling_configuration(
-                    node_selector, tolerations, affinity
+                    node_selector, enriched_tolerations, enriched_affinity
                 )
             )
 

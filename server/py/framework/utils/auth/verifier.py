@@ -14,6 +14,7 @@
 #
 import asyncio
 import base64
+import sys
 import typing
 
 import fastapi
@@ -26,7 +27,9 @@ from mlrun.common.types import StrEnum
 import framework.utils.auth.providers.nop
 import framework.utils.auth.providers.opa
 import framework.utils.clients.iguazio.v3
-import framework.utils.clients.iguazio.v4
+
+if sys.version_info >= (3, 11):
+    import framework.utils.clients.iguazio.v4
 
 
 class AuthenticationMode(StrEnum):

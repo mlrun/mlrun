@@ -14,6 +14,7 @@
 #
 import enum
 import json
+import sys
 import typing
 import uuid
 from collections import defaultdict
@@ -31,7 +32,8 @@ import mlrun.utils.vault
 from mlrun.config import config as mlconf
 from mlrun.utils import logger
 
-import framework.utils.clients.iguazio.v4
+if sys.version_info >= (3, 11):
+    import framework.utils.clients.iguazio.v4
 import framework.utils.singletons.k8s
 import services.api
 import services.api.utils.events.events_factory as events_factory

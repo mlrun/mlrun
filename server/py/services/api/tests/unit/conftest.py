@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import pathlib
+import sys
 import typing
 import unittest.mock
 from collections.abc import Generator
@@ -39,7 +40,9 @@ import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 import framework.utils.clients.iguazio.v3
-import framework.utils.clients.iguazio.v4
+
+if sys.version_info >= (3, 11):
+    import framework.utils.clients.iguazio.v4
 import framework.utils.projects.remotes.leader
 import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db

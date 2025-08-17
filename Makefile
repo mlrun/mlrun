@@ -119,8 +119,15 @@ install-requirements: ## Install all requirements needed for development
 		-r requirements.txt \
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
-		-r dockerfiles/mlrun-api/requirements.txt
+		-r dockerfiles/mlrun-api/requirements.txt; \
 
+	# TODO: Remove the iguazio installation here when the package is released to PyPI and move it to requirements.txt
+	if [ "$(MLRUN_PYTHON_VERSION)" = "3.11" ]; then \
+		$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) \
+			--index-url https://test.pypi.org/simple/ \
+			--extra-index-url https://pypi.org/simple \
+			"iguazio~=0.0.1a8"; \
+	fi
 .PHONY: install-docs-requirements
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)

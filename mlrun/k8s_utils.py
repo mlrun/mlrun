@@ -340,8 +340,17 @@ def _safe_copy_tolerations(
     tolerations: list[kubernetes.client.V1Toleration],
 ) -> list[kubernetes.client.V1Toleration]:
     """
-    Safe deep copy of tolerations to avoid modifying the original list.
-    """
+    Safely copy a list of V1Toleration objects without mutating the originals.
+
+    Explicitly reconstructs V1Toleration objects instead of using deepcopy() to avoid
+    serialization errors with K8s client objects that contain threading primitives
+    and non-copyable elements like RLock objects.
+
+    Args:
+        tolerations: List of V1Toleration objects to copy
+
+    Returns:
+        New list containing copied V1Toleration objects with identical field values"""
     return [
         kubernetes.client.V1Toleration(
             effect=toleration.effect,
@@ -355,6 +364,19 @@ def _safe_copy_tolerations(
 
 
 def _safe_copy_affinity(affinity):
+    """
+    Safely create a deep copy of a V1Affinity object.
+
+    Uses K8s API client serialization/deserialization instead of deepcopy() to avoid
+    errors with threading primitives and complex internal structures in K8s objects.
+    Serializes to dict then deserializes back to a clean V1Affinity object.
+
+    Args:
+        affinity: V1Affinity object to copy, or None
+
+    Returns:
+        New V1Affinity object with identical field values, or None if input was None
+    """
     if not affinity:
         return None
     api_client = kubernetes.client.ApiClient()

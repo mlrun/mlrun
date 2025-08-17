@@ -54,7 +54,11 @@ class FunctionSummary(BaseModel):
 
         return cls(
             type=func_type,
-            name=func_dict["metadata"]["name"],
+            name=func_dict["metadata"]["name"]
+            if func_type != FunctionsType.APPLICATION
+            else func_dict["spec"]["graph"]["steps"]["PrepareMonitoringEvent"][
+                "class_args"
+            ]["application_name"],
             application_class=""
             if func_type != FunctionsType.APPLICATION
             else func_dict["spec"]["graph"]["steps"]["PushToMonitoringWriter"]["after"][

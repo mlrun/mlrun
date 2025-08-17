@@ -492,7 +492,8 @@ class V3IOTSDBConnector(TSDBConnector):
         # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
         for i in range(0, len(endpoint_ids), V3IO_FRAMESD_MEPS_LIMIT):
             endpoint_id_chunk = endpoint_ids[i : i + V3IO_FRAMESD_MEPS_LIMIT]
-            filter_query = f"endpoint_id IN({', '.join(endpoint_id_chunk)}) "
+            endpoints_list = "', '".join(endpoint_id_chunk)
+            filter_query = f"endpoint_id IN('{endpoints_list}')"
             for table in tables:
                 try:
                     self.frames_client.delete(

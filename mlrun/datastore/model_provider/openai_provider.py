@@ -81,8 +81,12 @@ class OpenAIProvider(ModelProvider):
     @staticmethod
     def _extract_string_output(response: "ChatCompletion") -> str:
         """
-        Extracts the first generated string from Hugging Face pipeline output,
-        regardless of whether it's plain text-generation or chat-style output.
+        Extracts the text content of the first choice from an OpenAI ChatCompletion response.
+        Only supports responses with a single choice. Raises an error if multiple choices exist.
+
+        :param response: The ChatCompletion response from OpenAI.
+        :return: The text content of the first message in the response.
+        :raises MLRunInvalidArgumentError: If the response contains more than one choice.
         """
         if len(response.choices) != 1:
             raise mlrun.errors.MLRunInvalidArgumentError(

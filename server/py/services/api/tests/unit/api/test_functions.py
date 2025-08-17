@@ -32,6 +32,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import tests.conftest
+from mlrun.common.types import AuthenticationMode
 
 import framework.api.utils
 import framework.utils.clients.async_nuclio
@@ -45,7 +46,6 @@ import services.api.crud
 import services.api.tests.unit.api.utils
 import services.api.utils.builder
 import services.api.utils.functions
-from framework.utils.auth.verifier import AuthenticationMode
 from services.api.daemon import daemon
 
 PROJECT = "project-name"

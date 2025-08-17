@@ -21,20 +21,12 @@ import fastapi
 import mlrun
 import mlrun.common.schemas
 import mlrun.utils.singleton
-from mlrun.common.types import StrEnum
+from mlrun.common.types import AuthenticationMode
 
 import framework.utils.auth.providers.nop
 import framework.utils.auth.providers.opa
 import framework.utils.clients.iguazio.v3
 import framework.utils.clients.iguazio.v4
-
-
-class AuthenticationMode(StrEnum):
-    NONE = "none"
-    BASIC = "basic"
-    BEARER = "bearer"
-    IGUAZIO = "iguazio"
-    IGUAZIO_V4 = "iguazio-v4"
 
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):

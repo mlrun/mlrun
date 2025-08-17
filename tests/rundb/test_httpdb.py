@@ -38,6 +38,7 @@ import mlrun.artifacts.base
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
@@ -1213,6 +1214,9 @@ def test_store_alert_config_missing_alert_name(
 def test_store_secret_token_invalid_inputs(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
+    mlrun.mlconf.httpdb.authentication.mode = (
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+    )
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError, match="No secret token provided"
@@ -1224,6 +1228,9 @@ def test_store_secret_token_invalid_inputs(create_server):
 def test_store_secret_tokens_invalid_inputs(create_server, secret_tokens):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
+    mlrun.mlconf.httpdb.authentication.mode = (
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+    )
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError, match="No secret tokens provided"

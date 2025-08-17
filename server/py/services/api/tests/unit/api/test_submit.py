@@ -27,13 +27,13 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.constants as mlrun_constants
 from mlrun.common.schemas import AuthInfo
+from mlrun.common.types import AuthenticationMode
 from mlrun.config import config as mlconf
 
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.k8s
 import services.api.tests.unit.api.utils
-from framework.utils.auth.verifier import AuthenticationMode
 from services.api.daemon import daemon
 from services.api.tests.unit.conftest import K8sSecretsMock
 

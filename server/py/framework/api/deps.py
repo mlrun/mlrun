@@ -96,9 +96,8 @@ def expose_internal_endpoints(request: Request):
             )
 
 
-def require_iguazio_v4(request: Request):
+def iguazio_v4_only(request: Request):
     if mlrun.mlconf.httpdb.authentication.mode != AuthenticationMode.IGUAZIO_V4:
         raise mlrun.errors.MLRunBadRequestError(
-            f"This endpoint is only supported when mlrun.mlconf.httpdb.authentication.mode='iguazio-v4', "
-            f"but current mode is '{mlrun.mlconf.httpdb.authentication.mode}'."
+            "This endpoint is only supported in an Iguazio V4 system."
         )

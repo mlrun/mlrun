@@ -80,14 +80,13 @@ def bool2str(val):
     return "yes" if val else "no"
 
 
-def require_iguazio_v4(function):
+def iguazio_v4_only(function):
     @functools.wraps(function)
     def wrapper(*args, **kwargs):
         authentication_mode = mlrun.mlconf.httpdb.authentication.mode
         if authentication_mode != AuthenticationMode.IGUAZIO_V4:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"This method is only supported when mlrun.authentication.mode='iguazio-v4', "
-                f"but current mode is '{authentication_mode}'."
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
             )
         return function(*args, **kwargs)
 
@@ -5035,7 +5034,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return mlrun.common.schemas.ProjectSummary(**response.json())
 
-    @require_iguazio_v4
+    @iguazio_v4_only
     def store_secret_token(
         self,
         secret_token: mlrun.common.schemas.SecretToken,
@@ -5070,7 +5069,7 @@ class HTTPRunDB(RunDBInterface):
             )
         return response
 
-    @require_iguazio_v4
+    @iguazio_v4_only
     def store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],

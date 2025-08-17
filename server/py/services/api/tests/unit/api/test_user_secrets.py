@@ -23,11 +23,11 @@ from mlrun.common.types import AuthenticationMode
 API_USER_SECRETS_PATH = "user-secrets"
 
 
-def test_require_iguazio_v4_dependency(db: Session, client: TestClient):
+def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
     # Force unsupported auth mode
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.BASIC
 
-    # Pick an endpoint that includes the require_iguazio_v4 dependency
+    # Pick an endpoint that includes the iguazio_v4_only dependency
     response = client.put("/user-secrets/tokens", json=[])
 
     assert response.status_code == HTTPStatus.BAD_REQUEST.value

@@ -146,7 +146,7 @@ api_router.include_router(
 api_router.include_router(
     user_secrets.router,
     tags=["user-secrets"],
-    dependencies=[Depends(deps.authenticate_request), Depends(deps.require_iguazio_v4)],
+    dependencies=[Depends(deps.authenticate_request), Depends(deps.iguazio_v4_only)],
 )
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])

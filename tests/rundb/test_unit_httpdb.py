@@ -354,8 +354,8 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.BASIC
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     method = getattr(db, method_name)
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+    with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc_info:
         method(None)
-    assert "only supported when mlrun.authentication.mode='iguazio-v4'" in str(
+    assert "This method is only supported in an Iguazio V4 system" in str(
         exc_info.value
     )

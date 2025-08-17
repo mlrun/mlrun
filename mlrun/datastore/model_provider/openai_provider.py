@@ -244,10 +244,10 @@ class OpenAIProvider(ModelProvider):
             if invoke_response_format == InvokeResponseFormat.STRING:
                 return str_response
             if invoke_response_format == InvokeResponseFormat.USAGE:
-                stats = response.to_dict()["usage"]
+                usage = response.to_dict()["usage"]
                 response = {
                     UsageResponseKeys.ANSWER: str_response,
-                    UsageResponseKeys.USAGE: stats,
+                    UsageResponseKeys.USAGE: usage,
                 }
         return response
 
@@ -281,12 +281,12 @@ class OpenAIProvider(ModelProvider):
             Specifies the format of the returned response. Options:
 
             - "string": Returns only the generated text content, taken from a single response.
-            - "stats": Combines the generated text with metadata (e.g., token usage), returning a dictionary::
+            - "usage": Combines the generated text with metadata (e.g., token usage), returning a dictionary::
 
                 .. code-block:: json
                    {
                        "answer": "<generated_text>",
-                       "stats": <ChatCompletion>.to_dict()["usage"]
+                       "usage": <ChatCompletion>.to_dict()["usage"]
                    }
 
             - "full": Returns the full OpenAI `ChatCompletion` object.
@@ -335,12 +335,12 @@ class OpenAIProvider(ModelProvider):
             Specifies the format of the returned response. Options:
 
             - "string": Returns only the generated text content, taken from a single response.
-            - "stats": Combines the generated text with metadata (e.g., token usage), returning a dictionary::
+            - "usage": Combines the generated text with metadata (e.g., token usage), returning a dictionary::
 
                 .. code-block:: json
                    {
                        "answer": "<generated_text>",
-                       "stats": <ChatCompletion>.to_dict()["usage"]
+                       "usage": <ChatCompletion>.to_dict()["usage"]
                    }
 
             - "full": Returns the full OpenAI `ChatCompletion` object.

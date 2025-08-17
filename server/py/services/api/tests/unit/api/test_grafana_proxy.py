@@ -26,11 +26,11 @@ import mlrun
 import mlrun.common.schemas.model_monitoring
 import mlrun.utils
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
+from mlrun.common.types import AuthenticationMode
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.v3io_clients import get_frames_client
 
 import framework.utils.clients.iguazio.v3
-from framework.utils.auth.verifier import AuthenticationMode
 from services.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
     validate_query_parameters,

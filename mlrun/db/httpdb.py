@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import enum
+import functools
 import http
 import re
 import time
@@ -44,6 +45,7 @@ import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
+from mlrun.common.types import AuthenticationMode
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun_pipelines.utils import compile_pipeline
@@ -76,6 +78,19 @@ _artifact_keys = [
 
 def bool2str(val):
     return "yes" if val else "no"
+
+
+def iguazio_v4_only(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        authentication_mode = mlrun.mlconf.httpdb.authentication.mode
+        if authentication_mode != AuthenticationMode.IGUAZIO_V4:
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
+            )
+        return function(*args, **kwargs)
+
+    return wrapper
 
 
 class HTTPRunDB(RunDBInterface):
@@ -5049,6 +5064,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return mlrun.common.schemas.ProjectSummary(**response.json())
 
+    @iguazio_v4_only
     def store_secret_token(
         self,
         secret_token: mlrun.common.schemas.SecretToken,
@@ -5083,6 +5099,7 @@ class HTTPRunDB(RunDBInterface):
             )
         return response
 
+    @iguazio_v4_only
     def store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],

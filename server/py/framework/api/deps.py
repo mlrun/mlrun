@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.schemas
+from mlrun.common.types import AuthenticationMode
 
 import framework.db.session
 import framework.utils.auth.verifier
@@ -93,3 +94,10 @@ def expose_internal_endpoints(request: Request):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 "Internal endpoints are not exposed"
             )
+
+
+def iguazio_v4_only(request: Request):
+    if mlrun.mlconf.httpdb.authentication.mode != AuthenticationMode.IGUAZIO_V4:
+        raise mlrun.errors.MLRunBadRequestError(
+            "This endpoint is only supported in an Iguazio V4 system."
+        )

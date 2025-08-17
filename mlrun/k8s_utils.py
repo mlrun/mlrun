@@ -232,6 +232,54 @@ def validate_node_selectors(
     return True
 
 
+def sanitize_scheduling_configuration(
+    node_selector: typing.Optional[dict[str, str]] = None,
+    tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
+    affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
+) -> tuple[
+    typing.Optional[dict[str, str]],
+    typing.Optional[list[dict]],
+    typing.Optional[dict],
+]:
+    """
+    Sanitizes pod scheduling configuration for serialization.
+
+    Takes node selector, affinity, and tolerations and converts them to
+    JSON-serializable dictionaries using the Kubernetes API client's
+    sanitization method.
+
+    Args:
+        node_selector: Label selector for node selection
+        affinity: Pod affinity/anti-affinity rules
+        tolerations: List of toleration rules
+
+    Returns:
+        Tuple of (sanitized_node_selector, sanitized_affinity, sanitized_tolerations)
+        - node_selector: Returns as-is (already a dict) or None
+        - affinity: Sanitized dict representation or None
+        - tolerations: List of sanitized dict representations or None
+    """
+    api_client = kubernetes.client.ApiClient()
+
+    # Node selector is already a dict, so just return it as-is
+    sanitized_node_selector = node_selector
+
+    # Sanitize affinity if provided
+    sanitized_affinity = None
+    if affinity is not None:
+        sanitized_affinity = api_client.sanitize_for_serialization(affinity)
+
+    # Sanitize tolerations if provided
+    sanitized_tolerations = None
+    if tolerations is not None:
+        sanitized_tolerations = [
+            api_client.sanitize_for_serialization(toleration)
+            for toleration in tolerations
+        ]
+
+    return sanitized_node_selector, sanitized_tolerations, sanitized_affinity
+
+
 def enrich_preemption_mode(
     preemption_mode: typing.Optional[str],
     node_selector: dict[str, str],
@@ -304,54 +352,6 @@ def _safe_copy_tolerations(
         )
         for toleration in tolerations
     ]
-
-
-def sanitize_scheduling_configuration(
-    node_selector: typing.Optional[dict[str, str]] = None,
-    tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
-    affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-) -> tuple[
-    typing.Optional[dict[str, str]],
-    typing.Optional[list[dict]],
-    typing.Optional[dict],
-]:
-    """
-    Sanitizes pod scheduling configuration for serialization.
-
-    Takes node selector, affinity, and tolerations and converts them to
-    JSON-serializable dictionaries using the Kubernetes API client's
-    sanitization method.
-
-    Args:
-        node_selector: Label selector for node selection
-        affinity: Pod affinity/anti-affinity rules
-        tolerations: List of toleration rules
-
-    Returns:
-        Tuple of (sanitized_node_selector, sanitized_affinity, sanitized_tolerations)
-        - node_selector: Returns as-is (already a dict) or None
-        - affinity: Sanitized dict representation or None
-        - tolerations: List of sanitized dict representations or None
-    """
-    api_client = kubernetes.client.ApiClient()
-
-    # Node selector is already a dict, so just return it as-is
-    sanitized_node_selector = node_selector
-
-    # Sanitize affinity if provided
-    sanitized_affinity = None
-    if affinity is not None:
-        sanitized_affinity = api_client.sanitize_for_serialization(affinity)
-
-    # Sanitize tolerations if provided
-    sanitized_tolerations = None
-    if tolerations is not None:
-        sanitized_tolerations = [
-            api_client.sanitize_for_serialization(toleration)
-            for toleration in tolerations
-        ]
-
-    return sanitized_node_selector, sanitized_tolerations, sanitized_affinity
 
 
 def _safe_copy_affinity(affinity):

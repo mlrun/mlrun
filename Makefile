@@ -554,9 +554,9 @@ test: clean ## Run mlrun tests
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
 		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
-		"),$(if $(filter $(MLRUN_PYTHON_VERSION),3.9),$$(echo "\
+	"),$(if $(filter $(MLRUN_PYTHON_VERSION),3.9),$$(echo "\
 		--ignore=server/py/services/api/tests/unit/utils/clients/iguazio/test_iguazio_v4.py \
-		"),))
+	"),));\
 	python \
 		-X faulthandler \
 		-m pytest -v \

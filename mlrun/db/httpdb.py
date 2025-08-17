@@ -123,7 +123,8 @@ class HTTPRunDB(RunDBInterface):
     ]
 
     NON_RETRIABLE_PATHS = [
-        r"user-secrets/tokens",
+        # Storing user secret tokens is not idempotent — retrying the request may result inconsistent secret storage.
+        r"\/?user-secrets/tokens",
     ]
 
     def __init__(self, url):
@@ -287,10 +288,9 @@ class HTTPRunDB(RunDBInterface):
 
         retry_on_post = self._is_retry_on_post_allowed(method, path)
 
-        # PUT retries are allowed unless the path is in NON_RETRIABLE_PATHS
         retry_on_put = self._is_retry_put_allowed(method, path)
 
-        # if the method is POST or PUST, we need to update the session with the appropriate retry policy
+        # if the method is POST or PUT, we need to update the session with the appropriate retry policy
         if not self.session or method in ("POST", "PUT"):
             self.session = self._init_session(retry_on_post, retry_on_put)
 

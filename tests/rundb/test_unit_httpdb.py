@@ -237,6 +237,7 @@ def test_resolve_artifacts_to_tag_objects():
         # non-retriable
         ("POST", "/not/retriable", 1),
         ("PUT", "user-secrets/tokens", 1),
+        ("PUT", "/user-secrets/tokens", 1),
     ],
 )
 def test_retriable_requests(method, path, call_amount):

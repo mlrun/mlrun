@@ -36,6 +36,9 @@ class HuggingFaceProvider(ModelProvider):
     This class extends the ModelProvider base class and implements Hugging Face-specific
     functionality, including pipeline initialization, default text generation operations,
     and custom operations tailored to the Hugging Face Transformers pipeline API.
+
+    Note: The pipeline object will download the model (if not already cached) and load it
+    into memory for inference. Ensure you have the required CPU/GPU and memory to use this operation.
     """
 
     def __init__(
@@ -203,23 +206,38 @@ class HuggingFaceProvider(ModelProvider):
         self, operation: Optional["Pipeline"] = None, **invoke_kwargs
     ) -> Union[list, dict, Any]:
         """
-        HuggingFace implementation of `ModelProvider.custom_invoke`.
-        Use the default config in provider client/ user defined client:
+        Invokes a HuggingFace pipeline operation with the given keyword arguments.
+
+        This method provides flexibility to use a custom pipeline object for specific tasks
+        (e.g., image classification, sentiment analysis).
+
+        The operation must be a Pipeline object from the transformers library that accepts keyword arguments.
 
         Example:
-        ```python
+            ```python
+            from transformers import pipeline
+            from PIL import Image
+
+            # Using custom pipeline for image classification
             image = Image.open(image_path)
-            pipeline_object =  pipeline("image-classification", model="microsoft/resnet-50")
+            pipeline_object = pipeline("image-classification", model="microsoft/resnet-50")
             result = hf_provider.custom_invoke(
                 pipeline_object,
                 inputs=image,
             )
-        ```
+            ```
 
+        :param operation:      A Pipeline object from the transformers library.
+                               If not provided, defaults to the provider's configured pipeline.
+        :param invoke_kwargs:  Keyword arguments to pass to the pipeline operation.
+                               These are merged with `default_invoke_kwargs` and may include
+                               parameters such as `inputs`, `max_length`, `temperature`, or task-specific options.
 
-        :param operation:               A pipeline object
-        :param invoke_kwargs:           Keyword arguments to pass to the operation.
-        :return:                        The full response returned by the operation.
+        :return:               The full response returned by the pipeline operation.
+                               Format depends on the pipeline task (list for text generation,
+                               dict for classification, etc.).
+
+        :raises MLRunInvalidArgumentError: If the operation is not a valid Pipeline object.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -239,59 +257,59 @@ class HuggingFaceProvider(ModelProvider):
         **invoke_kwargs,
     ) -> Union[str, list, dict[str, Any]]:
         """
-    HuggingFace-specific implementation of model invocation using the synchronous pipeline client.
-    Invokes a HuggingFace model operation for text generation tasks.
+        HuggingFace-specific implementation of model invocation using the synchronous pipeline client.
+        Invokes a HuggingFace model operation for text generation tasks.
 
-    Note: Ensure your environment has sufficient computational resources (CPU/GPU and memory) to run the model.
+        Note: Ensure your environment has sufficient computational resources (CPU/GPU and memory) to run the model.
 
-    :param messages:
-        Input for the text generation model. Can be provided in multiple formats:
+        :param messages:
+            Input for the text generation model. Can be provided in multiple formats:
 
-        - A single string: Direct text input for generation
-        - A list of strings: Multiple text inputs for batch processing
-        - Chat format: A list of dictionaries with "role" and "content" keys:
+            - A single string: Direct text input for generation
+            - A list of strings: Multiple text inputs for batch processing
+            - Chat format: A list of dictionaries with "role" and "content" keys:
 
-        .. code-block:: json
+            .. code-block:: json
 
-            [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "What is the capital of France?"}
-            ]
+                [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "What is the capital of France?"}
+                ]
 
-    :param invoke_response_format: InvokeResponseFormat
-        Specifies the format of the returned response. Options:
+        :param invoke_response_format: InvokeResponseFormat
+            Specifies the format of the returned response. Options:
 
-        - "string": Returns only the generated text content, extracted from a single response.
-        - "usage":  Combines the generated text with metadata (e.g., token usage), returning a dictionary:
+            - "string": Returns only the generated text content, extracted from a single response.
+            - "usage":  Combines the generated text with metadata (e.g., token usage), returning a dictionary:
 
-        .. code-block:: json
-            {
-                "answer": "<generated_text>",
-                "usage": {
-                    "prompt_tokens": <int>,
-                    "completion_tokens": <int>,
-                    "total_tokens": <int>
+            .. code-block:: json
+                {
+                    "answer": "<generated_text>",
+                    "usage": {
+                        "prompt_tokens": <int>,
+                        "completion_tokens": <int>,
+                        "total_tokens": <int>
+                    }
                 }
-            }
 
-        Note: For usage mode, the model tokenizer should support apply_chat_template.
+            Note: For usage mode, the model tokenizer should support apply_chat_template.
 
-        - "full":   Returns the raw response object from the HuggingFace model,
-                    typically a list of generated sequences (dictionaries).
-                    This format does not include token usage statistics.
+            - "full":   Returns the raw response object from the HuggingFace model,
+                        typically a list of generated sequences (dictionaries).
+                        This format does not include token usage statistics.
 
-    :param invoke_kwargs:
-        Additional keyword arguments passed to the HuggingFace pipeline.
+        :param invoke_kwargs:
+            Additional keyword arguments passed to the HuggingFace pipeline.
 
-    :return:
-        A string, dictionary, or list of model outputs, depending on `invoke_response_format`.
+        :return:
+            A string, dictionary, or list of model outputs, depending on `invoke_response_format`.
 
-    :raises MLRunInvalidArgumentError:
-        If the pipeline task is not "text-generation" or if the response contains multiple outputs when extracting
-        string content.
-    :raises MLRunRuntimeError:
-        If using "usage" response mode and the model tokenizer does not support chat template formatting.
-    """
+        :raises MLRunInvalidArgumentError:
+            If the pipeline task is not "text-generation" or if the response contains multiple outputs when extracting
+            string content.
+        :raises MLRunRuntimeError:
+            If using "usage" response mode and the model tokenizer does not support chat template formatting.
+        """
         if self.client.task != "text-generation":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "HuggingFaceProvider.invoke supports text-generation task only"

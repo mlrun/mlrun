@@ -264,7 +264,10 @@ class OpenAIProvider(ModelProvider):
         :param messages:
             A list of dictionaries representing the conversation history or input messages.
             Each dictionary should follow the format::
-                {"role": "system" | "user" | "assistant", "content": "Message content as a string"}
+                {
+                    "role": "system" | "user" | "assistant",
+                    "content": "Message content as a string",
+                }
 
             Example:
 
@@ -318,7 +321,10 @@ class OpenAIProvider(ModelProvider):
         :param messages:
             A list of dictionaries representing the conversation history or input messages.
             Each dictionary should follow the format::
-                {"role": "system" | "user" | "assistant", "content": "Message content as a string"}
+                {
+                    "role": "system" | "user" | "assistant",
+                    "content": "Message content as a string",
+                }
 
             Example:
 

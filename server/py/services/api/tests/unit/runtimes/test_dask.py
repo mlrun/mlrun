@@ -503,7 +503,6 @@ class TestDaskRuntime(TestRuntimeBase):
             function_label_name: function_label_val,
             config_label_name: config_label_val,
         }
-
         expected_affinity = k8s_client.V1Affinity(
             node_affinity=k8s_client.V1NodeAffinity(
                 required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
@@ -531,7 +530,13 @@ class TestDaskRuntime(TestRuntimeBase):
                 function, secrets, client_version, client_python_version
             )
         )
-
+        expected_node_selector, _, expected_affinity = (
+            mlrun.k8s_utils.sanitize_scheduling_configuration(
+                node_selector=expected_node_selector,
+                tolerations=None,
+                affinity=expected_affinity,
+            )
+        )
         assert scheduler_pod.metadata.namespace == namespace
         assert worker_pod.metadata.namespace == namespace
         assert scheduler_pod.metadata.labels == expected_labels

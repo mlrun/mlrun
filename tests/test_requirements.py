@@ -156,23 +156,30 @@ def test_requirement_specifiers_convention():
         "dask[array,dataframe,distributed]": {
             '~=2023.12.1; python_version < "3.11"',
         },
-        "dask": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
-        },
-        "distributed": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
-        },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',
             '~=2024.4.4; python_version >= "3.11"',
         },
-        "dask[complete]": {
-            '~=2024.12.1; python_version >= "3.11"',
+        "dask": {
+            '~=2023.12.1; python_version < "3.11"',
+            '~=2024.8.0; python_version >= "3.11"',
         },
-        "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
-        "grpcio": {"~=1.74.0"},
+        "dask[complete]": {
+            '~=2024.8.0; python_version >= "3.11"',
+        },
+        "distributed": {
+            '~=2023.12.1; python_version < "3.11"',
+            '~=2024.8.0; python_version >= "3.11"',
+        },
+        "grpcio": {
+            '~=1.74.0; python_version > "3.9"',
+        },
+        "mlrun_pipelines_kfp_v1_8[kfp]": {
+            ">=0.5.7",
+        },
+        "v3io-frames": {
+            '>=0.13.9; python_version >= "3.11"',
+        },
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
         "urllib3": {
@@ -215,21 +222,21 @@ def test_requirement_specifiers_inconsistencies():
         # on the other hand, mlrun client can have both and thus the inconsistency
         "pydantic": {">=1,<2", ">=1.10.15"},
         # packages that require specific versions per python version
+        "dask": {
+            '~=2023.12.1; python_version < "3.11"',
+            '~=2024.8.0; python_version >= "3.11"',
+        },
+        "distributed": {
+            '~=2023.12.1; python_version < "3.11"',
+            '~=2024.8.0; python_version >= "3.11"',
+        },
         "v3io-frames": {
-            '>=0.13.0; python_version >= "3.11"',
+            '>=0.13.9; python_version >= "3.11"',
             '~=0.10.14; python_version < "3.11"',
         },
         "dask-ml": {
             '~=2024.4.4; python_version >= "3.11"',
             '~=1.4,<1.9.0; python_version < "3.11"',
-        },
-        "dask": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
-        },
-        "distributed": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
         },
         "urllib3": {
             '>=1.26.20; python_version < "3.11"',

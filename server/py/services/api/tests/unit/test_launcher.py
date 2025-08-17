@@ -23,12 +23,12 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
+from mlrun.common.types import AuthenticationMode
 from mlrun.config import Config
 
 import framework.utils.clients.iguazio.v3
 import services.api.launcher
 import services.api.tests.unit.api.utils
-from framework.utils.auth.verifier import AuthenticationMode
 
 
 @pytest.mark.parametrize(

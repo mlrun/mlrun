@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import enum
+import functools
 import http
 import re
 import time
@@ -44,6 +45,7 @@ import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
+from mlrun.common.types import AuthenticationMode
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun_pipelines.utils import compile_pipeline
@@ -76,6 +78,19 @@ _artifact_keys = [
 
 def bool2str(val):
     return "yes" if val else "no"
+
+
+def iguazio_v4_only(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        authentication_mode = mlrun.mlconf.httpdb.authentication.mode
+        if authentication_mode != AuthenticationMode.IGUAZIO_V4:
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
+            )
+        return function(*args, **kwargs)
+
+    return wrapper
 
 
 class HTTPRunDB(RunDBInterface):
@@ -120,6 +135,11 @@ class HTTPRunDB(RunDBInterface):
     RETRIABLE_POST_PATHS = [
         r"\/?projects\/.+\/artifacts\/.+\/.+",
         r"\/?run\/.+\/.+",
+    ]
+
+    NON_RETRIABLE_PATHS = [
+        # Storing user secret tokens is not idempotent — retrying the request may result inconsistent secret storage.
+        r"\/?user-secrets/tokens",
     ]
 
     def __init__(self, url):
@@ -281,10 +301,13 @@ class HTTPRunDB(RunDBInterface):
                     if isinstance(dict_[key], enum.Enum):
                         dict_[key] = dict_[key].value
 
-        # if the method is POST, we need to update the session with the appropriate retry policy
-        if not self.session or method == "POST":
-            retry_on_post = self._is_retry_on_post_allowed(method, path)
-            self.session = self._init_session(retry_on_post)
+        retry_on_post = self._is_retry_on_post_allowed(method, path)
+
+        retry_on_put = self._is_retry_put_allowed(method, path)
+
+        # if the method is POST or PUT, we need to update the session with the appropriate retry policy
+        if not self.session or method in ("POST", "PUT"):
+            self.session = self._init_session(retry_on_post, retry_on_put)
 
         try:
             response = self.session.request(
@@ -400,11 +423,12 @@ class HTTPRunDB(RunDBInterface):
             data.extend(response.json().get(key, []))
         return data, page_token
 
-    def _init_session(self, retry_on_post: bool = False):
+    def _init_session(self, retry_on_post: bool = False, retry_on_put: bool = True):
         return mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=config.httpdb.retry_api_call_on_exception
             == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
             retry_on_post=retry_on_post,
+            retry_on_put=retry_on_put,
         )
 
     def _path_of(self, resource, project, uid=None):
@@ -425,6 +449,27 @@ class HTTPRunDB(RunDBInterface):
         return method == "POST" and any(
             re.match(regex, path) for regex in self.RETRIABLE_POST_PATHS
         )
+
+    def _is_retry_put_allowed(self, method: str, path: str) -> bool:
+        """
+        Determine if PUT request to the given path should be retried.
+
+        :param method: HTTP method
+        :param path: API path to check
+        :return: True if retry is allowed, False otherwise
+        """
+        if method != "PUT":
+            return True
+
+        # Strip query parameters and fragment if present
+        parsed_path = urlparse(path).path.lstrip("/")
+
+        # If the path matches a non-retriable path, do not allow retry
+        for regex in self.NON_RETRIABLE_PATHS:
+            if re.fullmatch(regex, parsed_path):
+                return False
+
+        return True
 
     def connect(self, secrets=None):
         """Connect to the MLRun API server. Must be called prior to executing any other method.
@@ -5019,6 +5064,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return mlrun.common.schemas.ProjectSummary(**response.json())
 
+    @iguazio_v4_only
     def store_secret_token(
         self,
         secret_token: mlrun.common.schemas.SecretToken,
@@ -5053,6 +5099,7 @@ class HTTPRunDB(RunDBInterface):
             )
         return response
 
+    @iguazio_v4_only
     def store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],

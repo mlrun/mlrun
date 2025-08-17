@@ -897,7 +897,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             required = None
 
             if affinity and affinity.get("nodeAffinity"):
-                required = affinity.get("nodeAffinity").get("requiredDuringSchedulingIgnoredDuringExecution")
+                required = affinity.get("nodeAffinity").get(
+                    "requiredDuringSchedulingIgnoredDuringExecution"
+                )
 
             if expect_anti_affinity:
                 # Required anti-affinity should be present and non-empty

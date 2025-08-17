@@ -813,10 +813,9 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
             def _handle_affinity(affinity):
                 if hasattr(affinity, "to_dict"):
                     # It's a V1Affinity object - convert to dict
-                    affinity = api_client.sanitize_for_serialization(
-                        affinity
-                    )
+                    affinity = api_client.sanitize_for_serialization(affinity)
                 return affinity
+
             pod_affinity = _handle_affinity(pod.spec.affinity)
             expected_affinity = _handle_affinity(expected_affinity)
             assert (
@@ -828,6 +827,7 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
                 == {}
             )
         if expected_tolerations:
+
             def _handle_tolerations(tolerations):
                 for toleration in tolerations:
                     res = []

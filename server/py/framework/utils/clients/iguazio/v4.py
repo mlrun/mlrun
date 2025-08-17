@@ -11,11 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import sys
 import typing
 
 import httpx
-import iguazio
-from iguazio.schemas.v1.resources.access_token import RefreshAccessTokenOptions
+
+# iguazio package is only supported in Python >= 3.11
+if sys.version_info >= (3, 11):
+    import iguazio
+    from iguazio.schemas.v1.resources.access_token import RefreshAccessTokenOptions
 
 import mlrun.common.schemas
 import mlrun.common.types
@@ -31,6 +35,10 @@ _GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
 class Client(BaseClient):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        if sys.version_info < (3, 11):
+            raise mlrun.errors.MLRunRuntimeError(
+                "The 'iguazio' client is only supported in Python >= 3.11"
+            )
         self._client = iguazio.Client(api_url=self._api_url, auto_login=False)
 
     def refresh_access_token(
@@ -99,7 +107,7 @@ class Client(BaseClient):
 
     def _extract_response_error(
         self, response: httpx.Response
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[typing.Optional[str], typing.Optional[str]]:
         """
         Extracts 'errorMessage' and 'ctx' from an Iguazio HTTP response.
 

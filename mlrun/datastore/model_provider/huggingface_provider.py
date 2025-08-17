@@ -113,7 +113,7 @@ class HuggingFaceProvider(ModelProvider):
 
         :return: The result formatted according to the `invoke_response_format`.
 
-        :raises MLRunInvalidArgumentError: If extracting the string response fails.
+        :raises MLRunInvalidArgumentError: if the response contains multiple outputs when extracting string content.
         :raises MLRunRuntimeError: If applying the chat template to the model fails.
         """
         if InvokeResponseFormat.is_str_response(invoke_response_format.value):
@@ -222,40 +222,59 @@ class HuggingFaceProvider(ModelProvider):
         **invoke_kwargs,
     ) -> Union[str, list, dict[str, Any]]:
         """
-        HuggingFace-specific implementation of `ModelProvider.invoke`.
-        Invokes a HuggingFace model operation using the synchronous client.
-        For full details, see `ModelProvider.invoke`.
+    HuggingFace-specific implementation of model invocation using the synchronous pipeline client.
+    Invokes a HuggingFace model operation for text generation tasks.
 
-        :param messages:
-            Same as `ModelProvider.invoke`.
+    Note: Ensure your environment has sufficient computational resources (CPU/GPU and memory) to run the model.
 
-        :param invoke_response_format: InvokeResponseFormat
-            Specifies the format of the returned response. Options:
+    :param messages:
+        Input for the text generation model. Can be provided in multiple formats:
 
-            - "string": Returns only the generated text content, extracted from a single response.
-            - "usage":  Combines the generated text with metadata (e.g., token usage), returning a dictionary:
+        - A single string: Direct text input for generation
+        - A list of strings: Multiple text inputs for batch processing
+        - Chat format: A list of dictionaries with "role" and "content" keys:
 
-            .. code-block:: json
-                {
-                    "answer": "<generated_text>",
-                    "usage": {
-                        "prompt_tokens": <int>,
-                        "completion_tokens": <int>,
-                        "total_tokens": <int>
-                    }
+        .. code-block:: json
+
+            [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "What is the capital of France?"}
+            ]
+
+    :param invoke_response_format: InvokeResponseFormat
+        Specifies the format of the returned response. Options:
+
+        - "string": Returns only the generated text content, extracted from a single response.
+        - "usage":  Combines the generated text with metadata (e.g., token usage), returning a dictionary:
+
+        .. code-block:: json
+            {
+                "answer": "<generated_text>",
+                "usage": {
+                    "prompt_tokens": <int>,
+                    "completion_tokens": <int>,
+                    "total_tokens": <int>
                 }
+            }
 
-            - "full":   Returns the raw response object from the HuggingFace model,
-                        typically a list of generated sequences (dictionaries).
-                        This format does not include token usage statistics.
+        Note: For usage mode, the model tokenizer should support apply_chat_template.
 
-        :param invoke_kwargs:
-            Additional keyword arguments passed to the HuggingFace client. Same as in `ModelProvider.invoke`.
+        - "full":   Returns the raw response object from the HuggingFace model,
+                    typically a list of generated sequences (dictionaries).
+                    This format does not include token usage statistics.
 
-        :return:
-            A string, dictionary, or list of model outputs, depending on `invoke_response_format`.
-        """
+    :param invoke_kwargs:
+        Additional keyword arguments passed to the HuggingFace pipeline.
 
+    :return:
+        A string, dictionary, or list of model outputs, depending on `invoke_response_format`.
+
+    :raises MLRunInvalidArgumentError:
+        If the pipeline task is not "text-generation" or if the response contains multiple outputs when extracting
+        string content.
+    :raises MLRunRuntimeError:
+        If using "usage" response mode and the model tokenizer does not support chat template formatting.
+    """
         if self.client.task != "text-generation":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "HuggingFaceProvider.invoke supports text-generation task only"

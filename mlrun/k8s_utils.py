@@ -382,10 +382,8 @@ def _handle_prevent_mode(
     typing.Optional[kubernetes.client.V1Affinity],
 ]:
     # Ensure no preemptible node tolerations
-    original_count = len(tolerations)
-    tolerations = [
-        t for t in tolerations if not _toleration_in_list(t, preemptible_tolerations)
-    ]
+    tolerations = [t for t in tolerations if t not in preemptible_tolerations]
+
     # Purge affinity preemption-related configuration
     affinity = _prune_affinity_node_selector_requirement(
         generate_preemptible_node_selector_requirements(
@@ -410,27 +408,6 @@ def _handle_prevent_mode(
         )
 
     return node_selector, tolerations, affinity
-
-
-def _tolerations_equal(toleration1, toleration2):
-    """
-    Compare two tolerations for equality based on their key fields.
-    This handles the case where objects have been recreated after serialization.
-    """
-    return (
-        toleration1.key == toleration2.key
-        and toleration1.value == toleration2.value
-        and toleration1.operator == toleration2.operator
-        and toleration1.effect == toleration2.effect
-        and toleration1.toleration_seconds == toleration2.toleration_seconds
-    )
-
-
-def _toleration_in_list(toleration, toleration_list):
-    """
-    Check if a toleration exists in a list of tolerations using field-based comparison.
-    """
-    return any(_tolerations_equal(toleration, t) for t in toleration_list)
 
 
 def _handle_constrain_mode(

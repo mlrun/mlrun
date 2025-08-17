@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import datetime
 import json
 import logging
@@ -352,6 +353,21 @@ class SystemTestPreparer:
             "MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL": "0 Seconds",
             # to allow batch_function to have parquet files sooner
             "MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS": "100",
+            "MLRUN_PREEMPTIBLE_NODES__NODE_SELECTOR": base64.b64encode(
+                json.dumps({"app.iguazio.com/lifecycle": "preemptible"}).encode("utf-8")
+            ).decode("utf-8"),
+            "MLRUN_PREEMPTIBLE_NODES__TOLERATIONS": base64.b64encode(
+                json.dumps(
+                    [
+                        {
+                            "key": "app.iguazio.com/lifecycle",
+                            "operator": "Equal",
+                            "value": "preemptible",
+                            "effect": "NoSchedule",
+                        }
+                    ]
+                ).encode("utf-8")
+            ).decode("utf-8"),
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"

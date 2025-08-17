@@ -18,6 +18,7 @@ import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -25,6 +26,7 @@ from pandas import Timedelta, Timestamp
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version
+import mlrun_pipelines.models
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
@@ -1604,95 +1606,130 @@ def test_format_datetime(dt, expected):
 
 
 @pytest.mark.parametrize(
-    "project_name, end_date, start_date, expected_filter",
+    "input_start_date,"
+    "input_end_date,"
+    "input_existing_filter_json,"
+    "input_experiment_id,"
+    "expected_filter_object",
     [
-        # Specific project, end date only
+        # End date only, no existing filter
         (
-            "test-project",
+            None,
             "2024-11-05T15:30:00Z",
-            "",
-            json.dumps(
-                {
-                    "predicates": [
-                        {
-                            "key": "created_at",
-                            "op": 7,
-                            "timestamp_value": "2024-11-05T15:30:00Z",
-                        },
-                        {"key": "name", "op": 9, "string_value": "test-project"},
-                    ]
-                }
-            ),
+            None,
+            None,
+            {
+                "predicates": [
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
+                        "timestamp_value": "2024-11-05T15:30:00Z",
+                    }
+                ]
+            },
         ),
-        # Wildcard project, end date only
+        # Start and end dates, no existing filter
         (
-            "*",
-            "2024-11-05T15:30:00Z",
-            "",
-            json.dumps(
-                {
-                    "predicates": [
-                        {
-                            "key": "created_at",
-                            "op": 7,
-                            "timestamp_value": "2024-11-05T15:30:00Z",
-                        },
-                    ]
-                }
-            ),
-        ),
-        # Specific project with both start and end dates
-        (
-            "test-project",
-            "2024-11-05T15:30:00Z",
             "2024-10-01T00:00:00Z",
-            json.dumps(
-                {
-                    "predicates": [
-                        {
-                            "key": "created_at",
-                            "op": 7,
-                            "timestamp_value": "2024-11-05T15:30:00Z",
-                        },
-                        {"key": "name", "op": 9, "string_value": "test-project"},
-                        {
-                            "key": "created_at",
-                            "op": 5,
-                            "timestamp_value": "2024-10-01T00:00:00Z",
-                        },
-                    ]
-                }
-            ),
-        ),
-        # Wildcard project with both start and end dates
-        (
-            "*",
             "2024-11-05T15:30:00Z",
-            "2024-10-01T00:00:00Z",
+            None,
+            None,
+            {
+                "predicates": [
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
+                        "timestamp_value": "2024-11-05T15:30:00Z",
+                    },
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.GREATER_THAN_EQUALS.value,
+                        "timestamp_value": "2024-10-01T00:00:00Z",
+                    },
+                ]
+            },
+        ),
+        # Existing filter with a 'name' predicate should be dropped; other predicates preserved
+        (
+            None,
+            "2024-11-05T15:30:00Z",
             json.dumps(
                 {
                     "predicates": [
                         {
-                            "key": "created_at",
-                            "op": 7,
-                            "timestamp_value": "2024-11-05T15:30:00Z",
+                            "key": "name",
+                            "op": mlrun_pipelines.models.FilterOperations.IS_SUBSTRING.value,
+                            "string_value": "test-project",
                         },
                         {
-                            "key": "created_at",
-                            "op": 5,
-                            "timestamp_value": "2024-10-01T00:00:00Z",
+                            "key": "status",
+                            "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
+                            "string_value": "Succeeded",
                         },
                     ]
                 }
             ),
+            None,
+            {
+                "predicates": [
+                    # 'status' preserved
+                    {
+                        "key": "status",
+                        "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
+                        "string_value": "Succeeded",
+                    },
+                    # end_date added
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
+                        "timestamp_value": "2024-11-05T15:30:00Z",
+                    },
+                ]
+            },
+        ),
+        # Experiment ID filter added alongside dates
+        (
+            "2024-10-01T00:00:00Z",
+            "2024-11-05T15:30:00Z",
+            None,
+            "721ff4f8-d465-455e-bdab-a79857a62136",
+            {
+                "predicates": [
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
+                        "timestamp_value": "2024-11-05T15:30:00Z",
+                    },
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.GREATER_THAN_EQUALS.value,
+                        "timestamp_value": "2024-10-01T00:00:00Z",
+                    },
+                    {
+                        "key": "experiment_id",
+                        "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
+                        "string_value": "721ff4f8-d465-455e-bdab-a79857a62136",
+                    },
+                ]
+            },
         ),
     ],
 )
-def test_get_list_runs_filter(project_name, end_date, start_date, expected_filter):
-    generated_filter = mlrun.utils.helpers.get_kfp_list_runs_filter(
-        project_name, end_date, start_date
+def test_get_kfp_list_runs_filter(
+    input_start_date: Optional[str],
+    input_end_date: Optional[str],
+    input_existing_filter_json: Optional[str],
+    input_experiment_id: Optional[str],
+    expected_filter_object: dict,
+):
+    generated_filter_json: str = mlrun.utils.helpers.get_kfp_list_runs_filter(
+        start_date=input_start_date,
+        end_date=input_end_date,
+        filter_=input_existing_filter_json,
+        experiment_id=input_experiment_id,
     )
-    assert json.loads(generated_filter) == json.loads(expected_filter)
+    generated_filter_object = json.loads(generated_filter_json)
+    assert generated_filter_object == expected_filter_object
 
 
 @pytest.mark.parametrize(

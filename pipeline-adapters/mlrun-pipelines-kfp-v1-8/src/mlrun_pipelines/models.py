@@ -200,3 +200,6 @@ class FilterOperations(IntEnum):
     GREATER_THAN_EQUALS = 5
     LESS_THAN = 6
     LESS_THAN_EQUALS = 7
+    IS_SUBSTRING = 9
+    IN = 8
+    NOT_IN = 10

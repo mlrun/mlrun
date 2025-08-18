@@ -558,6 +558,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             k8s_secret = self.read_secret(
                 secret_name=secret_name,
                 namespace=namespace,
+                labels=labels,
             )
         except (
             k8s_dynamic_exceptions.NotFoundError
@@ -581,22 +582,45 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return mlrun.common.schemas.SecretEventActions.updated
 
     def read_secret(
-        self, secret_name: str, namespace: str = "", silent=False
+        self,
+        secret_name: str,
+        namespace: str = "",
+        labels: typing.Optional[dict[str, str]] = None,
+        silent=False,
     ) -> typing.Optional[client.V1Secret]:
         namespace = self.resolve_namespace(namespace)
         if not silent:
-            logger.debug("Reading secret", secret_name=secret_name, namespace=namespace)
+            logger.debug(
+                "Reading secret",
+                secret_name=secret_name,
+                namespace=namespace,
+                labels=labels,
+            )
         try:
             k8s_secret = self.v1api.read_namespaced_secret(
                 name=secret_name,
                 namespace=namespace,
             )
+            if labels:
+                secret_labels = k8s_secret.metadata.labels or {}
+                for key, value in labels.items():
+                    if secret_labels.get(key) != value:
+                        if not silent:
+                            logger.debug(
+                                "Secret found but labels did not match",
+                                secret_name=secret_name,
+                                expected_labels=labels,
+                                actual_labels=secret_labels,
+                            )
+                        return None
         except k8s_client_rest.ApiException as exc:
             if silent:
                 return
             logger.error(
                 "Failed to retrieve k8s secret",
                 secret_name=secret_name,
+                labels=labels,
+                namespace=namespace,
                 exc=mlrun.errors.err_to_str(exc),
             )
             raise k8s_dynamic_exceptions.api_exception(exc)
@@ -1007,12 +1031,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def _hash_access_key(access_key: str):
         return hashlib.sha224(access_key.encode()).hexdigest()
 
-    def create_or_update_user_token_secret(
+    def store_user_token_secret(
         self,
         username: str,
         token_name: str,
         token: str,
         expiration: int,
+        namespace: str = "",
     ) -> mlrun.common.schemas.SecretEventActions:
         """
         Creates or updates a Kubernetes secret for a user's offline token.
@@ -1020,75 +1045,79 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param username: The user who owns the token.
         :param token_name: The logical name for the token.
         :param token: The offline token string (JWT).
-        :param exp: The token's expiration timestamp (int UNIX epoch).
+        :param expiration: The token's expiration timestamp (int UNIX epoch).
+        :param namespace: Kubernetes namespace for the secret.
         :return: SecretEventActions.{created, updated, skipped}
         """
+        namespace = self.resolve_namespace(namespace)
         secret_name = f"mlrun-auth-{username}-{token_name}"
+        labels = {"mlrun/user": username}
 
-        secret_data, labels = self._prepare_token_secret_data_and_labels(
-            username, token_name, token, exp
+        secret_data = self._encode_user_token(token_name, token, expiration)
+
+        # Try to read existing secret (may return None if not found or labels mismatch)
+        k8s_secret = self.read_secret(
+            secret_name=secret_name,
+            namespace=namespace,
+            labels=labels,
+            silent=True,
         )
 
-        try:
-            existing_secret = self._k8s.get_secret(secret_name)
-        except Exception:
-            existing_secret = None
-
-        if existing_secret:
-            existing_data = existing_secret.get("data", {})
-            existing_exp_b64 = existing_data.get("tokenExpiration")
-
-            try:
-                existing_exp = int(base64.b64decode(existing_exp_b64).decode("utf-8"))
-            except Exception:
-                existing_exp = 0  # fallback: force update if invalid
-
-            if exp <= existing_exp:
-                # New token is older or equal — skip update
-                return mlrun.common.schemas.SecretEventActions.skipped
-
-            try:
-                self._k8s.update_secret(secret_name, secret_data, labels)
-                return mlrun.common.schemas.SecretEventActions.updated
-            except Exception as exc:
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"Failed to update secret '{secret_name}': {exc}"
-                ) from exc
-
-        # Secret does not exist — create it
-        try:
-            self._k8s.create_secret(secret_name, secret_data, labels)
+        if not k8s_secret:
+            # Secret does not exist (or labels mismatch) → create it
+            self._create_secret(
+                labels=labels,
+                namespace=namespace,
+                secret_name=secret_name,
+                secrets=secret_data,
+            )
             return mlrun.common.schemas.SecretEventActions.created
-        except Exception as exc:
-            raise MLRunInternalServerError(
-                f"Failed to create secret '{secret_name}': {exc}"
-            ) from exc
 
-    def _prepare_token_secret_data_and_labels(
-        self,
-        username: str,
-        token_name: str,
-        token: str,
-        token_expiration: int,
-    ) -> tuple[dict, dict]:
-        encoded_tokens_file = base64.b64encode(
-            yaml.safe_dump(
-                {"secretTokens": [{"name": token_name, "token": token}]}
-            ).encode()
-        ).decode()
+        # Update only if expiration is newer
+        if self._should_update_token_secret(k8s_secret, expiration):
+            self._update_secret(
+                k8s_secret=k8s_secret,
+                namespace=namespace,
+                secret_name=secret_name,
+                secrets=secret_data,
+            )
+            return mlrun.common.schemas.SecretEventActions.updated
 
-        secret_data = {
-            "tokensFile": encoded_tokens_file,
-            "tokenExpiration": base64.b64encode(
-                str(token_expiration).encode()
-            ).decode(),
+        return mlrun.common.schemas.SecretEventActions.skipped
+
+    def _encode_user_token(
+        self, token_name: str, token: str, expiration: int
+    ) -> dict[str, str]:
+        """
+        Encode token and expiration into a dict suitable for Kubernetes Secret.data
+        """
+        token_yaml = yaml.safe_dump(
+            {"secretTokens": [{"name": token_name, "token": token}]}
+        )
+        encoded_token_yaml = base64.b64encode(token_yaml.encode()).decode()
+        return {
+            "tokensFile": encoded_token_yaml,
+            "tokenExpiration": str(expiration),
         }
 
-        labels = {
-            "mlrun/user": username,
-        }
+    def _should_update_token_secret(
+        self, k8s_secret: client.V1Secret, new_expiration: int
+    ) -> bool:
+        """
+        Determine if the secret should be updated based on tokenExpiration
+        """
+        if not k8s_secret.data or "tokenExpiration" not in k8s_secret.data:
+            return True
 
-        return secret_data, labels
+        try:
+            existing_exp = int(
+                base64.b64decode(k8s_secret.data["tokenExpiration"]).decode()
+            )
+        except Exception:
+            existing_exp = 0
+
+        return new_expiration > existing_exp
+
 
 class BasePod:
     def __init__(

@@ -462,7 +462,7 @@ class Secrets(
 
             expiration = self._extract_and_validate_expiration(token_name, token)
 
-            action = self.secrets_provider.create_or_update_user_token_secret(
+            action = self.secrets_provider.store_user_token_secret(
                 username=authenticated_username,
                 token_name=token_name,
                 token=token,

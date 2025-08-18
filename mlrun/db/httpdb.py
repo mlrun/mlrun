@@ -5135,13 +5135,16 @@ class HTTPRunDB(RunDBInterface):
             secret_tokens=secret_tokens,
             error="store multiple user secret tokens",
         )
-        if log_warning:
-            token_names = "', '".join(token.name for token in secret_tokens)
+
+        if log_warning and (response.created_tokens or response.updated_tokens):
+            affected_tokens = response.created_tokens + response.updated_tokens
+            token_names = "', '".join(affected_tokens)
             logger.warning(
                 f"Tokens '{token_names}' were stored in the backend, "
                 "but the local configuration file (~/.igz.yaml) was not updated. "
                 "Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
             )
+
         return response
 
     def _store_secret_tokens(

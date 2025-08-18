@@ -31,6 +31,8 @@ import orjson
 import paramiko
 import yaml
 
+JsonSerializable = Union[dict, list, str, int, float, bool, None]
+
 
 class Logger:
     def __init__(self, name, **kwargs):
@@ -316,7 +318,7 @@ class SystemTestPreparer:
         return stdout, stderr, exit_status
 
     @staticmethod
-    def _encode_json_to_base64(data) -> str:
+    def _encode_json_to_base64(data: JsonSerializable) -> str:
         """
         Convert a Python object to base64-encoded JSON string.
 
@@ -326,7 +328,7 @@ class SystemTestPreparer:
         Returns:
             Base64-encoded JSON string
         """
-        return base64.b64encode(orjson.dumps(data)).decode("utf-8")
+        return base64.b64encode(orjson.dumps(data)).decode()
 
     def _prepare_env_remote(self):
         self._run_command(

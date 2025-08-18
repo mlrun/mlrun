@@ -23,6 +23,7 @@ from sys import executable
 import igz_mgmt
 import pandas as pd
 import pytest
+from kubernetes import client as k8s_client
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -1339,8 +1340,6 @@ class TestProject(TestMLRunSystem):
           2) The job's preemptible toleration is removed; user tolerations remain.
           3) The job's preemptible node-affinity rule is pruned (function is not mutated).
         """
-        from kubernetes import client as k8s_client
-
         function_name = "test-func"
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
         function_override_label, function_override_val = "kubernetes.io/hostname", ""

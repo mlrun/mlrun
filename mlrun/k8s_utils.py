@@ -26,6 +26,12 @@ from .config import config as mlconfig
 
 _running_inside_kubernetes_cluster = None
 
+V1Affinity = kubernetes.client.V1Affinity
+V1Toleration = kubernetes.client.V1Toleration
+K8sObj = typing.Union[V1Affinity, V1Toleration]
+K8sObjList = list[K8sObj]
+SanitizedK8s = dict[str, typing.Any]
+
 
 def is_running_inside_kubernetes_cluster():
     global _running_inside_kubernetes_cluster
@@ -232,7 +238,9 @@ def validate_node_selectors(
     return True
 
 
-def sanitize_k8s_objects(k8s_objects) -> typing.Union[dict, list[dict], None]:
+def sanitize_k8s_objects(
+    k8s_objects: typing.Union[None, K8sObj, K8sObjList, SanitizedK8s],
+) -> typing.Union[dict, list[dict], None]:
     """Convert K8s objects to dicts. Handles single objects or lists."""
     api_client = kubernetes.client.ApiClient()
     if not k8s_objects:

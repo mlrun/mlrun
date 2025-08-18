@@ -1908,8 +1908,38 @@ class MlrunProject(ModelObj):
 
         Examples::
 
+            # Log directly with an inline prompt template
+            context.log_llm_prompt(
+                key="customer_support_prompt",
+                prompt_template=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful customer support assistant.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "The customer reports: {issue_description}",
+                    },
+                ],
+                prompt_legend={
+                    "issue_description": {
+                        "field": "user_issue",
+                        "description": "Detailed description of the customer's issue",
+                    },
+                    "solution": {
+                        "field": "proposed_solution",
+                        "description": "Suggested fix for the customer's issue",
+                    },
+                },
+                model_artifact=model,
+                model_configuration={"temperature": 0.5, "max_tokens": 200},
+                description="Prompt for handling customer support queries",
+                tag="support-v1",
+                labels={"domain": "support"},
+            )
+
             # Log a prompt from file
-            project.log_llm_prompt(
+            context.log_llm_prompt(
                 key="qa_prompt",
                 prompt_path="prompts/template.json",
                 prompt_legend={

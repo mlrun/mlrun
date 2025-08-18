@@ -65,9 +65,9 @@ def init_data(
     mlrun.utils.logger.info("Initializing DB data")
 
     engine = framework.db.sqldb.sql_session.get_engine()
-    create_db_from_scratch = _ensure_db_instance_initialized(engine)
+    db_initialized = _initialize_db_if_needed(engine)
 
-    if create_db_from_scratch:
+    if db_initialized:
         mlrun.utils.logger.info("Creating database from scratch")
         _initialize_db_from_scratch(engine)
     else:
@@ -80,7 +80,7 @@ def init_data(
     mlrun.utils.logger.info("Initial data created")
 
 
-def _ensure_db_instance_initialized(engine: sqlalchemy.engine.Engine) -> bool:
+def _initialize_db_if_needed(engine: sqlalchemy.engine.Engine) -> bool:
     """
     Checks if the database instance exists and is initialized.
     Returns True if the database needs to be created or initialized from scratch (i.e.,

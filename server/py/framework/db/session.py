@@ -47,8 +47,8 @@ def run_function_with_new_db_session(func, *args, **kwargs):
 async def run_async_function_with_new_db_session(func, *args, **kwargs):
     """
     Run an async function with a new db session.
-    If the func is async, use run_async_function_with_new_db_session below.
-    Otherwise, use the suggested logic.
+    If the func is a coroutine function (async def), use run_async_function_with_new_db_session below.
+    alternatively, given the async context, run the synchronous function in a thread pool.
 
     Any changes made by the new session will not be visible to old sessions until the old sessions commit
     due to isolation level.

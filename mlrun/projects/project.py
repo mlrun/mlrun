@@ -1909,7 +1909,7 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Log directly with an inline prompt template
-            context.log_llm_prompt(
+            project.log_llm_prompt(
                 key="customer_support_prompt",
                 prompt_template=[
                     {
@@ -1939,7 +1939,7 @@ class MlrunProject(ModelObj):
             )
 
             # Log a prompt from file
-            context.log_llm_prompt(
+            project.log_llm_prompt(
                 key="qa_prompt",
                 prompt_path="prompts/template.json",
                 prompt_legend={

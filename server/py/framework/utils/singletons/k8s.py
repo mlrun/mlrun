@@ -1128,6 +1128,105 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         return new_expiration > existing_exp
 
+    def list_user_token_secrets(
+        self,
+        username: str,
+        namespace: str = "",
+    ) -> list[mlrun.common.schemas.SecretTokenInfo]:
+        """
+        List all offline token secrets for a given user.
+
+        :param username: The user whose tokens should be listed.
+        :param namespace: Kubernetes namespace where the secrets are stored.
+        :return: List of dicts containing {"name": <token_name>, "expiration": <int>}
+        """
+        namespace = self.resolve_namespace(namespace)
+        labels = {"mlrun/user": username}
+
+        logger.debug(
+            "Listing user token secrets", username=username, namespace=namespace
+        )
+
+        k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
+
+        secret_tokens: list[mlrun.common.schemas.SecretTokenInfo] = []
+
+        for k8s_secret in k8s_secrets:
+            secret_name = k8s_secret.metadata.name
+            # token name is the suffix after "mlrun-auth-<username>-"
+            prefix = f"mlrun-auth-{username}-"
+            if not secret_name.startswith(prefix):
+                logger.warning(
+                    "Skipping secret with unexpected name format",
+                    secret_name=secret_name,
+                )
+                continue
+
+            token_name = secret_name[len(prefix) :]
+            # Extract and decode expiration from secret data
+            expiration = None
+            if k8s_secret.data and "tokenExpiration" in k8s_secret.data:
+                try:
+                    expiration_b64 = k8s_secret.data["tokenExpiration"]
+                    expiration_str = base64.b64decode(expiration_b64).decode("utf-8")
+                    expiration = int(expiration_str)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to decode 'tokenExpiration' from secret",
+                        secret_name=secret_name,
+                        error=mlrun.errors.err_to_str(exc),
+                    )
+
+            secret_tokens.append(
+                mlrun.common.schemas.SecretTokenInfo(
+                    name=token_name,
+                    expiration=expiration,
+                )
+            )
+
+        return secret_tokens
+
+    def list_secrets(
+        self,
+        namespace: str = "",
+        labels: dict[str, str] | None = None,
+    ) -> list[client.V1Secret]:
+        """
+        List Kubernetes secrets in the given namespace, optionally filtered by labels.
+
+        :param namespace: Kubernetes namespace to query.
+        :param labels: Dict of labels to filter secrets. If provided, only secrets with matching labels are returned.
+        :return: List of V1Secret objects.
+        """
+        namespace = self.resolve_namespace(namespace)
+
+        label_selector = None
+        if labels:
+            # Convert dict to Kubernetes label selector string: key1=value1,key2=value2,...
+            label_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
+
+        logger.debug(
+            "Listing secrets from Kubernetes",
+            namespace=namespace,
+            label_selector=label_selector,
+        )
+
+        try:
+            secrets_list = self.v1api.list_namespaced_secret(
+                namespace=namespace,
+                label_selector=label_selector,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to list secrets from Kubernetes",
+                namespace=namespace,
+                label_selector=label_selector,
+                error=mlrun.errors.err_to_str(exc),
+            )
+            raise
+
+        return secrets_list.items or []
+
 
 class BasePod:
     def __init__(

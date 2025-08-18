@@ -313,6 +313,12 @@ def test_foo_created():
     function = mlrun.new_function("tst", kind="job")
     assert function.spec.foo is None
 
+def test_foo_from_runtime():
+    runtime = _get_runtime()
+    runtime["spec"]["foo"] = "bar"
+    function = mlrun.new_function(runtime=runtime)
+    assert function.spec.foo == "bar"
+
 def test_with_foo():
     function = mlrun.new_function("tst", kind="job")
     function.spec.with_foo("bar")

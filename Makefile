@@ -290,6 +290,7 @@ print-docker-images: ## Print all docker images
 	@for image in $(DEFAULT_IMAGES); do \
 		echo $$image ; \
 	done
+	@cd server/go && make print-docker-images
 
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun

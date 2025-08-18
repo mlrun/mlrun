@@ -988,7 +988,7 @@ class MLClientCtx:
          str format (upper/lower case), keys will be modified to lower case.
          Cannot be used with `prompt_path`.
         :param prompt_path: Path to a JSON file containing the prompt template.
-                    Cannot be used together with `prompt_string`.
+                    Cannot be used together with `prompt_template`.
                     The file should define a list of dictionaries in the same format
                     supported by `prompt_template`.
         :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)

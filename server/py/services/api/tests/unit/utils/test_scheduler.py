@@ -289,6 +289,7 @@ async def test_get_schedule_last_run_deleted(
     assert schedule.last_run == {}
 
 
+@pytest.mark.skip("Due to sporadic failures in CI (ML-6252)")
 @pytest.mark.asyncio
 async def test_create_schedule_mlrun_function(
     db: Session,

@@ -5136,6 +5136,7 @@ class HTTPRunDB(RunDBInterface):
             error="store multiple user secret tokens",
         )
 
+        # Only log a warning if at least one token was actually created or updated
         if log_warning and (response.created_tokens or response.updated_tokens):
             affected_tokens = response.created_tokens + response.updated_tokens
             token_names = "', '".join(affected_tokens)

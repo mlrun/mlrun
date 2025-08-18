@@ -1053,6 +1053,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secret_name = f"mlrun-auth-{username}-{token_name}"
         labels = {"mlrun/user": username}
 
+        logger.debug(
+            "Preparing to store user token secret",
+            secret_name=secret_name,
+        )
+
         secret_data = self._encode_user_token(token_name, token, expiration)
 
         # Try to read existing secret (may return None if not found or labels mismatch)
@@ -1083,6 +1088,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             return mlrun.common.schemas.SecretEventActions.updated
 
+        logger.debug(
+            "Secret exists and is up-to-date, skipping update",
+            secret_name=secret_name,
+            expiration=expiration,
+        )
         return mlrun.common.schemas.SecretEventActions.skipped
 
     def _encode_user_token(

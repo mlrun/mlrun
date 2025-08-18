@@ -55,6 +55,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     secret = "secret"
     run = "run"
     model_endpoint = "model-endpoint"
+    model_monitoring = "model-monitoring"
     pipeline = "pipeline"
     hub_source = "hub-source"
     workflow = "workflow"
@@ -96,6 +97,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             # runtime resource doesn't have an identifier, we don't need any auth granularity behind project level
             AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources",
             AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
+            AuthorizationResourceTypes.model_monitoring: "/projects/{project_name}/model-monitoring/{resource_name}",
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
             AuthorizationResourceTypes.datastore_profile: "/projects/{project_name}/datastore_profiles",
             # Hub sources are not project-scoped, and auth is globally on the sources endpoint.

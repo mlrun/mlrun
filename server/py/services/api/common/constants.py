@@ -12,19 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG MLRUN_PYTHON_VERSION=3.11
-ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
+from typing import Annotated
 
-FROM --platform=${DOCKER_DEFAULT_PLATFORM} gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    DEBIAN_FRONTEND=noninteractive apt-get update -q && \
-    apt-get -y upgrade -o Acquire::Check-Valid-Until=false && \
-    apt-get install -y --no-install-recommends \
-        build-essential \
-        ca-certificates \
-        cmake \
-        curl \
-        git \
-        libffi-dev \
-        python3-dev \
-        unzip
+import fastapi
+
+from mlrun.common.schemas.model_monitoring.constants import (
+    MODEL_ENDPOINT_ID_PATTERN,
+    PROJECT_PATTERN,
+)
+
+ProjectAnnotation = Annotated[str, fastapi.Path(pattern=PROJECT_PATTERN)]
+EndpointIDAnnotation = Annotated[str, fastapi.Path(pattern=MODEL_ENDPOINT_ID_PATTERN)]

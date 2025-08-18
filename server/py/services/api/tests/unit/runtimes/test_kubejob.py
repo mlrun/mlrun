@@ -232,7 +232,6 @@ class TestKubejobRuntime(TestRuntimeBase):
     def assert_node_selection(
         self, node_name=None, node_selector=None, affinity=None, tolerations=None
     ):
-        api_client = k8s_client.ApiClient()
         pod = self._get_pod_creation_args()
         # doesn't need a special case because the default it to be set with default node selector
         assert pod.spec.node_selector == (node_selector or {})
@@ -243,12 +242,12 @@ class TestKubejobRuntime(TestRuntimeBase):
             assert pod.spec.node_name is None
 
         if affinity:
-            assert pod.spec.affinity == api_client.sanitize_for_serialization(affinity)
+            assert pod.spec.affinity == mlrun.k8s_utils.sanitize_k8s_objects(affinity)
         else:
             assert pod.spec.affinity is None
 
         if tolerations:
-            assert pod.spec.tolerations == api_client.sanitize_for_serialization(
+            assert pod.spec.tolerations == mlrun.k8s_utils.sanitize_k8s_objects(
                 tolerations
             )
         else:
@@ -626,11 +625,6 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
 
         self.execute_function(runtime)
-        expected_node_selector, expected_tolerations, expected_affinity = (
-            mlrun.k8s_utils.sanitize_scheduling_configuration(
-                expected_node_selector, expected_tolerations, expected_affinity
-            )
-        )
         self._assert_pod_creation_config(
             expected_node_selector=expected_node_selector,
             expected_affinity=expected_affinity,

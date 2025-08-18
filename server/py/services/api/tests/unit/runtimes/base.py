@@ -807,17 +807,9 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
                 )
                 == {}
             )
-        api_client = client.ApiClient()
         if expected_affinity:
-            # Handle both sanitized dicts and V1Affinity objects
-            def _handle_affinity(affinity):
-                if hasattr(affinity, "to_dict"):
-                    # It's a V1Affinity object - convert to dict
-                    affinity = api_client.sanitize_for_serialization(affinity)
-                return affinity
-
-            pod_affinity = _handle_affinity(pod.spec.affinity)
-            expected_affinity = _handle_affinity(expected_affinity)
+            pod_affinity = mlrun.k8s_utils.sanitize_k8s_objects(pod.spec.affinity)
+            expected_affinity = mlrun.k8s_utils.sanitize_k8s_objects(expected_affinity)
             assert (
                 deepdiff.DeepDiff(
                     pod_affinity,
@@ -827,23 +819,10 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
                 == {}
             )
         if expected_tolerations:
-
-            def _handle_tolerations(tolerations):
-                for toleration in tolerations:
-                    res = []
-                    if hasattr(toleration, "to_dict"):
-                        # It's a V1Toleration object - convert to dict
-                        pod_tolerations.append(
-                            api_client.sanitize_for_serialization(toleration)
-                        )
-                    else:
-                        # It's already a dictionary (sanitized)
-                        res.append(toleration)
-                return res
-
-            # Handle both V1Toleration objects and sanitized dictionaries
-            pod_tolerations = _handle_tolerations(pod.spec.tolerations)
-            expected_tolerations = _handle_tolerations(expected_tolerations)
+            pod_tolerations = mlrun.k8s_utils.sanitize_k8s_objects(pod.spec.tolerations)
+            expected_tolerations = mlrun.k8s_utils.sanitize_k8s_objects(
+                expected_tolerations
+            )
             assert (
                 deepdiff.DeepDiff(
                     pod_tolerations,

@@ -122,7 +122,6 @@ class ClientSpec(
                 "model_endpoint_monitoring.store_prefixes"
             ),
             foo=config.function.spec.foo.default,
-
         )
 
     @staticmethod

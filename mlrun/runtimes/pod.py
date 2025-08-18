@@ -107,6 +107,7 @@ class KubeResourceSpec(FunctionSpec):
         "track_models",
         "parameters",
         "graph",
+        "foo",
     ]
     _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
         "volumes",

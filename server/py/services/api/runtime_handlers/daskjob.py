@@ -424,10 +424,8 @@ def enrich_dask_cluster(
         tolerations=function.spec.tolerations,
         affinity=function.spec.affinity,
     )
-    node_selector, tolerations, affinity = (
-        mlrun.k8s_utils.sanitize_scheduling_configuration(
-            node_selector, tolerations, affinity
-        )
+    tolerations, affinity = mlrun.k8s_utils.sanitize_scheduling_configuration(
+        tolerations, affinity
     )
     scheduler_pod_spec = framework.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         spec,

@@ -406,10 +406,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
             getattr(runtime.spec, "affinity", None),
         )
 
-        node_selector, tolerations, affinity = (
-            mlrun.k8s_utils.sanitize_scheduling_configuration(
-                node_selector, tolerations, affinity
-            )
+        tolerations, affinity = mlrun.k8s_utils.sanitize_scheduling_configuration(
+            tolerations, affinity
         )
         self._set_run_spec_with_enriched_params(
             run,

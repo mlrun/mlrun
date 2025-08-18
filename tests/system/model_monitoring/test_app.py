@@ -55,7 +55,10 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
 )
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring.applications import ModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications import (
+    ExistingDataHandling,
+    ModelMonitoringApplicationBase,
+)
 from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
@@ -1970,12 +1973,13 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
         ]
 
         for i, endpoints in enumerate(endpoints_params):
-            # Do not write except the first time
-            write_output_this_time = write_output if i == 0 else False
+            # Do not write except the first and last time
+            last = i == len(endpoints_params) - 1
+            write_output_this_time = write_output if (i == 0 or last) else False
 
             run_result = CountApp.evaluate(
                 func_path=str(Path(__file__).parent / "assets/application.py"),
-                func_name=f"count-app-{i}-batch",
+                func_name="count-app-batch",
                 endpoints=endpoints,
                 start=start,
                 end=end,
@@ -1988,6 +1992,9 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                     if run_local and write_output_this_time
                     else None
                 ),
+                existing_data_handling=ExistingDataHandling.delete_all
+                if last
+                else ExistingDataHandling.fail_on_overlap,
             )
 
             # Test the state
@@ -2034,10 +2041,10 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                 assert metrics == [
                     ModelEndpointMonitoringMetric(
                         project=self.project_name,
-                        app="count-app-0-batch",
+                        app="count-app-batch",
                         type="result",
                         name="count",
-                        full_name=f"{self.project_name}.count-app-0-batch.result.count",
+                        full_name=f"{self.project_name}.count-app-batch.result.count",
                         kind=ResultKindApp.model_performance,
                     ),
                     ModelEndpointMonitoringMetric(

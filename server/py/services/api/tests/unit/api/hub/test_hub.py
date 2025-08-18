@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import asyncio
 import http
 import pathlib
 import random
 from http import HTTPStatus
 
 import deepdiff
+import httpx
 import pytest
 import yaml
 from fastapi.testclient import TestClient
@@ -306,28 +307,61 @@ def test_hub_catalog_apis(
     assert yaml_function_name == function_modified_name
 
 
-def test_hub_get_asset_from_default_source(
-    db: Session,
+@pytest.mark.parametrize(
+    "asset_name,primary_types",
+    [
+        ("docs", ("text/html; charset=utf-8",)),
+        ("source", ("text/x-python; charset=utf-8",)),
+        ("example", ("application/yaml", "application/x-yaml", "text/yaml")),
+        ("function", ("application/yaml", "application/x-yaml", "text/yaml")),
+    ],
+)
+@pytest.mark.anyio
+async def test_hub_get_asset_from_default_source(
     client: TestClient,
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    asset_name: str,
+    primary_types: tuple[str, ...],
 ) -> None:
-    possible_assets = [
-        ("docs", "text/html; charset=utf-8"),
-        ("source", "text/x-python; charset=utf-8"),
-        ("example", "application/octet-stream"),
-        ("function", "application/octet-stream"),
-    ]
     sources = client.get("hub/sources").json()
-    source_name = sources[0]["source"]["metadata"]["name"]
-    catalog = client.get(f"hub/sources/{source_name}/items").json()
-    for _ in range(10):
-        item = random.choice(catalog["catalog"])
-        asset_name, expected_content_type = random.choice(possible_assets)
-        response = client.get(
-            f"hub/sources/{source_name}/items/{item['metadata']['name']}/assets/{asset_name}"
-        )
-        assert response.status_code == http.HTTPStatus.OK.value
-        assert response.headers["content-type"] == expected_content_type
+    for source in sources:
+        source_name = source["source"]["metadata"]["name"]
+        catalog = client.get(f"hub/sources/{source_name}/items").json()
+        items = [it["metadata"]["name"] for it in catalog["catalog"]]
+
+        sem = asyncio.Semaphore(16)
+        transport = httpx.ASGITransport(app=client.app)
+
+        async with httpx.AsyncClient(
+            transport=transport, base_url=str(client.base_url)
+        ) as async_client:
+
+            async def fetch(item_name: str):
+                async with sem:
+                    response = await async_client.get(
+                        f"/hub/sources/{source_name}/items/{item_name}/assets/{asset_name}"
+                    )
+                    return (
+                        item_name,
+                        response.status_code,
+                        response.headers.get("content-type", ""),
+                    )
+
+            results = await asyncio.gather(*(fetch(name) for name in items))
+
+        for item_name, status_code, content_type in results:
+            assert (
+                status_code == http.HTTPStatus.OK.value
+            ), f"unexpected status for item={item_name} asset={asset_name}"
+            # Accepts 'application/octet-stream' is a fallback for unknown types
+            # (e.g. if media-types apt package is not installed on Debian based distributions.
+            assert (
+                content_type in primary_types
+                or content_type == "application/octet-stream"
+            ), (
+                f"unexpected content-type {content_type!r} for item={item_name} "
+                f"asset={asset_name}; expected one of {primary_types + ('application/octet-stream',)}"
+            )
 
 
 def test_hub_get_asset(

@@ -1267,6 +1267,14 @@ class SQLRunDB(RunDBInterface):
     ) -> None:
         raise NotImplementedError
 
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        raise NotImplementedError
+
     def get_monitoring_function_summaries(
         self,
         project: str,

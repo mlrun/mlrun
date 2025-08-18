@@ -232,24 +232,23 @@ def validate_node_selectors(
     return True
 
 
-def sanitize_k8s_objects(obj) -> typing.Union[dict, list[dict], None]:
+def sanitize_k8s_objects(k8s_objects) -> typing.Union[dict, list[dict], None]:
     """Convert K8s objects to dicts. Handles single objects or lists."""
     api_client = kubernetes.client.ApiClient()
+    if not k8s_objects:
+        return k8s_objects
 
-    if not obj:
-        return obj
-
-    def _sanitize_item(item):
+    def _sanitize_k8s_object(k8s_obj):
         return (
-            api_client.sanitize_for_serialization(item)
-            if hasattr(item, "to_dict")
-            else item
+            api_client.sanitize_for_serialization(k8s_obj)
+            if hasattr(k8s_obj, "to_dict")
+            else k8s_obj
         )
 
     return (
-        [_sanitize_item(item) for item in obj]
-        if isinstance(obj, list)
-        else _sanitize_item(obj)
+        [_sanitize_k8s_object(k8s_obj) for k8s_obj in k8s_objects]
+        if isinstance(k8s_objects, list)
+        else _sanitize_k8s_object(k8s_objects)
     )
 
 

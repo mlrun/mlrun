@@ -1910,11 +1910,19 @@ class MlrunProject(ModelObj):
 
             # Log a prompt from file
             project.log_llm_prompt(
-                key="qa-prompt",
-                prompt_path="prompts/qa_template.txt",
-                prompt_legend={"question": "user_question"},
+                key="qa_prompt",
+                prompt_path="prompts/template.json",
+                prompt_legend={
+                    "question": {
+                        "field": "user_question",
+                        "description": "The actual question asked by the user",
+                    }
+                },
                 model_artifact=model,
+                model_configuration={"temperature": 0.7, "max_tokens": 256},
+                description="Q&A prompt template with user-provided question",
                 tag="v2",
+                labels={"task": "qa", "stage": "experiment"},
             )
 
         :param key: Unique key for the prompt artifact.
@@ -1923,7 +1931,10 @@ class MlrunProject(ModelObj):
          "role": "user", "content": "I need your help with {profession}"]. only "role" and "content" keys allow in any
          str format (upper/lower case), keys will be modified to lower case.
          Cannot be used with `prompt_path`.
-        :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
+        :param prompt_path: Path to a JSON file containing the prompt template.
+                            Cannot be used together with `prompt_string`.
+                            The file should define a list of dictionaries in the same format
+                            supported by `prompt_template`.
         :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
                and the value is a dictionary holding two keys, "field", "description". "field" points to the field in
                the event where the value of the place-holder inside the event, if None or not exist will be replaced
@@ -1932,9 +1943,11 @@ class MlrunProject(ModelObj):
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param model_configuration: Configuration dictionary for model generation parameters
                (e.g., temperature, max tokens).
-        :param description: Optional description of the prompt.
-        :param target_path: Optional local target path for saving prompt content.
-        :param artifact_path: Storage path for the logged artifact.
+        :param description:   Optional description of the prompt.
+        :param target_path:   Absolute target path (instead of using artifact_path + local_path)
+        :param artifact_path: Target artifact path (when not using the default)
+                              To define a subpath under the default location use:
+                              `artifact_path=context.artifact_subpath('data')`
         :param tag: Version tag for the artifact (e.g., "v1", "latest").
         :param labels: Labels to tag the artifact for filtering and organization.
         :param upload: Whether to upload the artifact to a remote datastore. Defaults to True.

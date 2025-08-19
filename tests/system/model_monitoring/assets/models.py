@@ -171,3 +171,61 @@ class MyModel(mlrun.serving.Model):
 
     async def predict_async(self, body):
         return self.predict(body)
+
+
+class MyDictModel(mlrun.serving.Model):
+    def __init__(self, *args, artifact_uri: str, **kwargs):
+        super().__init__(*args, artifact_uri=artifact_uri, **kwargs)
+        self.model = None
+
+    def get_model(self, suffix=""):
+        """get the model file(s) and metadata from model store
+
+        the method returns a path to the model file and the extra data (dict of dataitem objects)
+        it also loads the model metadata into the self.model_spec attribute, allowing direct access
+        to all the model metadata attributes.
+
+        get_model is usually used in the model .load() method to init the model
+        Examples
+        --------
+        ::
+
+            def load(self):
+                model_file, extra_data = self.get_model(suffix=".pkl")
+                self.model = load(open(model_file, "rb"))
+                categories = extra_data["categories"].as_df()
+
+        Parameters
+        ----------
+        suffix : str
+            optional, model file suffix (when the model_path is a directory)
+
+        Returns
+        -------
+        str
+            (local) model file
+        dict
+            extra dataitems dictionary
+
+        """
+        if self.artifact_uri:
+            model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
+                self.artifact_uri, suffix
+            )
+            return model_file, extra_dataitems
+        return None, None
+
+    def load(self):
+        """load and initialize the model and/or other elements"""
+        model_file, _ = self.get_model(".pkl")
+        self.model = load(open(model_file, "rb"))
+
+    def predict(self, body: dict, **kwargs) -> dict:
+        """Generate model predictions from sample."""
+        if "dict_inputs" in body and isinstance(body["dict_inputs"], dict):
+            feats = np.asarray([list(body["dict_inputs"].values())])
+        else:
+            feats = np.asarray(body["dict_inputs"])
+        result: np.ndarray = self.model.predict(feats)
+        body["dict_outputs"] = {"label": result.tolist()}
+        return body

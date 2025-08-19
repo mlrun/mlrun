@@ -361,6 +361,7 @@ def add_error_raiser_step(
             raise_exception=monitored_step.raise_exception,
             models_names=list(monitored_step.class_args["models"].keys()),
             model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+            function=monitored_step.function,
         )
         if monitored_step.responder:
             monitored_step.responder = False
@@ -745,6 +746,26 @@ async def async_execute_graph(
     return responses
 
 
+def _is_inside_asyncio_loop():
+    try:
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
+
+
+# Workaround for running with local=True in Jupyter (ML-10620)
+def _workaround_asyncio_nesting():
+    try:
+        import nest_asyncio
+    except ImportError:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Cannot execute graph from within an already running asyncio loop. "
+            "Attempt to import nest_asyncio as a workaround failed as well."
+        )
+    nest_asyncio.apply()
+
+
 def execute_graph(
     context: MLClientCtx,
     data: DataItem,
@@ -770,6 +791,9 @@ def execute_graph(
 
     :return: A list of responses.
     """
+    if _is_inside_asyncio_loop():
+        _workaround_asyncio_nesting()
+
     return asyncio.run(
         async_execute_graph(
             context,

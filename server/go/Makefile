@@ -24,6 +24,8 @@ KUBECONFIG := $(if $(KUBECONFIG),$(KUBECONFIG),$(HOME)/.kube/config)
 
 CI_BIN_DIR=$(shell pwd)/.bin
 DOCKER_IMAGES = log-collector
+LOG_COLLECTOR_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG)
+DEFAULT_IMAGES += $(LOG_COLLECTOR_IMAGE_NAME)
 
 GOLANGCI_LINT_VERSION := 2.2.1
 GOLANGCI_LINT_BIN := $(CI_BIN_DIR)/golangci-lint
@@ -40,23 +42,29 @@ build: docker-images
 docker-images: compile-schemas $(DOCKER_IMAGES)
 	@echo Built $(DOCKER_IMAGES)
 
+.PHONY: print-docker-images
+print-docker-images:
+	@for image in $(DEFAULT_IMAGES); do \
+		echo $$image ; \
+	done
+
 .PHONY: log-collector
 log-collector: compile-schemas
 	@echo Building log-collector image
 	docker build \
 		--file services/logcollector/cmd/docker/Dockerfile \
 		--build-arg GO_VERSION=$(GO_VERSION) \
-		--tag $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG) \
+		--tag $(LOG_COLLECTOR_IMAGE_NAME) \
 		.
 
 .PHONY: push-log-collector
 push-log-collector:
 	@echo Pushing log-collector image
-	docker push $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG)
+	docker push $(LOG_COLLECTOR_IMAGE_NAME)
 
 .PHONY: pull-log-collector
 pull-log-collector:
-	docker pull $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG)
+	docker pull $(LOG_COLLECTOR_IMAGE_NAME)
 
 .PHONY: schemas-compiler
 schemas-compiler:

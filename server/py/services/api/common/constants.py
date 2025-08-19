@@ -1,4 +1,4 @@
-# Copyright 2024 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import ExistingDataHandling, ModelMonitoringApplicationBase
-from .context import MonitoringApplicationContext
-from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult
+from typing import Annotated
+
+import fastapi
+
+from mlrun.common.schemas.model_monitoring.constants import (
+    MODEL_ENDPOINT_ID_PATTERN,
+    PROJECT_PATTERN,
+)
+
+ProjectAnnotation = Annotated[str, fastapi.Path(pattern=PROJECT_PATTERN)]
+EndpointIDAnnotation = Annotated[str, fastapi.Path(pattern=MODEL_ENDPOINT_ID_PATTERN)]

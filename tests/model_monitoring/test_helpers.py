@@ -58,6 +58,8 @@ from mlrun.model_monitoring.helpers import (
     update_model_endpoint_last_request,
 )
 
+TIMESTAMP_RESOLUTION_MICRO = 1e-6  # 0.000001 seconds or 1 microsecond
+
 
 class _HistLen(NamedTuple):
     counts_len: int
@@ -297,7 +299,9 @@ class TestBatchInterval:
     def test_touching_intervals(intervals: list[_Interval]) -> None:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):
-            assert prev[1] == curr[0], "The intervals should be touching"
+            assert prev[1] == curr[0] - datetime.timedelta(
+                microseconds=1
+            ), "The intervals should be touching"
 
     @staticmethod
     def test_intervals(
@@ -306,7 +310,10 @@ class TestBatchInterval:
         assert len(intervals) == len(
             expected_intervals
         ), "The number of intervals is not as expected"
-        assert intervals == expected_intervals, "The intervals are not as expected"
+        assert intervals == [
+            _Interval(interval.start, interval.end - datetime.timedelta(microseconds=1))
+            for interval in expected_intervals
+        ], "The intervals are not as expected"
 
     @staticmethod
     def test_last_interval_does_not_overflow(
@@ -369,10 +376,13 @@ class TestBatchInterval:
         timedelta_seconds: int, intervals: list[_Interval]
     ) -> None:
         assert len(intervals) == 1, "There should be exactly one interval"
-        assert timedelta_seconds == datetime.datetime.timestamp(
-            intervals[0][1]
-        ) - datetime.datetime.timestamp(
-            intervals[0][0]
+        assert (
+            abs(
+                datetime.datetime.timestamp(intervals[0][1])
+                - datetime.datetime.timestamp(intervals[0][0])
+                - timedelta_seconds
+            )
+            <= TIMESTAMP_RESOLUTION_MICRO
         ), "The time slot should be equal to timedelta_seconds (6 days)"
 
 
@@ -381,7 +391,9 @@ class TestBatchWindowGenerator:
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request, endpoint_mode=EndpointMode.REAL_TIME
+            last_request=last_request,
+            endpoint_mode=EndpointMode.REAL_TIME,
+            not_old_batch_endpoint=True,
         )
         assert last_updated
         assert (
@@ -389,7 +401,9 @@ class TestBatchWindowGenerator:
         ), "The last updated time should be before the last request"
 
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request, endpoint_mode=EndpointMode.BATCH
+            last_request=last_request,
+            endpoint_mode=EndpointMode.BATCH,
+            not_old_batch_endpoint=False,
         )
 
         assert last_updated

@@ -24,6 +24,7 @@ import inspect
 import os
 import pathlib
 import traceback
+import warnings
 from abc import ABC
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
@@ -43,12 +44,16 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
     datastore_profile_read,
 )
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+    UsageResponseKeys,
+)
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
-from mlrun.utils import get_data_from_path, logger, split_path
+from mlrun.utils import get_data_from_path, logger, set_data_by_path, split_path
 
 from ..config import config
-from ..datastore import get_stream_pusher
+from ..datastore import _DummyStream, get_stream_pusher
 from ..datastore.utils import (
     get_kafka_brokers_from_dict,
     parse_kafka_url,
@@ -1205,11 +1210,71 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
 
 class LLModel(Model):
+    """
+    A model wrapper for handling LLM (Large Language Model) prompt-based inference.
+
+    This class extends the base `Model` to provide specialized handling for
+    `LLMPromptArtifact` objects, enabling both synchronous and asynchronous
+    invocation of language models.
+
+    **Model Invocation**:
+
+    - The execution of enriched prompts is delegated to the `model_provider`
+      configured for the model (e.g., **Hugging Face** or **OpenAI**).
+    - The `model_provider` is responsible for sending the prompt to the correct
+      backend API and returning the generated output.
+    - Users can override the `predict` and `predict_async` methods to customize
+      the behavior of the model invocation.
+
+    **Prompt Enrichment Overview**:
+
+    - If an `LLMPromptArtifact` is found, load its prompt template and fill in
+      placeholders using values from the request body.
+    - If the artifact is not an `LLMPromptArtifact`, skip formatting and attempt
+      to retrieve `messages` directly from the request body using the input path.
+
+    **Simplified Example**:
+
+    Input body::
+
+        {"city": "Paris", "days": 3}
+
+    Prompt template in artifact::
+
+        [
+            {"role": "system", "content": "You are a travel planning assistant."},
+            {"role": "user", "content": "Create a {{days}}-day itinerary for {{city}}."},
+        ]
+
+    Result after enrichment::
+
+        [
+            {"role": "system", "content": "You are a travel planning assistant."},
+            {"role": "user", "content": "Create a 3-day itinerary for Paris."},
+        ]
+
+    :param name: Name of the model.
+    :param input_path: Path in the request body where input data is located.
+    :param result_path: Path in the response body where model outputs and the statistics
+                        will be stored.
+    """
+
     def __init__(
-        self, name: str, input_path: Optional[Union[str, list[str]]] = None, **kwargs
+        self,
+        name: str,
+        input_path: Optional[Union[str, list[str]]] = None,
+        result_path: Optional[Union[str, list[str]]] = None,
+        **kwargs,
     ):
         super().__init__(name, **kwargs)
         self._input_path = split_path(input_path)
+        self._result_path = split_path(result_path)
+        logger.info(
+            "LLModel initialized",
+            model_name=name,
+            input_path=input_path,
+            result_path=result_path,
+        )
 
     def predict(
         self,
@@ -1221,10 +1286,32 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            body["result"] = self.model_provider.invoke(
+            logger.debug(
+                "Invoking model provider",
+                model_name=self.name,
                 messages=messages,
-                as_str=True,
+                model_configuration=model_configuration,
+            )
+            response_with_stats = self.model_provider.invoke(
+                messages=messages,
+                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(model_configuration or {}),
+            )
+            set_data_by_path(
+                path=self._result_path, data=body, value=response_with_stats
+            )
+            logger.debug(
+                "LLModel prediction completed",
+                model_name=self.name,
+                answer=response_with_stats.get("answer"),
+                usage=response_with_stats.get("usage"),
+            )
+        else:
+            logger.warning(
+                "LLModel invocation artifact or model provider not set, skipping prediction",
+                model_name=self.name,
+                invocation_artifact_type=type(self.invocation_artifact).__name__,
+                model_provider_type=type(self.model_provider).__name__,
             )
         return body
 
@@ -1238,15 +1325,43 @@ class LLModel(Model):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            body["result"] = await self.model_provider.async_invoke(
+            logger.debug(
+                "Async invoking model provider",
+                model_name=self.name,
                 messages=messages,
-                as_str=True,
+                model_configuration=model_configuration,
+            )
+            response_with_stats = await self.model_provider.async_invoke(
+                messages=messages,
+                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(model_configuration or {}),
+            )
+            set_data_by_path(
+                path=self._result_path, data=body, value=response_with_stats
+            )
+            logger.debug(
+                "LLModel async prediction completed",
+                model_name=self.name,
+                answer=response_with_stats.get("answer"),
+                usage=response_with_stats.get("usage"),
+            )
+        else:
+            logger.warning(
+                "LLModel invocation artifact or model provider not set, skipping async prediction",
+                model_name=self.name,
+                invocation_artifact_type=type(self.invocation_artifact).__name__,
+                model_provider_type=type(self.model_provider).__name__,
             )
         return body
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         messages, model_configuration = self.enrich_prompt(body, origin_name)
+        logger.info(
+            "Calling LLModel predict",
+            model_name=self.name,
+            model_endpoint_name=origin_name,
+            messages_len=len(messages) if messages else 0,
+        )
         return self.predict(
             body, messages=messages, model_configuration=model_configuration
         )
@@ -1255,6 +1370,12 @@ class LLModel(Model):
         self, body: Any, path: str, origin_name: Optional[str] = None
     ) -> Any:
         messages, model_configuration = self.enrich_prompt(body, origin_name)
+        logger.info(
+            "Calling LLModel async predict",
+            model_name=self.name,
+            model_endpoint_name=origin_name,
+            messages_len=len(messages) if messages else 0,
+        )
         return await self.predict_async(
             body, messages=messages, model_configuration=model_configuration
         )
@@ -1262,6 +1383,11 @@ class LLModel(Model):
     def enrich_prompt(
         self, body: dict, origin_name: str
     ) -> Union[tuple[list[dict], dict], tuple[None, None]]:
+        logger.info(
+            "Enriching prompt",
+            model_name=self.name,
+            model_endpoint_name=origin_name,
+        )
         if origin_name and self.shared_proxy_mapping:
             llm_prompt_artifact = self.shared_proxy_mapping.get(origin_name)
             if isinstance(llm_prompt_artifact, str):
@@ -1271,22 +1397,27 @@ class LLModel(Model):
             llm_prompt_artifact = (
                 self.invocation_artifact or self._get_artifact_object()
             )
-        if not (
+        if not llm_prompt_artifact or not (
             llm_prompt_artifact and isinstance(llm_prompt_artifact, LLMPromptArtifact)
         ):
             logger.warning(
-                "LLMModel must be provided with LLMPromptArtifact",
+                "LLModel must be provided with LLMPromptArtifact",
+                model_name=self.name,
+                artifact_type=type(llm_prompt_artifact).__name__,
                 llm_prompt_artifact=llm_prompt_artifact,
             )
-            return None, None
-        prompt_legend = llm_prompt_artifact.spec.prompt_legend
-        prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
+            prompt_legend, prompt_template, model_configuration = {}, [], {}
+        else:
+            prompt_legend = llm_prompt_artifact.spec.prompt_legend
+            prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
+            model_configuration = llm_prompt_artifact.spec.model_configuration
         input_data = copy(get_data_from_path(self._input_path, body))
-        if isinstance(input_data, dict):
+        if isinstance(input_data, dict) and prompt_template:
             kwargs = (
                 {
                     place_holder: input_data.get(body_map["field"])
                     for place_holder, body_map in prompt_legend.items()
+                    if input_data.get(body_map["field"])
                 }
                 if prompt_legend
                 else {}
@@ -1298,22 +1429,39 @@ class LLModel(Model):
                     message["content"] = message["content"].format(**input_data)
                 except KeyError as e:
                     logger.warning(
-                        "Input data was missing a placeholder, placeholder stay unformatted",
-                        key_error=e,
+                        "Input data missing placeholder, content stays unformatted",
+                        model_name=self.name,
+                        key_error=mlrun.errors.err_to_str(e),
                     )
                     message["content"] = message["content"].format_map(
                         default_place_holders
                     )
+        elif isinstance(input_data, dict) and not prompt_template:
+            # If there is no prompt template, we assume the input data is already in the correct format.
+            logger.debug("Attempting to retrieve messages from the request body.")
+            prompt_template = input_data.get("messages", [])
         else:
             logger.warning(
-                f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt "
-                f"template stay unformatted",
+                "Expected input data to be a dict, prompt template stays unformatted",
+                model_name=self.name,
+                input_data_type=type(input_data).__name__,
             )
-        return prompt_template, llm_prompt_artifact.spec.model_configuration
+        return prompt_template, model_configuration
 
 
-class ModelSelector:
+class ModelSelector(ModelObj):
     """Used to select which models to run on each event."""
+
+    def __init__(self, **kwargs):
+        super().__init__()
+
+    def __init_subclass__(cls):
+        super().__init_subclass__()
+        cls._dict_fields = list(
+            set(cls._dict_fields)
+            | set(inspect.signature(cls.__init__).parameters.keys())
+        )
+        cls._dict_fields.remove("self")
 
     def select(
         self, event, available_models: list[Model]
@@ -1425,15 +1573,33 @@ class ModelRunnerStep(MonitoredStep):
         *args,
         name: Optional[str] = None,
         model_selector: Optional[Union[str, ModelSelector]] = None,
+        model_selector_parameters: Optional[dict] = None,
         raise_exception: bool = True,
         **kwargs,
     ):
+        if isinstance(model_selector, ModelSelector) and model_selector_parameters:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide a model_selector object as argument to `model_selector` and also provide "
+                "`model_selector_parameters`."
+            )
+        if model_selector:
+            model_selector_parameters = model_selector_parameters or (
+                model_selector.to_dict()
+                if isinstance(model_selector, ModelSelector)
+                else {}
+            )
+            model_selector = (
+                model_selector
+                if isinstance(model_selector, str)
+                else model_selector.__class__.__name__
+            )
+
         super().__init__(
             *args,
             name=name,
             raise_exception=raise_exception,
             class_name="mlrun.serving.ModelRunner",
-            class_args=dict(model_selector=model_selector),
+            class_args=dict(model_selector=(model_selector, model_selector_parameters)),
             **kwargs,
         )
         self.raise_exception = raise_exception
@@ -1608,6 +1774,9 @@ class ModelRunnerStep(MonitoredStep):
           :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
+
+                                      When using LLModel, the output will be overridden with UsageResponseKeys.fields().
+
           :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
                                       this require that the event body will behave like a dict, expects scopes to be
                                       defined by dot notation (e.g "data.d").
@@ -1636,7 +1805,14 @@ class ModelRunnerStep(MonitoredStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
-
+        if type(model_class) is LLModel or (
+            isinstance(model_class, str) and model_class == LLModel.__name__
+        ):
+            if outputs:
+                warnings.warn(
+                    "LLModel with existing outputs detected, overriding to default"
+                )
+            outputs = UsageResponseKeys.fields()
         model_parameters = model_parameters or (
             model_class.to_dict() if isinstance(model_class, Model) else {}
         )
@@ -1651,8 +1827,6 @@ class ModelRunnerStep(MonitoredStep):
                 )
             except mlrun.errors.MLRunNotFoundError:
                 raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
-
-        outputs = outputs or self._get_model_output_schema(model_artifact)
 
         model_artifact = (
             model_artifact.uri
@@ -1719,28 +1893,13 @@ class ModelRunnerStep(MonitoredStep):
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
 
     @staticmethod
-    def _get_model_output_schema(
-        model_artifact: Union[ModelArtifact, LLMPromptArtifact],
-    ) -> Optional[list[str]]:
-        if isinstance(
-            model_artifact,
-            ModelArtifact,
-        ):
-            return [feature.name for feature in model_artifact.spec.outputs]
-        elif isinstance(
-            model_artifact,
-            LLMPromptArtifact,
-        ):
-            _model_artifact = model_artifact.model_artifact
-            return [feature.name for feature in _model_artifact.spec.outputs]
-
-    @staticmethod
-    def _get_model_endpoint_output_schema(
+    def _get_model_endpoint_schema(
         name: str,
         project: str,
         uid: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         output_schema = None
+        input_schema = None
         try:
             model_endpoint: mlrun.common.schemas.model_monitoring.ModelEndpoint = (
                 mlrun.db.get_run_db().get_model_endpoint(
@@ -1751,6 +1910,7 @@ class ModelRunnerStep(MonitoredStep):
                 )
             )
             output_schema = model_endpoint.spec.label_names
+            input_schema = model_endpoint.spec.feature_names
         except (
             mlrun.errors.MLRunNotFoundError,
             mlrun.errors.MLRunInvalidArgumentError,
@@ -1759,7 +1919,7 @@ class ModelRunnerStep(MonitoredStep):
                 f"Model endpoint not found, using default output schema for model {name}",
                 error=f"{type(ex).__name__}: {ex}",
             )
-        return output_schema
+        return input_schema, output_schema
 
     def _calculate_monitoring_data(self) -> dict[str, dict[str, str]]:
         monitoring_data = deepcopy(
@@ -1775,6 +1935,36 @@ class ModelRunnerStep(MonitoredStep):
                 monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = split_path(
                     monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
                 )
+
+                mep_output_schema, mep_input_schema = None, None
+
+                output_schema = self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.OUTPUTS]
+                input_schema = self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.INPUTS]
+                if not output_schema or not input_schema:
+                    # if output or input schema is not provided, try to get it from the model endpoint
+                    mep_input_schema, mep_output_schema = (
+                        self._get_model_endpoint_schema(
+                            model,
+                            self.context.project,
+                            monitoring_data[model].get(
+                                schemas.MonitoringData.MODEL_ENDPOINT_UID, ""
+                            ),
+                        )
+                    )
+                self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.OUTPUTS] = (
+                    output_schema or mep_output_schema
+                )
+                self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.INPUTS] = (
+                    input_schema or mep_input_schema
+                )
             return monitoring_data
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1786,13 +1976,17 @@ class ModelRunnerStep(MonitoredStep):
         if not self._is_local_function(context):
             # skip init of non local functions
             return
-        model_selector = self.class_args.get("model_selector")
+        model_selector, model_selector_params = self.class_args.get(
+            "model_selector", (None, None)
+        )
         execution_mechanism_by_model_name = self.class_args.get(
             schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM
         )
         models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
-        if isinstance(model_selector, str):
-            model_selector = get_class(model_selector, namespace)()
+        if model_selector:
+            model_selector = get_class(model_selector, namespace).from_dict(
+                model_selector_params, init_with_params=True
+            )
         model_objects = []
         for model, model_params in models.values():
             model_params[schemas.MonitoringData.INPUT_PATH] = (
@@ -1801,6 +1995,13 @@ class ModelRunnerStep(MonitoredStep):
                 )
                 .get(model_params.get("name"), {})
                 .get(schemas.MonitoringData.INPUT_PATH)
+            )
+            model_params[schemas.MonitoringData.RESULT_PATH] = (
+                self.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
+                )
+                .get(model_params.get("name"), {})
+                .get(schemas.MonitoringData.RESULT_PATH)
             )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True
@@ -3099,6 +3300,8 @@ def _init_async_objects(context, steps):
                             context=context,
                             **options,
                         )
+                    elif stream_path.startswith("dummy://"):
+                        step._async_object = _DummyStream(context=context, **options)
                     else:
                         if stream_path.startswith("v3io://"):
                             endpoint, stream_path = parse_path(step.path)

@@ -496,11 +496,11 @@ def test_init_system_id(
     assert system_id_after_second_init == system_id
 
 
-def test_system_id_initialized(monkeypatch: pytest.MonkeyPatch):
+def test_system_id_initialized_from_scratch(monkeypatch: pytest.MonkeyPatch):
     # This test ensures that calling init_data correctly initializes the system ID
     monkeypatch.setattr(mlrun.mlconf, "system_id", None)
 
-    db, db_session = _initialize_db_without_migrations()
+    db, db_session = _initialize_db_without_schema()
 
     # Run the init_data flow
     services.api.initial_data.init_data()
@@ -694,6 +694,19 @@ def test_ensure_latest_tag_for_artifacts():
     assert artifact.tags[0].project == project1
     assert artifact.tags[0].obj_name == key1
     assert artifact.tags[0].obj_id == artifact_2_id
+
+
+def _initialize_db_without_schema() -> (
+    tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
+):
+    dsn = "sqlite:///:memory:?check_same_thread=false"
+    mlrun.mlconf.httpdb.dsn = dsn
+    framework.db.sqldb.sql_session._init_engine(dsn=dsn)
+    framework.utils.singletons.db.initialize_db()
+    db_session = framework.db.sqldb.sql_session.create_session(dsn=dsn)
+    db = framework.db.sqldb.db.SQLDB(dsn)
+    db.initialize(db_session)
+    return db, db_session
 
 
 def _initialize_db_without_migrations() -> (

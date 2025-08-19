@@ -26,9 +26,7 @@ from .config import config as mlconfig
 
 _running_inside_kubernetes_cluster = None
 
-V1Affinity = kubernetes.client.V1Affinity
-V1Toleration = kubernetes.client.V1Toleration
-K8sObj = typing.Union[V1Affinity, V1Toleration]
+K8sObj = typing.Union[kubernetes.client.V1Affinity, kubernetes.client.V1Toleration]
 K8sObjList = list[K8sObj]
 SanitizedK8s = dict[str, typing.Any]
 

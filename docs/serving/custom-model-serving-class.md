@@ -147,7 +147,7 @@ fn.add_model("m1", model_path="<model-artifact/dir>", class_name="MyClass", x=10
 
 See ({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`)) docstring for help and parameters.
 
-See the full [Model Server example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb).
+See the full [Model Server example](https://github.com/mlrun/functions/blob/master/functions/src/v2_model_server/v2_model_server.ipynb).
 
 If you want to use multiple versions for the same model, use `:` to separate the name from the version. 
 For example, if the name is `mymodel:v2` it means model name `mymodel` version `v2`.

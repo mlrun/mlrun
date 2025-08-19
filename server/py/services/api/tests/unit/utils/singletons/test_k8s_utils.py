@@ -471,14 +471,16 @@ def test_store_user_token_secret_created(k8s_helper):
 
 
 def test_store_user_token_secret_updated(k8s_helper):
-    secret_name = "mlrun-auth-test-user-mytoken"
+    username = "test-user"
+    token_name = "mytoken"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
     existing_secret = _make_secret(secret_name, expiration=1000)
 
     k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
 
     result = k8s_helper.store_user_token_secret(
-        username="test-user",
-        token_name="mytoken",
+        username=username,
+        token_name=token_name,
         token="abc123",
         expiration=2000,
         namespace="default",
@@ -490,14 +492,16 @@ def test_store_user_token_secret_updated(k8s_helper):
 
 
 def test_store_user_token_secret_skipped(k8s_helper):
-    secret_name = "mlrun-auth-test-user-mytoken"
+    username = "test-user"
+    token_name = "mytoken"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
     existing_secret = _make_secret(secret_name, expiration=5000)
 
     k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
 
     result = k8s_helper.store_user_token_secret(
-        username="test-user",
-        token_name="mytoken",
+        username=username,
+        token_name=token_name,
         token="abc123",
         expiration=4000,  # older expiration -> should skip
         namespace="default",
@@ -509,7 +513,9 @@ def test_store_user_token_secret_skipped(k8s_helper):
 
 
 def _make_secret(secret_name, expiration=None, labels=None):
-    labels = labels or {"mlrun/user": "test-user"}
+    labels = labels or {
+        mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+    }
     secret = k8s_client.V1Secret(
         metadata=k8s_client.V1ObjectMeta(name=secret_name, labels=labels),
         data={},

@@ -1385,7 +1385,9 @@ kafka-python==2.1.6 \
 kfp==1.8.23 \
     --hash=sha256:a929ff58ce1c41a8e1a62f8ca65e7a5e35bc427d8f89158079d1e54e557cef60 \
     --hash=sha256:b3acdd56fc617e7bba38e417efa426317daac2442b746cfb5b6db309fd8cd4fa
-    # via mlrun-pipelines-kfp-v1-8
+    # via
+    #   -r dockerfiles/mlrun-kfp/requirements.txt
+    #   mlrun-pipelines-kfp-v1-8
 kfp-pipeline-spec==0.8.0 \
     --hash=sha256:618c64ba021db905091b6f39ed2a431b38e8d83748e19b2dc2cb3a1bee843d7e \
     --hash=sha256:ea8913bc2a1c44d68c5af730e21ef56cb7d8435294bf947723a5aa6fe2898d12

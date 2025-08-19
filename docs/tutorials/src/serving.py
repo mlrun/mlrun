@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 
 import chromadb
 import torch
@@ -11,6 +12,8 @@ from transformers import (
     pipeline,
     set_seed,
 )
+
+from mlrun.artifacts import get_model
 
 PROMPT_TEMPLATE = """The instruction below describes a task. Write a response that appropriately completes the request.
 
@@ -43,7 +46,15 @@ class StopOnTokens(StoppingCriteria):
 def init_context(context):
     model_id = os.environ["MODEL_ID"]
     cache_dir = os.environ["CACHE_DIR"]
+    if cache_dir.startswith("s3://"):
+        cache_dir = "./"
 
+    vdb_path = os.environ["VECTORDB_PATH"]
+    context.logger.info(f"vdb_path: {vdb_path}")
+    vdb_file, model_obj, _ = get_model(vdb_path)
+    context.logger.info(f"vdb_file: {vdb_file}")
+    local_file = "./chroma.sqlite3"
+    shutil.copy(vdb_file, local_file)
     # Initialize HF models
     tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir)
     lm_model = AutoModelForCausalLM.from_pretrained(model_id, cache_dir=cache_dir)
@@ -85,8 +96,9 @@ def handler(context, event):
 
     # Query vector store
     results = context.user_data.collection.query(
-        query_texts=[question], n_results=3, where={"topic": {"$eq": topic.upper()}}
+        query_texts=[question], n_results=1, where={"topic": {"$eq": topic.upper()}}
     )
+
     sources = list({r["link"] for r in results["metadatas"][0]})
 
     # Construct prompt
@@ -95,6 +107,7 @@ def handler(context, event):
 
     # Generate result
     resp = context.user_data.pipe(prompt)
+
     generated = resp[0]["generated_text"][len(prompt) :].split("#")[0]
 
     return {"sources": sources, "prompt": prompt, "response": generated}

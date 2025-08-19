@@ -2,9 +2,7 @@
 
 # Deploy models and applications
 
-One of the advantages of using MLRun, is simplifying the deployment process. Deployment is more than just model
-deployment. Models usually run as part of a greater system which requires data processing before and after
-executing the model as well as being part of a business application.
+Deployment is more than just model deployment: models usually run as part of a greater system which requires data processing before and after executing the model as well as being part of a business application. MLRun simplifies the deployment process. 
 
 Generally, there are two main modes of deployment:
 

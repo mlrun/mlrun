@@ -24,13 +24,11 @@ from mlrun.utils import logger
 
 def resolve_client_default_kfp_image(
     project: ProjectOut,
-    workflow_spec: WorkflowSpec,
+    workflow_spec: typing.Optional[WorkflowSpec] = None,
     client_version: typing.Optional[str] = None,
 ) -> str:
     if workflow_spec and workflow_spec.image:
         image = workflow_spec.image
-    elif project and project.spec.default_image:
-        image = project.spec.default_image
     else:
         must_use_mlrun_image = False
         if client_version and "unstable" not in client_version:
@@ -66,7 +64,7 @@ def resolve_client_default_kfp_image(
         "Resolved KFP image for workflow",
         project_name=project.metadata.name,
         client_version=client_version,
-        workflow_spec_image=workflow_spec.image,
+        workflow_spec_image=getattr(workflow_spec, "image", None),
         project_spec_default_image=project.spec.default_image,
         resolved_image=image,
     )

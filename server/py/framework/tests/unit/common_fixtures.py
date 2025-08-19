@@ -13,7 +13,7 @@
 # limitations under the License.
 import typing
 import unittest.mock
-from collections.abc import Generator
+from collections.abc import Iterator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 import deepdiff
@@ -33,7 +33,6 @@ import mlrun.launcher.factory
 import mlrun.runtimes.utils
 import mlrun.utils.singleton
 from mlrun import mlconf
-from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
@@ -45,6 +44,7 @@ import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
+from framework.db.sqldb.sql_session import _init_engine, create_session
 from services.api.initial_data import init_data
 
 
@@ -154,8 +154,20 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 
 class TestServiceBase:
+    @classmethod
+    def setup_class(cls):
+        cls.custom_setup_class()
+
+    @classmethod
+    def custom_setup_class(cls):
+        """
+        This method is called after the class is created, allowing for custom setup.
+        It can be overridden by inheriting classes to perform additional setup.
+        """
+        pass
+
     @pytest.fixture(scope="module")
-    def app(self) -> fastapi.FastAPI:
+    def app(self) -> Iterator[fastapi.FastAPI]:
         raise NotImplementedError(
             "Service application fixture should be implemented by the inheriting class"
         )
@@ -214,9 +226,8 @@ class TestServiceBase:
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
 
-            # forcing from scratch because we created an empty file for the db
             # TODO: init data initializes the tables, we should remove this coupling with the API service code
-            init_data(from_scratch=True)
+            init_data()
             framework.utils.singletons.db.initialize_db()
             framework.utils.singletons.project_member.initialize_project_member()
 
@@ -238,7 +249,7 @@ class TestServiceBase:
         client.base_url = client.base_url.join(prefix)
 
     @pytest.fixture()
-    def client(self, app, prefix) -> Generator:
+    def client(self, app: fastapi.FastAPI, prefix: str) -> Iterator[TestClient]:
         # skip partition management because it cannot be run on SQLite
         with unittest.mock.patch(
             "services.api.main.Service._start_periodic_partition_management",
@@ -257,7 +268,9 @@ class TestServiceBase:
                     yield test_client
 
     @pytest.fixture()
-    def k8s_secrets_mock(self, monkeypatch) -> K8sSecretsMock:
+    def k8s_secrets_mock(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> Iterator[K8sSecretsMock]:
         logger.info("Creating k8s secrets mock")
         k8s_secrets_mock = K8sSecretsMock()
         k8s_secrets_mock.mock_functions(
@@ -267,7 +280,7 @@ class TestServiceBase:
 
     @pytest_asyncio.fixture()
     async def async_client(
-        self, db, app, prefix
+        self, db, app: fastapi.FastAPI, prefix: str
     ) -> typing.AsyncIterator[httpx.AsyncClient]:
         with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
             mlconf.httpdb.logs_path = log_dir

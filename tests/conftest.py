@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import logging
 import traceback
 import typing
 from datetime import datetime
@@ -40,6 +40,7 @@ examples_path = Path(tests_root_directory).parent.joinpath("examples")
 pytest_plugins = ["tests.common_fixtures"]
 
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
+logging.getLogger("faker.factory").setLevel(logging.WARNING)
 
 
 def check_docker():

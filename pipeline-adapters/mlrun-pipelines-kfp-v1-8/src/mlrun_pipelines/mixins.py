@@ -67,7 +67,7 @@ class PipelineProviderMixin:
                 else:
                     raise NotImplementedError(f"Unknown action: {action}")
 
-        return mlrun.mlconf.default_project
+        raise mlrun.errors.MLRunMissingProjectError()
 
     @staticmethod
     def resolve_error_from_pipeline(pipeline):

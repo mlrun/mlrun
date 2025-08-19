@@ -73,6 +73,26 @@ def test_create_application_runtime_with_command(rundb_mock, igz_version_mock):
     _assert_function_handler(fn)
 
 
+def test_create_application_runtime_many_ports(rundb_mock, igz_version_mock):
+    # deploy with default value
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun", command="echo"
+    )
+    # both should be the same
+    assert fn.spec.internal_application_port == 8050
+    assert fn.spec.application_ports == [8050]
+
+    # should replace both application_ports and internal application port
+    fn.with_sidecar("echo", command="echo", ports=[80, 22])
+    fn.deploy()
+    assert fn.spec.application_ports == [80, 22]
+
+    # should reset internal application port and reorder application ports
+    fn.spec.internal_application_port = 22
+    assert fn.spec.application_ports == [22, 80]
+    assert fn.spec.internal_application_port == 22
+
+
 def test_deploy_application_runtime(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
@@ -175,25 +195,29 @@ def test_pre_deploy_validation(sidecars, expected_error_message):
 
 
 def test_image_enriched_on_build_application_image(remote_builder_mock):
+    project = "test-project"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test",
         kind="application",
+        project=project,
     )
     fn._build_application_image()
-    assert fn.spec.image == ".mlrun/func-default-application-test:latest"
+    assert fn.spec.image == f".mlrun/func-{project}-application-test:latest"
     assert fn.status.state == mlrun.common.schemas.FunctionState.ready
 
 
 def test_application_image_build(remote_builder_mock, igz_version_mock):
+    project = "test-project"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test",
         kind="application",
         requirements=["mock"],
+        project=project,
     )
     assert fn.requires_build()
     fn.deploy()
     _assert_application_post_deploy_spec(
-        fn, ".mlrun/func-default-application-test:latest"
+        fn, f".mlrun/func-{project}-application-test:latest"
     )
 
 
@@ -329,7 +353,7 @@ def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
 
 
 def test_application_from_local_file_validation():
-    project = mlrun.get_or_create_project("test-application")
+    project = mlrun.get_or_create_project("test-application", allow_cross_project=True)
     func_path = assets_path / "sample_function.py"
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,

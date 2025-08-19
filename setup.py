@@ -59,7 +59,12 @@ setup(
             "server",
         ]
     ),
-    package_data={"mlrun": ["runtimes/nuclio/application/*.go"]},
+    package_data={
+        "mlrun": [
+            "utils/version/version.json",
+            "runtimes/nuclio/application/*.go",
+        ]
+    },
     keywords=[
         "mlrun",
         "mlops",
@@ -69,17 +74,16 @@ setup(
     ],
     python_requires=">=3.9, <3.12",
     install_requires=dependencies.base_requirements(),
-    tests_require=dependencies.dev_requirements(),
     extras_require=dependencies.extra_requirements(),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: Apache Software License",
         "Operating System :: POSIX :: Linux",
         "Operating System :: Microsoft :: Windows",
         "Operating System :: MacOS",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Software Development :: Libraries",

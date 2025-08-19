@@ -20,6 +20,7 @@ def handler_chroma(
     cache_dir: str,
     chunk_size: int = 500,
     chunk_overlap: int = 0,
+    collection_name: str = "my_news",
 ):
     # project = mlrun.get_current_project()
 
@@ -29,22 +30,29 @@ def handler_chroma(
         download_object=False,
     )
 
+    if cache_dir.startswith("s3://"):
+        cache_dir = "./"
+
     # Create chroma client
     chroma_client = chromadb.PersistentClient(path=cache_dir)
 
     # Get or create collection
-    collection_name = "my_news"
+    collection_name = collection_name
     print(f"Creating collection: '{collection_name}'")
 
-    if collection_name in chroma_client.list_collections():
+    if collection_name in [c.name for c in chroma_client.list_collections()]:
         chroma_client.delete_collection(name=collection_name)
 
-    collection = chroma_client.create_collection(name=collection_name)
+    collection = chroma_client.get_or_create_collection(name=collection_name)
 
     # Format and split docunments
     documents = df.pop("page_content").to_list()
     metadatas = df.to_dict(orient="records")
-    docs = [Document(page_content=d, metadata=m) for d, m in zip(documents, metadatas)]
+    docs = [
+        Document(page_content=d, metadata=m)
+        for d, m in zip(documents, metadatas)
+        if type(d) is str
+    ]
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size, chunk_overlap=chunk_overlap
     )
@@ -68,4 +76,10 @@ def handler_chroma(
             document_loader_spec=spec,
         )
 
-    context.logger.info("Vector DB was created")
+    vectordb = context.log_model(
+        "vect_db",
+        artifact_path=context.artifact_subpath("vect_db"),
+        model_file=f"{cache_dir}/chroma.sqlite3",
+    )
+
+    context.logger.info(f"Vector DB was created {vectordb}")

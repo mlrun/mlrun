@@ -21,7 +21,6 @@ import tempfile
 import time
 import typing
 import uuid
-import warnings
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -37,6 +36,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 
@@ -141,7 +141,7 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
         else:
             is_remote = "://" in command
             data = get_object(command, secrets)
-            runtime = yaml.load(data, Loader=yaml.FullLoader)
+            runtime = yaml.safe_load(data)
             runtime = new_function(runtime=runtime)
 
         command = runtime.spec.command or ""
@@ -206,7 +206,6 @@ def get_or_create_ctx(
     rundb: Union[str, "mlrun.db.RunDBInterface"] = "",
     project: str = "",
     upload_artifacts: bool = False,
-    labels: Optional[dict] = None,
 ) -> MLClientCtx:
     """
     Called from within the user program to obtain a run context.
@@ -223,10 +222,9 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:  project to initiate the context in (by default `mlrun.mlconf.default_project`)
+    :param project:  project to initiate the context in (by default `mlrun.mlconf.active_project`)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
-    :param labels: (deprecated - use spec instead) dict of the context labels.
     :return: execution context
 
     Examples::
@@ -259,21 +257,6 @@ def get_or_create_ctx(
         context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
 
     """
-    if labels:
-        warnings.warn(
-            "The `labels` argument is deprecated and will be removed in 1.9.0. "
-            "Please use `spec` instead, e.g.:\n"
-            "spec={'metadata': {'labels': {'key': 'value'}}}",
-            FutureWarning,
-        )
-        if spec is None:
-            spec = {}
-        if "metadata" not in spec:
-            spec["metadata"] = {}
-        if "labels" not in spec["metadata"]:
-            spec["metadata"]["labels"] = {}
-        spec["metadata"]["labels"].update(labels)
-
     if global_context.get() and not spec and not event:
         return global_context.get()
 
@@ -298,7 +281,7 @@ def get_or_create_ctx(
         newspec = {}
         if upload_artifacts:
             artifact_path = mlrun.utils.helpers.template_artifact_path(
-                mlconf.artifact_path, project or mlconf.default_project
+                mlconf.artifact_path, project or mlconf.active_project
             )
             update_in(newspec, ["spec", RunKeys.output_path], artifact_path)
 
@@ -312,7 +295,7 @@ def get_or_create_ctx(
         logger.info(f"Logging run results to: {out}")
 
     newspec["metadata"]["project"] = (
-        newspec["metadata"].get("project") or project or mlconf.default_project
+        newspec["metadata"].get("project") or project or mlconf.active_project
     )
 
     newspec["metadata"].setdefault("labels", {})
@@ -369,9 +352,9 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
         url, is_hub_uri = extend_hub_uri_if_needed(url)
         runtime = import_function_to_dict(url, secrets)
     function = new_function(runtime=runtime)
-    project = project or mlrun.mlconf.default_project
+    project = project or mlrun.mlconf.active_project
     # When we're importing from the hub we want to assign to a target project, otherwise any store on it will
-    # simply default to the default project
+    # simply default to the active project
     if project and is_hub_uri:
         function.metadata.project = project
     if new_name:
@@ -379,10 +362,13 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     return function
 
 
-def import_function_to_dict(url, secrets=None):
+def import_function_to_dict(
+    url: str,
+    secrets: Optional[dict] = None,
+) -> dict:
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
-    runtime = yaml.load(obj, Loader=yaml.FullLoader)
+    runtime = yaml.safe_load(obj)
     remote = "://" in url
 
     code = get_in(runtime, "spec.build.functionSourceCode")
@@ -405,6 +391,11 @@ def import_function_to_dict(url, secrets=None):
                 raise ValueError("exec path (spec.command) must be relative")
             url = url[: url.rfind("/") + 1] + code_file
             code = get_object(url, secrets)
+            code_file = _ensure_path_confined_to_base_dir(
+                base_directory=".",
+                relative_path=code_file,
+                error_message_on_escape="Path traversal detected in spec.command",
+            )
             dir = path.dirname(code_file)
             if dir:
                 makedirs(dir, exist_ok=True)
@@ -412,9 +403,16 @@ def import_function_to_dict(url, secrets=None):
                 fp.write(code)
         elif cmd:
             if not path.isfile(code_file):
-                # look for the file in a relative path to the yaml
-                slash = url.rfind("/")
-                if slash >= 0 and path.isfile(url[: url.rfind("/") + 1] + code_file):
+                slash_index = url.rfind("/")
+                if slash_index < 0:
+                    raise ValueError(f"no file in exec path (spec.command={code_file})")
+                base_dir = os.path.normpath(url[: slash_index + 1])
+                candidate_path = _ensure_path_confined_to_base_dir(
+                    base_directory=base_dir,
+                    relative_path=code_file,
+                    error_message_on_escape=f"exec file spec.command={code_file} is outside of allowed directory",
+                )
+                if path.isfile(candidate_path):
                     raise ValueError(
                         f"exec file spec.command={code_file} is relative, change working dir"
                     )
@@ -464,7 +462,7 @@ def new_function(
            f = new_function().run(task, handler=myfunction)
 
     :param name:     function name
-    :param project:  function project (none for 'default')
+    :param project:  function project (none for the active project)
     :param tag:      function version tag (none for 'latest')
 
     :param kind:     runtime type (local, job, nuclio, spark, mpijob, dask, ..)
@@ -523,7 +521,7 @@ def new_function(
 
     runner.metadata.name = name
     runner.metadata.project = (
-        runner.metadata.project or project or mlconf.default_project
+        runner.metadata.project or project or mlconf.active_project
     )
     if tag:
         runner.metadata.tag = tag
@@ -640,7 +638,7 @@ def code_to_function(
     Learn more about :doc:`../../concepts/functions-overview`
 
     :param name:         function name, typically best to use hyphen-case
-    :param project:      project used to namespace the function, defaults to 'default'
+    :param project:      project used to namespace the function, defaults to the active project
     :param tag:          function tag to track multiple versions of the same function, defaults to 'latest'
     :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
     :param handler:      The default function handler to call for the job or nuclio function, in batch functions
@@ -729,7 +727,7 @@ def code_to_function(
                 fn.spec.volume_mounts.append(vol.get("volumeMount"))
 
         fn.spec.description = description
-        fn.metadata.project = project or mlconf.default_project
+        fn.metadata.project = project or mlconf.active_project
         fn.metadata.tag = tag
         fn.metadata.categories = categories
         fn.metadata.labels = labels or fn.metadata.labels
@@ -912,8 +910,7 @@ def _run_pipeline(
 def retry_pipeline(
     run_id: str,
     project: str,
-    namespace: Optional[str] = None,
-) -> str:
+) -> typing.Union[str, dict[str, str]]:
     """Retry a pipeline run.
 
     This function retries a previously executed pipeline run using the specified run ID. If the run is not in a
@@ -921,7 +918,6 @@ def retry_pipeline(
 
     :param run_id: ID of the pipeline run to retry.
     :param project: name of the project associated with the pipeline run.
-    :param namespace: Optional; Kubernetes namespace to use if not the default.
 
     :returns: ID of the retried pipeline run or the ID of a cloned run if the original run is not retryable.
     :raises ValueError: If access to the remote API service is not available.
@@ -933,11 +929,33 @@ def retry_pipeline(
             "Please set the dbpath URL."
         )
 
-    pipeline_run_id = mldb.retry_pipeline(
+    # Invoke retry pipeline run. Depending on the context, this call returns either:
+    # 1. A simple string of a workflow-id, for direct retries or non-remote workflows, or
+    # 2. A dict payload representing a WorkflowResponse when rerunning remote workflows.
+    rerun_response = mldb.retry_pipeline(
         run_id=run_id,
         project=project,
-        namespace=namespace,
     )
+    if isinstance(rerun_response, str):
+        pipeline_run_id = rerun_response
+    else:
+        rerun_response = mlrun.common.schemas.WorkflowResponse(**rerun_response)
+
+        def _fetch_workflow_id():
+            rerun = mldb.read_run(rerun_response.run_id, project)
+            workflow_id = rerun["metadata"]["labels"].get("workflow-id")
+            if not workflow_id:
+                raise mlrun.errors.MLRunRuntimeError("workflow-id label not set yet")
+            return workflow_id
+
+        pipeline_run_id = mlrun.utils.helpers.retry_until_successful(
+            backoff=3,
+            timeout=int(mlrun.mlconf.workflows.timeouts.remote),
+            logger=logger,
+            verbose=False,
+            _function=_fetch_workflow_id,
+        )
+
     if pipeline_run_id == run_id:
         logger.info(
             f"Retried pipeline run ID={pipeline_run_id}, check UI for progress."
@@ -947,6 +965,35 @@ def retry_pipeline(
             f"Copy of pipeline {run_id} was retried as run ID={pipeline_run_id}, check UI for progress."
         )
     return pipeline_run_id
+
+
+def terminate_pipeline(
+    run_id: str,
+    project: str,
+) -> str:
+    """Terminate a pipeline run.
+
+    This function terminates a running pipeline with the specified run ID. If the run is not in a
+    terminable state, an error is raised.
+
+    :param run_id: ID of the pipeline run to terminate.
+    :param project: name of the project associated with the pipeline run.
+
+    :returns: ID of the terminate pipeline run background task.
+    :raises ValueError: If access to the remote API service is not available.
+    """
+    mldb = mlrun.db.get_run_db()
+    if mldb.kind != "http":
+        raise ValueError(
+            "Terminating a pipeline requires access to remote API service. "
+            "Please set the dbpath URL."
+        )
+
+    pipeline_run_task = mldb.terminate_pipeline(
+        run_id=run_id,
+        project=project,
+    )
+    return pipeline_run_task["metadata"]["id"]
 
 
 def wait_for_pipeline_completion(
@@ -1015,7 +1062,10 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = mlrun_pipelines.utils.get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(
+            logger=logger,
+            namespace=namespace,
+        )
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -1076,7 +1126,10 @@ def get_pipeline(
         )
 
     else:
-        client = mlrun_pipelines.utils.get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(
+            logger=logger,
+            namespace=namespace,
+        )
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
@@ -1136,6 +1189,24 @@ def get_dataitem(url, secrets=None, db=None) -> "DataItem":
     """get mlrun dataitem object (from path/url)"""
     stores = store_manager.set(secrets, db=db)
     return stores.object(url=url)
+
+
+def get_model_provider(
+    url,
+    secrets=None,
+    db=None,
+    default_invoke_kwargs: Optional[dict] = None,
+    raise_missing_schema_exception=True,
+) -> ModelProvider:
+    """get mlrun dataitem object (from path/url)"""
+    #  without caching secrets
+    store_manager.set(db=db)
+    return store_manager.model_provider_object(
+        url=url,
+        default_invoke_kwargs=default_invoke_kwargs,
+        raise_missing_schema_exception=raise_missing_schema_exception,
+        secrets=secrets,
+    )
 
 
 def download_object(url, target, secrets=None):
@@ -1202,3 +1273,21 @@ def wait_for_runs_completion(
         runs = running
 
     return completed
+
+
+def _ensure_path_confined_to_base_dir(
+    base_directory: str,
+    relative_path: str,
+    error_message_on_escape: str,
+) -> str:
+    """
+    Join `user_supplied_relative_path` to `allowed_base_directory`, normalise the result,
+    and guarantee it stays inside `allowed_base_directory`.
+    """
+    absolute_base_directory = path.abspath(base_directory)
+    absolute_candidate_path = path.abspath(
+        path.join(absolute_base_directory, relative_path)
+    )
+    if not absolute_candidate_path.startswith(absolute_base_directory + path.sep):
+        raise ValueError(error_message_on_escape)
+    return absolute_candidate_path

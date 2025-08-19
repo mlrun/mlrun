@@ -1,23 +1,18 @@
 (unstructured-data)=
 # Using LLMs to process unstructured data
 
-Unstructured data, such as text, images, and audio files, has become a significant challenge for many industries. The sheer volume of unorganized data can be overwhelming, making it difficult to extract valuable insights or information. This is where Large Language Models (LLMs) come into play.
+Large Language Models (LLMs) address the significant challenge posed by unstructured data, such as text, images, and audio files, making it possible to extract valuable insights or information from very large quantities of data.
 
 ## The challenge of unstructured data
 
 Unstructured data is the opposite of structured data, which has a predefined format or schema. Text documents, social media posts, emails, and even audio and video recordings are all examples of unstructured data. Processing this type of data can be time-consuming and labor-intensive, often requiring human intervention to extract meaningful information.
 
-
 ### How LLMs can help
 
 LLMs have been trained on large amounts of text data, enabling them to identify patterns, relationships, and context within the data. By applying these capabilities to unstructured text data, LLMs can perform tasks such as:
-
 - **Extract keywords and phrases**: Identify relevant terms and concepts from large bodies of text.
-
 - **Classify and categorize**: Organize unstructured text into predefined categories or classes based on content, sentiment, or intent.
-
 - **Summarize and abstract**: Condense lengthy texts into concise summaries, preserving the most important information.
-
 - **Calculate subjective metrics**: Calculate metrics such as "professionalism" or how well a call center agent adhered to a given script. These are both subjective metrics that are difficult to quantify without a model that has an understanding of patterns and relationships in text.
 
 ### Turning unstructured data into structured data
@@ -42,10 +37,10 @@ A great example of using LLMs to process unstructured data is the [MLRun Call Ce
 The call analysis workflow includes multiple steps for which all of the main functions are imported from the **[MLRun Function hub](https://www.mlrun.org/hub/)**. You can see each hub function's docstring, code, and example, by clicking the function name in the following list:
 
 1. [**Insert the calls data to the DB**](https://github.com/mlrun/demo-call-center/blob/main/src/calls_analysis/db_management.py) &mdash; Insert the calls metadata to the MySQL DB.
-2. [**Perform speech diarization**](https://github.com/mlrun/functions/tree/development/silero_vad) &ndash; ***hub function***: Analyze when each person is talking during the call for subsequent improved transcription and analysis. Diarization gives context to the LLM and yields better results. The function uses the [silero-VAD](https://github.com/snakers4/silero-vad) model. The speech diarization is performed per channel based on the assumption that each channel of the audio in the call center recordings belongs to a different speaker.
-3. [**Transcribe**](https://github.com/mlrun/functions/tree/master/transcribe) &ndash; ***hub function***: Uses [Hugging Face's ASR pipeline](https://huggingface.co/transformers/main_classes/pipelines.html#transformers.AutomaticSpeechRecognitionPipeline) with [OpenAI's Whisper models](https://huggingface.co/openai).This function transcribes and translates the calls into text and saves them as text files. It is an optimized version of [OpenAI's Whisper](https://openai.com/research/whisper) package &mdash; enabled to use batching, CPU offloading to multiprocessing workers, and to distribute across multiple GPUs using MLRun and OpenMPI.
-4. [**Recognize PII**](https://github.com/mlrun/functions/tree/master/pii_recognizer) &ndash; ***hub function***: Uses three techniques to recognize personally identifiable information: RegEx, [Flair](https://flairnlp.github.io/) and [Microsoft's Presidio Analyzer](https://microsoft.github.io/presidio/analyzer/) and [Anonymizer](https://microsoft.github.io/presidio/anonymizer/). The function clears the recognized personal data and produces multiple artifacts to review and understand the recognition process.
-5. [**Analysis**](https://github.com/mlrun/functions/tree/master/question_answering) &ndash; ***hub function***: Uses an LLM to analyze a given text. It expects a prompt template and questions to send to the LLM, and then constructs a dataframe dataset from its answers. This demo uses a GPTQ quantized version of [Mistral-7B](https://huggingface.co/TheBloke/Mistral-7B-OpenOrca-GPTQ) to analyze the calls' conversations. It helps to extract the following features:
+2. [**Perform speech diarization**](https://github.com/mlrun/functions/tree/development/functions/src/silero_vad) &ndash; ***hub function***: Analyze when each person is talking during the call for subsequent improved transcription and analysis. Diarization gives context to the LLM and yields better results. The function uses the [silero-VAD](https://github.com/snakers4/silero-vad) model. The speech diarization is performed per channel based on the assumption that each channel of the audio in the call center recordings belongs to a different speaker.
+3. [**Transcribe**](https://github.com/mlrun/functions/tree/master/functions/src/transcribe) &ndash; ***hub function***: Uses [Hugging Face's ASR pipeline](https://huggingface.co/transformers/main_classes/pipelines.html#transformers.AutomaticSpeechRecognitionPipeline) with [OpenAI's Whisper models](https://huggingface.co/openai).This function transcribes and translates the calls into text and saves them as text files. It is an optimized version of [OpenAI's Whisper](https://openai.com/research/whisper) package &mdash; enabled to use batching, CPU offloading to multiprocessing workers, and to distribute across multiple GPUs using MLRun and OpenMPI.
+4. [**Recognize PII**](https://github.com/mlrun/functions/tree/master/functions/src/pii_recognizer) &ndash; ***hub function***: Uses three techniques to recognize personally identifiable information: RegEx, [Flair](https://flairnlp.github.io/) and [Microsoft's Presidio Analyzer](https://microsoft.github.io/presidio/analyzer/) and [Anonymizer](https://microsoft.github.io/presidio/anonymizer/). The function clears the recognized personal data and produces multiple artifacts to review and understand the recognition process.
+5. [**Analysis**](https://github.com/mlrun/functions/tree/master/functions/src/question_answering) &ndash; ***hub function***: Uses an LLM to analyze a given text. It expects a prompt template and questions to send to the LLM, and then constructs a dataframe dataset from its answers. This demo uses a GPTQ quantized version of [Mistral-7B](https://huggingface.co/TheBloke/Mistral-7B-OpenOrca-GPTQ) to analyze the calls' conversations. It helps to extract the following features:
    
    * `topic: str` &mdash; The general subject of the call out of a given list of topics.
    * `summary: str` &mdash; The summary of the entire call in few sentences.

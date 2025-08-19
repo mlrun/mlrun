@@ -29,6 +29,7 @@ import traceback
 import typing
 import uuid
 import warnings
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from importlib import import_module, reload
 from os import path
@@ -60,6 +61,7 @@ import mlrun_pipelines.common.constants
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
+from mlrun.common.schemas import ArtifactCategories
 from mlrun.config import config
 from mlrun_pipelines.models import PipelineRun
 
@@ -83,10 +85,6 @@ DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
 
-class OverwriteBuildParamsWarning(FutureWarning):
-    pass
-
-
 class StorePrefix:
     """map mlrun store objects to prefixes"""
 
@@ -96,10 +94,17 @@ class StorePrefix:
     Model = "models"
     Dataset = "datasets"
     Document = "documents"
+    LLMPrompt = "llm-prompts"
 
     @classmethod
     def is_artifact(cls, prefix):
-        return prefix in [cls.Artifact, cls.Model, cls.Dataset, cls.Document]
+        return prefix in [
+            cls.Artifact,
+            cls.Model,
+            cls.Dataset,
+            cls.Document,
+            cls.LLMPrompt,
+        ]
 
     @classmethod
     def kind_to_prefix(cls, kind):
@@ -107,6 +112,7 @@ class StorePrefix:
             "model": cls.Model,
             "dataset": cls.Dataset,
             "document": cls.Document,
+            "llm-prompt": cls.LLMPrompt,
         }
         return kind_map.get(kind, cls.Artifact)
 
@@ -119,6 +125,7 @@ class StorePrefix:
             cls.FeatureSet,
             cls.FeatureVector,
             cls.Document,
+            cls.LLMPrompt,
         ]
 
 
@@ -131,7 +138,16 @@ def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     uid = item["metadata"].get("uid")
 
-    if kind in {"dataset", "model", "artifact"} and db_key:
+    if (
+        kind
+        in {
+            ArtifactCategories.dataset,
+            ArtifactCategories.model,
+            ArtifactCategories.llm_prompt,
+            "artifact",
+        }
+        and db_key
+    ):
         target = (
             f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
         )
@@ -145,14 +161,6 @@ def get_artifact_target(item: dict, project=None):
         return target
 
     return item["spec"].get("target_path")
-
-
-# TODO: Remove once data migration v5 is obsolete
-def is_legacy_artifact(artifact):
-    if isinstance(artifact, dict):
-        return "metadata" not in artifact
-    else:
-        return not hasattr(artifact, "metadata")
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -456,17 +464,11 @@ def to_date_str(d):
     return ""
 
 
-def normalize_name(name: str, verbose: bool = True):
+def normalize_name(name: str):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
     if "_" in name:
-        if verbose:
-            warnings.warn(
-                "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                f"Replacing '{name}' underscores with dashes.",
-                FutureWarning,
-            )
         name = name.replace("_", "-")
     return name.lower()
 
@@ -779,6 +781,27 @@ def generate_artifact_uri(
     return artifact_uri
 
 
+def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
+    """
+    Remove the `:<tag>` part from a URI with pattern:
+    [store://][<project>/]<key>[#<iter>][:<tag>][@<tree>][^<uid>]
+
+    Returns the URI without the tag section.
+
+    Examples:
+        "store://proj/key:latest" => "store://proj/key"
+        "key#1:dev@tree^uid" => "key#1@tree^uid"
+        "store://key:tag" => "store://key"
+        "store://models/remote-model-project/my_model#0@tree" => unchanged (no tag)
+    """
+    add_store = False
+    if mlrun.datastore.is_store_uri(uri):
+        uri = uri.removeprefix(DB_SCHEMA + "://")
+        add_store = True
+    uri = re.sub(r"(#[^:@\s]*)?:[^@^:\s]+(?=(@|\^|$))", lambda m: m.group(1) or "", uri)
+    return uri if not add_store else DB_SCHEMA + "://" + uri
+
+
 def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     """
     Retrieve the full uri of the item's yaml in the hub.
@@ -806,7 +829,7 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid character '/' in function name or source name"
             ) from exc
-    name = normalize_name(name=name, verbose=False)
+    name = normalize_name(name=name)
     if not source_name:
         # Searching item in all sources
         sources = db.list_hub_sources(item_name=name, tag=tag)
@@ -876,13 +899,19 @@ def enrich_image_url(
     client_version: Optional[str] = None,
     client_python_version: Optional[str] = None,
 ) -> str:
+    image_url = image_url.strip()
+
+    # Add python version tag if needed
+    if image_url == "python" and client_python_version:
+        image_tag = ".".join(client_python_version.split(".")[:2])
+        image_url = f"python:{image_tag}"
+
     client_version = _convert_python_package_version_to_image_tag(client_version)
     server_version = _convert_python_package_version_to_image_tag(
         mlrun.utils.version.Version().get()["version"]
     )
-    image_url = image_url.strip()
     mlrun_version = config.images_tag or client_version or server_version
-    tag = mlrun_version
+    tag = mlrun_version or ""
 
     # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
     if "mlrun-kfp" not in image_url:
@@ -892,6 +921,26 @@ def enrich_image_url(
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
+    if ":" in image_url:
+        _, image_tag = image_url.rsplit(":", 1)
+    else:
+        image_tag = None
+    if is_mlrun_image and "mlrun/ml-base" in image_url:
+        # use the tag from image URL if available, else fallback to the given tag
+        tag = image_tag or tag
+        if tag:
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "mlrun-client", "1.10.0-rc0", mlrun_client_version=tag
+            ):
+                warnings.warn(
+                    "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                    "use 'mlrun/mlrun' instead.",
+                    # TODO: Remove this in 1.12.0
+                    FutureWarning,
+                )
+                image_url = image_url.replace("mlrun/ml-base", "mlrun/mlrun")
+        else:
+            image_url = "mlrun/mlrun"
 
     if is_mlrun_image and tag and ":" not in image_url:
         image_url = f"{image_url}:{tag}"
@@ -1009,7 +1058,14 @@ def fill_function_hash(function_dict, tag=""):
 
 
 def retry_until_successful(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    *args,
+    fatal_exceptions=(),
+    **kwargs,
 ):
     """
     Runs function with given *args and **kwargs.
@@ -1022,14 +1078,31 @@ def retry_until_successful(
     :param verbose: whether to log the failure on each retry
     :param _function: function to run
     :param args: functions args
+    :param fatal_exceptions: exception types that should not be retried
     :param kwargs: functions kwargs
     :return: function result
     """
-    return Retryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
+    return Retryer(
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
+    ).run()
 
 
 async def retry_until_successful_async(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    *args,
+    fatal_exceptions=(),
+    **kwargs,
 ):
     """
     Runs function with given *args and **kwargs.
@@ -1041,12 +1114,20 @@ async def retry_until_successful_async(
     :param logger: a logger so we can log the failures
     :param verbose: whether to log the failure on each retry
     :param _function: function to run
+    :param fatal_exceptions: exception types that should not be retried
     :param args: functions args
     :param kwargs: functions kwargs
     :return: function result
     """
     return await AsyncRetryer(
-        backoff, timeout, logger, verbose, _function, *args, **kwargs
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
     ).run()
 
 
@@ -2091,24 +2172,79 @@ def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}" if path else base_url
 
 
+def warn_on_deprecated_image(image: Optional[str]):
+    """
+    Warn if the provided image is the deprecated 'mlrun/ml-base' image.
+    This image is deprecated as of 1.10.0 and will be removed in 1.12.0.
+    """
+    deprecated_images = ["mlrun/ml-base"]
+    if image and any(
+        image in deprecated_image for deprecated_image in deprecated_images
+    ):
+        warnings.warn(
+            "'mlrun/ml-base' image is deprecated in 1.10.0 and will be replaced by 'mlrun/mlrun'. "
+            "This behavior will be removed in 1.12.0 ",
+            # TODO: Remove this in 1.12.0
+            FutureWarning,
+        )
+
+
 class Workflow:
     @staticmethod
-    def get_workflow_steps(workflow_id: str, project: str) -> list:
+    def get_workflow_steps(
+        db: "mlrun.db.RunDBInterface", workflow_id: str, project: str
+    ) -> list:
         steps = []
-        db = mlrun.get_run_db()
 
         def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
+            # on kfp 1.8 argo sets the pod hostname differently than what we have with kfp 2.5
+            # therefore, the heuristic needs to change. what we do here is first trying against 1.8 conventions
+            # and if we can't find it then falling back to 2.5
             try:
-                _run = db.list_runs(
+                # runner_pod = x-y-N
+                _runs = db.list_runs(
                     project=project,
                     labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
-                )[0]
+                )
+                if not _runs:
+                    try:
+                        # x-y-N -> x-y, N
+                        node_name_initials, node_name_generated_id = (
+                            _step.node_name.rsplit("-", 1)
+                        )
+
+                    except ValueError:
+                        # defensive programming, if the node name is not in the expected format
+                        node_name_initials = _step.node_name
+                        node_name_generated_id = ""
+
+                    # compile the expected runner pod hostname as per kfp >= 2.4
+                    # x-y, Z, N -> runner_pod = x-y-Z-N
+                    runner_pod_value = "-".join(
+                        [
+                            node_name_initials,
+                            _step.display_name,
+                            node_name_generated_id,
+                        ]
+                    ).rstrip("-")
+                    logger.debug(
+                        "No run found for step, trying with different node name",
+                        step_node_name=runner_pod_value,
+                    )
+                    _runs = db.list_runs(
+                        project=project,
+                        labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={runner_pod_value}",
+                    )
+
+                _run = _runs[0]
             except IndexError:
+                logger.warning("No run found for step", step=_step.to_dict())
                 _run = {
                     "metadata": {
                         "name": _step.display_name,
                         "project": project,
                     },
+                    "status": {},
                 }
             _run["step_kind"] = _step.step_type
             if _step.skipped:
@@ -2222,12 +2358,14 @@ class Workflow:
         workflow_id: str,
     ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
         kfp_client = mlrun_pipelines.utils.get_client(
+            logger=logger,
             url=mlrun.mlconf.kfp_url,
             namespace=mlrun.mlconf.namespace,
         )
 
-        # arbitrary timeout of 5 seconds, the workflow should be done by now
-        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)
+        # arbitrary timeout of 30 seconds, the workflow should be done by now, however sometimes kfp takes a few
+        # seconds to update the workflow status
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 30)
         if not kfp_run:
             return None
 
@@ -2254,3 +2392,62 @@ def encode_user_code(
             "Consider using `with_source_archive` to add user code as a remote source to the function."
         )
     return encoded
+
+
+def split_path(path: str) -> typing.Union[str, list[str], None]:
+    if path is not None:
+        parsed_path = path.split(".")
+        if len(parsed_path) == 1:
+            parsed_path = parsed_path[0]
+        return parsed_path
+    return path
+
+
+def get_data_from_path(path: typing.Union[str, list[str], None], data: dict) -> Any:
+    if isinstance(path, str):
+        output_data = data.get(path)
+    elif isinstance(path, list):
+        output_data = deepcopy(data)
+        for key in path:
+            output_data = output_data.get(key, {})
+    elif path is None:
+        output_data = data
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected path be of type str or list of str or None"
+        )
+    return output_data
+
+
+def is_valid_port(port: int, raise_on_error: bool = False) -> bool:
+    if not port:
+        return False
+    if 0 <= port <= 65535:
+        return True
+    if raise_on_error:
+        raise ValueError("Port must be in the range 0–65535")
+    return False
+
+
+def set_data_by_path(
+    path: typing.Union[str, list[str], None], data: dict, value
+) -> None:
+    if path is None:
+        if not isinstance(value, dict):
+            raise ValueError("When path is None, value must be a dictionary.")
+        data.update(value)
+
+    elif isinstance(path, str):
+        data[path] = value
+
+    elif isinstance(path, list):
+        current = data
+        for key in path[:-1]:
+            if key not in current or not isinstance(current[key], dict):
+                current[key] = {}
+            current = current[key]
+        current[path[-1]] = value
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected path to be of type str or list of str"
+        )

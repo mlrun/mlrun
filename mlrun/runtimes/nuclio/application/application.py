@@ -29,12 +29,13 @@ from mlrun.runtimes.nuclio.api_gateway import (
     APIGatewaySpec,
 )
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
-from mlrun.utils import logger, update_in
+from mlrun.utils import is_valid_port, logger, update_in
 
 
 class ApplicationSpec(NuclioSpec):
     _dict_fields = NuclioSpec._dict_fields + [
         "internal_application_port",
+        "application_ports",
     ]
 
     def __init__(
@@ -76,10 +77,10 @@ class ApplicationSpec(NuclioSpec):
         security_context=None,
         service_type=None,
         add_templated_ingress_host_mode=None,
-        clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
         internal_application_port=None,
+        application_ports=None,
     ):
         super().__init__(
             command=command,
@@ -119,7 +120,6 @@ class ApplicationSpec(NuclioSpec):
             security_context=security_context,
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
-            clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
         )
@@ -128,10 +128,53 @@ class ApplicationSpec(NuclioSpec):
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or 1
 
+        # initializing internal application port and application ports
+        self._internal_application_port = None
+        self._application_ports = []
+
+        application_ports = application_ports or []
+
+        # if internal_application_port is not provided, use the first application port
+        if not internal_application_port and len(application_ports) > 0:
+            internal_application_port = application_ports[0]
+
+        # the port of application sidecar to which traffic will be routed from a nuclio function
         self.internal_application_port = (
             internal_application_port
             or mlrun.mlconf.function.application.default_sidecar_internal_port
         )
+
+        # all exposed ports by the application sidecar
+        self.application_ports = application_ports
+
+    @property
+    def application_ports(self):
+        return self._application_ports
+
+    @application_ports.setter
+    def application_ports(self, ports):
+        """
+        Set the application ports for the application sidecar.
+        The internal application port is always included and always first.
+        """
+        # Handle None / single int
+        if ports is None:
+            ports = []
+        elif isinstance(ports, int):
+            ports = [ports]
+        elif not isinstance(ports, list):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Application ports must be a list of integers"
+            )
+
+        # Validate and normalize
+        cleaned_ports = []
+        for port in ports:
+            is_valid_port(port, raise_on_error=True)
+            if port != self.internal_application_port:
+                cleaned_ports.append(port)
+
+        self._application_ports = [self.internal_application_port] + cleaned_ports
 
     @property
     def internal_application_port(self):
@@ -140,9 +183,12 @@ class ApplicationSpec(NuclioSpec):
     @internal_application_port.setter
     def internal_application_port(self, port):
         port = int(port)
-        if port < 0 or port > 65535:
-            raise ValueError("Port must be in the range 0-65535")
+        is_valid_port(port, raise_on_error=True)
         self._internal_application_port = port
+
+        # when setting new internal application port, ensure that it is included in the application ports
+        # it just triggers setter logic, so setting to the same value is a no-op
+        self.application_ports = self._application_ports
 
 
 class ApplicationStatus(NuclioStatus):
@@ -224,6 +270,32 @@ class ApplicationRuntime(RemoteRuntime):
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
 
+    def with_sidecar(
+        self,
+        name: typing.Optional[str] = None,
+        image: typing.Optional[str] = None,
+        ports: typing.Optional[typing.Union[int, list[int]]] = None,
+        command: typing.Optional[str] = None,
+        args: typing.Optional[list[str]] = None,
+    ):
+        # wraps with_sidecar just to set the application ports
+        super().with_sidecar(
+            name=name,
+            image=image,
+            ports=ports,
+            command=command,
+            args=args,
+        )
+
+        if ports:
+            if self.spec.internal_application_port != ports[0]:
+                logger.info(
+                    f"Setting internal application port to the first port from the sidecar: {ports[0]}. "
+                    f"If this is not intended, please set the internal_application_port explicitly."
+                )
+                self.spec.internal_application_port = ports[0]
+            self.spec.application_ports = ports
+
     def pre_deploy_validation(self):
         super().pre_deploy_validation()
         if not self.spec.config.get("spec.sidecars"):
@@ -274,7 +346,6 @@ class ApplicationRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: schemas.AuthInfo = None,
         builder_env: typing.Optional[dict] = None,
         force_build: bool = False,
         with_mlrun=None,
@@ -291,7 +362,6 @@ class ApplicationRuntime(RemoteRuntime):
         :param project:                     Project name
         :param tag:                         Function tag
         :param verbose:                     Set True for verbose logging
-        :param auth_info:                   Service AuthInfo (deprecated and ignored)
         :param builder_env:                 Env vars dict for source archive config/credentials
                                             e.g. builder_env={"GIT_TOKEN": token}
         :param force_build:                 Set True for force building the application image
@@ -332,7 +402,6 @@ class ApplicationRuntime(RemoteRuntime):
             project=project,
             tag=tag,
             verbose=verbose,
-            auth_info=auth_info,
             builder_env=builder_env,
         )
         logger.info(
@@ -405,8 +474,10 @@ class ApplicationRuntime(RemoteRuntime):
         # nuclio implementation detail - when providing the image and emptying out the source code and build source,
         # nuclio skips rebuilding the image and simply takes the prebuilt image
         self.spec.build.functionSourceCode = ""
+        self.spec.config.pop("spec.build.functionSourceCode", None)
         self.status.application_source = self.spec.build.source
         self.spec.build.source = ""
+        self.spec.config.pop("spec.build.source", None)
 
         # save the image in the status, so we won't repopulate the function source code
         self.status.container_image = image
@@ -434,6 +505,7 @@ class ApplicationRuntime(RemoteRuntime):
         ssl_redirect: typing.Optional[bool] = None,
         set_as_default: bool = False,
         gateway_timeout: typing.Optional[int] = None,
+        port: typing.Optional[int] = None,
     ):
         """
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
@@ -450,6 +522,8 @@ class ApplicationRuntime(RemoteRuntime):
         :param set_as_default:          Set the API gateway as the default for the application (`status.api_gateway`)
         :param gateway_timeout:         nginx ingress timeout in sec (request timeout, when will the gateway return an
                                         error)
+        :param port:                    The API gateway port, used only when direct_port_access=True
+
         :return:                        The API gateway URL
         """
         if not name:
@@ -470,7 +544,9 @@ class ApplicationRuntime(RemoteRuntime):
                 "Authentication credentials not provided"
             )
 
-        ports = self.spec.internal_application_port if direct_port_access else []
+        ports = (
+            port or self.spec.internal_application_port if direct_port_access else []
+        )
 
         api_gateway = APIGateway(
             APIGatewayMetadata(
@@ -731,7 +807,7 @@ class ApplicationRuntime(RemoteRuntime):
         self.with_sidecar(
             name=self.status.sidecar_name,
             image=self.status.application_image,
-            ports=self.spec.internal_application_port,
+            ports=self.spec.application_ports,
             command=self.spec.command,
             args=self.spec.args,
         )

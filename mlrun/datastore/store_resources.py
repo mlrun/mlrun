@@ -152,19 +152,19 @@ def get_store_resource(
         )
     elif kind == StorePrefix.FeatureSet:
         project, name, tag, uid = parse_versioned_object_uri(
-            uri, project or config.default_project
+            uri, project or config.active_project
         )
         return db.get_feature_set(name, project, tag, uid)
 
     elif kind == StorePrefix.FeatureVector:
         project, name, tag, uid = parse_versioned_object_uri(
-            uri, project or config.default_project
+            uri, project or config.active_project
         )
         return db.get_feature_vector(name, project, tag, uid)
 
     elif StorePrefix.is_artifact(kind):
         project, key, iteration, tag, tree, uid = parse_artifact_uri(
-            uri, project or config.default_project
+            uri, project or config.active_project
         )
         resource = db.read_artifact(
             key,

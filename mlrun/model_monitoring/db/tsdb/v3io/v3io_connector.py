@@ -26,7 +26,7 @@ import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas import EventFieldType
 from mlrun.model_monitoring.db import TSDBConnector
-from mlrun.model_monitoring.helpers import get_invocations_fqn
+from mlrun.model_monitoring.helpers import get_invocations_fqn, get_start_end
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
@@ -417,6 +417,7 @@ class V3IOTSDBConnector(TSDBConnector):
             mm_schemas.WriterEvent.END_INFER_TIME,
             mm_schemas.WriterEvent.ENDPOINT_ID,
             mm_schemas.WriterEvent.APPLICATION_NAME,
+            mm_schemas.WriterEvent.ENDPOINT_NAME,
         ]
 
         if kind == mm_schemas.WriterEventKind.METRIC:
@@ -455,12 +456,20 @@ class V3IOTSDBConnector(TSDBConnector):
             # Delete all tables
             tables = mm_schemas.V3IOTSDBTables.list()
         for table_to_delete in tables:
-            try:
-                self.frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
-            except v3io_frames.DeleteError as e:
+            if table_to_delete in self.tables:
+                try:
+                    self.frames_client.delete(
+                        backend=_TSDB_BE, table=self.tables[table_to_delete]
+                    )
+                except v3io_frames.DeleteError as e:
+                    logger.warning(
+                        f"Failed to delete TSDB table '{table_to_delete}'",
+                        err=mlrun.errors.err_to_str(e),
+                    )
+            else:
                 logger.warning(
-                    f"Failed to delete TSDB table '{table}'",
-                    err=mlrun.errors.err_to_str(e),
+                    f"Skipping deletion: table '{table_to_delete}' is not among the initialized tables.",
+                    initialized_tables=list(self.tables.keys()),
                 )
 
         # Final cleanup of tsdb path
@@ -470,7 +479,8 @@ class V3IOTSDBConnector(TSDBConnector):
         store.rm(tsdb_path, recursive=True)
 
     def delete_tsdb_records(
-        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+        self,
+        endpoint_ids: list[str],
     ):
         logger.debug(
             "Deleting model endpoints resources using the V3IO TSDB connector",
@@ -482,7 +492,8 @@ class V3IOTSDBConnector(TSDBConnector):
         # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
         for i in range(0, len(endpoint_ids), V3IO_FRAMESD_MEPS_LIMIT):
             endpoint_id_chunk = endpoint_ids[i : i + V3IO_FRAMESD_MEPS_LIMIT]
-            filter_query = f"endpoint_id IN({str(endpoint_id_chunk)[1:-1]}) "
+            endpoints_list = "', '".join(endpoint_id_chunk)
+            filter_query = f"endpoint_id IN('{endpoints_list}')"
             for table in tables:
                 try:
                     self.frames_client.delete(
@@ -512,7 +523,7 @@ class V3IOTSDBConnector(TSDBConnector):
             try:
                 self.v3io_client.kv.delete(
                     container=self.container,
-                    table=self.last_request_table,
+                    table_path=self.last_request_table,
                     key=endpoint_id,
                 )
             except Exception as e:
@@ -520,6 +531,43 @@ class V3IOTSDBConnector(TSDBConnector):
                     f"Failed to delete last request record for endpoint '{endpoint_id}'",
                     error=mlrun.errors.err_to_str(e),
                     project=self.project,
+                )
+
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete application records from the TSDB for the given model endpoints or all if ``endpoint_ids`` is ``None``.
+        """
+        base_filter_query = f"application_name=='{application_name}'"
+
+        filter_queries: list[str] = []
+        if endpoint_ids:
+            for i in range(0, len(endpoint_ids), V3IO_FRAMESD_MEPS_LIMIT):
+                endpoint_id_chunk = endpoint_ids[i : i + V3IO_FRAMESD_MEPS_LIMIT]
+                endpoints_list = "', '".join(endpoint_id_chunk)
+                filter_queries.append(
+                    f"{base_filter_query} AND endpoint_id IN ('{endpoints_list}')"
+                )
+        else:
+            filter_queries = [base_filter_query]
+
+        for table in [
+            self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS],
+            self.tables[mm_schemas.V3IOTSDBTables.METRICS],
+        ]:
+            logger.debug(
+                "Deleting application records from TSDB",
+                table=table,
+                filter_queries=filter_queries,
+                project=self.project,
+            )
+            for filter_query in filter_queries:
+                self.frames_client.delete(
+                    backend=_TSDB_BE,
+                    table=table,
+                    filter=filter_query,
+                    start="0",
                 )
 
     def get_model_endpoint_real_time_metrics(
@@ -685,22 +733,26 @@ class V3IOTSDBConnector(TSDBConnector):
         )
 
     @staticmethod
-    def _get_endpoint_filter(endpoint_id: Union[str, list[str]]) -> Optional[str]:
-        if isinstance(endpoint_id, str):
-            return f"endpoint_id=='{endpoint_id}'"
-        elif isinstance(endpoint_id, list):
-            if len(endpoint_id) > V3IO_FRAMESD_MEPS_LIMIT:
+    def _generate_filter_query(
+        filter_key: str, filter_values: Union[str, list[str]]
+    ) -> Optional[str]:
+        if isinstance(filter_values, str):
+            return f"{filter_key}=='{filter_values}'"
+        elif isinstance(filter_values, list):
+            if len(filter_values) > V3IO_FRAMESD_MEPS_LIMIT:
                 logger.info(
-                    "The number of endpoint ids exceeds the v3io-engine filter-expression limit, "
-                    "retrieving all the model endpoints from the db.",
+                    "The number of filter values exceeds the v3io-engine filter-expression limit, "
+                    "retrieving all the values from the db.",
+                    filter_key=filter_key,
                     limit=V3IO_FRAMESD_MEPS_LIMIT,
-                    amount=len(endpoint_id),
+                    amount=len(filter_values),
                 )
                 return None
-            return f"endpoint_id IN({str(endpoint_id)[1:-1]}) "
+            return f"{filter_key} IN ({', '.join(repr(v) for v in filter_values)}) "
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid 'endpoint_id' filter: must be a string or a list, endpoint_id: {endpoint_id}"
+                f"Invalid filter key {filter_key}: must be a string or a list, got {type(filter_values).__name__}; "
+                f"filter values: {filter_values}"
             )
 
     def read_metrics_data(
@@ -790,25 +842,45 @@ class V3IOTSDBConnector(TSDBConnector):
     @staticmethod
     def _get_sql_query(
         *,
-        endpoint_id: str,
         table_path: str,
+        endpoint_id: Optional[str] = None,
+        application_names: Optional[list[str]] = None,
         name: str = mm_schemas.ResultData.RESULT_NAME,
         metric_and_app_names: Optional[list[tuple[str, str]]] = None,
         columns: Optional[list[str]] = None,
+        group_by_columns: Optional[list[str]] = None,
     ) -> str:
         """Get the SQL query for the results/metrics table"""
+
+        if metric_and_app_names and not endpoint_id:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "If metric_and_app_names is provided, endpoint_id must also be provided"
+            )
+
+        if metric_and_app_names and application_names:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide both metric_and_app_names and application_names"
+            )
+
         if columns:
             selection = ",".join(columns)
         else:
             selection = "*"
 
         with StringIO() as query:
-            query.write(
-                f"SELECT {selection} FROM '{table_path}' "
-                f"WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
-            )
+            where_added = False
+            query.write(f"SELECT {selection} FROM '{table_path}'")
+            if endpoint_id:
+                query.write(
+                    f" WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
+                )
+                where_added = True
             if metric_and_app_names:
-                query.write(" AND (")
+                if where_added:
+                    query.write(" AND (")
+                else:
+                    query.write(" WHERE (")
+                    where_added = True
 
                 for i, (app_name, result_name) in enumerate(metric_and_app_names):
                     sub_cond = (
@@ -820,6 +892,22 @@ class V3IOTSDBConnector(TSDBConnector):
                     query.write(sub_cond)
 
                 query.write(")")
+
+            if application_names:
+                if where_added:
+                    query.write(" AND (")
+                else:
+                    query.write(" WHERE (")
+                for i, app_name in enumerate(application_names):
+                    sub_cond = f"{mm_schemas.WriterEvent.APPLICATION_NAME}='{app_name}'"
+                    if i != 0:  # not first sub condition
+                        query.write(" OR ")
+                    query.write(sub_cond)
+                query.write(")")
+
+            if group_by_columns:
+                query.write(" GROUP BY ")
+                query.write(",".join(group_by_columns))
 
             query.write(";")
             return query.getvalue()
@@ -937,9 +1025,12 @@ class V3IOTSDBConnector(TSDBConnector):
         end: Optional[datetime] = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
-        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._get_start_end(start, end)
+        filter_query = self._generate_filter_query(
+            filter_key=mm_schemas.ApplicationEvent.ENDPOINT_ID,
+            filter_values=endpoint_ids,
+        )
+
+        start, end = get_start_end(start, end, delta=timedelta(hours=24))
         res = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,
@@ -966,8 +1057,11 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_id)
+        start, end = get_start_end(start, end)
+        filter_query = self._generate_filter_query(
+            filter_key=mm_schemas.ApplicationEvent.ENDPOINT_ID,
+            filter_values=endpoint_id,
+        )
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.METRICS,
             start=start,
@@ -988,8 +1082,11 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_id)
+        start, end = get_start_end(start, end)
+        filter_query = self._generate_filter_query(
+            filter_key=mm_schemas.ApplicationEvent.ENDPOINT_ID,
+            filter_values=endpoint_id,
+        )
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,
@@ -1016,12 +1113,15 @@ class V3IOTSDBConnector(TSDBConnector):
         end: Optional[datetime] = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        filter_query = self._generate_filter_query(
+            filter_key=mm_schemas.ApplicationEvent.ENDPOINT_ID,
+            filter_values=endpoint_ids,
+        )
         if filter_query:
             filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} == '{mm_schemas.EventFieldType.INFER_ERROR}'"
         else:
             filter_query = f"{mm_schemas.EventFieldType.ERROR_TYPE} == '{mm_schemas.EventFieldType.INFER_ERROR}' z"
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         res = self._get_records(
             table=mm_schemas.FileTargetKind.ERRORS,
             start=start,
@@ -1053,9 +1153,12 @@ class V3IOTSDBConnector(TSDBConnector):
         end: Optional[datetime] = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        filter_query = self._generate_filter_query(
+            filter_key=mm_schemas.ApplicationEvent.ENDPOINT_ID,
+            filter_values=endpoint_ids,
+        )
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         res = self._get_records(
             table=mm_schemas.V3IOTSDBTables.PREDICTIONS,
             start=start,
@@ -1168,3 +1271,245 @@ class V3IOTSDBConnector(TSDBConnector):
             mep.status.last_request = last_request_dictionary.get(
                 uid, mep.status.last_request
             )
+
+    def count_results_by_status(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        endpoint_ids: Optional[Union[str, list[str]]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+        result_status_list: Optional[list[int]] = None,
+    ) -> dict[tuple[str, int], int]:
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
+        filter_query = ""
+        if endpoint_ids:
+            filter_query = self._generate_filter_query(
+                filter_key=mm_schemas.ApplicationEvent.ENDPOINT_ID,
+                filter_values=endpoint_ids,
+            )
+        if application_names:
+            app_filter_query = self._generate_filter_query(
+                filter_key=mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                filter_values=application_names,
+            )
+            if filter_query:
+                filter_query += f" AND {app_filter_query}"
+            else:
+                filter_query = app_filter_query
+
+        df = self._get_records(
+            table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.ResultData.RESULT_VALUE,
+                mm_schemas.ResultData.RESULT_STATUS,
+            ],
+            filter_query=filter_query,
+        )
+
+        # filter result status
+        if result_status_list and not df.empty:
+            df = df[df[mm_schemas.ResultData.RESULT_STATUS].isin(result_status_list)]
+
+        if df.empty:
+            return {}
+        else:
+            # convert application name to lower case
+            df[mm_schemas.ApplicationEvent.APPLICATION_NAME] = df[
+                mm_schemas.ApplicationEvent.APPLICATION_NAME
+            ].str.lower()
+
+            df = (
+                df[
+                    [
+                        mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                        mm_schemas.ResultData.RESULT_STATUS,
+                        mm_schemas.ResultData.RESULT_VALUE,
+                    ]
+                ]
+                .groupby(
+                    [
+                        mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                        mm_schemas.ResultData.RESULT_STATUS,
+                    ],
+                    observed=True,
+                )
+                .count()
+            )
+
+            return df[mm_schemas.ResultData.RESULT_VALUE].to_dict()
+
+    def count_processed_model_endpoints(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> dict[str, int]:
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
+        group_by_columns = [
+            mm_schemas.ApplicationEvent.APPLICATION_NAME,
+            mm_schemas.ApplicationEvent.ENDPOINT_ID,
+        ]
+
+        def get_application_endpoints_records(
+            record_type: Literal["metrics", "results"],
+        ):
+            if record_type == "results":
+                table_path = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]
+            else:
+                table_path = self.tables[mm_schemas.V3IOTSDBTables.METRICS]
+            sql_query = self._get_sql_query(
+                table_path=table_path,
+                columns=[mm_schemas.WriterEvent.START_INFER_TIME],
+                group_by_columns=group_by_columns,
+                application_names=application_names,
+            )
+            return self.frames_client.read(
+                backend=_TSDB_BE,
+                start=start,
+                end=end,
+                query=sql_query,
+            )
+
+        df_results = get_application_endpoints_records("results")
+        df_metrics = get_application_endpoints_records("metrics")
+
+        if df_results.empty and df_metrics.empty:
+            return {}
+
+        # Combine the two dataframes and count unique endpoints per application
+        combined_df = pd.concat([df_results, df_metrics], ignore_index=True)
+        if combined_df.empty:
+            return {}
+        combined_df.drop_duplicates(subset=group_by_columns, inplace=True)
+
+        grouped_df = combined_df.groupby(
+            mm_schemas.WriterEvent.APPLICATION_NAME
+        ).count()
+
+        return grouped_df[mm_schemas.WriterEvent.ENDPOINT_ID].to_dict()
+
+    def calculate_latest_metrics(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> list[
+        Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
+    ]:
+        metric_list = []
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
+
+        # Get the latest results
+        def get_latest_metrics_records(
+            record_type: Literal["metrics", "results"],
+        ) -> pd.DataFrame:
+            group_by_columns = [mm_schemas.ApplicationEvent.APPLICATION_NAME]
+            if record_type == "results":
+                table_path = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]
+                columns = [
+                    f"last({mm_schemas.ResultData.RESULT_STATUS})",
+                    f"last({mm_schemas.ResultData.RESULT_VALUE})",
+                    f"last({mm_schemas.ResultData.RESULT_KIND})",
+                ]
+                group_by_columns += [
+                    mm_schemas.ResultData.RESULT_NAME,
+                ]
+            else:
+                table_path = self.tables[mm_schemas.V3IOTSDBTables.METRICS]
+                columns = [f"last({mm_schemas.MetricData.METRIC_VALUE})"]
+                group_by_columns += [
+                    mm_schemas.MetricData.METRIC_NAME,
+                ]
+            sql_query = self._get_sql_query(
+                table_path=table_path,
+                columns=columns,
+                group_by_columns=group_by_columns,
+                application_names=application_names,
+            )
+
+            return self.frames_client.read(
+                backend=_TSDB_BE,
+                start=start,
+                end=end,
+                query=sql_query,
+            )
+
+        df_results = get_latest_metrics_records("results")
+        df_metrics = get_latest_metrics_records("metrics")
+
+        if df_results.empty and df_metrics.empty:
+            return metric_list
+
+        # Convert the results DataFrame to a list of ApplicationResultRecord
+        def build_metric_objects() -> (
+            list[
+                Union[
+                    mm_schemas.ApplicationResultRecord,
+                    mm_schemas.ApplicationMetricRecord,
+                ]
+            ]
+        ):
+            metric_objects = []
+            if not df_results.empty:
+                df_results.rename(
+                    columns={
+                        f"last({mm_schemas.ResultData.RESULT_VALUE})": mm_schemas.ResultData.RESULT_VALUE,
+                        f"last({mm_schemas.ResultData.RESULT_STATUS})": mm_schemas.ResultData.RESULT_STATUS,
+                        f"last({mm_schemas.ResultData.RESULT_KIND})": mm_schemas.ResultData.RESULT_KIND,
+                    },
+                    inplace=True,
+                )
+                for _, row in df_results.iterrows():
+                    metric_objects.append(
+                        mm_schemas.ApplicationResultRecord(
+                            result_name=row[mm_schemas.ResultData.RESULT_NAME],
+                            kind=row[mm_schemas.ResultData.RESULT_KIND],
+                            status=row[mm_schemas.ResultData.RESULT_STATUS],
+                            value=row[mm_schemas.ResultData.RESULT_VALUE],
+                        )
+                    )
+            if not df_metrics.empty:
+                df_metrics.rename(
+                    columns={
+                        f"last({mm_schemas.MetricData.METRIC_VALUE})": mm_schemas.MetricData.METRIC_VALUE,
+                    },
+                    inplace=True,
+                )
+
+                for _, row in df_metrics.iterrows():
+                    metric_objects.append(
+                        mm_schemas.ApplicationMetricRecord(
+                            metric_name=row[mm_schemas.MetricData.METRIC_NAME],
+                            value=row[mm_schemas.MetricData.METRIC_VALUE],
+                        )
+                    )
+            return metric_objects
+
+        return build_metric_objects()
+
+    def get_drift_data(
+        self,
+        start: datetime,
+        end: datetime,
+    ) -> mm_schemas.ModelEndpointDriftValues:
+        table = mm_schemas.V3IOTSDBTables.APP_RESULTS
+        start, end, interval = self._prepare_aligned_start_end(start, end)
+
+        # get per time-interval x endpoint_id combination the max result status
+        df = self._get_records(
+            table=table,
+            start=start,
+            end=end,
+            interval=interval,
+            sliding_window_step=interval,
+            columns=[mm_schemas.ResultData.RESULT_STATUS],
+            agg_funcs=["max"],
+            group_by=mm_schemas.WriterEvent.ENDPOINT_ID,
+        )
+        if df.empty:
+            return mm_schemas.ModelEndpointDriftValues(values=[])
+        df = df[df[f"max({mm_schemas.ResultData.RESULT_STATUS})"] >= 1]
+        df = df.reset_index(names="_wstart")
+        return self._df_to_drift_data(df)

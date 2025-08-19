@@ -11,12 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import json
 import os
 import warnings
 from copy import deepcopy
-from typing import TYPE_CHECKING, Optional, Union
+from typing import Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
@@ -27,7 +26,11 @@ from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
-from mlrun.serving.server import GraphServer, create_graph_server
+from mlrun.serving.server import (
+    GraphServer,
+    add_system_steps_to_graph,
+    create_graph_server,
+)
 from mlrun.serving.states import (
     RootFlowStep,
     RouterStep,
@@ -39,13 +42,11 @@ from mlrun.serving.states import (
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
 
+from .. import KubejobRuntime
+from ..pod import KubeResourceSpec
 from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 
 serving_subkind = "serving_v2"
-
-if TYPE_CHECKING:
-    # remove this block in 1.9.0
-    from mlrun.model_monitoring import TrackingPolicy
 
 
 def new_v2_model_server(
@@ -95,7 +96,6 @@ class ServingSpec(NuclioSpec):
         "default_class",
         "secret_sources",
         "track_models",
-        "tracking_policy",
     ]
 
     def __init__(
@@ -132,7 +132,6 @@ class ServingSpec(NuclioSpec):
         graph_initializer=None,
         error_stream=None,
         track_models=None,
-        tracking_policy=None,
         secret_sources=None,
         default_content_type=None,
         node_name=None,
@@ -149,10 +148,10 @@ class ServingSpec(NuclioSpec):
         security_context=None,
         service_type=None,
         add_templated_ingress_host_mode=None,
-        clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
         model_endpoint_creation_task_name=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -192,8 +191,8 @@ class ServingSpec(NuclioSpec):
             security_context=security_context,
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
-            clone_target_dir=clone_target_dir,
             disable_default_http_trigger=disable_default_http_trigger,
+            serving_spec=serving_spec,
         )
 
         self.models = models or {}
@@ -207,7 +206,6 @@ class ServingSpec(NuclioSpec):
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
         self.track_models = track_models
-        self.tracking_policy = tracking_policy
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
@@ -302,6 +300,7 @@ class ServingRuntime(RemoteRuntime):
             self.spec.graph = step
         elif topology == StepKinds.flow:
             self.spec.graph = RootFlowStep(engine=engine or "async")
+            self.spec.graph.track_models = self.spec.track_models
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"unsupported topology {topology}, use 'router' or 'flow'"
@@ -314,7 +313,6 @@ class ServingRuntime(RemoteRuntime):
         batch: Optional[int] = None,
         sampling_percentage: float = 100,
         stream_args: Optional[dict] = None,
-        tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
         enable_tracking: bool = True,
     ) -> None:
         """Apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
@@ -338,6 +336,8 @@ class ServingRuntime(RemoteRuntime):
         """
         # Applying model monitoring configurations
         self.spec.track_models = enable_tracking
+        if self.spec.graph and isinstance(self.spec.graph, RootFlowStep):
+            self.spec.graph.track_models = enable_tracking
         if self._spec and self._spec.function_refs:
             logger.debug(
                 "Set tracking for children references", enable_tracking=enable_tracking
@@ -350,6 +350,16 @@ class ServingRuntime(RemoteRuntime):
                         name
                     ]._function.spec.track_models = enable_tracking
 
+                    if self._spec.function_refs[
+                        name
+                    ]._function.spec.graph and isinstance(
+                        self._spec.function_refs[name]._function.spec.graph,
+                        RootFlowStep,
+                    ):
+                        self._spec.function_refs[
+                            name
+                        ]._function.spec.graph.track_models = enable_tracking
+
         if not 0 < sampling_percentage <= 100:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "`sampling_percentage` must be greater than 0 and less or equal to 100."
@@ -361,20 +371,12 @@ class ServingRuntime(RemoteRuntime):
         if batch:
             warnings.warn(
                 "The `batch` size parameter was deprecated in version 1.8.0 and is no longer used. "
-                "It will be removed in 1.10.",
-                # TODO: Remove this in 1.10
+                "It will be removed in 1.11.",
+                # TODO: Remove this in 1.11
                 FutureWarning,
             )
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
-        if tracking_policy is not None:
-            warnings.warn(
-                "The `tracking_policy` argument is deprecated from version 1.7.0 "
-                "and has no effect. It will be removed in 1.9.0.\n"
-                "To set the desired model monitoring time window and schedule, use "
-                "the `base_period` argument in `project.enable_model_monitoring()`.",
-                FutureWarning,
-            )
 
     def add_model(
         self,
@@ -492,6 +494,7 @@ class ServingRuntime(RemoteRuntime):
                 state = TaskStep(
                     class_name,
                     class_args,
+                    name=key,
                     handler=handler,
                     function=child_function,
                     model_endpoint_creation_strategy=creation_strategy,
@@ -643,7 +646,6 @@ class ServingRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: schemas.AuthInfo = None,
         builder_env: Optional[dict] = None,
         force_build: bool = False,
     ):
@@ -652,8 +654,6 @@ class ServingRuntime(RemoteRuntime):
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
-        :param auth_info: The auth info to use to communicate with the Nuclio dashboard, required only when providing
-                          dashboard
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
@@ -698,7 +698,6 @@ class ServingRuntime(RemoteRuntime):
             project,
             tag,
             verbose,
-            auth_info,
             builder_env=builder_env,
             force_build=force_build,
         )
@@ -719,9 +718,10 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
-            "tracking_policy": None,
             "default_content_type": self.spec.default_content_type,
             "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
+            # TODO: find another way to pass this (needed for local run)
+            "filename": getattr(self.spec, "filename", None),
         }
 
         if self.spec.secret_sources:
@@ -729,6 +729,10 @@ class ServingRuntime(RemoteRuntime):
             serving_spec["secret_sources"] = self._secrets.to_serial()
 
         return json.dumps(serving_spec)
+
+    @property
+    def serving_spec(self):
+        return self._get_serving_spec()
 
     def to_mock_server(
         self,
@@ -785,6 +789,14 @@ class ServingRuntime(RemoteRuntime):
             monitoring_mock=self.spec.track_models,
         )
 
+        server.graph = add_system_steps_to_graph(
+            server.project,
+            server.graph,
+            self.spec.track_models,
+            server.context,
+            self.spec,
+        )
+
         if workdir:
             os.chdir(old_workdir)
 
@@ -822,3 +834,44 @@ class ServingRuntime(RemoteRuntime):
             "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
         )
         self._mock_server = self.to_mock_server()
+
+    def to_job(self) -> KubejobRuntime:
+        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job."""
+        if self.spec.function_refs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
+            )
+
+        spec = KubeResourceSpec(
+            image=self.spec.image,
+            mode=self.spec.mode,
+            volumes=self.spec.volumes,
+            volume_mounts=self.spec.volume_mounts,
+            env=self.spec.env,
+            resources=self.spec.resources,
+            default_handler="mlrun.serving.server.execute_graph",
+            pythonpath=self.spec.pythonpath,
+            entry_points=self.spec.entry_points,
+            description=self.spec.description,
+            workdir=self.spec.workdir,
+            image_pull_secret=self.spec.image_pull_secret,
+            build=self.spec.build,
+            node_name=self.spec.node_name,
+            node_selector=self.spec.node_selector,
+            affinity=self.spec.affinity,
+            disable_auto_mount=self.spec.disable_auto_mount,
+            priority_class_name=self.spec.priority_class_name,
+            tolerations=self.spec.tolerations,
+            preemption_mode=self.spec.preemption_mode,
+            security_context=self.spec.security_context,
+            state_thresholds=self.spec.state_thresholds,
+            serving_spec=self._get_serving_spec(),
+            track_models=self.spec.track_models,
+            parameters=self.spec.parameters,
+            graph=self.spec.graph,
+        )
+        job = KubejobRuntime(
+            spec=spec,
+            metadata=self.metadata,
+        )
+        return job

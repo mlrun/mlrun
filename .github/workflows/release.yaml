@@ -37,7 +37,7 @@ on:
         type: choice
         options: [ 'bump-rc', 'stable' ]
       skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,ui,api,base,jupyter,test'
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,ui,api,jupyter,test'
         required: false
         default: ''
       skip_publish_pypi:
@@ -70,7 +70,7 @@ jobs:
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
 
           # Fetch all history for all tags and branches
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prepare-inputs
     steps:
-      - uses: convictional/trigger-workflow-and-wait@v1.6.5
+      - uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
 
         # since some steps relay on the ui image, we need to wait for it to finish building
         # the condition is here and not on job because some other jobs "needs" this job to be done (and not skipped)
@@ -132,7 +132,7 @@ jobs:
           client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ needs.prepare-inputs.outputs.version }}"}'
 
   publish-to-pypi:
-    name: Publish package to pypi
+    name: Publish package to PyPI
     runs-on: ubuntu-latest
 
     # skip releasing to pypi for feature branches. installing mlrun can be done by:
@@ -143,30 +143,16 @@ jobs:
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.9
-          cache: pip
-      - name: Install dependencies
-        run: |
-          # needed for updating the version file prior to publishing
-          python -m pip install -r automation/requirements.txt
-          
-          # TODO: move to a separated requirements file
-          python -m pip install \
-            build~=1.2 \
-            wheel~=0.45 \
-            twine~=6.1
-      - name: Build & push to pypi
+      - uses: actions/checkout@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d9e0f98d3fc6adb07d1e3d37f3043649ddad06a1 # 6.5.0
+      - name: Build & push to PyPI
         if: github.event.inputs.skip_publish_pypi != 'true'
-        run: |
-          export TWINE_USERNAME=${{ secrets.PYPI_USERNAME }}
-          export TWINE_PASSWORD=${{ secrets.PYPI_PASSWORD }}
-          MLRUN_VERSION="$INPUT_VERSION" make publish-package
         env:
-          INPUT_VERSION: ${{ needs.prepare-inputs.outputs.version }}
+          MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: uv run --no-project --with packaging~=25.0 make publish-package
 
   create-releases:
     name: Create release & tag v${{ needs.prepare-inputs.outputs.version }}
@@ -174,14 +160,14 @@ jobs:
     if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
     needs: [ prepare-inputs, publish-to-pypi ]
     steps:
-      - uses: ncipollo/release-action@v1
+      - uses: ncipollo/release-action@bcfe5470707e8832e12347755757cec0eb3c22af # 1.18.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           commit: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
-      - uses: ncipollo/release-action@v1
+      - uses: ncipollo/release-action@bcfe5470707e8832e12347755757cec0eb3c22af # 1.18.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           repo: ui
@@ -216,28 +202,28 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Create tutorials tar
         run: |
-          wget -c https://github.com/v3io/tutorials/blob/mlrun-release-stable/welcome.ipynb -P docs
-          wget -c https://github.com/v3io/tutorials/blob/mlrun-release-stable/README.md -P docs
+          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
+          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/README.md -P docs
           tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb
           rm -rf docs/welcome.ipynb docs/README.md
       - name: Add tutorials tar to release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@bcfe5470707e8832e12347755757cec0eb3c22af # 1.18.0
         with:
           allowUpdates: true
           tag: v${{ needs.prepare-inputs.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
-          
+
   update-demos:
     name: Bundle demos
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Python venv
         run: |
           venv="$HOME/.local/share/venv"
@@ -250,7 +236,7 @@ jobs:
         run: |
           python automation/scripts/bundle_demos.py
       - name: Add mlrun-demos tar to release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@bcfe5470707e8832e12347755757cec0eb3c22af # 1.18.0
         with:
           allowUpdates: true
           tag: v${{ needs.prepare-inputs.outputs.version }}
@@ -265,7 +251,7 @@ jobs:
     # runs lastly to avoid conflicts with other release-related jobs
     needs: [ prepare-inputs, update-tutorials, update-demos ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
@@ -295,7 +281,7 @@ jobs:
           cat release_notes.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - uses: ncipollo/release-action@v1
+      - uses: ncipollo/release-action@bcfe5470707e8832e12347755757cec0eb3c22af # 1.18.0
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           body: ${{ steps.resolve-release-notes.outputs.body }}

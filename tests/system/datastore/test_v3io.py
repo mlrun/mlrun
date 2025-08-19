@@ -104,6 +104,7 @@ class TestV3ioDataStore(TestMLRunSystem):
 
     def teardown_method(self, method):
         os.environ["V3IO_ACCESS_KEY"] = self.token
+        os.environ["MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES"] = "false"
         super().teardown_method(method=method)
 
     @staticmethod

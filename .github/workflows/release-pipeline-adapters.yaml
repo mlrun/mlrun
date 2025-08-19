@@ -13,12 +13,17 @@
 # limitations under the License.
 
 name: Release Pipeline Adapters
+
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
       packages:
         description: 'Pipeline adapters package to release. Use "*" to release all packages.'
         default: '*'
+        type: choice
         options:
           - '*'
           - 'mlrun-pipelines-kfp-common'
@@ -61,7 +66,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.9"
@@ -77,7 +82,7 @@ jobs:
           PACKAGES: ${{ matrix.name }}
 
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # 1.12.4
         with:
           skip-existing: true
           print-hash: true

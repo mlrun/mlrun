@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import collections
-import json
 import traceback
 from collections import OrderedDict
 from datetime import datetime
@@ -23,10 +22,12 @@ import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.helpers
+import mlrun.platforms.iguazio
 from mlrun.serving import GraphContext
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
+from .base import _serialize_context_and_result
 from .context import MonitoringApplicationContext
 from .results import (
     ModelMonitoringApplicationMetric,
@@ -45,7 +46,7 @@ class _PushToMonitoringWriter(StepToDict):
         :param project: Project name.
         """
         self.project = project
-        self.output_stream = None
+        self._output_stream = None
 
     def do(
         self,
@@ -65,48 +66,31 @@ class _PushToMonitoringWriter(StepToDict):
 
         :param event: Monitoring result(s) to push and the original event from the controller.
         """
-        self._lazy_init()
         application_results, application_context = event
-        writer_event = {
-            mm_constants.WriterEvent.ENDPOINT_NAME: application_context.endpoint_name,
-            mm_constants.WriterEvent.APPLICATION_NAME: application_context.application_name,
-            mm_constants.WriterEvent.ENDPOINT_ID: application_context.endpoint_id,
-            mm_constants.WriterEvent.START_INFER_TIME: application_context.start_infer_time.isoformat(
-                sep=" ", timespec="microseconds"
-            ),
-            mm_constants.WriterEvent.END_INFER_TIME: application_context.end_infer_time.isoformat(
-                sep=" ", timespec="microseconds"
-            ),
-        }
-        for result in application_results:
-            data = result.to_dict()
-            if isinstance(result, ModelMonitoringApplicationResult):
-                writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
-                    mm_constants.WriterEventKind.RESULT
-                )
-            elif isinstance(result, _ModelMonitoringApplicationStats):
-                writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
-                    mm_constants.WriterEventKind.STATS
-                )
-            else:
-                writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
-                    mm_constants.WriterEventKind.METRIC
-                )
-            writer_event[mm_constants.WriterEvent.DATA] = json.dumps(data)
-            logger.debug(
-                "Pushing data to output stream", writer_event=str(writer_event)
-            )
-            self.output_stream.push(
-                [writer_event], partition_key=application_context.endpoint_id
-            )
-            logger.debug("Pushed data to output stream successfully")
 
-    def _lazy_init(self):
-        if self.output_stream is None:
-            self.output_stream = mlrun.model_monitoring.helpers.get_output_stream(
+        writer_events = [
+            _serialize_context_and_result(context=application_context, result=result)
+            for result in application_results
+        ]
+
+        logger.debug("Pushing data to output stream", writer_events=str(writer_events))
+        self.output_stream.push(
+            writer_events, partition_key=application_context.endpoint_id
+        )
+        logger.debug("Pushed data to output stream successfully")
+
+    @property
+    def output_stream(
+        self,
+    ) -> Union[
+        mlrun.platforms.iguazio.OutputStream, mlrun.platforms.iguazio.KafkaOutputStream
+    ]:
+        if self._output_stream is None:
+            self._output_stream = mlrun.model_monitoring.helpers.get_output_stream(
                 project=self.project,
                 function_name=mm_constants.MonitoringFunctionNames.WRITER,
             )
+        return self._output_stream
 
 
 class _PrepareMonitoringEvent(StepToDict):

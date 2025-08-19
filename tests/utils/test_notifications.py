@@ -18,12 +18,12 @@ import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import aiohttp
-import orjson
 import pytest
 import tabulate
+from aiohttp.typedefs import StrOrURL
 
 import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas
@@ -560,12 +560,10 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
     await mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
-    expected_body = orjson.dumps(
-        {
-            "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
-            "'status': {'state': 'completed', 'results': {'return': 1}}, 'host': 'func-func-8lvl8'}]"
-        }
-    ).decode()
+    expected_body = {
+        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
+        "'status': {'state': 'completed', 'results': {'return': 1}}, 'host': 'func-func-8lvl8'}]"
+    }
     requests_mock.assert_called_once_with(
         "http://test.com", headers={}, json=expected_body, ssl=None
     )
@@ -621,12 +619,10 @@ async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     await mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
-    expected_body = orjson.dumps(
-        {
-            "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
-            "'status': {'state': 'error', 'error': 'some_error'}, 'host': 'func-func-8lvl8'}]"
-        }
-    ).decode()
+    expected_body = {
+        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
+        "'status': {'state': 'error', 'error': 'some_error'}, 'host': 'func-func-8lvl8'}]"
+    }
     requests_mock.assert_called_once_with(
         "http://test.com", headers={}, json=expected_body, ssl=None
     )
@@ -844,17 +840,11 @@ async def test_webhook_notification(monkeypatch, test_method):
     requests_mock.assert_called_once_with(
         test_url,
         headers=test_headers,
-        json=orjson.dumps(
-            {
-                "message": test_message,
-                "severity": test_severity,
-                "runs": test_runs_info,
-            },
-            option=orjson.OPT_NAIVE_UTC
-            | orjson.OPT_SERIALIZE_NUMPY
-            | orjson.OPT_NON_STR_KEYS
-            | orjson.OPT_SORT_KEYS,
-        ).decode(),
+        json={
+            "message": test_message,
+            "severity": test_severity,
+            "runs": test_runs_info,
+        },
         ssl=None,
     )
 
@@ -865,13 +855,7 @@ async def test_webhook_notification(monkeypatch, test_method):
     requests_mock.assert_called_with(
         test_url,
         headers=test_headers,
-        json=orjson.dumps(
-            test_override_body,
-            option=orjson.OPT_NAIVE_UTC
-            | orjson.OPT_SERIALIZE_NUMPY
-            | orjson.OPT_NON_STR_KEYS
-            | orjson.OPT_SORT_KEYS,
-        ).decode(),
+        json=test_override_body,
         ssl=None,
     )
 
@@ -1330,6 +1314,54 @@ def test_enrich_unmasked_secret_params_from_project_secret(
             assert notification.secret_params == expected_params
 
 
+@pytest.mark.parametrize(
+    "retry_count, max_retries, run_state, expected_retry, expected_final_failure",
+    [
+        # No retries attempted — no retry info should be included
+        (None, None, runtimes_constants.RunStates.completed, False, False),
+        (0, 0, runtimes_constants.RunStates.completed, False, False),
+        # Job succeeded after retries — include retry log line only
+        (2, 5, runtimes_constants.RunStates.completed, True, False),
+        # Retries exhausted and job failed — both log lines should be included
+        (3, 3, runtimes_constants.RunStates.error, True, True),
+        # retry_count is None — no retry info expected
+        (None, 3, runtimes_constants.RunStates.completed, False, False),
+        (None, 3, runtimes_constants.RunStates.error, False, False),
+        # Job was aborted after retries
+        (2, 3, runtimes_constants.RunStates.aborted, True, False),
+    ],
+)
+def test_prepare_notification_retry_messages(
+    retry_count, max_retries, run_state, expected_retry, expected_final_failure
+):
+    run_dict = {
+        "metadata": {"project": "test"},
+        "status": {"state": run_state},
+        "spec": {},
+    }
+    if retry_count is not None:
+        run_dict["status"]["retry_count"] = retry_count
+    if max_retries is not None:
+        run_dict["spec"]["retry"] = {"count": max_retries}
+
+    run = mlrun.model.RunObject.from_dict(run_dict)
+    notification = mlrun.model.Notification(name="notify", when=[run_state])
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+    message, _, _ = notification_pusher._prepare_notification_args(run, notification)
+
+    if expected_retry and retry_count is not None:
+        assert f"Retries attempted: {retry_count}" in message
+    else:
+        assert "Retries attempted" not in message
+
+    if expected_final_failure:
+        assert "Retry limit reached" in message
+    else:
+        assert "Retry limit reached" not in message
+
+
 def _mock_async_response(monkeypatch, method, result):
     response_json_future = asyncio.Future()
     response_json_future.set_result(result)
@@ -1623,8 +1655,9 @@ class DummyResponse:
 
 
 class DummySession:
-    def __init__(self) -> None:
+    def __init__(self, json_serialize: Callable) -> None:
         self.request_args: Optional[dict[str, Any]] = None
+        self._json_serialize = json_serialize
 
     async def post(
         self,
@@ -1633,13 +1666,13 @@ class DummySession:
         json: Any = None,
         ssl: Optional[bool] = None,
     ) -> DummyResponse:
-        self.request_args = {
-            "method": "post",
-            "url": url,
-            "headers": headers,
-            "json": json,
-            "ssl": ssl,
-        }
+        await self._request(
+            "post",
+            url,
+            headers=headers,
+            json=json,
+            ssl=ssl,
+        )
         return DummyResponse()
 
     async def put(
@@ -1649,21 +1682,40 @@ class DummySession:
         json: Any = None,
         ssl: Optional[bool] = None,
     ) -> DummyResponse:
-        self.request_args = {
-            "method": "put",
-            "url": url,
-            "headers": headers,
-            "json": json,
-            "ssl": ssl,
-        }
+        await self._request(
+            "put",
+            url,
+            headers=headers,
+            json=json,
+            ssl=ssl,
+        )
         return DummyResponse()
+
+    async def _request(
+        self,
+        method: str,
+        str_or_url: StrOrURL,
+        **kwargs: Any,
+    ) -> DummyResponse:
+        if kwargs.get("data") is not None and kwargs.get("json") is not None:
+            raise ValueError(
+                "data and json parameters can not be used at the same time"
+            )
+        elif kwargs.get("json") is not None:
+            data = self._json_serialize(kwargs["json"])
+        self.request_args = {
+            "method": method,
+            "url": str_or_url,
+            "data": data,
+            **kwargs,
+        }
 
 
 class DummySessionContext:
     dummy_session_holder: dict[str, DummySession] = {}
 
-    def __init__(self) -> None:
-        self._session = DummySession()
+    def __init__(self, json_serialize: Callable) -> None:
+        self._session = DummySession(json_serialize)
 
     async def __aenter__(self) -> DummySession:
         self.dummy_session_holder["session"] = self._session
@@ -1766,7 +1818,8 @@ async def test_push_full_payload(client_session: Any) -> None:
     assert args["url"] == "https://example.com/hook"
     assert args["headers"] == {"H": "v"}
 
-    payload = orjson.loads(args["json"])
+    payload = args["json"]
+
     assert payload["message"] == "hello"
     assert payload["severity"] == alert.severity
     assert payload["runs"] == runs
@@ -1777,6 +1830,8 @@ async def test_push_full_payload(client_session: Any) -> None:
     assert payload["id"] == "id1"
     assert payload["custom_html"] == custom_html
     assert args["ssl"] is None
+    raw_data = args["data"]
+    assert raw_data == notif._encoder(payload)
 
 
 @pytest.mark.asyncio
@@ -1791,10 +1846,7 @@ async def test_override_list_passthrough(client_session: Any) -> None:
     )
     await notif.push("ignored")
     session = DummySessionContext.dummy_session_holder["session"]
-    assert (
-        session.request_args
-        and orjson.loads(session.request_args["json"]) == override_body
-    )
+    assert session.request_args and session.request_args["json"] == override_body
 
 
 @pytest.mark.asyncio
@@ -1805,7 +1857,7 @@ async def test_override_list_passthrough(client_session: Any) -> None:
             {"dict": {"x": datetime(2025, 1, 1, 0, 0, 0)}},
             None,
             "dict",
-            {"x": "2025-01-01T00:00:00+00:00"},
+            {"x": datetime(2025, 1, 1, 0, 0, 0)},
         ),
         ({"float": 1.23}, None, "float", 1.23),
         ({"bool": True}, None, "bool", True),
@@ -1829,7 +1881,7 @@ async def test_override_values(
     )
     await notif.push("ignored", runs=runs)
     sent = DummySessionContext.dummy_session_holder["session"].request_args["json"]
-    assert orjson.loads(sent)[key] == expected
+    assert sent[key] == expected
 
 
 @pytest.mark.asyncio

@@ -30,7 +30,7 @@ Spark execution can be done locally, utilizing a local Spark session provided to
 Spark session context when calling the {py:func}`~mlrun.feature_store.ingest` function, as the 
 `spark_context` parameter. This session is used for data operations and transformations.
        
-See code examples in:
+**This section presents code examples**
 - [Local Spark ingestion example](#local-spark-ingestion-example)
 - [Remote Spark ingestion example](#remote-spark-ingestion-example)
 - [Spark operator ingestion example](#spark-operator-ingestion-example)
@@ -76,7 +76,10 @@ The following code should be executed only once to build the remote spark image 
 It may take a few minutes to prepare the image.
 
 ```python
+import mlrun
 from mlrun.runtimes import RemoteSparkRuntime
+
+mlrun.get_or_create_project("my-spark-project")
 
 RemoteSparkRuntime.deploy_default_image()
 ```
@@ -130,7 +133,10 @@ When running with a Spark operator, the MLRun execution details are returned, al
 The following code should be executed only once to build the spark job image before running the first ingest.
 It may take a few minutes to prepare the image.
 ```python
+import mlrun
 from mlrun.runtimes import Spark3Runtime
+
+mlrun.get_or_create_project("my-spark-project")
 
 Spark3Runtime.deploy_default_image()
 ```
@@ -222,7 +228,10 @@ feature set to S3 in the parquet format in a remote k8s job:
 One-time setup:
 1. Deploy the default image for your job (this takes several minutes but should be executed only once per cluster for any MLRun/Iguazio upgrade):
    ```python
+   import mlrun
    from mlrun.runtimes import RemoteSparkRuntime
+
+   mlrun.get_or_create_project("my-spark-project")
 
    RemoteSparkRuntime.deploy_default_image()
    ```

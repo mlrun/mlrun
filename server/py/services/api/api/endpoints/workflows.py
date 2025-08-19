@@ -425,3 +425,61 @@ async def get_workflow_id(
         engine=engine,
         db_session=db_session,
     )
+
+
+@router.post(
+    "/projects/{project}/workflows/{name}/runs/{uid}/set-retry-status",
+    status_code=HTTPStatus.NO_CONTENT.value,
+)
+async def set_run_retrying_status(
+    project: str,
+    uid: str,
+    name: str,
+    retrying: bool,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
+):
+    """
+    Atomically set or clear the 'retrying' label on a workflow‐runner pod.
+
+    :param project:  MLRun project name
+    :param name:     Logical workflow name (unused here, but kept for URL consistency)
+    :param uid:      The runner's UID (not the KFP engine ID)
+    :retrying:       Whether to add or remove the “retrying” label
+    :param auth_info:   auth info of the request
+    :param db_session:  session that manages the current dialog with the database
+    """
+
+    # check update permission on runs
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.run,
+            project,
+            resource_name=uid,
+            action=mlrun.common.schemas.AuthorizationAction.update,
+            auth_info=auth_info,
+        )
+    )
+
+    # Check permission UPDATE workflow:
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.workflow,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+    )
+
+    # call into your CRUD
+    await fastapi.concurrency.run_in_threadpool(
+        services.api.crud.RerunRunner().set_run_retrying_status,
+        db_session,
+        project,
+        uid,
+        retrying,
+    )
+    return {}

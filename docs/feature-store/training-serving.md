@@ -1,13 +1,15 @@
 (training-serving)=
 # Serving with the feature store
 
+Learn how to use the feature store to create online features and then to serve the model.
+
 **In this section**
 - [Get online features](#get-online-features)
 - [Incorporating to the serving model](#incorporating-to-the-serving-model)
 
 ## Get online features
 
-The online features are created using MLRun's feature store online feature service and are served from the **NoSQL** target for real-time performance needs.
+The online features are created using MLRun's online feature service in the feature store and are served from the **NoSQL** target for real-time performance needs.
 
 To use it, first create an online feature service with the feature vector.
 
@@ -29,13 +31,13 @@ fv = svc.get([{"<key name>": "<key value>"}])
 
 ## Incorporating to the serving model
 
-You can serve your models using the {ref}`serving-graph`. (See a [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb).)
+You can serve your models using the {ref}`serving-graph`. (See a [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/functions/src/v2_model_server/v2_model_server.ipynb).)
 You define a serving model class and the computational graph required to run your entire prediction pipeline, and deploy it as a serverless function using [Nuclio](https://github.com/nuclio/nuclio).
 
 To embed the online feature service in your model server, just create the feature vector service once when the model initializes, and then use it to retrieve the feature vectors of incoming keys.
 
 You can import ready-made classes and functions from the MLRun [Function Hub](https://www.mlrun.org/hub/) or write your own.
-As example of a scikit-learn based model server:
+An example of a model server based on scikit-learn:
 <!--- (taken from the [feature store demo](./end-to-end-demo/03-deploy-serving-model.ipynb#define-model-class)) --->
 
 ```python

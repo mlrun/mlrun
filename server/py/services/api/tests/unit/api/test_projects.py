@@ -40,6 +40,9 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun_pipelines.common.models
+from mlrun.artifacts import Artifact
+from mlrun.common.schemas.background_task import BackGroundTaskLabel
+from mlrun.common.schemas.model_monitoring import EndpointType, ModelMonitoringAppLabel
 
 import framework.api.utils
 import framework.utils.auth.verifier
@@ -373,6 +376,26 @@ async def test_list_and_get_project_summaries(
     feature_sets_count = 9
     _create_feature_sets(client, project_name, feature_sets_count)
 
+    # create model endpoints for the project
+    real_time_model_endpoint_count = 4
+    batch_model_endpoints_count = 2
+    _create_batch_and_real_time_model_endpoints(
+        client,
+        project_name,
+        real_time_model_endpoint_count,
+        batch_model_endpoints_count,
+    )
+
+    # create model monitoring functions for the project
+    running_model_monitoring_functions = 6
+    failed_model_monitoring_functions = 1
+    _create_running_and_failed_model_monitoring_functions(
+        client,
+        project_name,
+        running_model_monitoring_functions,
+        failed_model_monitoring_functions,
+    )
+
     # create model artifacts for the project
     models_count = 4
     _create_artifacts(
@@ -386,6 +409,8 @@ async def test_list_and_get_project_summaries(
 
     # create runs for the project
     running_runs_count = 5
+    expected_running = running_runs_count * 3
+
     _create_runs(
         client,
         project_name,
@@ -405,6 +430,7 @@ async def test_list_and_get_project_summaries(
 
     # create completed runs for the project for less than 24 hours ago
     runs_completed_recent_count = 10
+    expected_completed = runs_completed_recent_count * 3  # each run created 3 instances
     one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
     _create_runs(
         client,
@@ -435,6 +461,7 @@ async def test_list_and_get_project_summaries(
         mlrun.common.runtimes.constants.RunStates.aborted,
         one_hour_ago,
     )
+    expected_failed = (recent_failed_runs_count + recent_aborted_runs_count) * 3
 
     # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly counting them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
@@ -470,17 +497,21 @@ async def test_list_and_get_project_summaries(
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0)
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
                 files_count,
                 feature_sets_count,
                 models_count,
-                runs_completed_recent_count,
-                recent_failed_runs_count + recent_aborted_runs_count,
-                running_runs_count,
+                expected_completed,
+                expected_failed,
+                expected_running,
                 running_pipelines_count,
+                real_time_model_endpoint_count,
+                batch_model_endpoints_count,
+                running_model_monitoring_functions,
+                failed_model_monitoring_functions,
             )
         else:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
@@ -493,10 +524,14 @@ async def test_list_and_get_project_summaries(
         files_count,
         feature_sets_count,
         models_count,
-        runs_completed_recent_count,
-        recent_failed_runs_count + recent_aborted_runs_count,
-        running_runs_count,
+        expected_completed,
+        expected_failed,
+        expected_running,
         running_pipelines_count,
+        real_time_model_endpoint_count,
+        batch_model_endpoints_count,
+        running_model_monitoring_functions,
+        failed_model_monitoring_functions,
     )
 
 
@@ -547,6 +582,10 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
+        0,
+        0,
     )
 
     # Enterprise installation configuration pre 3.4.0
@@ -562,6 +601,10 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -591,6 +634,10 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
+        0,
+        0,
     )
 
     # Docker installation configuration
@@ -606,6 +653,10 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -1310,10 +1361,10 @@ def _create_resources_of_all_kinds(
                 function["spec"]["index"] = index
                 functions_hashes.append(
                     db.store_function(
-                        db_session,
-                        function,
-                        function_name,
-                        project,
+                        session=db_session,
+                        function=function,
+                        name=function_name,
+                        project=project,
                         tag=function_tag,
                         versioned=True,
                     )
@@ -1344,8 +1395,8 @@ def _create_resources_of_all_kinds(
                     artifact_uids.append(
                         db.store_artifact(
                             db_session,
-                            artifact_key,
-                            artifact,
+                            key=artifact_key,
+                            artifact=artifact,
                             iter=artifact_iter,
                             tag=artifact_tag,
                             project=project,
@@ -1353,6 +1404,33 @@ def _create_resources_of_all_kinds(
                         )
                     )
 
+    # Create child artifacts
+    parent_artifact_db = Artifact.from_dict(
+        db.read_artifact(
+            db_session,
+            key=artifact_keys[0],
+            tag=artifact_tags[0],
+            iter=0,
+            project=project,
+        )
+    )
+    artifact = copy.deepcopy(artifact_template)
+    artifact["metadata"]["iter"] = 0
+    artifact["metadata"]["tag"] = "child"
+    artifact["metadata"]["tree"] = "some_tree_child"
+    artifact["spec"]["parent_uri"] = parent_artifact_db.uri
+
+    artifact_uids.append(
+        db.store_artifact(
+            db_session,
+            key="child_artifact_key",
+            artifact=artifact,
+            iter=0,
+            tag="some_tree_child",
+            project=project,
+            producer_id="some_tree_child",
+        )
+    )
     # Create several runs
     run = {
         "bla": "blabla",
@@ -1490,6 +1568,9 @@ def _create_resources_of_all_kinds(
         name="task",
         project=project,
         state=mlrun.common.schemas.BackgroundTaskState.running,
+        labels={
+            BackGroundTaskLabel.pipeline: "test_pipeline",
+        },
     )
 
     ds_profile = mlrun.common.schemas.DatastoreProfile(
@@ -1600,6 +1681,7 @@ def _assert_db_resources_in_project(
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
         # alert_templates are not tied to project and are pre-populated anyway
+        # background_task_labels are optional
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
@@ -1722,6 +1804,13 @@ def _assert_db_resources_in_project(
                     .filter(ModelEndpoint.project == project)
                     .count()
                 )
+            if cls.__tablename__ == "background_task_labels":
+                number_of_cls_records = (
+                    db_session.query(BackGroundTaskLabel)
+                    .join(cls)
+                    .filter(BackGroundTaskLabel.project == project)
+                    .count()
+                )
             if cls.__tablename__ == "artifacts_labels":
                 # Artifact table is deprecated, we are using ArtifactV2 instead
                 continue
@@ -1783,6 +1872,10 @@ def _assert_project_summary(
     runs_failed_recent_count: int,
     runs_running_count: int,
     pipelines_running_count: int,
+    real_time_model_endpoint_count: int,
+    batch_model_endpoints_count: int,
+    running_model_monitoring_functions: int,
+    failed_model_monitoring_functions: int,
 ):
     assert project_summary.files_count == files_count
     assert project_summary.feature_sets_count == feature_sets_count
@@ -1791,6 +1884,18 @@ def _assert_project_summary(
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
     assert project_summary.pipelines_running_count == pipelines_running_count
+    assert (
+        project_summary.real_time_model_endpoint_count == real_time_model_endpoint_count
+    )
+    assert project_summary.batch_model_endpoint_count == batch_model_endpoints_count
+    assert (
+        project_summary.running_model_monitoring_functions
+        == running_model_monitoring_functions
+    )
+    assert (
+        project_summary.failed_model_monitoring_functions
+        == failed_model_monitoring_functions
+    )
 
 
 def _assert_project(
@@ -1846,22 +1951,103 @@ def _create_feature_sets(client: TestClient, project_name, feature_sets_count):
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
-def _create_functions(client: TestClient, project_name, functions_count):
+def _create_model_endpoint(
+    client: TestClient, project_name, model_endpoint_count, endpoint_type, suffix=""
+):
+    for index in range(model_endpoint_count):
+        model_endpoint_name = f"model-endpoint-name-{suffix}-{index}"
+        model_endpoint = {
+            "metadata": {
+                "name": model_endpoint_name,
+                "project": project_name,
+                "endpoint_type": endpoint_type,
+            },
+            "spec": {},
+            "status": {},
+        }
+        response = client.post(
+            f"projects/{project_name}/model-endpoints",
+            json=model_endpoint,
+            params={"creation-strategy": "inplace"},
+        )
+        assert response.status_code == HTTPStatus.CREATED.value, response.json()
+
+
+def _create_batch_and_real_time_model_endpoints(
+    client: TestClient,
+    project_name,
+    real_time_model_endpoint_count,
+    batch_model_endpoints_count,
+):
+    _create_model_endpoint(
+        client=client,
+        project_name=project_name,
+        model_endpoint_count=real_time_model_endpoint_count,
+        endpoint_type=EndpointType.NODE_EP,
+        suffix="real-time",
+    )
+    _create_model_endpoint(
+        client=client,
+        project_name=project_name,
+        model_endpoint_count=batch_model_endpoints_count,
+        endpoint_type=EndpointType.BATCH_EP,
+        suffix="batch",
+    )
+
+
+def _generate_runtime(name) -> mlrun.runtimes.ServingRuntime:
+    runtime = mlrun.runtimes.ServingRuntime()
+    runtime.metadata.name = name
+    return runtime
+
+
+def _create_functions(
+    client: TestClient,
+    project_name,
+    functions_count,
+    suffix="",
+    labels=None,
+    state=None,
+):
     for index in range(functions_count):
-        function_name = f"function-name-{index}"
-        # create several versions of the same function to verify we're not counting all versions, just all functions
-        # (unique name)
-        for _ in range(3):
-            function = {
-                "metadata": {"name": function_name, "project": project_name},
-                "spec": {"some_field": str(uuid4())},
-            }
-            response = client.post(
-                FUNCTIONS_API.format(project=project_name, name=function_name),
-                json=function,
-                params={"versioned": True},
-            )
-            assert response.status_code == HTTPStatus.OK.value, response.json()
+        function_name = f"function-name-{suffix}-{index}"
+        func = _generate_runtime(function_name)
+        if labels:
+            func.metadata.labels = labels
+        if state:
+            func.status.state = state
+        params = {"versioned": False}
+        response = client.post(
+            FUNCTIONS_API.format(project=project_name, name=function_name),
+            json=func.to_dict(),
+            params=params,
+        )
+        assert response.status_code == HTTPStatus.OK.value, response.json()
+
+
+def _create_running_and_failed_model_monitoring_functions(
+    client: TestClient,
+    project_name,
+    running_model_monitoring_functions,
+    failed_model_monitoring_functions,
+):
+    labels = {ModelMonitoringAppLabel.KEY: ModelMonitoringAppLabel.VAL}
+    _create_functions(
+        client=client,
+        project_name=project_name,
+        functions_count=running_model_monitoring_functions,
+        suffix="running",
+        labels=labels,
+        state=mlrun.common.schemas.FunctionState.ready,
+    )
+    _create_functions(
+        client=client,
+        project_name=project_name,
+        functions_count=failed_model_monitoring_functions,
+        suffix="failed",
+        labels=labels,
+        state=mlrun.common.schemas.FunctionState.error,
+    )
 
 
 def _create_runs(
@@ -1869,7 +2055,7 @@ def _create_runs(
 ):
     for index in range(runs_count):
         run_name = f"run-name-{str(uuid4())}"
-        # create several runs of the same name to verify we're not counting all instances, just all unique run names
+        # create several runs of the same name to verify we're counting all instances
         for _ in range(3):
             run_uid = str(uuid4())
             run = {

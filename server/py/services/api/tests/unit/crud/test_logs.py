@@ -72,9 +72,57 @@ class TestLogs:
 
         project = "project-name"
         uid = "m33"
+
+        services.api.crud.Runs().store_run(
+            db,
+            {"metadata": {"name": "run-name", "project": project, "uid": uid}},
+            uid,
+            project=project,
+        )
+
         if expected_error:
             with pytest.raises(mlrun.errors.MLRunNotFoundError):
-                await services.api.crud.Logs().get_log_size(project, uid)
+                await services.api.crud.Logs().get_log_size(db, project, uid)
         else:
-            log_size = await services.api.crud.Logs().get_log_size(project, uid)
+            log_size = await services.api.crud.Logs().get_log_size(db, project, uid)
             assert return_value == log_size
+
+    @pytest.mark.parametrize(
+        "attempt, expected_run_uid",
+        [
+            (None, "m33-attempt-2"),
+            (0, "m33-attempt-2"),
+            (1, "m33"),
+            (2, "m33-attempt-2"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_get_log_size_with_attempt(
+        self, db: sqlalchemy.orm.Session, attempt, expected_run_uid
+    ):
+        mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
+        log_collector_client = (
+            framework.utils.clients.log_collector.LogCollectorClient()
+        )
+        log_collector_client.get_log_size = unittest.mock.AsyncMock(return_value=5)
+
+        project = "project-name"
+        uid = "m33"
+
+        services.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {"name": "run-name", "project": project, "uid": uid},
+                "status": {"retry_count": 1},
+            },
+            uid,
+            project=project,
+        )
+
+        log_size = await services.api.crud.Logs().get_log_size(
+            db, project, uid, attempt=attempt
+        )
+        assert log_size == log_size
+        log_collector_client.get_log_size.assert_called_once_with(
+            project=project, run_uid=expected_run_uid
+        )

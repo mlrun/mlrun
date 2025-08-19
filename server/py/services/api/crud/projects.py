@@ -282,7 +282,6 @@ class Projects(
         project: typing.Optional[str] = None,
         **project_filters,
     ) -> list[str]:
-        project = project or mlrun.mlconf.default_project
         if project != "*":
             await (
                 framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -312,7 +311,6 @@ class Projects(
         project: typing.Optional[str] = None,
         **project_filters,
     ) -> list[tuple[str, datetime.datetime]]:
-        project = project or mlrun.mlconf.default_project
         if project != "*":
             await (
                 framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -446,6 +444,13 @@ class Projects(
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
             project_to_other_alerts_count,
+            project_to_datasets_count,
+            project_to_documents_count,
+            project_to_llm_prompts_count,
+            project_to_running_mm_functions,
+            project_to_failed_mm_functions_count,
+            project_to_real_time_mep_count,
+            project_to_batch_mep_count,
         ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
@@ -498,6 +503,21 @@ class Projects(
                     ),
                     job_alerts_count=project_to_job_alerts_count.get(project_name, 0),
                     other_alerts_count=project_to_other_alerts_count.get(
+                        project_name, 0
+                    ),
+                    datasets_count=project_to_datasets_count.get(project_name, 0),
+                    documents_count=project_to_documents_count.get(project_name, 0),
+                    llm_prompts_count=project_to_llm_prompts_count.get(project_name, 0),
+                    running_model_monitoring_functions=project_to_running_mm_functions.get(
+                        project_name, 0
+                    ),
+                    failed_model_monitoring_functions=project_to_failed_mm_functions_count.get(
+                        project_name, 0
+                    ),
+                    real_time_model_endpoint_count=project_to_real_time_mep_count.get(
+                        project_name, 0
+                    ),
+                    batch_model_endpoint_count=project_to_batch_mep_count.get(
                         project_name, 0
                     ),
                 )

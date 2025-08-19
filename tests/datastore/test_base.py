@@ -29,11 +29,13 @@ from mlrun import MLRunInvalidArgumentError, new_function
 from mlrun.datastore import KafkaSource
 from mlrun.datastore.azure_blob import AzureBlobStore
 from mlrun.datastore.base import HttpStore
-from mlrun.datastore.datastore import schema_to_store
+from mlrun.datastore.datastore import schema_to_model_provider, schema_to_store
 from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.datastore.dbfs_store import DBFSStore
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
+from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
+from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from mlrun.datastore.redis import RedisStore
 from mlrun.datastore.s3 import S3Store
 from mlrun.datastore.v3io import V3ioStore
@@ -53,6 +55,11 @@ def test_http_fs_parquet_with_params_as_df():
     data_item.as_df()
 
 
+# ML-10075
+# TODO: find another dataset and re-enable this test
+@pytest.mark.skip(
+    reason="Starting with PyArrow 17, this test causes a conflict between partition data and parquet data"
+)
 def test_s3_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(
         "s3://aws-public-blockchain/v1.0/btc/blocks/date=2023-02-27/"
@@ -176,6 +183,7 @@ def test_kafka_source_without_attributes():
     assert attributes["consumerGroup"] == "mygroup"
     assert attributes["sasl"] == {
         "enable": True,
+        "handshake": True,
         "user": "myuser",
         "password": "mypassword",
         "mechanism": "PLAIN",
@@ -199,6 +207,20 @@ def test_kafka_source_without_attributes():
 def test_schema_to_store(schemas, expected_class, expected):
     with expected:
         stores = [schema_to_store(schema) for schema in schemas]
+        assert all(store == expected_class for store in stores)
+
+
+@pytest.mark.parametrize(
+    "schemas,expected_class,expected",
+    [
+        (["openai"], OpenAIProvider, does_not_raise()),
+        (["huggingface"], HuggingFaceProvider, does_not_raise()),
+        (["random"], None, pytest.raises(ValueError)),
+    ],
+)
+def test_schema_to_model_provider(schemas, expected_class, expected):
+    with expected:
+        stores = [schema_to_model_provider(schema) for schema in schemas]
         assert all(store == expected_class for store in stores)
 
 
@@ -249,3 +271,62 @@ def test_as_df_time_filters(start_time_tz, end_time_tz, df_tz):
                 190 - (80 if start_time_tz else 0) - (90 if end_time_tz else 0)
             )
             assert len(resp) == num_row_expected
+
+
+def test_partition_filtering_year_month():
+    """
+    Simple test for partition filtering with year/month structure.
+    Tests filtering data from 2020-2022 with year=YYYY/month=MM partitions.
+    """
+    time_column = "timestamp"
+
+    # Create test data spanning 2020-2022, all months
+    test_data = []
+    for year in range(2020, 2023):  # 2020, 2021, 2022
+        for month in range(1, 13):  # Jan-Dec
+            for day in [5, 15, 25]:  # 3 records per month
+                timestamp = datetime(year, month, day, 12, 0, 0)
+                test_data.append(
+                    {
+                        "timestamp": timestamp,
+                        "year": year,
+                        "month": month,
+                        "value": year * 100 + month * 10 + day,
+                    }
+                )
+
+    df = pd.DataFrame(test_data)
+
+    # Create partitioned parquet structure: year=YYYY/month=MM/
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Write partitioned parquet files
+        df.to_parquet(temp_dir, partition_cols=["year", "month"], engine="pyarrow")
+
+        # Create DataItem with trailing slash for directory
+        dir_url = f"file://{temp_dir}/"
+        data_item = mlrun.datastore.store_manager.object(dir_url)
+
+        # Test filter: Get data from June 2021 to August 2021
+        start_time = datetime(2021, 6, 10, 0, 0, 0)  # June 10, 2021
+        end_time = datetime(2021, 8, 20, 0, 0, 0)  # August 20, 2021
+
+        # Execute the filter
+        result = data_item.as_df(
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
+            format="parquet",
+        )
+
+        # Calculate expected results manually
+        # Should include: June 15 & 25 + July 5, 15 & 25 + August 5 & 15 = 7 records
+        expected_df = df[
+            (df[time_column] > start_time) & (df[time_column] <= end_time)
+        ].reset_index(drop=True)
+        pd.testing.assert_frame_equal(
+            result,
+            expected_df,
+            check_like=True,
+            check_dtype=False,
+            check_categorical=False,
+        )

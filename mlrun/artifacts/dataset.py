@@ -13,7 +13,6 @@
 # limitations under the License.
 import os
 import pathlib
-import warnings
 from io import StringIO
 from typing import Optional
 
@@ -27,7 +26,7 @@ import mlrun.datastore
 import mlrun.utils.helpers
 from mlrun.config import config as mlconf
 
-from .base import Artifact, ArtifactSpec, StorePrefix
+from .base import Artifact, ArtifactSpec, StorePrefix, verify_target_path
 
 default_preview_rows_length = 20
 max_preview_columns = mlconf.artifacts.datasets.max_preview_columns
@@ -161,13 +160,6 @@ class DatasetArtifact(Artifact):
         label_column: Optional[str] = None,
         **kwargs,
     ):
-        if key or format or target_path:
-            warnings.warn(
-                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
-                "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
-            )
-
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
@@ -432,6 +424,7 @@ def update_dataset_meta(
         artifact_spec = artifact
     elif mlrun.datastore.is_store_uri(artifact):
         artifact_spec, _ = mlrun.datastore.store_manager.get_store_artifact(artifact)
+        verify_target_path(artifact_spec)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 

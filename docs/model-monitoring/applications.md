@@ -1,6 +1,8 @@
 (mm-applications)=
 # Writing a model monitoring application
 
+Learn how to create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the ModelMonitoringApplicationBase class. 
+
 **In this section**
 - [Basics](#basics)
 - [Using the application context](#using-the-application-context)
@@ -21,8 +23,7 @@ from mlrun.model_monitoring.applications import (
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 ```
 
-Then, write the application itself by inheriting from the `ModelMonitoringApplicationBase` base class.
-You have to implement the `do_tracking` method.
+Then, write the application itself by inheriting from the {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` class. You have to implement the do_tracking` method.
 Here is a "dummy" app that returns a constant result for each monitoring window:
 
 ```py
@@ -41,7 +42,7 @@ class ServingMonitoring(ModelMonitoringApplicationBase):
 The `do_tracking` method of the application object is called for each "closed" monitoring time window
 of each monitored model-endpoint and returns a result.
 The result may be just one result, as in the example above, or a list of results
-`ModelMonitoringApplicationResult` and metrics `ModelMonitoringApplicationMetric`.
+({py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationResult`) and metrics ({py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationMetric`).
 
 The application class may implement a custom `__init__` constructor with arguments.
 
@@ -180,43 +181,5 @@ It is recommended to specify the exact version of the `evidently` package for re
 `from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION`.
 ```
 
-See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.ipynb#evidently-app).
-
-## Scaling
-
-The model monitoring application can be scaled to handle increased workloads through two key dimensions:
-
-- **Workers**: Individual processes within each Kubernetes pod
-- **Replicas**: The number of Kubernetes pods deployed
-
-These parameters are configured in the `config.py` file under the `application_stream_args` section:
-
-```py
-{
-    "application_stream_args": {
-        "v3io": {
-            "shard_count": 4,  # Number of V3IO shards
-            "retention_period_hours": 24,  # Data retention period
-            "num_workers": 4,  # Processes per pod
-            "min_replicas": 1,  # Minimum number of pods
-            "max_replicas": 1,  # Maximum number of pods
-        },
-        "kafka": {
-            "partition_count": 4,  # Number of Kafka partitions
-            "replication_factor": 1,  # Kafka replication factor
-            "num_workers": 4,  # Processes per pod
-            "min_replicas": 1,  # Minimum number of pods
-            "max_replicas": 1,  # Maximum number of pods
-        },
-    }
-}
-```
-
-### Scaling Rule
-
-The fundamental scaling rule to maintain is:
-
-**Shards/Partitions = Replicas × Workers**
-
-In other words, the number of shards (V3IO) or partitions (Kafka) must equal to the total number of worker processes across all pods.
+See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.ipynb#deploying-evidently-based-app).
 

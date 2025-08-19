@@ -32,11 +32,15 @@ from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
     extend_hub_uri_if_needed,
+    get_data_from_path,
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
     parse_artifact_uri,
+    remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
+    set_data_by_path,
+    split_path,
     str_to_timestamp,
     template_artifact_path,
     update_in,
@@ -572,36 +576,6 @@ def test_validate_v3io_consumer_group(value, expected):
             "images_to_enrich_registry": "some-repo/some-image,mlrun/mlrun",
         },
         {
-            "image": "mlrun/ml-base",
-            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
-            "images_to_enrich_registry": "mlrun/mlrun,mlrun/ml-base,mlrun/ml-models",
-        },
-        {
-            "image": "mlrun/ml-base:0.5.2",
-            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2",
-            "images_to_enrich_registry": "mlrun/mlrun:0.5.2,mlrun/ml-base:0.5.2,mlrun/ml-models:0.5.2",
-        },
-        {
-            "image": "mlrun/ml-base",
-            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
-            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
-        },
-        {
-            "image": "quay.io/mlrun/ml-base",
-            "expected_output": "quay.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
-            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
-        },
-        {
-            "image": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
-            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
-            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
-        },
-        {
-            "image": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
-            "expected_output": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
-            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s$,^mlrun/ml-base:0.5.2-unstable-adsf76s$",
-        },
-        {
             "image": "mlrun/mlrun",
             "expected_output": "mlrun/mlrun:0.5.2-unstable-adsf76s",
             "images_to_enrich_registry": "",
@@ -735,27 +709,184 @@ def test_validate_v3io_consumer_group(value, expected):
             "expected_output": "mlrun/mlrun:1.2.0",
             "images_to_enrich_registry": "",
         },
+        # image_url is "python", client_python_version is "3.9".
+        {
+            "image": "python",
+            "client_python_version": "3.9",
+            "expected_output": "dummy-repo/python:3.9",
+        },
+        # image_url is " python " (with spaces), client_python_version is "3.9".
+        {
+            "image": " python ",
+            "client_python_version": "3.9.18",
+            "expected_output": "dummy-repo/python:3.9",
+        },
+        {
+            "image": " python ",
+            "client_python_version": "3.9",
+            "expected_output": "dummy-repo/python:3.9",
+        },
+        # image_url is "python:3.8" (tag already provided), and not in "images_to_enrich_registry".
+        {
+            "image": "python:3.8",
+            "client_python_version": "3.9",
+            "expected_output": "python:3.8",
+        },
+        # image_url is "python", client_python_version is None.
+        {
+            "image": "python",
+            "client_python_version": None,
+            "expected_output": "python",
+        },
+        # image_url is "python", client_python_version is "" (empty string).
+        {
+            "image": "python",
+            "client_python_version": "",
+            "expected_output": "python",
+            "images_tag": None,
+            "version": None,
+            "client_version": None,
+        },
+        {
+            "image": "myimage",
+            "client_python_version": "3.9",
+            "expected_output": "myimage",
+        },
+        {
+            "image": "another/python",
+            "client_python_version": "3.9",
+            "expected_output": "another/python",
+        },
+        {
+            "image": "python-something",
+            "client_python_version": "3.9",
+            "expected_output": "python-something",
+        },
+        # Test with an mlrun image like "mlrun/mlrun", client_python_version="3.9", client_version="1.6.0".
+        # resolve_image_tag_suffix for 1.6.0 and py3.9 returns ""
+        {
+            "image": "mlrun/mlrun",
+            "client_python_version": "3.9",
+            "client_version": "1.6.0",
+            "version": "1.6.0",  # Mock server version
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.6.0",
+        },
+        {
+            "image": "mlrun/mlrun:customtag",
+            "client_python_version": "3.9",
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:customtag",
+        },
+        # version >= 1.10.0 — ml-base image is deprecated, image should be switched to mlrun/mlrun
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.10.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0",
+        },
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.10.0-rc8",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0-rc8",
+        },
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.11.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.11.0",
+        },
+        # version < 1.10.0 — ml-base image is still valid, image should remain unchanged
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.7.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/ml-base:1.7.0",
+        },
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.9.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/ml-base:1.9.0",
+        },
+        {
+            # explicit older tag in image should keep ml-base without replacement despite newer client version
+            "image": "mlrun/ml-base:1.7.2",
+            "client_version": "1.10.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/ml-base:1.7.2",
+        },
+        {
+            # image tag > 1.10.0, the image should be switched to mlrun/mlrun
+            "image": "mlrun/ml-base",
+            "client_version": None,
+            "images_tag": "1.10.0",
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0",
+        },
+        {
+            # images_tag takes precedence over client_version and triggers replacement even if client_version is older
+            "image": "mlrun/ml-base",
+            "client_version": "1.9.0",
+            "images_tag": "1.10.0",
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0",
+        },
     ],
 )
 def test_enrich_image(case):
-    default_images_to_enrich_registry = config.images_to_enrich_registry
-    config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
-    config.images_registry = case.get("images_registry", "ghcr.io/")
-    config.vendor_images_registry = case.get("vendor_images_registry", "dummy-repo/")
-    config.images_to_enrich_registry = case.get(
-        "images_to_enrich_registry", default_images_to_enrich_registry
-    )
-    if case.get("version") is not None:
-        mlrun.utils.version.Version().get = unittest.mock.Mock(
-            return_value={"version": case["version"]}
+    # Preserve original values
+    original_images_tag = config.images_tag
+    original_images_registry = config.images_registry
+    original_vendor_images_registry = config.vendor_images_registry
+    original_images_to_enrich_registry = config.images_to_enrich_registry
+    original_version_get = mlrun.utils.version.Version().get
+
+    try:
+        # Set values from case or use defaults
+        config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
+        config.images_registry = case.get("images_registry", "ghcr.io/")
+        config.vendor_images_registry = case.get(
+            "vendor_images_registry", "dummy-repo/"
         )
-    config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
-    image = case["image"]
-    expected_output = case["expected_output"]
-    client_version = case.get("client_version")
-    client_python_version = case.get("client_python_version")
-    output = enrich_image_url(image, client_version, client_python_version)
-    assert output == expected_output
+        config.images_to_enrich_registry = case.get(
+            "images_to_enrich_registry", original_images_to_enrich_registry
+        )
+
+        if "version" in case:  # Allows explicitly setting version to None for mock
+            mlrun.utils.version.Version().get = unittest.mock.Mock(
+                return_value={"version": case.get("version")}
+            )
+        elif (
+            "client_version" not in case and "images_tag" not in case
+        ):  # if no versions are set, ensure server is also None
+            mlrun.utils.version.Version().get = unittest.mock.Mock(
+                return_value={"version": None}
+            )
+
+        image = case["image"]
+        expected_output = case["expected_output"]
+        client_version = case.get("client_version")
+        client_python_version = case.get("client_python_version")
+
+        output = enrich_image_url(image, client_version, client_python_version)
+        assert output == expected_output
+
+    finally:
+        # Restore original values
+        config.images_tag = original_images_tag
+        config.images_registry = original_images_registry
+        config.vendor_images_registry = original_vendor_images_registry
+        config.images_to_enrich_registry = original_images_to_enrich_registry
+        mlrun.utils.version.Version().get = original_version_get
 
 
 @pytest.mark.parametrize(
@@ -1101,7 +1232,8 @@ def test_create_step_backoff():
                 assert step_value, next(backoff)
 
 
-def test_retry_until_successful():
+@pytest.mark.parametrize("fatal_exception", (False, True))
+def test_retry_until_successful(fatal_exception):
     def test_run(backoff):
         call_count = {"count": 0}
         unsuccessful_mock = unittest.mock.Mock()
@@ -1121,20 +1253,23 @@ def test_retry_until_successful():
             successful_mock()
             return "Finished"
 
-        result = mlrun.utils.retry_until_successful(
-            backoff,
-            120,
-            logger,
-            True,
-            some_func,
-            call_count,
-            5,
-            [1, 8],
-            some_other_thing="Just",
-        )
-        assert result, "Finished"
-        assert unsuccessful_mock.call_count, 3
-        assert successful_mock.call_count, 1
+        with pytest.raises(Exception) if fatal_exception else does_not_raise():
+            result = mlrun.utils.retry_until_successful(
+                backoff,
+                120,
+                logger,
+                True,
+                some_func,
+                call_count,
+                5,
+                [1, 8],
+                fatal_exceptions=(Exception,) if fatal_exception else (),
+                some_other_thing="Just",
+            )
+        if not fatal_exception:
+            assert result, "Finished"
+            assert unsuccessful_mock.call_count, 3
+            assert successful_mock.call_count, 1
 
     test_run(0.02)
 
@@ -1585,3 +1720,92 @@ def test_validate_and_convert_date(date_input, expected_output, expectation):
         assert (
             mlrun.utils.helpers.validate_and_convert_date(date_input) == expected_output
         )
+
+
+@pytest.mark.parametrize(
+    "input_uri,expected_output",
+    [
+        ("store://proj/key:latest", "store://proj/key"),
+        ("key#1:dev@tree^uid", "key#1@tree^uid"),
+        ("store://key:tag", "store://key"),
+        (
+            "store://models/remote-model-project/my_model#0@tree",
+            "store://models/remote-model-project/my_model#0@tree",
+        ),
+        (
+            "store://llm-prompts/test-nuclio-runtime/my_llm#0:v1@0eb15a5a-b093-4ca3-9e7d-c22482a6c990^c4f4dcc412acd61460adf9b4a4e799567c4793c8",
+            "store://llm-prompts/test-nuclio-runtime/my_llm#0@0eb15a5a-b093-4ca3-9e7d-c22482a6c990^c4f4dcc412acd61460adf9b4a4e799567c4793c8",
+        ),
+        ("key:tag", "key"),
+        ("key#1:tag", "key#1"),
+        ("key#1@tree", "key#1@tree"),
+        ("key#1@tree^uid", "key#1@tree^uid"),
+        ("store://key#1:tag@tree", "store://key#1@tree"),
+    ],
+)
+def test_remove_tag_from_artifact_uri(input_uri, expected_output):
+    assert remove_tag_from_artifact_uri(input_uri) == expected_output
+
+
+@pytest.mark.parametrize(
+    "path, data, expected",
+    [
+        ("b", {"a": {"x": 1}, "b": 2}, 2),  # simple key with int
+        ("missing", {"x": 1}, None),  # missing key
+        (
+            "a.b.c",
+            {"a": {"b": {"c": {"value": 42}}}},
+            {"value": 42},
+        ),  # nested dict
+        ("a.missing", {"a": {"b": 1}}, {}),  # partially missing nested path
+        (None, {"x": 1, "y": 2}, {"x": 1, "y": 2}),  # path is None
+    ],
+)
+def test_get_data_from_path_parametrized(path, data, expected):
+    path_as_list = split_path(path)
+    assert get_data_from_path(path_as_list, data) == expected
+
+
+@pytest.mark.parametrize(
+    "path, initial_data, value, expected_data",
+    [
+        ("a", {}, 42, {"a": 42}),
+        ("a.b.c", {}, 99, {"a": {"b": {"c": 99}}}),
+        ("a.b.c", {"a": {"b": {"c": 1}}}, 2, {"a": {"b": {"c": 2}}}),
+        ("x.y", {}, "value", {"x": {"y": "value"}}),
+        ("single", {}, "only", {"single": "only"}),
+        (
+            None,
+            {"existing": "data"},
+            {"new_key": 123},
+            {"existing": "data", "new_key": 123},
+        ),
+    ],
+)
+def test_set_data_by_path_success(path, initial_data, value, expected_data):
+    path_as_list = split_path(path)
+    set_data_by_path(path_as_list, initial_data, value)
+    assert initial_data == expected_data
+
+
+@pytest.mark.parametrize(
+    "path, value, exc_type, exc_msg",
+    [
+        # For path=None, test that non-dict value raises ValueError
+        (None, "not a dict", ValueError, "value must be a dictionary"),
+        # For path=None with dict value, no exception expected, so not included here
+        # For invalid path types, test MLRunInvalidArgumentError is raised
+        (123, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
+        (3.14, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
+        (
+            {"not": "a path"},
+            "some_value",
+            mlrun.errors.MLRunInvalidArgumentError,
+            "Expected path",
+        ),
+    ],
+)
+def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
+    data = {}
+    with pytest.raises(exc_type, match=exc_msg):
+        set_data_by_path(path, data, value)

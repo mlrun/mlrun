@@ -59,7 +59,6 @@ from services.api.api.endpoints.nuclio import (
     _get_api_gateways_urls_for_function,
     _handle_nuclio_deploy_status,
 )
-from services.api.utils.singletons.scheduler import get_scheduler
 
 router = APIRouter()
 
@@ -146,68 +145,6 @@ async def get_function(
     }
 
 
-# TODO: Remove in 1.9.0
-@router.delete(
-    "/projects/{project}/functions/{name}",
-    status_code=HTTPStatus.NO_CONTENT.value,
-    deprecated=True,
-    description="'/v1/projects/{project}/functions/{name}' will be removed in 1.9.0, "
-    "use '/v2/projects/{project}/functions/{name}' instead.",
-)
-async def delete_function(
-    request: Request,
-    project: str,
-    name: str,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.function,
-            project,
-            name,
-            mlrun.common.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
-    )
-    #  If the requested function has a schedule, we must delete it before deleting the function
-    try:
-        function_schedule = await run_in_threadpool(
-            get_scheduler().get_schedule,
-            db_session,
-            project,
-            name,
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        function_schedule = None
-
-    if function_schedule:
-        # when deleting a function, we should also delete its schedules if exists
-        # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,
-        # and we are running in worker, we send the request to the chief client
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
-            logger.info(
-                "Function has a schedule, deleting",
-                function=name,
-                project=project,
-            )
-            chief_client = framework.utils.clients.chief.Client()
-            await chief_client.delete_schedule(
-                project=project, name=name, request=request
-            )
-        else:
-            await run_in_threadpool(
-                get_scheduler().delete_schedule, db_session, project, name
-            )
-    await run_in_threadpool(
-        services.api.crud.Functions().delete_function, db_session, project, name
-    )
-    return Response(status_code=HTTPStatus.NO_CONTENT.value)
-
-
 @router.get("/projects/{project}/functions")
 async def list_functions(
     project: Optional[str] = None,
@@ -226,6 +163,8 @@ async def list_functions(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     allowed_project_names = (
         await services.api.crud.Projects().list_allowed_project_names(
             db_session, auth_info, project=project
@@ -239,9 +178,7 @@ async def list_functions(
             mlrun.common.schemas.AuthorizationResourceTypes.function,
             _functions,
             lambda function: (
-                function.get("metadata", {}).get(
-                    "project", mlrun.mlconf.default_project
-                ),
+                function.get("metadata", {}).get("project"),
                 function["metadata"]["name"],
             ),
             auth_info,
@@ -296,7 +233,9 @@ async def build_function(
 
     logger.info("Building function", data=data)
     function = data.get("function")
-    project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
+    project = function.get("metadata", {}).get("project")
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     function_name = function.get("metadata", {}).get("name")
     await run_in_threadpool(
         framework.utils.singletons.project_member.get_project_member().ensure_project,
@@ -354,11 +293,7 @@ async def build_function(
         force_build,
     )
 
-    # clone_target_dir is deprecated but needs to remain for backward compatibility
     func_dict = fn.to_dict()
-    func_dict["spec"]["clone_target_dir"] = get_in(
-        func_dict, "spec.build.source_code_target_dir"
-    )
 
     return {
         "data": func_dict,
@@ -411,6 +346,7 @@ async def start_function(
         _start_function_wrapper,
         background_timeout,
         None,
+        None,
         # args for _start_function
         function,
         auth_info,
@@ -458,9 +394,11 @@ async def build_status(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project or mlrun.mlconf.default_project,
+        project,
         name,
         # store since with the current mechanism we update the status (and store the function) in the DB when a client
         # query for the status
@@ -520,7 +458,9 @@ def _handle_job_deploy_status(
 ):
     # job deploy status
     response_headers = {}
-    function_state = get_in(fn, "status.state", "")
+    function_state = (
+        get_in(fn, "status.state", "") or mlrun.common.schemas.FunctionState.initialized
+    )
     pod = get_in(fn, "status.build_pod", "")
     image = get_in(fn, "spec.build.image", "")
     out = b""

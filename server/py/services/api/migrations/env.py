@@ -11,29 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from logging.config import fileConfig
+import contextlib
+import logging.config
+import typing
 
+import alembic
+import alembic.runtime.migration
 import sqlalchemy
+import sqlalchemy.dialects
 import sqlalchemy.exc
-from alembic import context
-from sqlalchemy import engine_from_config, pool
+import sqlalchemy.pool
+import sqlalchemy.sql.type_api
 
-from mlrun import mlconf
-from mlrun.utils import logger
+import mlrun.utils
 
-from framework.db.sqldb import models
+import framework.db.sqldb.lock_killer
+import framework.db.sqldb.models
+import framework.db.sqldb.sql_types
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
-config = context.config
+config = alembic.context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-fileConfig(config.config_file_name, disable_existing_loggers=False)
+logging.config.fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = models.Base.metadata
+target_metadata = framework.db.sqldb.models.Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -42,7 +48,112 @@ target_metadata = models.Base.metadata
 
 # this will overwrite the ini-file sqlalchemy.url path
 # with the path given in the mlconf
-config.set_main_option("sqlalchemy.url", mlconf.httpdb.dsn)
+config.set_main_option("sqlalchemy.url", mlrun.mlconf.httpdb.dsn)
+
+
+# This function was added as part of the migration to SQLAlchemy 2.0 and is intended
+# to suppress redundant alembic migrations
+def compare_type(
+    context: alembic.runtime.migration.MigrationContext,
+    inspected_column: sqlalchemy.Column[typing.Any],
+    metadata_column: sqlalchemy.Column[typing.Any],
+    inspected_type: sqlalchemy.sql.type_api.TypeEngine[typing.Any],
+    metadata_type: sqlalchemy.sql.type_api.TypeEngine[typing.Any],
+) -> typing.Optional[bool]:
+    """Custom compare_type that:
+    1. checks mysql.VARCHAR→Utf8BinText by length+collation (utf8mb3_bin≈utf8_bin),
+    2. suppresses VARCHAR→Uuid/UuidType only if length matches,
+    3. flags DATETIME/TIMESTAMP→DateTime/MicroSecondDateTime only on fsp mismatch,
+    4. flags PostgreSQL TIMESTAMP precision mismatches,
+    otherwise defers to Alembic default."""
+    if isinstance(inspected_type, sqlalchemy.dialects.mysql.VARCHAR):
+        # suppress VARCHAR→Uuid/UuidType only if lengths are equal
+        if isinstance(
+            metadata_column.type,
+            (sqlalchemy.Uuid, framework.db.sqldb.sql_types.UuidType),
+        ):
+            inspected_len = getattr(inspected_type, "length", None)
+            meta_len = getattr(metadata_column.type, "length", None)
+            return False if inspected_len == meta_len else True
+
+        # handle Utf8BinText by collation + length
+        coll = (inspected_type.collation or "").lower()
+        if coll in ("utf8mb3_bin", "utf8_bin"):
+            if isinstance(
+                metadata_column.type, framework.db.sqldb.sql_types.Utf8BinText
+            ):
+                dialect = context.dialect
+                meta_impl = metadata_column.type.load_dialect_impl(dialect)
+                if getattr(inspected_type, "length", None) == getattr(
+                    meta_impl, "length", None
+                ):
+                    return False
+                return True
+
+    # DATETIME/TIMESTAMP → DateTime/MicroSecondDateTime (MySQL)
+    if isinstance(
+        inspected_type,
+        (sqlalchemy.dialects.mysql.DATETIME, sqlalchemy.dialects.mysql.TIMESTAMP),
+    ) and isinstance(
+        metadata_column.type,
+        (
+            framework.db.sqldb.sql_types.DateTime,
+            framework.db.sqldb.sql_types.MicroSecondDateTime,
+        ),
+    ):
+        if getattr(inspected_type, "fsp", None) == metadata_column.type.precision:
+            return False
+        return True
+
+    # TIMESTAMP precision mismatches (PostgreSQL)
+    if isinstance(
+        inspected_type, sqlalchemy.dialects.postgresql.TIMESTAMP
+    ) and isinstance(
+        metadata_column.type,
+        (
+            framework.db.sqldb.sql_types.DateTime,
+            framework.db.sqldb.sql_types.MicroSecondDateTime,
+        ),
+    ):
+        if getattr(inspected_type, "precision", None) == metadata_column.type.precision:
+            return False
+        return True
+
+    return None
+
+
+@contextlib.contextmanager
+def _get_connection():
+    connection_or_engine = alembic.context.config.attributes.get("connection")
+
+    if connection_or_engine is None:
+        engine = sqlalchemy.engine_from_config(
+            config.get_section(config.config_ini_section),
+            prefix="sqlalchemy.",
+            poolclass=sqlalchemy.pool.NullPool,
+        )
+        with engine.connect() as conn:
+            yield conn
+        return
+
+    # Figure out what Alembic passed in `config.attributes["connection"]`
+    #
+    # None         – developer runs `alembic upgrade` directly.
+    #                Build a one-off Engine from alembic.ini and connect.
+    # Engine       – regular runtime upgrades (API start, /operations/migrations).
+    #                We must create and close a short-lived Connection ourselves.
+    # Connection   – first-time bootstrap or unit-tests that already started
+    #                  `engine.begin()`.  Caller owns the transaction; just yield it.
+    if isinstance(connection_or_engine, sqlalchemy.engine.Engine):
+        with connection_or_engine.connect() as conn:
+            yield conn
+        return
+
+    if isinstance(connection_or_engine, sqlalchemy.engine.Connection):
+        yield connection_or_engine
+        return
+
+    raise TypeError(f"Unsupported connection type: {type(connection_or_engine)!r}")
 
 
 def run_migrations_offline():
@@ -58,95 +169,75 @@ def run_migrations_offline():
 
     """
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(
+    alembic.context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         render_as_batch=True,
+        compare_type=compare_type,
     )
 
-    with context.begin_transaction():
-        context.run_migrations()
+    with alembic.context.begin_transaction():
+        alembic.context.run_migrations()
+
+
+def _kill_locks(connection: sqlalchemy.engine.Connection):
+    try:
+        framework.db.sqldb.lock_killer.LockKiller(connection).kill_locks()
+    except NotImplementedError:
+        mlrun.utils.logger.info(
+            "Lock killing not implemented",
+            dialect=connection.dialect.name,
+        )
 
 
 def run_migrations_online():
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
     """
-    connectable = context.config.attributes.get("connection", None)
+    Run migrations in *online* mode.
+    """
+    connectable = alembic.context.config.attributes.get("connection")
 
     if connectable is None:
-        connectable = engine_from_config(
+        connectable = sqlalchemy.engine_from_config(
             config.get_section(config.config_ini_section),
             prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
+            poolclass=sqlalchemy.pool.NullPool,
         )
 
-    with connectable.connect() as connection:
-        # This query retrieves information about database connections that have acquired
-        # locks on objects in the 'mlrun' schema,
-        # excluding the current connection and the 'alembic_version' table.
-        # This is order to find and kill connections that might be blocking the migration.
-        connection_ids = connection.execute(
-            sqlalchemy.sql.text(
-                """SELECT
-                t.PROCESSLIST_ID,
-                t.PROCESSLIST_USER,
-                t.PROCESSLIST_HOST,
-                GROUP_CONCAT(DISTINCT ml.OBJECT_NAME ORDER BY ml.OBJECT_NAME SEPARATOR ', ') AS locked_objects
-            FROM
-                performance_schema.metadata_locks AS ml
-            INNER JOIN
-                performance_schema.threads AS t
-                ON ml.OWNER_THREAD_ID = t.THREAD_ID
-            WHERE
-                t.PROCESSLIST_ID <> CONNECTION_ID()
-                AND ml.OBJECT_SCHEMA = 'mlrun'
-                AND ml.OBJECT_NAME != 'alembic_version'
-                AND ml.LOCK_STATUS = 'GRANTED'
-            GROUP BY
-                t.PROCESSLIST_ID,
-                t.PROCESSLIST_USER,
-                t.PROCESSLIST_HOST
-            ORDER BY
-                t.PROCESSLIST_ID;
-            """
-            )
-        ).fetchall()
-        for connection_id, user, host, locked_objects in connection_ids:
-            logger.warning(
-                "Killing DB connection with acquired lock.",
-                connection_id=connection_id,
-                user=user,
-                host=host,
-                locked_objects=locked_objects,
-                db="mlrun",
-            )
-            try:
-                connection.execute(sqlalchemy.sql.text(f"KILL {connection_id};"))
-            except sqlalchemy.exc.OperationalError as exc:
-                if "Unknown thread id" in str(exc):
-                    logger.warning(
-                        "DB connection already closed.",
-                        connection_id=connection_id,
-                        user=user,
-                        host=host,
-                        db="mlrun",
-                    )
-                else:
-                    raise exc
+    # Engine  → normal upgrades (API start, /operations/migrations, etc.):
+    #            open a temp conn, run, close.
+    # Connection → first-time bootstrap or tests (caller opened TX); reuse as-is.
+    # (None → plain `alembic upgrade` CLI, handled earlier.)
+    if isinstance(connectable, sqlalchemy.engine.Connection):
+        connection = connectable
+        close_conn = False
+    elif isinstance(connectable, sqlalchemy.engine.Engine):
+        connection = connectable.connect()
+        close_conn = True
+    else:
+        raise TypeError(
+            "Expected sqlalchemy.engine.Connection or sqlalchemy.engine.Engine"
+        )
 
-        context.configure(connection=connection, target_metadata=target_metadata)
+    try:
+        _kill_locks(connection)
+        alembic.context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=compare_type,
+        )
+        with alembic.context.begin_transaction():
+            alembic.context.run_migrations()
 
-        with context.begin_transaction():
-            context.run_migrations()
+        if connection.in_transaction():
+            connection.commit()
+    finally:
+        if close_conn:
+            connection.close()
 
 
-if context.is_offline_mode():
+if alembic.context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()

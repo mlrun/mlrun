@@ -14,14 +14,13 @@
 
 import asyncio
 import typing
-import warnings
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from http import HTTPStatus
 from typing import Annotated, Literal, Optional, Union
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -35,25 +34,14 @@ from mlrun.utils import logger
 
 import framework.api.deps
 import framework.utils.auth.verifier
+import services.api.common.constants as api_constants
 import services.api.crud
 from framework.api import deps
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
-ProjectAnnotation = Annotated[str, Path(pattern=mm_constants.PROJECT_PATTERN)]
-EndpointIDAnnotation = Annotated[
-    str, Path(pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN)
-]
-
-
-def _query_param_hyphen_warning(condition: typing.Any, param_name: str):
-    if condition:
-        new_param_name = param_name.replace("_", "-")
-        warnings.warn(
-            f"{param_name} query parameter is deprecated and will be removed in 1.11.0. "
-            f"Use {new_param_name} instead.",
-            DeprecationWarning,
-        )
+ProjectAnnotation = api_constants.ProjectAnnotation
+EndpointIDAnnotation = api_constants.EndpointIDAnnotation
 
 
 @router.post(
@@ -65,9 +53,6 @@ async def create_model_endpoint(
     model_endpoint: schemas.ModelEndpoint,
     project: ProjectAnnotation,
     delete_background_task: BackgroundTasks,
-    creation_strategy_old: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
-        None, alias="creation_strategy"
-    ),  # TODO: remove in 1.11
     creation_strategy: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
         None, alias="creation-strategy"
     ),
@@ -94,9 +79,6 @@ async def create_model_endpoint(
 
     :return: A Model endpoint object without operative data.
     """
-    _query_param_hyphen_warning(creation_strategy_old, "creation_strategy")
-    creation_strategy = creation_strategy or creation_strategy_old
-
     if project != model_endpoint.metadata.project:
         raise MLRunInvalidArgumentError(
             f"Project name in the URL '{project}' does not match the project name in the model endpoint metadata "
@@ -193,17 +175,16 @@ async def delete_model_endpoint(
     project: ProjectAnnotation,
     name: str,
     delete_background_task: BackgroundTasks,
-    function_name_old: Optional[str] = Query(
-        None, alias="function_name"
-    ),  # TODO: remove in 1.11
     function_name: Optional[str] = Query(None, alias="function-name"),
-    function_tag_old: Optional[str] = Query(
-        None, alias="function_tag"
-    ),  # TODO: remove in 1.11
     function_tag: Optional[str] = Query(None, alias="function-tag"),
+    # TODO: remove in 1.11
     endpoint_id_old: typing.Optional[EndpointIDAnnotation] = Query(
-        None, alias="endpoint_id"
-    ),  # TODO: remove in 1.11
+        None,
+        alias="endpoint_id",
+        deprecated=True,
+        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0."
+        "Use endpoint-id instead.",
+    ),
     endpoint_id: typing.Optional[EndpointIDAnnotation] = Query(
         None, alias="endpoint-id"
     ),
@@ -221,13 +202,6 @@ async def delete_model_endpoint(
     :param auth_info:              The auth info of the request.
     :param db_session:             A session that manages the current dialog with the database.
     """
-    # TODO: remove in 1.11
-    _query_param_hyphen_warning(function_name_old, "function_name")
-    _query_param_hyphen_warning(function_tag_old, "function_tag")
-    _query_param_hyphen_warning(endpoint_id_old, "endpoint_id")
-
-    function_name = function_name or function_name_old
-    function_tag = function_tag or function_tag_old
     endpoint_id = endpoint_id or endpoint_id_old or "*"
 
     await (
@@ -259,34 +233,19 @@ async def delete_model_endpoint(
 async def list_model_endpoints(
     project: ProjectAnnotation,
     names: Optional[list[str]] = Query(None, alias="name"),
-    model_name_old: Optional[str] = Query(
-        None, alias="model_name"
-    ),  # TODO: remove in 1.11
     model_name: Optional[str] = Query(None, alias="model-name"),
-    model_tag_old: Optional[str] = Query(
-        None, alias="model_tag"
-    ),  # TODO: remove in 1.11
     model_tag: Optional[str] = Query(None, alias="model-tag"),
-    function_name_old: Optional[str] = Query(
-        None, alias="function_name"
-    ),  # TODO: remove in 1.11
     function_name: Optional[str] = Query(None, alias="function-name"),
-    function_tag_old: Optional[str] = Query(
-        None, alias="function_tag"
-    ),  # TODO: remove in 1.11
     function_tag: Optional[str] = Query(None, alias="function-tag"),
     labels: list[str] = Query([], alias="label"),
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     top_level: bool = Query(False, alias="top-level"),
-    tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
+    mode: mm_constants.EndpointMode = None,
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
     metric_list: Optional[list[str]] = Query(None, alias="metric"),
     uids: list[str] = Query(None, alias="uid"),
-    latest_only_old: bool = Query(
-        False, alias="latest_only_old"
-    ),  # TODO: remove in 1.11
-    latest_only: bool = Query(False, alias="latest-only-old"),
+    latest_only: bool = Query(False, alias="latest-only"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> schemas.ModelEndpointList:
@@ -307,27 +266,14 @@ async def list_model_endpoints(
                             If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                             will be included.
     :param top_level:       Whether to return only top level model endpoints.
+    :param mode:            Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or both if
+                            set to None.
     :param uids:            A list of unique ids to filter by.
     :param latest_only:     Whether to return only the latest model endpoint for each name.
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
     :return:                A list of model endpoints.
     """
-    # TODO: remove in 1.11
-    _query_param_hyphen_warning(model_name_old, "model_name")
-    _query_param_hyphen_warning(model_tag_old, "model_tag")
-    _query_param_hyphen_warning(function_name_old, "function_name")
-    _query_param_hyphen_warning(function_tag_old, "function_tag")
-    _query_param_hyphen_warning(tsdb_metrics_old, "tsdb_metrics")
-    _query_param_hyphen_warning(latest_only_old, "latest_only")
-
-    model_name = model_name or model_name_old
-    model_tag = model_tag or model_tag_old
-    function_name = function_name or function_name_old
-    function_tag = function_tag or function_tag_old
-    tsdb_metrics = tsdb_metrics and tsdb_metrics_old
-    latest_only = latest_only or latest_only_old
-
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=schemas.AuthorizationAction.read,
@@ -345,6 +291,7 @@ async def list_model_endpoints(
         start=start,
         end=end,
         top_level=top_level,
+        mode=mode,
         tsdb_metrics=tsdb_metrics,
         metric_list=metric_list,
         uids=uids,
@@ -448,19 +395,23 @@ async def get_model_endpoint_monitoring_metrics(
     return metrics
 
 
+# TODO: remove in 1.12.0
 @router.get(
     "/metrics",
     response_model=dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
+    deprecated=True,
+    description=(
+        "This endpoint is deprecated from 1.10.0 and will be removed in MLRun 1.12.0. "
+        "Use the GET '/projects/{project}/model-monitoring/metrics' API endpoint instead."
+    ),
 )
 async def get_metrics_by_multiple_endpoints(
     project: ProjectAnnotation,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     type: Literal["results", "metrics", "all"] = "all",
     endpoint_ids: list[EndpointIDAnnotation] = Query([], alias="endpoint-id"),
-    events_format_old: Optional[mm_constants.GetEventsFormat] = Query(
-        None, alias="events_format"
-    ),  # TODO: remove in 1.11
     events_format: mm_constants.GetEventsFormat = Query(None, alias="events-format"),
+    db_session: Session = Depends(deps.get_db_session),
 ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
     """
     :param project:       The name of the project.
@@ -469,18 +420,14 @@ async def get_metrics_by_multiple_endpoints(
                           and "metrics".
     :param endpoint_ids:  The unique id of the model endpoint. Can be a single id or a list of ids.
     :param events_format: response format:
+    :param db_session:    A session that manages the current dialog with the database.
 
                           separation: {"mep_id1":[...], "mep_id2":[...]}
                           intersection {"intersect_metrics":[], "intersect_results":[]}
     :returns:             A dictionary of application metrics and/or results for the model endpoints,
                           formatted by events_format.
     """
-    _query_param_hyphen_warning(
-        events_format_old, "events_format"
-    )  # TODO: remove in 1.11
-    events_format = (
-        events_format or events_format_old or mm_constants.GetEventsFormat.SEPARATION
-    )
+    events_format = events_format or mm_constants.GetEventsFormat.SEPARATION
     events = {}
     permissions_tasks = []
     is_metrics_supported = type == "metrics" or type == "all"
@@ -495,6 +442,19 @@ async def get_metrics_by_multiple_endpoints(
         )
 
     await asyncio.gather(*permissions_tasks)
+
+    # verify all endpoints exist in the project
+    endpoints_data = await services.api.crud.ModelEndpoints().list_model_endpoints(
+        project=project,
+        uids=endpoint_ids,
+        db_session=db_session,
+    )
+    returned_uids = [endpoint.metadata.uid for endpoint in endpoints_data.endpoints]
+    if len(returned_uids) < len(endpoint_ids):
+        missing_endpoints = set(endpoint_ids) - set(returned_uids)
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Model endpoints with ids {missing_endpoints} were not found in project {project}."
+        )
 
     task_results = await _collect_get_metrics_tasks_results(
         endpoint_ids=endpoint_ids,
@@ -531,6 +491,50 @@ async def get_metrics_by_multiple_endpoints(
 
 
 @router.get(
+    "/drift-over-time",
+    status_code=HTTPStatus.OK.value,
+    response_model=schemas.ModelEndpointDriftValues,
+)
+async def get_model_endpoint_drift_over_time(
+    project: ProjectAnnotation,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
+) -> schemas.ModelEndpointDriftValues:
+    """
+    Get drift counts over time for the project.
+
+    :param project:     The name of the project.
+    :param start:       Start time of the range to retrieve drift counts from.
+    :param end:         End time of the range to retrieve drift counts from.
+    :param auth_info:   The auth info of the request.
+
+    :return: A ModelEndpointDriftValues object containing the drift counts over time.
+    """
+    start, end = _validate_time_range(start, end)
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    try:
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=project,
+            secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                project=project
+            ),
+        )
+    except mlrun.errors.MLRunNotFoundError as e:
+        logger.debug(
+            "Failed to retrieve model endpoint metrics-values because the TSDB datastore profile was not found. "
+            "Returning an empty list of metric-values",
+            error=mlrun.errors.err_to_str(e),
+        )
+        return schemas.ModelEndpointDriftValues(values=[])
+    return await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
+
+
+@router.get(
     "/{name}",
     status_code=HTTPStatus.OK.value,
     response_model=schemas.ModelEndpoint,
@@ -538,24 +542,27 @@ async def get_metrics_by_multiple_endpoints(
 async def get_model_endpoint(
     name: str,
     project: ProjectAnnotation,
-    function_name_old: Optional[str] = Query(
-        None, alias="function_name"
-    ),  # TODO: remove in 1.11
     function_name: Optional[str] = Query(None, alias="function-name"),
-    function_tag_old: Optional[str] = Query(
-        None, alias="function_tag"
-    ),  # TODO: remove in 1.11
     function_tag: Optional[str] = Query(None, alias="function-tag"),
+    # TODO: remove in 1.11
     endpoint_id_old: Optional[EndpointIDAnnotation] = Query(
-        None, alias="endpoint_id"
-    ),  # TODO: remove in 1.11
+        None,
+        alias="endpoint_id",
+        deprecated=True,
+        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
+        "Use endpoint-id instead.",
+    ),
     endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
-    tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
     metric_list: Optional[list[str]] = Query(None, alias="metric"),
+    # TODO: remove in 1.11
     feature_analysis_old: bool = Query(
-        False, alias="feature_analysis"
-    ),  # TODO: remove in 1.11
+        False,
+        alias="feature_analysis",
+        deprecated=True,
+        description="'feature_analysis' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
+        "Use feature-analysis instead.",
+    ),
     feature_analysis: bool = Query(False, alias="feature-analysis"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -577,17 +584,7 @@ async def get_model_endpoint(
     :param db_session:          A session that manages the current dialog with the database.
     :return:                    The model endpoint object.
     """
-    # TODO: remove in 1.11
-    _query_param_hyphen_warning(function_name_old, "function_name")
-    _query_param_hyphen_warning(function_tag_old, "function_tag")
-    _query_param_hyphen_warning(endpoint_id_old, "endpoint_id")
-    _query_param_hyphen_warning(tsdb_metrics_old, "tsdb_metrics")
-    _query_param_hyphen_warning(feature_analysis_old, "feature_analysis")
-
-    function_name = function_name or function_name_old
-    function_tag = function_tag or function_tag_old
     endpoint_id = endpoint_id or endpoint_id_old
-    tsdb_metrics = tsdb_metrics and tsdb_metrics_old
     feature_analysis = feature_analysis or feature_analysis_old
 
     await _verify_model_endpoint_read_permission(
@@ -617,6 +614,29 @@ class _MetricsValuesParams:
     end: datetime
 
 
+def _validate_time_range(
+    start: Optional[datetime] = None, end: Optional[datetime] = None
+) -> tuple[datetime, datetime]:
+    """
+    validate start and end parameters and set default values if needed.
+    :param start:       Either None or datetime, None is handled as datetime.now(tz=timezone.utc) - timedelta(days=1)
+    :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
+    :return:            start datetime, end datetime
+    """
+    end = end or mlrun.utils.helpers.datetime_now()
+    start = start or (end - timedelta(days=1))
+    if start.tzinfo is None or end.tzinfo is None:
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "Custom start and end times must contain the timezone."
+        )
+    if start > end:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "The start time must be before the end time. Note that if end time is not provided, "
+            "the current time is used by default."
+        )
+    return start, end
+
+
 async def _get_metrics_values_params(
     project: ProjectAnnotation,
     endpoint_id: EndpointIDAnnotation,
@@ -643,22 +663,7 @@ async def _get_metrics_values_params(
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=endpoint_id, auth_info=auth_info
     )
-    if start is None and end is None:
-        end = mlrun.utils.helpers.datetime_now()
-        start = end - timedelta(days=1)
-    elif start is not None and end is not None:
-        if start.tzinfo is None or end.tzinfo is None:
-            raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                "Custom start and end times must contain the timezone."
-            )
-        if start > end:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "The start time must precede the end time."
-            )
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Provided only one of start time, end time. Please provide both or neither."
-        )
+    start, end = _validate_time_range(start, end)
 
     metrics = []
     results = []

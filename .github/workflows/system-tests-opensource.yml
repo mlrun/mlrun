@@ -14,6 +14,10 @@
 
 name: System Tests Open Source
 
+permissions:
+  contents: read
+  packages: write
+
 on:
   push:
     branches:
@@ -103,7 +107,7 @@ jobs:
       mlrun_version: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrun_version_specifier: ${{ steps.computed_params.outputs.mlrun_version_specifier }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Extract git hashes from upstream and latest version
         id: git_upstream_info
@@ -177,7 +181,7 @@ jobs:
       # by overriding the version specifier, we allow using mlrun/mlrun as well.
       # TODO: support patching jupyter as well (maybe on demand?)
       # and use --override-mlrun-jupyter-image when patching mlrun ce
-      skip_images: test,mlrun-gpu,base,jupyter
+      skip_images: test,mlrun-gpu,jupyter
     secrets: inherit
 
   run-system-tests-opensource-ci:
@@ -186,7 +190,7 @@ jobs:
       group: mlrun-ce
     needs: [prepare-inputs, build-mlrun]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
@@ -194,7 +198,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v5
+      uses: astral-sh/setup-uv@d9e0f98d3fc6adb07d1e3d37f3043649ddad06a1 # 6.5.0
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"
@@ -210,7 +214,7 @@ jobs:
         make install-requirements install-complete-requirements
         uv pip install -r automation/requirements.txt
 
-    - uses: jupyterhub/action-k3s-helm@v4
+    - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
       name: "Start a local k8s cluster"
       with:
         # - k3s versions at https://github.com/k3s-io/k3s/tags
@@ -219,7 +223,7 @@ jobs:
         helm-version: v3.17.2
 
     - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
+      uses: mxschmitt/action-tmate@7b6a61a73bbb9793cb80ad69b8dd8ac19261834c # 3.22
       if: ${{ github.event.inputs.debug_enabled == 'true' }}
       with:
 
@@ -244,7 +248,7 @@ jobs:
         sleep 30
 
         # create the docker-registry namespace and deploy the registry
-        kubectl create namespace docker-registry
+        kubectl create namespace docker-registry --dry-run=client -o yaml | kubectl apply -f -
         kubectl apply -f automation/system_test/k3s_docker_registry.yaml
 
         # restart coredns to apply the changes

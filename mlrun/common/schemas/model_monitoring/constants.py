@@ -34,6 +34,7 @@ class ModelEndpointSchema(MonitoringStrEnum):
     UID = "uid"
     PROJECT = "project"
     ENDPOINT_TYPE = "endpoint_type"
+    MODE = "mode"
     NAME = "name"
     CREATED = "created"
     UPDATED = "updated"
@@ -142,6 +143,22 @@ class EventFieldType:
     EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
 
 
+class StreamProcessingEvent:
+    MODEL = "model"
+    MODEL_CLASS = "model_class"
+    MICROSEC = "microsec"
+    WHEN = "when"
+    ERROR = "error"
+    ENDPOINT_ID = "endpoint_id"
+    SAMPLING_PERCENTAGE = "sampling_percentage"
+    EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
+    LABELS = "labels"
+    FUNCTION_URI = "function_uri"
+    REQUEST = "request"
+    RESPONSE = "resp"
+    METRICS = "metrics"
+
+
 class FeatureSetFeatures(MonitoringStrEnum):
     LATENCY = EventFieldType.LATENCY
     METRICS = EventFieldType.METRICS
@@ -189,6 +206,11 @@ class ControllerEvent(MonitoringStrEnum):
     FIRST_REQUEST = "first_request"
     FEATURE_SET_URI = "feature_set_uri"
     ENDPOINT_TYPE = "endpoint_type"
+
+    # first_timestamp and last_timestamp are used to batch completed events
+    FIRST_TIMESTAMP = "first_timestamp"
+    LAST_TIMESTAMP = "last_timestamp"
+
     ENDPOINT_POLICY = "endpoint_policy"
     # Note: currently under endpoint policy we will have a dictionary including the keys: "application_names"
     # "base_period", and "updated_endpoint" stand for when the MEP was updated
@@ -203,6 +225,7 @@ class ControllerEventEndpointPolicy(MonitoringStrEnum):
 class ControllerEventKind(MonitoringStrEnum):
     NOP_EVENT = "nop_event"
     REGULAR_EVENT = "regular_event"
+    BATCH_COMPLETE = "batch_complete"
 
 
 class MetricData(MonitoringStrEnum):
@@ -303,6 +326,11 @@ class EndpointType(IntEnum):
     @classmethod
     def top_level_list(cls):
         return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP]
+
+
+class EndpointMode(IntEnum):
+    REAL_TIME = 0
+    BATCH = 1
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):
@@ -416,12 +444,20 @@ class ResultStatusApp(IntEnum):
     detected = 2
 
 
-class ModelMonitoringAppLabel:
+class ModelMonitoringLabel:
     KEY = mlrun.common.constants.MLRunInternalLabels.mlrun_type
-    VAL = "mlrun__model-monitoring-application"
+    VAL = ""
 
     def __str__(self) -> str:
         return f"{self.KEY}={self.VAL}"
+
+
+class ModelMonitoringAppLabel(ModelMonitoringLabel):
+    VAL = "mlrun__model-monitoring-application"
+
+
+class ModelMonitoringInfraLabel(ModelMonitoringLabel):
+    VAL = "mlrun__model-monitoring-infra"
 
 
 class HistogramDataDriftApplicationConstants:
@@ -438,7 +474,13 @@ class SpecialApps:
     MLRUN_INFRA = "mlrun-infra"
 
 
+class ModelMonitoringLabels:
+    MLRUN_MODEL_MONITORING_INFRA = "mlrun-model-monitoring-infra"
+
+
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
+
+_RESERVED_EVALUATE_FUNCTION_SUFFIX = "-batch"
 
 
 class ModelEndpointMonitoringMetricType(StrEnum):
@@ -446,19 +488,25 @@ class ModelEndpointMonitoringMetricType(StrEnum):
     METRIC = "metric"
 
 
+# refer to `mlrun.utils.regex.project_name`
+_INNER_PROJECT_PATTERN = r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?"
+PROJECT_PATTERN = rf"^{_INNER_PROJECT_PATTERN}$"
+
+MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
+
 _FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
+_RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
+
 FQN_PATTERN = (
-    rf"^(?P<project>{_FQN_PART_PATTERN})\."
+    rf"^(?P<project>{_INNER_PROJECT_PATTERN})\."
     rf"(?P<app>{_FQN_PART_PATTERN})\."
     rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
-    rf"(?P<name>{_FQN_PART_PATTERN})$"
+    rf"(?P<name>{_RESULT_NAME_PATTERN})$"
 )
 FQN_REGEX = re.compile(FQN_PATTERN)
+APP_NAME_REGEX = re.compile(_FQN_PART_PATTERN)
+RESULT_NAME_REGEX = re.compile(_RESULT_NAME_PATTERN)
 
-# refer to `mlrun.utils.regex.project_name`
-PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
-MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
-RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
 
 INTERSECT_DICT_KEYS = {
     ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",

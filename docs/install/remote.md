@@ -3,15 +3,11 @@
 
 You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
 
-This release of MLRun supports only Python 3.9 for both the server and the client. 
-
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Set up a Python 3.9 client environment](#set-up-a-python-39-client-environment)
+- [MLRun client supported OS](#mlrun-client-supported-os)
+- [Set up your client environment](#set-up-your-client-environment)
 - [Configure remote environment](#configure-remote-environment)
-   - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
-   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
-   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -19,12 +15,10 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 Before you begin, ensure that the following prerequisites are met:
 
 Applications:
-- Python 3.9
-- Recommended pip 22.x+
+- Python 3.11 (recommended) or Python 3.9
+- Recommended pip 25.0.x+
 
-The MLRun server is based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
-
-For a Python 3.7 environment for platform versions up to and including v3.5.2, see [Set up a Python 3.7 client environment](../change-log/index.md#set-up-a-python-37-client-environment-iguazio-versions-up-to-and-including-v352).
+The MLRun server is based on a Python 3.11 environment. It's recommended to move the client to a Python 3.11 environment as well, although the MLRun client supports both Python 3.9 and Python 3.11.
 
 ## MLRun client supported OS
 The MLRun client supports:
@@ -32,23 +26,22 @@ The MLRun client supports:
 - Mac
 - Windows via WSL
 
-## Set up a Python 3.9 client environment
+## Set up your client environment
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
-<br>This installs MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
+<br>This installs MLRun locally with the requirements in {requirements}`1.9.x`.
 
-```{admonition} Note
-To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
+```{admonition} Notes
+- See more about images in {ref}`images-usage`
+- To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number. 
 ```
 
-## Note for ARM64 (Apple Silicon) Users
-
-When using ARM64 (Apple Silicon), you need to use **conda** and install protobuf by running the following command:
-
-```bash
-conda install "protobuf>=3.20.3, <4" -y
-````
+:::{admonition} Note for ARM64 (Apple Silicon) Users and Python 3.9
+:name: apple-silicon
+When using ARM64 (Apple Silicon) and **Python 3.9**, you need to use **conda** to install protobuf by running the following command:
+<br>```conda install "protobuf>=3.20.3, <4" -y```
+:::
 
 2. **Advanced** <br> 
    - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not 
@@ -89,6 +82,14 @@ You have a few options to configure your remote environment:
 - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrunset_environment-command-in-mlrun-sdk)
 - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
 
+```{admonition} Important
+One of the variables you define in your environment is `MLRUN_DBPATH`, the MLRun DB path or API service URL. You can supply an alternate value for this in your code, but you must also run `mlconf.reload()` to explicitly apply the new DB path. For example:
+```python
+url = "https://mlrun-api"
+mlrun.mlconf.dbpath = url
+mlrun.mlconf.reload()
+```
+
 ### Using `mlrun config set` command in MLRun CLI
 
 **Example 1**<br>
@@ -103,8 +104,9 @@ It creates the following environment file:
 MLRUN_DBPATH=http://localhost:8080
 ```
 
-MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in Example2) <br>
+MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in [Example 2](#ex2)). 
 
+(ex2)=
 **Example 2**<br>
 **Note:** Only relevant if your remote service is on an instance of the Iguazio AI Platform (**not MLRun CE**). <br>
 Run this command in MLRun CLI:
@@ -182,7 +184,7 @@ If your remote service is on an instance of the Iguazio AI Platform, you can get
 the user-profile picture or icon from the top right corner of any page, and select  **Remote settings**. They are copied to the clipboard.
 ```
 
-```{admonition} Note
+```{admonition} Important
 Make sure that you add `.env` to your `.gitignore` file. The environment file contains sensitive information that you should not store in your source control.
 ```
 

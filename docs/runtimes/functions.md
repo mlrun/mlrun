@@ -25,6 +25,12 @@ and gets a new hash code upon changes.
 You can use the MLRun auto-logging to log results and artifacts, and to automatically and seamlessly track machine-learning processes 
 while they execute, such as training a model. See {ref}`decorators-and-auto-logging`. 
 
+**In this section**
+- [Functions and projects](#functions-and-projects)
+- [Function hub](#function-hub)
+- [Distributed functions](#distributed-functions)
+- [Hyperparameters](#hyperparameters)
+
 ## Functions and projects
 Function are members of an [**MLRun project**](../projects/project.md), a container for all your work on a particular ML application. 
 Once you register a function within a project, you can execute it in your local 

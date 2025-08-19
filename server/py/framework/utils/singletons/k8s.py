@@ -601,18 +601,26 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 name=secret_name,
                 namespace=namespace,
             )
+
             if labels:
                 secret_labels = k8s_secret.metadata.labels or {}
-                for key, value in labels.items():
-                    if secret_labels.get(key) != value:
-                        if not silent:
-                            logger.debug(
-                                "Secret found but labels did not match",
-                                secret_name=secret_name,
-                                expected_labels=labels,
-                                actual_labels=secret_labels,
-                            )
-                        return None
+
+                # Find any label that does not match
+                mismatched = {
+                    k: (v, secret_labels.get(k))
+                    for k, v in labels.items()
+                    if secret_labels.get(k) != v
+                }
+                if mismatched:
+                    if not silent:
+                        logger.debug(
+                            "Secret found but labels did not match",
+                            secret_name=secret_name,
+                            expected_labels=labels,
+                            actual_labels=secret_labels,
+                            mismatched_labels=mismatched,
+                        )
+                    return None
         except k8s_client_rest.ApiException as exc:
             if silent:
                 return
@@ -1052,12 +1060,15 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :return: SecretEventActions.{created, updated, skipped}
         """
         namespace = self.resolve_namespace(namespace)
-        secret_name = f"mlrun-auth-{username}-{token_name}"
-        labels = {"mlrun/user": username}
+        secret_name = self._resolve_user_token_secret_name(username, token_name)
+        labels = {
+            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: username
+        }
 
         logger.debug(
             "Preparing to store user token secret",
             secret_name=secret_name,
+            namespace=namespace,
         )
 
         secret_data = self._encode_user_token(token_name, token, expiration)
@@ -1096,6 +1107,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             expiration=expiration,
         )
         return mlrun.common.schemas.SecretEventActions.skipped
+
+    def _resolve_user_token_secret_name(self, username: str, token: str) -> str:
+        return mlrun.mlconf.secret_stores.kubernetes.user_token_secret_name.format(
+            username=username, token_name=token
+        )
 
     def _encode_user_token(
         self, token_name: str, token: str, expiration: int

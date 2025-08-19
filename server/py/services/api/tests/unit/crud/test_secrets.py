@@ -792,5 +792,34 @@ def test_store_secret_tokens_return_values():
     assert mock_secrets_provider.store_user_token_secret.call_count == 3
 
 
+def test_list_secret_tokens_returns_tokens():
+    username = "dummy-user"
+    expected_tokens = [
+        mlrun.common.schemas.SecretTokenInfo(name="jupyter", expiration=1750979191),
+        mlrun.common.schemas.SecretTokenInfo(name="my-token", expiration=1754966400),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    services.api.crud.Secrets().secrets_provider.list_user_token_secrets = (
+        unittest.mock.Mock(return_value=expected_tokens)
+    )
+
+    response = services.api.crud.Secrets().list_secret_tokens(
+        authenticated_username=username
+    )
+
+    assert isinstance(response, mlrun.common.schemas.ListSecretTokensResponse)
+    assert len(response.secret_tokens) == 2
+    assert response.secret_tokens[0].name == "jupyter"
+    assert response.secret_tokens[0].expiration == 1750979191
+    assert response.secret_tokens[1].name == "my-token"
+    assert response.secret_tokens[1].expiration == 1754966400
+
+    mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
+        username=username
+    )
+
+
 def _generate_token(payload: dict) -> str:
     return jwt.encode(payload, key="dummy", algorithm="HS256")

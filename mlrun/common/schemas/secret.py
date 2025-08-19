@@ -66,4 +66,4 @@ class SecretTokenInfo(BaseModel):
 
 
 class ListSecretTokensResponse(BaseModel):
-    secretTokens: list[SecretTokenInfo]
+    secret_tokens: list[SecretTokenInfo]

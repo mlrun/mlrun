@@ -1178,6 +1178,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                         secret_name=secret_name,
                         error=mlrun.errors.err_to_str(exc),
                     )
+                    continue
 
             secret_tokens.append(
                 mlrun.common.schemas.SecretTokenInfo(

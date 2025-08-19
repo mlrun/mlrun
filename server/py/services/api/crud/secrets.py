@@ -526,7 +526,9 @@ class Secrets(
             token_count=len(secret_tokens),
         )
 
-        return mlrun.common.schemas.ListSecretTokensResponse(secretTokens=secret_tokens)
+        return mlrun.common.schemas.ListSecretTokensResponse(
+            secret_tokens=secret_tokens
+        )
 
     @staticmethod
     def _validate_token_name(token_name: str, seen_names: set):

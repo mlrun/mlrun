@@ -773,7 +773,7 @@ def test_store_secret_tokens_return_values():
 
     mock_secrets_provider = unittest.mock.Mock()
     services.api.crud.Secrets().secrets_provider = mock_secrets_provider
-    mock_secrets_provider.create_or_update_user_token_secret.side_effect = [
+    mock_secrets_provider.store_user_token_secret.side_effect = [
         mlrun.common.schemas.SecretEventActions.created,
         mlrun.common.schemas.SecretEventActions.updated,
         mlrun.common.schemas.SecretEventActions.skipped,
@@ -789,7 +789,7 @@ def test_store_secret_tokens_return_values():
         "skipped_tokens": ["token3"],
     }
 
-    assert mock_secrets_provider.create_or_update_user_token_secret.call_count == 3
+    assert mock_secrets_provider.store_user_token_secret.call_count == 3
 
 
 def _generate_token(payload: dict) -> str:

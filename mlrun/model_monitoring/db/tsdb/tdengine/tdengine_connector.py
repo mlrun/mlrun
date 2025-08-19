@@ -22,7 +22,6 @@ import taosws
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.types
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
-import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
@@ -205,7 +204,7 @@ class TDEngineConnector(TSDBConnector):
     @staticmethod
     def _generate_filter_query(
         filter_column: str, filter_values: Union[str, list[Union[str, int]]]
-    ) -> Optional[str]:
+    ) -> str:
         """
         Generate a filter query for TDEngine based on the provided column and values.
 
@@ -213,15 +212,14 @@ class TDEngineConnector(TSDBConnector):
         :param filter_values: A single value or a list of values to filter by.
 
         :return: A string representing the filter query.
-        :raise: MLRunInvalidArgumentError if the filter values are not of type string or list.
+        :raise: ``MLRunValueError`` if the filter values are not of type string or list.
         """
-
         if isinstance(filter_values, str):
             return f"{filter_column}='{filter_values}'"
         elif isinstance(filter_values, list):
             return f"{filter_column} IN ({', '.join(repr(v) for v in filter_values)}) "
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunValueError(
                 f"Invalid filter values {filter_values}: must be a string or a list, "
                 f"got {type(filter_values).__name__}; filter values: {filter_values}"
             )
@@ -311,10 +309,7 @@ class TDEngineConnector(TSDBConnector):
             flush_after_seconds=tsdb_batching_timeout_secs,
         )
 
-    def delete_tsdb_records(
-        self,
-        endpoint_ids: list[str],
-    ):
+    def delete_tsdb_records(self, endpoint_ids: list[str]) -> None:
         """
         To delete subtables within TDEngine, we first query the subtables names with the provided endpoint_ids.
         Then, we drop each subtable.
@@ -332,9 +327,7 @@ class TDEngineConnector(TSDBConnector):
                 get_subtable_query = self.tables[table]._get_subtables_query_by_tag(
                     filter_tag="endpoint_id", filter_values=endpoint_ids
                 )
-                subtables_result = self.connection.run(
-                    query=get_subtable_query,
-                )
+                subtables_result = self.connection.run(query=get_subtable_query)
                 subtables.extend([subtable[0] for subtable in subtables_result.data])
         except Exception as e:
             logger.warning(
@@ -346,15 +339,13 @@ class TDEngineConnector(TSDBConnector):
             )
 
         # Prepare the drop statements
-        drop_statements = []
-        for subtable in subtables:
-            drop_statements.append(
-                self.tables[table].drop_subtable_query(subtable=subtable)
-            )
+        drop_statements = [
+            self.tables[table].drop_subtable_query(subtable=subtable)
+            for subtable in subtables
+        ]
         try:
-            self.connection.run(
-                statements=drop_statements,
-            )
+            logger.debug("Dropping subtables", drop_statements=drop_statements)
+            self.connection.run(statements=drop_statements)
         except Exception as e:
             logger.warning(
                 "Failed to delete model endpoint resources. You may need to delete them manually. "
@@ -368,6 +359,48 @@ class TDEngineConnector(TSDBConnector):
             project=self.project,
             number_of_endpoints_to_delete=len(endpoint_ids),
         )
+
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete application records from the TSDB for the given model endpoints or all if ``endpoint_ids`` is ``None``.
+        """
+        logger.debug(
+            "Deleting application records",
+            project=self.project,
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        tables = [
+            self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS],
+            self.tables[mm_schemas.TDEngineSuperTables.METRICS],
+        ]
+
+        filter_query = self._generate_filter_query(
+            filter_column=mm_schemas.ApplicationEvent.APPLICATION_NAME,
+            filter_values=application_name,
+        )
+        if endpoint_ids:
+            endpoint_ids_filter = self._generate_filter_query(
+                filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
+                filter_values=endpoint_ids,
+            )
+            filter_query += f" AND {endpoint_ids_filter}"
+
+        drop_statements: list[str] = []
+        for table in tables:
+            get_subtable_query = table._get_tables_query_by_condition(filter_query)
+            subtables_result = self.connection.run(query=get_subtable_query)
+            drop_statements.extend(
+                [
+                    table.drop_subtable_query(subtable=subtable[0])
+                    for subtable in subtables_result.data
+                ]
+            )
+
+        logger.debug("Dropping application records", drop_statements=drop_statements)
+        self.connection.run(statements=drop_statements)
 
     def delete_tsdb_resources(self):
         """

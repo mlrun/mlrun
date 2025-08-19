@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
-import concurrent.futures
 import contextlib
 import http
 import traceback
@@ -40,6 +39,7 @@ import framework.utils.clients.chief
 import framework.utils.clients.messaging
 import framework.utils.pagination
 import framework.utils.periodic
+from framework.db.session import run_async_function_with_new_db_session
 from framework.utils.singletons.db import initialize_db
 
 
@@ -71,10 +71,11 @@ class Service(ABC):
     # https://fastapi.tiangolo.com/advanced/events/
     @contextlib.asynccontextmanager
     async def lifespan(self, app_: fastapi.FastAPI):
-        setup_tasks = [self._setup_service()] + [
-            service._setup_service(mounted=True) for service in self._mounted_services
-        ]
-        await asyncio.gather(*setup_tasks)
+        # set up the top-level service only then the mounted services
+        await self._setup_service()
+        await asyncio.gather(
+            *[service._setup_mounted_service() for service in self._mounted_services]
+        )
 
         # Let the service run
         yield
@@ -157,45 +158,46 @@ class Service(ABC):
             mlrun_service=self,
         )
 
-    async def _setup_service(self, mounted: bool = False):
+    async def _setup_service(self):
         """
         This method is called when the service is starting up.
-        :param mounted: True if the service is mounted as a sub-service of another service, False otherwise
         """
-        if not mounted:
-            self._logger.info(
-                "On startup event handler called",
-                config=mlconf.dump_yaml(),
-                version=mlrun.utils.version.Version().get(),
-                service_name=self.service_name,
-            )
+        self._logger.info(
+            "Setting up service",
+            config=mlconf.dump_yaml(),
+            version=mlrun.utils.version.Version().get(),
+            service_name=self.service_name,
+        )
 
-            # Set the default thread limiter to the max workers config according to:
-            # https://github.com/fastapi/fastapi/issues/4221
-            anyio.lowlevel.RunVar("_default_thread_limiter").set(
-                anyio.CapacityLimiter(int(mlconf.httpdb.max_workers))
-            )
-            self._logger.info(
-                "Service default thread limiter set",
-                max_workers=anyio.to_thread.current_default_thread_limiter().total_tokens,
-            )
+        # Set the default thread limiter to the max workers config according to:
+        # https://github.com/fastapi/fastapi/issues/4221
+        anyio.lowlevel.RunVar("_default_thread_limiter").set(
+            anyio.CapacityLimiter(int(mlconf.httpdb.max_workers))
+        )
+        self._logger.info(
+            "Service default thread limiter set",
+            max_workers=anyio.to_thread.current_default_thread_limiter().total_tokens,
+        )
 
-            initialize_db()
+        await fastapi.concurrency.run_in_threadpool(initialize_db)
         await self._custom_setup_service()
 
-        self._initialize_data()
         if (
             mlconf.httpdb.clusterization.worker.sync_with_chief.mode
             == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
             and mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.worker
-            and not mounted
         ):
             # in the background, wait for chief to reach online state
             self._start_chief_clusterization_spec_sync_loop()
 
-        if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online and not mounted:
+        if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:
             await self.move_service_to_online()
+
+        await run_async_function_with_new_db_session(self._sync_system_metadata)
+
+    async def _setup_mounted_service(self):
+        await self._custom_setup_service()
 
     async def _custom_setup_service(self):
         pass
@@ -281,9 +283,6 @@ class Service(ABC):
             reason="Handler not implemented for request",
             request_url=request.url,
         )
-
-    def _initialize_data(self):
-        pass
 
     async def _start_periodic_functions(self):
         pass
@@ -406,6 +405,23 @@ class Service(ABC):
         for mounted_service in self._mounted_services:
             for cls, method in mounted_service._paginated_methods:
                 yield cls, method
+
+    def _sync_system_metadata(self, db_session):
+        """
+        Sync system metadata values from the database to the config.
+        Currently, it synchronizes only the system ID but can be extended for other new metadata values in the future.
+
+        :param db_session: The database session to use for the synchronization.
+        """
+
+        db = framework.db.sqldb.db.SQLDB()
+        system_id = db.get_system_id(db_session)
+        if system_id is not None:
+            self._logger.debug(
+                "Existing system ID found in the database",
+                system_id=system_id,
+            )
+            mlrun.mlconf.system_id = system_id
 
 
 class Daemon(ABC):

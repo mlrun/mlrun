@@ -113,30 +113,7 @@ class Service(framework.service.Service):
             services.api.initial_data.update_default_configuration_data()
             await self._start_periodic_functions()
 
-        # For the worker, fetch and sync the system metadata from the database to ensure that the config values are
-        # correctly set.
-        else:
-            self._sync_system_metadata()
         await self._move_mounted_services_to_online()
-
-    def _sync_system_metadata(self):
-        """
-        Sync system metadata values from the database to the config.
-        Currently, it synchronizes only the system ID but can be extended for other new metadata values in the future.
-        """
-
-        db_session = create_session()
-        try:
-            db = framework.db.sqldb.db.SQLDB()
-
-            system_id = db.get_system_id(db_session)
-            if system_id is not None:
-                self._logger.debug(
-                    "Existing system ID found in the database", system_id=system_id
-                )
-                mlrun.mlconf.system_id = system_id
-        finally:
-            close_session(db_session)
 
     async def _base_handler(
         self,
@@ -160,6 +137,7 @@ class Service(framework.service.Service):
 
     async def _custom_setup_service(self):
         initialize_logs_dir()
+        await fastapi.concurrency.run_in_threadpool(self._initialize_data)
 
     async def _custom_teardown_service(self):
         if get_project_member():

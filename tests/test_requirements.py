@@ -235,8 +235,8 @@ def test_requirement_specifiers_inconsistencies():
             '~=2024.8.0; python_version >= "3.11"',
         },
         "v3io-frames": {
-            '>=0.13.9; python_version >= "3.11"',
-            '~=0.10.14; python_version < "3.11"',
+            '>=0.13.0; python_version >= "3.11"',
+            '~=0.10.15; python_version < "3.11"',
         },
         "dask-ml": {
             '~=2024.4.4; python_version >= "3.11"',

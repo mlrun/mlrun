@@ -150,7 +150,7 @@ def test_requirement_specifiers_convention():
         # used in tests
         "aioresponses": {"~=0.7"},
         "testcontainers[k3s]": {"~=4.10.0"},
-        "scikit-learn": {"~=1.5.1"},
+        "scikit-learn": {"~=1.5.2"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
         "dask[array,dataframe,distributed]": {

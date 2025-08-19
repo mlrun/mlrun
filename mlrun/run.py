@@ -141,7 +141,7 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
         else:
             is_remote = "://" in command
             data = get_object(command, secrets)
-            runtime = yaml.load(data, Loader=yaml.FullLoader)
+            runtime = yaml.safe_load(data)
             runtime = new_function(runtime=runtime)
 
         command = runtime.spec.command or ""
@@ -362,7 +362,10 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     return function
 
 
-def import_function_to_dict(url, secrets=None):
+def import_function_to_dict(
+    url: str,
+    secrets: Optional[dict] = None,
+) -> dict:
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
     runtime = yaml.safe_load(obj)
@@ -388,6 +391,11 @@ def import_function_to_dict(url, secrets=None):
                 raise ValueError("exec path (spec.command) must be relative")
             url = url[: url.rfind("/") + 1] + code_file
             code = get_object(url, secrets)
+            code_file = _ensure_path_confined_to_base_dir(
+                base_directory=".",
+                relative_path=code_file,
+                error_message_on_escape="Path traversal detected in spec.command",
+            )
             dir = path.dirname(code_file)
             if dir:
                 makedirs(dir, exist_ok=True)
@@ -395,9 +403,16 @@ def import_function_to_dict(url, secrets=None):
                 fp.write(code)
         elif cmd:
             if not path.isfile(code_file):
-                # look for the file in a relative path to the yaml
-                slash = url.rfind("/")
-                if slash >= 0 and path.isfile(url[: url.rfind("/") + 1] + code_file):
+                slash_index = url.rfind("/")
+                if slash_index < 0:
+                    raise ValueError(f"no file in exec path (spec.command={code_file})")
+                base_dir = os.path.normpath(url[: slash_index + 1])
+                candidate_path = _ensure_path_confined_to_base_dir(
+                    base_directory=base_dir,
+                    relative_path=code_file,
+                    error_message_on_escape=f"exec file spec.command={code_file} is outside of allowed directory",
+                )
+                if path.isfile(candidate_path):
                     raise ValueError(
                         f"exec file spec.command={code_file} is relative, change working dir"
                     )
@@ -1258,3 +1273,21 @@ def wait_for_runs_completion(
         runs = running
 
     return completed
+
+
+def _ensure_path_confined_to_base_dir(
+    base_directory: str,
+    relative_path: str,
+    error_message_on_escape: str,
+) -> str:
+    """
+    Join `user_supplied_relative_path` to `allowed_base_directory`, normalise the result,
+    and guarantee it stays inside `allowed_base_directory`.
+    """
+    absolute_base_directory = path.abspath(base_directory)
+    absolute_candidate_path = path.abspath(
+        path.join(absolute_base_directory, relative_path)
+    )
+    if not absolute_candidate_path.startswith(absolute_base_directory + path.sep):
+        raise ValueError(error_message_on_escape)
+    return absolute_candidate_path

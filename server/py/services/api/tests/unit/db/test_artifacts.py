@@ -2584,6 +2584,61 @@ class TestArtifacts(TestDatabaseBase):
         kwargs.update(ignored_params)
         assert self._db._is_default_list_artifacts_query(**kwargs) == expected
 
+    def test_parent_uri_without_tag(self):
+        # Create referenced artifact
+        parent_artifact_name = "parent-artifact"
+        child_artifact_name = "child-artifact"
+        project = "test-project"
+        parent_artifact = self._generate_artifact(parent_artifact_name)
+        parent_artifact_2 = self._generate_artifact(
+            parent_artifact_name, tree="parent_artifact_2"
+        )
+
+        uid = self._db.store_artifact(
+            self._db_session,
+            parent_artifact_name,
+            parent_artifact,
+            project,
+        )
+        self._db.store_artifact(
+            self._db_session,
+            parent_artifact_name,
+            parent_artifact_2,
+            project,
+        )
+
+        parent_artifact_db = Artifact.from_dict(
+            self._db.read_artifact(
+                self._db_session,
+                key=parent_artifact_name,
+                project=project,
+                uid=uid,
+            )
+        )
+
+        assert parent_artifact_db.metadata.tag is None  # Simulate no tag
+
+        # Create artifact that references the above (manually inject the reference UID)
+        child_artifact = self._generate_artifact(child_artifact_name)
+        child_artifact["spec"]["parent_uri"] = parent_artifact_db.uri
+
+        self._db.store_artifact(
+            self._db_session,
+            child_artifact_name,
+            child_artifact,
+            project,
+        )
+
+        child_artifact_db = Artifact.from_dict(
+            self._db.read_artifact(
+                self._db_session,
+                key=child_artifact_name,
+                project=project,
+            )
+        )
+
+        assert ":" not in child_artifact_db.spec.parent_uri.split("://", maxsplit=1)[1]
+
     def test_list_artifact_parent_filter(self):
         # Create referenced artifact
         parent_artifact_name = "parent-artifact"

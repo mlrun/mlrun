@@ -453,6 +453,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     async def test_monitor_run_debouncing_non_terminal_state(
         self, db: Session, client: TestClient
     ):
+        # This test verifies that a run in a non-terminal state is not updated if it was already updated recently
+        # (i.e., within the debounce interval).
+        # It ensures the debounce logic correctly skips redundant updates for active runs.
+
         # set monitoring interval so debouncing will be active
         config.monitoring.runs.interval = 100
 
@@ -508,6 +512,57 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.running
         )
 
+    @pytest.mark.asyncio
+    async def test_monitor_run_debouncing_terminal_state(
+        self, db: Session, client: TestClient
+    ):
+        # This test verifies the debounce logic when the runtime has reached a terminal state but the DB still shows a
+        # recent non-terminal update. Initially, the update should be debounced.
+
+        # Set monitoring interval so debouncing will be active
+        config.monitoring.runs.interval = 100
+
+        # Simulate record still in non-terminal state ("running")
+        self.run["status"]["state"] = RunStates.running
+        original_update_run_updated_time = (
+            framework.utils.singletons.db.get_db()._update_run_updated_time
+        )
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
+            tests.conftest.freeze(original_update_run_updated_time, now=now_date())
+        )
+        services.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
+            original_update_run_updated_time
+        )
+
+        # Simulate runtime already in terminal state (extra one for the log collection)
+        self._mock_list_namespaced_pods([[self.running_job_pod]])
+
+        # Trigger monitoring - this should be debounced and not overwrite DB "running"
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        # Verify that debounce happened: state in DB should still be "running"
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.running
+        )
+
+        # Now simulate that debounce window has passed (simulate old update)
+        debounce_period = config.monitoring.runs.interval
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
+            tests.conftest.freeze(
+                original_update_run_updated_time,
+                now=now_date() - timedelta(seconds=2 * debounce_period),
+            )
+        )
+        services.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
+            original_update_run_updated_time
+        )
+
         # Mocking pod that is in terminal state (extra one for the log collection)
         self._mock_list_namespaced_pods(
             [[self.completed_job_pod], [self.completed_job_pod]]
@@ -516,10 +571,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # Mocking read log calls
         log = self._mock_read_namespaced_pod_log()
 
-        # Triggering monitor cycle
+        # Re-run monitor (now update should go through)
         self.runtime_handler.monitor_runs(get_db(), db)
 
-        # verifying monitoring was not debounced
+        # DB should now reflect the terminal state
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )

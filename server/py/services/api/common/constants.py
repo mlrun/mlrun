@@ -1,5 +1,4 @@
-#!/bin/bash
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,24 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-get_os() {
-  unameOut="$(uname -s)"
-  case "${unameOut}" in
-      Linux*)     os=Linux;;
-      Darwin*)    os=Mac;;
-      *)          os="UNKNOWN:${unameOut}"
-  esac
-  echo "${os}"
-}
+from typing import Annotated
 
-mv proto/build/proto proto/build/py
+import fastapi
 
-SED_REGEX='s/from proto import/from \. import/g'
-OS=$(get_os)
-SCHEMA_FILES=$(find proto/build/ -name '*pb2_grpc.py')
+from mlrun.common.schemas.model_monitoring.constants import (
+    MODEL_ENDPOINT_ID_PATTERN,
+    PROJECT_PATTERN,
+)
 
-if [ "${OS}" = "Mac" ]; then
-  sed -i '' -e "${SED_REGEX}" ${SCHEMA_FILES}
-else
-  sed -i -e "${SED_REGEX}" ${SCHEMA_FILES}
-fi
+ProjectAnnotation = Annotated[str, fastapi.Path(pattern=PROJECT_PATTERN)]
+EndpointIDAnnotation = Annotated[str, fastapi.Path(pattern=MODEL_ENDPOINT_ID_PATTERN)]

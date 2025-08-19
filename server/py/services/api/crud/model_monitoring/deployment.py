@@ -50,7 +50,10 @@ import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
+from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFileChief,
+    ModelMonitoringSchedulesFileEndpoint,
+)
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
@@ -60,8 +63,8 @@ import framework.db.session
 import framework.utils.background_tasks
 import framework.utils.clients.async_nuclio
 import framework.utils.singletons.k8s
+import services.api.crud
 import services.api.crud.model_monitoring.helpers
-import services.api.utils.functions
 from framework.db.sqldb.models import ModelEndpoint
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
@@ -1980,6 +1983,17 @@ class MonitoringDeployment:
             ]
         ]
         function_tag = function.metadata.tag or "latest"
+        parent_function_name = function.metadata.labels.get("mlrun/parent-function")
+        user_function_name = (
+            None  # This indicates that the function is not a child of another function
+        )
+        if parent_function_name:
+            user_function_name = (
+                function_name[len(f"{parent_function_name}-") :]
+                if function_name.startswith(f"{parent_function_name}-")
+                else None
+            )
+
         model_endpoints_dict: dict[str, ModelEndpoint] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
@@ -2002,6 +2016,7 @@ class MonitoringDeployment:
                 model_endpoints_dict=model_endpoints_dict,
                 project=project,
                 override_type=mm_constants.EndpointType.BATCH_EP if is_batch else None,
+                user_function_name=user_function_name,
             )
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
@@ -2019,6 +2034,7 @@ class MonitoringDeployment:
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> tuple[
         list[
             tuple[
@@ -2041,6 +2057,7 @@ class MonitoringDeployment:
                     sampling_percentage=sampling_percentage,
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
+                    user_function_name=user_function_name,
                 )
             )
         elif isinstance(graph, mlrun.serving.states.RootFlowStep):
@@ -2054,6 +2071,7 @@ class MonitoringDeployment:
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
                     override_type=override_type,
+                    user_function_name=user_function_name,
                 )
             )
         return model_endpoints_instructions, graph
@@ -2068,6 +2086,7 @@ class MonitoringDeployment:
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2081,6 +2100,10 @@ class MonitoringDeployment:
             if (
                 route.model_endpoint_creation_strategy
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
+                and (
+                    (not route.function and not user_function_name)
+                    or route.function == user_function_name
+                )
             ):
                 uid = self._get_or_create_uid(
                     project=project,
@@ -2121,6 +2144,10 @@ class MonitoringDeployment:
         if (
             router_step.model_endpoint_creation_strategy
             != mm_constants.ModelEndpointCreationStrategy.SKIP
+            and (
+                (not router_step.function and not user_function_name)
+                or router_step.function == user_function_name
+            )
         ):
             uid = self._get_or_create_uid(
                 project=project,
@@ -2152,7 +2179,6 @@ class MonitoringDeployment:
                     router_step.model_endpoint_creation_strategy,
                 )
             )
-
         return model_endpoints_instructions
 
     def _extract_meps_from_root_flow_step(
@@ -2165,6 +2191,7 @@ class MonitoringDeployment:
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2184,6 +2211,7 @@ class MonitoringDeployment:
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
                         override_type=override_type,
+                        user_function_name=user_function_name,
                     )
                 )
             elif isinstance(step, mlrun.serving.states.ModelRunnerStep):
@@ -2197,12 +2225,17 @@ class MonitoringDeployment:
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
                         override_type=override_type,
+                        user_function_name=user_function_name,
                     )
                 )
             else:
                 if (
                     step.model_endpoint_creation_strategy
                     != mm_constants.ModelEndpointCreationStrategy.SKIP
+                    and (
+                        (not user_function_name and not step.function)
+                        or step.function == user_function_name
+                    )
                 ):
                     uid = self._get_or_create_uid(
                         project=project,
@@ -2273,19 +2306,36 @@ class MonitoringDeployment:
         feature_names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
+        feature_names = (
+            [fstore.api.norm_column_name(name) for name in feature_names]
+            if feature_names
+            else []
+        )
+        label_names = (
+            [fstore.api.norm_column_name(name) for name in label_names]
+            if label_names
+            else []
+        )
         return mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                project=self.project, name=name, endpoint_type=endpoint_type, uid=uid
+                project=self.project,
+                name=name,
+                endpoint_type=endpoint_type,
+                uid=uid,
+                mode=mlrun.common.schemas.model_monitoring.EndpointMode.BATCH
+                if endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP
+                else mlrun.common.schemas.model_monitoring.EndpointMode.REAL_TIME,
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=function_name,
                 function_tag=function_tag,
-                label_names=label_names or [],
+                label_names=label_names,
                 model_class=model_class,
                 children=children_names,
                 children_uids=children_uids,
                 model_path=model_path,
-                feature_names=feature_names or [],
+                feature_names=feature_names,
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
@@ -2349,6 +2399,7 @@ class MonitoringDeployment:
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2363,11 +2414,11 @@ class MonitoringDeployment:
             mlrun.common.schemas.ModelRunnerStepData.MODELS, {}
         ).keys():
             monitoring_data[endpoint_name] = monitoring_data[endpoint_name] or {}
-            if (
-                monitoring_data[endpoint_name].get(
-                    mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
-                )
-                != mm_constants.ModelEndpointCreationStrategy.SKIP
+            if monitoring_data[endpoint_name].get(
+                mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
+            ) != mm_constants.ModelEndpointCreationStrategy.SKIP and (
+                (not user_function_name and not model_runner.function)
+                or model_runner.function == user_function_name
             ):
                 uid = self._get_or_create_uid(
                     project=project,
@@ -2416,6 +2467,74 @@ class MonitoringDeployment:
                     )
                 )
         return model_endpoints_instructions
+
+    async def _delete_app_from_schedules_files(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete the application from the schedules file.
+        """
+        logger.debug(
+            "Deleting application from the schedules file",
+            application_name=application_name,
+        )
+        if endpoint_ids:
+            endpoint_id_list = endpoint_ids
+        else:
+            endpoints_data = (
+                await services.api.crud.ModelEndpoints().list_model_endpoints(
+                    project=self.project,
+                    uids=endpoint_ids,
+                    db_session=self.db_session,
+                )
+            )
+            endpoint_id_list = [
+                endpoint.metadata.uid for endpoint in endpoints_data.endpoints
+            ]
+        logger.debug(
+            "Deleting the last_analyzed time of the application from the schedules files",
+            application_name=application_name,
+            endpoint_id_list=endpoint_id_list,
+        )
+        for endpoint_id in endpoint_id_list:
+            with ModelMonitoringSchedulesFileEndpoint(
+                endpoint_id=endpoint_id, project=self.project
+            ) as schedules_file:
+                schedules_file.delete_application_time(application=application_name)
+
+    async def delete_application_records(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Deletes the application records from the model monitoring database.
+        This method is used to delete the records of a specific application.
+
+        :param application_name: The name of the application to delete records for.
+        :param endpoint_ids:     List of endpoint IDs to delete records for. If ``None``, all the project's
+                                 endpoints will be deleted.
+        """
+        logger.debug(
+            "Deleting application records from the TSDB",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        self._tsdb_connector.delete_application_records(
+            application_name=application_name, endpoint_ids=endpoint_ids
+        )
+
+        if not application_name.endswith(
+            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+        ):
+            # The schedules file of "batch" applications is handled on the user side
+            await self._delete_app_from_schedules_files(
+                application_name=application_name, endpoint_ids=endpoint_ids
+            )
+
+        logger.info(
+            "Deleted application records",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
 
 
 def get_endpoint_features(

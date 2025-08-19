@@ -1707,6 +1707,28 @@ class BaseRuntimeHandler(ABC):
         search_run: bool = True,
         runtime_resource: Optional[dict] = None,
     ) -> tuple[bool, str, dict]:
+        """
+        Retrieves the run from the database, compares its current state with the desired state,
+        and updates it only if needed.
+        Skips updates when the current state matches the desired one, when the run is in an aborting state, or
+        when the update should be debounced.
+
+        :param db:               Database interface
+        :param db_session:       Db session
+        :param project:          Project name
+        :param uid:              UID of the run
+        :param name:             Name of the function or job
+        :param run_state:        Desired run state
+        :param run:              Optional pre-fetched run object
+        :param search_run:       Whether to search for the run
+        :param runtime_resource: Optional runtime resource (used to resolve error reason)
+
+        :return: Tuple with:
+            was_updated (bool): True if the run state was updated
+            final_state (str): Final state after evaluation
+            run (dict): The updated (or unchanged) run object
+        """
+
         reason, message = "", ""
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid
@@ -1727,39 +1749,14 @@ class BaseRuntimeHandler(ABC):
                 )
                 return False, run_state, run
 
-            # if the current run state is terminal and different from the desired - log
-            if db_run_state in RunStates.terminal_states():
-                # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
-                # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
-                if run_state not in RunStates.terminal_states():
-                    now = datetime.now(timezone.utc)
-                    last_update_str = run.get("status", {}).get("last_update")
-                    if last_update_str is not None:
-                        last_update = datetime.fromisoformat(last_update_str)
-                        debounce_period = config.monitoring.runs.interval
-                        if last_update > now - timedelta(
-                            seconds=float(debounce_period)
-                        ):
-                            logger.warning(
-                                "Monitoring found non-terminal state on runtime resource but record has recently "
-                                "updated to terminal state. Debouncing",
-                                project=project,
-                                uid=uid,
-                                db_run_state=db_run_state,
-                                run_state=run_state,
-                                last_update=last_update,
-                                now=now,
-                                debounce_period=debounce_period,
-                            )
-                            return False, run_state, run
-
-                logger.warning(
-                    "Run record has terminal state but monitoring found different state on runtime resource. Changing",
-                    project=project,
-                    uid=uid,
-                    db_run_state=db_run_state,
-                    run_state=run_state,
-                )
+            if self._should_debounce_run_update(
+                run=run,
+                db_run_state=db_run_state,
+                run_state=run_state,
+                project=project,
+                uid=uid,
+            ):
+                return False, run_state, run
 
             elif run_state == RunStates.error:
                 # Try resolving the error reason
@@ -1829,6 +1826,79 @@ class BaseRuntimeHandler(ABC):
                     )
 
         return run
+
+    @staticmethod
+    def _should_debounce_run_update(
+        run: dict,
+        db_run_state: str,
+        run_state: str,
+        project: str,
+        uid: str,
+    ) -> bool:
+        """
+        Debounce run status updates to avoid premature or incorrect state overrides.
+        This handles cases where:
+        1. The runtime is terminal, but the DB still shows 'running' (e.g., final state not flushed yet)
+        2. The DB is terminal, but the runtime still appears active (e.g., SDK already finalized the run)
+        """
+
+        now = datetime.now(timezone.utc)
+        last_update_str = run.get("status", {}).get("last_update")
+
+        if last_update_str is not None:
+            last_update = datetime.fromisoformat(last_update_str)
+            debounce_period = config.monitoring.runs.interval
+            debounce_cutoff = now - timedelta(seconds=float(debounce_period))
+            is_db_terminal = db_run_state in RunStates.terminal_states()
+            is_runtime_terminal = run_state in RunStates.terminal_states()
+
+            # If the runtime has reached a terminal state but the DB still shows a recent non-terminal state,
+            # debounce the update to avoid prematurely overriding the newer DB state.
+            if (
+                not is_db_terminal
+                and is_runtime_terminal
+                and last_update > debounce_cutoff
+            ):
+                logger.warning(
+                    "Monitoring found terminal state on runtime resource but DB record was recently updated and is "
+                    "still non-terminal. Debouncing.",
+                    db_run_state=db_run_state,
+                    run_state=run_state,
+                    last_update=last_update,
+                    now=now,
+                    debounce_period=debounce_period,
+                )
+                return True
+
+            # if the current run state is terminal and different from the runtime state, handle accordingly
+            if is_db_terminal:
+                # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
+                # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
+                # In this case, we debounce to avoid reverting the state prematurely.
+                if not is_runtime_terminal and last_update > debounce_cutoff:
+                    logger.warning(
+                        "Monitoring found non-terminal state on runtime resource but record has recently "
+                        "updated to terminal state. Debouncing",
+                        project=project,
+                        uid=uid,
+                        db_run_state=db_run_state,
+                        run_state=run_state,
+                        last_update=last_update,
+                        now=now,
+                        debounce_period=debounce_period,
+                    )
+                    return True
+
+                elif run_state != db_run_state:
+                    logger.warning(
+                        "Run record has terminal state but monitoring found different state on runtime resource. "
+                        "Changing",
+                        project=project,
+                        uid=uid,
+                        db_run_state=db_run_state,
+                        run_state=run_state,
+                    )
+        return False
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: dict) -> tuple[str, str, str]:

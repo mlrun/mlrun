@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import random
+from copy import copy
 from datetime import timedelta
 from typing import Any, Optional, Union
 
@@ -22,6 +23,7 @@ import storey
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.feature_store
 import mlrun.serving
 from mlrun.common.schemas import MonitoringData
 from mlrun.utils import get_data_from_path, logger
@@ -45,35 +47,20 @@ class MonitoringPreProcessor(storey.MapClass):
         result_path = model_monitoring_data.get(MonitoringData.RESULT_PATH)
         input_path = model_monitoring_data.get(MonitoringData.INPUT_PATH)
 
-        result = get_data_from_path(result_path, event.body.get(model, event.body))
-
-        new_output_schema, new_input_schema = None, None
         output_schema = model_monitoring_data.get(MonitoringData.OUTPUTS)
         input_schema = model_monitoring_data.get(MonitoringData.INPUTS)
-        logger.debug("output schema retrieved", output_schema=output_schema)
-        if isinstance(result, dict):
-            # transpose by key the outputs:
-            outputs, new_output_schema = self.transpose_by_key(result, output_schema)
-            if not output_schema:
-                logger.warn(
-                    "Output schema was not provided using Project:log_model or by ModelRunnerStep:add_model order "
-                    "may not preserved"
-                )
-        else:
-            outputs = result
+        logger.debug(
+            "output and input schema retrieved",
+            output_schema=output_schema,
+            input_schema=input_schema,
+        )
 
-        event_inputs = event._metadata.get("inputs", {})
-        event_inputs = get_data_from_path(input_path, event_inputs)
-        if isinstance(event_inputs, dict):
-            # transpose by key the inputs:
-            inputs, new_input_schema = self.transpose_by_key(event_inputs, input_schema)
-            if not input_schema:
-                logger.warn(
-                    "Input schema was not provided using by ModelRunnerStep:add_model, order "
-                    "may not preserved"
-                )
-        else:
-            inputs = event_inputs
+        outputs, new_output_schema = self.get_listed_data(
+            event.body.get(model, event.body), result_path, output_schema
+        )
+        inputs, new_input_schema = self.get_listed_data(
+            event._metadata.get("inputs", {}), input_path, input_schema
+        )
 
         if outputs and isinstance(outputs[0], list):
             if output_schema and len(output_schema) != len(outputs[0]):
@@ -101,11 +88,35 @@ class MonitoringPreProcessor(storey.MapClass):
         request = {
             "inputs": inputs,
             "id": getattr(event, "id", None),
-            "input_schema": input_schema or new_input_schema,
+            "input_schema": new_input_schema,
         }
-        resp = {"outputs": outputs, "output_schema": output_schema or new_output_schema}
+        resp = {"outputs": outputs, "output_schema": new_output_schema}
 
         return request, resp
+
+    def get_listed_data(
+        self,
+        raw_data: dict,
+        data_path: Optional[Union[list[str], str]] = None,
+        schema: Optional[list[str]] = None,
+    ):
+        """Get data from a path and transpose it by keys if dict is provided."""
+        new_schema = None
+        data_from_path = get_data_from_path(data_path, raw_data)
+        if isinstance(data_from_path, dict):
+            # transpose by key the inputs:
+            listed_data, new_schema = self.transpose_by_key(data_from_path, schema)
+            new_schema = new_schema or schema
+            if not schema:
+                logger.warn(
+                    f"No schema provided through add_model(); the order of {data_from_path} "
+                    "may not be preserved."
+                )
+        elif not isinstance(data_from_path, list):
+            listed_data = [data_from_path]
+        else:
+            listed_data = data_from_path
+        return listed_data, new_schema
 
     @staticmethod
     def transpose_by_key(
@@ -145,16 +156,21 @@ class MonitoringPreProcessor(storey.MapClass):
                 mlrun.MLRunInvalidArgumentError if the schema keys are not contained in the data keys.
         """
         new_schema = None
+        # Normalize keys in data:
+        normalize_data = {
+            mlrun.feature_store.api.norm_column_name(k): copy(v)
+            for k, v in data.items()
+        }
         # Normalize schema to list
         if not schema:
-            keys = list(data.keys())
+            keys = list(normalize_data.keys())
             new_schema = keys
         elif isinstance(schema, str):
-            keys = [schema]
+            keys = [mlrun.feature_store.api.norm_column_name(schema)]
         else:
-            keys = schema
+            keys = [mlrun.feature_store.api.norm_column_name(key) for key in schema]
 
-        values = [data[key] for key in keys if key in data]
+        values = [normalize_data[key] for key in keys if key in normalize_data]
         if len(values) != len(keys):
             raise mlrun.MLRunInvalidArgumentError(
                 f"Schema keys {keys} are not contained in the data keys {list(data.keys())}."

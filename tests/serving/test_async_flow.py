@@ -13,6 +13,7 @@
 # limitations under the License.
 import pathlib
 import unittest.mock
+from copy import deepcopy
 from types import SimpleNamespace
 from typing import Optional, Union
 
@@ -537,8 +538,17 @@ def _test_model_runner_raise_error_output(
 
 
 class MyModelSelector(ModelSelector):
-    def select(self, event, available_models: list[Model]) -> Optional[list[str]]:
-        return event.body.get("models")
+    def __init__(self, models: Union[list[str], list[Model]]):
+        super().__init__()
+        self.models = deepcopy(models)
+
+    def select(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        current_models = event.body.get("models")
+        if current_models and set(current_models).issubset(set(self.models)):
+            return current_models
+        return []
 
 
 @pytest.mark.parametrize(
@@ -557,7 +567,7 @@ def test_model_runner_with_selector(execution_mechanism: str):
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(
         name="my_model_runner",
-        model_selector="MyModelSelector",
+        model_selector=MyModelSelector(models=["m1", "m2"]),
     )
     model_runner_step.add_model(
         endpoint_name=m1.name,
@@ -574,7 +584,7 @@ def test_model_runner_with_selector(execution_mechanism: str):
     server = function.to_mock_server()
     try:
         # both models
-        resp = server.test(body={"n": 1})
+        resp = server.test(body={"n": 1, "models": ["m1", "m2"]})
         expected = {
             "m1": {"n": 2},
             "m2": {"n": 3},
@@ -887,6 +897,12 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
             "profession": {"field": "profession", "description": "Great"},
             "some_other_ph": {"field": "some_other_ph", "description": "Great"},
         },
+        {
+            "country": {"field": "not-exist", "description": "Great"},
+        },
+        {
+            "country": {"field": "state", "description": "Great"},
+        },
     ),
 )
 def test_llm_with_missing_legends(legend: dict):
@@ -926,15 +942,66 @@ def test_llm_with_missing_legends(legend: dict):
         )
         graph.to(model_runner_step).respond()
         server = function.to_mock_server()
+        if (
+            legend is not None
+            and "country" in legend
+            and legend["country"]["field"] == "state"
+        ):
+            # If the legend is set to use state, we expect the prompt to use state
+            # and not country.
+            expected_prompt = [
+                {"role": "user", "content": "What is the capital city of Israel ?!"},
+                {"role": "system", "content": "you are answer as Data scientist"},
+            ]
+        else:
+            expected_prompt = [
+                {"role": "user", "content": "What is the capital city of France ?!"},
+                {"role": "system", "content": "you are answer as Data scientist"},
+            ]
         resp = server.test(
             body={
                 "country": "France",
                 "some_other_ph": "!",
                 "profession": "Data scientist",
+                "state": "Israel",
             }
         )
         server.wait_for_completion()
-        assert resp["prompt"] == [
-            {"role": "user", "content": "What is the capital city of France ?!"},
+        assert resp["prompt"] == expected_prompt
+
+
+def test_llm_with_missing_llm_prompt():
+    project = mlrun.new_project("get-model-path-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
+    ):
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="model-runner", raise_exception=True)
+
+        model_runner_step.add_model(
+            model_class="MyLLM",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+            model_artifact=model_artifact,
+        )
+        graph.to(model_runner_step).respond()
+        server = function.to_mock_server()
+        expected_prompt = [
+            {"role": "user", "content": "What is the capital city of Israel ?!"},
             {"role": "system", "content": "you are answer as Data scientist"},
         ]
+
+        resp = server.test(
+            body={
+                "messages": expected_prompt,
+            }
+        )
+        server.wait_for_completion()
+        assert resp["prompt"] == expected_prompt

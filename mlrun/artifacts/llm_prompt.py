@@ -83,19 +83,20 @@ class LLMPromptArtifactSpec(ArtifactSpec):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Expected prompt_template to be a list of dicts"
             )
-        keys_to_pop = []
         for message in prompt_template:
+            if set(key.lower() for key in message.keys()) != set(
+                self.PROMPT_TEMPLATE_KEYS
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Expected prompt_template to contain dicts with keys "
+                    f"{self.PROMPT_TEMPLATE_KEYS}, got {message.keys()}"
+                )
+            keys_to_pop = []
             for key in message.keys():
                 if isinstance(key, str):
-                    if key.lower() not in self.PROMPT_TEMPLATE_KEYS:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"Expected prompt_template to contain dict that "
-                            f"only has keys from {self.PROMPT_TEMPLATE_KEYS}"
-                        )
-                    else:
-                        if not key.islower():
-                            message[key.lower()] = message[key]
-                            keys_to_pop.append(key)
+                    if not key.islower():
+                        message[key.lower()] = message[key]
+                        keys_to_pop.append(key)
                 else:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"Expected prompt_template to contain dict that only"

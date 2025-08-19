@@ -186,6 +186,10 @@ def test_requirement_specifiers_convention():
             '>=1.26.20; python_version < "3.11"',
             '>=2.5.0; python_version >= "3.11"',
         },
+        "kfp": {
+            '==1.8.22; python_version < "3.11"',
+            '~=1.8.23; python_version >= "3.11"',
+        },
     }
 
     for (
@@ -241,6 +245,10 @@ def test_requirement_specifiers_inconsistencies():
         "urllib3": {
             '>=1.26.20; python_version < "3.11"',
             '>=2.5.0; python_version >= "3.11"',
+        },
+        "kfp": {
+            '==1.8.22; python_version < "3.11"',
+            '~=1.8.23; python_version >= "3.11"',
         },
     }
 
@@ -475,7 +483,7 @@ def test_scikit_learn_requirements_are_aligned() -> None:
 
     This test makes sure all these versions are aligned by catching deviating version specifications.
     """
-    scikit_learn_version = "1.5.1"
+    scikit_learn_version = "1.5.2"
 
     escaped_version = re.escape(scikit_learn_version)
     pattern = (
@@ -492,8 +500,10 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "dockerfiles/jupyter/locked-requirements.txt",  # lock file
         "dockerfiles/gpu/locked-requirements.txt",  # lock file
         "dockerfiles/test/locked-requirements.txt",  # lock file
-        "dockerfiles/test-system/locked-requirements.txt",  # lock file
-        "dockerfiles/mlrun-kfp/locked-requirements.txt",  # lock file
+        "dockerfiles/test-system/locked-requirements_3.11.txt",  # lock file
+        "dockerfiles/test-system/locked-requirements_3.9.txt",  # lock file
+        "dockerfiles/mlrun-kfp/locked-requirements_3.11.txt",  # lock file
+        "dockerfiles/mlrun-kfp/locked-requirements_3.9.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 

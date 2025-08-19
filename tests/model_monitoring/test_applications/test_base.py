@@ -28,6 +28,7 @@ import mlrun.utils
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.model_monitoring.applications import (
+    ExistingDataHandling,
     ModelMonitoringApplicationBase,
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
@@ -304,7 +305,7 @@ def test_window_generator_validation(
                 application_schedules=None,
                 endpoint_id="",
                 application_name="",
-                fail_on_overlap=True,
+                existing_data_handling=ExistingDataHandling.fail_on_overlap,
             )
         )
 
@@ -378,7 +379,7 @@ def test_windows(
                 application_schedules=None,
                 endpoint_id="",
                 application_name="",
-                fail_on_overlap=True,
+                existing_data_handling=ExistingDataHandling.fail_on_overlap,
             )
         )
         == expected_windows
@@ -661,7 +662,7 @@ def run_context() -> mlrun.MLClientCtx:
                     "base_period": None,
                     "end": "2025-07-27T10:01:36.665785+00:00",
                     "endpoints": ["classifier-0"],
-                    "fail_on_overlap": True,
+                    "existing_data_handling": "fail_on_overlap",
                     "start": "2025-07-27T10:00:31.527024+00:00",
                     "stream_profile": None,
                     "write_output": False,

@@ -1192,7 +1192,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def list_secrets(
         self,
         namespace: str = "",
-        labels: typing.Optional[dict[str, str], None] = None,
+        labels: typing.Optional[dict[str, str]] = None,
     ) -> list[client.V1Secret]:
         """
         List Kubernetes secrets in the given namespace, optionally filtered by labels.

@@ -951,18 +951,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
                 params["end"] = end.isoformat() if isinstance(end, datetime) else end
                 params["base_period"] = base_period
-                params["write_output"] = write_output
-                params["existing_data_handling"] = existing_data_handling
-                if stream_profile:
-                    if not run_local:
-                        raise mlrun.errors.MLRunValueError(
-                            "Passing a `stream_profile` is relevant only when running locally"
-                        )
-                    if not write_output:
-                        raise mlrun.errors.MLRunValueError(
-                            "Passing a `stream_profile` is relevant only when writing the outputs"
-                        )
-                params["stream_profile"] = stream_profile
         elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(
                 "Custom `start` and `end` times or base_period are supported only with endpoints data"
@@ -971,6 +959,19 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             raise mlrun.errors.MLRunValueError(
                 "Writing the application output or passing `stream_profile` are supported only with endpoints data"
             )
+
+        params["write_output"] = write_output
+        params["existing_data_handling"] = existing_data_handling
+        if stream_profile:
+            if not run_local:
+                raise mlrun.errors.MLRunValueError(
+                    "Passing a `stream_profile` is relevant only when running locally"
+                )
+            if not write_output:
+                raise mlrun.errors.MLRunValueError(
+                    "Passing a `stream_profile` is relevant only when writing the outputs"
+                )
+        params["stream_profile"] = stream_profile
 
         inputs: dict[str, str] = {}
         for data, identifier in [

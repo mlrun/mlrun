@@ -3580,7 +3580,7 @@ class HTTPRunDB(RunDBInterface):
                                 intersection {"intersect_metrics":[], "intersect_results":[]}
         :return: A dictionary of application metrics and/or results for the model endpoints formatted by events_format.
         """
-        path = f"projects/{project}/model-endpoints/metrics"
+        path = f"projects/{project}/model-monitoring/metrics"
         params = {
             "type": type,
             "endpoint-id": endpoint_ids,
@@ -4119,6 +4119,26 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.PUT,
             path=f"projects/{project}/model-monitoring/credentials",
             params={**credentials, "replace_creds": replace_creds},
+        )
+
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        """
+        Delete model endpoints metrics values.
+
+        :param project:           The name of the project.
+        :param application_name:  The name of the application.
+        :param endpoint_ids:      The unique IDs of the model endpoints to delete metrics values from. If none is
+                                  provided, the metrics values will be deleted from all project's model endpoints.
+        """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.DELETE,
+            path=f"projects/{project}/model-monitoring/metrics",
+            params={"endpoint-id": endpoint_ids, "application-name": application_name},
         )
 
     def get_monitoring_function_summaries(

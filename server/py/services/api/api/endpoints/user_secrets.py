@@ -47,7 +47,7 @@ async def store_secret_tokens(
     )
 
 
-@router.put("/tokens", response_model=mlrun.common.schemas.ListSecretTokensResponse)
+@router.get("/tokens", response_model=mlrun.common.schemas.ListSecretTokensResponse)
 async def list_secret_tokens(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request

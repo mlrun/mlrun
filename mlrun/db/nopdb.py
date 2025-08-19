@@ -965,3 +965,8 @@ class NopDB(RunDBInterface):
         log_warning: bool = True,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
+
+    def list_secret_tokens(
+        self,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        pass

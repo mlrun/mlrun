@@ -1126,3 +1126,9 @@ class RunDBInterface(ABC):
         log_warning: bool = True,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
+
+    @abstractmethod
+    def list_secret_tokens(
+        self,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        pass

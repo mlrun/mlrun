@@ -1022,8 +1022,8 @@ class ModelEndpoints:
         :param start:               The start time of the model endpoint creation.
         :param end:                 The end time of the model endpoint creation.
         :param top_level:           When True, only top level model endpoints will be returned.
-        :param mode:                Specifies the mode of the model endpoint. Can be "real-time", "batch", or both
-                                    if set to None.
+        :param mode:                Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or
+                                    both if set to None.
         :param tsdb_metrics:        When True, the time series metrics will be added to the output of the resulting
         :param metric_list:         List of metrics to include from the time series DB. Defaults to all metrics.
                                     If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics

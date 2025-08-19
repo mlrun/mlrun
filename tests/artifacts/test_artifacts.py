@@ -91,12 +91,21 @@ def test_extend_artifact_path():
 def test_model_artifact_validators():
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="Arguments 'model_file' and 'model_dir' cannot be"
-        " used together with 'model_url'.",
+        match="Arguments 'model_file' and 'model_url' cannot be"
+        " used together with 'model_file', 'model_dir' or 'body'.",
     ):
         mlrun.artifacts.ModelArtifact(
             model_dir="y",
             model_file="model.pkl",
+            model_url="http://localhost:8080/v2/models/mymodel/infer",
+        )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Arguments 'model_file' and 'model_url' cannot be"
+        " used together with 'model_file', 'model_dir' or 'body'.",
+    ):
+        mlrun.artifacts.ModelArtifact(
+            body=b"dummy_model_content",
             model_url="http://localhost:8080/v2/models/mymodel/infer",
         )
     project = mlrun.new_project("test-project", save=False)

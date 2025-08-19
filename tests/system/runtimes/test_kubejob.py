@@ -728,6 +728,43 @@ def print_df(df):
         finally:
             v3io_client.close()
 
+    @pytest.mark.asyncio
+    async def test_job_from_serving_runtime_from_inside_running_asyncio_loop(self):
+        function = self.project.set_function(
+            func=str(self.assets_path / "function_with_simple_transformation.py"),
+            name="test",
+            kind="serving",
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(name="transformation", handler="transform").to(
+            name="parquet",
+            class_name="storey.ParquetTarget",
+            path=f"v3io:///projects/{self.project_name}/out.parquet",
+        )
+
+        job = function.to_job()
+
+        with open(str(self.assets_path / "test_data.csv")) as f:
+            csv_content = f.read()
+
+        v3io_client = v3io.Client()
+        try:
+            v3io_client.object.put(
+                "projects", f"{self.project_name}/in.csv", body=csv_content
+            )
+            inputs = {"data": f"v3io:///projects/{self.project_name}/in.csv"}
+            self.project.run_function(job, inputs=inputs, local=True)
+            read_back_df = pd.read_parquet(
+                f"v3io:///projects/{self.project_name}/out.parquet"
+            )
+            assert (
+                "Mickey Mouse" in read_back_df["Product"].values
+            ), f"Dataframe {read_back_df} was not transformed as expected"
+        finally:
+            v3io_client.close()
+
     def test_retry_job_exhausted(self):
         code_path = str(self.assets_path / "raise_func.py")
 

@@ -96,14 +96,23 @@ class TSDBConnector(ABC):
         """
 
     @abstractmethod
-    def delete_tsdb_records(
-        self,
-        endpoint_ids: list[str],
-    ) -> None:
+    def delete_tsdb_records(self, endpoint_ids: list[str]) -> None:
         """
         Delete model endpoint records from the TSDB connector.
+
         :param endpoint_ids: List of model endpoint unique identifiers.
-        :param delete_timeout: The timeout in seconds to wait for the deletion to complete.
+        """
+        pass
+
+    @abstractmethod
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete application records from the TSDB for the given model endpoints or all if ``None``.
+
+        :param application_name: The name of the application to delete records for.
+        :param endpoint_ids:     List of model endpoint unique identifiers.
         """
         pass
 

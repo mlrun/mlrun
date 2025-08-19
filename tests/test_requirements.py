@@ -178,7 +178,7 @@ def test_requirement_specifiers_convention():
             ">=0.5.7",
         },
         "v3io-frames": {
-            '>=0.13.9; python_version >= "3.11"',
+            '>=0.13.0; python_version >= "3.11"',
         },
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},

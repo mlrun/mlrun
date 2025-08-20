@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import base64
 import datetime
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
@@ -54,11 +55,11 @@ def k8s_helper():
         )
         k8s_helper._create_secret = mock.MagicMock()
         k8s_helper._update_secret = mock.MagicMock()
-        k8s_helper.read_secret = mock.MagicMock()
         return k8s_helper
 
 
 def test_create_new_secret(k8s_helper):
+    k8s_helper.read_secret = mock.MagicMock()
     k8s_helper.read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
         k8s_client_rest.ApiException(status=404)
     )
@@ -73,6 +74,7 @@ def test_create_new_secret(k8s_helper):
 
 
 def test_conflict_during_create_secret(k8s_helper):
+    k8s_helper.read_secret = mock.MagicMock()
     k8s_helper.read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
         k8s_client_rest.ApiException(status=404)
     )
@@ -91,6 +93,7 @@ def test_conflict_during_create_secret(k8s_helper):
 
 
 def test_update_existing_secret(k8s_helper):
+    k8s_helper.read_secret = mock.MagicMock()
     k8s_helper.read_secret.return_value = k8s_client.V1Secret()
     k8s_helper._create_secret.side_effect = k8s_dynamic_exceptions.api_exception(
         k8s_client_rest.ApiException(status=409)
@@ -107,6 +110,7 @@ def test_update_existing_secret(k8s_helper):
 
 
 def test_update_failure(k8s_helper):
+    k8s_helper.read_secret = mock.MagicMock()
     k8s_helper.read_secret.return_value = k8s_client.V1Secret()
     k8s_helper._update_secret.side_effect = k8s_dynamic_exceptions.api_exception(
         k8s_client_rest.ApiException(status=500)
@@ -123,6 +127,7 @@ def test_update_failure(k8s_helper):
 
 
 def test_read_secret_failure(k8s_helper):
+    k8s_helper.read_secret = mock.MagicMock()
     k8s_helper.read_secret.side_effect = k8s_dynamic_exceptions.api_exception(
         k8s_client_rest.ApiException(status=403)
     )
@@ -135,6 +140,49 @@ def test_read_secret_failure(k8s_helper):
         )
 
     k8s_helper.read_secret.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "labels_in_secret, labels_to_match, expected",
+    [
+        # Matching labels
+        ({"key1": "value1", "key2": "value2"}, {"key1": "value1"}, True),
+        # Non-matching labels
+        ({"key1": "value1", "key2": "value2"}, {"key1": "wrong"}, False),
+        # No labels provided (always accept)
+        ({"key1": "value1"}, None, True),
+        # Secret has no labels but caller requires them
+        ({}, {"key1": "value1"}, False),
+    ],
+)
+def test_read_secret_label_validation(
+    k8s_helper, labels_in_secret, labels_to_match, expected
+):
+    """
+    Verify that read_secret correctly validates labels on top of name-based lookup.
+    """
+    secret_name = "my-secret"
+    secret_data = {"secret-key1": "secret-value1"}
+
+    secret_obj = k8s_client.V1Secret(
+        metadata=k8s_client.V1ObjectMeta(
+            name=secret_name,
+            labels=labels_in_secret,
+        )
+    )
+    secret_obj.string_data = secret_data
+
+    # Mock the Kubernetes API return
+    k8s_helper.v1api.read_namespaced_secret.return_value = secret_obj
+
+    secret = k8s_helper.read_secret(secret_name=secret_name, labels=labels_to_match)
+
+    assert k8s_helper.v1api.read_namespaced_secret.call_count == 1
+
+    if expected:
+        assert secret is secret_obj
+    else:
+        assert secret is None
 
 
 @pytest.mark.parametrize(
@@ -208,6 +256,7 @@ def test_store_secret(
     expected_data: dict,
     expected_result: SecretEventActions,
 ):
+    k8s_helper.read_secret = mock.MagicMock()
     if existing_secret_data:
         k8s_helper.read_secret.return_value = k8s_client.V1Secret(
             data=existing_secret_data,
@@ -402,3 +451,77 @@ def test_list_pod_events(k8s_helper):
         assert events[0].reason == event.reason
         assert events[0].message == event.message
         assert events[0].first_timestamp == event.first_timestamp
+
+
+def test_store_user_token_secret_created(k8s_helper):
+    k8s_helper.read_secret = mock.MagicMock()
+    k8s_helper.read_secret.return_value = None
+
+    result = k8s_helper.store_user_token_secret(
+        username="test-user",
+        token_name="my-token",
+        token="abc123",
+        expiration=9999,
+        namespace="default",
+    )
+
+    assert result == mlrun.common.schemas.SecretEventActions.created
+    k8s_helper._create_secret.assert_called_once()
+    k8s_helper._update_secret.assert_not_called()
+
+
+def test_store_user_token_secret_updated(k8s_helper):
+    username = "test-user"
+    token_name = "mytoken"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    existing_secret = _make_secret(secret_name, expiration=1000)
+
+    k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
+
+    result = k8s_helper.store_user_token_secret(
+        username=username,
+        token_name=token_name,
+        token="abc123",
+        expiration=2000,
+        namespace="default",
+    )
+
+    assert result == mlrun.common.schemas.SecretEventActions.updated
+    k8s_helper._update_secret.assert_called_once()
+    k8s_helper._create_secret.assert_not_called()
+
+
+def test_store_user_token_secret_skipped(k8s_helper):
+    username = "test-user"
+    token_name = "mytoken"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    existing_secret = _make_secret(secret_name, expiration=5000)
+
+    k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
+
+    result = k8s_helper.store_user_token_secret(
+        username=username,
+        token_name=token_name,
+        token="abc123",
+        expiration=4000,  # older expiration -> should skip
+        namespace="default",
+    )
+
+    assert result == mlrun.common.schemas.SecretEventActions.skipped
+    k8s_helper._update_secret.assert_not_called()
+    k8s_helper._create_secret.assert_not_called()
+
+
+def _make_secret(secret_name, expiration=None, labels=None):
+    labels = labels or {
+        mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+    }
+    secret = k8s_client.V1Secret(
+        metadata=k8s_client.V1ObjectMeta(name=secret_name, labels=labels),
+        data={},
+    )
+    if expiration is not None:
+        secret.data["tokenExpiration"] = base64.b64encode(
+            str(expiration).encode()
+        ).decode()
+    return secret

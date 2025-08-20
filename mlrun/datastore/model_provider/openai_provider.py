@@ -67,7 +67,6 @@ class OpenAIProvider(ModelProvider):
             default_invoke_kwargs=default_invoke_kwargs,
         )
         self.options = self.get_client_options()
-        self.load_client()
 
     @classmethod
     def _import_response_class(cls) -> None:
@@ -98,24 +97,27 @@ class OpenAIProvider(ModelProvider):
             subpath = ""
         return endpoint, subpath
 
-    def load_client(self) -> None:
-        """
-        Initializes the OpenAI SDK client using the provided options.
+    @property
+    def client(self) -> Any:
+        if not self._client:
+            try:
+                from openai import OpenAI  # noqa
 
-        This method imports the `OpenAI` class from the `openai` package, instantiates
-        a client with the given keyword arguments (`self.options`), and assigns it to
-        `self._client` and `self._async_client`.
+                self._client = OpenAI(**self.options)
+            except ImportError as exc:
+                raise ImportError("openai package is not installed") from exc
+        return self._client
 
-        Raises:
-            ImportError: If the `openai` package is not installed.
-        """
-        try:
-            from openai import OpenAI, AsyncOpenAI  # noqa
+    @property
+    def async_client(self) -> Any:
+        if not self._async_client:
+            try:
+                from openai import AsyncOpenAI  # noqa
 
-            self._client = OpenAI(**self.options)
-            self._async_client = AsyncOpenAI(**self.options)
-        except ImportError as exc:
-            raise ImportError("openai package is not installed") from exc
+                self._async_client = AsyncOpenAI(**self.options)
+            except ImportError as exc:
+                raise ImportError("openai package is not installed") from exc
+        return self._async_client
 
     def get_client_options(self) -> dict:
         res = dict(

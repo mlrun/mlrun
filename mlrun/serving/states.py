@@ -2456,7 +2456,7 @@ class FlowStep(BaseStep):
                     default_final_step = next_obj.name
                     break
                 next_obj = self[next[0]] if len(next) == 1 else None
-        print("[Roy] Graph steps and root:", self._steps.keys(), self._extract_root_step())
+
         return self._start_steps, default_final_step, responders
 
     def set_flow_source(self, source):
@@ -2997,15 +2997,10 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
         graph.edge(step.fullname, route.fullname)
 
 
-def _add_graphviz_model_runner(graph, step, source=None):
+def _add_graphviz_model_runner(graph, step, source=None, is_monitored=False):
     if source:
         graph.node("_start", source.name, shape=source.shape, style="filled")
         graph.edge("_start", step.fullname)
-    root_step = step._extract_root_step()
-    print(f"[Roy] step kind: {type(step)} root kind: {type(root_step)}")
-    is_monitored = (
-        root_step.track_models if isinstance(root_step, RootFlowStep) else False
-    )
     m_cell = '<FONT POINT-SIZE="9">🄼</FONT>' if is_monitored else ""
 
     number_of_models = len(
@@ -3046,13 +3041,15 @@ def _add_graphviz_flow(
     graph.node("_start", source.name, shape=source.shape, style="filled")
     for start_step in start_steps:
         graph.edge("_start", start_step.fullname)
+        if isinstance(start_step, RootFlowStep):
+            is_monitored = start_step.track_models
     for child in step.get_children():
         kind = child.kind
         if kind == StepKinds.router:
             with graph.subgraph(name="cluster_" + child.fullname) as sg:
                 _add_graphviz_router(sg, child)
         elif kind == StepKinds.model_runner:
-            _add_graphviz_model_runner(graph, child)
+            _add_graphviz_model_runner(graph, child, is_monitored)
         else:
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
         _add_edges(child.after or [], step, graph, child)

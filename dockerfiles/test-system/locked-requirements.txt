@@ -1899,15 +1899,15 @@ h5py==3.14.0 \
     # via
     #   keras
     #   tensorflow
-hf-xet==1.1.7 ; platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' \
-    --hash=sha256:18b61bbae92d56ae731b92087c44efcac216071182c603fc535f8e29ec4b09b8 \
-    --hash=sha256:20cec8db4561338824a3b5f8c19774055b04a8df7fff0cb1ff2cb1a0c1607b80 \
-    --hash=sha256:2e356da7d284479ae0f1dea3cf5a2f74fdf925d6dca84ac4341930d892c7cb34 \
-    --hash=sha256:60dae4b44d520819e54e216a2505685248ec0adbdb2dd4848b17aa85a0375cde \
-    --hash=sha256:6efaaf1a5a9fc3a501d3e71e88a6bfebc69ee3a716d0e713a931c8b8d920038f \
-    --hash=sha256:713f2bff61b252f8523739969f247aa354ad8e6d869b8281e174e2ea1bb8d604 \
-    --hash=sha256:751571540f9c1fbad9afcf222a5fb96daf2384bf821317b8bfb0c59d86078513 \
-    --hash=sha256:b109f4c11e01c057fc82004c9e51e6cdfe2cb230637644ade40c599739067b2e
+hf-xet==1.1.8 ; platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' \
+    --hash=sha256:09e86514c3c4284ed8a57d6b0f3d089f9836a0af0a1ceb3c9dd664f1f3eaefef \
+    --hash=sha256:25b9d43333bbef39aeae1616789ec329c21401a7fe30969d538791076227b591 \
+    --hash=sha256:3d5f82e533fc51c7daad0f9b655d9c7811b5308e5890236828bd1dd3ed8fea74 \
+    --hash=sha256:4171f31d87b13da4af1ed86c98cf763292e4720c088b4957cf9d564f92904ca9 \
+    --hash=sha256:4a9b99ab721d385b83f4fc8ee4e0366b0b59dce03b5888a86029cc0ca634efbf \
+    --hash=sha256:62a0043e441753bbc446dcb5a3fe40a4d03f5fb9f13589ef1df9ab19252beb53 \
+    --hash=sha256:8e2dba5896bca3ab61d0bef4f01a1647004de59640701b37e37eaa57087bbd9d \
+    --hash=sha256:bfe5700bc729be3d33d4e9a9b5cc17a951bf8c7ada7ba0c9198a6ab2053b7453
     # via huggingface-hub
 httpcore==1.0.9 \
     --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55 \
@@ -2182,9 +2182,9 @@ jsonpointer==3.0.0 \
     --hash=sha256:13e088adc14fca8b6aa8177c044e12701e6ad4b28ff10e65f2267a90109c9942 \
     --hash=sha256:2b2d729f2091522d61c3b31f82e11870f60b68f43fbc705cb76bf4b832af59ef
     # via jsonschema
-jsonschema==4.25.0 \
-    --hash=sha256:24c2e8da302de79c8b9382fee3e76b355e44d2a4364bb207159ce10b517bd716 \
-    --hash=sha256:e63acf5c11762c0e6672ffb61482bdf57f0876684d8d249c0fe2d730d48bc55f
+jsonschema==4.25.1 \
+    --hash=sha256:3fba0169e345c7175110351d456342c364814cfcf3b964ba4587f22915230a63 \
+    --hash=sha256:e4a9655ce0da0c0b67a085847e00a3a51449e1157f4f75e9fb5aa545e122eb85
     # via
     #   jupyter-events
     #   kfp
@@ -3199,9 +3199,9 @@ objgraph==3.6.2 \
     --hash=sha256:00b9f2f40f7422e3c7f45a61c4dafdaf81f03ff0649d6eaec866f01030e51ad8 \
     --hash=sha256:8114c97712291c3ba30d882406a384d0a7651b307ea9a06e0d83836ccde85e15
     # via -r dockerfiles/mlrun-api/requirements.txt
-openai==1.99.9 \
-    --hash=sha256:9dbcdb425553bae1ac5d947147bebbd630d91bbfc7788394d4c4f3a35682ab3a \
-    --hash=sha256:f2082d155b1ad22e83247c3de3958eb4255b20ccf4a1de2e6681b6957b554e92
+openai==1.100.1 \
+    --hash=sha256:2e8224caaf3136c58e30e6b3984fd7a8e6da0931d2c36fbbb7d668e5c11db914 \
+    --hash=sha256:3e9ae652903e5120514e544af2426334141404657cdcdb6dc6845fc243d66e66
     # via -r dev-requirements.txt
 opentelemetry-api==1.36.0 \
     --hash=sha256:02f20bcacf666e1333b6b1f04e647dc1d5111f86b8e510238fcc56d7762cda8c \
@@ -4501,9 +4501,9 @@ regex==2025.7.34 \
     #   nltk
     #   tiktoken
     #   transformers
-requests==2.32.4 \
-    --hash=sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c \
-    --hash=sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422
+requests==2.32.5 \
+    --hash=sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6 \
+    --hash=sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf
     # via
     #   -r requirements.txt
     #   azure-core
@@ -5437,9 +5437,9 @@ transformers==4.55.2 \
     --hash=sha256:097e3c2e2c0c9681db3da9d748d8f9d6a724c644514673d0030e8c5a1109f1f1 \
     --hash=sha256:a45ec60c03474fd67adbce5c434685051b7608b3f4f167c25aa6aeb1cad16d4f
     # via -r dev-requirements.txt
-typer==0.16.0 \
-    --hash=sha256:1f79bed11d4d02d4310e3c1b7ba594183bcedb0ac73b27a9e5f28f6fb5b98855 \
-    --hash=sha256:af377ffaee1dbe37ae9440cb4e8f11686ea5ce4e9bae01b84ae7c63b87f1dd3b
+typer==0.16.1 \
+    --hash=sha256:90ee01cb02d9b8395ae21ee3368421faf21fa138cb2a541ed369c08cec5237c9 \
+    --hash=sha256:d358c65a464a7a90f338e3bb7ff0c74ac081449e53884b12ba658cbd72990614
     # via
     #   evidently
     #   kfp

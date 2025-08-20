@@ -121,6 +121,21 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt
 
+	$(MAKE) install-iguazio-sdk
+
+# TODO: Remove the iguazio installation here when the package is released to PyPI and move it to requirements.txt
+.PHONY: install-iguazio-sdk
+install-iguazio-sdk: ## Install iguazio package from Test PyPI only for Python 3.11
+	@if [ "$(MLRUN_PYTHON_VERSION)" = "3.11" ]; then \
+		echo "Installing iguazio package for Python $(MLRUN_PYTHON_VERSION)..."; \
+		$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) \
+			--index-url https://test.pypi.org/simple/ \
+			--extra-index-url https://pypi.org/simple \
+			"iguazio~=0.0.1a9"; \
+	else \
+		echo "Skipping iguazio install (Python $(MLRUN_PYTHON_VERSION))"; \
+	fi
+
 .PHONY: install-docs-requirements
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
@@ -554,7 +569,9 @@ test: clean ## Run mlrun tests
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
 		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
-		"),);\
+	"),$(if $(filter $(MLRUN_PYTHON_VERSION),3.9),$$(echo "\
+		--ignore=server/py/services/api/tests/unit/utils/clients/iguazio/test_iguazio_v4.py \
+	"),));\
 	python \
 		-X faulthandler \
 		-m pytest -v \

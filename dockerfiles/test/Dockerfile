@@ -73,3 +73,14 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+
+# TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
+# Install iguazio package from Test PyPI only for Python 3.11
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    if [ "${MLRUN_PYTHON_VERSION}" = "3.11" ]; then \
+      uv pip install --index-url https://test.pypi.org/simple/ \
+        --extra-index-url https://pypi.org/simple \
+        iguazio~=0.0.1a9 --python-version ${MLRUN_PYTHON_VERSION}; \
+    else \
+      echo "Skipping iguazio install for Python ${MLRUN_PYTHON_VERSION}"; \
+    fi

@@ -695,6 +695,17 @@ def test_store_auth_secret(
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
 
 
+@pytest.fixture
+def mock_iguazio_client():
+    with unittest.mock.patch(
+        "framework.utils.clients.iguazio.v4.Client"
+    ) as mock_client_cls:
+        mock_client_instance = unittest.mock.MagicMock()
+        mock_client_instance.refresh_access_token.return_value = None
+        mock_client_cls.return_value = mock_client_instance
+        yield mock_client_instance
+
+
 @pytest.mark.parametrize("tokens", [[], None])
 def test_store_secret_tokens_missing_tokens(
     tokens,
@@ -721,7 +732,7 @@ def test_store_secret_tokens_duplicate_names():
         services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
 
 
-def test_store_secret_tokens_invalid_offline_token_jwt_decode():
+def test_store_secret_tokens_invalid_offline_token_jwt_decode(mock_iguazio_client):
     secret_tokens = [
         mlrun.common.schemas.SecretToken(name="bad", token="this-is-not-a-jwt"),
     ]
@@ -744,7 +755,9 @@ def test_store_secret_tokens_invalid_offline_token_jwt_decode():
         {"sub": "user-123", "exp": ""},  # exp is empty
     ],
 )
-def test_store_secret_tokens_missing_required_claims_in_offline_token(payload):
+def test_store_secret_tokens_missing_required_claims_in_offline_token(
+    mock_iguazio_client, payload
+):
     token = _generate_token(payload)
     secret_tokens = [
         mlrun.common.schemas.SecretToken(name="bad-token", token=token),
@@ -757,7 +770,7 @@ def test_store_secret_tokens_missing_required_claims_in_offline_token(payload):
         services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
 
 
-def test_store_secret_tokens_return_values():
+def test_store_secret_tokens_return_values(mock_iguazio_client):
     token_payload = {"sub": "user-id-123", "exp": 9999999999}
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
@@ -790,6 +803,25 @@ def test_store_secret_tokens_return_values():
     }
 
     assert mock_secrets_provider.store_user_token_secret.call_count == 3
+    assert mock_iguazio_client.refresh_access_token.call_count == 3
+
+
+def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
+    mock_iguazio_client.refresh_access_token.side_effect = (
+        mlrun.errors.MLRunUnauthorizedError("Refresh failed")
+    )
+
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1",
+            token=_generate_token({"sub": "user-id-123", "exp": 9999999999}),
+        ),
+    ]
+
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError, match="Refresh failed"):
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
+
+    mock_iguazio_client.refresh_access_token.assert_called_once_with(secret_tokens[0])
 
 
 def _generate_token(payload: dict) -> str:

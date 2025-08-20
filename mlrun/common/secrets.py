@@ -92,6 +92,7 @@ class SecretProviderInterface(ABC):
     ) -> None:
         pass
 
+
 class InMemorySecretProvider(SecretProviderInterface):
     def __init__(self):
         # project -> secret_key -> secret_value

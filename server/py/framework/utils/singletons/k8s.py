@@ -1324,7 +1324,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         except mlrun.errors.MLRunNotFoundError:
             raise
         except Exception as exc:
-            logger.error("Failed decoding token from secret", exc=mlrun.errors.err_to_str(exc))
+            logger.error(
+                "Failed decoding token from secret", exc=mlrun.errors.err_to_str(exc)
+            )
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed to decode secret data for token '{token_name}"
             ) from exc
@@ -1370,6 +1372,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             raise mlrun.errors.MLRunRuntimeError(
                 f"Unexpected error deleting secret for token '{token_name}' for user '{username}': {exc}"
             ) from exc
+
 
 class BasePod:
     def __init__(

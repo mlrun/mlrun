@@ -61,6 +61,7 @@ async def list_secret_tokens(
         auth_info.username,
     )
 
+
 @router.delete("/tokens/{name}")
 async def revoke_secret_token(
     token_name: str,

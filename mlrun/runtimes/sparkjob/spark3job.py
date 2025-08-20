@@ -172,7 +172,7 @@ class Spark3JobSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
-        foo=None
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -206,7 +206,7 @@ class Spark3JobSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
-            foo=foo
+            foo=foo,
         )
 
         self.driver_resources = driver_resources or {}

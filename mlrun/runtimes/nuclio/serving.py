@@ -152,7 +152,7 @@ class ServingSpec(NuclioSpec):
         disable_default_http_trigger=None,
         model_endpoint_creation_task_name=None,
         serving_spec=None,
-        foo=None
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -194,7 +194,7 @@ class ServingSpec(NuclioSpec):
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             disable_default_http_trigger=disable_default_http_trigger,
             serving_spec=serving_spec,
-            foo=foo
+            foo=foo,
         )
 
         self.models = models or {}

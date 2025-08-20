@@ -121,11 +121,11 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt
 
-	$(MAKE) install-iguazio
+	$(MAKE) install-iguazio-sdk
 
 # TODO: Remove the iguazio installation here when the package is released to PyPI and move it to requirements.txt
-.PHONY: install-iguazio
-install-iguazio: ## Install iguazio package from Test PyPI only for Python 3.11
+.PHONY: install-iguazio-sdk
+install-iguazio-sdk: ## Install iguazio package from Test PyPI only for Python 3.11
 	@if [ "$(MLRUN_PYTHON_VERSION)" = "3.11" ]; then \
 		echo "Installing iguazio package for Python $(MLRUN_PYTHON_VERSION)..."; \
 		$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) \

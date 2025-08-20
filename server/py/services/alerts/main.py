@@ -542,6 +542,7 @@ class Service(framework.service.Service):
         return alert_activation
 
     async def _move_service_to_online(self):
+        await super()._move_service_to_online()
         if not get_project_member():
             await fastapi.concurrency.run_in_threadpool(initialize_project_member)
             get_project_member().start()

@@ -119,7 +119,7 @@ class Service(ABC):
 
     @abstractmethod
     async def _move_service_to_online(self):
-        pass
+        await run_async_function_with_new_db_session(self._sync_system_metadata)
 
     def _mount_services(self, mounts: typing.Optional[list] = None):
         if not mounts:
@@ -191,10 +191,14 @@ class Service(ABC):
             # in the background, wait for chief to reach online state
             self._start_chief_clusterization_spec_sync_loop()
 
+        # below logic must be relevant for chief only
+        # as at this point the worker is not yet online (the condition below is for chief only)
+        # and this means not all data / schemas are ready yet on worker level.
+
+        # relevant for chief only. workers will not reach this point as they
+        # are waiting for chief to reach online state.
         if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:
             await self.move_service_to_online()
-
-        await run_async_function_with_new_db_session(self._sync_system_metadata)
 
     async def _setup_mounted_service(self):
         await self._custom_setup_service()

@@ -3039,8 +3039,8 @@ def _add_graphviz_flow(
         allow_empty=True
     )
     graph.node("_start", source.name, shape=source.shape, style="filled")
-    print(start_steps, source)
-    is_monitored = source.track_models if isinstance(source, RootFlowStep) else False
+    print(start_steps, source, step)
+    is_monitored = step.track_models if isinstance(step, RootFlowStep) else False
     for start_step in start_steps:
         graph.edge("_start", start_step.fullname)
     for child in step.get_children():

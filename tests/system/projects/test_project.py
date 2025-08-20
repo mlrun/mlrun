@@ -852,10 +852,21 @@ class TestProject(TestMLRunSystem):
         project = self._load_remote_pipeline_project(name=project_name)
         project.set_workflow("main", "kflow.py")
 
-        run_id = project.run(
-            "main",
-            engine="remote",
+        # Nuclio function for storing notifications, to validate the notifications from the pipeline
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(project)
+
+        notification = mlrun.model.Notification(
+            kind="webhook",
+            when=[RunStates.running, RunStates.completed, RunStates.error],
+            name="webhook_notification",
+            message="some message",
+            condition="",
+            severity="info",
+            params={"url": nuclio_function_url},
         )
+
+        run_id = project.run("main", engine="remote", notifications=[notification])
+
         timeout = 60
         start_time = time.time()
 
@@ -872,21 +883,109 @@ class TestProject(TestMLRunSystem):
 
         mlrun.terminate_pipeline(run_id=run_id.run_id, project=project_name)
         mlrun.wait_for_pipeline_completion(
-            run_id,
+            run_id.run_id,
             project=project_name,
             expected_statuses=[mlrun_pipelines.common.models.RunStatuses.failed],
         )
+        # In order to trigger the periodic monitor runs function
+        time.sleep(35)
+        notifications = list(
+            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+                nuclio_function_url
+            )
+        )
+        assert len(notifications) == 2
+        assert (
+            notifications[0][0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.running
+        )
+        assert (
+            notifications[1][0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.error
+        )
 
-        mlrun.retry_pipeline(run_id=run_id.run_id, project=project_name)
+        # Retrying pipeline
+        rerun_id = mlrun.retry_pipeline(run_id=run_id.run_id, project=project_name)
+
+        res = mlrun.wait_for_pipeline_completion(rerun_id)
+        assert (
+            res["run"]["status"] == mlrun_pipelines.common.models.RunStatuses.succeeded
+        )
         runner_run_result = project.list_runs(
             labels=[
-                f"{mlrun_constants.MLRunInternalLabels.workflow_id}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.original_workflow_id}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.workflow_id}={rerun_id}",
                 f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
             ]
         )
         assert (
             len(runner_run_result) == 1
         ), f"Expected exactly one rerun runner, but found {len(runner_run_result)}."
+
+        assert runner_run_result.to_objects()[0].metadata.labels[
+            mlrun_constants.MLRunInternalLabels.rerun_index
+        ] == str(1)
+        # in order to trigger the periodic monitor runs function
+        time.sleep(35)
+
+        notifications = list(
+            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+                nuclio_function_url
+            )
+        )
+        assert len(notifications) == 2
+        assert (
+            notifications[0][0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.running
+        )
+        assert (
+            notifications[1][0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.completed
+        )
+
+        assert all(
+            [
+                "Retry #1" in notification[0]["spec"]["notifications"][0]["name"]
+                for notification in notifications
+            ]
+        )
+
+        second_rerun_id = mlrun.retry_pipeline(
+            run_id=run_id.run_id, project=project_name
+        )
+        parallel_rerun_id = mlrun.retry_pipeline(
+            run_id=run_id.run_id, project=project_name
+        )
+
+        assert (
+            second_rerun_id == parallel_rerun_id
+        ), "retry_pipeline must return the same rerun ID when called twice"
+
+        rerunners = project.list_runs(
+            labels=[
+                f"{mlrun_constants.MLRunInternalLabels.original_workflow_id}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
+            ]
+        )
+        assert (
+            len(rerunners) == 2
+        ), f"Idempotent retry created extra runner – found {len(rerunners)}"
+
+        assert rerunners.to_objects()[0].metadata.labels[
+            mlrun_constants.MLRunInternalLabels.rerun_index
+        ] == str(2)
+
+        original_workflow_runner = project.list_runs(
+            labels=[
+                f"{mlrun_constants.MLRunInternalLabels.workflow_id}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER}",
+            ]
+        )
+
+        assert len(original_workflow_runner) == 1
+        assert original_workflow_runner.to_objects()[0].metadata.labels[
+            mlrun_constants.MLRunInternalLabels.rerun_counter
+        ] == str(2)
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)

@@ -23,8 +23,8 @@ import typing
 import alembic
 import alembic.command
 import alembic.config
-import dateutil.parser
 import pymysql.err
+import sqlalchemy.engine
 import sqlalchemy.exc
 import sqlalchemy.orm
 import sqlalchemy_utils
@@ -57,30 +57,21 @@ from framework.utils.db.utils import DBUtil
 def init_data(
     perform_migrations_if_needed: bool = False,
 ) -> None:
+    """
+    This function initializes the database with the necessary data.
+    It checks if the database exists and if it has any tables,
+    and if not, it creates the database and initializes it from scratch.
+    """
     mlrun.utils.logger.info("Initializing DB data")
 
     engine = framework.db.sqldb.sql_session.get_engine()
-    url = engine.url
-    from_scratch = False
-    if not sqlalchemy_utils.database_exists(url):
-        mlrun.utils.logger.info(
-            "Database does not exist, initializing from scratch",
-            database_url=url,
-        )
-        sqlalchemy_utils.create_database(url)
-        from_scratch = True
-    else:
-        has_tables = bool(sqlalchemy.inspect(engine).get_table_names())
-        if not has_tables:
-            mlrun.utils.logger.info(
-                "No tables found in the database, initializing from scratch",
-                database_url=url,
-            )
-            from_scratch = True
+    db_initialized = _initialize_db_if_needed(engine)
 
-    if from_scratch:
-        _initialize_db_from_scratch(engine, url)
+    if db_initialized:
+        mlrun.utils.logger.info("Creating database from scratch")
+        _initialize_db_from_scratch(engine)
     else:
+        mlrun.utils.logger.info("Migrating existing data")
         _migrate_existing_data(
             engine,
             perform_migrations_if_needed,
@@ -89,33 +80,48 @@ def init_data(
     mlrun.utils.logger.info("Initial data created")
 
 
+def _initialize_db_if_needed(engine: sqlalchemy.engine.Engine) -> bool:
+    """
+    Checks if the database instance exists and is initialized.
+    Returns True if the database needs to be created or initialized from scratch (i.e.,
+    if the database does not exist or exists but has no tables).
+    Returns False if the database exists and has tables (i.e., is set up and ready).
+    """
+    url = engine.url
+    if not sqlalchemy_utils.database_exists(url):
+        mlrun.utils.logger.info(
+            "Database does not exist, creating",
+            database_url=url,
+        )
+        sqlalchemy_utils.create_database(url)
+        return True
+
+    # db exists, lets see if it has some tables
+    has_tables = bool(sqlalchemy.inspect(engine).get_table_names())
+    if not has_tables:
+        mlrun.utils.logger.info(
+            "No tables found in the database",
+            database_url=url,
+        )
+        return True
+
+    # db exists and have tables. nothing to ensure
+    return False
+
+
 def _create_schema(
     engine: typing.Optional[sqlalchemy.engine.Engine] = None,
 ) -> None:
     if engine is None:
         engine = framework.db.sqldb.sql_session.get_engine()
 
-    # SQLite doesn’t support table partitioning → skip those tables
-    if engine.name == mlrun.common.db.dialects.Dialects.SQLITE:
-        partitioned_table_names = (
-            framework.db.sqldb.models.get_partitioned_table_names()
-        )
-        tables_to_create = [
-            table
-            for table in framework.db.sqldb.models.Base.metadata.tables.values()
-            if table.name not in partitioned_table_names
-        ]
-        framework.db.sqldb.models.Base.metadata.create_all(
-            bind=engine, tables=tables_to_create
-        )
-    else:
-        framework.db.sqldb.models.Base.metadata.create_all(bind=engine)
+    framework.db.sqldb.models.Base.metadata.create_all(bind=engine)
 
 
 def _initialize_db_from_scratch(
-    engine: typing.Optional[sqlalchemy.engine.Engine],
-    url: sqlalchemy.engine.URL,
+    engine: sqlalchemy.engine.Engine,
 ):
+    url = engine.url
     _create_schema(
         engine=engine,
     )
@@ -131,6 +137,8 @@ def _initialize_db_from_scratch(
         version=str(latest_data_version),
     )
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
+    # initialize system id
+    framework.db.session.run_function_with_new_db_session(func=_init_system_id)
 
 
 def _migrate_existing_data(
@@ -179,9 +187,6 @@ def _migrate_existing_data(
                 )
                 mlrun.mlconf.httpdb.state = state
                 raise
-
-        # initialize system id
-        _init_system_id(db_session)
     finally:
         framework.db.session.close_session(db_session)
 
@@ -285,14 +290,11 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                     "Data migration from data version 0 is not supported. "
                     "Upgrade to MLRun <= 1.5.0 before performing this migration"
                 )
-            if current_data_version < 2:
-                _perform_version_2_data_migrations(db, db_session)
-            if current_data_version < 3:
-                _perform_version_3_data_migrations(db, db_session)
-            if current_data_version < 4:
-                _perform_version_4_data_migrations(db, db_session)
             if current_data_version < 5:
-                _perform_version_5_data_migrations(db, db_session)
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    "Data migration from data version less than 5 is not supported. "
+                    "Upgrade to MLRun < 1.10.0 before performing this migration"
+                )
             if current_data_version < 6:
                 _perform_version_6_data_migrations(db, db_session)
             if current_data_version < 7:
@@ -308,83 +310,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
     db = framework.db.sqldb.db.SQLDB()
     _add_data_version(db, db_session)
-
-
-def _perform_version_2_data_migrations(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _align_runs_table(db, db_session)
-
-
-def _align_runs_table(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    mlrun.utils.logger.info("Aligning runs")
-    runs = db._find_runs(db_session, None, "*", None).all()
-    for run in runs:
-        run_dict = run.struct
-
-        # Align run start_time column to the start time from the body
-        run.start_time = (
-            framework.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
-        )
-        # in case no start time was in the body, we took the time from the column, let's make sure the body will have
-        # it as well
-        run_dict.setdefault("status", {})["start_time"] = (
-            db._add_utc_timezone(run.start_time).isoformat() if run.start_time else None
-        )
-
-        # New name column added, fill it up from the body
-        run.name = run_dict.get("metadata", {}).get("name", "no-name")
-        # in case no name was in the body, we defaulted to "no-name", let's make sure the body will have it as well
-        run_dict.setdefault("metadata", {})["name"] = run.name
-
-        # State field used to have a bug causing only the body to be updated, align the column
-        run.state = run_dict.get("status", {}).get(
-            "state", mlrun.common.runtimes.constants.RunStates.created
-        )
-        # in case no name was in the body, we defaulted to created, let's make sure the body will have it as well
-        run_dict.setdefault("status", {})["state"] = run.state
-
-        # New updated column added, fill it up from the body
-        updated = datetime.datetime.now(tz=datetime.timezone.utc)
-        if run_dict.get("status", {}).get("last_update"):
-            updated = dateutil.parser.parse(
-                run_dict.get("status", {}).get("last_update")
-            )
-        db._update_run_updated_time(run, run_dict, updated)
-        run.struct = run_dict
-        db._upsert(db_session, [run], ignore=True)
-
-
-def _perform_version_3_data_migrations(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _rename_marketplace_kind_to_hub(db, db_session)
-
-
-def _rename_marketplace_kind_to_hub(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    mlrun.utils.logger.info("Renaming 'Marketplace' kinds to 'Hub'")
-
-    hubs = db._list_hub_sources_without_transform(db_session)
-    for hub in hubs:
-        hub_dict = hub.full_object
-
-        # rename kind from "MarketplaceSource" to "HubSource"
-        if "Marketplace" in hub_dict.get("kind", ""):
-            hub_dict["kind"] = hub_dict["kind"].replace("Marketplace", "Hub")
-
-        # save the object back to the db
-        hub.full_object = hub_dict
-        db._upsert(db_session, [hub], ignore=True)
-
-
-def _perform_version_4_data_migrations(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _update_default_hub_source(db, db_session)
+    # initialize system id
+    framework.db.session.run_function_with_new_db_session(func=_init_system_id)
 
 
 def _add_default_hub_source_if_needed(
@@ -524,82 +451,6 @@ def _resolve_current_data_version(
         raise exc
 
 
-def _perform_version_5_data_migrations(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _migrate_artifacts_table_v2(db, db_session)
-
-
-def _migrate_artifacts_table_v2(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    """
-    Migrate the old artifacts table to the new artifacts_v2 table, including their respective tags and labels.
-    The migration is done in batches, to not overload the db. A state file is used to keep track of the migration
-    progress, and is updated after each batch, so that if the migration fails, it can be resumed from the last batch.
-    Delete the old artifacts table when done.
-    """
-
-    # count the total number of artifacts to migrate
-    total_artifacts_count = db._query(
-        db_session, framework.db.sqldb.models.Artifact
-    ).count()
-
-    if total_artifacts_count == 0:
-        mlrun.utils.logger.info("No v1 artifacts in the system, skipping migration")
-        return
-
-    mlrun.utils.logger.info(
-        "Migrating artifacts to artifacts_v2 table",
-        total_artifacts_count=total_artifacts_count,
-    )
-    batch_size = mlrun.mlconf.artifacts.artifact_migration_batch_size
-
-    # get the id of the last migrated artifact and the list of all link artifacts ids from the state file
-    last_migrated_artifact_id, link_artifact_ids = _get_migration_state()
-
-    while True:
-        # migrate the next batch
-        last_migrated_artifact_id, batch_link_artifact_ids = _migrate_artifacts_batch(
-            db, db_session, last_migrated_artifact_id, batch_size
-        )
-        if batch_link_artifact_ids:
-            link_artifact_ids.update(batch_link_artifact_ids)
-
-        if last_migrated_artifact_id is None:
-            # we're done
-            break
-        _update_state_file(last_migrated_artifact_id, link_artifact_ids)
-
-    # find the best iteration artifacts the link artifacts point at ,
-    # and mark them as best iteration artifacts in the new artifacts_v2 table
-    _mark_best_iteration_artifacts(db, db_session, link_artifact_ids)
-
-    # delete the state file
-    _delete_state_file()
-
-    mlrun.utils.logger.debug(
-        "Deleting old artifacts table, including their labels and tags"
-    )
-
-    # drop the old artifacts table, including their labels and tags tables
-    db.delete_table_records(
-        db_session,
-        framework.db.sqldb.models.Artifact.Label,
-        raise_on_not_exists=False,
-    )
-    db.delete_table_records(
-        db_session, framework.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
-    )
-    db.delete_table_records(
-        db_session, framework.db.sqldb.models.Artifact, raise_on_not_exists=False
-    )
-
-    mlrun.utils.logger.info(
-        "Finished migrating artifacts to artifacts_v2 table successfully"
-    )
-
-
 def _migrate_artifacts_batch(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
@@ -633,13 +484,6 @@ def _migrate_artifacts_batch(
         new_artifact = framework.db.sqldb.models.ArtifactV2()
 
         artifact_dict = artifact.struct
-
-        if mlrun.utils.is_legacy_artifact(artifact_dict):
-            # convert the legacy artifact to the new format, by setting a metadata field and spec field
-            # and copying the old fields to the spec
-            artifact_dict = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
-                artifact_dict
-            ).to_dict()
 
         # if it is a link artifact, keep its id. we will use it later to update the best iteration artifacts
         if mlrun.utils.is_link_artifact(artifact_dict):
@@ -813,13 +657,6 @@ def _mark_best_iteration_artifacts(
     # get all the artifacts that are attached to the link artifacts
     for link_artifact in link_artifacts:
         link_artifact_dict = link_artifact.struct
-        if mlrun.utils.is_legacy_artifact(link_artifact_dict):
-            # convert the legacy artifact to the new format, so we can use the same logic
-            link_artifact_dict = (
-                mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
-                    link_artifact_dict
-                ).to_dict()
-            )
 
         # get the artifacts attached to the link artifact
         # if the link key was set explicitly, we should use it to find the artifacts, otherwise use the artifact's key

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable, ClassVar, Literal, Optional, Union
 
 import pandas as pd
@@ -81,14 +81,38 @@ class TSDBConnector(ABC):
         """
 
     @abstractmethod
-    def delete_tsdb_records(
+    def get_drift_data(
         self,
-        endpoint_ids: list[str],
-    ) -> None:
+        start: datetime,
+        end: datetime,
+    ) -> mm_schemas.ModelEndpointDriftValues:
+        """
+        Fetches drift counts per interval in the specified time range.
+
+        :param start: The start time of the query.
+        :param end:   The end time of the query.
+
+        :return: A ModelEndpointDriftValues object containing drift data.
+        """
+
+    @abstractmethod
+    def delete_tsdb_records(self, endpoint_ids: list[str]) -> None:
         """
         Delete model endpoint records from the TSDB connector.
+
         :param endpoint_ids: List of model endpoint unique identifiers.
-        :param delete_timeout: The timeout in seconds to wait for the deletion to complete.
+        """
+        pass
+
+    @abstractmethod
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete application records from the TSDB for the given model endpoints or all if ``None``.
+
+        :param application_name: The name of the application to delete records for.
+        :param endpoint_ids:     List of model endpoint unique identifiers.
         """
         pass
 
@@ -703,3 +727,59 @@ class TSDBConnector(ABC):
                 )
             )
         return {dict_key: metrics}
+
+    @staticmethod
+    def _prepare_aligned_start_end(
+        start: datetime, end: datetime
+    ) -> tuple[datetime, datetime, str]:
+        delta = end - start
+        if delta <= timedelta(hours=6):
+            interval = "10m"
+            start = start.replace(
+                minute=start.minute // 10 * 10, second=0, microsecond=0
+            )
+        elif delta <= timedelta(hours=72):
+            interval = "1h"
+            start = start.replace(minute=0, second=0, microsecond=0)
+        else:
+            interval = "1d"
+            start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        interval_map = {
+            "10m": timedelta(minutes=10),
+            "1h": timedelta(hours=1),
+            "1d": timedelta(days=1),
+        }
+        delta = end - start
+        interval_td = interval_map[interval]
+        end = start + (delta // interval_td) * interval_td
+        return start, end, interval
+
+    @staticmethod
+    def _df_to_drift_data(df: pd.DataFrame) -> mm_schemas.ModelEndpointDriftValues:
+        suspected_val = mm_schemas.constants.ResultStatusApp.potential_detection.value
+        detected_val = mm_schemas.constants.ResultStatusApp.detected.value
+        aggregated_df = (
+            df.groupby(["_wstart", f"max({mm_schemas.ResultData.RESULT_STATUS})"])
+            .size()  # add size column for each interval x result-status combination
+            .unstack()  # create a size column for each result-status
+            .reindex(
+                columns=[suspected_val, detected_val], fill_value=0
+            )  # ensure both columns exists
+            .fillna(0)
+            .astype(int)
+            .rename(
+                columns={
+                    suspected_val: "count_suspected",
+                    detected_val: "count_detected",
+                }
+            )
+        )
+        values = list(
+            zip(
+                aggregated_df.index,
+                aggregated_df["count_suspected"],
+                aggregated_df["count_detected"],
+            )
+        )
+        return mm_schemas.ModelEndpointDriftValues(values=values)

@@ -61,7 +61,7 @@ Model url is either an MLRun model store object (starts with `store://`) or URL 
 be added to the serving function via environment variables or MLRun secrets.
 ```
 
-See the [**scikit-learn classifier example**](https://github.com/mlrun/functions/blob/master/sklearn_classifier/sklearn_classifier.ipynb), 
+See the [**scikit-learn classifier example**](https://github.com/mlrun/functions/blob/master/functions/src/sklearn_classifier/sklearn_classifier.ipynb), 
 which explains how to create/log MLRun models.
 
 ### Writing your own serving class
@@ -78,7 +78,7 @@ calling the `<model-url>/xx`, where operation = xx). See {py:class}`~mlrun.model
 
 For an example of writing the minimal serving functions, see [Minimal sklearn serving function example](./custom-model-serving-class.md#minimal-sklearn-serving-function-example).
 
-See the full [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb) that 
+See the full [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/functions/src/v2_model_server/v2_model_server.ipynb) that 
 tests one or more classifier models against a held-out dataset.
 
 ## Example of advanced data processing and serving ensemble

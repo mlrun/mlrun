@@ -111,8 +111,6 @@ The artifact path is the default path for saving all the artifacts that the func
 ```python
 # Target location for storing pipeline artifacts
 artifact_path = path.abspath("jobs")
-# MLRun DB path or API service URL
-mlconf.dbpath = mlconf.dbpath or "http://mlrun-api:8080"
 
 print(f"Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}")
 ```

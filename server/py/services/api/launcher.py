@@ -319,9 +319,21 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         run.status.state = mlrun.common.runtimes.constants.RunStates.running
         # retry_count may be None on first run attempt
-        run.status.retry_count = run.status.retry_count or 0
-        run.status.retry_count += 1
-        # TODO: Maintain start time of each retry ML-10169
+        retry_count = run.status.retry_count or 0
+        start_time = run.status.start_time
+
+        # record retry metadata
+        run.status.retries = run.status.retries or []
+        run.status.retries.append(
+            {
+                "attempt": retry_count,
+                "start_time": start_time,
+                "end_time": run.status.end_time,
+                "error": run.status.error,
+            }
+        )
+
+        run.status.retry_count = retry_count + 1
         run.status.start_time = None
         # The combination of retry attempt label and requested logs `False` is required for the log collector to
         # collect logs from the current run attempt.
@@ -661,7 +673,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if backoff is not None and backoff.base_delay is not None:
             min_base_delay = mlrun.mlconf.function.spec.retry.backoff.min_base_delay
             try:
-                framework.utils.helpers.time_string_to_seconds(
+                base_delay_seconds = framework.utils.helpers.time_string_to_seconds(
                     backoff.base_delay,
                     mlrun.mlconf.function.spec.retry.backoff.min_base_delay,
                 )
@@ -669,6 +681,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Retry backoff base_delay must be at least {min_base_delay}, got {backoff.base_delay}"
                 ) from exc
+
+            staleness_threshold_seconds = mlrun.mlconf.get_run_retry_staleness_threshold_timedelta().total_seconds()
+            staleness_threshold_seconds = int(staleness_threshold_seconds)
+            max_delay = int(base_delay_seconds * retry.count)
+            if max_delay >= staleness_threshold_seconds:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Retry backoff base_delay {backoff.base_delay} * retry count {retry.count} "
+                    f"must be less than {staleness_threshold_seconds} seconds, got {max_delay} seconds"
+                )
 
 
 # Once this file is imported it will set the container server side launcher

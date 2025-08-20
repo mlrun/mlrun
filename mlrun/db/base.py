@@ -16,8 +16,6 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Literal, Optional, Union
 
-from deprecated import deprecated
-
 import mlrun.alerts
 import mlrun.common
 import mlrun.common.formatters
@@ -53,6 +51,12 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def update_run(self, updates: dict, uid, project="", iter=0):
+        pass
+
+    @abstractmethod
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool
+    ):
         pass
 
     @abstractmethod
@@ -439,23 +443,6 @@ class RunDBInterface(ABC):
     ) -> dict:
         pass
 
-    # TODO: remove in 1.10.0
-    @deprecated(
-        version="1.7.0",
-        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_features(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
-        pass
-
     @abstractmethod
     def list_features_v2(
         self,
@@ -638,6 +625,11 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def wait_for_background_task_to_reach_terminal_state(
+        self, name: str, project: str = ""
+    ) -> mlrun.common.schemas.BackgroundTask:
+        pass
+
     @abstractmethod
     def retry_pipeline(
         self,
@@ -730,6 +722,7 @@ class RunDBInterface(ABC):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
+        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -1119,6 +1112,15 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        pass
+
+    @abstractmethod
     def get_monitoring_function_summaries(
         self,
         project: str,
@@ -1144,4 +1146,13 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def get_project_summary(self, project: str) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    @abstractmethod
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         pass

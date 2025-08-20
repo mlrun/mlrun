@@ -26,6 +26,28 @@ import framework.utils.runtimes.nuclio
 import framework.utils.singletons.k8s
 
 
+def pure_nuclio_deployed_restricted():
+    """
+    Decorator to restrict the usage of the decorated function to pure nuclio deployed runtimes only.
+    Pure nuclio deployed runtimes are runtimes that their images are not built by MLRun, but are built and deployed
+    completely by nuclio.
+    """
+
+    def decorator(callback):
+        def wrapper(function, *args, **kwargs):
+            if (
+                function.kind
+                not in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes()
+            ):
+                return
+
+            return callback(function, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def resolve_function_http_trigger(function_spec):
     for trigger_name, trigger_config in function_spec.get("triggers", {}).items():
         if trigger_config.get("kind") != "http":
@@ -218,9 +240,10 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     return parsed_min_version <= parsed_current_version < parsed_max_version
 
 
+@pure_nuclio_deployed_restricted()
 def compile_nuclio_archive_config(
-    nuclio_spec,
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
+    nuclio_spec,
     builder_env,
     project=None,
     auth_info=None,

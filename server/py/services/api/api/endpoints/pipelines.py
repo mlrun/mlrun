@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.background_task
 import mlrun.config
@@ -178,18 +179,26 @@ async def retry_pipeline(
     )
 
     try:
-        original_runner = await fastapi.concurrency.run_in_threadpool(
+        (
+            original_runner,
+            original_workflow_id,
+        ) = await fastapi.concurrency.run_in_threadpool(
             services.api.crud.Pipelines().get_original_workflow_run,
             db_session=db_session,
             run_id=run_id,
             project=project.metadata.name,
         )
     except mlrun.errors.MLRunNotFoundError:
-        original_runner = None
+        original_runner, original_workflow_id = None, None
 
-    # If direct mode is requested, or the original workflow runner was not found,
-    # bypass MLRun's workflow runner logic and submit the retry directly to KFP.
-    if submit_mode == mlrun_constants.WorkflowSubmitMode.direct or not original_runner:
+    # If running in direct mode, or if we couldn’t locate a previous workflow-runner,
+    # or if the original runner had no notifications to preserve,
+    # skip the RerunRunner orchestration and retry the pipeline directly via the KFP API.
+    if (
+        submit_mode == mlrun_constants.WorkflowSubmitMode.direct
+        or not original_runner
+        or not original_runner.spec.notifications
+    ):
         mlrun.utils.logger.info("Direct-submitting retry to KFP API", run_id=run_id)
         run_id = await fastapi.concurrency.run_in_threadpool(
             services.api.crud.Pipelines().rerun_pipeline_direct,
@@ -202,15 +211,39 @@ async def retry_pipeline(
         return run_id
 
     try:
+        # Prevent two simultaneous retries for the same original workflow—
+        # we lock the original-runner row, mark it retrying, and block any
+        # parallel retry requests until it’s cleared.
+        rerun_index = await fastapi.concurrency.run_in_threadpool(
+            services.api.crud.Pipelines().lock_run_and_mark_retrying,
+            db_session=db_session,
+            project=project.metadata.name,
+            run_id=original_runner.metadata.uid,
+        )
+    except mlrun.errors.MLRunConflictError as exc:
+        try:
+            return await fastapi.concurrency.run_in_threadpool(
+                services.api.crud.Pipelines().get_running_rerun_runner,
+                db_session=db_session,
+                project=project.metadata.name,
+                original_workflow_id=original_workflow_id,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            raise mlrun.errors.MLRunConflictError(
+                "A retry is already in progress, but no existing rerun was found."
+            ) from exc
+
+    try:
         workflow_response: mlrun.common.schemas.WorkflowResponse = (
             await fastapi.concurrency.run_in_threadpool(
                 services.api.crud.Pipelines().rerun_pipeline_via_runner,
                 db_session=db_session,
-                run_id=run_id,
+                run_id=original_workflow_id,
                 project=project,
                 original_runner=original_runner,
                 auth_info=auth_info,
                 client_version=client_version,
+                rerun_index=rerun_index,
             )
         )
 
@@ -218,7 +251,7 @@ async def retry_pipeline(
     except Exception as error:
         mlrun.utils.logger.error(
             "Failed to rerun workflow",
-            run_id=run_id,
+            run_id=original_workflow_id,
             project=project.metadata.name,
             error=mlrun.errors.err_to_str(error),
         )

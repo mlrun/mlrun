@@ -125,6 +125,8 @@ default_config = {
                 "interval": "30",
                 # runs limit to fetch for retrying
                 "fetch_runs_limit": 1000,
+                # minutes until a run is considered stale and will be aborted
+                "staleness_threshold": 60 * 24 * 3,
             },
         },
         "projects": {
@@ -191,7 +193,8 @@ default_config = {
     },
     "v3io_framesd": "http://framesd:8080",
     "model_providers": {
-        "openai_default_model": "gpt-4",
+        "openai_default_model": "gpt-4o",
+        "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
     },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
@@ -404,11 +407,7 @@ default_config = {
                 #
                 # if set to "nil" or "none", nothing would be set
                 "modes": (
-                    "STRICT_TRANS_TABLES"
-                    ",NO_ZERO_IN_DATE"
-                    ",NO_ZERO_DATE"
-                    ",ERROR_FOR_DIVISION_BY_ZERO"
-                    ",NO_ENGINE_SUBSTITUTION",
+                    "STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
                 )
             },
         },
@@ -555,7 +554,7 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
-        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
+        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not perform any
         # run db operations.
         "nop_db": {
             # if set to true, will raise an error for trying to use run db functionality
@@ -1235,9 +1234,23 @@ class Config:
         """
         Get the default value for the ssl_redirect configuration.
         In Iguazio we always want to redirect to HTTPS, in other cases we don't.
+
         :return: True if we should redirect to HTTPS, False otherwise.
         """
         return self.is_running_on_iguazio()
+
+    @staticmethod
+    def get_run_retry_staleness_threshold_timedelta() -> timedelta:
+        """
+        Get the staleness threshold in timedelta for run retries.
+        This is used to determine if a run is stale and should be retried.
+
+        :return: The staleness threshold in timedelta.
+        """
+        staleness_threshold = int(
+            mlrun.mlconf.monitoring.runs.retry.staleness_threshold
+        )
+        return timedelta(minutes=staleness_threshold)
 
     def to_dict(self):
         return copy.deepcopy(self._cfg)

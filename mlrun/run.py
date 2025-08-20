@@ -141,7 +141,7 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
         else:
             is_remote = "://" in command
             data = get_object(command, secrets)
-            runtime = yaml.load(data, Loader=yaml.FullLoader)
+            runtime = yaml.safe_load(data)
             runtime = new_function(runtime=runtime)
 
         command = runtime.spec.command or ""
@@ -362,10 +362,13 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     return function
 
 
-def import_function_to_dict(url, secrets=None):
+def import_function_to_dict(
+    url: str,
+    secrets: Optional[dict] = None,
+) -> dict:
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
-    runtime = yaml.load(obj, Loader=yaml.FullLoader)
+    runtime = yaml.safe_load(obj)
     remote = "://" in url
 
     code = get_in(runtime, "spec.build.functionSourceCode")
@@ -388,6 +391,11 @@ def import_function_to_dict(url, secrets=None):
                 raise ValueError("exec path (spec.command) must be relative")
             url = url[: url.rfind("/") + 1] + code_file
             code = get_object(url, secrets)
+            code_file = _ensure_path_confined_to_base_dir(
+                base_directory=".",
+                relative_path=code_file,
+                error_message_on_escape="Path traversal detected in spec.command",
+            )
             dir = path.dirname(code_file)
             if dir:
                 makedirs(dir, exist_ok=True)
@@ -395,9 +403,16 @@ def import_function_to_dict(url, secrets=None):
                 fp.write(code)
         elif cmd:
             if not path.isfile(code_file):
-                # look for the file in a relative path to the yaml
-                slash = url.rfind("/")
-                if slash >= 0 and path.isfile(url[: url.rfind("/") + 1] + code_file):
+                slash_index = url.rfind("/")
+                if slash_index < 0:
+                    raise ValueError(f"no file in exec path (spec.command={code_file})")
+                base_dir = os.path.normpath(url[: slash_index + 1])
+                candidate_path = _ensure_path_confined_to_base_dir(
+                    base_directory=base_dir,
+                    relative_path=code_file,
+                    error_message_on_escape=f"exec file spec.command={code_file} is outside of allowed directory",
+                )
+                if path.isfile(candidate_path):
                     raise ValueError(
                         f"exec file spec.command={code_file} is relative, change working dir"
                     )
@@ -895,7 +910,7 @@ def _run_pipeline(
 def retry_pipeline(
     run_id: str,
     project: str,
-) -> str:
+) -> typing.Union[str, dict[str, str]]:
     """Retry a pipeline run.
 
     This function retries a previously executed pipeline run using the specified run ID. If the run is not in a
@@ -914,10 +929,33 @@ def retry_pipeline(
             "Please set the dbpath URL."
         )
 
-    pipeline_run_id = mldb.retry_pipeline(
+    # Invoke retry pipeline run. Depending on the context, this call returns either:
+    # 1. A simple string of a workflow-id, for direct retries or non-remote workflows, or
+    # 2. A dict payload representing a WorkflowResponse when rerunning remote workflows.
+    rerun_response = mldb.retry_pipeline(
         run_id=run_id,
         project=project,
     )
+    if isinstance(rerun_response, str):
+        pipeline_run_id = rerun_response
+    else:
+        rerun_response = mlrun.common.schemas.WorkflowResponse(**rerun_response)
+
+        def _fetch_workflow_id():
+            rerun = mldb.read_run(rerun_response.run_id, project)
+            workflow_id = rerun["metadata"]["labels"].get("workflow-id")
+            if not workflow_id:
+                raise mlrun.errors.MLRunRuntimeError("workflow-id label not set yet")
+            return workflow_id
+
+        pipeline_run_id = mlrun.utils.helpers.retry_until_successful(
+            backoff=3,
+            timeout=int(mlrun.mlconf.workflows.timeouts.remote),
+            logger=logger,
+            verbose=False,
+            _function=_fetch_workflow_id,
+        )
+
     if pipeline_run_id == run_id:
         logger.info(
             f"Retried pipeline run ID={pipeline_run_id}, check UI for progress."
@@ -1161,11 +1199,13 @@ def get_model_provider(
     raise_missing_schema_exception=True,
 ) -> ModelProvider:
     """get mlrun dataitem object (from path/url)"""
-    store_manager.set(secrets, db=db)
+    #  without caching secrets
+    store_manager.set(db=db)
     return store_manager.model_provider_object(
         url=url,
         default_invoke_kwargs=default_invoke_kwargs,
         raise_missing_schema_exception=raise_missing_schema_exception,
+        secrets=secrets,
     )
 
 
@@ -1233,3 +1273,21 @@ def wait_for_runs_completion(
         runs = running
 
     return completed
+
+
+def _ensure_path_confined_to_base_dir(
+    base_directory: str,
+    relative_path: str,
+    error_message_on_escape: str,
+) -> str:
+    """
+    Join `user_supplied_relative_path` to `allowed_base_directory`, normalise the result,
+    and guarantee it stays inside `allowed_base_directory`.
+    """
+    absolute_base_directory = path.abspath(base_directory)
+    absolute_candidate_path = path.abspath(
+        path.join(absolute_base_directory, relative_path)
+    )
+    if not absolute_candidate_path.startswith(absolute_base_directory + path.sep):
+        raise ValueError(error_message_on_escape)
+    return absolute_candidate_path

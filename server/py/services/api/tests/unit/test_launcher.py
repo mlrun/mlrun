@@ -229,13 +229,28 @@ def test_new_function_args_with_default_image_pull_secret(
                 match="Retry count must be at least 0, got -1",
             ),
         ),
+        (
+            10,
+            "7 days",
+            None,
+            None,
+            pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=re.escape(
+                    "Retry backoff base_delay 7 days * retry count 10 must be less than 259200 seconds, "
+                    "got 6048000 seconds"
+                ),
+            ),
+        ),
     ],
 )
 def test_validate_run_retry(
     count, base_delay, default_base_delay, min_base_delay, expectation
 ):
-    mlrun.mlconf.function.spec.retry.backoff.default_base_delay = default_base_delay
-    mlrun.mlconf.function.spec.retry.backoff.min_base_delay = min_base_delay
+    if default_base_delay:
+        mlrun.mlconf.function.spec.retry.backoff.default_base_delay = default_base_delay
+    if min_base_delay:
+        mlrun.mlconf.function.spec.retry.backoff.min_base_delay = min_base_delay
     launcher = services.api.launcher.ServerSideLauncher(
         auth_info=mlrun.common.schemas.AuthInfo()
     )
@@ -331,6 +346,9 @@ def test_run_status_retry_updates():
     assert run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] == str(
         enriched_run.status.retry_count
     )
+    assert enriched_run.status.retries is not None
+    assert len(enriched_run.status.retries) == 1
+    assert enriched_run.status.retries[0]["attempt"] == 0
 
     enriched_run.status.state = mlrun.common.runtimes.constants.RunStates.pending_retry
     enriched_run_2 = launcher._enrich_run(runtime=runtime, run=enriched_run)
@@ -342,6 +360,9 @@ def test_run_status_retry_updates():
     assert run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] == str(
         enriched_run_2.status.retry_count
     )
+    assert enriched_run_2.status.retries is not None
+    assert len(enriched_run_2.status.retries) == 2
+    assert enriched_run_2.status.retries[1]["attempt"] == 1
 
 
 @pytest.mark.parametrize(

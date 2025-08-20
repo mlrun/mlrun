@@ -17,7 +17,7 @@ import socket
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta
 from typing import Any, Literal, Optional, Union, cast
 
@@ -25,15 +25,25 @@ import pandas as pd
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.types
 import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.errors
 import mlrun.model_monitoring.api as mm_api
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
+import mlrun.model_monitoring.db._schedules as mm_schedules
 import mlrun.model_monitoring.helpers as mm_helpers
+import mlrun.utils
 from mlrun.serving.utils import MonitoringApplicationToDict
 from mlrun.utils import logger
+
+
+class ExistingDataHandling(mlrun.common.types.StrEnum):
+    fail_on_overlap = "fail_on_overlap"
+    skip_overlap = "skip_overlap"
+    delete_all = "delete_all"
 
 
 def _serialize_context_and_result(
@@ -183,14 +193,45 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         cls,
         *,
         write_output: bool,
+        application_name: str,
+        artifact_path: str,
         stream_profile: Optional[ds_profile.DatastoreProfile],
         project: "mlrun.MlrunProject",
-    ) -> Iterator[dict[str, list[tuple]]]:
-        endpoints_output: dict[str, list[tuple]] = defaultdict(list)
+    ) -> Iterator[
+        tuple[
+            dict[str, list[tuple]],
+            Optional[mm_schedules.ModelMonitoringSchedulesFileApplication],
+        ]
+    ]:
+        endpoints_output: dict[
+            str,
+            list[
+                tuple[
+                    mm_context.MonitoringApplicationContext,
+                    Union[
+                        mm_results.ModelMonitoringApplicationResult,
+                        mm_results.ModelMonitoringApplicationMetric,
+                        list[
+                            Union[
+                                mm_results.ModelMonitoringApplicationResult,
+                                mm_results.ModelMonitoringApplicationMetric,
+                                mm_results._ModelMonitoringApplicationStats,
+                            ]
+                        ],
+                    ],
+                ]
+            ],
+        ] = defaultdict(list)
+        application_schedules = nullcontext()
         if write_output:
             cls._check_writer_is_up(project)
+            application_schedules = (
+                mm_schedules.ModelMonitoringSchedulesFileApplication(
+                    artifact_path, application=application_name
+                )
+            )
         try:
-            yield endpoints_output
+            yield endpoints_output, application_schedules.__enter__()
         finally:
             if write_output:
                 logger.debug(
@@ -206,17 +247,41 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     profile=stream_profile,
                 )
                 for endpoint_id, outputs in endpoints_output.items():
+                    writer_events = []
+                    for ctx, res in outputs:
+                        if isinstance(res, list):
+                            writer_events.extend(
+                                _serialize_context_and_result(
+                                    context=ctx, result=sub_res
+                                )
+                                for sub_res in res
+                            )
+                        else:
+                            writer_events.append(
+                                _serialize_context_and_result(context=ctx, result=res)
+                            )
                     writer_stream.push(
-                        [
-                            _serialize_context_and_result(context=ctx, result=res)
-                            for ctx, res in outputs
-                        ],
+                        writer_events,
                         partition_key=endpoint_id,
                     )
                 logger.debug(
                     "Pushed the data to all the relevant model endpoints successfully",
                     endpoints_output=endpoints_output,
                 )
+
+                logger.debug(
+                    "Saving the application schedules",
+                    application_name=application_name,
+                )
+                application_schedules.__exit__(None, None, None)
+
+    @classmethod
+    def _get_application_name(cls, context: "mlrun.MLClientCtx") -> str:
+        """Get the application name from the context via the function URI"""
+        _, application_name, _, _ = mlrun.common.helpers.parse_versioned_object_uri(
+            context.to_dict().get("spec", {}).get("function", "")
+        )
+        return application_name
 
     def _handler(
         self,
@@ -230,6 +295,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[str] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
+        existing_data_handling: ExistingDataHandling = ExistingDataHandling.fail_on_overlap,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ):
         """
@@ -250,6 +316,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 "working with endpoints, without any custom data-frame input"
             )
 
+        application_name = self._get_application_name(context)
+
         feature_stats = (
             mm_api.get_sample_set_statistics(reference_data)
             if reference_data is not None
@@ -257,8 +325,12 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         )
 
         with self._push_to_writer(
-            write_output=write_output, stream_profile=stream_profile, project=project
-        ) as endpoints_output:
+            write_output=write_output,
+            stream_profile=stream_profile,
+            application_name=application_name,
+            artifact_path=context.artifact_path,
+            project=project,
+        ) as (endpoints_output, application_schedules):
 
             def call_do_tracking(event: Optional[dict] = None):
                 nonlocal endpoints_output
@@ -268,7 +340,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 monitoring_context = (
                     mm_context.MonitoringApplicationContext._from_ml_ctx(
                         event=event,
-                        application_name=self.__class__.__name__,
+                        application_name=application_name,
                         context=context,
                         project=project,
                         sample_df=sample_data,
@@ -285,10 +357,34 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 resolved_endpoints = self._handle_endpoints_type_evaluate(
                     project=project, endpoints=endpoints
                 )
-                for window_start, window_end in self._window_generator(
-                    start, end, base_period
+                if (
+                    write_output
+                    and existing_data_handling == ExistingDataHandling.delete_all
                 ):
-                    for endpoint_name, endpoint_id in resolved_endpoints:
+                    endpoint_ids = [
+                        endpoint_id for _, endpoint_id in resolved_endpoints
+                    ]
+                    context.logger.info(
+                        "Deleting all the application data before running the application",
+                        application_name=application_name,
+                        endpoint_ids=endpoint_ids,
+                    )
+                    self._delete_application_data(
+                        project_name=project.name,
+                        application_name=application_name,
+                        endpoint_ids=endpoint_ids,
+                        application_schedules=application_schedules,
+                    )
+                for endpoint_name, endpoint_id in resolved_endpoints:
+                    for window_start, window_end in self._window_generator(
+                        start=start,
+                        end=end,
+                        base_period=base_period,
+                        application_schedules=application_schedules,
+                        endpoint_id=endpoint_id,
+                        application_name=application_name,
+                        existing_data_handling=existing_data_handling,
+                    ):
                         result = call_do_tracking(
                             event={
                                 mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
@@ -370,8 +466,122 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
 
     @staticmethod
+    def _validate_and_get_window_length(
+        *, base_period: int, start_dt: datetime, end_dt: datetime
+    ) -> timedelta:
+        if not isinstance(base_period, int) or base_period <= 0:
+            raise mlrun.errors.MLRunValueError(
+                "`base_period` must be a nonnegative integer - the number of minutes in a monitoring window"
+            )
+
+        window_length = timedelta(minutes=base_period)
+
+        full_interval_length = end_dt - start_dt
+        remainder = full_interval_length % window_length
+        if remainder:
+            if full_interval_length < window_length:
+                extra_msg = (
+                    "The `base_period` is longer than the difference between `end` and `start`: "
+                    f"{full_interval_length}. Consider not specifying `base_period`."
+                )
+            else:
+                extra_msg = (
+                    f"Consider changing the `end` time to `end`={end_dt - remainder}"
+                )
+            raise mlrun.errors.MLRunValueError(
+                "The difference between `end` and `start` must be a multiple of `base_period`: "
+                f"`base_period`={window_length}, `start`={start_dt}, `end`={end_dt}. "
+                f"{extra_msg}"
+            )
+        return window_length
+
+    @staticmethod
+    def _validate_monotonically_increasing_data(
+        *,
+        application_schedules: Optional[
+            mm_schedules.ModelMonitoringSchedulesFileApplication
+        ],
+        endpoint_id: str,
+        start_dt: datetime,
+        end_dt: datetime,
+        base_period: Optional[int],
+        application_name: str,
+        existing_data_handling: ExistingDataHandling,
+    ) -> datetime:
+        """Make sure that the (app, endpoint) pair doesn't write output before the last analyzed window"""
+        if application_schedules:
+            last_analyzed = application_schedules.get_endpoint_last_analyzed(
+                endpoint_id
+            )
+            if last_analyzed:
+                if start_dt < last_analyzed:
+                    if existing_data_handling == ExistingDataHandling.skip_overlap:
+                        if last_analyzed < end_dt and base_period is None:
+                            logger.warn(
+                                "Setting the start time to last_analyzed since the original start time precedes "
+                                "last_analyzed",
+                                original_start=start_dt,
+                                new_start=last_analyzed,
+                                application_name=application_name,
+                                endpoint_id=endpoint_id,
+                            )
+                            start_dt = last_analyzed
+                        else:
+                            raise mlrun.errors.MLRunValueError(
+                                "The start time for the application and endpoint precedes the last analyzed time: "
+                                f"{start_dt=}, {last_analyzed=}, {application_name=}, {endpoint_id=}. "
+                                "Writing data out of order is not supported, and the start time could not be "
+                                "dynamically reset, as last_analyzed is later than the given end time or that "
+                                f"base_period was specified ({end_dt=}, {base_period=})."
+                            )
+                    else:
+                        raise mlrun.errors.MLRunValueError(
+                            "The start time for the application and endpoint precedes the last analyzed time: "
+                            f"{start_dt=}, {last_analyzed=}, {application_name=}, {endpoint_id=}. "
+                            "Writing data out of order is not supported. You should change the start time to "
+                            f"'{last_analyzed}' or later."
+                        )
+            else:
+                logger.debug(
+                    "The application is running on the endpoint for the first time",
+                    endpoint_id=endpoint_id,
+                    start_dt=start_dt,
+                    application_name=application_name,
+                )
+        return start_dt
+
+    @staticmethod
+    def _delete_application_data(
+        project_name: str,
+        application_name: str,
+        endpoint_ids: list[str],
+        application_schedules: Optional[
+            mm_schedules.ModelMonitoringSchedulesFileApplication
+        ],
+    ) -> None:
+        mlrun.get_run_db().delete_model_monitoring_metrics(
+            project=project_name,
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        if application_schedules:
+            application_schedules.delete_endpoints_last_analyzed(
+                endpoint_uids=endpoint_ids
+            )
+
+    @classmethod
     def _window_generator(
-        start: Optional[str], end: Optional[str], base_period: Optional[int]
+        cls,
+        *,
+        start: Optional[str],
+        end: Optional[str],
+        base_period: Optional[int],
+        application_schedules: Optional[
+            mm_schedules.ModelMonitoringSchedulesFileApplication
+        ],
+        endpoint_id: str,
+        application_name: str,
+        existing_data_handling: ExistingDataHandling,
     ) -> Iterator[tuple[Optional[datetime], Optional[datetime]]]:
         if start is None or end is None:
             # A single window based on the `sample_data` input - see `_handler`.
@@ -381,20 +591,37 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)
 
-        if base_period is None:
-            yield start_dt, end_dt
-            return
-
-        if not isinstance(base_period, int) or base_period <= 0:
-            raise mlrun.errors.MLRunValueError(
-                "`base_period` must be a nonnegative integer - the number of minutes in a monitoring window"
+        if existing_data_handling != ExistingDataHandling.delete_all:
+            start_dt = cls._validate_monotonically_increasing_data(
+                application_schedules=application_schedules,
+                endpoint_id=endpoint_id,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                base_period=base_period,
+                application_name=application_name,
+                existing_data_handling=existing_data_handling,
             )
 
-        window_length = timedelta(minutes=base_period)
+        if base_period is None:
+            yield start_dt, end_dt
+            if application_schedules:
+                application_schedules.update_endpoint_last_analyzed(
+                    endpoint_uid=endpoint_id, last_analyzed=end_dt
+                )
+            return
+
+        window_length = cls._validate_and_get_window_length(
+            base_period=base_period, start_dt=start_dt, end_dt=end_dt
+        )
+
         current_start_time = start_dt
         while current_start_time < end_dt:
             current_end_time = min(current_start_time + window_length, end_dt)
             yield current_start_time, current_end_time
+            if application_schedules:
+                application_schedules.update_endpoint_last_analyzed(
+                    endpoint_uid=endpoint_id, last_analyzed=current_end_time
+                )
             current_start_time = current_end_time
 
     @classmethod
@@ -446,6 +673,42 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         return f"{handler_to_class}::{cls._handler.__name__}"
 
     @classmethod
+    def _determine_job_name(
+        cls,
+        *,
+        func_name: Optional[str],
+        class_handler: Optional[str],
+        handler_to_class: str,
+    ) -> str:
+        """
+        Determine the batch app's job name. This name is used also as the application name,
+        which is retrieved in `_get_application_name`.
+        """
+        if func_name:
+            job_name = func_name
+        else:
+            if not class_handler:
+                class_name = cls.__name__
+            else:
+                class_name = handler_to_class.split(".")[-1].split("::")[0]
+
+            job_name = mlrun.utils.normalize_name(class_name)
+
+        if not mm_constants.APP_NAME_REGEX.fullmatch(job_name):
+            raise mlrun.errors.MLRunValueError(
+                "The function name does not comply with the required pattern "
+                f"`{mm_constants.APP_NAME_REGEX.pattern}`. "
+                "Please choose another `func_name`."
+            )
+        if not job_name.endswith(mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX):
+            job_name += mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+            mlrun.utils.logger.info(
+                'Changing function name - adding `"-batch"` suffix', func_name=job_name
+            )
+
+        return job_name
+
+    @classmethod
     def to_job(
         cls,
         *,
@@ -484,6 +747,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``end``, ``datetime``
         * ``base_period``, ``int``
         * ``write_output``, ``bool``
+        * ``existing_data_handling``, ``str``
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -502,7 +766,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   :py:class:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase`,
                                   is used.
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
-        :param func_name:         The name of the function. If not ``None``, the class name is used.
+        :param func_name:         The name of the function. If ``None``, the normalized class name is used
+                                  (:py:meth:`mlrun.utils.helpers.normalize_name`).
+                                  A ``"-batch"`` suffix is guaranteed to be added if not already there.
+                                  The function name is also used as the application name to use for the results.
         :param tag:               Tag for the function.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
@@ -523,12 +790,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         handler_to_class = class_handler or cls.__name__
         handler = cls.get_job_handler(handler_to_class)
 
-        if not class_handler:
-            class_name = cls.__name__
-        else:
-            class_name = handler_to_class.split(".")[-1].split("::")[-1]
-
-        job_name = func_name if func_name else class_name
+        job_name = cls._determine_job_name(
+            func_name=func_name,
+            class_handler=class_handler,
+            handler_to_class=handler_to_class,
+        )
 
         job = cast(
             mlrun.runtimes.KubejobRuntime,
@@ -567,6 +833,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
+        existing_data_handling: ExistingDataHandling = ExistingDataHandling.fail_on_overlap,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ) -> "mlrun.RunObject":
         """
@@ -578,7 +845,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         data to the application.
 
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
-        :param func_name:         The name of the function. If not ``None``, the class name is used.
+        :param func_name:         The name of the function. If ``None``, the normalized class name is used
+                                  (:py:meth:`mlrun.utils.helpers.normalize_name`).
+                                  A ``"-batch"`` suffix is guaranteed to be added if not already there.
+                                  The function name is also used as the application name to use for the results.
         :param tag:               Tag for the function.
         :param run_local:         Whether to run the function locally or remotely.
         :param auto_build:        Whether to auto build the function.
@@ -608,6 +878,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param start:             The start time of the endpoint's data, not included.
                                   If you want the model endpoint's data at ``start`` included, you need to subtract a
                                   small ``datetime.timedelta`` from it.
+                                  Make sure to include the time zone when constructing `datetime.datetime` objects
+                                  manually.
         :param end:               The end time of the endpoint's data, included.
                                   Please note: when ``start`` and ``end`` are set, they create a left-open time interval
                                   ("window") :math:`(\\operatorname{start}, \\operatorname{end}]` that excludes the
@@ -616,17 +888,31 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   taken in the window's data.
         :param base_period:       The window length in minutes. If ``None``, the whole window from ``start`` to ``end``
                                   is taken. If an integer is specified, the application is run from ``start`` to ``end``
-                                  in ``base_period`` length windows, except for the last window that ends at ``end`` and
-                                  therefore may be shorter:
+                                  in ``base_period`` length windows:
                                   :math:`(\\operatorname{start}, \\operatorname{start} + \\operatorname{base\\_period}],
                                   (\\operatorname{start} + \\operatorname{base\\_period},
                                   \\operatorname{start} + 2\\cdot\\operatorname{base\\_period}],
                                   ..., (\\operatorname{start} +
-                                  m\\cdot\\operatorname{base\\_period}, \\operatorname{end}]`,
-                                  where :math:`m` is some positive integer.
+                                  (m - 1)\\cdot\\operatorname{base\\_period}, \\operatorname{end}]`,
+                                  where :math:`m` is a positive integer and :math:`\\operatorname{end} =
+                                  \\operatorname{start} + m\\cdot\\operatorname{base\\_period}`.
+                                  Please note that the difference between ``end`` and ``start`` must be a multiple of
+                                  ``base_period``.
         :param write_output:      Whether to write the results and metrics to the time-series DB. Can be ``True`` only
                                   if ``endpoints`` are passed.
                                   Note: the model monitoring infrastructure must be up for the writing to work.
+        :param existing_data_handling:
+                                  How to handle the existing application data for the model endpoints when writing the
+                                  new data. Relevant only when ``write_output=True``. The default is
+                                  ``"fail_on_overlap"``. The options are:
+
+                                  - ``"fail_on_overlap"``: when the requested ``start`` time precedes the
+                                    ``end`` time of a previous run that also wrote to the database - an error is raised.
+                                  - ``"skip_overlap"``: when the previously described situation occurs, the relevant
+                                    time window is cut so that it starts at the earliest possible time after ``start``.
+                                  - ``"delete_all"``: delete all the data that was written by the application to the
+                                    model endpoints, regardless of the time window, and write the new data.
+
         :param stream_profile:    The stream datastore profile. It should be provided only when running locally and
                                   writing the outputs to the database (i.e., when both ``run_local`` and
                                   ``write_output`` are set to ``True``).
@@ -665,17 +951,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
                 params["end"] = end.isoformat() if isinstance(end, datetime) else end
                 params["base_period"] = base_period
-                params["write_output"] = write_output
-                if stream_profile:
-                    if not run_local:
-                        raise mlrun.errors.MLRunValueError(
-                            "Passing a `stream_profile` is relevant only when running locally"
-                        )
-                    if not write_output:
-                        raise mlrun.errors.MLRunValueError(
-                            "Passing a `stream_profile` is relevant only when writing the outputs"
-                        )
-                params["stream_profile"] = stream_profile
         elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(
                 "Custom `start` and `end` times or base_period are supported only with endpoints data"
@@ -684,6 +959,19 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             raise mlrun.errors.MLRunValueError(
                 "Writing the application output or passing `stream_profile` are supported only with endpoints data"
             )
+
+        params["write_output"] = write_output
+        params["existing_data_handling"] = existing_data_handling
+        if stream_profile:
+            if not run_local:
+                raise mlrun.errors.MLRunValueError(
+                    "Passing a `stream_profile` is relevant only when running locally"
+                )
+            if not write_output:
+                raise mlrun.errors.MLRunValueError(
+                    "Passing a `stream_profile` is relevant only when writing the outputs"
+                )
+        params["stream_profile"] = stream_profile
 
         inputs: dict[str, str] = {}
         for data, identifier in [

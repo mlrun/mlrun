@@ -17,7 +17,6 @@ import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
-from deprecated import deprecated
 from sqlalchemy.orm import Session
 
 import mlrun.alerts
@@ -77,6 +76,16 @@ class DBInterface(ABC):
 
     @abstractmethod
     def update_run(self, session, updates: dict, uid, project, iter=0):
+        pass
+
+    @abstractmethod
+    def set_run_retrying_status(
+        self,
+        session: Session,
+        project: str,
+        uid: str,
+        retrying: bool,
+    ) -> dict:
         pass
 
     @abstractmethod
@@ -325,51 +334,6 @@ class DBInterface(ABC):
 
         :return: An artifact dictionary.
         :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
-        """
-        pass
-
-    # TODO: Remove once data migration v5 is obsolete
-    @deprecated(
-        version="1.7.0",
-        reason="'store_artifact_v1' will be removed from this file in 1.10.0, use "
-        "'store_artifact' instead",
-        category=FutureWarning,
-    )
-    def store_artifact_v1(
-        self,
-        session,
-        key,
-        artifact,
-        uid,
-        project,
-        iter=None,
-        tag="",
-        tag_artifact=True,
-    ):
-        """
-        Store artifact v1 in the DB, this is the deprecated legacy artifact format
-        and is only left for testing purposes
-        """
-        pass
-
-    # TODO: Remove once data migration v5 is obsolete
-    @deprecated(
-        version="1.7.0",
-        reason="'read_artifact_v1' will be removed from this file in 1.10.0, use "
-        "'read_artifact' instead",
-        category=FutureWarning,
-    )
-    def read_artifact_v1(
-        self,
-        session,
-        key,
-        project,
-        tag="",
-        iter=None,
-    ):
-        """
-        Read artifact v1 from the DB, this is the deprecated legacy artifact format
-        and is only left for testing purposes
         """
         pass
 
@@ -672,24 +636,6 @@ class DBInterface(ABC):
         tag: Optional[str] = None,
         uid: Optional[str] = None,
     ) -> mlrun.common.schemas.FeatureSet:
-        pass
-
-    # TODO: remove in 1.10.0
-    @deprecated(
-        version="1.7.0",
-        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_features(
-        self,
-        session,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
     @abstractmethod
@@ -1382,6 +1328,7 @@ class DBInterface(ABC):
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
+        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime.datetime] = None,
         end: typing.Optional[datetime.datetime] = None,
@@ -1406,6 +1353,8 @@ class DBInterface(ABC):
         :param model_name:      The model name.
         :param model_tag:       The model tag.
         :param top_level:       Whether to return only top level model endpoints (1,2,4).
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
+                                both if set to None.
         :param labels:          The labels to filter by.
         :param start:           The start time to filter by.
         :param end:             The end time to filter by.

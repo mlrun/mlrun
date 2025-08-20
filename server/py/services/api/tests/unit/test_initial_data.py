@@ -68,29 +68,13 @@ def test_add_data_version_non_empty_db():
     services.api.initial_data.latest_data_version = original_latest_data_version
 
 
-def test_perform_data_migrations_from_first_version():
+def test_perform_data_migrations_from_initial_supported_version():
     db, db_session = _initialize_db_without_migrations()
 
-    # set version to 1
-    db.create_data_version(db_session, "1")
+    # set version to 5 as the minimum supported version from 1.10
+    db.create_data_version(db_session, "5")
 
     # keep a reference to the original functions, so we can restore them later
-    original_perform_version_2_data_migrations = (
-        services.api.initial_data._perform_version_2_data_migrations
-    )
-    services.api.initial_data._perform_version_2_data_migrations = unittest.mock.Mock()
-    original_perform_version_3_data_migrations = (
-        services.api.initial_data._perform_version_3_data_migrations
-    )
-    services.api.initial_data._perform_version_3_data_migrations = unittest.mock.Mock()
-    original_perform_version_4_data_migrations = (
-        services.api.initial_data._perform_version_4_data_migrations
-    )
-    services.api.initial_data._perform_version_4_data_migrations = unittest.mock.Mock()
-    original_perform_version_5_data_migrations = (
-        services.api.initial_data._perform_version_5_data_migrations
-    )
-    services.api.initial_data._perform_version_5_data_migrations = unittest.mock.Mock()
     original_perform_version_6_data_migrations = (
         services.api.initial_data._perform_version_6_data_migrations
     )
@@ -116,10 +100,6 @@ def test_perform_data_migrations_from_first_version():
     # calling again should not trigger migrations again, since we're already at the latest version
     services.api.initial_data._perform_data_migrations(db_session)
 
-    services.api.initial_data._perform_version_2_data_migrations.assert_called_once()
-    services.api.initial_data._perform_version_3_data_migrations.assert_called_once()
-    services.api.initial_data._perform_version_4_data_migrations.assert_called_once()
-    services.api.initial_data._perform_version_5_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_6_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_7_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_8_data_migrations.assert_called_once()
@@ -130,18 +110,6 @@ def test_perform_data_migrations_from_first_version():
     )
 
     # restore original functions
-    services.api.initial_data._perform_version_2_data_migrations = (
-        original_perform_version_2_data_migrations
-    )
-    services.api.initial_data._perform_version_3_data_migrations = (
-        original_perform_version_3_data_migrations
-    )
-    services.api.initial_data._perform_version_4_data_migrations = (
-        original_perform_version_4_data_migrations
-    )
-    services.api.initial_data._perform_version_5_data_migrations = (
-        original_perform_version_5_data_migrations
-    )
     services.api.initial_data._perform_version_6_data_migrations = (
         original_perform_version_6_data_migrations
     )
@@ -528,6 +496,24 @@ def test_init_system_id(
     assert system_id_after_second_init == system_id
 
 
+def test_system_id_initialized_from_scratch(monkeypatch: pytest.MonkeyPatch):
+    # This test ensures that calling init_data correctly initializes the system ID
+    monkeypatch.setattr(mlrun.mlconf, "system_id", None)
+
+    db, db_session = _initialize_db_without_schema()
+
+    # Run the init_data flow
+    services.api.initial_data.init_data()
+
+    # After init, system ID must be defined in config
+    config_system_id = mlrun.mlconf.system_id
+    assert config_system_id is not None
+
+    # Ensure it's persisted in the DB too
+    db_system_id = db.get_system_id(db_session)
+    assert db_system_id == config_system_id
+
+
 def test_ensure_latest_tag_for_artifacts():
     # This test verifies that the migration to ensure the "latest" tag is assigned correctly to artifacts works as
     # expected. The test creates a set of artifacts with different iteration numbers and tags:
@@ -708,6 +694,19 @@ def test_ensure_latest_tag_for_artifacts():
     assert artifact.tags[0].project == project1
     assert artifact.tags[0].obj_name == key1
     assert artifact.tags[0].obj_id == artifact_2_id
+
+
+def _initialize_db_without_schema() -> (
+    tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
+):
+    dsn = "sqlite:///:memory:?check_same_thread=false"
+    mlrun.mlconf.httpdb.dsn = dsn
+    framework.db.sqldb.sql_session._init_engine(dsn=dsn)
+    framework.utils.singletons.db.initialize_db()
+    db_session = framework.db.sqldb.sql_session.create_session(dsn=dsn)
+    db = framework.db.sqldb.db.SQLDB(dsn)
+    db.initialize(db_session)
+    return db, db_session
 
 
 def _initialize_db_without_migrations() -> (

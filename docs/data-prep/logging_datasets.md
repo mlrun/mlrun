@@ -56,8 +56,6 @@ project = new_project(project_name, project_path, init_git=True)
 
 # Target location for storing pipeline artifacts
 artifact_path = path.abspath("jobs")
-# MLRun DB path or API service URL
-mlconf.dbpath = mlconf.dbpath or "http://mlrun-api:8080"
 
 source_url = "https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv"
 

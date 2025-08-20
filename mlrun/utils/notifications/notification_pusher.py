@@ -308,7 +308,7 @@ class NotificationPusher(_NotificationPusherBase):
                 and retry_count >= max_retries
             ):
                 message += (
-                    "\nRetry limit reached — run has failed after all retry attempts."
+                    "\nRetry limit reached - run has failed after all retry attempts."
                 )
 
         severity = (

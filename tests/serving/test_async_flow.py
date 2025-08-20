@@ -13,15 +13,18 @@
 # limitations under the License.
 import pathlib
 import unittest.mock
+from copy import deepcopy
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, Union
 
 import pytest
 
 import mlrun
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact
+from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError
-from mlrun.serving import Model, ModelRunnerStep, ModelSelector, RouterStep
+from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
 from mlrun.utils import logger
 from tests.conftest import results
 
@@ -33,10 +36,17 @@ class _DummyStreamRaiser:
         raise ValueError("DummyStreamRaiser raises an error")
 
 
-def create_mocked_get_store_artifact(model_artifact):
+def create_mocked_get_store_artifact(
+    model_artifact: Union[ModelArtifact, LLMPromptArtifact],
+    origin_model: ModelArtifact = None,
+):
+    _model_artifact = origin_model
+
     def mocked_get_store_artifact(uri, **kwargs):
         if uri == model_artifact.uri:
             return model_artifact, None
+        elif uri == model_artifact.spec.parent_uri:
+            return _model_artifact, None
         else:
             raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
 
@@ -121,7 +131,7 @@ def test_on_error():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     chain = graph.to("Chain", name="s1")
-    chain.to("Raiser").error_handler(
+    chain.to("Raiser").respond().error_handler(
         name="catch", class_name="EchoError", full_event=True
     ).to("Chain", name="s3")
 
@@ -181,9 +191,22 @@ class MyModel(Model):
 
 
 class MyRemoteModel(Model):
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
+        return body
+
+    async def predict_async(self, body):
+        body["async_triggered"] = "Async predict was triggered."
+        return body
+
+
+class MyLLM(LLModel):
+    def predict(self, body, **kwargs):
+        body["url"] = self.model_artifact.model_url
+        body["default_config"] = self.model_artifact.default_config
+        body["model_configuration"] = kwargs.get("model_configuration")
+        body["prompt"] = kwargs.get("messages")
         return body
 
 
@@ -515,8 +538,17 @@ def _test_model_runner_raise_error_output(
 
 
 class MyModelSelector(ModelSelector):
-    def select(self, event, available_models: list[Model]) -> Optional[list[str]]:
-        return event.body.get("models")
+    def __init__(self, models: Union[list[str], list[Model]]):
+        super().__init__()
+        self.models = deepcopy(models)
+
+    def select(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        current_models = event.body.get("models")
+        if current_models and set(current_models).issubset(set(self.models)):
+            return current_models
+        return []
 
 
 @pytest.mark.parametrize(
@@ -535,7 +567,7 @@ def test_model_runner_with_selector(execution_mechanism: str):
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(
         name="my_model_runner",
-        model_selector="MyModelSelector",
+        model_selector=MyModelSelector(models=["m1", "m2"]),
     )
     model_runner_step.add_model(
         endpoint_name=m1.name,
@@ -552,7 +584,7 @@ def test_model_runner_with_selector(execution_mechanism: str):
     server = function.to_mock_server()
     try:
         # both models
-        resp = server.test(body={"n": 1})
+        resp = server.test(body={"n": 1, "models": ["m1", "m2"]})
         expected = {
             "m1": {"n": 2},
             "m2": {"n": 3},
@@ -617,6 +649,60 @@ def test_model_runner_with_remote_model():
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )
+    async_model_runner_step = ModelRunnerStep(name="my_async_model_runner")
+    async_model_runner_step.add_model(
+        model_class="MyRemoteModel",
+        execution_mechanism="asyncio",
+        endpoint_name="my_async_endpoint",
+        model_artifact=model_artifact,
+    )
+
+    graph.to(model_runner_step).to(async_model_runner_step).respond()
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+    assert (
+        "my_async_endpoint" in graph.model_endpoints_names
+    ), "async model endpoint name not in graph"
+    # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+    # Mocked function used to verify artifact URI is passed correctly.
+
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
+    ):
+        server = function.to_mock_server()
+    try:
+        resp = server.test(body={"prompt": "What is the capital of france?"})
+        assert resp["default_config"] == {"model_version": "4"}
+        assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+        assert resp["prompt"] == "What is the capital of france?"
+        assert resp["async_triggered"] == "Async predict was triggered."
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_with_remote_shared_model():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.add_shared_model(
+        name="my_model",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+        shared_model_name="my_model",
+    )
     graph.to(model_runner_step).respond()
     assert (
         "my_endpoint" in graph.model_endpoints_names
@@ -625,7 +711,7 @@ def test_model_runner_with_remote_model():
     # Mocked function used to verify artifact URI is passed correctly.
 
     with unittest.mock.patch(
-        "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
+        "mlrun.store_manager.get_store_artifact",
         side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
@@ -636,6 +722,58 @@ def test_model_runner_with_remote_model():
         assert resp["prompt"] == "What is the capital of france?"
     finally:
         server.wait_for_completion()
+
+
+def test_add_model_after_adding_the_mrs_to_the_graph():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.add_shared_model(
+        name="my_model",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+        shared_model_name="my_model",
+    )
+    model_runner_step_2 = graph.to(model_runner_step).respond()
+    model_runner_step.add_model(
+        endpoint_name="my_endpoint-2",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+    assert (
+        "my_endpoint-2" not in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+    model_runner_step_2.add_model(
+        endpoint_name="my_endpoint-2",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+    assert (
+        "my_endpoint-2" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
 
 
 def test_get_local_model_path():
@@ -664,3 +802,206 @@ def test_get_local_model_path():
         assert resp["result"] == "123"
     finally:
         server.wait_for_completion()
+
+
+@pytest.mark.parametrize("raise_exception", [True, False])
+@pytest.mark.parametrize("shared", [True, False])
+@pytest.mark.parametrize("model_uri", [True, False])
+@pytest.mark.parametrize("llm", [None, "uri_based", "object_based"])
+def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
+    project = mlrun.new_project("get-model-path-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    llm_artifact = None
+    if llm:
+        llm_artifact = project.log_llm_prompt(
+            "my_llm",
+            prompt_template=[
+                {"role": "user", "content": "What is the capital city of {country}?"}
+            ],
+            model_artifact=model_artifact
+            if llm == "object_based"
+            else model_artifact.uri,
+            prompt_legend={"country": {"field": None, "description": "Great"}},
+        )
+
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(
+            model_artifact=llm_artifact or model_artifact, origin_model=model_artifact
+        ),
+    ):
+        if model_uri:
+            model_artifact_param = model_artifact.uri
+            llm_artifact_param = llm_artifact.uri if llm_artifact else None
+        else:
+            model_artifact_param = model_artifact
+            llm_artifact_param = llm_artifact
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(
+            name="model-runner", raise_exception=raise_exception
+        )
+        model_class = "MyLLM" if llm else "MyRemoteModel"
+        if shared:
+            graph.add_shared_model(
+                name="shared-model",
+                execution_mechanism="naive",
+                model_class=model_class,
+                model_artifact=model_artifact_param,
+            )
+            model_runner_step.add_shared_model_proxy(
+                endpoint_name="my-model",
+                shared_model_name="shared-model",
+                model_artifact=llm_artifact_param or model_artifact_param,
+            )
+        else:
+            model_runner_step.add_model(
+                model_class=model_class,
+                execution_mechanism="naive",
+                endpoint_name="my-model",
+                model_artifact=llm_artifact_param or model_artifact_param,
+            )
+
+        graph.to(model_runner_step).respond()
+
+        server = function.to_mock_server()
+        try:
+            resp = server.test(body={"country": "france"})
+            assert resp["default_config"] == {"model_version": "4"}
+            assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+            if llm:
+                assert resp["prompt"] == [
+                    {"role": "user", "content": "What is the capital city of france?"}
+                ]
+            server.test(body={"country": "france"})
+        finally:
+            server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    "legend",
+    (
+        None,
+        {"country": {"field": None, "description": "Great"}},
+        {
+            "country": {"field": None, "description": "Great"},
+            "Not exists": {"field": "country", "description": "Great"},
+        },
+        {
+            "country": {"field": "country", "description": "Great"},
+            "profession": {"field": "profession", "description": "Great"},
+            "some_other_ph": {"field": "some_other_ph", "description": "Great"},
+        },
+        {
+            "country": {"field": "not-exist", "description": "Great"},
+        },
+        {
+            "country": {"field": "state", "description": "Great"},
+        },
+    ),
+)
+def test_llm_with_missing_legends(legend: dict):
+    project = mlrun.new_project("get-model-path-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    llm_artifact = project.log_llm_prompt(
+        "my_llm",
+        prompt_template=[
+            {
+                "role": "user",
+                "content": "What is the capital city of {country} ?{some_other_ph}",
+            },
+            {"role": "system", "content": "you are answer as {profession}"},
+        ],
+        model_artifact=model_artifact.uri,
+        prompt_legend=legend,
+    )
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(
+            model_artifact=llm_artifact, origin_model=model_artifact
+        ),
+    ):
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="model-runner", raise_exception=True)
+
+        model_runner_step.add_model(
+            model_class="MyLLM",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+            model_artifact=llm_artifact,
+        )
+        graph.to(model_runner_step).respond()
+        server = function.to_mock_server()
+        if (
+            legend is not None
+            and "country" in legend
+            and legend["country"]["field"] == "state"
+        ):
+            # If the legend is set to use state, we expect the prompt to use state
+            # and not country.
+            expected_prompt = [
+                {"role": "user", "content": "What is the capital city of Israel ?!"},
+                {"role": "system", "content": "you are answer as Data scientist"},
+            ]
+        else:
+            expected_prompt = [
+                {"role": "user", "content": "What is the capital city of France ?!"},
+                {"role": "system", "content": "you are answer as Data scientist"},
+            ]
+        resp = server.test(
+            body={
+                "country": "France",
+                "some_other_ph": "!",
+                "profession": "Data scientist",
+                "state": "Israel",
+            }
+        )
+        server.wait_for_completion()
+        assert resp["prompt"] == expected_prompt
+
+
+def test_llm_with_missing_llm_prompt():
+    project = mlrun.new_project("get-model-path-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
+    ):
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="model-runner", raise_exception=True)
+
+        model_runner_step.add_model(
+            model_class="MyLLM",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+            model_artifact=model_artifact,
+        )
+        graph.to(model_runner_step).respond()
+        server = function.to_mock_server()
+        expected_prompt = [
+            {"role": "user", "content": "What is the capital city of Israel ?!"},
+            {"role": "system", "content": "you are answer as Data scientist"},
+        ]
+
+        resp = server.test(
+            body={
+                "messages": expected_prompt,
+            }
+        )
+        server.wait_for_completion()
+        assert resp["prompt"] == expected_prompt

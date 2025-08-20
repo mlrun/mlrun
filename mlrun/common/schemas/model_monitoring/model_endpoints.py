@@ -28,6 +28,7 @@ from .constants import (
     FQN_REGEX,
     MODEL_ENDPOINT_ID_PATTERN,
     PROJECT_PATTERN,
+    EndpointMode,
     EndpointType,
     ModelEndpointMonitoringMetricType,
     ModelMonitoringMode,
@@ -118,6 +119,7 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
     project: constr(regex=PROJECT_PATTERN)
     endpoint_type: EndpointType = EndpointType.NODE_EP
     uid: Optional[constr(regex=MODEL_ENDPOINT_ID_PATTERN)]
+    mode: EndpointMode = EndpointMode.REAL_TIME
 
     @classmethod
     def mutable_fields(cls):
@@ -336,8 +338,8 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
 
 class ApplicationBaseRecord(BaseModel):
     type: Literal["metric", "result"]
-    time: datetime
     value: float
+    time: Optional[datetime] = None
 
 
 class ApplicationResultRecord(ApplicationBaseRecord):
@@ -350,6 +352,16 @@ class ApplicationResultRecord(ApplicationBaseRecord):
 class ApplicationMetricRecord(ApplicationBaseRecord):
     metric_name: str
     type: Literal["metric"] = "metric"
+
+
+class _DriftBin(NamedTuple):
+    timestamp: datetime
+    count_suspected: int
+    count_detected: int
+
+
+class ModelEndpointDriftValues(BaseModel):
+    values: list[_DriftBin]
 
 
 def _mapping_attributes(

@@ -31,6 +31,7 @@ import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
 from mlrun import mlconf
+from mlrun.common.db.dialects import Dialects
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 
@@ -84,7 +85,7 @@ class Service(framework.service.Service):
             (services.api.crud.Functions, "list_functions"),
             (services.api.crud.Artifacts, "list_artifacts"),
         ]
-        self._retry_in_progress_run_uids = set()
+        self._retry_in_progress_run_uids: dict[str, datetime.datetime] = {}
 
     async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
@@ -112,30 +113,7 @@ class Service(framework.service.Service):
             services.api.initial_data.update_default_configuration_data()
             await self._start_periodic_functions()
 
-        # For the worker, fetch and sync the system metadata from the database to ensure that the config values are
-        # correctly set.
-        else:
-            self._sync_system_metadata()
         await self._move_mounted_services_to_online()
-
-    def _sync_system_metadata(self):
-        """
-        Sync system metadata values from the database to the config.
-        Currently, it synchronizes only the system ID but can be extended for other new metadata values in the future.
-        """
-
-        db_session = create_session()
-        try:
-            db = framework.db.sqldb.db.SQLDB()
-
-            system_id = db.get_system_id(db_session)
-            if system_id is not None:
-                self._logger.debug(
-                    "Existing system ID found in the database", system_id=system_id
-                )
-                mlrun.mlconf.system_id = system_id
-        finally:
-            close_session(db_session)
 
     async def _base_handler(
         self,
@@ -159,6 +137,7 @@ class Service(framework.service.Service):
 
     async def _custom_setup_service(self):
         initialize_logs_dir()
+        await fastapi.concurrency.run_in_threadpool(self._initialize_data)
 
     async def _custom_teardown_service(self):
         if get_project_member():
@@ -586,6 +565,10 @@ class Service(framework.service.Service):
             )
 
     def _start_periodic_partition_management(self):
+        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+            self._logger.debug("Partition management not supported for SQLite")
+            return
+
         for table_name, retention_days in mlconf.object_retentions.items():
             self._logger.info(
                 f"Starting periodic partition management for table {table_name}",
@@ -963,6 +946,8 @@ class Service(framework.service.Service):
         self._logger.debug("Retrying jobs with retry policy configured")
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         fetch_runs_limit = int(mlconf.monitoring.runs.retry.fetch_runs_limit)
+        stale_after = mlconf.get_run_retry_staleness_threshold_timedelta()
+        now = datetime.datetime.now(datetime.timezone.utc)
         try:
             offset = 0
             while runs := await fastapi.concurrency.run_in_threadpool(
@@ -982,10 +967,34 @@ class Service(framework.service.Service):
                 for run_dict in runs:
                     run = mlrun.RunObject.from_dict(run_dict)
                     if run.metadata.uid in self._retry_in_progress_run_uids:
-                        self._logger.debug(
-                            "Run is already being retried, skipping",
-                            run_uid=run.metadata.uid,
-                        )
+                        first_retry_time = self._retry_in_progress_run_uids[
+                            run.metadata.uid
+                        ]
+                        if now - first_retry_time > stale_after:
+                            self._logger.warning(
+                                "Run is stale, aborting retry",
+                                run_uid=run.metadata.uid,
+                                first_retry_time=first_retry_time,
+                                now=now,
+                            )
+                            futures.append(
+                                fastapi.concurrency.run_in_threadpool(
+                                    framework.db.session.run_function_with_new_db_session,
+                                    services.api.crud.Runs().abort_run,
+                                    project=run.metadata.project,
+                                    uid=run.metadata.uid,
+                                    run_updates={
+                                        "status.status_text": "Retry aborted: run was pending retry for more than "
+                                        f"{mlrun.mlconf.monitoring.runs.retry.staleness_threshold} minutes",
+                                    },
+                                    run=run_dict,
+                                )
+                            )
+                        else:
+                            self._logger.debug(
+                                "Run is already being retried, skipping",
+                                run_uid=run.metadata.uid,
+                            )
                         continue
 
                     # retry_count may be None on the first attempt
@@ -1041,7 +1050,9 @@ class Service(framework.service.Service):
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     def _submit_run_for_retry(self, run: mlrun.RunObject):
-        self._retry_in_progress_run_uids.add(run.metadata.uid)
+        self._retry_in_progress_run_uids[run.metadata.uid] = datetime.datetime.now(
+            datetime.timezone.utc
+        )
         loop = asyncio.get_running_loop()
 
         # Calculate the delay based on the retry policy
@@ -1076,7 +1087,7 @@ class Service(framework.service.Service):
                 "task": run.to_dict(),
             }
             framework.db.session.run_function_with_new_db_session(
-                framework.api.utils.submit_run_sync,
+                framework.api.utils.submit_run_from_body,
                 # auth is already masked on the function
                 mlrun.common.schemas.AuthInfo(),
                 # TODO: pass values for param_file_secrets ?
@@ -1084,7 +1095,7 @@ class Service(framework.service.Service):
             )
 
         finally:
-            self._retry_in_progress_run_uids.discard(run.metadata.uid)
+            self._retry_in_progress_run_uids.pop(run.metadata.uid)
 
 
 if __name__ == "__main__":

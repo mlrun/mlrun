@@ -53,7 +53,8 @@ mlrun.egg-info/
 mlrun/utils/version/version.json
 Dockerfile.mlrun-test-nb
 **/Dockerfile.dockerignore
-
+server/common/compile-schemas-go
+server/py/schemas/proto/proto/
 # Dask worker spaces
 dask-worker-space/
 
@@ -108,3 +109,5 @@ server/py/schemas/proto/*pb2*.py
 server/api
 tests/coverage_reports/*.xml
 tests/coverage_reports/*.html
+**/test-openai.yml
+**/test-huggingface.yml

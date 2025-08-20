@@ -400,7 +400,6 @@ def test_run_status_retry_updates(rundb_mock):
     with pytest.raises(mlrun.runtimes.RunError) as exc:
         function.run(
             runspec={"spec": {"retry": {"count": 10}}},
-            local=True,
             handler="func_with_default",
         )
         assert "Run is pending retry, error: kwargs is empty" in str(exc)
@@ -414,7 +413,6 @@ def test_run_status_retry_updates(rundb_mock):
     with pytest.raises(mlrun.runtimes.RunError) as exc:
         function.run(
             runspec=result,
-            local=True,
             handler="func_with_default",
         )
         assert "Run is pending retry, error: kwargs is empty" in str(exc)

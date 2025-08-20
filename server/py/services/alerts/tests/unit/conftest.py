@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+from collections.abc import Iterator
 
 import fastapi
 import pytest
@@ -29,7 +30,7 @@ assets_path = tests_root_directory.joinpath("assets")
 
 class TestAlertsBase(TestServiceBase):
     @pytest.fixture(scope="module")
-    def app(self) -> fastapi.FastAPI:
+    def app(self) -> Iterator[fastapi.FastAPI]:
         mlconf.services.service_name = "alert"
         mlconf.services.hydra.services = ""
         yield services.alerts.daemon.app()

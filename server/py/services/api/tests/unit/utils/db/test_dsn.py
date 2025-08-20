@@ -11,16 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+import typing
 
 import pytest
 
-import framework.utils.db.utils
+import framework.utils.db.dsn
 
 
 @pytest.mark.parametrize(
-    "http_dsn, expected_output",
+    "dsn, expected_output",
     [
+        (
+            "mysql+pymysql://test_user1:p~Xfi70|-ZM#U~Rf_5Ht2N<:ha9?@mlrun-test-db-instance.cucgqhjk51rp.us-east-2.rds.amazonaws.com:3306/mlrundb_vmdev214.lab.iguazeng.com",
+            {
+                "username": "test_user1",
+                "password": "p~Xfi70|-ZM#U~Rf_5Ht2N<:ha9?",
+                "host": "mlrun-test-db-instance.cucgqhjk51rp.us-east-2.rds.amazonaws.com",
+                "port": 3306,
+                "database": "mlrundb_vmdev214.lab.iguazeng.com",
+            },
+        ),
         (
             "mysql+pymysql://root:pass@localhost:3307/mlrun",
             {
@@ -116,15 +126,70 @@ import framework.utils.db.utils
         ("mysql+pymysql://root:pw@localhost:70000/mlrun", None),
         ("oracle://root:pw@localhost:1521/xe", None),
         ("mysql+pymysql://root:pw@:3306/mlrun", None),
+        # Encoded '@' in password
+        (
+            "mysql+pymysql://user:p%40ssw%40rd@db-host:3306/mlrun",
+            {
+                "username": "user",
+                "password": "p@ssw@rd",
+                "host": "db-host",
+                "port": 3306,
+                "database": "mlrun",
+            },
+        ),
+        # Password present, username missing → invalid
+        ("mysql+pymysql://:pw@localhost:3306/mlrun", None),
+        # No credentials & no '@' → invalid
+        ("mysql+pymysql://localhost:3306/mlrun", None),
+        # Non‑numeric port text → invalid
+        ("mysql+pymysql://root:pw@localhost:abC/mlrun", None),
+        # Missing port entirely → invalid
+        ("mysql+pymysql://root:pw@localhost/mlrun", None),
+        # MySQL with query params (valid, configs stored separately)
+        (
+            "mysql+pymysql://root:pw@db:3306/mlrun?charset=utf8mb4&ssl=true",
+            {
+                "username": "root",
+                "password": "pw",
+                "host": "db",
+                "port": 3306,
+                "database": "mlrun",
+            },
+        ),
+        # Postgres dialect
+        (
+            "postgresql://alice:pw@pg-host:5432/analytics",
+            {
+                "username": "alice",
+                "password": "pw",
+                "host": "pg-host",
+                "port": 5432,
+                "database": "analytics",
+            },
+        ),
+        # SQLite path traversal attempt is invalid
+        ("sqlite:///../etc/passwd", None),
+        # SQLite file with query string (valid)
+        (
+            "sqlite:///var/data/app.db?mode=ro&cache=shared",
+            {
+                "username": None,
+                "password": None,
+                "host": None,
+                "port": None,
+                "database": None,
+            },
+        ),
+        # password contains both %40 (encoded) and raw '@'
+        ("mysql+pymysql://u:foo%40ba@r@host:3306/db", None),  # should be invalid
     ],
 )
-def test_get_dsn_data(
-    http_dsn: str,
-    expected_output: Optional[dict],
+def test_parse_dsn(
+    dsn: str,
+    expected_output: typing.Optional[dict],
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setenv("MLRUN_HTTPDB__DSN", http_dsn)
-    parsed = framework.utils.db.utils.DBUtil.get_parsed_dsn()
+    parsed = framework.utils.db.dsn.Dsn(dsn)
 
     if expected_output is None:
         assert not parsed.is_valid()

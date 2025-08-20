@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import inspect
+import io
 import os
 import shutil
+import sys
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -709,7 +711,7 @@ class RunDBMock:
         return mlrun.common.schemas.model_monitoring.ModelEndpoint(
             metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
                 name=name,
-                project=project,
+                project=project or "project",
                 labels={},
                 uid=model_uid,
             ),
@@ -739,6 +741,7 @@ class RunDBMock:
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
+        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
@@ -911,3 +914,12 @@ def remote_builder_mock(monkeypatch):
         mlrun, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
     )
     return builder_mock
+
+
+@pytest.fixture
+def logs_stream():
+    """Fixture to capture logs for verifying console output in tests."""
+    stream = io.StringIO()
+    mlrun.utils.logger.replace_handler_stream("default", stream)
+    yield stream
+    mlrun.utils.logger.replace_handler_stream("default", sys.stdout)

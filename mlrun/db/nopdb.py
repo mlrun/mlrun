@@ -72,6 +72,11 @@ class NopDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0):
         pass
 
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool
+    ):
+        pass
+
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
@@ -369,16 +374,6 @@ class NopDB(RunDBInterface):
         tag: Optional[str] = None,
         uid: Optional[str] = None,
     ) -> dict:
-        pass
-
-    def list_features(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
     def list_features_v2(
@@ -890,6 +885,14 @@ class NopDB(RunDBInterface):
     ) -> None:
         pass
 
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        pass
+
     def get_monitoring_function_summaries(
         self,
         project: str,
@@ -979,4 +982,12 @@ class NopDB(RunDBInterface):
         pass
 
     def get_project_summary(self, project: str):
+        pass
+
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         pass

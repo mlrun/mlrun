@@ -98,6 +98,17 @@ class SQLRunDB(RunDBInterface):
             updates,
         )
 
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool
+    ):
+        return self._transform_db_error(
+            services.api.crud.RerunRunner().set_run_retrying_status,
+            self.session,
+            project,
+            run_id,
+            retrying,
+        )
+
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         raise NotImplementedError()
 
@@ -599,24 +610,6 @@ class SQLRunDB(RunDBInterface):
         )
         return feature_set.dict()
 
-    def list_features(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[list[str]] = None,
-    ):
-        return self._transform_db_error(
-            services.api.crud.FeatureStore().list_features,
-            self.session,
-            project,
-            name,
-            tag,
-            entities,
-            labels,
-        )
-
     def list_features_v2(
         self,
         project: str,
@@ -968,6 +961,11 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def wait_for_background_task_to_reach_terminal_state(
+        self, name: str, project: str = ""
+    ) -> mlrun.common.schemas.BackgroundTask:
+        raise NotImplementedError()
+
     def store_api_gateway(
         self,
         api_gateway: Union[
@@ -1269,6 +1267,14 @@ class SQLRunDB(RunDBInterface):
     ) -> None:
         raise NotImplementedError
 
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        raise NotImplementedError
+
     def get_monitoring_function_summaries(
         self,
         project: str,
@@ -1385,6 +1391,14 @@ class SQLRunDB(RunDBInterface):
         raise NotImplementedError
 
     def get_project_summary(self, project: str):
+        raise NotImplementedError
+
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         raise NotImplementedError
 
 

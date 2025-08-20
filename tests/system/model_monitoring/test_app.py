@@ -19,7 +19,7 @@ import time
 import typing
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import kafka
@@ -46,6 +46,7 @@ import mlrun.model_monitoring.api
 import mlrun.serving
 from mlrun.common.schemas.model_monitoring import ResultKindApp
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpointDriftValues,
     ModelEndpointMonitoringMetric,
 )
 from mlrun.datastore.datastore_profile import (
@@ -54,7 +55,10 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
 )
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring.applications import ModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications import (
+    ExistingDataHandling,
+    ModelMonitoringApplicationBase,
+)
 from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
@@ -522,6 +526,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             model_runner_step.add_model(
                 endpoint_name=f"{cls.model_name}_{with_training_set}",
                 model_class="MyModel",
+                execution_mechanism="naive",
                 model_artifact=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
                 input_path="inputs",
                 result_path="outputs",
@@ -704,7 +709,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         function_summaries = self.project.get_monitoring_function_summaries()
         assert len(function_summaries) == 3 + len(self.apps_data)
         function_summaries = self.project.get_monitoring_function_summaries(
-            include_infra=False
+            include_infra=False, start=datetime(2020, 1, 1)
         )
         assert len(function_summaries) == len(self.apps_data)
 
@@ -719,8 +724,10 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
                 )
             )
+
             assert len(evidently_func_summary_list) == 1
             evidently_func_summary = evidently_func_summary_list[0]
+
             assert evidently_func_summary.name == DemoEvidentlyMonitoringApp.NAME
             assert (
                 evidently_func_summary.status
@@ -738,63 +745,101 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
             )
             evidently_func_summary = evidently_func_summary_list[0]
-            assert evidently_func_summary.stats["potential_detection"] == 1
-            assert evidently_func_summary.stats["detected"] == 0
+
+            evidently_stats = evidently_func_summary.stats
+
+            assert evidently_stats["potential_detection"] == 1
+            assert evidently_stats["detected"] == 0
+
+            assert evidently_stats["stream_stats"]
+            assert evidently_stats["stream_stats"]["committed"] == 1
+            assert evidently_stats["stream_stats"]["lag"] == 0
+
         except mlrun.errors.MLRunNotFoundError:
             # Evidently app was not deployed
             pass
 
-        # TODO: Remove this check when the v3io function summary is supported (ML-10384)
-        if self._tsdb_storage.type == mm_constants.TSDBTarget.TDEngine:
-            if _DefaultDataDriftAppData in self.apps_data:
-                # test a specific function summary
-                hist_function_summary = self.project.get_monitoring_function_summary(
-                    name=HistogramDataDriftApplication.NAME, include_latest_metrics=True
-                )
-                assert hist_function_summary.stats
-                assert len(hist_function_summary.stats["metrics"]) == 4
+        if _DefaultDataDriftAppData in self.apps_data:
+            # test a specific function summary
+            hist_function_summary = self.project.get_monitoring_function_summary(
+                name=HistogramDataDriftApplication.NAME, include_latest_metrics=True
+            )
+            assert hist_function_summary.stats
+            assert len(hist_function_summary.stats["metrics"]) == 4
 
-                first_metric = hist_function_summary.stats["metrics"][0]
-                assert first_metric["type"] == "result"
-                # verify the expected keys of a result
-                assert first_metric.keys() == {
-                    "kind",
-                    "result_name",
-                    "status",
-                    "time",
-                    "type",
-                    "value",
-                }, "The result keys are not as expected"
+            first_metric = hist_function_summary.stats["metrics"][0]
+            assert first_metric["type"] == "result"
+            # verify the expected keys of a result
+            assert first_metric.keys() == {
+                "kind",
+                "result_name",
+                "status",
+                "time",
+                "type",
+                "value",
+            }, "The result keys are not as expected"
 
-                assert first_metric["result_name"] == "general_drift"
-                assert first_metric["value"] == 1
+            assert first_metric["result_name"] == "general_drift"
+            assert first_metric["value"] == 1
 
-                second_metric = hist_function_summary.stats["metrics"][1]
-                assert second_metric["type"] == "metric"
-                # verify the expected keys of a metric
-                assert second_metric.keys() == {
-                    "metric_name",
-                    "time",
-                    "type",
-                    "value",
-                }, "The metric keys are not as expected"
+            second_metric = hist_function_summary.stats["metrics"][1]
+            assert second_metric["type"] == "metric"
+            # verify the expected keys of a metric
+            assert second_metric.keys() == {
+                "metric_name",
+                "time",
+                "type",
+                "value",
+            }, "The metric keys are not as expected"
+
+            assert hist_function_summary.stats["stream_stats"]
+
+            # verify the stream stats
+            shards = hist_function_summary.stats["stream_stats"].keys()
+            expected_committed = 1
+            actual_committed = 0
+            for shard in shards:
+                actual_committed += hist_function_summary.stats["stream_stats"][shard][
+                    "committed"
+                ]
+                # Verify that the lag is 0
+                assert hist_function_summary.stats["stream_stats"][shard]["lag"] == 0
+            assert (
+                actual_committed == expected_committed
+            ), f"Expected {expected_committed} committed events, but got {actual_committed}"
+
+    def _test_drift_over_time(self) -> None:
+        self._logger.debug("Checking drift over time")
+        end = datetime.now().astimezone() + timedelta(
+            hours=1
+        )  # add 1 hour because end is rounded to the start of the hour
+        drift_over_time: ModelEndpointDriftValues = self.project.get_drift_over_time(
+            end=end
+        )
+        assert drift_over_time is not None
+        assert len(drift_over_time.values) == 1, "Drift over time should have one value"
+        assert (
+            drift_over_time.values[0].count_detected == 1
+        ), "Drift over time should have one detected drift"
+        assert (
+            drift_over_time.values[0].count_suspected == 0
+        ), "Drift over time should not have potential drift"
+        end = datetime.now().astimezone() - timedelta(hours=1)
+        drift_over_time: ModelEndpointDriftValues = self.project.get_drift_over_time(
+            end=end
+        )
+        assert drift_over_time is not None
+        assert (
+            len(drift_over_time.values) == 0
+        ), "No drift over time should be detected in the past"
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     @pytest.mark.parametrize("with_model_runner", [True, False])
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+
         self._log_model(with_training_set)
-
-        for i in range(len(self.apps_data)):
-            if "with_training_set" in self.apps_data[i].kwargs:
-                self.apps_data[i].kwargs["with_training_set"] = with_training_set
-
-        # workaround for ML-5997
-        if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
-            self.apps_data.remove(_DefaultDataDriftAppData)
-
-        self._log_model(with_training_set=with_training_set)
 
         self._submit_controller_and_deploy_writer(
             deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data
@@ -832,6 +877,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             feature_analysis=True,
             tsdb_metrics=True,
         )
+        assert (
+            mep.status.last_request is not None
+        ), "The last request is not set in the MEP status"
         # Model predict timestamp is slightly differ than storey timestamp
         assert (
             (mep.status.last_request - last_request) < timedelta(milliseconds=1)
@@ -850,12 +898,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             self._test_model_endpoint_stats(mep=mep)
         self._test_error_alert()
         self._test_function_summaries()
+        self._test_drift_over_time()
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
-    project_name = "test-mm-record-results"
+    project_name = "test-mm-record"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
@@ -931,7 +980,6 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
-        return fn
 
     def _record_results(self) -> str:
         model_endpoint = mlrun.model_monitoring.api.record_results(
@@ -957,11 +1005,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         self._log_model()
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            monitoring_app = executor.submit(self._deploy_monitoring_app)
+            executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
-
-        fn = monitoring_app.result()
-        self._assert_replicas(fn)
 
         endpoint_id = self._record_results()
 
@@ -982,6 +1027,234 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             apps_data=self.apps_data,
         )
         self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
+    """
+    Demonstrates running a serving job with model monitoring enabled.  In this test, we deploy a simple serving model
+    and then validate the newly created batch model endpoint along with its application results.
+    """
+
+    project_name = "test-mm-serving-job"
+    name_prefix = "infer-monitoring"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        # model
+        cls.classif = SVC()
+        cls.model_name = "svc"
+        # data
+        cls.columns = ["a1", "a2", "b"]
+        cls.y_name = "t"
+        cls.num_rows = 15
+        cls.num_cols = len(cls.columns)
+        cls.num_classes = 2
+        cls.x_train, cls.x_test, cls.y_train, cls.y_test = cls._generate_data()
+        cls.training_set = cls.x_train.join(cls.y_train)
+        cls.test_set = cls.x_test.join(cls.y_test)
+        cls.infer_results_df = cls.test_set
+        cls.function_name = f"{cls.name_prefix}-function"
+        # training
+        cls._train()
+
+        # model monitoring app
+        cls.app_data = _AppData(
+            class_=NoCheckDemoMonitoringApp,
+            rel_path="assets/application.py",
+            results={"data_drift_test", "model_perf"},
+        )
+
+        # model monitoring infra
+        cls.app_interval: int = 1  # every 1 minute
+        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
+        cls.apps_data = [cls.app_data]
+
+    def custom_setup(self) -> None:
+        self.set_mm_credentials()
+        super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
+
+    @classmethod
+    def _generate_data(cls) -> list[typing.Union[pd.DataFrame, pd.Series]]:
+        rng = np.random.default_rng(seed=1)
+        x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
+        y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
+        assert cls.num_rows > cls.num_classes
+        return train_test_split(x, y, train_size=0.75, random_state=1)
+
+    @classmethod
+    def _train(cls) -> None:
+        cls.classif.fit(
+            cls.x_train,
+            cls.y_train,  # pyright: ignore[reportGeneralTypeIssues]
+        )
+
+    @staticmethod
+    def _generate_input_df() -> pd.DataFrame:
+        d = {
+            "column_0": {0: 0.1, 1: 1.3, 2: 0.7},
+            "column_1": {0: 0.3, 1: -2.2, 2: -2.0},
+            "column_2": {0: 0.01, 1: 2.3, 2: 1.59},
+            "column_3": {0: -0.38, 1: 1.83, 2: 1.86},
+            "column_4": {0: -0.7, 1: 0.8, 2: 1.27},
+        }
+
+        df = pd.DataFrame(d)
+        input_df = df.set_index(
+            pd.date_range("2025-07-24 05:00:10", freq="120s", periods=len(df))
+        )
+        input_df.reset_index(inplace=True)
+        return input_df
+
+    def _log_model(self) -> None:
+        self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
+            self.model_name,
+            body=pickle.dumps(self.classif),
+            model_file="classif.pkl",
+            framework="sklearn",
+            training_set=self.training_set,
+            label_column=self.y_name,
+        )
+
+    def _deploy_monitoring_app(self) -> None:
+        self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+        fn = self.project.set_model_monitoring_function(
+            func=self.app_data.abs_path,
+            application_class=self.app_data.class_.__name__,
+            name=self.app_data.class_.NAME,
+            requirements=self.app_data.requirements,
+            image="mlrun/mlrun" if self.image is None else self.image,
+            **self.app_data.kwargs,
+        )
+        self.project.deploy_function(fn)
+        return fn
+
+    def _deploy_monitoring_infra(self) -> None:
+        self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
+            base_period=self.app_interval,
+            **({} if self.image is None else {"image": self.image}),
+            deploy_histogram_data_drift_app=False,
+            wait_for_deployment=True,
+        )
+
+    def _run_serving_job(self, input_df: pd.DataFrame) -> mlrun.runtimes.BaseRuntime:
+        function = self.project.set_function(
+            func=str(self.assets_path / "function_with_model.py"),
+            name="test",
+            kind="serving",
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
+
+        model_runner_step.add_model(
+            endpoint_name="my_model",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+            model_endpoint_creation_strategy=mm_constants.ModelEndpointCreationStrategy.OVERWRITE,
+        )
+
+        graph.to(model_runner_step)
+        function.set_tracking()
+        job = function.to_job()
+
+        input_dataset = self.project.log_dataset("input_dataset", input_df)
+        inputs = {"data": input_dataset.uri}
+        params = {"timestamp_column": "index"}
+        self.project.run_function(job, inputs=inputs, params=params)
+        return function
+
+    def _test_batch_ep_results(
+        self, function_name: str, input_df: pd.DataFrame
+    ) -> None:
+        model_endpoint = mlrun.get_run_db().get_model_endpoint(
+            name="my_model",
+            project=self.project_name,
+            function_name=function_name,
+            function_tag="latest",
+        )
+
+        assert model_endpoint is not None, "Model endpoint was not created"
+
+        self._test_predictions_table(model_endpoint.metadata.uid, should_be_empty=False)
+
+        assert model_endpoint.status.first_request == input_df[
+            "index"
+        ].min().to_pydatetime().replace(tzinfo=timezone.utc)
+        assert model_endpoint.status.last_request == input_df[
+            "index"
+        ].max().to_pydatetime().replace(tzinfo=timezone.utc)
+
+        run_db = mlrun.get_run_db()
+
+        monitoring_results = run_db.get_model_endpoint_monitoring_metrics(
+            project=self.project_name,
+            endpoint_id=model_endpoint.metadata.uid,
+            type="results",
+        )
+
+        assert len(monitoring_results) == 2
+        result_names = [result.full_name for result in monitoring_results]
+
+        self._test_result_values(
+            ep_id=model_endpoint.metadata.uid,
+            results_full_names=result_names,
+            run_db=run_db,
+            start=0,
+            end=datetime.now().timestamp() * 1000,
+        )
+
+    def _test_result_values(
+        self,
+        ep_id: str,
+        results_full_names: list[str],
+        run_db: mlrun.db.httpdb.HTTPRunDB,
+        start: typing.Optional[float],
+        end: typing.Optional[float],
+    ) -> None:
+        base_query = f"?name={'&name='.join(results_full_names)}"
+        query = f"{base_query}&start={start}&end={end}"
+
+        response = run_db.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{self.project_name}/model-endpoints/{ep_id}/metrics-values{query}",
+        )
+        response_content = json.loads(response.content.decode())
+        for result_values in response_content:
+            assert result_values[
+                "data"
+            ], f"No data for result {result_values['full_name']}"
+            assert result_values[
+                "values"
+            ], f"The values list is empty for result {result_values['full_name']}"
+            assert len(result_values["values"]) == 3
+
+        first_result = response_content[0]
+        assert first_result["full_name"] in results_full_names
+
+    def test_serving_as_a_job(self) -> None:
+        self._log_model()
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            monitoring_app = executor.submit(self._deploy_monitoring_app)
+            executor.submit(self._deploy_monitoring_infra)
+
+        fn = monitoring_app.result()
+        self._assert_replicas(fn)
+
+        input_df = self._generate_input_df()
+        function = self._run_serving_job(input_df=input_df)
+        time.sleep(
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
+        )
+
+        self._test_batch_ep_results(
+            function_name=function.metadata.name, input_df=input_df
+        )
 
     @staticmethod
     def _assert_replicas(fn):
@@ -1071,16 +1344,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
 
             # controller and writer(with has stream) should be deleted
             for name in mm_constants.MonitoringFunctionNames.list():
-                stream_path = mlrun.model_monitoring.helpers.get_stream_path(
-                    project=self.project.name,
-                    function_name=name,
-                    profile=stream_profile,
-                )
-                _, container, stream_path = (
-                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                        stream_path
-                    )
-                )
+                container, stream_path = self.get_stream_path(name)
                 if name != mm_constants.MonitoringFunctionNames.STREAM:
                     with pytest.raises(mlrun.errors.MLRunNotFoundError):
                         self.project.get_function(
@@ -1099,15 +1363,8 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             self._disable_stream_function()
 
             # check that the stream of the stream resource is not deleted
-            stream_path = mlrun.model_monitoring.helpers.get_stream_path(
-                project=self.project.name,
-                function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-                profile=stream_profile,
-            )
-            _, container, stream_path = (
-                mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                    stream_path
-                )
+            container, stream_path = self.get_stream_path(
+                mm_constants.HistogramDataDriftApplicationConstants.NAME
             )
             v3io_client.stream.describe(container, stream_path)
 
@@ -1115,16 +1372,6 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             self._delete_histogram_app()
 
             with pytest.raises(v3io.dataplane.response.HttpResponseError):
-                stream_path = mlrun.model_monitoring.helpers.get_stream_path(
-                    project=self.project.name,
-                    function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-                    profile=stream_profile,
-                )
-                _, container, stream_path = (
-                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                        stream_path
-                    )
-                )
                 v3io_client.stream.describe(container, stream_path)
 
         elif isinstance(stream_profile, DatastoreProfileKafkaSource):
@@ -1665,6 +1912,12 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             executor.submit(self._set_infra)
             executor.submit(self._deploy_model_serving)
 
+    def custom_teardown(self) -> None:
+        mlrun.model_monitoring.delete_model_monitoring_schedules_user_folder(
+            self.project_name
+        )
+        return super().custom_teardown()
+
     @pytest.mark.parametrize("run_local", [False, True])
     @pytest.mark.parametrize("write_output", [True])
     def test_count_app(self, run_local: bool, write_output: bool) -> None:
@@ -1710,29 +1963,38 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
         start = model_endpoint.status.first_request - timedelta(microseconds=1)
 
         end = model_endpoint.status.last_request
+        # Make sure `end - start` is a multiple of the `base_period` in `evaluate`
+        end = start + timedelta(minutes=(end - start).total_seconds() // 60 + 1)
 
         endpoints_params = [
             [(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
-            model_endpoint.metadata.name,
-            [
-                model_endpoint.metadata.name,
-            ],
+            [model_endpoint.metadata.name],
+            "all",
         ]
 
         for i, endpoints in enumerate(endpoints_params):
+            # Do not write except the first and last time
+            last = i == len(endpoints_params) - 1
+            write_output_this_time = write_output if (i == 0 or last) else False
+
             run_result = CountApp.evaluate(
                 func_path=str(Path(__file__).parent / "assets/application.py"),
-                func_name=f"function-{i}",
+                func_name="count-app-batch",
                 endpoints=endpoints,
                 start=start,
                 end=end,
                 run_local=run_local,
                 image=self.image,
                 base_period=1,
-                write_output=write_output,
+                write_output=write_output_this_time,
                 stream_profile=(
-                    self.mm_stream_profile if run_local and write_output else None
+                    self.mm_stream_profile
+                    if run_local and write_output_this_time
+                    else None
                 ),
+                existing_data_handling=ExistingDataHandling.delete_all
+                if last
+                else ExistingDataHandling.fail_on_overlap,
             )
 
             # Test the state
@@ -1779,10 +2041,10 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                 assert metrics == [
                     ModelEndpointMonitoringMetric(
                         project=self.project_name,
-                        app="CountApp",
+                        app="count-app-batch",
                         type="result",
                         name="count",
-                        full_name=f"{self.project_name}.CountApp.result.count",
+                        full_name=f"{self.project_name}.count-app-batch.result.count",
                         kind=ResultKindApp.model_performance,
                     ),
                     ModelEndpointMonitoringMetric(
@@ -1848,6 +2110,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
             model_runner_step.add_model(
                 endpoint_name=self._model_name,
                 model_class="MyModel",
+                execution_mechanism="naive",
                 model_artifact=model_uri,
                 input_path="inputs",
                 result_path="outputs",

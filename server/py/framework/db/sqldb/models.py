@@ -341,25 +341,6 @@ class LabelMixin:
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
-    # deprecated, use ArtifactV2 instead
-    # TODO: Remove once data migration v5 is obsolete and add schema migration to remove this table
-    class Artifact(Base, LabelMixin, TagMixin, framework.db.sqldb.base.HasStruct):
-        __tablename__ = "artifacts"
-        __table_args__ = (
-            UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
-        )
-
-        id = Column(Integer, primary_key=True)
-        key = Column(framework.db.sqldb.sql_types.Utf8BinText)
-        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
-        uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
-        updated = Column(framework.db.sqldb.sql_types.DateTime)
-        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(framework.db.sqldb.sql_types.Blob)
-
-        def get_identifier_string(self) -> str:
-            return f"{self.project}/{self.key}/{self.uid}"
-
     class ArtifactV2(
         Base, LabelMixin, ArtifactTagMixin, framework.db.sqldb.base.BaseModel
     ):
@@ -399,7 +380,10 @@ with warnings.catch_warnings():
         uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
         parent_id = Column(
             Integer,
-            ForeignKey("artifacts_v2.id", ondelete="SET NULL"),
+            ForeignKey(
+                "artifacts_v2.id",
+                ondelete="SET NULL",
+            ),
             nullable=True,
             index=True,
         )
@@ -1004,6 +988,9 @@ with warnings.catch_warnings():
         )
         name = Column(framework.db.sqldb.sql_types.Utf8BinText)
         endpoint_type = Column(Integer, nullable=False)
+        mode = Column(
+            Integer, default=mlrun.common.schemas.EndpointMode.REAL_TIME.value
+        )
         project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         body = Column(framework.db.sqldb.sql_types.Blob)
         created = Column(
@@ -1168,12 +1155,6 @@ def bootstrap_partitions(
             first_partition_name=partition_name,
             first_partition_upper_bound=partition_value,
         )
-
-
-def get_partitioned_table_names():
-    return [
-        AlertActivation.__tablename__,
-    ]
 
 
 # Must be after all table definitions

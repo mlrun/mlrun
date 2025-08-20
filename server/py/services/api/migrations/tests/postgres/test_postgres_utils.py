@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import pytest
 
 import framework.utils.db.utils
@@ -22,27 +23,33 @@ pytest.importorskip(
 
 
 @pytest.mark.integration
-def test_postgres_apply_modes_live(
+def test_postgres_apply_work_mem_live(
     db_util: framework.utils.db.utils.DBUtil,
 ):
-    configs = db_util.get_current_configurations()
-    old_value = configs.get("work_mem")
+    original = db_util.get_current_configurations()
+    old_value = original.get("work_mem")
 
-    assert (
-        old_value != "65536"
-    ), "The test is not applicable, 'work_mem' is already set to '65536'."
+    assert old_value != "65536", "Test requires 'work_mem' to not be '65536' initially"
 
-    # apply new setting
-    db_util.set_configurations({"work_mem": 65536})
+    try:
+        db_util.set_configurations({"work_mem": 65536})
+        updated = db_util.get_current_configurations()
+        assert updated.get("work_mem") == "65536", "'work_mem' was not updated"
+    finally:
+        db_util.set_configurations({"work_mem": old_value})
+    restored = db_util.get_current_configurations()
+    assert restored.get("work_mem") == old_value, "'work_mem' was not restored"
 
-    assert db_util.get_current_configurations()["work_mem"] == "65536"
 
-    # restore original
-    db_util.set_configurations({"work_mem": old_value})
+@pytest.mark.integration
+@pytest.mark.parametrize("noop_key", ["nil", "none"])
+def test_postgres_set_configurations_noop_values_ignored(
+    db_util: framework.utils.db.utils.DBUtil,
+    noop_key: str,
+):
+    original = dict(db_util.get_current_configurations())
 
-    assert db_util.get_current_configurations()["work_mem"] == old_value
+    db_util.set_configurations({noop_key: "some_val"})
+    after = dict(db_util.get_current_configurations())
 
-    # sanity: ensure only work_mem changed back
-    final = db_util.get_current_configurations()
-
-    assert final.get("work_mem") == old_value
+    assert after == original, f"Config changed after noop key '{noop_key}'"

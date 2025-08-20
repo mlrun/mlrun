@@ -48,8 +48,12 @@ import mlrun.model_monitoring.writer
 import mlrun.serving.states
 import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
+from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFileChief,
+    ModelMonitoringSchedulesFileEndpoint,
+)
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
@@ -57,10 +61,10 @@ from mlrun.utils import logger
 import framework.api.utils
 import framework.db.session
 import framework.utils.background_tasks
+import framework.utils.clients.async_nuclio
 import framework.utils.singletons.k8s
-import services.api.api.endpoints.nuclio
+import services.api.crud
 import services.api.crud.model_monitoring.helpers
-import services.api.utils.functions
 from framework.db.sqldb.models import ModelEndpoint
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
@@ -195,13 +199,19 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
-            fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+            fn = services.api.api.endpoints.nuclio._deploy_function(
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=fn,
+                project=self.project,
+                name=fn.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
             logger.debug(
                 "Submitted the stream deployment",
                 stream_data=fn.to_dict(),
-                stream_ready=ready,
             )
 
     def deploy_model_monitoring_controller(
@@ -250,13 +260,19 @@ class MonitoringDeployment:
                     interval=f"{self._get_trigger_frequency(base_period)}m"
                 ),
             )
-            fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+            fn = services.api.api.endpoints.nuclio._deploy_function(
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=fn,
+                project=self.project,
+                name=fn.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
             logger.debug(
                 "Submitted the controller deployment",
                 controller_data=fn.to_dict(),
-                controller_ready=ready,
             )
 
     def deploy_model_monitoring_writer_application(
@@ -282,13 +298,19 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_writer_function(
                 writer_image=writer_image
             )
-            fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+            fn = services.api.api.endpoints.nuclio._deploy_function(
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=fn,
+                project=self.project,
+                name=fn.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
             logger.debug(
                 "Submitted the writer deployment",
                 writer_data=fn.to_dict(),
-                writer_ready=ready,
             )
 
     def apply_and_create_stream_trigger(
@@ -413,6 +435,46 @@ class MonitoringDeployment:
         function.spec.min_replicas = stream_args.kafka.min_replicas
         function.spec.max_replicas = stream_args.kafka.max_replicas
 
+    @staticmethod
+    def create_model_monitoring_stream(
+        project: str,
+        stream_path: str,
+        shard_count: int,
+        retention_period_hours: int,
+        access_key: typing.Optional[str] = None,
+    ):
+        if stream_path.startswith("v3io://"):
+            import v3io.dataplane
+
+            _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+
+            logger.info(
+                "Creating stream",
+                project=project,
+                stream_path=stream_path,
+                shard_count=shard_count,
+                container=container,
+                endpoint=mlrun.mlconf.v3io_api,
+            )
+
+            v3io_client = v3io.dataplane.Client(
+                endpoint=mlrun.mlconf.v3io_api, access_key=access_key
+            )
+
+            response = v3io_client.stream.create(
+                container=container,
+                stream_path=stream_path,
+                shard_count=shard_count,
+                retention_period_hours=retention_period_hours,
+                raise_for_status=v3io.dataplane.RaiseForStatus.never,
+                access_key=access_key,
+            )
+
+            if not (
+                response.status_code == 400 and "ResourceInUse" in str(response.body)
+            ):
+                response.raise_for_status([409, 204])
+
     def _apply_and_create_v3io_source(
         self,
         *,
@@ -439,7 +501,7 @@ class MonitoringDeployment:
             "worker_allocation_mode": "static",
             "max_workers": stream_args.v3io.num_workers,
         }
-        services.api.api.endpoints.nuclio.create_model_monitoring_stream(
+        self.create_model_monitoring_stream(
             project=self.project,
             stream_path=stream_path,
             shard_count=stream_args.v3io.shard_count,
@@ -739,14 +801,20 @@ class MonitoringDeployment:
                 mm_constants.ModelMonitoringAppLabel.VAL,
             )
 
-            fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=func
+            fn = services.api.api.endpoints.nuclio._deploy_function(
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=func,
+                project=self.project,
+                name=func.metadata.name,
+                builder_env=None,
+                client_version=None,
+                client_python_version=None,
             )
 
             logger.debug(
                 "Submitted the histogram data drift app deployment",
                 app_data=fn.to_dict(),
-                app_ready=ready,
             )
 
     def _create_tsdb_tables(
@@ -794,7 +862,7 @@ class MonitoringDeployment:
             tag="*",
         )
 
-    def function_summaries(
+    async def function_summaries(
         self,
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
@@ -803,6 +871,7 @@ class MonitoringDeployment:
         include_stats: bool = True,
         include_infra: bool = True,
         include_processed_model_endpoints: bool = False,
+        agg_stream_stats: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
         """
         Retrieve a list of all the model monitoring functions with their summaries. Note that the response includes
@@ -820,12 +889,17 @@ class MonitoringDeployment:
                                                   returned.
         :param labels:                            List of labels to filter the response. Default is None.
         :param include_stats:                     If True, the function will include the statistics of the monitoring
-                                                  applications. Currently, the statistics include the number of
-                                                  detections and possible detections.
+                                                  applications. Currently, the statistics include:
+                                                  - The number of detections that were processed by the application.
+                                                  - The number of possible detections that were processed by the
+                                                  application.
+                                                  - Stream statistics such as amount of committed events and lag.
         :param include_infra:                     If True, include the model monitoring infrastructure functions in the
                                                   response.
         :param include_processed_model_endpoints: If True, include the number of processed model endpoints in the
                                                   response.
+        :param agg_stream_stats:                  If True, aggregate stream statistics by shard/partition for each
+                                                  function.
         :return:                                  A list of FunctionSummary objects, each representing a model
                                                   monitoring function.
         """
@@ -836,19 +910,30 @@ class MonitoringDeployment:
         )
 
         # Enrich response with monitoring applications
-        application_function_summaries_list = self._get_function_summary_applications(
-            base_period=base_period,
-            start=start,
-            end=end,
-            names=names,
-            labels=labels,
-            include_stats=include_stats,
-            include_processed_model_endpoints=include_processed_model_endpoints,
+        application_function_summaries_list = (
+            await self._get_function_summary_applications(
+                base_period=base_period,
+                start=start,
+                end=end,
+                names=names,
+                labels=labels,
+                include_stats=include_stats,
+                include_processed_model_endpoints=include_processed_model_endpoints,
+            )
         )
 
-        return infra_function_summaries_list + application_function_summaries_list
+        function_summaries = (
+            infra_function_summaries_list + application_function_summaries_list
+        )
 
-    def function_summary(
+        if include_stats:
+            await self._enrich_with_stream_stats(
+                function_summaries=function_summaries, agg_stats=agg_stream_stats
+            )
+
+        return function_summaries
+
+    async def function_summary(
         self,
         name: str,
         start: typing.Optional[datetime] = None,
@@ -872,13 +957,14 @@ class MonitoringDeployment:
         start = start or (now - timedelta(hours=24))
         end = end or now
 
-        function_summary = self.function_summaries(
+        function_summary = await self.function_summaries(
             start=start,
             end=end,
             names=[name],
             include_infra=False,
             include_stats=True,
             include_processed_model_endpoints=True,
+            agg_stream_stats=False,
         )
         if not function_summary:
             raise mlrun.errors.MLRunNotFoundError(
@@ -887,12 +973,11 @@ class MonitoringDeployment:
 
         if include_latest_metrics:
             # Enrich the function summary with latest metrics
-            function_summary[0].stats["metrics"] = (
-                self._tsdb_connector.calculate_latest_metrics(
-                    start=start,
-                    end=end,
-                    application_names=[name],
-                )
+            function_summary[0].stats["metrics"] = await run_in_threadpool(
+                self._tsdb_connector.calculate_latest_metrics,
+                start=start,
+                end=end,
+                application_names=[name],
             )
 
         return function_summary[0]
@@ -920,9 +1005,11 @@ class MonitoringDeployment:
 
             if not infra_mm_functions:
                 logger.info("No model monitoring infrastructure functions found")
+
             for function in infra_mm_functions:
                 function_summary = mlrun.common.schemas.model_monitoring.FunctionSummary.from_function_dict(
-                    function, func_type="infra"
+                    function,
+                    func_type="infra",
                 )
                 function_summaries_list.append(function_summary)
                 if (
@@ -930,6 +1017,7 @@ class MonitoringDeployment:
                     == mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
                 ):
                     base_period = self._get_base_period(controller_func=function)
+
         else:
             # getting the base period from the controller function
             try:
@@ -947,7 +1035,145 @@ class MonitoringDeployment:
                 )
         return function_summaries_list, base_period
 
-    def _get_function_summary_applications(
+    async def _enrich_with_stream_stats(
+        self,
+        function_summaries: typing.Optional[
+            list[mlrun.common.schemas.model_monitoring.FunctionSummary]
+        ],
+        agg_stats: bool = True,
+    ) -> None:
+        """
+        Enrich the function with stream stats.
+        :param function_summaries: List of `FunctionSummary` objects to enrich with stream stats.
+        :param agg_stats: If True, aggregate the stream stats by function name.
+        """
+
+        if isinstance(
+            self._stream_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            # V3IO stream stats
+            await self._enrich_v3io_stream_stats(
+                function_summaries=function_summaries, agg_stats=agg_stats
+            )
+        else:
+            # Kafka topic stats
+            self._enrich_kafka_topic_stats(
+                function_summaries=function_summaries,
+                agg_stats=agg_stats,
+            )
+
+    async def _enrich_v3io_stream_stats(
+        self,
+        function_summaries: list[mlrun.common.schemas.model_monitoring.FunctionSummary],
+        agg_stats: bool = True,
+    ) -> None:
+        async with framework.utils.clients.async_nuclio.Client(
+            self.auth_info
+        ) as client:
+            for function in function_summaries:
+                stream_path = mlrun.model_monitoring.get_stream_path(
+                    project=self.project,
+                    function_name=function.name,
+                    secret_provider=self._secret_provider,
+                    profile=self.__stream_profile,
+                )
+
+                _, container, stream_path = (
+                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                        stream_path
+                    )
+                )
+
+                stream_stats = await client.get_v3io_shard_lags(
+                    project_name=self.project,
+                    function_name=function.name,
+                    stream_path=stream_path,
+                    container_name=container,
+                )
+
+                stream_stats = stream_stats.get(f"{container}/{stream_path}", {}).get(
+                    "serving", {}
+                )
+                if stream_stats and agg_stats:
+                    lag = 0
+                    committed = 0
+                    for _, stats in stream_stats.items():
+                        lag += stats.get("lag", 0)
+                        committed += stats.get("committed", 0)
+                    stream_stats = {
+                        "lag": lag,
+                        "committed": committed,
+                    }
+                else:
+                    # remove "current" key from the stream stats shards
+                    for _, stats in stream_stats.items():
+                        stats.pop("current", None)
+
+                function.stats["stream_stats"] = stream_stats
+
+    def _enrich_kafka_topic_stats(
+        self,
+        function_summaries: list[mlrun.common.schemas.model_monitoring.FunctionSummary],
+        agg_stats: bool = True,
+    ):
+        import kafka
+
+        consumer = kafka.KafkaConsumer(
+            bootstrap_servers=self.__stream_profile.brokers,
+            group_id=self.__stream_profile.group,
+        )
+        # Iterate over each function and get the stream stats
+        for function in function_summaries:
+            topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+                project=self.project, function_name=function.name
+            )
+            try:
+                partitions = consumer.partitions_for_topic(topic)
+                if not partitions:
+                    logger.warning(
+                        f"No partitions found for topic {topic} in function {function.name}"
+                    )
+                    continue
+
+                if agg_stats:
+                    total_committed = 0
+                    total_lag = 0
+
+                    for partition in partitions:
+                        tp = kafka.TopicPartition(topic, partition)
+                        committed = consumer.committed(tp) or 0
+                        total_committed += committed
+                        lag = consumer.end_offsets([tp])[tp] - committed
+                        total_lag += lag
+
+                    stream_stats = {
+                        "committed": total_committed,
+                        "lag": total_lag,
+                    }
+                else:
+                    stream_stats = {}
+                    # Get the committed offsets and lag for each partition
+                    for partition in partitions:
+                        tp = kafka.TopicPartition(topic, partition)
+                        committed = consumer.committed(tp) or 0
+                        lag = consumer.end_offsets([tp])[tp] - committed
+                        stream_stats[partition] = {
+                            "committed": committed,
+                            "lag": lag,
+                        }
+
+                function.stats["stream_stats"] = stream_stats
+
+            except kafka.errors.UnknownTopicOrPartitionError as exc:
+                logger.warning(
+                    "Failed to get topic stats",
+                    project=self.project,
+                    function_name=function.name,
+                    topic=topic,
+                    error_message=mlrun.errors.err_to_str(exc),
+                )
+
+    async def _get_function_summary_applications(
         self,
         base_period: typing.Optional[float] = None,
         start: typing.Optional[datetime] = None,
@@ -965,13 +1191,14 @@ class MonitoringDeployment:
             labels=labels, format_=mlrun.common.formatters.FunctionFormat.minimal
         )
         function_summaries_list = []
-
         if not mm_functions_list:
             logger.info("No model monitoring applications found")
             return []
         if names:
+            # generate a list of lowercase names for filtering
+            lower_names = [name.lower() for name in names]
             mm_functions_list = [
-                fn for fn in mm_functions_list if fn["metadata"]["name"] in names
+                fn for fn in mm_functions_list if fn["metadata"]["name"] in lower_names
             ]
 
         detection_stats_dict = {}
@@ -983,20 +1210,24 @@ class MonitoringDeployment:
 
         if include_stats:
             # enrich func stats with #detections and #possible_detections
-            detection_stats_dict = self._tsdb_connector.count_results_by_status(
+            detection_stats_dict = await run_in_threadpool(
+                self._tsdb_connector.count_results_by_status,
                 start=start,
                 end=end,
                 result_status_list=[
                     mm_constants.ResultStatusApp.detected.value,
                     mm_constants.ResultStatusApp.potential_detection.value,
                 ],
+                application_names=names,
             )
+
         if include_processed_model_endpoints:
             # enrich func stats with processed model endpoints
-            processed_model_endpoints_dict = (
-                self._tsdb_connector.count_processed_model_endpoints(
-                    start=start, end=end, application_names=names
-                )
+            processed_model_endpoints_dict = await run_in_threadpool(
+                self._tsdb_connector.count_processed_model_endpoints,
+                start=start,
+                end=end,
+                application_names=names,
             )
 
         for function in mm_functions_list:
@@ -1009,14 +1240,14 @@ class MonitoringDeployment:
                 function_summary.stats = {
                     mm_constants.ResultStatusApp.detected.name: detection_stats_dict.get(
                         (
-                            function_summary.name,
+                            function_summary.name.lower(),
                             mm_constants.ResultStatusApp.detected.value,
                         ),
                         0,
                     ),
                     mm_constants.ResultStatusApp.potential_detection.name: detection_stats_dict.get(
                         (
-                            function_summary.name,
+                            function_summary.name.lower(),
                             mm_constants.ResultStatusApp.potential_detection.value,
                         ),
                         0,
@@ -1311,6 +1542,11 @@ class MonitoringDeployment:
                         access_key=mlrun.mlconf.get_v3io_access_key()
                         if container.startswith("users")
                         else profile.v3io_access_key,
+                        raise_for_status=[
+                            200,
+                            204,
+                            404,
+                        ],  # if the stream doesn't exist then there's nothing to delete
                     )
                     logger.debug(
                         "Deleted v3io stream",
@@ -1715,6 +1951,7 @@ class MonitoringDeployment:
         function: dict,
         function_name: str,
         project: str,
+        is_batch: bool,
     ) -> tuple[
         list[
             tuple[
@@ -1748,6 +1985,17 @@ class MonitoringDeployment:
             ]
         ]
         function_tag = function.metadata.tag or "latest"
+        parent_function_name = function.metadata.labels.get("mlrun/parent-function")
+        user_function_name = (
+            None  # This indicates that the function is not a child of another function
+        )
+        if parent_function_name:
+            user_function_name = (
+                function_name[len(f"{parent_function_name}-") :]
+                if function_name.startswith(f"{parent_function_name}-")
+                else None
+            )
+
         model_endpoints_dict: dict[str, ModelEndpoint] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
@@ -1769,6 +2017,8 @@ class MonitoringDeployment:
                 ),
                 model_endpoints_dict=model_endpoints_dict,
                 project=project,
+                override_type=mm_constants.EndpointType.BATCH_EP if is_batch else None,
+                user_function_name=user_function_name,
             )
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
@@ -1785,6 +2035,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> tuple[
         list[
             tuple[
@@ -1807,6 +2059,7 @@ class MonitoringDeployment:
                     sampling_percentage=sampling_percentage,
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
+                    user_function_name=user_function_name,
                 )
             )
         elif isinstance(graph, mlrun.serving.states.RootFlowStep):
@@ -1819,6 +2072,8 @@ class MonitoringDeployment:
                     sampling_percentage=sampling_percentage,
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
+                    override_type=override_type,
+                    user_function_name=user_function_name,
                 )
             )
         return model_endpoints_instructions, graph
@@ -1832,6 +2087,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -1845,6 +2102,10 @@ class MonitoringDeployment:
             if (
                 route.model_endpoint_creation_strategy
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
+                and (
+                    (not route.function and not user_function_name)
+                    or route.function == user_function_name
+                )
             ):
                 uid = self._get_or_create_uid(
                     project=project,
@@ -1861,7 +2122,9 @@ class MonitoringDeployment:
                     (
                         self._model_endpoint_draft(
                             name=route.name,
-                            endpoint_type=route.endpoint_type,
+                            endpoint_type=override_type
+                            if override_type
+                            else route.endpoint_type,
                             model_class=route.class_name,
                             function_name=function_name,
                             function_tag=function_tag,
@@ -1883,6 +2146,10 @@ class MonitoringDeployment:
         if (
             router_step.model_endpoint_creation_strategy
             != mm_constants.ModelEndpointCreationStrategy.SKIP
+            and (
+                (not router_step.function and not user_function_name)
+                or router_step.function == user_function_name
+            )
         ):
             uid = self._get_or_create_uid(
                 project=project,
@@ -1899,7 +2166,9 @@ class MonitoringDeployment:
                 (
                     self._model_endpoint_draft(
                         name=router_step.name,
-                        endpoint_type=router_step.endpoint_type,
+                        endpoint_type=override_type
+                        if override_type
+                        else router_step.endpoint_type,
                         model_class=router_step.class_name,
                         function_name=function_name,
                         function_tag=function_tag,
@@ -1912,7 +2181,6 @@ class MonitoringDeployment:
                     router_step.model_endpoint_creation_strategy,
                 )
             )
-
         return model_endpoints_instructions
 
     def _extract_meps_from_root_flow_step(
@@ -1924,6 +2192,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -1942,6 +2212,8 @@ class MonitoringDeployment:
                         sampling_percentage=sampling_percentage,
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
+                        override_type=override_type,
+                        user_function_name=user_function_name,
                     )
                 )
             elif isinstance(step, mlrun.serving.states.ModelRunnerStep):
@@ -1954,12 +2226,18 @@ class MonitoringDeployment:
                         sampling_percentage=sampling_percentage,
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
+                        override_type=override_type,
+                        user_function_name=user_function_name,
                     )
                 )
             else:
                 if (
                     step.model_endpoint_creation_strategy
                     != mm_constants.ModelEndpointCreationStrategy.SKIP
+                    and (
+                        (not user_function_name and not step.function)
+                        or step.function == user_function_name
+                    )
                 ):
                     uid = self._get_or_create_uid(
                         project=project,
@@ -1976,7 +2254,9 @@ class MonitoringDeployment:
                         (
                             self._model_endpoint_draft(
                                 name=step.name,
-                                endpoint_type=step.endpoint_type,
+                                endpoint_type=override_type
+                                if override_type
+                                else step.endpoint_type,
                                 model_class=step.class_name,
                                 function_name=function_name,
                                 function_tag=function_tag,
@@ -2025,20 +2305,39 @@ class MonitoringDeployment:
         sampling_percentage: typing.Optional[float] = None,
         label_names: typing.Optional[list[str]] = None,
         model_path: typing.Optional[str] = None,
+        feature_names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
+        feature_names = (
+            [fstore.api.norm_column_name(name) for name in feature_names]
+            if feature_names
+            else []
+        )
+        label_names = (
+            [fstore.api.norm_column_name(name) for name in label_names]
+            if label_names
+            else []
+        )
         return mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                project=self.project, name=name, endpoint_type=endpoint_type, uid=uid
+                project=self.project,
+                name=name,
+                endpoint_type=endpoint_type,
+                uid=uid,
+                mode=mlrun.common.schemas.model_monitoring.EndpointMode.BATCH
+                if endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP
+                else mlrun.common.schemas.model_monitoring.EndpointMode.REAL_TIME,
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=function_name,
                 function_tag=function_tag,
-                label_names=label_names or [],
+                label_names=label_names,
                 model_class=model_class,
                 children=children_names,
                 children_uids=children_uids,
                 model_path=model_path,
+                feature_names=feature_names,
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
@@ -2101,6 +2400,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2115,11 +2416,11 @@ class MonitoringDeployment:
             mlrun.common.schemas.ModelRunnerStepData.MODELS, {}
         ).keys():
             monitoring_data[endpoint_name] = monitoring_data[endpoint_name] or {}
-            if (
-                monitoring_data[endpoint_name].get(
-                    mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
-                )
-                != mm_constants.ModelEndpointCreationStrategy.SKIP
+            if monitoring_data[endpoint_name].get(
+                mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
+            ) != mm_constants.ModelEndpointCreationStrategy.SKIP and (
+                (not user_function_name and not model_runner.function)
+                or model_runner.function == user_function_name
             ):
                 uid = self._get_or_create_uid(
                     project=project,
@@ -2141,7 +2442,9 @@ class MonitoringDeployment:
                     (
                         self._model_endpoint_draft(
                             name=endpoint_name,
-                            endpoint_type=model_runner.endpoint_type,
+                            endpoint_type=override_type
+                            if override_type
+                            else model_runner.endpoint_type,
                             model_class=monitoring_data[endpoint_name].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_CLASS
                             ),
@@ -2156,6 +2459,9 @@ class MonitoringDeployment:
                             model_path=monitoring_data[endpoint_name].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_PATH, ""
                             ),
+                            feature_names=monitoring_data[endpoint_name].get(
+                                mlrun.common.schemas.MonitoringData.INPUTS, []
+                            ),
                         ),
                         monitoring_data[endpoint_name].get(
                             mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
@@ -2163,6 +2469,74 @@ class MonitoringDeployment:
                     )
                 )
         return model_endpoints_instructions
+
+    async def _delete_app_from_schedules_files(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete the application from the schedules file.
+        """
+        logger.debug(
+            "Deleting application from the schedules file",
+            application_name=application_name,
+        )
+        if endpoint_ids:
+            endpoint_id_list = endpoint_ids
+        else:
+            endpoints_data = (
+                await services.api.crud.ModelEndpoints().list_model_endpoints(
+                    project=self.project,
+                    uids=endpoint_ids,
+                    db_session=self.db_session,
+                )
+            )
+            endpoint_id_list = [
+                endpoint.metadata.uid for endpoint in endpoints_data.endpoints
+            ]
+        logger.debug(
+            "Deleting the last_analyzed time of the application from the schedules files",
+            application_name=application_name,
+            endpoint_id_list=endpoint_id_list,
+        )
+        for endpoint_id in endpoint_id_list:
+            with ModelMonitoringSchedulesFileEndpoint(
+                endpoint_id=endpoint_id, project=self.project
+            ) as schedules_file:
+                schedules_file.delete_application_time(application=application_name)
+
+    async def delete_application_records(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Deletes the application records from the model monitoring database.
+        This method is used to delete the records of a specific application.
+
+        :param application_name: The name of the application to delete records for.
+        :param endpoint_ids:     List of endpoint IDs to delete records for. If ``None``, all the project's
+                                 endpoints will be deleted.
+        """
+        logger.debug(
+            "Deleting application records from the TSDB",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        self._tsdb_connector.delete_application_records(
+            application_name=application_name, endpoint_ids=endpoint_ids
+        )
+
+        if not application_name.endswith(
+            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+        ):
+            # The schedules file of "batch" applications is handled on the user side
+            await self._delete_app_from_schedules_files(
+                application_name=application_name, endpoint_ids=endpoint_ids
+            )
+
+        logger.info(
+            "Deleted application records",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
 
 
 def get_endpoint_features(

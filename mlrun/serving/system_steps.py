@@ -13,18 +13,20 @@
 # limitations under the License.
 
 import random
-from copy import deepcopy
+from copy import copy
 from datetime import timedelta
 from typing import Any, Optional, Union
 
+import numpy as np
 import storey
 
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.feature_store
 import mlrun.serving
 from mlrun.common.schemas import MonitoringData
-from mlrun.utils import logger
+from mlrun.utils import get_data_from_path, logger
 
 
 class MonitoringPreProcessor(storey.MapClass):
@@ -45,46 +47,20 @@ class MonitoringPreProcessor(storey.MapClass):
         result_path = model_monitoring_data.get(MonitoringData.RESULT_PATH)
         input_path = model_monitoring_data.get(MonitoringData.INPUT_PATH)
 
-        result = self._get_data_from_path(
-            result_path, event.body.get(model, event.body)
-        )
         output_schema = model_monitoring_data.get(MonitoringData.OUTPUTS)
         input_schema = model_monitoring_data.get(MonitoringData.INPUTS)
-        logger.debug("output schema retrieved", output_schema=output_schema)
-        if isinstance(result, dict):
-            if len(result) > 1:
-                # transpose by key the outputs:
-                outputs = self.transpose_by_key(result, output_schema)
-            elif len(result) == 1:
-                outputs = (
-                    result[output_schema[0]]
-                    if output_schema
-                    else list(result.values())[0]
-                )
-            else:
-                outputs = []
-            if not output_schema:
-                logger.warn(
-                    "Output schema was not provided using Project:log_model or by ModelRunnerStep:add_model order "
-                    "may not preserved"
-                )
-        else:
-            outputs = result
+        logger.debug(
+            "output and input schema retrieved",
+            output_schema=output_schema,
+            input_schema=input_schema,
+        )
 
-        event_inputs = event._metadata.get("inputs", {})
-        event_inputs = self._get_data_from_path(input_path, event_inputs)
-        if isinstance(event_inputs, dict):
-            if len(event_inputs) > 1:
-                # transpose by key the inputs:
-                inputs = self.transpose_by_key(event_inputs, input_schema)
-            else:
-                inputs = (
-                    event_inputs[input_schema[0]]
-                    if input_schema
-                    else list(result.values())[0]
-                )
-        else:
-            inputs = event_inputs
+        outputs, new_output_schema = self.get_listed_data(
+            event.body.get(model, event.body), result_path, output_schema
+        )
+        inputs, new_input_schema = self.get_listed_data(
+            event._metadata.get("inputs", {}), input_path, input_schema
+        )
 
         if outputs and isinstance(outputs[0], list):
             if output_schema and len(output_schema) != len(outputs[0]):
@@ -104,58 +80,138 @@ class MonitoringPreProcessor(storey.MapClass):
                     output_len=len(outputs),
                     schema_len=len(output_schema),
                 )
-        request = {"inputs": inputs, "id": getattr(event, "id", None)}
-        resp = {"outputs": outputs}
+            if len(inputs) != len(outputs):
+                logger.warn(
+                    "outputs and inputs are not in the same length check 'input_path' and "
+                    "'output_path' was specified if needed"
+                )
+        request = {
+            "inputs": inputs,
+            "id": getattr(event, "id", None),
+            "input_schema": new_input_schema,
+        }
+        resp = {"outputs": outputs, "output_schema": new_output_schema}
 
         return request, resp
 
-    @staticmethod
-    def transpose_by_key(
-        data_to_transpose, schema: Optional[list[str]] = None
-    ) -> list[list[float]]:
-        values = (
-            list(data_to_transpose.values())
-            if not schema
-            else [data_to_transpose[key] for key in schema]
-        )
-        if values and not isinstance(values[0], list):
-            values = [values]
-        transposed = (
-            list(map(list, zip(*values)))
-            if all(isinstance(v, list) for v in values) and len(values) > 1
-            else values
-        )
-        return transposed
+    def get_listed_data(
+        self,
+        raw_data: dict,
+        data_path: Optional[Union[list[str], str]] = None,
+        schema: Optional[list[str]] = None,
+    ):
+        """Get data from a path and transpose it by keys if dict is provided."""
+        new_schema = None
+        data_from_path = get_data_from_path(data_path, raw_data)
+        if isinstance(data_from_path, dict):
+            # transpose by key the inputs:
+            listed_data, new_schema = self.transpose_by_key(data_from_path, schema)
+            new_schema = new_schema or schema
+            if not schema:
+                logger.warn(
+                    f"No schema provided through add_model(); the order of {data_from_path} "
+                    "may not be preserved."
+                )
+        elif not isinstance(data_from_path, list):
+            listed_data = [data_from_path]
+        else:
+            listed_data = data_from_path
+        return listed_data, new_schema
 
     @staticmethod
-    def _get_data_from_path(
-        path: Union[str, list[str], None], data: dict
-    ) -> dict[str, Any]:
-        if isinstance(path, str):
-            output_data = data.get(path)
-        elif isinstance(path, list):
-            output_data = deepcopy(data)
-            for key in path:
-                output_data = output_data.get(key, {})
-        elif path is None:
-            output_data = data
+    def transpose_by_key(
+        data: dict, schema: Optional[Union[str, list[str]]] = None
+    ) -> tuple[Union[list[Any], list[list[Any]]], list[str]]:
+        """
+        Transpose values from a dictionary by keys.
+
+        Given a dictionary and an optional schema (a key or list of keys), this function:
+        - Extracts the values for the specified keys (or all keys if no schema is provided).
+        - Ensures the data is represented as a list of rows, then transposes it (i.e., switches rows to columns).
+        - Handles edge cases:
+            * If a single scalar or single-element list is provided, returns a flat list.
+            * If a single key is provided (as a string or a list with one element), handles it properly.
+            * If only one row with len of one remains after transposition, unwraps it to avoid nested list-of-one.
+
+        Example::
+
+            transpose_by_key({"a": 1})
+            # returns: [1]
+
+            transpose_by_key({"a": [1, 2]})
+            # returns: [1 ,2]
+
+            transpose_by_key({"a": [1, 2], "b": [3, 4]})
+            # returns: [[1, 3], [2, 4]]
+
+        :param data:     Dictionary with values that are either scalars or lists.
+        :param schema:   Optional key or list of keys to extract. If not provided, all keys are used.
+                         Can be a string (single key) or a list of strings.
+
+        :return:         Transposed values:
+                         * If result is a single column or row, returns a flat list.
+                         * If result is a matrix, returns a list of lists.
+
+        :raises ValueError: If the values include a mix of scalars and lists, or if the list lengths do not match.
+                mlrun.MLRunInvalidArgumentError if the schema keys are not contained in the data keys.
+        """
+        new_schema = None
+        # Normalize keys in data:
+        normalize_data = {
+            mlrun.feature_store.api.norm_column_name(k): copy(v)
+            for k, v in data.items()
+        }
+        # Normalize schema to list
+        if not schema:
+            keys = list(normalize_data.keys())
+            new_schema = keys
+        elif isinstance(schema, str):
+            keys = [mlrun.feature_store.api.norm_column_name(schema)]
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Expected path be of type str or list of str or None"
+            keys = [mlrun.feature_store.api.norm_column_name(key) for key in schema]
+
+        values = [normalize_data[key] for key in keys if key in normalize_data]
+        if len(values) != len(keys):
+            raise mlrun.MLRunInvalidArgumentError(
+                f"Schema keys {keys} are not contained in the data keys {list(data.keys())}."
             )
-        if isinstance(output_data, (int, float)):
-            output_data = [output_data]
-        return output_data
+
+        # Detect if all are scalars ie: int,float,str
+        all_scalars = all(not isinstance(v, (list, tuple, np.ndarray)) for v in values)
+        all_lists = all(isinstance(v, (list, tuple, np.ndarray)) for v in values)
+
+        if not (all_scalars or all_lists):
+            raise ValueError(
+                "All values must be either scalars or lists of equal length."
+            )
+
+        if all_scalars:
+            transposed = np.array([values], dtype=object)
+        elif all_lists and len(keys) > 1:
+            arrays = [np.array(v, dtype=object) for v in values]
+            mat = np.stack(arrays, axis=0)
+            transposed = mat.T
+        else:
+            return values[0], new_schema
+
+        if transposed.shape[1] == 1 and transposed.shape[0] == 1:
+            # Transform [[0]] -> [0]:
+            return transposed[:, 0].tolist(), new_schema
+        return transposed.tolist(), new_schema
 
     def do(self, event):
         monitoring_event_list = []
         model_runner_name = event._metadata.get("model_runner_name", "")
-        step = self.server.graph.steps[model_runner_name] if self.server else {}
+        step = self.server.graph.steps[model_runner_name] if self.server else None
+        if not step or not hasattr(step, "monitoring_data"):
+            raise mlrun.errors.MLRunRuntimeError(
+                f"ModelRunnerStep name {model_runner_name} is not found in the graph or does not have monitoring data"
+            )
         monitoring_data = step.monitoring_data
         logger.debug(
             "monitoring preprocessor started",
             event=event,
-            model_endpoints=monitoring_data,
+            monitoring_data=monitoring_data,
             metadata=event._metadata,
         )
         if len(monitoring_data) > 1:
@@ -164,6 +220,12 @@ class MonitoringPreProcessor(storey.MapClass):
                     request, resp = self.reconstruct_request_resp_fields(
                         event, model, monitoring_data[model]
                     )
+                    if hasattr(event, "_original_timestamp"):
+                        when = event._original_timestamp
+                    else:
+                        when = event._metadata.get(model, {}).get(
+                            mm_schemas.StreamProcessingEvent.WHEN
+                        )
                     monitoring_event_list.append(
                         {
                             mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -173,9 +235,7 @@ class MonitoringPreProcessor(storey.MapClass):
                             mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata.get(
                                 model, {}
                             ).get(mm_schemas.StreamProcessingEvent.MICROSEC),
-                            mm_schemas.StreamProcessingEvent.WHEN: event._metadata.get(
-                                model, {}
-                            ).get(mm_schemas.StreamProcessingEvent.WHEN),
+                            mm_schemas.StreamProcessingEvent.WHEN: when,
                             mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                                 model
                             ].get(
@@ -208,6 +268,10 @@ class MonitoringPreProcessor(storey.MapClass):
             request, resp = self.reconstruct_request_resp_fields(
                 event, model, monitoring_data[model]
             )
+            if hasattr(event, "_original_timestamp"):
+                when = event._original_timestamp
+            else:
+                when = event._metadata.get(mm_schemas.StreamProcessingEvent.WHEN)
             monitoring_event_list.append(
                 {
                     mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -217,9 +281,7 @@ class MonitoringPreProcessor(storey.MapClass):
                     mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata.get(
                         mm_schemas.StreamProcessingEvent.MICROSEC
                     ),
-                    mm_schemas.StreamProcessingEvent.WHEN: event._metadata.get(
-                        mm_schemas.StreamProcessingEvent.WHEN
-                    ),
+                    mm_schemas.StreamProcessingEvent.WHEN: when,
                     mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                         model
                     ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
@@ -333,7 +395,9 @@ class SamplingStep(storey.MapClass):
             event=event,
             sampling_percentage=self.sampling_percentage,
         )
-        if self.sampling_percentage != 100:
+        if self.sampling_percentage != 100 and not event.get(
+            mm_schemas.StreamProcessingEvent.ERROR
+        ):
             request = event[mm_schemas.StreamProcessingEvent.REQUEST]
             num_of_inputs = len(request["inputs"])
             sampled_requests_indices = self._pick_random_requests(

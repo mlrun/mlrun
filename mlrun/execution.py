@@ -94,6 +94,7 @@ class MLClientCtx:
         self._state_thresholds = {}
         self._retry_spec = {}
         self._retry_count = None
+        self._retries = []
 
         self._labels = {}
         self._annotations = {}
@@ -468,6 +469,7 @@ class MLClientCtx:
             for key, uri in status.get("artifact_uris", {}).items():
                 self._artifacts_manager.artifact_uris[key] = uri
             self._retry_count = status.get("retry_count", self._retry_count)
+            self._retries = status.get("retries", self._retries)
             # if run is a retry, the state needs to move to running
             if include_status:
                 self._state = status.get("state", self._state)
@@ -911,7 +913,7 @@ class MLClientCtx:
     def log_llm_prompt(
         self,
         key,
-        prompt_string: Optional[str] = None,
+        prompt_template: Optional[list[dict]] = None,
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
@@ -932,27 +934,75 @@ class MLClientCtx:
 
         Examples::
 
-            # Log an inline prompt
+            # Log directly with an inline prompt template
             context.log_llm_prompt(
-                key="qa-prompt",
-                prompt_string="Q: {question}",
+                key="customer_support_prompt",
+                prompt_template=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful customer support assistant.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "The customer reports: {issue_description}",
+                    },
+                ],
+                prompt_legend={
+                    "issue_description": {
+                        "field": "user_issue",
+                        "description": "Detailed description of the customer's issue",
+                    },
+                    "solution": {
+                        "field": "proposed_solution",
+                        "description": "Suggested fix for the customer's issue",
+                    },
+                },
                 model_artifact=model,
-                prompt_legend={"question": "user_input"},
-                model_configuration={"temperature": 0.7, "max_tokens": 128},
-                tag="latest",
+                model_configuration={"temperature": 0.5, "max_tokens": 200},
+                description="Prompt for handling customer support queries",
+                tag="support-v1",
+                labels={"domain": "support"},
+            )
+
+            # Log a prompt from file
+            context.log_llm_prompt(
+                key="qa_prompt",
+                prompt_path="prompts/template.json",
+                prompt_legend={
+                    "question": {
+                        "field": "user_question",
+                        "description": "The actual question asked by the user",
+                    }
+                },
+                model_artifact=model,
+                model_configuration={"temperature": 0.7, "max_tokens": 256},
+                description="Q&A prompt template with user-provided question",
+                tag="v2",
+                labels={"task": "qa", "stage": "experiment"},
             )
 
         :param key: Unique name of the artifact.
-        :param prompt_string: Raw prompt text as a string. Cannot be used with `prompt_path`.
-        :param prompt_path: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
+        :param prompt_template: Raw prompt list of dicts -
+         [{"role": "system", "content": "You are a {profession} advisor"},
+         "role": "user", "content": "I need your help with {profession}"]. only "role" and "content" keys allow in any
+         str format (upper/lower case), keys will be modified to lower case.
+         Cannot be used with `prompt_path`.
+        :param prompt_path: Path to a JSON file containing the prompt template.
+                    Cannot be used together with `prompt_template`.
+                    The file should define a list of dictionaries in the same format
+                    supported by `prompt_template`.
         :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
-               and the value is a description or explanation of what that placeholder represents.
+               and the value is a dictionary holding two keys, "field", "description". "field" points to the field in
+               the event where the value of the place-holder inside the event, if None or not exist will be replaced
+               with the place-holder name. "description" will point to explanation of what that placeholder represents.
                Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param model_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).
-        :param description: Optional description of the prompt.
-        :param target_path: Path to write the artifact locally.
-        :param artifact_path: Path in the artifact store (defaults to project artifact path).
+        :param description:   Optional description of the prompt.
+        :param target_path:   Absolute target path (instead of using artifact_path + local_path)
+        :param artifact_path: Target artifact path (when not using the default)
+                              To define a subpath under the default location use:
+                              `artifact_path=context.artifact_subpath('data')`
         :param tag: Tag/version to assign to the prompt artifact.
         :param labels: Labels to tag the artifact (e.g., list or dict of key-value pairs).
         :param upload: Whether to upload the artifact to the store (defaults to True).
@@ -961,10 +1011,15 @@ class MLClientCtx:
         :returns: The logged `LLMPromptArtifact` object.
         """
 
+        if not prompt_template and not prompt_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Either 'prompt_template' or 'prompt_path' must be provided"
+            )
+
         llm_prompt = LLMPromptArtifact(
             key=key,
             project=self.project or "",
-            prompt_string=prompt_string,
+            prompt_template=prompt_template,
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             model_artifact=model_artifact,
@@ -1262,6 +1317,7 @@ class MLClientCtx:
                 "start_time": to_date_str(self._start_time),
                 "last_update": to_date_str(self._last_update),
                 "retry_count": self._retry_count,
+                "retries": self._retries,
             },
         }
 

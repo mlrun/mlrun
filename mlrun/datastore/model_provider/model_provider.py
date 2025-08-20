@@ -138,6 +138,9 @@ class ModelProvider(BaseRemoteClient):
 
         raise NotImplementedError("load_client method is not implemented")
 
+    def load_async_client(self) -> Any:
+        raise NotImplementedError("load_async_client method is not implemented")
+
     @property
     def client(self) -> Any:
         return self._client

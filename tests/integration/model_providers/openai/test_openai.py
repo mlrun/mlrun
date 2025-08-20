@@ -170,7 +170,6 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             )
 
         assert isinstance(response, dict)
-        # TODO update stats to const
         completion_tokens = response[UsageResponseKeys.USAGE]["completion_tokens"]
         prompt_tokens = response[UsageResponseKeys.USAGE]["prompt_tokens"]
         total_tokens = response[UsageResponseKeys.USAGE]["total_tokens"]

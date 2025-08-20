@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.schemas
 import mlrun.common.schemas.hub
+from mlrun.common.schemas.hub import HubSourceType
 
 import framework.api.deps
 import framework.utils.auth.verifier
@@ -193,7 +194,7 @@ async def get_catalog(
     version: Optional[str] = Query(None),
     tag: Optional[str] = Query(None),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
-    object_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
+    object_type: HubSourceType = Query(HubSourceType.functions),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         framework.api.deps.authenticate_request
@@ -232,7 +233,7 @@ async def get_item(
     version: Optional[str] = Query(None),
     tag: Optional[str] = Query("latest"),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
-    item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
+    item_type: HubSourceType = Query(HubSourceType.functions),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         framework.api.deps.authenticate_request
@@ -307,7 +308,7 @@ async def get_asset(
     asset_name: str,
     tag: Optional[str] = Query("latest"),
     version: Optional[str] = Query(None),
-    item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
+    item_type: HubSourceType = Query(HubSourceType.functions),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         framework.api.deps.authenticate_request

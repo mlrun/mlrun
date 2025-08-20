@@ -100,7 +100,19 @@ class OpenAIProvider(ModelProvider):
     @property
     def client(self) -> Any:
         """
-        Lazily initialize and return the synchronous OpenAI client.
+        Lazily return the synchronous OpenAI client.
+
+        If the client has not been initialized yet, it will be created
+        by calling `load_client`.
+        """
+        self.load_client()
+        return self._client
+
+    def load_client(self) -> None:
+        """
+        Lazily initialize the synchronous OpenAI client.
+
+        The client is created only if it does not already exist.
         Raises ImportError if the openai package is not installed.
         """
         if not self._client:
@@ -110,7 +122,6 @@ class OpenAIProvider(ModelProvider):
                 self._client = OpenAI(**self.options)
             except ImportError as exc:
                 raise ImportError("openai package is not installed") from exc
-        return self._client
 
     def load_async_client(self) -> None:
         """

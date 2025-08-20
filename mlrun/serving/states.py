@@ -2456,7 +2456,7 @@ class FlowStep(BaseStep):
                     default_final_step = next_obj.name
                     break
                 next_obj = self[next[0]] if len(next) == 1 else None
-
+        print("[Roy] Graph steps and root:", self._steps.keys(), self._extract_root_step())
         return self._start_steps, default_final_step, responders
 
     def set_flow_source(self, source):

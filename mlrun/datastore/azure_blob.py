@@ -229,11 +229,18 @@ class AzureBlobStore(DataStore):
         st = self.storage_options
         service = "blob"
         primary_url = None
-        if st.get("connection_string"):
+        connection_string = st.get("connection_string")
+        if connection_string:
             primary_url, _, parsed_credential = parse_connection_str(
-                st.get("connection_string"), credential=None, service=service
+                connection_string, credential=None, service=service
             )
-            for key in ["account_name", "account_key"]:
+
+            if isinstance(parsed_credential, str):
+                sas_str = parsed_credential
+                parsed_credential = {}
+                parsed_credential["sas_token"] = sas_str
+
+            for key in ["account_name", "account_key", "sas_token"]:
                 parsed_value = parsed_credential.get(key)
                 if parsed_value:
                     if key in st and st[key] != parsed_value:
@@ -259,6 +266,8 @@ class AzureBlobStore(DataStore):
             host = f"{account_name}.{service}.core.windows.net"
         else:
             return res
+
+        host = host.rstrip("/")
 
         if "account_key" in st:
             res[f"spark.hadoop.fs.azure.account.key.{host}"] = st["account_key"]

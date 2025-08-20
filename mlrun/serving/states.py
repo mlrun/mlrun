@@ -2843,11 +2843,13 @@ class RootFlowStep(FlowStep):
 
             :param model_artifact:      model artifact or mlrun model artifact uri
             :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
-                                        that been configured in the model artifact, please note that those inputs need to
-                                        be equal in length and order to the inputs that model_class predict method expects
+                                        that been configured in the model artifact, please note that those inputs need
+                                        to be equal in length and order to the inputs that model_class
+                                        predict method expects
             :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
-                                        that been configured in the model artifact, please note that those outputs need to
-                                        be equal to the model_class predict method outputs (length, and order)
+                                        that been configured in the model artifact, please note that those outputs need
+                                        to be equal to the model_class
+                                        predict method outputs (length, and order)
             :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
                                         (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
             :param result_path:         result path inside the user output event, expect scopes to be defined by dot

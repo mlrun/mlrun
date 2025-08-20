@@ -231,7 +231,7 @@ class Client(
 
         if "projects" in path:
             if mlrun.common.schemas.HeaderNames.projects_role not in kwargs.get(
-                    "headers", {}
+                "headers", {}
             ):
                 kwargs.setdefault("headers", {})[
                     mlrun.common.schemas.HeaderNames.projects_role

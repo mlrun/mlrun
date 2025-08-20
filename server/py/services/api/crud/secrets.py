@@ -440,6 +440,12 @@ class Secrets(
                 "Failed to store secret tokens – no tokens provided"
             )
 
+        logger.debug(
+            "Starting to store secret tokens",
+            username=authenticated_username,
+            token_count=len(secret_tokens),
+        )
+
         # First validate all token names
         seen_names = set()
         for secret_token in secret_tokens:
@@ -463,13 +469,26 @@ class Secrets(
 
             expiration = self._extract_and_validate_expiration(token_name, token)
 
-            action = self.secrets_provider.create_or_update_user_token_secret(
+            action = self.secrets_provider.store_user_token_secret(
                 username=authenticated_username,
                 token_name=token_name,
                 token=token,
                 expiration=expiration,
             )
             token_actions[action].append(token_name)
+
+        logger.debug(
+            "Finished storing tokens",
+            created_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.created
+            ],
+            updated_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.updated
+            ],
+            skipped_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.skipped
+            ],
+        )
 
         return mlrun.common.schemas.StoreSecretTokensResponse(
             created_tokens=token_actions[

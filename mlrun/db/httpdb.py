@@ -5091,12 +5091,18 @@ class HTTPRunDB(RunDBInterface):
             secret_tokens=[secret_token],
             error=f"store user secret token {secret_token.name}",
         )
-        if log_warning:
+
+        # Only log if the token was created or updated
+        if log_warning and (
+            secret_token.name in response.created_tokens
+            or secret_token.name in response.updated_tokens
+        ):
             logger.warning(
                 f"Token '{secret_token.name}' was stored in the backend, "
                 "but the local configuration file (~/.igz.yaml) was not updated. "
                 "Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
             )
+        # maybe the response should not be a list?
         return response
 
     @iguazio_v4_only
@@ -5129,13 +5135,17 @@ class HTTPRunDB(RunDBInterface):
             secret_tokens=secret_tokens,
             error="store multiple user secret tokens",
         )
-        if log_warning:
-            token_names = "', '".join(token.name for token in secret_tokens)
+
+        # Only log a warning if at least one token was actually created or updated
+        if log_warning and (response.created_tokens or response.updated_tokens):
+            affected_tokens = response.created_tokens + response.updated_tokens
+            token_names = "', '".join(affected_tokens)
             logger.warning(
                 f"Tokens '{token_names}' were stored in the backend, "
                 "but the local configuration file (~/.igz.yaml) was not updated. "
                 "Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
             )
+
         return response
 
     def _store_secret_tokens(
@@ -5153,7 +5163,7 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(body),
         )
 
-        return mlrun.common.schemas.StoreSecretTokensResponse(**response)
+        return mlrun.common.schemas.StoreSecretTokensResponse(**response.json())
 
     @staticmethod
     def _parse_labels(

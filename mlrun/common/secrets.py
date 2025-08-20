@@ -56,12 +56,13 @@ class SecretProviderInterface(ABC):
         pass
 
     @abstractmethod
-    def create_or_update_user_token_secret(
+    def store_user_token_secret(
         self,
         username: str,
         token_name: str,
         token: str,
         expiration: int,
+        namespace: str = "",
     ) -> mlrun.common.schemas.SecretEventActions:
         pass
 
@@ -141,14 +142,14 @@ class InMemorySecretProvider(SecretProviderInterface):
     def get_secret_data(self, secret_name, namespace=""):
         return self.secrets_map[secret_name]
 
-    def create_or_update_user_token_secret(
+    def store_user_token_secret(
         self,
         username: str,
         token_name: str,
         token: str,
         expiration: int,
+        namespace: str = "",
     ) -> mlrun.common.schemas.SecretEventActions:
-        # TODO: Implement storing user token secrets in the in-memory provider.
         raise NotImplementedError()
 
     @staticmethod

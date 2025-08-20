@@ -50,6 +50,7 @@ from mlrun.utils.helpers import (
     verify_field_regex,
     verify_list_items_type,
 )
+from mlrun.common.schemas.hub import HubSourceType
 
 STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
 ARTIFACT_STORE_PREFIX = STORE_PREFIX.format(kind=StorePrefix.Artifact)
@@ -234,7 +235,7 @@ def test_spark_job_name_regex(value, expected):
     ],
 )
 def test_extend_hub_uri(rundb_mock, case):
-    hub_url = mlrun.mlconf.get_default_hub_source()
+    hub_url = mlrun.mlconf.get_default_hub_source_url_prefix(HubSourceType.functions)
     input_uri = case["input_uri"]
     expected_output = case["expected_output"]
     output, is_hub_url = extend_hub_uri_if_needed(input_uri)

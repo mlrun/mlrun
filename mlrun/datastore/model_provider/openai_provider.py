@@ -108,6 +108,9 @@ class OpenAIProvider(ModelProvider):
                 raise ImportError("openai package is not installed") from exc
         return self._client
 
+    def load_async_client(self) -> Any:
+        _ = self.async_client
+
     @property
     def async_client(self) -> Any:
         if not self._async_client:

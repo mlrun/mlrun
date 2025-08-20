@@ -274,7 +274,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
-    @pytest.mark.parametrize("execution_mechanism", ["naive", "asyncio"])
+    @pytest.mark.parametrize(
+        "execution_mechanism", ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"]
+    )
     def test_model_runner_with_openai(self, execution_mechanism):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model

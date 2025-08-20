@@ -24,6 +24,7 @@ import alembic
 import alembic.command
 import alembic.config
 import pymysql.err
+import sqlalchemy.engine
 import sqlalchemy.exc
 import sqlalchemy.orm
 import sqlalchemy_utils
@@ -56,36 +57,56 @@ from framework.utils.db.utils import DBUtil
 def init_data(
     perform_migrations_if_needed: bool = False,
 ) -> None:
+    """
+    This function initializes the database with the necessary data.
+    It checks if the database exists and if it has any tables,
+    and if not, it creates the database and initializes it from scratch.
+    """
     mlrun.utils.logger.info("Initializing DB data")
 
     engine = framework.db.sqldb.sql_session.get_engine()
-    url = engine.url
-    from_scratch = False
-    if not sqlalchemy_utils.database_exists(url):
-        mlrun.utils.logger.info(
-            "Database does not exist, initializing from scratch",
-            database_url=url,
-        )
-        sqlalchemy_utils.create_database(url)
-        from_scratch = True
-    else:
-        has_tables = bool(sqlalchemy.inspect(engine).get_table_names())
-        if not has_tables:
-            mlrun.utils.logger.info(
-                "No tables found in the database, initializing from scratch",
-                database_url=url,
-            )
-            from_scratch = True
+    db_initialized = _initialize_db_if_needed(engine)
 
-    if from_scratch:
-        _initialize_db_from_scratch(engine, url)
+    if db_initialized:
+        mlrun.utils.logger.info("Creating database from scratch")
+        _initialize_db_from_scratch(engine)
     else:
+        mlrun.utils.logger.info("Migrating existing data")
         _migrate_existing_data(
             engine,
             perform_migrations_if_needed,
         )
 
     mlrun.utils.logger.info("Initial data created")
+
+
+def _initialize_db_if_needed(engine: sqlalchemy.engine.Engine) -> bool:
+    """
+    Checks if the database instance exists and is initialized.
+    Returns True if the database needs to be created or initialized from scratch (i.e.,
+    if the database does not exist or exists but has no tables).
+    Returns False if the database exists and has tables (i.e., is set up and ready).
+    """
+    url = engine.url
+    if not sqlalchemy_utils.database_exists(url):
+        mlrun.utils.logger.info(
+            "Database does not exist, creating",
+            database_url=url,
+        )
+        sqlalchemy_utils.create_database(url)
+        return True
+
+    # db exists, lets see if it has some tables
+    has_tables = bool(sqlalchemy.inspect(engine).get_table_names())
+    if not has_tables:
+        mlrun.utils.logger.info(
+            "No tables found in the database",
+            database_url=url,
+        )
+        return True
+
+    # db exists and have tables. nothing to ensure
+    return False
 
 
 def _create_schema(
@@ -98,9 +119,9 @@ def _create_schema(
 
 
 def _initialize_db_from_scratch(
-    engine: typing.Optional[sqlalchemy.engine.Engine],
-    url: sqlalchemy.engine.URL,
+    engine: sqlalchemy.engine.Engine,
 ):
+    url = engine.url
     _create_schema(
         engine=engine,
     )

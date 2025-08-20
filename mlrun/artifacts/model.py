@@ -190,10 +190,10 @@ class ModelArtifact(Artifact):
         """
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
-        if model_file and model_url:
+        if (model_file or model_dir or body) and model_url:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Arguments 'model_file' and 'model_dir' cannot be"
-                " used together with 'model_url'."
+                "Arguments 'model_file' and 'model_url' cannot be"
+                " used together with 'model_file', 'model_dir' or 'body'."
             )
         if model_file and "/" in model_file:
             if model_dir:

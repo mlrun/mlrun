@@ -127,7 +127,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.10.10"},
+        "storey": {"~=1.10.11"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "scipy": {"~=1.13.0"},
@@ -217,7 +217,7 @@ def test_requirement_specifiers_inconsistencies():
         # packages that require specific versions per python version
         "v3io-frames": {
             '>=0.13.0; python_version >= "3.11"',
-            '~=0.10.14; python_version < "3.11"',
+            '~=0.10.15; python_version < "3.11"',
         },
         "dask-ml": {
             '~=2024.4.4; python_version >= "3.11"',

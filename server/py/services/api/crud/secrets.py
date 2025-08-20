@@ -458,6 +458,7 @@ class Secrets(
             token = secret_token.token
 
             # TODO remove this and use refresh_access_tokens once it is implemented in Iguazio client
+            # We validate the offline token by sending it to Iguazio for verification.
             iguazio_client.refresh_access_token(secret_token)
 
             expiration = self._extract_and_validate_expiration(token_name, token)

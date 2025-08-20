@@ -945,13 +945,30 @@ upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system t
 		--output-file dockerfiles/test-system/locked-requirements.txt
 
 
-upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
+upgrade-mlrun-kfp-deps-lock-all: upgrade-mlrun-kfp-deps-lock-3.11 upgrade-mlrun-kfp-deps-lock-3.9
+
+upgrade-mlrun-kfp-deps-lock-3.11:
+	$(MAKE) upgrade-mlrun-kfp-deps-lock MLRUN_PYTHON_VERSION=3.11
+
+upgrade-mlrun-kfp-deps-lock-3.9:
+	$(MAKE) upgrade-mlrun-kfp-deps-lock MLRUN_PYTHON_VERSION=3.9
+
+upgrade-mlrun-test-deps-lock-all: upgrade-mlrun-test-deps-lock-3.11 upgrade-mlrun-test-deps-lock-3.9
+
+upgrade-mlrun-test-deps-lock-3.11:
+	$(MAKE) upgrade-mlrun-test-deps-lock MLRUN_PYTHON_VERSION=3.11
+
+upgrade-mlrun-test-deps-lock-3.9:
+	$(MAKE) upgrade-mlrun-test-deps-lock MLRUN_PYTHON_VERSION=3.9
+
+
+upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
-		--python-version 3.9 \
+		--python-version $(MLRUN_PYTHON_VERSION) \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
+		--output-file dockerfiles/mlrun-kfp/locked-requirements_$(MLRUN_PYTHON_VERSION).txt
 
 .PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
@@ -959,8 +976,7 @@ upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirement
 		upgrade-mlrun-mlrun-deps-lock \
 		upgrade-mlrun-api-deps-lock \
 		upgrade-mlrun-jupyter-deps-lock \
-		upgrade-mlrun-base-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
-		upgrade-mlrun-kfp-deps-lock \
-		upgrade-mlrun-test-deps-lock \
+		upgrade-mlrun-kfp-deps-lock-all \
+		upgrade-mlrun-test-deps-lock-all \
 		upgrade-mlrun-system-test-deps-lock

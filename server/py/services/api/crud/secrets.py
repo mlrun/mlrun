@@ -559,10 +559,21 @@ class Secrets(
         iguazio_client.revoke_offline_token(token)
 
         # Delete the Kubernetes secret
-        self.secrets_provider.delete_user_token_secret(
-            username=authenticated_username,
-            token_name=token_name,
-        )
+        try:
+            self.secrets_provider.delete_user_token_secret(
+                username=authenticated_username,
+                token_name=token_name,
+            )
+        except Exception as exc:
+            logger.error(
+                "Token revoked but failed to delete associated secret",
+                username=authenticated_username,
+                token_name=token_name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Token '{token_name}' revoked, but failed to delete associated secret"
+            ) from exc
 
         logger.debug(
             "Finished revoking secret token for user",

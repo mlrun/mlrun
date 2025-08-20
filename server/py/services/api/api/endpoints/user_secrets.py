@@ -62,7 +62,7 @@ async def list_secret_tokens(
     )
 
 
-@router.delete("/tokens/{name}")
+@router.delete("/tokens/{name}", status_code=HTTPStatus.OK.value)
 async def revoke_secret_token(
     token_name: str,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(

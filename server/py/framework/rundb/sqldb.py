@@ -1382,6 +1382,9 @@ class SQLRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         raise NotImplementedError
 
+    def revoke_secret_token(self, token_name: str) -> None:
+        raise NotImplementedError
+
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)
 @containers.override(mlrun.db.factory.RunDBContainer)

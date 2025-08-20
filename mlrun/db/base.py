@@ -25,6 +25,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 
+
 class RunDBError(Exception):
     pass
 

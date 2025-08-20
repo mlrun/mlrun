@@ -530,6 +530,45 @@ class Secrets(
             secret_tokens=secret_tokens
         )
 
+    def revoke_secret_token(
+        self,
+        token_name: str,
+        authenticated_username: str,
+    ):
+        """
+        Revoke a user's offline token in Iguazio and delete its Kubernetes secret.
+
+        :param token_name: Logical name of the token to revoke.
+        :param authenticated_username: The user who owns the token.
+        """
+        logger.debug(
+            "Revoking secret token for user",
+            username=authenticated_username,
+            token_name=token_name,
+        )
+
+        # Get the offline token string
+        token = self.secrets_provider.get_user_token_secret_value(
+            username=authenticated_username,
+            token_name=token_name,
+        )
+
+        # Revoke via Iguazio
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        iguazio_client.revoke_offline_token(token)
+
+        # Delete the Kubernetes secret
+        self.secrets_provider.delete_user_token_secret(
+            username=authenticated_username,
+            token_name=token_name,
+        )
+
+        logger.debug(
+            "Finished revoking secret token for user",
+            username=authenticated_username,
+            token_name=token_name,
+        )
+
     @staticmethod
     def _validate_token_name(token_name: str, seen_names: set):
         if not token_name or token_name in seen_names:

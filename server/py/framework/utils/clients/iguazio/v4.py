@@ -52,6 +52,21 @@ class Client(BaseClient):
         # TODO: Implement this method once it is available in the Iguazio package
         pass
 
+    def revoke_offline_token(self, token: str) -> None:
+        """
+        Revoke an offline token in Iguazio.
+
+        This method sends a revoke request to Iguazio in order to invalidate
+        the provided offline token. Once revoked, the token can no longer be
+        used to obtain access tokens.
+
+        :param token: The offline token string to revoke.
+        :raises mlrun.errors.MLRunInvalidArgumentError: If the provided token is empty.
+        :raises mlrun.errors.MLRunUnauthorizedError: If the revocation request fails
+        """
+        # TODO: Implement this method
+        pass
+
     def _generate_auth_info_from_session_verification_response(
         self,
         response_headers: typing.Mapping[str, typing.Any],

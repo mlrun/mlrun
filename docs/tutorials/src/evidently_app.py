@@ -43,7 +43,7 @@ if _HAS_EVIDENTLY:
 
 
 class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
-    NAME = "evidently-app-test"
+    NAME = "Evidently-App-Test"
 
     def __init__(
         self,

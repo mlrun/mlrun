@@ -54,12 +54,21 @@ class FunctionSummary(BaseModel):
 
         return cls(
             type=func_type,
-            name=func_dict["metadata"]["name"],
+            name=func_dict["metadata"]["name"]
+            if func_type != FunctionsType.APPLICATION
+            else func_dict["spec"]
+            .get("graph", {})
+            .get("steps", {})
+            .get("PrepareMonitoringEvent", {})
+            .get("class_args", {})
+            .get("application_name"),
             application_class=""
             if func_type != FunctionsType.APPLICATION
-            else func_dict["spec"]["graph"]["steps"]["PushToMonitoringWriter"]["after"][
-                0
-            ],
+            else func_dict["spec"]
+            .get("graph", {})
+            .get("steps", {})
+            .get("PushToMonitoringWriter", {})
+            .get("after", [None])[0],
             project_name=func_dict["metadata"]["project"],
             updated_time=func_dict["metadata"].get("updated"),
             status=func_dict["status"].get("state"),

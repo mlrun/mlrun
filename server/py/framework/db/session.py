@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
+
+import fastapi.concurrency
 from sqlalchemy.orm import Session
 
 import mlrun.utils.helpers
@@ -43,13 +46,28 @@ def run_function_with_new_db_session(func, *args, **kwargs):
 
 async def run_async_function_with_new_db_session(func, *args, **kwargs):
     """
-    Run an async function with a new db session, useful for concurrent requests where we can't share a single session.
-    However, any changes made by the new session will not be visible to old sessions until the old sessions commit
+    Run an async function with a new db session.
+    If the func is a coroutine function (async def), use run_async_function_with_new_db_session below.
+    alternatively, given the async context, run the synchronous function in a thread pool.
+
+    Any changes made by the new session will not be visible to old sessions until the old sessions commit
     due to isolation level.
     """
-    session = await mlrun.utils.helpers.run_in_threadpool(create_session)
-    try:
-        result = await func(session, *args, **kwargs)
-        return result
-    finally:
-        await mlrun.utils.helpers.run_in_threadpool(close_session, session)
+
+    # function is async. wrap its execution with a new db session
+    if inspect.iscoroutinefunction(func):
+        session = await mlrun.utils.helpers.run_in_threadpool(create_session)
+        try:
+            result = await func(session, *args, **kwargs)
+            return result
+        finally:
+            await mlrun.utils.helpers.run_in_threadpool(close_session, session)
+
+    # function is sync running in async context,
+    # move all together to a thread and execute it non-blocking
+    return await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
+        func,
+        *args,
+        **kwargs,
+    )

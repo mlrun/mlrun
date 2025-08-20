@@ -14,9 +14,12 @@
 
 ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
+ARG MLRUN_PIP_VERSION=25.0
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
+ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_PIP_VERSION
 
 # Update OS packages:
 RUN apt-get update && \
@@ -29,9 +32,7 @@ RUN apt-get update && \
     && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
     && rm -rf /var/lib/apt/lists/*
 
-ARG MLRUN_PIP_VERSION=25.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
-ARG MLRUN_PYTHON_VERSION=3.9
 
 WORKDIR /mlrun
 
@@ -39,7 +40,7 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=dockerfiles/mlrun-kfp/locked-requirements.txt,target=locked-requirements.txt \
+    --mount=type=bind,source=dockerfiles/mlrun-kfp/locked-requirements_${MLRUN_PYTHON_VERSION}.txt,target=locked-requirements.txt \
     uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
 WORKDIR /tmp/mlrun

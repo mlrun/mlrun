@@ -92,7 +92,7 @@ class MPIResourceSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
-            foo=foo
+            foo=foo,
         )
         self.mpi_args = mpi_args or [
             "-x",

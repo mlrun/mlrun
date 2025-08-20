@@ -187,7 +187,7 @@ class KubeResourceSpec(FunctionSpec):
         track_models=None,
         parameters=None,
         graph=None,
-        foo=None
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -201,7 +201,7 @@ class KubeResourceSpec(FunctionSpec):
             default_handler=default_handler,
             pythonpath=pythonpath,
             disable_auto_mount=disable_auto_mount,
-            foo=foo
+            foo=foo,
         )
         self._volumes = {}
         self._volume_mounts = {}

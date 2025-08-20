@@ -193,7 +193,7 @@ class NuclioSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
-            foo=foo
+            foo=foo,
         )
 
         self.base_spec = base_spec or {}

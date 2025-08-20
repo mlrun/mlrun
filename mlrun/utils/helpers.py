@@ -846,7 +846,9 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     name = name.replace("-", "_")
     function_suffix = f"{name}/{tag}/src/function.yaml"
     function_type = mlrun.common.schemas.hub.HubSourceType.functions
-    return indexed_source.source.get_full_uri(function_suffix, function_type), is_hub_uri
+    return indexed_source.source.get_full_uri(
+        function_suffix, function_type
+    ), is_hub_uri
 
 
 def gen_md_table(header, rows=None):

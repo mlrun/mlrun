@@ -48,6 +48,7 @@ class HubSourceSpec(ObjectSpec):
     channel: str
     credentials: Optional[dict] = {}
 
+
 class HubSource(BaseModel):
     kind: ObjectKind = Field(ObjectKind.hub_source, const=True)
     metadata: HubObjectMetadata

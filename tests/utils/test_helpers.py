@@ -25,6 +25,7 @@ from pandas import Timedelta, Timestamp
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
@@ -50,7 +51,6 @@ from mlrun.utils.helpers import (
     verify_field_regex,
     verify_list_items_type,
 )
-from mlrun.common.schemas.hub import HubSourceType
 
 STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
 ARTIFACT_STORE_PREFIX = STORE_PREFIX.format(kind=StorePrefix.Artifact)

@@ -3002,7 +3002,7 @@ def _add_graphviz_model_runner(graph, step, source=None):
         graph.node("_start", source.name, shape=source.shape, style="filled")
         graph.edge("_start", step.fullname)
 
-    is_monitored = step._extract_root_step().track_models
+    is_monitored = graph.track_models if isinstance(graph, RootFlowStep) else False
     m_cell = '<FONT POINT-SIZE="9">🄼</FONT>' if is_monitored else ""
 
     number_of_models = len(

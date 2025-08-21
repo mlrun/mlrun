@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import random
 from copy import copy
 from datetime import timedelta
@@ -25,6 +24,10 @@ import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store
 import mlrun.serving
+from mlrun.common.model_monitoring.helpers import (
+    get_model_endpoints_creation_task_status,
+    log_background_task_state,
+)
 from mlrun.common.schemas import MonitoringData
 from mlrun.utils import get_data_from_path, logger
 
@@ -337,12 +340,12 @@ class BackgroundTaskStatus(storey.MapClass):
                 )
             )
         ):
-            background_task = mlrun.get_run_db().get_project_background_task(
-                self.server.project, self.server.model_endpoint_creation_task_name
+            self._background_task_state, self._background_task_check_timestamp = (
+                get_model_endpoints_creation_task_status(
+                    self.server,
+                    log_background_task_state,
+                )
             )
-            self._background_task_check_timestamp = mlrun.utils.now_date()
-            self._log_background_task_state(background_task.status.state)
-            self._background_task_state = background_task.status.state
 
         if (
             self._background_task_state
@@ -351,29 +354,6 @@ class BackgroundTaskStatus(storey.MapClass):
             return event
         else:
             return None
-
-    def _log_background_task_state(
-        self, background_task_state: mlrun.common.schemas.BackgroundTaskState
-    ):
-        logger.info(
-            "Checking model endpoint creation task status",
-            task_name=self.server.model_endpoint_creation_task_name,
-        )
-        if (
-            background_task_state
-            in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-        ):
-            logger.info(
-                f"Model endpoint creation task completed with state {background_task_state}"
-            )
-        else:  # in progress
-            logger.info(
-                f"Model endpoint creation task is still in progress with the current state: "
-                f"{background_task_state}. Events will not be monitored for the next "
-                f"{mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period} seconds",
-                name=self.name,
-                background_task_check_timestamp=self._background_task_check_timestamp.isoformat(),
-            )
 
 
 class SamplingStep(storey.MapClass):

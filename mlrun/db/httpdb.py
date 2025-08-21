@@ -3773,6 +3773,7 @@ class HTTPRunDB(RunDBInterface):
         mode: mm_constants.EndpointMode = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
+        as_dict: Optional[bool] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints with optional filtering by name, function name, model name, labels, and time range.
@@ -3795,6 +3796,7 @@ class HTTPRunDB(RunDBInterface):
                                 both if set to None.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
+        :param as_dict:         When True, the result will be returned as a dictionary of str, ModelEndpoint schema.
         :return:                A list of model endpoints.
         """
         path = f"projects/{project}/model-endpoints"
@@ -3819,6 +3821,7 @@ class HTTPRunDB(RunDBInterface):
                 "mode": mode,
                 "uid": uids,
                 "latest-only": latest_only,
+                "as-dict": as_dict,
             },
         )
 

@@ -725,6 +725,7 @@ class RunDBInterface(ABC):
         mode: Optional[mlrun.common.schemas.EndpointMode] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
+        as_dict: Optional[bool] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         pass
 

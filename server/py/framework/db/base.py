@@ -1363,7 +1363,7 @@ class DBInterface(ABC):
         :param offset:          SQL query offset.
         :param limit:           SQL query limit.
         :param order_by:        Name of column to order by it (in ascending order).
-        :param as_dict:         Allow returning endpoints as list of framework.db.sqldb.models.ModelEndpoint dictionary.
+        :param as_dict:         When True, the result will be returned as a dictionary of str, ModelEndpoint schema.
         :return:                A list of model endpoints.
         """
         pass

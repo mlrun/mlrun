@@ -896,17 +896,19 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             affinity = spec.get("affinity")
             required = None
 
-            if affinity and affinity.node_affinity:
-                required = affinity.node_affinity.required_during_scheduling_ignored_during_execution
+            if affinity and affinity.get("nodeAffinity"):
+                required = affinity.get("nodeAffinity").get(
+                    "requiredDuringSchedulingIgnoredDuringExecution"
+                )
 
             if expect_anti_affinity:
                 # Required anti-affinity should be present and non-empty
                 assert required is not None
-                assert len(required.node_selector_terms) > 0
+                assert len(required.get("nodeSelectorTerms")) > 0
             else:
                 # Either no required affinity or an empty set of terms
                 assert required is None or isinstance(
-                    required.node_selector_terms, list
+                    required.get("nodeSelectorTerms"), list
                 )
 
         assert_affinity(driver, expect_driver_anti_affinity)

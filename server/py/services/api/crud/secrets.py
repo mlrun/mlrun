@@ -548,11 +548,19 @@ class Secrets(
             token_name=token_name,
         )
 
-        # Get the offline token string
-        token = self.secrets_provider.get_user_token_secret_value(
-            username=authenticated_username,
-            token_name=token_name,
-        )
+        try:
+            # Get the offline token string
+            token = self.secrets_provider.get_user_token_secret_value(
+                username=authenticated_username,
+                token_name=token_name,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            logger.warning(
+                "Token not found, nothing to revoke",
+                username=authenticated_username,
+                token_name=token_name,
+            )
+            return
 
         # Revoke via Iguazio
         iguazio_client = framework.utils.clients.iguazio.v4.Client()

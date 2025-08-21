@@ -1297,7 +1297,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             silent=True,
         )
         if not k8s_secret:
-            logger.debug(
+            logger.warning(
                 "User token secret not found",
                 username=username,
                 token_name=token_name,

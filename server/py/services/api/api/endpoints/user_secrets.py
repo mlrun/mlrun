@@ -64,7 +64,7 @@ async def list_secret_tokens(
 
 @router.delete("/tokens/{name}", status_code=HTTPStatus.OK.value)
 async def revoke_secret_token(
-    token_name: str,
+    name: str,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -74,6 +74,6 @@ async def revoke_secret_token(
 
     return await run_in_threadpool(
         services.api.crud.Secrets().revoke_secret_token,
-        token_name,
+        name,
         auth_info.username,
     )

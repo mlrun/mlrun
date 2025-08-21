@@ -889,10 +889,9 @@ def test_revoke_secret_token_secret_not_found(mock_iguazio_client):
         mlrun.errors.MLRunNotFoundError("Token not found")
     )
 
-    with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Token not found"):
-        services.api.crud.Secrets().revoke_secret_token(
-            token_name=token_name, authenticated_username=username
-        )
+    services.api.crud.Secrets().revoke_secret_token(
+        token_name=token_name, authenticated_username=username
+    )
 
 
 def test_revoke_secret_token_iguazio_failure(mock_iguazio_client):

@@ -19,7 +19,10 @@ import httpx
 # iguazio package is only supported in Python >= 3.11
 if sys.version_info >= (3, 11):
     import iguazio
-    from iguazio.schemas.v1.resources.access_token import RefreshAccessTokenOptions
+    from iguazio.schemas.v1.resources.access_token import (
+        RefreshAccessTokenOptions,
+        RevokeOfflineTokenOptions,
+    )
 
 import mlrun.common.schemas
 import mlrun.common.types
@@ -115,10 +118,38 @@ class Client(BaseClient):
 
         :param token: The offline token string to revoke.
         :raises mlrun.errors.MLRunInvalidArgumentError: If the provided token is empty.
-        :raises mlrun.errors.MLRunUnauthorizedError: If the revocation request fails
+        :raises mlrun.errors.MLRunUnauthorizedError: If the revocation request fails.
         """
-        # TODO: Implement this method
-        pass
+        if not token:
+            raise mlrun.errors.MLRunInvalidArgumentError("Offline token is empty")
+
+        self._logger.info("Revoking offline token via Iguazio")
+
+        try:
+            # Use Iguazio client to revoke the token
+            options = RevokeOfflineTokenOptions(token=token)
+            self._client.revoke_offline_token(options=options)
+            self._logger.info("Successfully revoked offline token via Iguazio")
+        except httpx.HTTPStatusError as exc:
+            error_message, ctx = self._extract_response_error(exc.response)
+            self._logger.warning(
+                "Failed to revoke offline token from Iguazio",
+                status_code=exc.response.status_code,
+                error_message=error_message,
+                ctx=ctx,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise mlrun.errors.MLRunUnauthorizedError(
+                f"Failed to revoke offline token from Iguazio: {error_message}, ctx={ctx}"
+            ) from exc
+        except Exception as exc:
+            self._logger.warning(
+                "Failed to revoke offline token from Iguazio (unexpected error)",
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Failed to revoke offline token from Iguazio"
+            ) from exc
 
     def _extract_response_error(
         self, response: httpx.Response

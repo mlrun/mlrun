@@ -2997,12 +2997,10 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
         graph.edge(step.fullname, route.fullname)
 
 
-def _add_graphviz_model_runner(graph, step, source=None):
+def _add_graphviz_model_runner(graph, step, source=None, is_monitored=False):
     if source:
         graph.node("_start", source.name, shape=source.shape, style="filled")
         graph.edge("_start", step.fullname)
-
-    is_monitored = step._extract_root_step().track_models
     m_cell = '<FONT POINT-SIZE="9">🄼</FONT>' if is_monitored else ""
 
     number_of_models = len(
@@ -3041,6 +3039,7 @@ def _add_graphviz_flow(
         allow_empty=True
     )
     graph.node("_start", source.name, shape=source.shape, style="filled")
+    is_monitored = step.track_models if isinstance(step, RootFlowStep) else False
     for start_step in start_steps:
         graph.edge("_start", start_step.fullname)
     for child in step.get_children():
@@ -3049,7 +3048,7 @@ def _add_graphviz_flow(
             with graph.subgraph(name="cluster_" + child.fullname) as sg:
                 _add_graphviz_router(sg, child)
         elif kind == StepKinds.model_runner:
-            _add_graphviz_model_runner(graph, child)
+            _add_graphviz_model_runner(graph, child, is_monitored=is_monitored)
         else:
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
         _add_edges(child.after or [], step, graph, child)

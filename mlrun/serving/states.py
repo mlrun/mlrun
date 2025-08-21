@@ -546,8 +546,8 @@ class BaseStep(ModelObj):
         # Update model endpoints names in the root step
         root.update_model_endpoints_names(step_model_endpoints_names)
 
-    @staticmethod
     def _verify_shared_models(
+        self,
         root: "RootFlowStep",
         step: "ModelRunnerStep",
         step_model_endpoints_names: list[str],
@@ -576,15 +576,17 @@ class BaseStep(ModelObj):
             prefix, _ = mlrun.datastore.parse_store_uri(model_artifact_uri)
             # if the model artifact is a prompt, we need to get the model URI
             # to ensure that the shared runnable name is correct
+            llm_artifact_uri = None
             if prefix == mlrun.utils.StorePrefix.LLMPrompt:
                 llm_artifact, _ = mlrun.store_manager.get_store_artifact(
                     model_artifact_uri
                 )
+                llm_artifact_uri = llm_artifact.uri
                 model_artifact_uri = mlrun.utils.remove_tag_from_artifact_uri(
                     llm_artifact.spec.parent_uri
                 )
-            actual_shared_name = root.get_shared_model_name_by_artifact_uri(
-                model_artifact_uri
+            actual_shared_name, shared_model_class, shared_model_params = (
+                root.get_shared_model_by_artifact_uri(model_artifact_uri)
             )
 
             if not shared_runnable_name:
@@ -596,21 +598,72 @@ class BaseStep(ModelObj):
                     step.class_args[schemas.ModelRunnerStepData.MODELS][name][
                         schemas.ModelsData.MODEL_PARAMETERS.value
                     ]["shared_runnable_name"] = actual_shared_name
-                    shared_models.append(actual_shared_name)
             elif actual_shared_name != shared_runnable_name:
                 raise GraphError(
                     f"Model endpoint {name} shared runnable name mismatch: "
                     f"expected {actual_shared_name}, got {shared_runnable_name}"
                 )
-            else:
-                shared_models.append(actual_shared_name)
-
+            shared_models.append(actual_shared_name)
+            self._edit_proxy_model_data(
+                step,
+                name,
+                actual_shared_name,
+                shared_model_params,
+                shared_model_class,
+                llm_artifact_uri or model_artifact_uri,
+            )
         undefined_shared_models = list(
             set(shared_models) - set(root.shared_models.keys())
         )
         if undefined_shared_models:
             raise GraphError(
                 f"The following shared models are not defined in the graph: {undefined_shared_models}."
+            )
+
+    @staticmethod
+    def _edit_proxy_model_data(
+        step: "ModelRunnerStep",
+        name: str,
+        actual_shared_name: str,
+        shared_model_params: dict,
+        shared_model_class: Any,
+        artifact: Union[ModelArtifact, LLMPromptArtifact, str],
+    ):
+        monitoring_data = step.class_args.setdefault(
+            schemas.ModelRunnerStepData.MONITORING_DATA, {}
+        )
+
+        # edit monitoring data according to the shared model parameters
+        monitoring_data[name][schemas.MonitoringData.INPUT_PATH] = shared_model_params[
+            "input_path"
+        ]
+        monitoring_data[name][schemas.MonitoringData.RESULT_PATH] = shared_model_params[
+            "result_path"
+        ]
+        monitoring_data[name][schemas.MonitoringData.INPUTS] = shared_model_params[
+            "inputs"
+        ]
+        monitoring_data[name][schemas.MonitoringData.OUTPUTS] = shared_model_params[
+            "outputs"
+        ]
+        monitoring_data[name][schemas.MonitoringData.MODEL_CLASS] = (
+            shared_model_class
+            if isinstance(shared_model_class, str)
+            else shared_model_class.__class__.__name__
+        )
+        if actual_shared_name and actual_shared_name not in step._shared_proxy_mapping:
+            step._shared_proxy_mapping[actual_shared_name] = {
+                name: artifact.uri
+                if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                else artifact
+            }
+        elif actual_shared_name:
+            step._shared_proxy_mapping[actual_shared_name].update(
+                {
+                    name: artifact.uri
+                    if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                    else artifact
+                }
             )
 
 
@@ -1116,6 +1169,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.invocation_artifact: Optional[LLMPromptArtifact] = None
         self.model_artifact: Optional[ModelArtifact] = None
         self.model_provider: Optional[ModelProvider] = None
+        self._artifact_were_loaded = False
 
     def __init_subclass__(cls):
         super().__init_subclass__()
@@ -1136,12 +1190,14 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             )
 
     def _load_artifacts(self) -> None:
-        artifact = self._get_artifact_object()
-        if isinstance(artifact, LLMPromptArtifact):
-            self.invocation_artifact = artifact
-            self.model_artifact = self.invocation_artifact.model_artifact
-        else:
-            self.model_artifact = artifact
+        if not self._artifact_were_loaded:
+            artifact = self._get_artifact_object()
+            if isinstance(artifact, LLMPromptArtifact):
+                self.invocation_artifact = artifact
+                self.model_artifact = self.invocation_artifact.model_artifact
+            else:
+                self.model_artifact = artifact
+            self._artifact_were_loaded = True
 
     def _get_artifact_object(
         self, proxy_uri: Optional[str] = None
@@ -1259,6 +1315,8 @@ class LLModel(Model):
                         will be stored.
     """
 
+    _dict_fields = Model._dict_fields + ["result_path", "input_path"]
+
     def __init__(
         self,
         name: str,
@@ -1283,8 +1341,9 @@ class LLModel(Model):
         model_configuration: Optional[dict] = None,
         **kwargs,
     ) -> Any:
+        llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
         if isinstance(
-            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+            llm_prompt_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
             logger.debug(
                 "Invoking model provider",
@@ -1310,7 +1369,7 @@ class LLModel(Model):
             logger.warning(
                 "LLModel invocation artifact or model provider not set, skipping prediction",
                 model_name=self.name,
-                invocation_artifact_type=type(self.invocation_artifact).__name__,
+                invocation_artifact_type=type(llm_prompt_artifact).__name__,
                 model_provider_type=type(self.model_provider).__name__,
             )
         return body
@@ -1322,8 +1381,9 @@ class LLModel(Model):
         model_configuration: Optional[dict] = None,
         **kwargs,
     ) -> Any:
+        llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
         if isinstance(
-            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+            llm_prompt_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
             logger.debug(
                 "Async invoking model provider",
@@ -1349,13 +1409,16 @@ class LLModel(Model):
             logger.warning(
                 "LLModel invocation artifact or model provider not set, skipping async prediction",
                 model_name=self.name,
-                invocation_artifact_type=type(self.invocation_artifact).__name__,
+                invocation_artifact_type=type(llm_prompt_artifact).__name__,
                 model_provider_type=type(self.model_provider).__name__,
             )
         return body
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
-        messages, model_configuration = self.enrich_prompt(body, origin_name)
+        llm_prompt_artifact = self._get_invocation_artifact(origin_name)
+        messages, model_configuration = self.enrich_prompt(
+            body, origin_name, llm_prompt_artifact
+        )
         logger.info(
             "Calling LLModel predict",
             model_name=self.name,
@@ -1363,13 +1426,19 @@ class LLModel(Model):
             messages_len=len(messages) if messages else 0,
         )
         return self.predict(
-            body, messages=messages, model_configuration=model_configuration
+            body,
+            messages=messages,
+            model_configuration=model_configuration,
+            llm_prompt_artifact=llm_prompt_artifact,
         )
 
     async def run_async(
         self, body: Any, path: str, origin_name: Optional[str] = None
     ) -> Any:
-        messages, model_configuration = self.enrich_prompt(body, origin_name)
+        llm_prompt_artifact = self._get_invocation_artifact(origin_name)
+        messages, model_configuration = self.enrich_prompt(
+            body, origin_name, llm_prompt_artifact
+        )
         logger.info(
             "Calling LLModel async predict",
             model_name=self.name,
@@ -1377,26 +1446,23 @@ class LLModel(Model):
             messages_len=len(messages) if messages else 0,
         )
         return await self.predict_async(
-            body, messages=messages, model_configuration=model_configuration
+            body,
+            messages=messages,
+            model_configuration=model_configuration,
+            llm_prompt_artifact=llm_prompt_artifact,
         )
 
     def enrich_prompt(
-        self, body: dict, origin_name: str
+        self,
+        body: dict,
+        origin_name: str,
+        llm_prompt_artifact: Optional[LLMPromptArtifact] = None,
     ) -> Union[tuple[list[dict], dict], tuple[None, None]]:
         logger.info(
             "Enriching prompt",
             model_name=self.name,
             model_endpoint_name=origin_name,
         )
-        if origin_name and self.shared_proxy_mapping:
-            llm_prompt_artifact = self.shared_proxy_mapping.get(origin_name)
-            if isinstance(llm_prompt_artifact, str):
-                llm_prompt_artifact = self._get_artifact_object(llm_prompt_artifact)
-                self.shared_proxy_mapping[origin_name] = llm_prompt_artifact
-        else:
-            llm_prompt_artifact = (
-                self.invocation_artifact or self._get_artifact_object()
-            )
         if not llm_prompt_artifact or not (
             llm_prompt_artifact and isinstance(llm_prompt_artifact, LLMPromptArtifact)
         ):
@@ -1447,6 +1513,27 @@ class LLModel(Model):
                 input_data_type=type(input_data).__name__,
             )
         return prompt_template, model_configuration
+
+    def _get_invocation_artifact(
+        self, origin_name: Optional[str] = None
+    ) -> Union[LLMPromptArtifact, None]:
+        """
+        Get the LLMPromptArtifact object for this model.
+
+        :param proxy_uri: Optional; URI to the proxy artifact.
+        :return: LLMPromptArtifact object or None if not found.
+        """
+        if origin_name and self.shared_proxy_mapping:
+            llm_prompt_artifact = self.shared_proxy_mapping.get(origin_name)
+            if isinstance(llm_prompt_artifact, str):
+                llm_prompt_artifact = self._get_artifact_object(llm_prompt_artifact)
+                self.shared_proxy_mapping[origin_name] = llm_prompt_artifact
+        elif self._artifact_were_loaded:
+            llm_prompt_artifact = self.invocation_artifact
+        else:
+            self._load_artifacts()
+            llm_prompt_artifact = self.invocation_artifact
+        return llm_prompt_artifact
 
 
 class ModelSelector(ModelObj):
@@ -1615,10 +1702,6 @@ class ModelRunnerStep(MonitoredStep):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = schemas.ModelEndpointCreationStrategy.INPLACE,
-        inputs: Optional[list[str]] = None,
-        outputs: Optional[list[str]] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
         override: bool = False,
     ) -> None:
         """
@@ -1641,17 +1724,6 @@ class ModelRunnerStep(MonitoredStep):
           1. If model endpoints with the same name exist, preserve them.
           2. Create a new model endpoint with the same name and set it to `latest`.
 
-        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
-                                    that been configured in the model artifact, please note that those inputs need to
-                                    be equal in length and order to the inputs that model_class predict method expects
-        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
-                                    that been configured in the model artifact, please note that those outputs need to
-                                    be equal to the model_class predict method outputs (length, and order)
-        :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
-                                    (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-        :param result_path:         result path inside the user output event, expect scopes to be defined by dot
-                                    notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
-                                    in path.
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         """
         model_class, model_params = (
@@ -1669,11 +1741,21 @@ class ModelRunnerStep(MonitoredStep):
                 "model_artifact must be a string, ModelArtifact or LLMPromptArtifact"
             )
         root = self._extract_root_step()
+        shared_model_params = {}
         if isinstance(root, RootFlowStep):
-            shared_model_name = (
-                shared_model_name
-                or root.get_shared_model_name_by_artifact_uri(model_artifact_uri)
+            actual_shared_model_name, shared_model_class, shared_model_params = (
+                root.get_shared_model_by_artifact_uri(model_artifact_uri)
             )
+            if not actual_shared_model_name or (
+                shared_model_name and actual_shared_model_name != shared_model_name
+            ):
+                raise GraphError(
+                    f"ModelRunnerStep can only add proxy models that were added to the root flow step, "
+                    f"model {shared_model_name} is not in the shared models."
+                )
+            elif not shared_model_name:
+                shared_model_name = actual_shared_model_name
+                model_params["shared_runnable_name"] = shared_model_name
             if not root.shared_models or (
                 root.shared_models
                 and shared_model_name
@@ -1683,13 +1765,27 @@ class ModelRunnerStep(MonitoredStep):
                     f"ModelRunnerStep can only add proxy models that were added to the root flow step, "
                     f"model {shared_model_name} is not in the shared models."
                 )
-        if shared_model_name not in self._shared_proxy_mapping:
+            monitoring_data = self.class_args.get(
+                schemas.ModelRunnerStepData.MONITORING_DATA, {}
+            )
+            monitoring_data.setdefault(endpoint_name, {})[
+                schemas.MonitoringData.MODEL_CLASS
+            ] = (
+                shared_model_class
+                if isinstance(shared_model_class, str)
+                else shared_model_class.__class__.__name__
+            )
+            self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = (
+                monitoring_data
+            )
+
+        if shared_model_name and shared_model_name not in self._shared_proxy_mapping:
             self._shared_proxy_mapping[shared_model_name] = {
                 endpoint_name: model_artifact.uri
                 if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
                 else model_artifact
             }
-        else:
+        elif override and shared_model_name:
             self._shared_proxy_mapping[shared_model_name].update(
                 {
                     endpoint_name: model_artifact.uri
@@ -1704,11 +1800,11 @@ class ModelRunnerStep(MonitoredStep):
             model_artifact=model_artifact,
             labels=labels,
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
+            inputs=shared_model_params.get("inputs"),
+            outputs=shared_model_params.get("outputs"),
+            input_path=shared_model_params.get("input_path"),
+            result_path=shared_model_params.get("result_path"),
             override=override,
-            inputs=inputs,
-            outputs=outputs,
-            input_path=input_path,
-            result_path=result_path,
             **model_params,
         )
 
@@ -2742,6 +2838,10 @@ class RootFlowStep(FlowStep):
         model_class: Union[str, Model],
         execution_mechanism: Union[str, ParallelExecutionMechanisms],
         model_artifact: Union[str, ModelArtifact],
+        inputs: Optional[list[str]] = None,
+        outputs: Optional[list[str]] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         override: bool = False,
         **model_parameters,
     ) -> None:
@@ -2771,6 +2871,19 @@ class RootFlowStep(FlowStep):
                 It means that the runnable will not actually be run in parallel to anything else.
 
             :param model_artifact:      model artifact or mlrun model artifact uri
+            :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
+                                        that been configured in the model artifact, please note that those inputs need
+                                        to be equal in length and order to the inputs that model_class
+                                        predict method expects
+            :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
+                                        that been configured in the model artifact, please note that those outputs need
+                                        to be equal to the model_class
+                                        predict method outputs (length, and order)
+            :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
+                                        (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+            :param result_path:         result path inside the user output event, expect scopes to be defined by dot
+                                        notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
+                                        in path.
             :param override:            bool allow override existing model on the current ModelRunnerStep.
             :param model_parameters:    Parameters for model instantiation
         """
@@ -2778,6 +2891,14 @@ class RootFlowStep(FlowStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
+        if type(model_class) is LLModel or (
+            isinstance(model_class, str) and model_class == LLModel.__name__
+        ):
+            if outputs:
+                warnings.warn(
+                    "LLModel with existing outputs detected, overriding to default"
+                )
+            outputs = UsageResponseKeys.fields()
 
         if execution_mechanism == ParallelExecutionMechanisms.shared_executor:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -2805,6 +2926,14 @@ class RootFlowStep(FlowStep):
                 "Inconsistent name for the added model."
             )
         model_parameters["name"] = name
+        model_parameters["inputs"] = inputs or model_parameters.get("inputs", [])
+        model_parameters["outputs"] = outputs or model_parameters.get("outputs", [])
+        model_parameters["input_path"] = input_path or model_parameters.get(
+            "input_path"
+        )
+        model_parameters["result_path"] = result_path or model_parameters.get(
+            "result_path"
+        )
 
         if name in self.shared_models and not override:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -2819,7 +2948,9 @@ class RootFlowStep(FlowStep):
         self.shared_models[name] = (model_class, model_parameters)
         self.shared_models_mechanism[name] = execution_mechanism
 
-    def get_shared_model_name_by_artifact_uri(self, artifact_uri: str) -> Optional[str]:
+    def get_shared_model_by_artifact_uri(
+        self, artifact_uri: str
+    ) -> Optional[tuple[str, str, dict]]:
         """
         Get a shared model by its artifact URI.
         :param artifact_uri: The artifact URI of the model.
@@ -2827,7 +2958,7 @@ class RootFlowStep(FlowStep):
         """
         for model_name, (model_class, model_params) in self.shared_models.items():
             if model_params.get("artifact_uri") == artifact_uri:
-                return model_name
+                return model_name, model_class, model_params
         return None
 
     def config_pool_resource(

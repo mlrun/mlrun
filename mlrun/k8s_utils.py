@@ -26,6 +26,10 @@ from .config import config as mlconfig
 
 _running_inside_kubernetes_cluster = None
 
+K8sObj = typing.Union[kubernetes.client.V1Affinity, kubernetes.client.V1Toleration]
+SanitizedK8sObj = dict[str, typing.Any]
+K8sObjList = typing.Union[list[K8sObj], list[SanitizedK8sObj]]
+
 
 def is_running_inside_kubernetes_cluster():
     global _running_inside_kubernetes_cluster
@@ -232,6 +236,54 @@ def validate_node_selectors(
     return True
 
 
+def sanitize_k8s_objects(
+    k8s_objects: typing.Union[None, K8sObjList, SanitizedK8sObj, K8sObj],
+) -> typing.Union[list[SanitizedK8sObj], SanitizedK8sObj]:
+    """Convert K8s objects to dicts. Handles single objects or lists."""
+    api_client = kubernetes.client.ApiClient()
+    if not k8s_objects:
+        return k8s_objects
+
+    def _sanitize_k8s_object(k8s_obj):
+        return (
+            api_client.sanitize_for_serialization(k8s_obj)
+            if hasattr(k8s_obj, "to_dict")
+            else k8s_obj
+        )
+
+    return (
+        [_sanitize_k8s_object(k8s_obj) for k8s_obj in k8s_objects]
+        if isinstance(k8s_objects, list)
+        else _sanitize_k8s_object(k8s_objects)
+    )
+
+
+def sanitize_scheduling_configuration(
+    tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
+    affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
+) -> tuple[
+    typing.Optional[list[dict]],
+    typing.Optional[dict],
+]:
+    """
+    Sanitizes pod scheduling configuration for serialization.
+
+    Takes affinity and tolerations and converts them to
+    JSON-serializable dictionaries using the Kubernetes API client's
+    sanitization method.
+
+    Args:
+        affinity: Pod affinity/anti-affinity rules
+        tolerations: List of toleration rules
+
+    Returns:
+        Tuple of (sanitized_affinity, sanitized_tolerations)
+        - affinity: Sanitized dict representation or None
+        - tolerations: List of sanitized dict representations or None
+    """
+    return sanitize_k8s_objects(tolerations), sanitize_k8s_objects(affinity)
+
+
 def enrich_preemption_mode(
     preemption_mode: typing.Optional[str],
     node_selector: dict[str, str],
@@ -269,8 +321,8 @@ def enrich_preemption_mode(
         )
 
     enriched_node_selector = copy.deepcopy(node_selector or {})
-    enriched_tolerations = copy.deepcopy(tolerations or [])
-    enriched_affinity = copy.deepcopy(affinity)
+    enriched_tolerations = _safe_copy_tolerations(tolerations or [])
+    enriched_affinity = _safe_copy_affinity(affinity)
     preemptible_tolerations = generate_preemptible_tolerations()
 
     if handler := _get_mode_handler(preemption_mode):
@@ -286,6 +338,57 @@ def enrich_preemption_mode(
         enriched_tolerations,
         _prune_empty_affinity(enriched_affinity),
     )
+
+
+def _safe_copy_tolerations(
+    tolerations: list[kubernetes.client.V1Toleration],
+) -> list[kubernetes.client.V1Toleration]:
+    """
+    Safely copy a list of V1Toleration objects without mutating the originals.
+
+    Explicitly reconstructs V1Toleration objects instead of using deepcopy() to avoid
+    serialization errors with K8s client objects that contain threading primitives
+    and non-copyable elements like RLock objects.
+
+    Args:
+        tolerations: List of V1Toleration objects to copy
+
+    Returns:
+        New list containing copied V1Toleration objects with identical field values"""
+    return [
+        kubernetes.client.V1Toleration(
+            effect=toleration.effect,
+            key=toleration.key,
+            value=toleration.value,
+            operator=toleration.operator,
+            toleration_seconds=toleration.toleration_seconds,
+        )
+        for toleration in tolerations
+    ]
+
+
+def _safe_copy_affinity(
+    affinity: kubernetes.client.V1Affinity,
+) -> kubernetes.client.V1Affinity:
+    """
+    Safely create a deep copy of a V1Affinity object.
+
+    Uses K8s API client serialization/deserialization instead of deepcopy() to avoid
+    errors with threading primitives and complex internal structures in K8s objects.
+    Serializes to dict then deserializes back to a clean V1Affinity object.
+
+    Args:
+        affinity: V1Affinity object to copy, or None
+
+    Returns:
+        New V1Affinity object with identical field values, or None if input was None
+    """
+    if not affinity:
+        return None
+    api_client = kubernetes.client.ApiClient()
+    # Convert to dict then back to object properly
+    affinity_dict = api_client.sanitize_for_serialization(affinity)
+    return api_client._ApiClient__deserialize(affinity_dict, "V1Affinity")
 
 
 def _get_mode_handler(mode: str):

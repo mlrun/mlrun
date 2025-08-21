@@ -388,7 +388,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
                 llm_prompt_artifact.uri: llm_prompt_artifact,
             }
         )
-        prompt = "hello gpt"
+        prompt = "Hello GPT"
         with (
             unittest.mock.patch(
                 "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",

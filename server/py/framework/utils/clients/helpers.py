@@ -14,7 +14,7 @@
 import mlrun.common.schemas
 
 
-def add_project_role_headers_if_needed(path, kwargs):
+def add_project_role_headers_if_needed(path: str, kwargs: dict):
     if "projects" in path:
         if mlrun.common.schemas.HeaderNames.projects_role not in kwargs.get(
             "headers", {}

@@ -88,8 +88,6 @@ class Service(framework.service.Service):
         self._retry_in_progress_run_uids: dict[str, datetime.datetime] = {}
 
     async def _move_service_to_online(self):
-        await super()._move_service_to_online()
-
         # scheduler is needed on both workers and chief
         # on workers - it allows to us to list/get scheduler(s)
         # on chief - it allows to us to create/update/delete schedule(s)

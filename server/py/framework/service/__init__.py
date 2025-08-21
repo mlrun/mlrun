@@ -66,6 +66,7 @@ class Service(ABC):
 
     async def move_service_to_online(self):
         self._logger.info("Moving service to online", service_name=self.service_name)
+        await run_async_function_with_new_db_session(self._sync_system_metadata)
         await self._move_service_to_online()
 
     # https://fastapi.tiangolo.com/advanced/events/
@@ -119,7 +120,7 @@ class Service(ABC):
 
     @abstractmethod
     async def _move_service_to_online(self):
-        await run_async_function_with_new_db_session(self._sync_system_metadata)
+        pass
 
     def _mount_services(self, mounts: typing.Optional[list] = None):
         if not mounts:

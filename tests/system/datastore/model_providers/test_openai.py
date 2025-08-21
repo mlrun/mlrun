@@ -147,7 +147,6 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             requirements=["openai==1.77.0"],
             model_class="tests.datastore.remote_model.remote_model_utils.MyOpenAICustom",
             default_config={"dimensions": 256},
-
         )
         function.deploy()
         prompt = "Hello GPT"
@@ -159,4 +158,3 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         token_count = len(encoding.encode(prompt))
         assert len(result["data"][0]["embedding"]) == 256
         assert result["usage"]["total_tokens"] == token_count
-

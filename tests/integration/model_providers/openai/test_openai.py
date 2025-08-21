@@ -371,7 +371,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
     def test_open_ai_custom(self, execution_mechanism):
         project = mlrun.new_project("test-openai-custom", save=False)
         model_url = self.url_prefix + self.embedding_model
-        # Using full path as a model class is a workaround to ML-10937
+        # Using full path as a model class is a workaround for ML-10937
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             project,
             model_url,

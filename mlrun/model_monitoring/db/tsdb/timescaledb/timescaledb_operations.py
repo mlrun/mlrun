@@ -574,6 +574,196 @@ class TimescaleDBOperationsHandler:
                 error=mlrun.errors.err_to_str(e),
             )
 
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete application records from TimescaleDB for the given model endpoints or all if endpoint_ids is None.
+
+        This method deletes records from both app_results and metrics tables that match the specified
+        application name and optionally filter by endpoint IDs.
+
+        :param application_name: Name of the application whose records should be deleted
+        :param endpoint_ids: Optional list of endpoint IDs to filter deletion. If None, deletes all records
+                            for the application across all endpoints.
+        """
+        logger.debug(
+            "Deleting application records from TimescaleDB",
+            project=self.project,
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+
+        if not application_name:
+            logger.warning(
+                "No application name provided for deletion", project=self.project
+            )
+            return
+
+        try:
+            # Build the application filter
+            app_filter = f"{mm_schemas.WriterEvent.APPLICATION_NAME} = %s"
+            base_parameters = [application_name]
+
+            # Add endpoint filter if provided
+            if endpoint_ids:
+                if len(endpoint_ids) == 1:
+                    endpoint_filter = f" AND {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
+                    parameters = base_parameters + [endpoint_ids[0]]
+                else:
+                    endpoint_filter = (
+                        f" AND {mm_schemas.WriterEvent.ENDPOINT_ID} = ANY(%s)"
+                    )
+                    parameters = base_parameters + [endpoint_ids]
+            else:
+                endpoint_filter = ""
+                parameters = base_parameters
+
+            # Prepare deletion statements for both app_results and metrics tables
+            deletion_statements = []
+
+            # Delete from app_results table
+            app_results_table = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
+            app_results_sql = (
+                f"DELETE FROM {app_results_table.schema}.{app_results_table.table_name} "
+                f"WHERE {app_filter}{endpoint_filter}"
+            )
+            deletion_statements.append(Statement(app_results_sql, tuple(parameters)))
+
+            # Delete from metrics table
+            metrics_table = self.tables[mm_schemas.TimescaleDBTables.METRICS]
+            metrics_sql = (
+                f"DELETE FROM {metrics_table.schema}.{metrics_table.table_name} "
+                f"WHERE {app_filter}{endpoint_filter}"
+            )
+            deletion_statements.append(Statement(metrics_sql, tuple(parameters)))
+
+            # Also delete from aggregate tables if they exist
+            aggregate_statements = self._get_aggregate_delete_statements_by_application(
+                application_name, endpoint_ids
+            )
+            deletion_statements.extend(aggregate_statements)
+
+            # Execute all deletions atomically
+            self._connection.run(statements=deletion_statements)
+
+            logger.debug(
+                "Successfully deleted application records from TimescaleDB",
+                project=self.project,
+                application_name=application_name,
+                endpoint_count=len(endpoint_ids) if endpoint_ids else "all",
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to delete application records from TimescaleDB",
+                project=self.project,
+                application_name=application_name,
+                endpoint_ids=endpoint_ids,
+                error=mlrun.errors.err_to_str(e),
+            )
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to delete application records for {application_name}: {e}"
+            ) from e
+
+    def _get_aggregate_delete_statements_by_application(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> list[Statement]:
+        """
+        Get parameterized DELETE statements for aggregate tables filtered by application name.
+
+        This discovers existing aggregate tables and creates deletion statements that filter
+        by both application name and optionally endpoint IDs.
+
+        :param application_name: Application name to filter by
+        :param endpoint_ids: Optional endpoint IDs to filter by
+        :return: List of Statement objects for aggregate data deletion
+        """
+        statements = []
+
+        try:
+            schema_name = self.project_schema
+
+            # Discover all continuous aggregates and materialized views for this project
+            discovery_stmt = Statement(
+                """
+                SELECT table_name
+                FROM (
+                    SELECT matviewname as table_name
+                    FROM pg_matviews
+                    WHERE schemaname = %s
+                    AND matviewname LIKE %s
+
+                    UNION ALL
+
+                    SELECT view_name as table_name
+                    FROM timescaledb_information.continuous_aggregates
+                    WHERE view_schema = %s
+                    AND view_name LIKE %s
+                ) AS combined_objects
+                ORDER BY table_name
+                """,
+                (schema_name, f"%{self.project}%", schema_name, f"%{self.project}%"),
+            )
+
+            result = self._connection.run(query=discovery_stmt)
+            discovered_objects = (
+                [row[0] for row in result.data] if result and result.data else []
+            )
+
+            if not discovered_objects:
+                logger.debug(
+                    "No aggregate objects found for application deletion",
+                    project=self.project,
+                    application_name=application_name,
+                    schema=schema_name,
+                )
+                return statements
+
+            logger.debug(
+                "Discovered aggregate objects for application deletion",
+                project=self.project,
+                application_name=application_name,
+                aggregate_objects=len(discovered_objects),
+            )
+
+            # Build filter conditions
+            app_filter = f"{mm_schemas.WriterEvent.APPLICATION_NAME} = %s"
+            base_parameters = [application_name]
+
+            if endpoint_ids:
+                if len(endpoint_ids) == 1:
+                    endpoint_filter = f" AND {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
+                    parameters = base_parameters + [endpoint_ids[0]]
+                else:
+                    endpoint_filter = (
+                        f" AND {mm_schemas.WriterEvent.ENDPOINT_ID} = ANY(%s)"
+                    )
+                    parameters = base_parameters + [endpoint_ids]
+            else:
+                endpoint_filter = ""
+                parameters = base_parameters
+
+            # Create delete statements for all discovered aggregate objects
+            for object_name in discovered_objects:
+                delete_sql = (
+                    f"DELETE FROM {schema_name}.{object_name} "
+                    f"WHERE {app_filter}{endpoint_filter}"
+                )
+                stmt = Statement(delete_sql, tuple(parameters))
+                statements.append(stmt)
+
+        except Exception as e:
+            logger.warning(
+                "Failed to discover aggregate objects for application deletion",
+                project=self.project,
+                application_name=application_name,
+                error=mlrun.errors.err_to_str(e),
+            )
+            # Continue with empty statements list rather than failing completely
+
+        return statements
+
     @staticmethod
     def _convert_to_datetime(val: Union[str, datetime]) -> datetime:
         """Convert string timestamps to datetime objects."""

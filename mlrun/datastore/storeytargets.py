@@ -109,11 +109,12 @@ class TimescaleDBStoreyTarget(storey.TimescaleDBTarget):
                     "Only DatastoreProfilePostgreSQL is supported"
                 )
             url = datastore_profile.dsn()
+
+        self._schema = None  # Remove - overridfing TimescaleDBTarget
         super().__init__(*args, dsn=url, **kwargs)
 
         # Remove - overridfing TimescaleDBTarget
-        self._schema = None
-        if "." in self._table:
+        if self._schema is None and "." in self._table:
             self._schema, self._table = self._table.split(".", 1)
 
     def _event_to_batch_entry(self, *args, **kwargs):

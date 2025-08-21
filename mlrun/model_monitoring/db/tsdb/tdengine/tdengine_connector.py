@@ -1374,3 +1374,6 @@ class TDEngineConnector(TDEngineConnectorIn):
 
     def count_processed_model_endpoints(self, *args, **kwargs):
         return traced_call(super().count_processed_model_endpoints, *args, **kwargs)
+
+    def get_drift_data(self, *args, **kwargs):
+        return traced_call(super().get_drift_data, *args, **kwargs)

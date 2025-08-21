@@ -391,6 +391,9 @@ class Metrics(TimescaleDBSchema):
             mm_schemas.WriterEvent.ENDPOINT_ID,
             f"{mm_schemas.WriterEvent.APPLICATION_NAME}, {mm_schemas.MetricData.METRIC_NAME}",
             mm_schemas.WriterEvent.END_INFER_TIME,
+            f"{mm_schemas.WriterEvent.END_INFER_TIME}, {mm_schemas.WriterEvent.ENDPOINT_ID},\
+                        {mm_schemas.WriterEvent.APPLICATION_NAME}",
+            f"{mm_schemas.WriterEvent.APPLICATION_NAME}, {mm_schemas.WriterEvent.END_INFER_TIME}",
         ]
         super().__init__(
             table_name=table_name,
@@ -424,7 +427,12 @@ class Predictions(TimescaleDBSchema):
             ),
             mm_schemas.WriterEvent.ENDPOINT_ID: _TimescaleDBColumnType("VARCHAR", 64),
         }
-        indexes = [mm_schemas.WriterEvent.ENDPOINT_ID, mm_schemas.EventFieldType.TIME]
+
+        indexes = [
+            mm_schemas.WriterEvent.ENDPOINT_ID,
+            mm_schemas.EventFieldType.TIME,
+            f"{mm_schemas.EventFieldType.TIME}, {mm_schemas.WriterEvent.ENDPOINT_ID}",
+        ]
         super().__init__(
             table_name=table_name,
             columns=columns,

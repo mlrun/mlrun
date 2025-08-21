@@ -143,7 +143,6 @@ def test_database():
         )
         admin_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
 
-
         # Build test database DSN
         test_dsn = admin_dsn.replace("/postgres", f"/{test_db_name}")
 
@@ -1343,5 +1342,1185 @@ class TestGroupByAggregationMethods:
             assert isinstance(result, pd.DataFrame)
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+class TestCalculateLatestMetrics:
+    """Test cases for the calculate_latest_metrics method."""
+
+    def test_calculate_latest_metrics_empty_endpoint_list(self, query_handler):
+        """Test calculate_latest_metrics with empty endpoint list."""
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=[],
+            start=datetime(2024, 1, 1),
+            end=datetime(2024, 1, 2),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 0
+
+    def test_calculate_latest_metrics_no_data(self, query_handler):
+        """Test calculate_latest_metrics with endpoints that have no data."""
+        endpoint_ids = ["nonexistent_1", "nonexistent_2", "nonexistent_3"]
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=endpoint_ids,
+            start=datetime(2024, 1, 1),
+            end=datetime(2024, 1, 2),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 3
+
+        # Verify all endpoints have default values
+        for endpoint_id in endpoint_ids:
+            assert endpoint_id in result
+            assert result[endpoint_id]["drift_status"] is None
+            assert result[endpoint_id]["error_count"] == 0
+
+    def test_calculate_latest_metrics_with_drift_data_only(self, query_handler):
+        """Test calculate_latest_metrics with only drift/result data."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        # Insert drift data for multiple endpoints with different statuses
+        test_data = [
+            ("endpoint_1", 1, datetime(2024, 1, 15, 12, 0, 0)),
+            (
+                "endpoint_1",
+                3,
+                datetime(2024, 1, 15, 12, 10, 0),
+            ),  # Later timestamp, higher status
+            ("endpoint_2", 2, datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_3", 1, datetime(2024, 1, 15, 12, 15, 0)),
+        ]
+
+        for endpoint_id, status, test_time in test_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{test_time}', '{test_time}', '{endpoint_id}', 'drift_app', 'drift_result',
+                            0.85, {status}, 1, '{{}}')
+                    """
+                ]
+            )
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3", "endpoint_4"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 4
+
+        # Verify drift statuses (should be max values)
+        assert result["endpoint_1"]["drift_status"] == 3  # Max of 1 and 3
+        assert result["endpoint_2"]["drift_status"] == 2
+        assert result["endpoint_3"]["drift_status"] == 1
+        assert result["endpoint_4"]["drift_status"] is None  # No data
+
+        # Verify error counts (should all be 0 since no error data)
+        for endpoint_id in ["endpoint_1", "endpoint_2", "endpoint_3", "endpoint_4"]:
+            assert result[endpoint_id]["error_count"] == 0
+
+    def test_calculate_latest_metrics_with_error_data_only(self, query_handler):
+        """Test calculate_latest_metrics with only error data."""
+        connection = query_handler._connection
+        errors_table = query_handler.tables[mm_schemas.TimescaleDBTables.ERRORS]
+
+        # Insert error data for multiple endpoints
+        test_data = [
+            ("endpoint_1", 3, datetime(2024, 1, 15, 12, 0, 0)),  # 3 errors
+            ("endpoint_1", 3, datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_1", 3, datetime(2024, 1, 15, 12, 10, 0)),
+            ("endpoint_2", 1, datetime(2024, 1, 15, 12, 15, 0)),  # 1 error
+            # endpoint_3 will have no errors
+        ]
+
+        for endpoint_id, _, test_time in test_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                    (time, endpoint_id, model_error, error_type)
+                    VALUES ('{test_time}', '{endpoint_id}', 'Test error', '{mm_schemas.EventFieldType.INFER_ERROR}')
+                    """
+                ]
+            )
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 3
+
+        # Verify error counts
+        assert result["endpoint_1"]["error_count"] == 3
+        assert result["endpoint_2"]["error_count"] == 1
+        assert result["endpoint_3"]["error_count"] == 0
+
+        # Verify drift statuses (should all be None since no drift data)
+        for endpoint_id in ["endpoint_1", "endpoint_2", "endpoint_3"]:
+            assert result[endpoint_id]["drift_status"] is None
+
+    def test_calculate_latest_metrics_with_both_data_types(self, query_handler):
+        """Test calculate_latest_metrics with both drift and error data."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+        errors_table = query_handler.tables[mm_schemas.TimescaleDBTables.ERRORS]
+
+        # Insert drift data
+        drift_data = [
+            ("endpoint_1", 2, datetime(2024, 1, 15, 12, 0, 0)),
+            ("endpoint_1", 3, datetime(2024, 1, 15, 12, 10, 0)),  # Max: 3
+            ("endpoint_2", 1, datetime(2024, 1, 15, 12, 5, 0)),  # Max: 1
+        ]
+
+        for endpoint_id, status, test_time in drift_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{test_time}', '{test_time}', '{endpoint_id}', 'drift_app', 'drift_result',
+                            0.85, {status}, 1, '{{}}')
+                    """
+                ]
+            )
+
+        # Insert error data
+        error_data = [
+            ("endpoint_1", datetime(2024, 1, 15, 12, 0, 0)),  # 2 errors
+            ("endpoint_1", datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_2", datetime(2024, 1, 15, 12, 10, 0)),  # 1 error
+            # endpoint_3 will have no errors but may have drift data above
+        ]
+
+        for endpoint_id, test_time in error_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                    (time, endpoint_id, model_error, error_type)
+                    VALUES ('{test_time}', '{endpoint_id}', 'Test error', '{mm_schemas.EventFieldType.INFER_ERROR}')
+                    """
+                ]
+            )
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 3
+
+        # Verify combined metrics
+        assert result["endpoint_1"]["drift_status"] == 3
+        assert result["endpoint_1"]["error_count"] == 2
+
+        assert result["endpoint_2"]["drift_status"] == 1
+        assert result["endpoint_2"]["error_count"] == 1
+
+        assert result["endpoint_3"]["drift_status"] is None
+        assert result["endpoint_3"]["error_count"] == 0
+
+    def test_calculate_latest_metrics_time_range_filtering(self, query_handler):
+        """Test that calculate_latest_metrics respects time range filtering."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        # Insert data both inside and outside the query time range
+        test_data = [
+            ("endpoint_1", 2, datetime(2024, 1, 14, 12, 0, 0)),  # Before range
+            ("endpoint_1", 3, datetime(2024, 1, 15, 12, 0, 0)),  # In range
+            ("endpoint_1", 1, datetime(2024, 1, 17, 12, 0, 0)),  # After range
+        ]
+
+        for endpoint_id, status, test_time in test_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{test_time}', '{test_time}', '{endpoint_id}', 'drift_app', 'drift_result',
+                            0.85, {status}, 1, '{{}}')
+                    """
+                ]
+            )
+
+        # Query only for data in the specific time range
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1"],
+            start=datetime(2024, 1, 15, 0, 0, 0),
+            end=datetime(2024, 1, 16, 0, 0, 0),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 1
+
+        # Should only see the status 3 from the data in range, not 2 or 1
+        assert result["endpoint_1"]["drift_status"] == 3
+
+    def test_calculate_latest_metrics_default_time_range(self, query_handler):
+        """Test calculate_latest_metrics with default time range (last 24 hours)."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        # Insert recent data (should be in last 24 hours)
+        recent_time = mlrun.utils.datetime_now() - timedelta(hours=1)
+        connection.run(
+            statements=[
+                f"""
+                INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                 result_value, result_status, result_kind, result_extra_data)
+                VALUES ('{recent_time}', '{recent_time}', 'recent_endpoint', 'drift_app', 'drift_result',
+                        0.85, 2, 1, '{{}}')
+                """
+            ]
+        )
+
+        # Call without specifying start/end times
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["recent_endpoint", "other_endpoint"]
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 2
+
+        # Should find the recent data
+        assert result["recent_endpoint"]["drift_status"] == 2
+        assert result["other_endpoint"]["drift_status"] is None
+
+    def test_calculate_latest_metrics_single_endpoint(self, query_handler):
+        """Test calculate_latest_metrics with a single endpoint."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+        errors_table = query_handler.tables[mm_schemas.TimescaleDBTables.ERRORS]
+
+        test_time = datetime(2024, 1, 15, 12, 0, 0)
+
+        # Insert both drift and error data for single endpoint
+        connection.run(
+            statements=[
+                f"""
+                INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                 result_value, result_status, result_kind, result_extra_data)
+                VALUES ('{test_time}', '{test_time}', 'single_endpoint', 'drift_app', 'drift_result',
+                        0.85, 2, 1, '{{}}')
+                """,
+                f"""
+                INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                (time, endpoint_id, model_error, error_type)
+                VALUES ('{test_time}', 'single_endpoint', 'Test error', '{mm_schemas.EventFieldType.INFER_ERROR}')
+                """,
+            ]
+        )
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["single_endpoint"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 1
+        assert result["single_endpoint"]["drift_status"] == 2
+        assert result["single_endpoint"]["error_count"] == 1
+
+    def test_calculate_latest_metrics_large_endpoint_list(self, query_handler):
+        """Test calculate_latest_metrics with a large number of endpoints."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        # Generate data for many endpoints
+        endpoint_count = 50
+        endpoint_ids = [f"endpoint_{i}" for i in range(endpoint_count)]
+
+        # Insert data for some endpoints (not all)
+        test_time = datetime(2024, 1, 15, 12, 0, 0)
+        for i in range(0, endpoint_count, 2):  # Every other endpoint
+            endpoint_id = endpoint_ids[i]
+            status = (i % 3) + 1  # Status 1, 2, or 3
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{test_time}', '{test_time}', '{endpoint_id}', 'drift_app', 'drift_result',
+                            0.85, {status}, 1, '{{}}')
+                    """
+                ]
+            )
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=endpoint_ids,
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == endpoint_count
+
+        # Verify that all endpoints are present in result
+        for endpoint_id in endpoint_ids:
+            assert endpoint_id in result
+
+        # Verify that every other endpoint has data
+        for i in range(endpoint_count):
+            endpoint_id = endpoint_ids[i]
+            if i % 2 == 0:  # Has data
+                expected_status = (i % 3) + 1
+                assert result[endpoint_id]["drift_status"] == expected_status
+            else:  # No data
+                assert result[endpoint_id]["drift_status"] is None
+            assert result[endpoint_id]["error_count"] == 0
+
+    def test_calculate_latest_metrics_mixed_error_types(self, query_handler):
+        """Test that calculate_latest_metrics only counts INFER_ERROR types."""
+        connection = query_handler._connection
+        errors_table = query_handler.tables[mm_schemas.TimescaleDBTables.ERRORS]
+
+        # Insert different types of errors
+        test_data = [
+            (
+                "endpoint_1",
+                mm_schemas.EventFieldType.INFER_ERROR,
+                datetime(2024, 1, 15, 12, 0, 0),
+            ),
+            ("endpoint_1", "OTHER_ERROR_TYPE", datetime(2024, 1, 15, 12, 5, 0)),
+            (
+                "endpoint_1",
+                mm_schemas.EventFieldType.INFER_ERROR,
+                datetime(2024, 1, 15, 12, 10, 0),
+            ),
+        ]
+
+        for endpoint_id, error_type, test_time in test_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                    (time, endpoint_id, model_error, error_type)
+                    VALUES ('{test_time}', '{endpoint_id}', 'Test error', '{error_type}')
+                    """
+                ]
+            )
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 1
+
+        # Should only count the 2 INFER_ERROR entries, not the OTHER_ERROR_TYPE
+        assert result["endpoint_1"]["error_count"] == 2
+        assert result["endpoint_1"]["drift_status"] is None
+
+
+class TestCountProcessedModelEndpoints:
+    """Test cases for the count_processed_model_endpoints method."""
+
+    def test_count_processed_model_endpoints_no_data(self, query_handler):
+        """Test count_processed_model_endpoints with no data."""
+        result = query_handler.count_processed_model_endpoints(
+            start=datetime(2024, 1, 1),
+            end=datetime(2024, 1, 2),
+        )
+
+        assert isinstance(result, int)
+        assert result == 0
+
+    def test_count_processed_model_endpoints_with_data(self, query_handler):
+        """Test count_processed_model_endpoints with sample data."""
+        connection = query_handler._connection
+        predictions_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+
+        # Insert data for multiple unique endpoints
+        endpoints_data = [
+            ("endpoint_1", datetime(2024, 1, 15, 12, 0, 0)),
+            ("endpoint_2", datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_1", datetime(2024, 1, 15, 12, 10, 0)),  # Duplicate endpoint
+            ("endpoint_3", datetime(2024, 1, 15, 12, 15, 0)),
+        ]
+
+        for endpoint_id, test_time in endpoints_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    VALUES ('{test_time}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        result = query_handler.count_processed_model_endpoints(
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, int)
+        assert (
+            result == 3
+        )  # Should count distinct endpoints: endpoint_1, endpoint_2, endpoint_3
+
+    def test_count_processed_model_endpoints_time_filtering(self, query_handler):
+        """Test that count_processed_model_endpoints respects time range."""
+        connection = query_handler._connection
+        predictions_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+
+        # Insert data both inside and outside the query time range
+        endpoints_data = [
+            ("endpoint_1", datetime(2024, 1, 14, 12, 0, 0)),  # Before range
+            ("endpoint_2", datetime(2024, 1, 15, 12, 0, 0)),  # In range
+            ("endpoint_3", datetime(2024, 1, 15, 12, 5, 0)),  # In range
+            ("endpoint_4", datetime(2024, 1, 17, 12, 0, 0)),  # After range
+        ]
+
+        for endpoint_id, test_time in endpoints_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    VALUES ('{test_time}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        result = query_handler.count_processed_model_endpoints(
+            start=datetime(2024, 1, 15, 0, 0, 0),
+            end=datetime(2024, 1, 16, 0, 0, 0),
+        )
+
+        assert isinstance(result, int)
+        assert result == 2  # Only endpoint_2 and endpoint_3 are in range
+
+    def test_count_processed_model_endpoints_default_time_range(self, query_handler):
+        """Test count_processed_model_endpoints with default time range."""
+        connection = query_handler._connection
+        predictions_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+
+        # Insert recent data (should be in last 24 hours)
+        recent_time = mlrun.utils.datetime_now() - timedelta(hours=1)
+        connection.run(
+            statements=[
+                f"""
+                INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                VALUES ('{recent_time}', 'recent_endpoint', 0.1, '{{}}', 1.0, 1)
+                """
+            ]
+        )
+
+        # Call without specifying start/end times
+        result = query_handler.count_processed_model_endpoints()
+
+        assert isinstance(result, int)
+        assert result >= 1  # Should find at least the recent endpoint
+
+
+# Add these new test classes at the end of the file, replacing the duplicate classes
+
+
+class TestNewQueryMethods:
+    """Test cases for new query methods added to TimescaleDBQueryHandler."""
+
+    def test_count_processed_model_endpoints_no_data(self, query_handler):
+        """Test count_processed_model_endpoints with no data."""
+        result = query_handler.count_processed_model_endpoints(
+            start=datetime(2024, 1, 1),
+            end=datetime(2024, 1, 2),
+        )
+
+        assert isinstance(result, int)
+        assert result == 0
+
+    def test_count_processed_model_endpoints_with_data(self, query_handler):
+        """Test count_processed_model_endpoints with sample data."""
+        connection = query_handler._connection
+        predictions_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+
+        # Insert data for multiple unique endpoints
+        endpoints_data = [
+            ("endpoint_1", datetime(2024, 1, 15, 12, 0, 0)),
+            ("endpoint_2", datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_1", datetime(2024, 1, 15, 12, 10, 0)),  # Duplicate endpoint
+            ("endpoint_3", datetime(2024, 1, 15, 12, 15, 0)),
+        ]
+
+        for endpoint_id, test_time in endpoints_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    VALUES ('{test_time}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        result = query_handler.count_processed_model_endpoints(
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, int)
+        assert (
+            result == 3
+        )  # Should count distinct endpoints: endpoint_1, endpoint_2, endpoint_3
+
+    def test_count_processed_model_endpoints_with_application_filter(
+        self, query_handler
+    ):
+        """Test count_processed_model_endpoints with application filtering using JOIN."""
+        connection = query_handler._connection
+        predictions_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+        metrics_table = query_handler.tables[mm_schemas.TimescaleDBTables.METRICS]
+
+        test_time = datetime(2024, 1, 15, 12, 0, 0)
+
+        # Insert prediction data for multiple endpoints
+        prediction_data = [
+            ("endpoint_1", test_time),
+            ("endpoint_2", test_time + timedelta(minutes=5)),
+            ("endpoint_3", test_time + timedelta(minutes=10)),
+        ]
+
+        for endpoint_id, time_val in prediction_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    VALUES ('{time_val}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        # Insert metric data with different applications
+        metric_data = [
+            ("endpoint_1", "app_a", test_time),
+            ("endpoint_2", "app_b", test_time + timedelta(minutes=5)),
+            ("endpoint_3", "app_a", test_time + timedelta(minutes=10)),
+        ]
+
+        for endpoint_id, app_name, time_val in metric_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {metrics_table.schema}.{metrics_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
+                    VALUES ('{time_val}', '{time_val}', '{endpoint_id}', '{app_name}', 'test_metric', 0.95)
+                    """
+                ]
+            )
+
+        # Test filtering by single application
+        result = query_handler.count_processed_model_endpoints(
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names="app_a",
+        )
+        assert result == 2  # endpoint_1 and endpoint_3
+
+        # Test filtering by multiple applications
+        result = query_handler.count_processed_model_endpoints(
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names=["app_a", "app_b"],
+        )
+        assert result == 3  # All endpoints
+
+        # Test filtering by non-existent application
+        result = query_handler.count_processed_model_endpoints(
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names="app_c",
+        )
+        assert result == 0
+
+    def test_count_processed_model_endpoints_time_filtering(self, query_handler):
+        """Test that count_processed_model_endpoints respects time range."""
+        connection = query_handler._connection
+        predictions_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+
+        # Insert data both inside and outside the query time range
+        endpoints_data = [
+            ("endpoint_1", datetime(2024, 1, 14, 12, 0, 0)),  # Before range
+            ("endpoint_2", datetime(2024, 1, 15, 12, 0, 0)),  # In range
+            ("endpoint_3", datetime(2024, 1, 15, 12, 5, 0)),  # In range
+            ("endpoint_4", datetime(2024, 1, 17, 12, 0, 0)),  # After range
+        ]
+
+        for endpoint_id, test_time in endpoints_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    VALUES ('{test_time}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        result = query_handler.count_processed_model_endpoints(
+            start=datetime(2024, 1, 15, 0, 0, 0),
+            end=datetime(2024, 1, 16, 0, 0, 0),
+        )
+
+        assert isinstance(result, int)
+        assert result == 2  # Only endpoint_2 and endpoint_3 are in range
+
+    def test_calculate_latest_metrics_empty_endpoint_list(self, query_handler):
+        """Test calculate_latest_metrics with empty endpoint list."""
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=[],
+            start=datetime(2024, 1, 1),
+            end=datetime(2024, 1, 2),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 0
+
+    def test_calculate_latest_metrics_no_data(self, query_handler):
+        """Test calculate_latest_metrics with endpoints that have no data."""
+        endpoint_ids = ["nonexistent_1", "nonexistent_2", "nonexistent_3"]
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=endpoint_ids,
+            start=datetime(2024, 1, 1),
+            end=datetime(2024, 1, 2),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 3
+
+        # Verify all endpoints have default values
+        for endpoint_id in endpoint_ids:
+            assert endpoint_id in result
+            assert result[endpoint_id]["drift_status"] is None
+            assert result[endpoint_id]["error_count"] == 0
+
+    def test_calculate_latest_metrics_with_drift_data_only(self, query_handler):
+        """Test calculate_latest_metrics with only drift/result data."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        # Insert drift data for multiple endpoints with different statuses
+        test_data = [
+            ("endpoint_1", 1, datetime(2024, 1, 15, 12, 0, 0)),
+            (
+                "endpoint_1",
+                3,
+                datetime(2024, 1, 15, 12, 10, 0),
+            ),  # Later timestamp, higher status
+            ("endpoint_2", 2, datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_3", 1, datetime(2024, 1, 15, 12, 15, 0)),
+        ]
+
+        for endpoint_id, status, test_time in test_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{test_time}', '{test_time}', '{endpoint_id}', 'drift_app', 'drift_result',
+                            0.85, {status}, 1, '{{}}')
+                    """
+                ]
+            )
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3", "endpoint_4"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 4
+
+        # Verify drift statuses (should be max values)
+        assert result["endpoint_1"]["drift_status"] == 3  # Max of 1 and 3
+        assert result["endpoint_2"]["drift_status"] == 2
+        assert result["endpoint_3"]["drift_status"] == 1
+        assert result["endpoint_4"]["drift_status"] is None  # No data
+
+        # Verify error counts (should all be 0 since no error data)
+        for endpoint_id in ["endpoint_1", "endpoint_2", "endpoint_3", "endpoint_4"]:
+            assert result[endpoint_id]["error_count"] == 0
+
+    def test_calculate_latest_metrics_with_error_data_only(self, query_handler):
+        """Test calculate_latest_metrics with only error data."""
+        connection = query_handler._connection
+        errors_table = query_handler.tables[mm_schemas.TimescaleDBTables.ERRORS]
+
+        # Insert error data for multiple endpoints
+        test_data = [
+            ("endpoint_1", datetime(2024, 1, 15, 12, 0, 0)),  # 3 errors
+            ("endpoint_1", datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_1", datetime(2024, 1, 15, 12, 10, 0)),
+            ("endpoint_2", datetime(2024, 1, 15, 12, 15, 0)),  # 1 error
+            # endpoint_3 will have no errors
+        ]
+
+        for endpoint_id, test_time in test_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                    (time, endpoint_id, model_error, error_type)
+                    VALUES ('{test_time}', '{endpoint_id}', 'Test error', '{mm_schemas.EventFieldType.INFER_ERROR}')
+                    """
+                ]
+            )
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 3
+
+        # Verify error counts
+        assert result["endpoint_1"]["error_count"] == 3
+        assert result["endpoint_2"]["error_count"] == 1
+        assert result["endpoint_3"]["error_count"] == 0
+
+        # Verify drift statuses (should all be None since no drift data)
+        for endpoint_id in ["endpoint_1", "endpoint_2", "endpoint_3"]:
+            assert result[endpoint_id]["drift_status"] is None
+
+    def test_calculate_latest_metrics_with_both_data_types(self, query_handler):
+        """Test calculate_latest_metrics with both drift and error data."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+        errors_table = query_handler.tables[mm_schemas.TimescaleDBTables.ERRORS]
+
+        # Insert drift data
+        drift_data = [
+            ("endpoint_1", 2, datetime(2024, 1, 15, 12, 0, 0)),
+            ("endpoint_1", 3, datetime(2024, 1, 15, 12, 10, 0)),  # Max: 3
+            ("endpoint_2", 1, datetime(2024, 1, 15, 12, 5, 0)),  # Max: 1
+        ]
+
+        for endpoint_id, status, test_time in drift_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{test_time}', '{test_time}', '{endpoint_id}', 'drift_app', 'drift_result',
+                            0.85, {status}, 1, '{{}}')
+                    """
+                ]
+            )
+
+        # Insert error data
+        error_data = [
+            ("endpoint_1", datetime(2024, 1, 15, 12, 0, 0)),  # 2 errors
+            ("endpoint_1", datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_2", datetime(2024, 1, 15, 12, 10, 0)),  # 1 error
+        ]
+
+        for endpoint_id, test_time in error_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {errors_table.schema}.{errors_table.table_name}
+                    (time, endpoint_id, model_error, error_type)
+                    VALUES ('{test_time}', '{endpoint_id}', 'Test error', '{mm_schemas.EventFieldType.INFER_ERROR}')
+                    """
+                ]
+            )
+
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 3
+
+        # Verify combined metrics
+        assert result["endpoint_1"]["drift_status"] == 3
+        assert result["endpoint_1"]["error_count"] == 2
+
+        assert result["endpoint_2"]["drift_status"] == 1
+        assert result["endpoint_2"]["error_count"] == 1
+
+        assert result["endpoint_3"]["drift_status"] is None
+        assert result["endpoint_3"]["error_count"] == 0
+
+    def test_calculate_latest_metrics_with_application_filter(self, query_handler):
+        """Test calculate_latest_metrics with application filtering."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+        metrics_table = query_handler.tables[mm_schemas.TimescaleDBTables.METRICS]
+
+        test_time = datetime(2024, 1, 15, 12, 0, 0)
+
+        # Insert drift data for multiple endpoints
+        drift_data = [
+            ("endpoint_1", 2, test_time),
+            ("endpoint_2", 3, test_time + timedelta(minutes=5)),
+            ("endpoint_3", 1, test_time + timedelta(minutes=10)),
+        ]
+
+        for endpoint_id, status, time_val in drift_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{time_val}', '{time_val}', '{endpoint_id}', 'drift_app', 'drift_result',
+                            0.85, {status}, 1, '{{}}')
+                    """
+                ]
+            )
+
+        # Insert metric data with different applications
+        metric_data = [
+            ("endpoint_1", "app_a", test_time),
+            ("endpoint_2", "app_b", test_time + timedelta(minutes=5)),
+            ("endpoint_3", "app_a", test_time + timedelta(minutes=10)),
+        ]
+
+        for endpoint_id, app_name, time_val in metric_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {metrics_table.schema}.{metrics_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
+                    VALUES ('{time_val}', '{time_val}', '{endpoint_id}', '{app_name}', 'test_metric', 0.95)
+                    """
+                ]
+            )
+
+        # Test filtering by single application
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names="app_a",
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 3
+
+        # Only endpoint_1 and endpoint_3 should have data (they use app_a)
+        assert result["endpoint_1"]["drift_status"] == 2
+        assert result["endpoint_3"]["drift_status"] == 1
+        assert result["endpoint_2"]["drift_status"] is None  # Filtered out by app
+
+    def test_calculate_latest_metrics_with_result_status_filter(self, query_handler):
+        """Test calculate_latest_metrics with result status filtering."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        # Insert drift data with different statuses
+        test_data = [
+            ("endpoint_1", 1, datetime(2024, 1, 15, 12, 0, 0)),
+            ("endpoint_1", 2, datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_1", 3, datetime(2024, 1, 15, 12, 10, 0)),
+            ("endpoint_2", 1, datetime(2024, 1, 15, 12, 15, 0)),
+            ("endpoint_2", 4, datetime(2024, 1, 15, 12, 20, 0)),
+        ]
+
+        for endpoint_id, status, test_time in test_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{test_time}', '{test_time}', '{endpoint_id}', 'drift_app', 'drift_result',
+                            0.85, {status}, 1, '{{}}')
+                    """
+                ]
+            )
+
+        # Test filtering by specific result statuses
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["endpoint_1", "endpoint_2"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            result_status_list=[2, 3],  # Only statuses 2 and 3
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 2
+
+        # endpoint_1 should have max of 2,3 = 3
+        assert result["endpoint_1"]["drift_status"] == 3
+        # endpoint_2 should have no status (only has 1 and 4, both filtered out)
+        assert result["endpoint_2"]["drift_status"] is None
+
+    def test_calculate_latest_metrics_string_dates(self, query_handler):
+        """Test calculate_latest_metrics with string date inputs."""
+        connection = query_handler._connection
+        app_results_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        test_time = datetime(2024, 1, 15, 12, 0, 0)
+        connection.run(
+            statements=[
+                f"""
+                INSERT INTO {app_results_table.schema}.{app_results_table.table_name}
+                (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                 result_value, result_status, result_kind, result_extra_data)
+                VALUES ('{test_time}', '{test_time}', 'string_date_endpoint', 'drift_app', 'drift_result',
+                        0.85, 2, 1, '{{}}')
+                """
+            ]
+        )
+
+        # Test with string dates
+        result = query_handler.calculate_latest_metrics(
+            endpoint_ids=["string_date_endpoint"],
+            start="2024-01-15T00:00:00",
+            end="2024-01-16T00:00:00",
+        )
+
+        assert isinstance(result, dict)
+        assert len(result) == 1
+        assert result["string_date_endpoint"]["drift_status"] == 2
+
+    def test_filter_endpoints_by_application(self, query_handler):
+        """Test _filter_endpoints_by_application helper method."""
+        connection = query_handler._connection
+        metrics_table = query_handler.tables[mm_schemas.TimescaleDBTables.METRICS]
+
+        test_time = datetime(2024, 1, 15, 12, 0, 0)
+
+        # Insert metric data with different applications
+        metric_data = [
+            ("endpoint_1", "app_a", test_time),
+            ("endpoint_2", "app_b", test_time + timedelta(minutes=5)),
+            ("endpoint_3", "app_a", test_time + timedelta(minutes=10)),
+            ("endpoint_4", "app_c", test_time + timedelta(minutes=15)),
+        ]
+
+        for endpoint_id, app_name, time_val in metric_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {metrics_table.schema}.{metrics_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
+                    VALUES ('{time_val}', '{time_val}', '{endpoint_id}', '{app_name}', 'test_metric', 0.95)
+                    """
+                ]
+            )
+
+        # Test filtering by single application
+        result = query_handler._filter_endpoints_by_application(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3", "endpoint_4"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names="app_a",
+        )
+
+        assert isinstance(result, list)
+        assert set(result) == {"endpoint_1", "endpoint_3"}
+
+        # Test filtering by multiple applications
+        result = query_handler._filter_endpoints_by_application(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3", "endpoint_4"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names=["app_a", "app_c"],
+        )
+
+        assert isinstance(result, list)
+        assert set(result) == {"endpoint_1", "endpoint_3", "endpoint_4"}
+
+        # Test filtering with non-existent application
+        result = query_handler._filter_endpoints_by_application(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3", "endpoint_4"],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names="app_nonexistent",
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+        # Test with empty endpoint list
+        result = query_handler._filter_endpoints_by_application(
+            endpoint_ids=[],
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names="app_a",
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+        # Test time filtering
+        result = query_handler._filter_endpoints_by_application(
+            endpoint_ids=["endpoint_1", "endpoint_2", "endpoint_3", "endpoint_4"],
+            start=datetime(2024, 1, 15, 12, 7, 0),  # After endpoint_1 and endpoint_2
+            end=datetime(2024, 1, 16),
+            application_names="app_a",
+        )
+
+        assert isinstance(result, list)
+        assert result == ["endpoint_3"]  # Only endpoint_3 is after the start time
+
+    def test_count_with_application_join_method(self, query_handler):
+        """Test _count_with_application_join helper method."""
+        connection = query_handler._connection
+        predictions_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+        metrics_table = query_handler.tables[mm_schemas.TimescaleDBTables.METRICS]
+
+        test_time = datetime(2024, 1, 15, 12, 0, 0)
+
+        # Insert prediction data
+        prediction_data = [
+            ("endpoint_1", test_time),
+            ("endpoint_2", test_time + timedelta(minutes=5)),
+            ("endpoint_3", test_time + timedelta(minutes=10)),
+        ]
+
+        for endpoint_id, time_val in prediction_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    VALUES ('{time_val}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        # Insert metric data with different applications
+        metric_data = [
+            ("endpoint_1", "app_a", test_time),
+            ("endpoint_2", "app_b", test_time + timedelta(minutes=5)),
+            ("endpoint_3", "app_a", test_time + timedelta(minutes=10)),
+        ]
+
+        for endpoint_id, app_name, time_val in metric_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {metrics_table.schema}.{metrics_table.table_name}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
+                    VALUES ('{time_val}', '{time_val}', '{endpoint_id}', '{app_name}', 'test_metric', 0.95)
+                    """
+                ]
+            )
+
+        # Test with single application
+        result = query_handler._count_with_application_join(
+            predictions_table,
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names="app_a",
+        )
+
+        assert isinstance(result, int)
+        assert result == 2  # endpoint_1 and endpoint_3
+
+        # Test with multiple applications
+        result = query_handler._count_with_application_join(
+            predictions_table,
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+            application_names=["app_a", "app_b"],
+        )
+
+        assert isinstance(result, int)
+        assert result == 3  # All endpoints
+
+    def test_count_simple_method(self, query_handler):
+        """Test _count_simple helper method."""
+        connection = query_handler._connection
+        predictions_table = query_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+
+        # Insert data for multiple unique endpoints
+        endpoints_data = [
+            ("endpoint_1", datetime(2024, 1, 15, 12, 0, 0)),
+            ("endpoint_2", datetime(2024, 1, 15, 12, 5, 0)),
+            ("endpoint_1", datetime(2024, 1, 15, 12, 10, 0)),  # Duplicate endpoint
+            ("endpoint_3", datetime(2024, 1, 15, 12, 15, 0)),
+        ]
+
+        for endpoint_id, test_time in endpoints_data:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    VALUES ('{test_time}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        result = query_handler._count_simple(
+            predictions_table,
+            start=datetime(2024, 1, 15),
+            end=datetime(2024, 1, 16),
+        )
+
+        assert isinstance(result, int)
+        assert (
+            result == 3
+        )  # Should count distinct endpoints: endpoint_1, endpoint_2, endpoint_3

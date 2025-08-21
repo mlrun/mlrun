@@ -28,6 +28,7 @@ from mlrun.model_monitoring.db.tsdb.preaggregate import (
     PreAggregateHandler,
 )
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+    Statement,
     TimescaleDBConnection,
 )
 from mlrun.model_monitoring.helpers import get_invocations_fqn
@@ -920,6 +921,396 @@ class TimescaleDBQueryHandler:
 
         return {(row[0], row[1]): row[2] for row in result.data}
 
+    def count_processed_model_endpoints(
+        self,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> dict[str, int]:
+        """
+        Optimized count with application filtering using JOIN approach.
+
+        This implementation:
+        1. Uses JOIN when application filtering is needed (most performant)
+        2. Falls back to simple query when no filtering (fastest for that case)
+        3. Leverages TimescaleDB's chunk exclusion and parallel processing
+        4. Can utilize pre-aggregates when available
+        """
+        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
+        start, end = self._pre_aggregate_handler.get_start_end(start, end)
+
+        predictions_table = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
+
+        if application_names:
+            # Ensure application_names is a list
+            if isinstance(application_names, str):
+                application_names = [application_names]
+
+            result = {}
+
+            # For each application, call the existing JOIN method and wrap result in dict
+            for app_name in application_names:
+                # Use existing _count_with_application_join but extract count for single app
+                count = self._count_with_application_join(
+                    predictions_table,
+                    start,
+                    end,
+                    [app_name],  # Pass as list to existing method
+                )
+                result[app_name] = count
+
+            return result
+        else:
+            # Use existing simple count method and wrap result
+            total_count = self._count_simple(predictions_table, start, end)
+            return {"total": total_count} if total_count > 0 else {}
+
+    def _count_with_application_join(
+        self,
+        predictions_table,
+        start: datetime,
+        end: datetime,
+        application_names: Union[str, list[str]],
+    ) -> int:
+        """
+        Use JOIN with metrics table for application filtering.
+
+        Performance characteristics:
+        - Leverages indexes on both tables
+        - TimescaleDB optimizes time-based JOINs
+        - Chunk exclusion works on both sides
+        - DISTINCT applied after filtering
+        """
+        metrics_table = self.tables[mm_schemas.TimescaleDBTables.METRICS]
+
+        # Normalize application_names to list for consistent handling
+        if isinstance(application_names, str):
+            app_names_list = [application_names]
+        else:
+            app_names_list = list(application_names)
+
+        # Build parameterized query with proper placeholders
+        app_placeholders = ", ".join(["%s"] * len(app_names_list))
+
+        query_sql = f"""
+        SELECT COUNT(DISTINCT p.{mm_schemas.WriterEvent.ENDPOINT_ID}) as endpoint_count
+        FROM {predictions_table.schema}.{predictions_table.table_name} p
+        INNER JOIN {metrics_table.schema}.{metrics_table.table_name} m
+            ON p.{mm_schemas.WriterEvent.ENDPOINT_ID} = m.{mm_schemas.WriterEvent.ENDPOINT_ID}
+            AND m.{metrics_table.time_column} >= %s
+            AND m.{metrics_table.time_column} <= %s
+        WHERE p.{predictions_table.time_column} >= %s
+            AND p.{predictions_table.time_column} <= %s
+            AND m.{mm_schemas.WriterEvent.APPLICATION_NAME} IN ({app_placeholders})
+        """
+
+        # Parameters: [start, end, start, end] + application_names_list
+        params = [start, end, start, end] + app_names_list
+        stmt = Statement(query_sql, params)
+        result = self._connection.run(query=stmt)
+
+        return result.data[0][0] if result and result.data else 0
+
+    def _count_simple(self, predictions_table, start: datetime, end: datetime) -> int:
+        """
+        Simple count without application filtering.
+
+        Uses the schema's query builder for consistency and potential pre-aggregate usage.
+        """
+        columns = [
+            f"COUNT(DISTINCT {mm_schemas.WriterEvent.ENDPOINT_ID}) as endpoint_count"
+        ]
+
+        query = predictions_table._get_records_query(
+            start=start,
+            end=end,
+            columns_to_filter=columns,
+        )
+
+        result = self._connection.run(query=query)
+        return result.data[0][0] if result and result.data else 0
+
+    def calculate_latest_metrics(
+        self,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        application_names: Optional[list[str]] = None,
+    ) -> list[
+        Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
+    ]:
+        """
+        Calculate the latest metrics and results across applications.
+
+        Returns a list of ApplicationResultRecord and ApplicationMetricRecord objects.
+
+        :param start:              The start time of the query. Last 24 hours is used by default.
+        :param end:                The end time of the query. The current time is used by default.
+        :param application_names:  A list of application names to filter the results by. If not provided, all
+                                applications are included.
+        :return:                   A list containing the latest metrics and results for each application.
+        """
+        if not application_names:
+            return []
+
+        start, end = self._pre_aggregate_handler.get_start_end(start, end)
+
+        metric_objects = []
+
+        for app_name in application_names:
+            # Get latest results for this application
+            results_df = self._get_latest_results_for_application(app_name, start, end)
+            if not results_df.empty:
+                for _, row in results_df.iterrows():
+                    metric_objects.append(
+                        mm_schemas.ApplicationResultRecord(
+                            time=row.get("end_infer_time"),
+                            value=row.get("result_value"),
+                            kind=mm_schemas.ResultKindApp(row.get("result_kind")),
+                            status=mm_schemas.ResultStatusApp(row.get("result_status")),
+                            result_name=row.get("result_name"),
+                        )
+                    )
+
+            # Get latest metrics for this application
+            metrics_df = self._get_latest_metrics_for_application(app_name, start, end)
+            if not metrics_df.empty:
+                for _, row in metrics_df.iterrows():
+                    metric_objects.append(
+                        mm_schemas.ApplicationMetricRecord(
+                            time=row.get("end_infer_time"),
+                            value=row.get("metric_value"),
+                            metric_name=row.get("metric_name"),
+                        )
+                    )
+
+        return metric_objects
+
+    def _get_latest_results_for_application(
+        self, application_name: str, start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        """Get the latest results for a specific application."""
+        table_schema = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
+
+        # Get the latest results grouped by result_name
+        query = f"""
+        SELECT DISTINCT ON (result_name)
+            {mm_schemas.WriterEvent.END_INFER_TIME},
+            {mm_schemas.WriterEvent.APPLICATION_NAME},
+            {mm_schemas.ResultData.RESULT_NAME},
+            {mm_schemas.ResultData.RESULT_VALUE},
+            {mm_schemas.ResultData.RESULT_STATUS},
+            {mm_schemas.ResultData.RESULT_KIND}
+        FROM {table_schema.schema}.{table_schema.table_name}
+        WHERE {mm_schemas.WriterEvent.APPLICATION_NAME} = %s
+        AND {mm_schemas.WriterEvent.END_INFER_TIME} >= %s
+        AND {mm_schemas.WriterEvent.END_INFER_TIME} <= %s
+        ORDER BY result_name, {mm_schemas.WriterEvent.END_INFER_TIME} DESC
+        """
+
+        stmt = Statement(query, (application_name, start, end))
+        result = self._connection.run(query=stmt)
+        df = pd.DataFrame(
+            result.data if result else [], columns=result.fields if result else []
+        )
+
+        return df
+
+    def _get_latest_metrics_for_application(
+        self, application_name: str, start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        """Get the latest metrics for a specific application."""
+        table_schema = self.tables[mm_schemas.TimescaleDBTables.METRICS]
+
+        # Get the latest metrics grouped by metric_name
+        query = f"""
+        SELECT DISTINCT ON (metric_name)
+            {mm_schemas.WriterEvent.END_INFER_TIME},
+            {mm_schemas.WriterEvent.APPLICATION_NAME},
+            {mm_schemas.MetricData.METRIC_NAME},
+            {mm_schemas.MetricData.METRIC_VALUE}
+        FROM {table_schema.schema}.{table_schema.table_name}
+        WHERE {mm_schemas.WriterEvent.APPLICATION_NAME} = %s
+        AND {mm_schemas.WriterEvent.END_INFER_TIME} >= %s
+        AND {mm_schemas.WriterEvent.END_INFER_TIME} <= %s
+        ORDER BY metric_name, {mm_schemas.WriterEvent.END_INFER_TIME} DESC
+        """
+
+        stmt = Statement(query, (application_name, start, end))
+        result = self._connection.run(query=stmt)
+        df = pd.DataFrame(
+            result.data if result else [], columns=result.fields if result else []
+        )
+        return df
+
+    def get_drift_data(
+        self,
+        start: datetime,
+        end: datetime,
+        interval: Optional[str] = None,
+    ) -> mm_schemas.ModelEndpointDriftValues:
+        """
+        Get drift data aggregated by time intervals, showing the count of suspected and detected drift events.
+
+        This method queries the app_results table for drift-related statuses (potential_detection=1, detected=2)
+        and aggregates them by time intervals, counting the maximum drift status per endpoint per interval.
+
+        :param start: Start time for the query
+        :param end: End time for the query
+        :param interval: Optional time interval for aggregation (e.g., "1 hour", "30 minutes").
+                        If not provided, will be automatically determined based on query duration.
+        :return: ModelEndpointDriftValues containing time-binned drift counts
+        """
+        # Align start/end times and determine interval
+        start, end = self._pre_aggregate_handler.get_start_end(start, end)
+
+        if interval is None:
+            # Use automatic interval selection if not specified
+            start, end, interval = self._prepare_aligned_start_end(start, end)
+        else:
+            # Use provided interval, align times to interval boundaries for consistency
+            start, end = self._pre_aggregate_handler.align_time_range(
+                start, end, interval
+            )
+
+        # Build status filter for drift-related statuses only
+        suspected_status = mm_schemas.ResultStatusApp.potential_detection.value  # 1
+        detected_status = mm_schemas.ResultStatusApp.detected.value  # 2
+
+        app_results_table = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
+
+        # Use TimescaleDB's time_bucket function for interval aggregation
+        # This is equivalent to TDEngine's INTERVAL() with PARTITION BY
+        query = f"""
+        WITH drift_intervals AS (
+            SELECT
+                time_bucket('{interval}', {mm_schemas.WriterEvent.END_INFER_TIME}) AS bucket_start,
+                {mm_schemas.WriterEvent.ENDPOINT_ID},
+                MAX({mm_schemas.ResultData.RESULT_STATUS}) AS max_status
+            FROM {app_results_table.schema}.{app_results_table.table_name}
+            WHERE {mm_schemas.ResultData.RESULT_STATUS} IN (%s, %s)
+            AND {mm_schemas.WriterEvent.END_INFER_TIME} >= %s
+            AND {mm_schemas.WriterEvent.END_INFER_TIME} <= %s
+            GROUP BY bucket_start, {mm_schemas.WriterEvent.ENDPOINT_ID}
+        )
+        SELECT
+            bucket_start,
+            max_status,
+            COUNT(*) as status_count
+        FROM drift_intervals
+        GROUP BY bucket_start, max_status
+        ORDER BY bucket_start, max_status
+        """
+
+        # Execute the query with parameterized values
+        stmt = Statement(query, (suspected_status, detected_status, start, end))
+        result = self._connection.run(query=stmt)
+
+        if not result or not result.data:
+            return mm_schemas.ModelEndpointDriftValues(values=[])
+
+        # Convert to DataFrame for easier processing
+        df = pd.DataFrame(result.data, columns=result.fields)
+
+        # Use the shared _df_to_drift_data method to convert to the expected format
+        return self._df_to_drift_data(df)
+
+    def _prepare_aligned_start_end(
+        self, start: datetime, end: datetime
+    ) -> tuple[datetime, datetime, str]:
+        """
+        Prepare aligned start and end times with appropriate interval for drift data aggregation.
+
+        This matches TDEngine's behavior of aligning times to hour boundaries.
+
+        :param start: Original start time
+        :param end: Original end time
+        :return: Tuple of (aligned_start, aligned_end, interval_string)
+        """
+        # Default to 1 hour intervals like TDEngine
+        interval = "1 hour"
+
+        # Align to hour boundaries
+        aligned_start = start.replace(minute=0, second=0, microsecond=0)
+
+        # Calculate the time difference to determine appropriate interval
+        time_diff = end - start
+
+        if time_diff <= timedelta(hours=6):
+            # For short periods, use 1 hour intervals
+            interval = "1 hour"
+        elif time_diff <= timedelta(days=2):
+            # For medium periods, use 1 hour intervals
+            interval = "1 hour"
+        elif time_diff <= timedelta(days=7):
+            # For week-long periods, use 6 hour intervals
+            interval = "6 hours"
+        else:
+            # For longer periods, use daily intervals
+            interval = "1 day"
+            aligned_start = aligned_start.replace(hour=0)
+
+        return aligned_start, end, interval
+
+    def _df_to_drift_data(
+        self, df: pd.DataFrame
+    ) -> mm_schemas.ModelEndpointDriftValues:
+        """
+        Convert DataFrame with drift data to ModelEndpointDriftValues format.
+
+        Expected DataFrame columns:
+        - bucket_start: timestamp of the interval bucket
+        - max_status: the maximum drift status in that bucket (1=suspected, 2=detected)
+        - status_count: count of endpoints with that status in the bucket
+
+        :param df: DataFrame with aggregated drift data
+        :return: ModelEndpointDriftValues with time-binned counts
+        """
+        if df.empty:
+            return mm_schemas.ModelEndpointDriftValues(values=[])
+
+        suspected_val = mm_schemas.ResultStatusApp.potential_detection.value  # 1
+        detected_val = mm_schemas.ResultStatusApp.detected.value  # 2
+
+        # Rename columns to match the expected format from TDEngine
+        df = df.rename(
+            columns={
+                "bucket_start": "_wstart",
+                "max_status": f"max({mm_schemas.ResultData.RESULT_STATUS})",
+                "status_count": "count",
+            }
+        )
+
+        # Pivot the data to have separate columns for suspected and detected counts
+        aggregated_df = (
+            df.groupby(["_wstart", f"max({mm_schemas.ResultData.RESULT_STATUS})"])[
+                "count"
+            ]
+            .sum()  # Sum counts for each interval x result-status combination
+            .unstack()  # Create separate columns for each result-status
+            .reindex(
+                columns=[suspected_val, detected_val], fill_value=0
+            )  # Ensure both columns exist
+            .fillna(0)
+            .astype(int)
+            .rename(
+                columns={
+                    suspected_val: "count_suspected",
+                    detected_val: "count_detected",
+                }
+            )
+        )
+
+        # Convert to list of tuples: (timestamp, count_suspected, count_detected)
+        values = list(
+            zip(
+                aggregated_df.index,
+                aggregated_df["count_suspected"],
+                aggregated_df["count_detected"],
+            )
+        )
+
+        return mm_schemas.ModelEndpointDriftValues(values=values)
+
     async def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
@@ -961,7 +1352,7 @@ class TimescaleDBQueryHandler:
             mep: mlrun.common.schemas.ModelEndpoint,
             df_dictionary: dict[str, pd.DataFrame],
         ):
-            for metric in df_dictionary.keys():
+            for metric in df_dictionary:
                 df = df_dictionary.get(metric, pd.DataFrame())
                 if not df.empty:
                     line = df[df["endpoint_id"] == mep.metadata.uid]

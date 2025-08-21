@@ -95,6 +95,9 @@ class TimescaleDBConnectorIn(TSDBConnector):
     def delete_tsdb_resources(self, *args, **kwargs) -> None:
         return self._operations.delete_tsdb_resources(*args, **kwargs)
 
+    def delete_application_records(self, *args, **kwargs) -> None:
+        return self._operations.delete_application_records(*args, **kwargs)
+
     # Delegate query methods
     def read_metrics_data(self, *args, **kwargs):
         return self._queries.read_metrics_data(*args, **kwargs)
@@ -137,10 +140,13 @@ class TimescaleDBConnectorIn(TSDBConnector):
         return self._stream.handle_model_error(*args, **kwargs)
 
     def calculate_latest_metrics(self, *args, **kwargs):
-        raise ValueError("Not implemented")
+        return self._queries.calculate_latest_metrics(*args, **kwargs)
 
     def count_processed_model_endpoints(self, *args, **kwargs):
-        raise ValueError("Not implemented")
+        return self._queries.count_processed_model_endpoints(*args, **kwargs)
+
+    def get_drift_data(self, *args, **kwargs):
+        return self._queries.get_drift_data(*args, **kwargs)
 
 
 class TimescaleDBConnector(TimescaleDBConnectorIn):
@@ -153,6 +159,9 @@ class TimescaleDBConnector(TimescaleDBConnectorIn):
 
     def delete_tsdb_records(self, *args, **kwargs):
         return traced_call(super().delete_tsdb_records, *args, **kwargs)
+
+    def delete_application_records(self, *args, **kwargs):
+        return traced_call(super().delete_application_records, *args, **kwargs)
 
     def delete_tsdb_resources(self, *args, **kwargs):
         return traced_call(super().delete_tsdb_resources, *args, **kwargs)
@@ -217,3 +226,6 @@ class TimescaleDBConnector(TimescaleDBConnectorIn):
 
     def count_processed_model_endpoints(self, *args, **kwargs):
         return traced_call(super().count_processed_model_endpoints, *args, **kwargs)
+
+    def get_drift_data(self, *args, **kwargs):
+        return traced_call(super().get_drift_data, *args, **kwargs)

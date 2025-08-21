@@ -75,7 +75,6 @@ def test_database():
         )
         admin_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
 
-
         # Build test database DSN
         test_dsn = admin_dsn.replace("/postgres", f"/{test_db_name}")
 

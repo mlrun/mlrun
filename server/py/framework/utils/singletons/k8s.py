@@ -1281,6 +1281,15 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: username
         }
 
+        logger.debug(
+            "Reading user token secret from Kubernetes",
+            username=username,
+            token_name=token_name,
+            secret_name=secret_name,
+            namespace=namespace,
+            labels=labels,
+        )
+
         k8s_secret = self.read_secret(
             secret_name=secret_name,
             namespace=namespace,
@@ -1288,9 +1297,23 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             silent=True,
         )
         if not k8s_secret:
+            logger.debug(
+                "User token secret not found",
+                username=username,
+                token_name=token_name,
+                secret_name=secret_name,
+                namespace=namespace,
+            )
             raise mlrun.errors.MLRunNotFoundError(
                 f"Token '{token_name}' not found for user '{username}'"
             )
+
+        logger.debug(
+            "Successfully retrieved Kubernetes secret, extracting token",
+            username=username,
+            token_name=token_name,
+            secret_name=secret_name,
+        )
 
         return self._extract_token_from_secret(k8s_secret, token_name, username)
 
@@ -1311,21 +1334,40 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :raises mlrun.errors.MLRunRuntimeError: If decoding/parsing fails.
         """
         try:
+            logger.debug(
+                "Extracting offline token from Kubernetes secret",
+                username=username,
+                token_name=token_name,
+            )
+
             encoded_tokens_file = k8s_secret.data.get("tokensFile")
             decoded_yaml = base64.b64decode(encoded_tokens_file).decode("utf-8")
             parsed = yaml.safe_load(decoded_yaml) or {}
             tokens = parsed.get("secretTokens", [])
             token_entry = next((t for t in tokens if t.get("name") == token_name), None)
             if not token_entry or not token_entry.get("token"):
+                logger.debug(
+                    "Token not found in secret",
+                    username=username,
+                    token_name=token_name,
+                )
                 raise mlrun.errors.MLRunNotFoundError(
                     f"Token '{token_name}' not found in secret for user '{username}'"
                 )
+            logger.debug(
+                "Successfully extracted offline token from secret",
+                username=username,
+                token_name=token_name,
+            )
             return token_entry["token"]
         except mlrun.errors.MLRunNotFoundError:
             raise
         except Exception as exc:
             logger.error(
-                "Failed decoding token from secret", exc=mlrun.errors.err_to_str(exc)
+                "Failed decoding token from secret",
+                username=username,
+                token_name=token_name,
+                exc=mlrun.errors.err_to_str(exc),
             )
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed to decode secret data for token '{token_name}"
@@ -1349,6 +1391,14 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         namespace = self.resolve_namespace(namespace)
         secret_name = self._resolve_user_token_secret_name(username, token_name)
 
+        logger.debug(
+            "Deleting user token secret from Kubernetes",
+            username=username,
+            token_name=token_name,
+            secret_name=secret_name,
+            namespace=namespace,
+        )
+
         try:
             self.v1api.delete_namespaced_secret(
                 name=secret_name,
@@ -1366,11 +1416,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     f"Secret for token '{token_name}' not found for user '{username}'"
                 ) from exc
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed to delete secret for token '{token_name}' for user '{username}': {exc}"
+                f"Failed to delete secret for token '{token_name}' for user '{username}'"
             ) from exc
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Unexpected error deleting secret for token '{token_name}' for user '{username}': {exc}"
+                f"Unexpected error deleting secret for token '{token_name}' for user '{username}'"
             ) from exc
 
 

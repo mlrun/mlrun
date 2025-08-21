@@ -715,6 +715,93 @@ def test_get_user_token_secret_value_invalid_yaml(k8s_helper):
         )
 
 
+def test_delete_user_token_secret_success(k8s_helper):
+    username = "test-user"
+    token_name = "token1"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock()
+
+    k8s_helper.delete_user_token_secret(
+        username=username, token_name=token_name, namespace="default"
+    )
+
+    k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
+        name=secret_name,
+        namespace="default",
+    )
+
+
+def test_delete_user_token_secret_not_found(k8s_helper):
+    username = "test-user"
+    token_name = "missing"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
+        side_effect=k8s_client_rest.ApiException(status=404, reason="Not Found")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as exc:
+        k8s_helper.delete_user_token_secret(
+            username=username, token_name=token_name, namespace="default"
+        )
+
+    assert f"Secret for token '{token_name}' not found" in str(exc.value)
+
+    k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
+        name=secret_name,
+        namespace="default",
+    )
+
+
+def test_delete_user_token_secret_api_error(k8s_helper):
+    username = "test-user"
+    token_name = "badtoken"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
+        side_effect=k8s_client_rest.ApiException(status=500, reason="Internal Error")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc:
+        k8s_helper.delete_user_token_secret(
+            username=username, token_name=token_name, namespace="default"
+        )
+
+    assert "Failed to delete secret" in str(exc.value)
+
+    k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
+        name=secret_name,
+        namespace="default",
+    )
+
+
+def test_delete_user_token_secret_unexpected_error(k8s_helper):
+    username = "test-user"
+    token_name = "oops"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
+        side_effect=RuntimeError("dummy-error")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc:
+        k8s_helper.delete_user_token_secret(
+            username=username, token_name=token_name, namespace="default"
+        )
+
+    assert "Unexpected error deleting secret" in str(exc.value)
+
+    k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
+        name=secret_name,
+        namespace="default",
+    )
+
+
 def _make_user_token_secret(
     secret_name,
     token_name="my-token",

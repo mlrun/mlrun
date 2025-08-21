@@ -79,8 +79,13 @@ class ApplicationSpec(NuclioSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        serving_spec=None,
+        graph=None,
+        parameters=None,
+        track_models=None,
         internal_application_port=None,
         application_ports=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -122,6 +127,11 @@ class ApplicationSpec(NuclioSpec):
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
+            serving_spec=serving_spec,
+            graph=graph,
+            parameters=parameters,
+            track_models=track_models,
+            foo=foo,
         )
 
         # Override default min/max replicas (don't assume application is stateless)

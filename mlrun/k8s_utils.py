@@ -367,7 +367,9 @@ def _safe_copy_tolerations(
     ]
 
 
-def _safe_copy_affinity(affinity):
+def _safe_copy_affinity(
+    affinity: kubernetes.client.V1Affinity,
+) -> kubernetes.client.V1Affinity:
     """
     Safely create a deep copy of a V1Affinity object.
 

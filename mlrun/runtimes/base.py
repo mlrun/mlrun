@@ -76,6 +76,7 @@ spec_fields = [
     "disable_auto_mount",
     "allow_empty_resources",
     "reset_on_run",
+    "foo",
 ]
 
 

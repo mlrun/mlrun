@@ -137,7 +137,6 @@ class TestOpenAIModelRunner(TestMLRunSystem):
     )
     def test_open_ai_custom(self, execution_mechanism):
         mlrun_model_name = "custom_invoke_model"
-        # Using full path as a model class is a workaround for ML-10937
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
             self.model_url,
@@ -145,7 +144,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             execution_mechanism=execution_mechanism,
             image=self.image,
             requirements=["openai==1.77.0"],
-            model_class="tests.datastore.remote_model.remote_model_utils.MyOpenAICustom",
+            model_class="MyOpenAICustom",
             default_config={"dimensions": 256},
         )
         function.deploy()

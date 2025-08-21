@@ -245,7 +245,6 @@ class Client(
         auth = None
         if auth_info:
             auth = auth_info.to_nuclio_auth_info().to_requests_auth()
-        print("headers", kwargs)
 
         response = self._session.request(
             method,

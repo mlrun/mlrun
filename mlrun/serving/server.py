@@ -17,8 +17,10 @@ __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 import asyncio
 import base64
 import copy
+import importlib
 import json
 import os
+import pathlib
 import socket
 import traceback
 import uuid
@@ -572,19 +574,34 @@ async def async_execute_graph(
     nest_under_inputs: bool,
 ) -> list[Any]:
     spec = mlrun.utils.get_serving_spec()
-
-    namespace = {}
+    modname = None
     code = os.getenv("MLRUN_EXEC_CODE")
     if code:
         code = base64.b64decode(code).decode("utf-8")
-        exec(code, namespace)
+        with open("user_code.py", "w") as fp:
+            fp.write(code)
+        modname = "user_code"
     else:
         # TODO: find another way to get the local file path, or ensure that MLRUN_EXEC_CODE
         #  gets set in local flow and not just in the remote pod
-        source_filename = spec.get("filename", None)
-        if source_filename:
-            with open(source_filename) as f:
-                exec(f.read(), namespace)
+        source_file_path = spec.get("filename", None)
+        if source_file_path:
+            source_file_path_object = pathlib.Path(source_file_path).resolve()
+            current_dir_path_object = pathlib.Path(".").resolve()
+            if not source_file_path_object.is_relative_to(current_dir_path_object):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Source file path '{source_file_path}' is not under the current working directory "
+                    f"(which is required when running with local=True)"
+                )
+            relative_path_to_source_file = source_file_path_object.relative_to(
+                current_dir_path_object
+            )
+            modname = ".".join(relative_path_to_source_file.with_suffix("").parts)
+
+    namespace = {}
+    if modname:
+        mod = importlib.import_module(modname)
+        namespace = mod.__dict__
 
     server = GraphServer.from_dict(spec)
 

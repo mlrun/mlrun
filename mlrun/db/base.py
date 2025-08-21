@@ -1128,11 +1128,5 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_secret_tokens(
-        self,
-    ) -> mlrun.common.schemas.ListSecretTokensResponse:
-        pass
-
-    @abstractmethod
     def revoke_secret_token(self, token_name: str) -> None:
         pass

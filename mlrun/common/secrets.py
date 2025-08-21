@@ -67,14 +67,6 @@ class SecretProviderInterface(ABC):
         pass
 
     @abstractmethod
-    def list_user_token_secrets(
-        self,
-        username: str,
-        namespace: str = "",
-    ) -> list[mlrun.common.schemas.SecretTokenInfo]:
-        pass
-
-    @abstractmethod
     def get_user_token_secret_value(
         self,
         username: str,
@@ -176,13 +168,6 @@ class InMemorySecretProvider(SecretProviderInterface):
         expiration: int,
         namespace: str = "",
     ) -> mlrun.common.schemas.SecretEventActions:
-        raise NotImplementedError()
-
-    def list_user_token_secrets(
-        self,
-        username: str,
-        namespace: str = "",
-    ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         raise NotImplementedError()
 
     def get_user_token_secret_value(

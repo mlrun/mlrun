@@ -47,21 +47,6 @@ async def store_secret_tokens(
     )
 
 
-@router.get("/tokens", response_model=mlrun.common.schemas.ListSecretTokensResponse)
-async def list_secret_tokens(
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        framework.api.deps.authenticate_request
-    ),
-    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
-):
-    # TODO: Support listing user tokens with System Admin
-
-    return await run_in_threadpool(
-        services.api.crud.Secrets().list_secret_tokens,
-        auth_info.username,
-    )
-
-
 @router.delete("/tokens/{name}", status_code=HTTPStatus.OK.value)
 async def revoke_secret_token(
     name: str,

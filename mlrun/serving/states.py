@@ -546,8 +546,8 @@ class BaseStep(ModelObj):
         # Update model endpoints names in the root step
         root.update_model_endpoints_names(step_model_endpoints_names)
 
-    @staticmethod
     def _verify_shared_models(
+        self,
         root: "RootFlowStep",
         step: "ModelRunnerStep",
         step_model_endpoints_names: list[str],
@@ -586,7 +586,7 @@ class BaseStep(ModelObj):
                     llm_artifact.spec.parent_uri
                 )
             actual_shared_name, shared_model_class, shared_model_params = (
-                root.get_shared_model_name_by_artifact_uri(model_artifact_uri)
+                root.get_shared_model_by_artifact_uri(model_artifact_uri)
             )
 
             if not shared_runnable_name:
@@ -604,40 +604,66 @@ class BaseStep(ModelObj):
                     f"expected {actual_shared_name}, got {shared_runnable_name}"
                 )
             shared_models.append(actual_shared_name)
-            # edit monitoring data according to the shared model parameters
-            step.class_args[schemas.ModelRunnerStepData.MONITORING_DATA][name][
-                schemas.MonitoringData.INPUT_PATH
-            ] = shared_model_params["input_path"]
-            step.class_args[schemas.ModelRunnerStepData.MONITORING_DATA][name][
-                schemas.MonitoringData.RESULT_PATH
-            ] = shared_model_params["result_path"]
-            step.class_args[schemas.ModelRunnerStepData.MONITORING_DATA][name][
-                schemas.MonitoringData.INPUTS
-            ] = shared_model_params["inputs"]
-            step.class_args[schemas.ModelRunnerStepData.MONITORING_DATA][name][
-                schemas.MonitoringData.OUTPUTS
-            ] = shared_model_params["outputs"]
-            step.class_args[schemas.ModelRunnerStepData.MONITORING_DATA][name][
-                schemas.MonitoringData.MODEL_CLASS
-            ] = (
-                shared_model_class
-                if isinstance(shared_model_class, str)
-                else shared_model_class.__class__.__name__
+            self._edit_proxy_model_data(
+                step,
+                name,
+                actual_shared_name,
+                shared_model_params,
+                shared_model_class,
+                llm_artifact_uri or model_artifact_uri,
             )
-            if actual_shared_name not in step._shared_proxy_mapping:
-                step._shared_proxy_mapping[actual_shared_name] = {
-                    name: llm_artifact_uri
-                }
-            else:
-                step._shared_proxy_mapping[actual_shared_name].update(
-                    {name: llm_artifact_uri}
-                )
         undefined_shared_models = list(
             set(shared_models) - set(root.shared_models.keys())
         )
         if undefined_shared_models:
             raise GraphError(
                 f"The following shared models are not defined in the graph: {undefined_shared_models}."
+            )
+
+    @staticmethod
+    def _edit_proxy_model_data(
+        step: "ModelRunnerStep",
+        name: str,
+        actual_shared_name: str,
+        shared_model_params: dict,
+        shared_model_class: Any,
+        artifact: Union[ModelArtifact, LLMPromptArtifact, str],
+    ):
+        monitoring_data = step.class_args.setdefault(
+            schemas.ModelRunnerStepData.MONITORING_DATA, {}
+        )
+
+        # edit monitoring data according to the shared model parameters
+        monitoring_data[name][schemas.MonitoringData.INPUT_PATH] = shared_model_params[
+            "input_path"
+        ]
+        monitoring_data[name][schemas.MonitoringData.RESULT_PATH] = shared_model_params[
+            "result_path"
+        ]
+        monitoring_data[name][schemas.MonitoringData.INPUTS] = shared_model_params[
+            "inputs"
+        ]
+        monitoring_data[name][schemas.MonitoringData.OUTPUTS] = shared_model_params[
+            "outputs"
+        ]
+        monitoring_data[name][schemas.MonitoringData.MODEL_CLASS] = (
+            shared_model_class
+            if isinstance(shared_model_class, str)
+            else shared_model_class.__class__.__name__
+        )
+        if actual_shared_name and actual_shared_name not in step._shared_proxy_mapping:
+            step._shared_proxy_mapping[actual_shared_name] = {
+                name: artifact.uri
+                if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                else artifact
+            }
+        elif actual_shared_name:
+            step._shared_proxy_mapping[actual_shared_name].update(
+                {
+                    name: artifact.uri
+                    if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                    else artifact
+                }
             )
 
 
@@ -1143,6 +1169,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.invocation_artifact: Optional[LLMPromptArtifact] = None
         self.model_artifact: Optional[ModelArtifact] = None
         self.model_provider: Optional[ModelProvider] = None
+        self._artifact_were_loaded = False
 
     def __init_subclass__(cls):
         super().__init_subclass__()
@@ -1163,12 +1190,14 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             )
 
     def _load_artifacts(self) -> None:
-        artifact = self._get_artifact_object()
-        if isinstance(artifact, LLMPromptArtifact):
-            self.invocation_artifact = artifact
-            self.model_artifact = self.invocation_artifact.model_artifact
-        else:
-            self.model_artifact = artifact
+        if not self._artifact_were_loaded:
+            artifact = self._get_artifact_object()
+            if isinstance(artifact, LLMPromptArtifact):
+                self.invocation_artifact = artifact
+                self.model_artifact = self.invocation_artifact.model_artifact
+            else:
+                self.model_artifact = artifact
+            self._artifact_were_loaded = True
 
     def _get_artifact_object(
         self, proxy_uri: Optional[str] = None
@@ -1434,7 +1463,6 @@ class LLModel(Model):
             model_name=self.name,
             model_endpoint_name=origin_name,
         )
-        llm_prompt_artifact = llm_prompt_artifact
         if not llm_prompt_artifact or not (
             llm_prompt_artifact and isinstance(llm_prompt_artifact, LLMPromptArtifact)
         ):
@@ -1500,10 +1528,11 @@ class LLModel(Model):
             if isinstance(llm_prompt_artifact, str):
                 llm_prompt_artifact = self._get_artifact_object(llm_prompt_artifact)
                 self.shared_proxy_mapping[origin_name] = llm_prompt_artifact
+        elif self._artifact_were_loaded:
+            llm_prompt_artifact = self.invocation_artifact
         else:
-            llm_prompt_artifact = (
-                self.invocation_artifact or self._get_artifact_object()
-            )
+            self._load_artifacts()
+            llm_prompt_artifact = self.invocation_artifact
         return llm_prompt_artifact
 
 
@@ -1715,7 +1744,7 @@ class ModelRunnerStep(MonitoredStep):
         shared_model_params = {}
         if isinstance(root, RootFlowStep):
             actual_shared_model_name, shared_model_class, shared_model_params = (
-                root.get_shared_model_name_by_artifact_uri(model_artifact_uri)
+                root.get_shared_model_by_artifact_uri(model_artifact_uri)
             )
             if not actual_shared_model_name or (
                 shared_model_name and actual_shared_model_name != shared_model_name
@@ -2919,7 +2948,7 @@ class RootFlowStep(FlowStep):
         self.shared_models[name] = (model_class, model_parameters)
         self.shared_models_mechanism[name] = execution_mechanism
 
-    def get_shared_model_name_by_artifact_uri(
+    def get_shared_model_by_artifact_uri(
         self, artifact_uri: str
     ) -> Optional[tuple[str, str, dict]]:
         """

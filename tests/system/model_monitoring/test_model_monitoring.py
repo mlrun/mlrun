@@ -97,7 +97,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "mm-app-project"
-    image = "artifactory.iguazeng.com:10557/davids/mlrun-api:1.10.0"
+    image = "mlrun/mlrun"
 
     def setup_method(self, method):
         super().setup_method(method)

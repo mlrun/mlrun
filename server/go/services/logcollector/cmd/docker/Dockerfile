@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG GO_VERSION=1.23
+ARG GO_VERSION=1.25
 
 ARG GRPC_HEALTH_PROBE_VERSION=v0.4.37
 FROM ghcr.io/grpc-ecosystem/grpc-health-probe:${GRPC_HEALTH_PROBE_VERSION} AS install-health-probe
@@ -23,7 +23,7 @@ RUN mkdir /app
 WORKDIR /app
 
 # Build stages requires defining GO_VERSION again
-ARG GO_VERSION=1.23
+ARG GO_VERSION
 
 # copy `go.mod` for definitions and `go.sum` to invalidate the next layer
 # in case of a change in the dependencies

@@ -186,6 +186,13 @@ class ApplicationSpec(NuclioSpec):
         is_valid_port(port, raise_on_error=True)
         self._internal_application_port = port
 
+        # If when internal application port is being set, length of self._application_ports is 1,
+        # it means that it consist of [old_port] only
+        # so in this case, we rewrite the list completely, by setting value to [new_value]
+        if len(self.application_ports) == 1:
+            self._application_ports = [port]
+            return
+
         # when setting new internal application port, ensure that it is included in the application ports
         # it just triggers setter logic, so setting to the same value is a no-op
         self.application_ports = self._application_ports

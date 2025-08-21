@@ -31,7 +31,6 @@ router = fastapi.APIRouter(prefix="/user-secrets")
 @router.put(
     "/tokens",
     status_code=HTTPStatus.OK.value,
-    response_model=mlrun.common.schemas.StoreSecretTokensResponse,
 )
 async def store_secret_tokens(
     secret_tokens: list[mlrun.common.schemas.SecretToken],

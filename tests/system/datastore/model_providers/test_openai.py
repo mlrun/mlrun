@@ -56,7 +56,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
                 f"The following openai keys are missing: {missing_env_variables}"
             )
         cls.basic_llm_model = "gpt-4o-mini"
-
+        cls.embedding_model  = "text-embedding-3-small"
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
         self.profile = OpenAIProfile(
@@ -137,9 +137,10 @@ class TestOpenAIModelRunner(TestMLRunSystem):
     )
     def test_open_ai_custom(self, execution_mechanism):
         mlrun_model_name = "custom_invoke_model"
+        model_url = self.url_prefix + self.embedding_model
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
-            self.model_url,
+            model_url,
             mlrun_model_name=mlrun_model_name,
             execution_mechanism=execution_mechanism,
             image=self.image,

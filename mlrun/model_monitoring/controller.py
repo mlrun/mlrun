@@ -801,7 +801,11 @@ class MonitoringApplicationController:
         logger.info("Starting monitoring controller chief")
         applications_names = []
         endpoints = self.project_obj.list_model_endpoints(
-            tsdb_metrics=False, mode=mm_constants.EndpointMode.REAL_TIME
+            tsdb_metrics=False,
+            modes=[
+                mm_constants.EndpointMode.REAL_TIME,
+                mm_constants.EndpointMode.BATCH_LEGACY,
+            ],
         ).endpoints
         last_request_dict = self.tsdb_connector.get_last_request(
             endpoint_ids=[mep.metadata.uid for mep in endpoints]

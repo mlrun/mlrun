@@ -741,7 +741,12 @@ class RunDBMock:
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: Optional[
+            Union[
+                mlrun.common.schemas.EndpointMode,
+                list[mlrun.common.schemas.EndpointMode],
+            ]
+        ] = None,
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,

@@ -371,11 +371,12 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
     def test_open_ai_custom(self, execution_mechanism):
         project = mlrun.new_project("test-openai-custom", save=False)
         model_url = self.url_prefix + self.embedding_model
+        # Using full path as a model class is a workaround to ML-10937
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             project,
             model_url,
             execution_mechanism=execution_mechanism,
-            model_class="MyOpenAICustom",
+            model_class="tests.datastore.remote_model.remote_model_utils.MyOpenAICustom",
             default_config={"dimensions": 256},
         )
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.

@@ -39,7 +39,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         gnupg2 \
         graphviz \
         make \
-        software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
 # set initial git config
@@ -73,4 +72,4 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}

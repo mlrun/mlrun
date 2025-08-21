@@ -1231,6 +1231,14 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         self, endpoint_name, feature_set_uri, model_dict
     ) -> dict[str, typing.Any]:
         serving_fn = self.project.get_function(self.function_name)
+        self._infer_by_endpoint(endpoint_name, model_dict, serving_fn)
+        time.sleep(
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
+        )
+        return self._test_parquet(feature_set_uri, model_dict)
+
+    @staticmethod
+    def _infer_by_endpoint(endpoint_name, model_dict, serving_fn):
         data_point = model_dict.get("data_point")
         if endpoint_name == "img_one_to_one":
             data_point = [data_point]
@@ -1246,22 +1254,18 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             f"v2/models/{endpoint_name}/infer",
             json.dumps({"inputs": [data_point, data_point]}),
         )
-        time.sleep(
-            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 10
-        )
 
+    @staticmethod
+    def _test_parquet(feature_set_uri, model_dict):
         offline_response_df = ParquetTarget(
             name="temp",
             path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
         ).as_df()
-
         is_schema_saved = set(model_dict.get("schema")).issubset(
             offline_response_df.columns
         )
         has_all_the_events = offline_response_df.shape[0] == 3
-
         return {
-            "model_name": endpoint_name,
             "is_schema_saved": is_schema_saved,
             "has_all_the_events": has_all_the_events,
             "df": offline_response_df,
@@ -1276,31 +1280,33 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
         self._deploy_model_router(self.function_name)
 
-        futures = []
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-                project=self.project_name, tsdb_metrics=True
+        endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
+            project=self.project_name, tsdb_metrics=True
+        )
+        endpoints = endpoints_list.endpoints
+        assert len(endpoints) == 7
+        serving_fn = self.project.get_function(self.function_name)
+        for endpoint in endpoints:
+            self._infer_by_endpoint(
+                endpoint.metadata.name,
+                self.model_by_endpoint_name[endpoint.metadata.name],
+                serving_fn,
             )
-            endpoints = endpoints_list.endpoints
-            assert len(endpoints) == 7
-            for endpoint in endpoints:
-                future = executor.submit(
-                    self._test_endpoint,
-                    endpoint_name=endpoint.metadata.name,
-                    feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
-                    model_dict=self.model_by_endpoint_name[endpoint.metadata.name],
-                )
-                futures.append(future)
-
-        for future in concurrent.futures.as_completed(futures):
-            res_dict = future.result()
+        time.sleep(
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
+        )
+        for endpoint in endpoints:
+            res_dict = self._test_parquet(
+                endpoint.spec.monitoring_feature_set_uri,
+                self.model_by_endpoint_name[endpoint.metadata.name],
+            )
             assert res_dict[
                 "is_schema_saved"
-            ], f"For {res_dict['model_name']} the schema of parquet is missing columns"
+            ], f"For {endpoint.metadata.name} the schema of parquet is missing columns"
 
             assert res_dict[
                 "has_all_the_events"
-            ], f"For {res_dict['model_name']} Not all the events were saved"
+            ], f"For {endpoint.metadata.name} Not all the events were saved"
 
     def test_tracking(self) -> None:
         self.function_name = "serving-1"
@@ -1350,11 +1356,11 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
         assert res_dict[
             "is_schema_saved"
-        ], f"For {res_dict['model_name']} the schema of parquet is missing columns"
+        ], f"For {endpoint.metadata.name} the schema of parquet is missing columns"
 
         assert res_dict[
             "has_all_the_events"
-        ], f"For {res_dict['model_name']} Not all the events were saved"
+        ], f"For {endpoint.metadata.name} Not all the events were saved"
 
         for model_name, model_dict in self.test_models_tracking.items():
             self._deploy_model_serving(**model_dict, enable_tracking=False)

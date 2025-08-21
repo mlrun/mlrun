@@ -2,7 +2,7 @@
 # Using MLRun
 
 MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
-With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
+With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks down the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
 Get started with the MLRun **{ref}`Tutorials and examples <tutorials-all>`** and **{ref}`Installation and setup guide <install-setup-guide>`**.
 
@@ -11,6 +11,10 @@ This page explains how MLRun addresses the [**gen AI tasks**](#gen-ai-tasks), [*
 
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
+**In this section**
+- [Gen AI tasks](#gen-ai-tasks) 
+- [MLOps tasks](#mlops-tasks)
+- [MLRun core components](#mlrun-core-components)
 
 ## Gen AI tasks
 
@@ -97,9 +101,9 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+`````
 <br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
-`````
 
 ### Deployment
 MLRun serving can productize the newly trained LLM as a serverless function using real-time auto-scaling Nuclio serverless functions. 

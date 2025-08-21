@@ -227,10 +227,7 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	timeout := time.After(30 * time.Second)
 	var logFileContent []byte
 	foundLogs := false
-	for {
-		if foundLogs {
-			break
-		}
+	for !foundLogs {
 		select {
 		case <-timeout:
 			suite.Require().Fail("Timed out waiting for log file to have content")

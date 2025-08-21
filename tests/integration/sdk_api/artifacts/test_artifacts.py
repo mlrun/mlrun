@@ -173,14 +173,15 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # verify that the temp path was deleted after the import
         assert not os.path.exists(temp_local_path)
 
-    def test_retrieve_an_artifact_with_no_tag(self):
+    def test_artifact_retrieval_and_deletion_without_tag(self):
         """
-        Test artifact retrieval when no tag is explicitly set.
+        Test artifact retrieval and deletion when logging models without explicitly setting a tag.
         Verifies:
         1. The first artifact has no tag.
         2. The second artifact is tagged as 'latest'.
         3. Attempting to retrieve the untagged artifact using its URI without the UID raises an error.
         4. The artifact with no tag can be retrieved successfully using its full URI.
+        5. Deleting the untagged artifact removes it while the tagged one remains.
         """
         project = mlrun.new_project("log-mod")
 
@@ -213,3 +214,12 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # Ensure we can retrieve the untagged artifact by its URI
         assert project.get_store_resource(artifacts[1].uri)
+
+        # Delete the untagged artifact
+        uid0 = artifacts[0].metadata.uid
+        project.delete_artifact(artifacts[1])
+
+        # Only the tagged artifact should remain
+        artifacts = project.list_artifacts().to_objects()
+        assert len(artifacts) == 1, f"Expected 1 artifacts, found {len(artifacts)}"
+        assert artifacts[0].metadata.uid == uid0

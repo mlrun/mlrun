@@ -1,7 +1,10 @@
 (cheat-sheet)=
 # MLRun cheat sheet
 
-## Table of contents
+The cheat sheet provides simple code examples of many of MLRun's features.
+
+**In this section**
+
 - [MLRun setup](#mlrun-setup)
 - [MLRun projects](#mlrun-projects)
     - [General workflow](#general-workflow)

@@ -1,6 +1,8 @@
 (install-on-kubernetes)=
 # Install MLRun CE on Kubernetes
 
+These instructions install the community edition (CE) on your Kubernetes cluster. This procedure installs an EKS cluster, an EBS volume, an S3 bucket, load balancing, etc. When you complete this procedure, you'll have the Community Edition of MLRun running on your EKS cluster.
+
 ```{admonition} Note
 These instructions install the community edition, which currently includes MLRun {{ ceversion }}. 
 ```
@@ -157,20 +159,23 @@ When the installation is complete, the helm command prints the URLs and ports of
 
 ## Configuring the user Jupyter conda environment
 
-Run this in your Jupyter terminal, where `myenv` is the name of your environment:
+The default Jupyter comes with a conda env named `mlrun`. This conda is not persistent.
+If you install any packages on this conda env, and then the Jupyter pod gets restarted or deleted, those packages will be deleted.
+
+To create a new, persistent, environment, run this in your Jupyter terminal, where `myenv` is the name of your environment:
 
 ```bash
 # Create the virtual environment
-conda create -n myenv python=3.9 -y
+conda create -n <myenv> python=<3.9 or 3.11> -y
 
 # Activate the virtual environment
-conda activate myenv
+conda activate <myenv>
 
 # Make sure that ipykernel is installed
 pip install --user ipykernel
 
 # Add the new virtual environment to Jupyter
-python -m ipykernel install --user --name myenv --display-name "Python (myenv)"
+python -m ipykernel install --user --name <myenv> --display-name "Python (<myenv>)"
 ```
 
 ## Configuring TDengine and Kafka for model monitoring
@@ -201,7 +206,7 @@ project.set_model_monitoring_credentials(
 )
 ```
 
-See more details, including additional configuration options, in {py:class}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+See more details, including additional configuration options, in {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 
 ## Configuring the online feature store
 The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.

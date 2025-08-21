@@ -221,6 +221,7 @@ print-docker-images: ## Print all docker images
 	@for image in $(DEFAULT_IMAGES); do \
 		echo $$image ; \
 	done
+	@make -C server/go print-docker-images
 
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun
@@ -973,7 +974,7 @@ upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 
 .PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
-	@$(MAKE) \
+	@$(MAKE) -j \
 		upgrade-mlrun-mlrun-deps-lock \
 		upgrade-mlrun-api-deps-lock \
 		upgrade-mlrun-jupyter-deps-lock \

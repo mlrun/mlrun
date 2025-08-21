@@ -17,5 +17,7 @@ aiosmtplib~=3.0
 # until https://github.com/fastapi/fastapi/issues/10360 is solved
 pydantic>=1,<2
 mlrun-pipelines-kfp-v1-8~=0.4.3
+# Since the mlrun-api requirements file are also used in the test image,
+# we need to ensure that the grpcio version is compatible with python 3.9.
 grpcio~=1.59.0; python_version <= "3.9"
 grpcio~=1.74.0; python_version > "3.9"

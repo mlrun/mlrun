@@ -30,7 +30,7 @@ Spark execution can be done locally, utilizing a local Spark session provided to
 Spark session context when calling the {py:func}`~mlrun.feature_store.ingest` function, as the 
 `spark_context` parameter. This session is used for data operations and transformations.
        
-See code examples in:
+**This section presents code examples**
 - [Local Spark ingestion example](#local-spark-ingestion-example)
 - [Remote Spark ingestion example](#remote-spark-ingestion-example)
 - [Spark operator ingestion example](#spark-operator-ingestion-example)

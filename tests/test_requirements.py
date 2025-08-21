@@ -141,26 +141,40 @@ def test_requirement_specifiers_convention():
         "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
         "aioresponses": {"~=0.7"},
-        "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
-        "dask": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
-        },
-        "distributed": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
-        },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',
             '~=2024.4.4; python_version >= "3.11"',
         },
         "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
-        "grpcio": {"~=1.70.0"},
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
+        "urllib3": {
+            '>=1.26.20; python_version < "3.11"',
+            '>=2.5.0; python_version >= "3.11"',
+        },
+        "dask": {
+            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '~=2024.8.0; python_version >= "3.11"',
+        },
+        "distributed": {
+            '~=2023.12.1; python_version < "3.11"',
+            '~=2024.8.0; python_version >= "3.11"',
+        },
+        "grpcio": {
+            '~=1.59.0; python_version <= "3.9"',
+            '~=1.74.0; python_version > "3.9"',
+        },
+        "kfp": {
+            '==1.8.22; python_version < "3.11"',
+            '~=1.8.23; python_version >= "3.11"',
+        },
+        "scikit-learn": {
+            "~=1.5.1",
+            "~=1.5.2",
+        },
     }
 
     for (
@@ -199,7 +213,7 @@ def test_requirement_specifiers_inconsistencies():
         # packages that require specific versions per python version
         "v3io-frames": {
             '>=0.13.0; python_version >= "3.11"',
-            '~=0.10.14; python_version < "3.11"',
+            '~=0.10.15; python_version < "3.11"',
         },
         "dask-ml": {
             '~=2024.4.4; python_version >= "3.11"',
@@ -215,6 +229,10 @@ def test_requirement_specifiers_inconsistencies():
             '~=2023.12.1; python_version < "3.11"',
         },
         "mlrun-pipelines-kfp-v1-8": {"~=0.4.3", '~=0.4.2; python_version < "3.11"'},
+        "urllib3": {
+            '>=1.26.20; python_version < "3.11"',
+            '>=2.5.0; python_version >= "3.11"',
+        },
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

@@ -1,9 +1,7 @@
 (alerts-notifications)=
 # Alerts and notifications 
 
-{ref}`alerts` are a mechanism for informing you about possible problem situations. 
-
-{ref}`notifications` are used to notify you or the system of status on runs and pipelines.
+{ref}`notifications` are used to notify you of system events on jobs (both scheduled and manually triggered), for example, job finish, and additionally on job start of workflows; {ref}`alerts` are a broader mechanism that allows defining rules like "event X happens N times in T minutes," and are often used for monitoring production models or failing jobs.
 
 **In this section**
 

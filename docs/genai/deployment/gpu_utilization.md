@@ -1,7 +1,7 @@
 (gpu-utilization)=
 # GPU utilization
 
-Gen AI models require GPUs in order to run. And since they are usually large, they require a lot of memory to run. However, GPU memory is limited and can be a bottleneck for running large models. This section discusses techniques to improve GPU utilization during inference and how to optimize it. The list here provides some important considerations, but this is not an exhaustive list.
+Gen AI models require GPUs, and because they are usually large, they require a lot of memory to run: learn techniques improve GPU utilization during inference and how to optimize the utilization, thereby preventing GPU bottlenecks. The list here provides some important considerations, but this is not an exhaustive list.
 
 ## Optimization techniques
 

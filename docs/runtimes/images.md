@@ -3,8 +3,6 @@
 
 Every release of MLRun includes several images for different usages. The build and the infrastructure images are described, and located, in the [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.md). They are also published to [DockerHub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
-This release of MLRun supports only Python 3.9.
-
 **In this section**
 - [Using images](#using-images)
 - [MLRun runtime images](#mlrun-runtime-images)
@@ -20,6 +18,9 @@ See {ref}`build-function-image`.
 
 All images are published to 
 [DockerHub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
+
+There are two versions of each image: py3.9 and py3.11. The recommended version is py3.11. You choose the image you use, based on your needs. When you submit a job to MLRun, it 
+attempts to deduce the correct Python version to use based on the Python version where the user-code was written and submitted.
 
 The images are:
 
@@ -37,11 +38,16 @@ The images are:
 - If you are using a zipped source, use `mlrun/mlrun` images or install `unzip` in the provided function base image. 
 - When creating an image with MLRun methods using one of the mlrun/mlrun base images, MLRun by default runs `pip install mlrun` to ensure its dependencies are aligned, along with any other specified Python packages.
 ```
+
+```{admonition} Warning
+For production, **create your own images** to ensure that the image is fixed. See [Working with images in production](#working-with-images-in-production).
+```
+
 ### When to use an image with KFP
 
-MLRun supports KFP SDK 1.8. In general, if your workflow will be compiled locally,  meaning you are not working with a remote source, then you need to use the image `mlrun/mlrun-kfp`. 
+With Python 3.11: You must use the remote engine, which automatically uses the `mlrun/mlrun-kfp` image that uses Python 3.9. (You can change the image with {py:meth}`~mlrun.projects.MlrunProject.set_workflow`). Since KFP cannot be installed on Python 3.11, this remote job loads and compiles the workflow as a separate job in your Kubernetes cluster.
 
-If your workflow will be compiled remotely (engine=`remote`), then the workflow-runner pod automatically uses the `mlrun/mlrun-kfp` image, unless you specify otherwise, for example, if you have specific python package requirements.
+If you are using Python 3.9, you have the option of compiling your workflow on your Python 3.9 environment with `engine=kfp`.
 
 Unless you are using KFP-specific code inside the MLRun job, you do not need to use the `mlrun-kfp image`. Generally speaking, all MLRun code works without KFP except, of course, for creating and running pipelines.
 
@@ -117,5 +123,5 @@ These characteristics are great when you’re working in a POC or development en
 For production, **create your own images** to ensure that the image is fixed.
 ```
 
-- Pin the image tag, e.g. `image="mlrun/mlrun:1.7.0"`. This maintains the image tag at the version you specified, even when the client is upgraded. Otherwise, an upgrade of the client would also upgrade the image. (If you specify an external (not MLRun images) docker image, like python, the result is the docker/k8s default behavior, which defaults to `latest` when the tag is not provided.)
-- Pin the versions of requirements, again to avoid breakages, e.g. `pandas==1.4.0`. (If you only specify the package name, e.g. pandas, then pip/conda (python's package managers) just pick up the latest version.)
+- Pin the image tag, e.g. `image="mlrun/mlrun:1.7.0"`. This maintains the image tag at the version you specified, even when the client is upgraded. Otherwise, an upgrade of the client would also upgrade the image. (If you specify an external (not MLRun images) docker image, like Python, the result is the docker/k8s default behavior, which defaults to `latest` when the tag is not provided.)
+- Pin the versions of requirements, again to avoid breakages, e.g. `pandas==1.4.0`. (If you only specify the package name, e.g. pandas, then pip/conda (Python's package managers) just pick up the latest version.)

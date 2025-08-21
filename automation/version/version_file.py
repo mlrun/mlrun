@@ -86,6 +86,7 @@ def main():
         version_file_path = str(
             (repo_root / "mlrun/utils/version/version.json").absolute()
         )
+        logger.debug(f"{args.mlrun_version = }")
         create_or_update_version_file(args.mlrun_version, version_file_path)
 
     elif args.command == "is-stable":

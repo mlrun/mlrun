@@ -73,10 +73,10 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             )
 
         # lastly let's verify that a request error (failure reaching to the server) is handled nicely
-        mlrun.get_run_db().base_url = "http://does-not-exist"
+        mlrun.get_run_db().base_url = "http://localhost:23456"
         with pytest.raises(
             mlrun.errors.MLRunRuntimeError,
-            match=r"HTTPConnectionPool\(host='does-not-exist', port=80\): Max retries exceeded with url: "
+            match=r"HTTPConnectionPool\(host='localhost', port=23456\): Max retries exceeded with url: "
             rf"\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project \(Caused by NewConnectionError"
             r"\('<urllib3\.connection\.HTTPConnection object at (\S*)>: Failed to establish a new connection:"
             r" \[Errno (.*)'\)\): Failed retrieving project some-project",

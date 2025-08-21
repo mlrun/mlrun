@@ -1,7 +1,8 @@
 (genai-serving)=
 # Serving gen AI models
 
-Serving a gen AI model is, in essence, the same as serving any other model. The main differences are with the inputs and outputs, which are usually unstructured (text or images), and the model is usually a transformer model. With MLRun you can serve any model, including pretrained models from the [Hugging Face model hub](https://huggingface.co/docs/hub/en/models-the-hub) as well as models that are fine-tuned with MLRun.
+With MLRun you can serve any model, including pretrained models from the Hugging Face model hub, as well as models that are fine-tuned with MLRun. (See [Hugging Face model hub](https://huggingface.co/docs/hub/en/models-the-hub).)
+The main differences between serving a gen AI model and any other model are the inputs and outputs, which in gen AI are usually unstructured (text or images), and the model is usually a transformer model. 
 
 Another common use case is to serve the model as part of an inference pipeline, where the model is used as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This is covered in the {ref}`gen AI serving graph section <genai-serving-graph>`.
 

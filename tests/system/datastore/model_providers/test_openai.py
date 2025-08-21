@@ -56,7 +56,8 @@ class TestOpenAIModelRunner(TestMLRunSystem):
                 f"The following openai keys are missing: {missing_env_variables}"
             )
         cls.basic_llm_model = "gpt-4o-mini"
-        cls.embedding_model  = "text-embedding-3-small"
+        cls.embedding_model = "text-embedding-3-small"
+
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
         self.profile = OpenAIProfile(

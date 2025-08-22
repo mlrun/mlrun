@@ -193,18 +193,18 @@ TDengine and Kafka are part of the default CE installations. These are the defau
 ```py
 # Create and register TSDB profile
 tsdb_profile = DatastoreProfileTDEngine(
-    name="my-tdengine",
-    host="<tdengine-server-ip-address>",
-    port=6041,
-    user="username",
-    password="<tdengine-password>",
+    name=tsdb_profile_name,
+    user="root",
+    password="taosdata",
+    host=f"tdengine-tsdb.{namespace}.svc.cluster.local",
+    port="6041",
 )
 project.register_datastore_profile(tsdb_profile)
 
 # Create and register stream profile
 stream_profile = DatastoreProfileKafkaSource(
-    name="my-kafka",
-    brokers=["<kafka-broker-ip-address>:9094"],
+    name=stream_profile_name,
+    brokers=f"kafka-stream.{namespace}.svc.cluster.local:9092",
     topics=[],
 )
 

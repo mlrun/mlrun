@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # THIS BLOCK IS FOR VARIABLES USER MAY OVERRIDE
+DOCKER_DEFAULT_PLATFORM ?= linux/amd64
 MLRUN_VERSION ?= unstable
 # pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
 # allows us to have free text (like unstable) after the "+". on the contrary in a docker tag "+" is not a valid
@@ -289,6 +290,7 @@ print-docker-images: ## Print all docker images
 	@for image in $(DEFAULT_IMAGES); do \
 		echo $$image ; \
 	done
+	@make -C server/go print-docker-images
 
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun
@@ -309,6 +311,8 @@ mlrun: common-image update-version-file ## Build mlrun docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
@@ -341,6 +345,8 @@ mlrun-kfp: common-image-3.9 update-version-file ## Build mlrun docker image with
 		--build-arg MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) .
@@ -383,6 +389,7 @@ mlrun-gpu: update-version-file ## Build mlrun gpu docker image
 		--build-arg MLRUN_GPU_BASE_IMAGE=$(MLRUN_GPU_BASE_IMAGE) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) \
@@ -404,6 +411,7 @@ prebake-mlrun-gpu: ## Build prebake mlrun GPU based docker image
 		--build-arg CUDA_VER=$(MLRUN_GPU_CUDA_VERSION) \
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		--tag $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
 		.
 
@@ -429,6 +437,7 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 		--build-arg MLRUN_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED) \
@@ -483,10 +492,10 @@ endif
 # Common base image
 ###############################################################################
 
-COMMON_IMAGE_TAG     ?= mlrun_common_image:$(MLRUN_PYTHON_VERSION)
-COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).stamp
-COMMON_DOCKER_ARGS   := --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION)
+COMMON_PLATFORM_TAG := $(subst /,_,$(DOCKER_DEFAULT_PLATFORM))
+COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).$(COMMON_PLATFORM_TAG).stamp
 COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
+COMMON_IMAGE_NAME := mlrun_common_image:$(MLRUN_PYTHON_VERSION)
 
 common-image-3.11:
 	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.11
@@ -499,18 +508,23 @@ ifeq ($(strip $(MLRUN_NO_CACHE)),)
 common-image: $(COMMON_STAMP)
 
 $(COMMON_STAMP): $(COMMON_DOCKERFILE)
-	@if ! docker image inspect $(COMMON_IMAGE_TAG) >/dev/null 2>&1; then \
-	    echo "Building $(COMMON_IMAGE_TAG)…";                   \
-	    docker build $(COMMON_DOCKER_ARGS) -f $(COMMON_DOCKERFILE)     \
-	                -t $(COMMON_IMAGE_TAG) . ;                         \
-	fi
-	@mkdir -p $(dir $@) && touch $@
-
+	docker build \
+	--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+	--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+	--platform $(DOCKER_DEFAULT_PLATFORM) \
+	-f $(COMMON_DOCKERFILE) \
+	-t $(COMMON_IMAGE_NAME) . \
+	 && mkdir -p $(dir $@) && touch $@
 else  # when MLRUN_NO_CACHE is set
 .PHONY: common-image
 common-image:
-	docker build --no-cache $(COMMON_DOCKER_ARGS) -f $(COMMON_DOCKERFILE) \
-	            -t $(COMMON_IMAGE_TAG) .
+	docker build \
+	  --no-cache $(COMMON_DOCKER_ARGS) \
+ 	  --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+ 	  --build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+	  --platform $(DOCKER_DEFAULT_PLATFORM) \
+ 	  -f $(COMMON_DOCKERFILE) \
+	  -t $(COMMON_IMAGE_NAME) .
 endif
 
 .PHONY: clean-common-image
@@ -539,6 +553,8 @@ api: common-image-3.11	 compile-schemas update-version-file ## Build mlrun-api d
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
@@ -570,6 +586,8 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_PIPELINES_KFP_VERSION=$(MLRUN_PIPELINES_KFP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) .
@@ -588,6 +606,8 @@ build-test-system: common-image compile-schemas update-version-file ## Build sys
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
+		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 

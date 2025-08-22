@@ -50,7 +50,10 @@ import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
+from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFileChief,
+    ModelMonitoringSchedulesFileEndpoint,
+)
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
@@ -60,8 +63,8 @@ import framework.db.session
 import framework.utils.background_tasks
 import framework.utils.clients.async_nuclio
 import framework.utils.singletons.k8s
+import services.api.crud
 import services.api.crud.model_monitoring.helpers
-import services.api.utils.functions
 from framework.db.sqldb.models import ModelEndpoint
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
@@ -1188,13 +1191,14 @@ class MonitoringDeployment:
             labels=labels, format_=mlrun.common.formatters.FunctionFormat.minimal
         )
         function_summaries_list = []
-
         if not mm_functions_list:
             logger.info("No model monitoring applications found")
             return []
         if names:
+            # generate a list of lowercase names for filtering
+            lower_names = [name.lower() for name in names]
             mm_functions_list = [
-                fn for fn in mm_functions_list if fn["metadata"]["name"] in names
+                fn for fn in mm_functions_list if fn["metadata"]["name"] in lower_names
             ]
 
         detection_stats_dict = {}
@@ -1214,6 +1218,7 @@ class MonitoringDeployment:
                     mm_constants.ResultStatusApp.detected.value,
                     mm_constants.ResultStatusApp.potential_detection.value,
                 ],
+                application_names=names,
             )
 
         if include_processed_model_endpoints:
@@ -1235,14 +1240,14 @@ class MonitoringDeployment:
                 function_summary.stats = {
                     mm_constants.ResultStatusApp.detected.name: detection_stats_dict.get(
                         (
-                            function_summary.name,
+                            function_summary.name.lower(),
                             mm_constants.ResultStatusApp.detected.value,
                         ),
                         0,
                     ),
                     mm_constants.ResultStatusApp.potential_detection.name: detection_stats_dict.get(
                         (
-                            function_summary.name,
+                            function_summary.name.lower(),
                             mm_constants.ResultStatusApp.potential_detection.value,
                         ),
                         0,
@@ -2176,7 +2181,6 @@ class MonitoringDeployment:
                     router_step.model_endpoint_creation_strategy,
                 )
             )
-
         return model_endpoints_instructions
 
     def _extract_meps_from_root_flow_step(
@@ -2316,7 +2320,14 @@ class MonitoringDeployment:
         )
         return mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                project=self.project, name=name, endpoint_type=endpoint_type, uid=uid
+                project=self.project,
+                name=name,
+                endpoint_type=endpoint_type,
+                uid=uid,
+                mode=mlrun.common.schemas.model_monitoring.EndpointMode.BATCH
+                if endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP
+                else mlrun.common.schemas.model_monitoring.EndpointMode.REAL_TIME,
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=function_name,
@@ -2458,6 +2469,74 @@ class MonitoringDeployment:
                     )
                 )
         return model_endpoints_instructions
+
+    async def _delete_app_from_schedules_files(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete the application from the schedules file.
+        """
+        logger.debug(
+            "Deleting application from the schedules file",
+            application_name=application_name,
+        )
+        if endpoint_ids:
+            endpoint_id_list = endpoint_ids
+        else:
+            endpoints_data = (
+                await services.api.crud.ModelEndpoints().list_model_endpoints(
+                    project=self.project,
+                    uids=endpoint_ids,
+                    db_session=self.db_session,
+                )
+            )
+            endpoint_id_list = [
+                endpoint.metadata.uid for endpoint in endpoints_data.endpoints
+            ]
+        logger.debug(
+            "Deleting the last_analyzed time of the application from the schedules files",
+            application_name=application_name,
+            endpoint_id_list=endpoint_id_list,
+        )
+        for endpoint_id in endpoint_id_list:
+            with ModelMonitoringSchedulesFileEndpoint(
+                endpoint_id=endpoint_id, project=self.project
+            ) as schedules_file:
+                schedules_file.delete_application_time(application=application_name)
+
+    async def delete_application_records(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Deletes the application records from the model monitoring database.
+        This method is used to delete the records of a specific application.
+
+        :param application_name: The name of the application to delete records for.
+        :param endpoint_ids:     List of endpoint IDs to delete records for. If ``None``, all the project's
+                                 endpoints will be deleted.
+        """
+        logger.debug(
+            "Deleting application records from the TSDB",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        self._tsdb_connector.delete_application_records(
+            application_name=application_name, endpoint_ids=endpoint_ids
+        )
+
+        if not application_name.endswith(
+            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+        ):
+            # The schedules file of "batch" applications is handled on the user side
+            await self._delete_app_from_schedules_files(
+                application_name=application_name, endpoint_ids=endpoint_ids
+            )
+
+        logger.info(
+            "Deleted application records",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
 
 
 def get_endpoint_features(

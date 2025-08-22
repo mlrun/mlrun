@@ -808,18 +808,21 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
                 == {}
             )
         if expected_affinity:
+            pod_affinity = mlrun.k8s_utils.sanitize_k8s_objects(pod.spec.affinity)
+            expected_affinity = mlrun.k8s_utils.sanitize_k8s_objects(expected_affinity)
             assert (
                 deepdiff.DeepDiff(
-                    pod.spec.affinity.to_dict(),
-                    expected_affinity.to_dict(),
+                    pod_affinity,
+                    expected_affinity,
                     ignore_order=True,
                 )
                 == {}
             )
         if expected_tolerations:
-            pod_tolerations = [
-                toleration.to_dict() for toleration in pod.spec.tolerations
-            ]
+            pod_tolerations = mlrun.k8s_utils.sanitize_k8s_objects(pod.spec.tolerations)
+            expected_tolerations = mlrun.k8s_utils.sanitize_k8s_objects(
+                expected_tolerations
+            )
             assert (
                 deepdiff.DeepDiff(
                     pod_tolerations,

@@ -23,6 +23,7 @@ from sys import executable
 import igz_mgmt
 import pandas as pd
 import pytest
+from kubernetes import client as k8s_client
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -1332,10 +1333,24 @@ class TestProject(TestMLRunSystem):
     def _create_and_validate_project_function_with_node_selector(
         self, project: mlrun.projects.MlrunProject
     ):
+        """
+        Create a function with node selector, tolerations and affinity, enable `prevent`
+        preemption mode, run it, and assert that:
+          1) The job's nodeSelector is pruned of preemptible labels (function is not mutated).
+          2) The job's preemptible toleration is removed; user tolerations remain.
+          3) The job's preemptible node-affinity rule is pruned (function is not mutated).
+        """
         function_name = "test-func"
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
         function_override_label, function_override_val = "kubernetes.io/hostname", ""
 
+        # Same preemptible nodes defined in the system test enviorment
+        function_preemptible_nodes_label, preemptible_val = (
+            "app.iguazio.com/lifecycle",
+            "preemptible",
+        )
+        non_preemptible_key = "some-key"
+        # Create a function with node selector
         code_path = str(self.assets_path / "sleep.py")
         func = project.set_function(
             name=function_name,
@@ -1347,7 +1362,46 @@ class TestProject(TestMLRunSystem):
         func.spec.node_selector = {
             function_label_name: function_label_val,
             function_override_label: function_override_val,
+            function_preemptible_nodes_label: preemptible_val,
         }
+        tolerations = [
+            k8s_client.V1Toleration(
+                key=function_preemptible_nodes_label,
+                operator="Equal",
+                value="preemptible",
+                effect="NoSchedule",
+            ),
+            k8s_client.V1Toleration(
+                key=non_preemptible_key,
+                operator="Equal",
+                value="true",
+                effect="NoSchedule",
+            ),
+        ]
+        affinity = k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=[
+                        k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key=function_preemptible_nodes_label,
+                                    operator="In",
+                                    values=["preemptible"],
+                                )
+                            ]
+                        )
+                    ]
+                )
+            )
+        )
+        func.with_node_selection(
+            tolerations=tolerations,
+            affinity=affinity,
+        )
+        # set the preemption mode to prevent preemption
+        func.with_preemption_mode("prevent")
+        func.save()
 
         # We run the function to ensure node selector enrichment, which doesn't occur during function build,
         # but at runtime.
@@ -1366,7 +1420,26 @@ class TestProject(TestMLRunSystem):
         assert result_func.spec.node_selector == {
             function_label_name: function_label_val,
             function_override_label: function_override_val,
+            function_preemptible_nodes_label: preemptible_val,
         }
+
+        # function object must not be mutated
+        assert result_func.spec.tolerations == tolerations
+        assert result_func.spec.affinity == affinity
+
+        # Verify that preemptible tolerations and affinity are pruned on job object
+        assert all(
+            t.get("key") != function_preemptible_nodes_label
+            for t in job.spec.tolerations
+        ), "Preemptible toleration should be removed on the job in prevent mode"
+
+        assert any(
+            t.get("key") == non_preemptible_key for t in job.spec.tolerations
+        ), "User toleration should remain on the job"
+
+        assert (
+            not job.spec.affinity
+        ), "Preemptible node-affinity should be pruned on the job in prevent mode"
 
     def _create_and_validate_mpi_function_with_node_selector(
         self, project: mlrun.projects.MlrunProject

@@ -29,8 +29,18 @@ hugging_face_serving.add_model(
     tokenizer_name="openai-community/gpt2",
 )
 ```
+## Serving using a remote model
 
-And test the model:
+The following code shows how to serve a remote model:
+
+
+
+
+
+
+
+## Testing the model
+This code is relevant when using the model from the hub, and the remote model.**???????**
 ```python
 hugging_face_mock_server = hugging_face_serving.to_mock_server()
 result = hugging_face_mock_server.test(

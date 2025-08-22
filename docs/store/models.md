@@ -134,3 +134,19 @@ run = func.run(
 )
 ```
 
+## Remote models
+You can use models stored in a remote source like HuggingFace. You can load the model from the remote source, without saving it in your datastore. This is specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas:
+- `http://` or `https://`: Use a generic remote model that is invoked through http calls.
+- `hugging_face://<model-path>`: Download and use a model from HuggingFace. The URL contains the vendor and name of model, for example: `hugging_face://google/gemma-3-27b-it`.
+- `openai://<model-name>`: work with a model that supports the OpenAI protocol. By default, models are assumed to be models served by OpenAI. You can also to pass an `endpoint_url` parameter that allows other endpoints to be used. For example: to deploy a model that supports OpenAI protocol using a Nuclio function, the url would be `openai://<model_name>` and the endpoint URL provided would be similar to `http://my.nuclio.function.url`. 
+ds://<profile name>/<model-name>: Use a datastore profile for model connection parameters. The profile must contain the required connection parameters: secrets and credentials, as well as parameters that determine the routing to the model (such as the endpoint URL), but not the actual model name. A datastore profile can therefore be used for multiple models. 
+
+Guidelines for using the parameter `model_url`:
+- Remote model artifacts cannot be uploaded or downloaded. Consequently, the `upload` parameter cannot be set to `True`.
+- The `model_dir` and `model_file` parameters cannot be specified.
+- The `body` parameter cannot be specified.
+- A remote `ModelArtifact` instance does not have any extra data or similar facilities that the general model artifact supports.
+
+### Credentials
+
+For models not using a datadtore profile, the MLRun code attempts to retrieve credentials from the environment (using `get_secret_or_env`). For each type of schema, a standard secret name must be provided. For example, `OPENAI_API_KEY` for OpenAI, `API_TOKEN` for HF, etc.

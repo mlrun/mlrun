@@ -980,19 +980,17 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
         name="shared-model",
         execution_mechanism="naive",
         model_artifact=model_artifact,
+        input_path="n",
+        result_path="n",
     )
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_model",
-        input_path="n",
-        result_path="n",
         shared_model_name="shared-model",
         model_artifact=model_artifact,
     )
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_model-2",
-        input_path="n",
-        result_path="n",
         model_artifact=model_artifact,
     )
     graph.to(model_runner_step).respond()
@@ -1043,12 +1041,12 @@ def test_shared_model_invalid_usage():
         name="shared-model",
         execution_mechanism="naive",
         model_artifact=model_artifact,
+        input_path="n",
+        result_path="n",
     )
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_model",
-        input_path="n",
-        result_path="n",
         shared_model_name="shared-model-2",
         model_artifact=model_artifact,
     )
@@ -1057,8 +1055,6 @@ def test_shared_model_invalid_usage():
 
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_model-2",
-        input_path="n",
-        result_path="n",
         model_artifact=model_artifact_2,
     )
     with pytest.raises(mlrun.serving.states.GraphError):
@@ -1069,16 +1065,12 @@ def test_shared_model_invalid_usage():
     with pytest.raises(mlrun.serving.states.GraphError):
         model_runner_step_2.add_shared_model_proxy(
             endpoint_name="my_model",
-            input_path="n",
-            result_path="n",
             shared_model_name="shared-model-2",
             model_artifact=model_artifact,
         )
 
     model_runner_step_2.add_shared_model_proxy(
         endpoint_name="my_model",
-        input_path="n",
-        result_path="n",
         model_artifact=model_artifact,
     )
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -1087,6 +1079,8 @@ def test_shared_model_invalid_usage():
             name="shared-model",
             execution_mechanism="naive",
             model_artifact=model_artifact,
+            input_path="n",
+            result_path="n",
         )
     graph.add_shared_model(
         model_class=MyModel(name="shared-model", raise_exception=False, inc=1),
@@ -1094,6 +1088,8 @@ def test_shared_model_invalid_usage():
         execution_mechanism="naive",
         override=True,
         model_artifact=model_artifact,
+        input_path="n",
+        result_path="n",
     )
 
 

@@ -242,12 +242,14 @@ class TestKubejobRuntime(TestRuntimeBase):
             assert pod.spec.node_name is None
 
         if affinity:
-            assert pod.spec.affinity == affinity
+            assert pod.spec.affinity == mlrun.k8s_utils.sanitize_k8s_objects(affinity)
         else:
             assert pod.spec.affinity is None
 
         if tolerations:
-            assert pod.spec.tolerations == tolerations
+            assert pod.spec.tolerations == mlrun.k8s_utils.sanitize_k8s_objects(
+                tolerations
+            )
         else:
             assert pod.spec.tolerations is None
 
@@ -434,14 +436,12 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                     {
                         "key": "some-key",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                 ],
@@ -478,7 +478,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "some-key",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                 ],
@@ -496,7 +495,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                 ],
@@ -528,7 +526,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     }
                 ],
@@ -548,7 +545,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     }
                 ],
@@ -586,7 +582,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     }
                 ],

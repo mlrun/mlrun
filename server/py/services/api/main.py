@@ -110,7 +110,9 @@ class Service(framework.service.Service):
             mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
         ):
-            services.api.initial_data.update_default_configuration_data()
+            await fastapi.concurrency.run_in_threadpool(
+                services.api.initial_data.update_default_configuration_data
+            )
             await self._start_periodic_functions()
 
         await self._move_mounted_services_to_online()

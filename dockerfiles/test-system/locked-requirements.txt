@@ -1152,9 +1152,9 @@ fire==0.7.1 ; python_full_version < '3.11' \
     --hash=sha256:3b208f05c736de98fb343310d090dcc4d8c78b2a89ea4f32b837c586270a9cbf \
     --hash=sha256:e43fd8a5033a9001e7e2973bab96070694b9f12f2e0ecf96d4683971b5ab1882
     # via kfp
-flask==3.1.1 \
-    --hash=sha256:07aae2bb5eaf77993ef57e357491839f5fd9f4dc281593a81a9e4d79a24f295c \
-    --hash=sha256:284c7b8f2f58cb737f0cf1c30fd7eaf0ccfcde196099d24ecede3fc2005aa59e
+flask==3.1.2 \
+    --hash=sha256:bf656c15c80190ed628ad08cdfd3aaa35beb087855e2f494910aa3774cc4fd87 \
+    --hash=sha256:ca1d8112ec8a6158cc29ea4858963350011b5c846a414cdb7a954aa9e967d03c
     # via mlflow
 flatbuffers==25.2.10 \
     --hash=sha256:97e451377a41262f8d9bd4295cc836133415cc03d8cb966410a4af92eb00d26e \
@@ -3199,9 +3199,9 @@ objgraph==3.6.2 \
     --hash=sha256:00b9f2f40f7422e3c7f45a61c4dafdaf81f03ff0649d6eaec866f01030e51ad8 \
     --hash=sha256:8114c97712291c3ba30d882406a384d0a7651b307ea9a06e0d83836ccde85e15
     # via -r dockerfiles/mlrun-api/requirements.txt
-openai==1.100.1 \
-    --hash=sha256:2e8224caaf3136c58e30e6b3984fd7a8e6da0931d2c36fbbb7d668e5c11db914 \
-    --hash=sha256:3e9ae652903e5120514e544af2426334141404657cdcdb6dc6845fc243d66e66
+openai==1.100.2 \
+    --hash=sha256:54d3457b2c8d7303a1bc002a058de46bdd8f37a8117751c7cf4ed4438051f151 \
+    --hash=sha256:787b4c3c8a65895182c58c424f790c25c790cc9a0330e34f73d55b6ee5a00e32
     # via -r dev-requirements.txt
 opentelemetry-api==1.36.0 \
     --hash=sha256:02f20bcacf666e1333b6b1f04e647dc1d5111f86b8e510238fcc56d7762cda8c \
@@ -5179,8 +5179,8 @@ statsmodels==0.14.5 \
     --hash=sha256:f2ad5aee04ae7196c429df2174df232c057e478c5fa63193d01c8ec9aae04d31 \
     --hash=sha256:f402fc793458dd6d96e099acb44cd1de1428565bf7ef3030878a8daff091f08a
     # via evidently
-storey==1.10.10 \
-    --hash=sha256:4191751ac23b51ef2c5c680583374f1613dade82fafffa541a1d4f1e1d3c10c1
+storey==1.10.11 \
+    --hash=sha256:73f7cf36e01a0401856032f7aa10e4cd8d948004508f1f3a211b706768626d0d
     # via -r requirements.txt
 strip-hints==0.1.13 ; python_full_version < '3.11' \
     --hash=sha256:1feaebde61269ba0dea1e7f093df7ff9d4df4980cce7e3c22ed6d86ae43dbd06 \

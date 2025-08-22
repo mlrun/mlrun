@@ -39,6 +39,7 @@ from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
 from .model_provider.huggingface_provider import HuggingFaceProvider
+from .model_provider.mock_model_provider import MockModelProvider
 from .model_provider.openai_provider import OpenAIProvider
 from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
@@ -103,7 +104,11 @@ def schema_to_store(schema) -> DataStore.__subclasses__():
 def schema_to_model_provider(
     schema: str, raise_missing_schema_exception=True
 ) -> type[ModelProvider]:
-    schema_dict = {"openai": OpenAIProvider, "huggingface": HuggingFaceProvider}
+    schema_dict = {
+        "openai": OpenAIProvider,
+        "huggingface": HuggingFaceProvider,
+        "mock": MockModelProvider,
+    }
     provider_class = schema_dict.get(schema, None)
     if not provider_class:
         if raise_missing_schema_exception:

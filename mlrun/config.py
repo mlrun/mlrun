@@ -107,7 +107,11 @@ default_config = {
     "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
-    "background_task_cleanup_interval": "86400",  # 24 hours in seconds
+    # disabled by default due to an internal bug in serving functions
+    # relying on a background task to hold the status for its model endpoints
+    # TODO: need to refine what/when we can delete the background tasks
+    # e.g: use labels or naming convention.
+    "background_task_cleanup_interval": "0",
     "background_task_max_age": "21600",  # 6 hours in seconds
     "monitoring": {
         "runs": {

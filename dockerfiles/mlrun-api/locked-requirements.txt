@@ -747,9 +747,9 @@ filelock==3.19.1 \
     --hash=sha256:66eda1888b0171c998b35be2bcc0f6d75c388a7ce20c3f3f37aa8e96c2dddf58 \
     --hash=sha256:d38e30481def20772f5baf097c122c3babc4fcdb7e14e57049eb9d88c6dc017d
     # via snowflake-connector-python
-flask==3.1.1 \
-    --hash=sha256:07aae2bb5eaf77993ef57e357491839f5fd9f4dc281593a81a9e4d79a24f295c \
-    --hash=sha256:284c7b8f2f58cb737f0cf1c30fd7eaf0ccfcde196099d24ecede3fc2005aa59e
+flask==3.1.2 \
+    --hash=sha256:bf656c15c80190ed628ad08cdfd3aaa35beb087855e2f494910aa3774cc4fd87 \
+    --hash=sha256:ca1d8112ec8a6158cc29ea4858963350011b5c846a414cdb7a954aa9e967d03c
     # via mlflow
 fonttools==4.59.1 \
     --hash=sha256:01158376b8a418a0bae9625c476cebfcfcb5e6761e9d243b219cd58341e7afbb \
@@ -3466,8 +3466,8 @@ starlette==0.47.2 \
     --hash=sha256:6ae9aa5db235e4846decc1e7b79c4f346adf41e9777aebeb49dfd09bbd7023d8 \
     --hash=sha256:c5847e96134e5c5371ee9fac6fdf1a67336d5815e09eb2a01fdb57a351ef915b
     # via fastapi
-storey==1.10.10 \
-    --hash=sha256:4191751ac23b51ef2c5c680583374f1613dade82fafffa541a1d4f1e1d3c10c1
+storey==1.10.11 \
+    --hash=sha256:73f7cf36e01a0401856032f7aa10e4cd8d948004508f1f3a211b706768626d0d
     # via -r requirements.txt
 tabulate==0.8.10 \
     --hash=sha256:0ba055423dbaa164b9e456abe7920c5e8ed33fcc16f6d1b2f2d152c8e1e8b4fc \

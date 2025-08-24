@@ -1,5 +1,12 @@
 (models)=
 # Model Artifacts
+You can work with models that are [stored locally](#locally-hosted-models) and [remotely](#remote-models).
+
+**In this section**
+- [Locally hosted models](#locally-hosted-models)
+- [Remote models](#remote-models)
+
+## Locally hosted models
 
 An essential piece of artifact management and versioning is storing a model version. This allows you to experiment with different models and compare their performance, without having to worry about losing their previous results.
 
@@ -73,9 +80,9 @@ train_iris = train_iris_func.run(
 )
 ```
 
-You can now use `get_model` to read the model and run it. This function will get the model file, metadata, and extra data. The input can be either the path of the model, or the directory where the model resides. If you provide a directory, the function will search for the model file (by default it searches for .pkl files)
+You can now use `get_model` to read the model and run it. This function gets the model file, metadata, and extra data. The input can be either the path of the model, or the directory where the model resides. If you provide a directory, the function searches for the model file (by default it searches for `.pkl` files).
 
-The following example gets the model from `models_path` and test data in `test_set` with the expected label provided as a column of the test data. The name of the column containing the expected label is provided in `label_column`. The example then retrieves the models, runs the model with the test data and updates the model with the metrics and results of the test data.
+The following example gets the model from `models_path` and gets test data in `test_set` with the expected label provided as a column of the test data. The name of the column containing the expected label is provided in `label_column`. The example then retrieves the models, runs the model with the test data and updates the model with the metrics and results of the test data.
 
 ``` python
 from pickle import load
@@ -135,7 +142,9 @@ run = func.run(
 ```
 
 ## Remote models
-You can use models stored in a remote source like HuggingFace. You can load the model from the remote source, without saving it in your datastore. This is specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas:
+You can use models stored in a remote source, for example HuggingFace. You can load the model from the remote source, without saving it in your datastore. A remote `ModelArtifact` instance does not have any extra data or similar facilities that the locally stored model artifact supports. 
+
+Remote models are specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas:
 - `http://` or `https://`: Use a generic remote model that is invoked through http calls.
 - `hugging_face://<model-path>`: Download and use a model from HuggingFace. The URL contains the vendor and name of model, for example: `hugging_face://google/gemma-3-27b-it`.
 - `openai://<model-name>`: work with a model that supports the OpenAI protocol. By default, models are assumed to be models served by OpenAI. You can also to pass an `endpoint_url` parameter that allows other endpoints to be used. For example: to deploy a model that supports OpenAI protocol using a Nuclio function, the url would be `openai://<model_name>` and the endpoint URL provided would be similar to `http://my.nuclio.function.url`. 
@@ -145,8 +154,8 @@ Guidelines for using the parameter `model_url`:
 - Remote model artifacts cannot be uploaded or downloaded. Consequently, the `upload` parameter cannot be set to `True`.
 - The `model_dir` and `model_file` parameters cannot be specified.
 - The `body` parameter cannot be specified.
-- A remote `ModelArtifact` instance does not have any extra data or similar facilities that the general model artifact supports.
 
 ### Credentials
 
-For models not using a datadtore profile, the MLRun code attempts to retrieve credentials from the environment (using `get_secret_or_env`). For each type of schema, a standard secret name must be provided. For example, `OPENAI_API_KEY` for OpenAI, `API_TOKEN` for HF, etc.
+For models not using a datadtore profile, the MLRun code attempts to retrieve credentials from the environment (using `get_secret_or_env`).
+For each type of schema, a standard secret name must be provided. For example, `OPENAI_API_KEY` for OpenAI, `API_TOKEN` for HF, etc.

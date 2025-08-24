@@ -213,7 +213,7 @@ def test_child_function_tracking_with_model_runner(rundb_mock):
     graph.to(">>", name="in", path="dummy://in").to(
         model_runner_step, function="c1"
     ).to(">>", name="out", path="dummy://out")
-    fn.set_tracking("dummy://", enable_tracking=True)
+    fn.set_tracking()
     fn.add_child_function("c1", f"{assets_path}/child_function.py", "mlrun/mlrun")
     server = fn.to_mock_server()
     server.test("/", {"n": 1})
@@ -418,9 +418,7 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
         inc=1,
     )
     graph.to(model_runner_step).respond()
-    function.set_tracking(
-        "dummy://", enable_tracking=enable_tracking, stream_args={"mock": True}
-    )
+    function.set_tracking("dummy://", enable_tracking=enable_tracking)
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -491,7 +489,7 @@ def test_tracked_model_runner_dict(rundb_mock, with_schema):
     )
     graph.to(model_runner_step).respond()
 
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     inputs_model = (
         {"f1": [1, 2], "f2": ["hi", "bye"], "f3": [3, 4], "f4": [4, 5]}
@@ -600,7 +598,7 @@ def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
     )
     graph.to(model_runner_step).respond()
 
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     inputs_model = (
         {"f1": ["1", "2"], "f2": ["2", "3"], "f3": ["3", "4"], "f4": ["4", "5"]}
@@ -688,7 +686,7 @@ def test_tracked_subdict(rundb_mock, with_schema):
         raise_error=False,
     )
     graph.to(model_runner_step).respond()
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     inputs_model = (
         {"f1": ["1", "2"], "f2": ["2", "3"], "f3": ["3", "4"], "f4": ["4", "5"]}
@@ -763,9 +761,7 @@ def test_tracked_model_runner_multiple_steps(rundb_mock):
     graph.to(model_runner_step_0).respond()
     graph.to(model_runner_step_1)
 
-    function.set_tracking(
-        "dummy://",
-    )
+    function.set_tracking()
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -814,11 +810,7 @@ def test_tracked_model_runner_multiple_models(rundb_mock):
 
     graph.to(model_runner_step_0).respond()
     graph.to(model_runner_step_1)
-    function.set_tracking(stream_args={"mock": True})
-
-    function.set_tracking(
-        "dummy://",
-    )
+    function.set_tracking()
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -847,9 +839,8 @@ def test_set_untracked_with_model_runner(rundb_mock):
         inc=1,
     )
     graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
+    function.set_tracking()
 
-    function.set_tracking("dummy://", enable_tracking=True)
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -886,7 +877,7 @@ def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
     )
     graph.to(model_runner_step).respond()
 
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     server.wait_for_completion()
     model_runner_step_1 = ModelRunnerStep(
@@ -997,7 +988,6 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
         model_artifact=model_artifact,
     )
     graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
 
     function.set_tracking("dummy://", enable_tracking=enable_tracking)
     server = function.to_mock_server()
@@ -1111,8 +1101,7 @@ def test_tracked_model_runner_background_task(rundb_mock):
     )
     rundb_mock._get_background_task_calls = 0
     graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     dummy_stream = server.context.stream.output_stream
@@ -1160,9 +1149,7 @@ def test_tracked_model_runner_with_error_handler(
         graph.error_handler("echo_error", handler="handle_error")
     else:
         step.error_handler("echo_error", handler="handle_error")
-    function.set_tracking(
-        "dummy://", enable_tracking=enable_tracking, stream_args={"mock": True}
-    )
+    function.set_tracking("dummy://", enable_tracking=enable_tracking)
     server = function.to_mock_server()
     resp = server.test("/", {"n": "1"})
     server.wait_for_completion()
@@ -1230,7 +1217,7 @@ def test_negative_schema_with_dict_model(rundb_mock):
     )
     graph.to(model_runner_step).respond()
 
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     # bad key right length
     server.test(

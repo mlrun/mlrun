@@ -26,10 +26,11 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.common.schemas import ModelEndpointCreationStrategy
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
+    DatastoreProfileV3io,
     register_temporary_client_datastore_profile,
     remove_temporary_client_datastore_profile,
 )
-from mlrun.platforms.iguazio import KafkaOutputStream
+from mlrun.platforms.iguazio import KafkaOutputStream, OutputStream
 from mlrun.runtimes import ServingRuntime
 from mlrun.serving import Model, ModelRunnerStep, ModelSelector
 from mlrun.serving.states import RootFlowStep, RouterStep, StepKinds
@@ -244,24 +245,43 @@ def project() -> mlrun.MlrunProject:
 
 
 @pytest.fixture
-def _register_stream_profile(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def serving_output_stream(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Iterator[Union[type[OutputStream], type[KafkaOutputStream]]]:
+    """Register the serving stream"""
     stream_profile_name = "special-stream"
     monkeypatch.setenv(
         mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME, stream_profile_name
     )
-    profile = DatastoreProfileKafkaSource(
-        name=stream_profile_name,
-        brokers=["localhost"],
-        topics=[],
-        kwargs_public={"api_version": (3, 9)},
-    )
+
+    if request.param == "v3io":
+        monkeypatch.setenv("V3IO_API", "localhost:8081")
+        profile = DatastoreProfileV3io(
+            name=stream_profile_name, v3io_access_key="v3io-key"
+        )
+        expected_stream_type = OutputStream
+    elif request.param == "kafka":
+        profile = DatastoreProfileKafkaSource(
+            name=stream_profile_name,
+            brokers=["localhost"],
+            topics=[],
+            kwargs_public={"api_version": (3, 9)},
+        )
+        expected_stream_type = KafkaOutputStream
+    else:
+        raise ValueError(f"Unsupported stream type {request.param}")
+
     register_temporary_client_datastore_profile(profile)
-    yield
+    yield expected_stream_type
     remove_temporary_client_datastore_profile(stream_profile_name)
 
 
-@pytest.mark.usefixtures("rundb_mock", "_register_stream_profile")
-def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
+@pytest.mark.usefixtures("rundb_mock")
+@pytest.mark.parametrize("serving_output_stream", ["v3io", "kafka"], indirect=True)
+def test_tracking_datastore_profile(
+    project: mlrun.MlrunProject,
+    serving_output_stream: Union[type[OutputStream], type[KafkaOutputStream]],
+) -> None:
     fn = cast(
         ServingRuntime,
         project.set_function(
@@ -283,12 +303,17 @@ def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
 
     output_stream = server.context.stream.output_stream
     assert isinstance(
-        output_stream, KafkaOutputStream
+        output_stream, serving_output_stream
     ), f"The output stream is of unexpected type {type(output_stream)}"
     mocked_stream = output_stream._mock_queue
     assert len(mocked_stream) == 2
 
-    event = mocked_stream[1]
+    if isinstance(output_stream, KafkaOutputStream):
+        event = mocked_stream[1]
+    else:
+        # V3IO OutputStream
+        event = json.loads(mocked_stream[1]["data"])
+
     assert event["class"] == "ModelTestingClass"
     assert event["model"] == "model1"
     assert event["effective_sample_count"] == 2

@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import json
-import pathlib
 from collections.abc import Iterator
+from pathlib import Path
 from time import sleep
 from typing import Union, cast
 
@@ -32,11 +32,11 @@ from mlrun.datastore.datastore_profile import (
 from mlrun.platforms.iguazio import KafkaOutputStream
 from mlrun.runtimes import ServingRuntime
 from mlrun.serving import Model, ModelRunnerStep, ModelSelector
-from mlrun.serving.states import RootFlowStep, RouterStep
+from mlrun.serving.states import RootFlowStep, RouterStep, StepKinds
 from mlrun.serving.system_steps import MonitoringPreProcessor
 from tests.serving.test_serving import _log_model
 
-assets_path = str(pathlib.Path(__file__).parent / "assets")
+assets_path = str(Path(__file__).parent / "assets")
 testdata = '{"inputs": [[5, 6]]}'
 
 
@@ -281,7 +281,10 @@ def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
         "/v2/models/model1/predict", body=json.dumps({"inputs": [[0, -0.1], [0.4, 0]]})
     )
 
-    output_stream = cast(KafkaOutputStream, server.context.stream.output_stream)
+    output_stream = server.context.stream.output_stream
+    assert isinstance(
+        output_stream, KafkaOutputStream
+    ), f"The output stream is of unexpected type {type(output_stream)}"
     mocked_stream = output_stream._mock_queue
     assert len(mocked_stream) == 2
 
@@ -1261,3 +1264,34 @@ def test_negative_schema_with_dict_model(rundb_mock):
 
     dummy_stream = server.context.stream.output_stream
     assert len(dummy_stream.event_list) == 0, "expected stream to get zero messages"
+
+
+@pytest.fixture
+def serving_fn(tmp_path: Path) -> ServingRuntime:
+    project = mlrun.get_or_create_project(
+        "test-auto-mock", save=False, context=str(tmp_path)
+    )
+    fn = cast(
+        ServingRuntime, project.set_function(name="test-fn", kind=ServingRuntime.kind)
+    )
+    graph = fn.set_topology(StepKinds.flow)
+    model_runner_step = ModelRunnerStep(name="my_model_runner_0", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_0",
+        input_path="n",
+        result_path="n",
+        raise_error=False,
+        inc=1,
+    )
+    graph.to(model_runner_step).respond()
+    return fn
+
+
+def test_stream_is_set(serving_fn: ServingRuntime) -> None:
+    """Test that a dummy stream is set automatically"""
+    serving_fn.set_tracking()  # Without any custom arguments
+    server = serving_fn.to_mock_server()
+    server.test("/", {"n": 1})
+    server.wait_for_completion()

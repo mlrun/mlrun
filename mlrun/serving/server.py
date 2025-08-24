@@ -33,9 +33,9 @@ from nuclio import Context as NuclioContext
 from nuclio.request import Logger as NuclioLogger
 
 import mlrun
-import mlrun.common.constants
 import mlrun.common.helpers
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring
 import mlrun.utils
 from mlrun.config import config
@@ -184,11 +184,11 @@ class GraphServer(ModelObj):
         self,
         context,
         namespace,
-        resource_cache: ResourceCache = None,
+        resource_cache: Optional[ResourceCache] = None,
         logger=None,
         is_mock=False,
         monitoring_mock=False,
-    ):
+    ) -> None:
         """for internal use, initialize all steps (recursively)"""
 
         if self.secret_sources:
@@ -202,6 +202,19 @@ class GraphServer(ModelObj):
         context.is_mock = is_mock
         context.monitoring_mock = monitoring_mock
         context.root = self.graph
+
+        if (
+            is_mock
+            and monitoring_mock
+            and not (
+                self.parameters.get(FileTargetKind.LOG_STREAM)
+                or mlrun.get_secret_or_env(
+                    mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME
+                )
+            )
+        ):
+            # Set a dummy log stream for mocking purposes
+            self.parameters[FileTargetKind.LOG_STREAM] = DUMMY_STREAM
 
         context.stream = _StreamContext(
             self.track_models, self.parameters, self.function_uri

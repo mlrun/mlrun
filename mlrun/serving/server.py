@@ -36,6 +36,7 @@ import mlrun
 import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.model_monitoring
 import mlrun.utils
 from mlrun.config import config
@@ -92,12 +93,15 @@ class _StreamContext:
             )
 
             stream_args = parameters.get("stream_args", {})
+            stream_profile = parameters.get("stream_profile")
 
             if log_stream == DUMMY_STREAM:
                 # Dummy stream used for testing, see tests/serving/test_serving.py
                 stream_uri = DUMMY_STREAM
             elif not stream_args.get("mock"):  # if not a mock: `context.is_mock = True`
-                stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
+                stream_uri = mlrun.model_monitoring.get_stream_path(
+                    project=project, profile=stream_profile
+                )
 
             if log_stream:
                 # Update the stream path to the log stream value
@@ -106,7 +110,9 @@ class _StreamContext:
             else:
                 # Get the output stream from the profile
                 self.output_stream = mlrun.model_monitoring.helpers.get_output_stream(
-                    project=project, mock=stream_args.get("mock", False)
+                    project=project,
+                    profile=stream_profile,
+                    mock=stream_args.get("mock", False),
                 )
 
 
@@ -188,6 +194,7 @@ class GraphServer(ModelObj):
         logger=None,
         is_mock=False,
         monitoring_mock=False,
+        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ) -> None:
         """for internal use, initialize all steps (recursively)"""
 
@@ -203,7 +210,9 @@ class GraphServer(ModelObj):
         context.monitoring_mock = monitoring_mock
         context.root = self.graph
 
-        if (
+        if stream_profile:
+            self.parameters["stream_profile"] = stream_profile
+        elif (
             is_mock
             and monitoring_mock
             and not (

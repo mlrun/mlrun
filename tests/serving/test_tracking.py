@@ -14,6 +14,8 @@
 
 import json
 from collections.abc import Iterator
+from contextlib import AbstractContextManager
+from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 from time import sleep
 from typing import Union, cast
@@ -25,7 +27,9 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.common.schemas import ModelEndpointCreationStrategy
 from mlrun.datastore.datastore_profile import (
+    DatastoreProfile,
     DatastoreProfileKafkaSource,
+    DatastoreProfileRedis,
     DatastoreProfileV3io,
     register_temporary_client_datastore_profile,
     remove_temporary_client_datastore_profile,
@@ -1306,3 +1310,40 @@ def test_stream_is_set(serving_fn: ServingRuntime) -> None:
     server = serving_fn.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    ("stream_profile", "expectation"),
+    [
+        (
+            DatastoreProfileKafkaSource(
+                name="kafka-profile",
+                brokers=["localhost"],
+                topics=[],
+            ),
+            does_not_raise(KafkaOutputStream),
+        ),
+        (DatastoreProfileV3io(name="v3io-profile"), does_not_raise(OutputStream)),
+        (
+            DatastoreProfileRedis(
+                name="redis-profile", endpoint_url="redis://localhost:6379"
+            ),
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`",
+            ),
+        ),
+    ],
+)
+def test_serving_stream_profile(
+    serving_fn: ServingRuntime,
+    stream_profile: DatastoreProfile,
+    expectation: AbstractContextManager,
+) -> None:
+    """Test directly passing stream profile to `to_mock_server`"""
+    serving_fn.set_tracking(stream_args={"mock": True})
+    with expectation as output_stream_type:
+        server = serving_fn.to_mock_server(stream_profile=stream_profile)
+        assert isinstance(server.context.stream.output_stream, output_stream_type)
+        server.test("/", {"n": 1})
+        server.wait_for_completion()

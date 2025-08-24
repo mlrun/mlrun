@@ -255,7 +255,6 @@ def serving_output_stream(
     )
 
     if request.param == "v3io":
-        monkeypatch.setenv("V3IO_API", "localhost:8081")
         profile = DatastoreProfileV3io(
             name=stream_profile_name, v3io_access_key="v3io-key"
         )

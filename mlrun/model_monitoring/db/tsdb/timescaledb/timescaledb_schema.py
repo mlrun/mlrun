@@ -19,6 +19,9 @@ from typing import Optional
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
+from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
+    TimescaleDBNaming,
+)
 
 _MODEL_MONITORING_SCHEMA = "mlrun_model_monitoring"
 
@@ -78,18 +81,22 @@ class TimescaleDBSchema:
         self.indexes = indexes or []
         self.project = project
 
+    def full_name(self) -> str:
+        """Return the fully qualified table name (schema.table_name)."""
+        return f"{self.schema}.{self.table_name}"
+
     def _create_table_query(self) -> str:
         """Create the base table SQL."""
         columns_def = ", ".join(
             f"{col} {col_type}" + ("" if col_type.nullable else " NOT NULL")
             for col, col_type in self.columns.items()
         )
-        return f"CREATE TABLE IF NOT EXISTS {self.schema}.{self.table_name} ({columns_def});"
+        return f"CREATE TABLE IF NOT EXISTS {self.full_name()} ({columns_def});"
 
     def _create_hypertable_query(self) -> str:
         """Convert table to hypertable."""
         return (
-            f"SELECT create_hypertable('{self.schema}.{self.table_name}', '{self.time_column}', "
+            f"SELECT create_hypertable('{self.full_name()}', '{self.time_column}', "
             f"chunk_time_interval => INTERVAL '{self.chunk_time_interval}', if_not_exists => TRUE);"
         )
 
@@ -100,7 +107,7 @@ class TimescaleDBSchema:
             index_name = f"idx_{self.table_name}_{index_columns.replace(',', '_').replace(' ', '_')}"
             queries.append(
                 f"CREATE INDEX IF NOT EXISTS {index_name} "
-                f"ON {self.schema}.{self.table_name} ({index_columns});"
+                f"ON {self.full_name()} ({index_columns});"
             )
         return queries
 
@@ -111,7 +118,9 @@ class TimescaleDBSchema:
         queries = []
 
         for interval in config.aggregate_intervals:
-            agg_table_name = f"{self.table_name}_agg_{interval}"
+            agg_table_name = TimescaleDBNaming.get_agg_table_name(
+                self.table_name, interval
+            )
 
             # Create aggregate table structure
             agg_columns = ["time_bucket TIMESTAMPTZ NOT NULL"]
@@ -160,7 +169,7 @@ class TimescaleDBSchema:
         queries = []
 
         for interval in config.aggregate_intervals:
-            cagg_name = f"{self.table_name}_cagg_{interval}"
+            cagg_name = TimescaleDBNaming.get_cagg_view_name(self.table_name, interval)
 
             # Build SELECT clause for continuous aggregate
             select_parts = [
@@ -207,7 +216,7 @@ class TimescaleDBSchema:
             create_cagg = (
                 f"CREATE MATERIALIZED VIEW IF NOT EXISTS {self.schema}.{cagg_name} "
                 f"WITH (timescaledb.continuous) "
-                f"AS SELECT {', '.join(select_parts)} FROM {self.schema}.{self.table_name} "
+                f"AS SELECT {', '.join(select_parts)} FROM {self.full_name()} "
                 f"GROUP BY {', '.join(group_by_cols)} WITH NO DATA;"
             )
 
@@ -222,14 +231,16 @@ class TimescaleDBSchema:
         # Retention for main table
         if "raw" in config.retention_policy:
             queries.append(
-                f"SELECT add_retention_policy('{self.schema}.{self.table_name}', INTERVAL "
+                f"SELECT add_retention_policy('{self.full_name()}', INTERVAL "
                 f"'{config.retention_policy['raw']}', if_not_exists => TRUE);"
             )
 
         # Retention for continuous aggregates
         for interval in config.aggregate_intervals:
             if interval in config.retention_policy:
-                cagg_name = f"{self.table_name}_cagg_{interval}"
+                cagg_name = TimescaleDBNaming.get_cagg_view_name(
+                    self.table_name, interval
+                )
                 queries.append(
                     f"SELECT add_retention_policy('{self.schema}.{cagg_name}', INTERVAL "
                     f"'{config.retention_policy[interval]}', if_not_exists => TRUE);"
@@ -239,7 +250,7 @@ class TimescaleDBSchema:
 
     def drop_table_query(self) -> str:
         """Drop the main table."""
-        return f"DROP TABLE IF EXISTS {self.schema}.{self.table_name} CASCADE;"
+        return f"DROP TABLE IF EXISTS {self.full_name()} CASCADE;"
 
     def _get_records_query(
         self,
@@ -263,7 +274,7 @@ class TimescaleDBSchema:
 
         if interval and agg_funcs and use_pre_aggregates:
             # Use continuous aggregate if available
-            table_name = f"{self.table_name}_cagg_{interval}"
+            table_name = TimescaleDBNaming.get_cagg_view_name(self.table_name, interval)
             time_col = "time_bucket"
 
         with StringIO() as query:

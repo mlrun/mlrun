@@ -13,51 +13,35 @@
 # limitations under the License.
 
 import contextlib
-import os
 import threading
 import time
 import uuid
 from typing import Optional
 from unittest.mock import patch
 
+import psycopg2
 import pytest
 
 import mlrun.errors
-
-connection_string = os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION")
-
-# Skip entire module if connection string is not available or not PostgreSQL
-pytestmark = pytest.mark.skipif(
-    not connection_string or not connection_string.startswith("postgres"),
-    reason="TimescaleDB connection string not available or not PostgreSQL",
-)
-import psycopg2  # noqa: E402
-
-from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (  # noqa: E402
+from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     QueryResult,
     Statement,
     TimescaleDBConnection,
 )
 
-
-# Helper functions for connection pool management
-def reset_global_connection_pool():
-    """Reset the global connection pool to ensure clean test state."""
-    import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection as conn_module
-
-    with conn_module._connection_lock:
-        if conn_module._connection_pool:
-            conn_module._connection_pool.closeall()
-            conn_module._connection_pool = None
+# Import shared utilities from conftest.py
+from tests.model_monitoring.db.tsdb.timescaledb.conftest import (
+    generate_unique_name,
+    reset_global_connection_pool,
+)
 
 
 @pytest.fixture(scope="session")
-def test_database():
+def test_database(connection_string, unique_database_name):
     """Create a test database for the entire test session (if database creation testing is needed)."""
 
     admin_dsn = connection_string
-    test_db_name = f"mlrun_test_{int(time.time())}"  # Unique database name
-    test_db_name = "postgres"
+    test_db_name = "postgres"  # Use default database for tests
 
     # Create admin connection with autocommit enabled for DDL operations
     admin_conn = TimescaleDBConnection(admin_dsn, max_connections=1, autocommit=True)
@@ -73,7 +57,12 @@ def test_database():
                 # f"CREATE DATABASE {test_db_name}",
             ]
         )
-        admin_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+        # Try to create TimescaleDB extension, but ignore if already exists with different version
+        try:
+            admin_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+        except Exception:
+            # Extension might already exist with different version, which is fine for tests
+            pass
 
         # Build test database DSN
         test_dsn = admin_dsn.replace("/postgres", f"/{test_db_name}")
@@ -100,15 +89,9 @@ def test_database():
 
 
 @pytest.fixture
-def db_connection(test_database):
+def db_connection(test_database, clean_connection_pool):
     """Create a TimescaleDB connection using the test database."""
-    # Reset global connection pool to ensure clean state for each test
-    import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection as conn_module
-
-    with conn_module._connection_lock:
-        if conn_module._connection_pool:
-            conn_module._connection_pool.closeall()
-            conn_module._connection_pool = None
+    # clean_connection_pool fixture handles pool reset automatically
 
     yield TimescaleDBConnection(
         dsn=test_database,
@@ -118,44 +101,24 @@ def db_connection(test_database):
         retry_delay=0.1,
         autocommit=False,  # Default to transaction mode for tests
     )
-    # Cleanup: Reset global connection pool after each test
-    with conn_module._connection_lock:
-        if conn_module._connection_pool:
-            conn_module._connection_pool.closeall()
-            conn_module._connection_pool = None
 
 
 @pytest.fixture
-def admin_connection():
+def admin_connection_local(connection_string, clean_connection_pool):
     """Create admin connection for database operations."""
-    if not connection_string or not connection_string.startswith("postgres://"):
-        pytest.skip("No valid TimescaleDB connection string")
-
+    # Note: Renamed to avoid conflict with conftest.py fixture
     yield TimescaleDBConnection(
         dsn=connection_string,  # Should point to postgres database
         min_connections=1,
         max_connections=2,
         autocommit=True,  # Required for CREATE/DROP DATABASE
     )
-    # Cleanup: Reset global connection pool
-    import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection as conn_module
-
-    with conn_module._connection_lock:
-        if conn_module._connection_pool:
-            conn_module._connection_pool.closeall()
-            conn_module._connection_pool = None
 
 
 @pytest.fixture
-def autocommit_connection(test_database):
+def autocommit_connection(test_database, clean_connection_pool):
     """Create a TimescaleDB connection with autocommit enabled."""
-    # Reset global connection pool to ensure clean state
-    import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection as conn_module
-
-    with conn_module._connection_lock:
-        if conn_module._connection_pool:
-            conn_module._connection_pool.closeall()
-            conn_module._connection_pool = None
+    # clean_connection_pool fixture handles pool reset automatically
 
     yield TimescaleDBConnection(
         dsn=test_database,
@@ -163,19 +126,19 @@ def autocommit_connection(test_database):
         max_connections=2,
         autocommit=True,
     )
-    # Cleanup: Reset global connection pool after each test
-    with conn_module._connection_lock:
-        if conn_module._connection_pool:
-            conn_module._connection_pool.closeall()
-            conn_module._connection_pool = None
 
 
 @pytest.fixture
 def sample_table(db_connection):
     """Create a sample table for testing with unique name."""
-    table_name = (
-        f"test_table_{int(time.time() * 1000)}"  # Unique name with milliseconds
-    )
+    table_name = generate_unique_name("test_table")
+
+    # Ensure TimescaleDB extension is loaded first
+    try:
+        db_connection.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+    except Exception:
+        # Extension might already exist with different version, which is fine for tests
+        pass
 
     table_sql = f"""
     CREATE TABLE {table_name} (

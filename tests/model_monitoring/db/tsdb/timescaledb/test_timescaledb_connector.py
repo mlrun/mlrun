@@ -34,14 +34,7 @@ def mock_profile():
     return profile
 
 
-@pytest.fixture
-def pre_aggregate_config():
-    """Create a test pre-aggregate configuration."""
-    return PreAggregateConfig(
-        aggregate_intervals=["10m", "1h"],
-        agg_functions=["sum", "avg"],
-        retention_policy={"raw": "7d", "10m": "30d", "1h": "1y"},
-    )
+# Note: pre_aggregate_config fixture is now available from conftest.py
 
 
 class TestTimescaleDBConnector:

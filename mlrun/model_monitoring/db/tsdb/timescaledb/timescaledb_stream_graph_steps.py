@@ -29,7 +29,7 @@ class ProcessBeforeTimescaleDB(mlrun.feature_store.steps.MapClass):
         Process the data before writing to TimescaleDB. This step create the relevant keys for the TimescaleDB table,
         including project name, custom metrics, time column, and table name column.
 
-        :returns: Event as a dictionary which will be written into the TDEngine Predictions table.
+        :returns: Event as a dictionary
         """
         super().__init__(**kwargs)
 

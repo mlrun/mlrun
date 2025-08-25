@@ -17,22 +17,10 @@ import time
 from threading import Lock
 from typing import Optional, Union
 
-# try:
-#     import psycopg2
-# except ImportError:
-#     import subprocess
-#     import sys
-#     # Install the package
-#     subprocess.check_call(
-#         [sys.executable, "-m", "pip", "install", "psycopg2-binary~=2.9"]
-#     )
-# Now import it
-# import psycopg2
 import psycopg2
 import psycopg2.pool
 
 import mlrun.errors
-from mlrun.utils.debug import traced_call
 
 
 class QueryResult:
@@ -91,23 +79,15 @@ class Statement:
             cursor.execute(self.sql, self.parameters)
 
 
-# Global connection pool and lock (similar to TDEngine pattern)
+# Global connection pool and lock
 _connection_pool = None
 _connection_lock = Lock()
 
 
-class TimescaleDBConnectionIn:
+class TimescaleDBConnection:
     """
     TimescaleDB connection with shared connection pool and parameterized query support.
 
-    Features:
-    - Shared connection pool among all threads for optimal resource usage
-    - Thread-safe connection borrowing/returning
-    - Automatic connection reuse across threads
-    - Configurable pool size based on expected thread load
-    - Robust retry logic with connection recovery
-    - Exponential backoff for transient failures
-    - Support for parameterized queries
     """
 
     def __init__(
@@ -279,17 +259,3 @@ class TimescaleDBConnectionIn:
                 # If putconn fails, just close the connection
                 with contextlib.suppress(Exception):
                     conn.close()
-
-
-class TimescaleDBConnection(TimescaleDBConnectionIn):
-    def __init__(self, *args, **kwargs):
-        return traced_call(super().__init__, *args, **kwargs)
-
-    def _execute_operation(self, *args, **kwargs):
-        return traced_call(super()._execute_operation, *args, **kwargs)
-
-    def _execute_query(self, *args, **kwargs):
-        return traced_call(super()._execute_query, *args, **kwargs)
-
-    def run(self, *args, **kwargs):
-        return traced_call(super().run, *args, **kwargs)

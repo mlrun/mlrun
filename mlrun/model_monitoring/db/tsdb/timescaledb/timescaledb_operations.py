@@ -25,6 +25,9 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     Statement,
     TimescaleDBConnection,
 )
+from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
+    TimescaleDBNaming,
+)
 from mlrun.utils import logger
 
 
@@ -185,7 +188,7 @@ class TimescaleDBOperationsHandler:
         placeholders = ", ".join(["%s"] * len(columns))
 
         insert_sql = f"""
-            INSERT INTO {table.schema}.{table.table_name} ({', '.join(columns)})
+            INSERT INTO {table.full_name()} ({', '.join(columns)})
             VALUES ({placeholders})
         """
 
@@ -278,13 +281,13 @@ class TimescaleDBOperationsHandler:
         for table_schema in self.tables.values():
             if len(endpoint_ids) == 1:
                 delete_sql = (
-                    f"DELETE FROM {table_schema.schema}.{table_schema.table_name} "
+                    f"DELETE FROM {table_schema.full_name()} "
                     f"WHERE {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
                 )
                 stmt = Statement(delete_sql, (endpoint_ids[0],))
             else:
                 delete_sql = (
-                    f"DELETE FROM {table_schema.schema}.{table_schema.table_name} "
+                    f"DELETE FROM {table_schema.full_name()} "
                     f"WHERE {mm_schemas.WriterEvent.ENDPOINT_ID} = ANY(%s)"
                 )
                 stmt = Statement(delete_sql, (endpoint_ids,))
@@ -334,7 +337,7 @@ class TimescaleDBOperationsHandler:
                         "table_name LIKE %s",  # _cagg_ views
                     ]
                 )
-                parameters.extend([f"{pattern}_agg_%", f"{pattern}_cagg_%"])
+                parameters.extend(TimescaleDBNaming.get_all_aggregate_patterns(pattern))
 
             # Build separate pattern conditions for materialized views
             view_pattern_conditions = []
@@ -342,7 +345,7 @@ class TimescaleDBOperationsHandler:
 
             for pattern in base_patterns:
                 view_pattern_conditions.append("matviewname LIKE %s")
-                view_parameters.append(f"{pattern}_cagg_%")
+                view_parameters.append(TimescaleDBNaming.get_cagg_pattern(pattern))
 
             # Query for both tables and materialized views
             discovery_stmt = Statement(
@@ -420,9 +423,9 @@ class TimescaleDBOperationsHandler:
 
             # Get the base table patterns for this project
             base_patterns = []
-            for table_schema in self.tables.values():
-                base_patterns.append(table_schema.table_name)
-
+            base_patterns.extend(
+                table_schema.table_name for table_schema in self.tables.values()
+            )
             # Build discovery query for all project objects
             pattern_conditions = []
             parameters = [schema_name]
@@ -436,7 +439,7 @@ class TimescaleDBOperationsHandler:
                         "table_name LIKE %s",  # _cagg_ views
                     ]
                 )
-                parameters.extend([pattern, f"{pattern}_agg_%", f"{pattern}_cagg_%"])
+                parameters.extend(TimescaleDBNaming.get_deletion_patterns(pattern))
 
             # Discover tables
             tables_stmt = Statement(
@@ -458,7 +461,7 @@ class TimescaleDBOperationsHandler:
             for pattern in base_patterns:
                 # For materialized views, only look for _cagg_ pattern
                 view_pattern_conditions.append("matviewname LIKE %s")
-                view_parameters.append(f"{pattern}_cagg_%")
+                view_parameters.append(TimescaleDBNaming.get_cagg_pattern(pattern))
 
             # Discover materialized views (continuous aggregates)
             views_stmt = Statement(
@@ -625,7 +628,7 @@ class TimescaleDBOperationsHandler:
             # Delete from app_results table
             app_results_table = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
             app_results_sql = (
-                f"DELETE FROM {app_results_table.schema}.{app_results_table.table_name} "
+                f"DELETE FROM {app_results_table.full_name()} "
                 f"WHERE {app_filter}{endpoint_filter}"
             )
             deletion_statements.append(Statement(app_results_sql, tuple(parameters)))
@@ -633,7 +636,7 @@ class TimescaleDBOperationsHandler:
             # Delete from metrics table
             metrics_table = self.tables[mm_schemas.TimescaleDBTables.METRICS]
             metrics_sql = (
-                f"DELETE FROM {metrics_table.schema}.{metrics_table.table_name} "
+                f"DELETE FROM {metrics_table.full_name()} "
                 f"WHERE {app_filter}{endpoint_filter}"
             )
             deletion_statements.append(Statement(metrics_sql, tuple(parameters)))

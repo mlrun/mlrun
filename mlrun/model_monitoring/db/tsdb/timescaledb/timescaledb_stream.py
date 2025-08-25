@@ -98,7 +98,7 @@ class TimescaleDBStreamHandler:
                 after=after,
                 url=f"ds://{self.profile.name}",
                 time_col=mm_schemas.EventFieldType.TIME,
-                table=f"{predictions_table.schema}.{predictions_table.table_name}",
+                table=predictions_table.full_name(),
                 columns=[
                     mm_schemas.EventFieldType.LATENCY,
                     mm_schemas.EventKeyMetrics.CUSTOM_METRICS,
@@ -152,7 +152,7 @@ class TimescaleDBStreamHandler:
             after="error_extractor",
             url=f"ds://{self.profile.name}",
             time_col=mm_schemas.EventFieldType.TIME,
-            table=f"{errors_table.schema}.{errors_table.table_name}",
+            table=errors_table.full_name(),
             columns=[
                 mm_schemas.EventFieldType.MODEL_ERROR,
                 mm_schemas.WriterEvent.ENDPOINT_ID,

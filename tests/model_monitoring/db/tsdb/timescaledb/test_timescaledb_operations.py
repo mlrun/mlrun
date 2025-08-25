@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import contextlib
-import os
 import time
 import uuid
 from datetime import datetime
@@ -32,30 +31,17 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_operations import (
     TimescaleDBOperationsHandler,
 )
 
-connection_string = os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION")
-
-# Skip entire module if connection string is not available or not PostgreSQL
-pytestmark = pytest.mark.skipif(
-    not connection_string or not connection_string.startswith("postgres://"),
-    reason="TimescaleDB connection string not available or not PostgreSQL",
+# Import shared utilities from conftest.py
+from tests.model_monitoring.db.tsdb.timescaledb.conftest import (
+    generate_unique_name,
 )
 
 
-def reset_global_connection_pool():
-    """Reset the global connection pool to ensure clean test state."""
-    import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection as conn_module
-
-    with conn_module._connection_lock:
-        if conn_module._connection_pool:
-            conn_module._connection_pool.closeall()
-            conn_module._connection_pool = None
-
-
 @pytest.fixture(scope="session")
-def test_database():
+def test_database(connection_string):
     """Create a test database for the entire test session."""
     admin_dsn = connection_string
-    test_db_name = f"mlrun_ops_test_{int(time.time())}"
+    test_db_name = generate_unique_name("mlrun_ops_test")
 
     # Create admin connection with autocommit enabled for DDL operations
     admin_conn = TimescaleDBConnection(admin_dsn, max_connections=1, autocommit=True)
@@ -68,7 +54,12 @@ def test_database():
                 f"CREATE DATABASE {test_db_name}",
             ]
         )
-        admin_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+        # Try to create TimescaleDB extension, but ignore if already exists with different version
+        try:
+            admin_conn.run(statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"])
+        except Exception:
+            # Extension might already exist with different version, which is fine for tests
+            pass
 
         # Build test database DSN
         test_dsn = admin_dsn.replace("/postgres", f"/{test_db_name}")
@@ -85,9 +76,9 @@ def test_database():
 
 
 @pytest.fixture
-def db_connection(test_database):
+def db_connection(test_database, clean_connection_pool):
     """Create a TimescaleDB connection using the test database."""
-    reset_global_connection_pool()
+    # clean_connection_pool fixture handles pool management automatically
 
     yield TimescaleDBConnection(
         dsn=test_database,
@@ -97,8 +88,6 @@ def db_connection(test_database):
         retry_delay=0.1,
         autocommit=False,
     )
-
-    reset_global_connection_pool()
 
 
 @pytest.fixture
@@ -126,7 +115,7 @@ def pre_aggregate_config():
 @pytest.fixture
 def operations_handler(db_connection, mock_profile):
     """Create a TimescaleDBOperationsHandler with unique project."""
-    project_name = f"test_project_{uuid.uuid4().hex[:8]}"
+    project_name = generate_unique_name("test_project")
 
     # Create handler directly - the schema naming issue is not critical for testing
     handler = TimescaleDBOperationsHandler(
@@ -266,7 +255,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         result = connection.run(
             query=f"""
             SELECT endpoint_id, application_name, result_name, result_value
-            FROM {app_results_table.schema}.{app_results_table.table_name}
+            FROM {app_results_table.full_name()}
             WHERE endpoint_id = 'test_endpoint_result'
             """
         )
@@ -304,7 +293,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         result = connection.run(
             query=f"""
             SELECT endpoint_id, application_name, metric_name, metric_value
-            FROM {metrics_table.schema}.{metrics_table.table_name}
+            FROM {metrics_table.full_name()}
             WHERE endpoint_id = 'test_endpoint_metric'
             """
         )
@@ -332,7 +321,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
             connection.run(
                 statements=[
                     f"""
-                INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                INSERT INTO {predictions_table.full_name()}
                 (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
                 VALUES (NOW(), '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
                 """
@@ -346,7 +335,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
             connection.run(
                 statements=[
                     f"""
-                INSERT INTO {metrics_table.schema}.{metrics_table.table_name}
+                INSERT INTO {metrics_table.full_name()}
                 (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
                 VALUES (NOW(), NOW(), '{endpoint_id}', 'test_app', 'test_metric', 0.5)
                 """
@@ -358,7 +347,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
         result = connection.run(
-            query=f"SELECT COUNT(*) FROM {predictions_table.schema}.{predictions_table.table_name}"
+            query=f"SELECT COUNT(*) FROM {predictions_table.full_name()}"
         )
         assert result.data[0][0] == 3
 
@@ -370,7 +359,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         # Verify deletion
         result = connection.run(
             query=f"""
-            SELECT COUNT(*) FROM {predictions_table.schema}.{predictions_table.table_name}
+            SELECT COUNT(*) FROM {predictions_table.full_name()}
             WHERE endpoint_id IN ('endpoint_1', 'endpoint_2')
             """
         )
@@ -379,7 +368,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         # Verify endpoint_3 still exists
         result = connection.run(
             query=f"""
-            SELECT COUNT(*) FROM {predictions_table.schema}.{predictions_table.table_name}
+            SELECT COUNT(*) FROM {predictions_table.full_name()}
             WHERE endpoint_id = 'endpoint_3'
             """
         )
@@ -402,7 +391,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         connection.run(
             statements=[
                 f"""
-            INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+            INSERT INTO {predictions_table.full_name()}
             (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
             VALUES (NOW(), '{test_endpoint}', 0.1, '{{}}', 1.0, 1)
             """
@@ -412,7 +401,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         # Verify data exists
         result = connection.run(
             query=f"""
-            SELECT COUNT(*) FROM {predictions_table.schema}.{predictions_table.table_name}
+            SELECT COUNT(*) FROM {predictions_table.full_name()}
             WHERE endpoint_id = '{test_endpoint}'
             """
         )
@@ -426,7 +415,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         # Verify deletion from raw table
         result = connection.run(
             query=f"""
-            SELECT COUNT(*) FROM {predictions_table.schema}.{predictions_table.table_name}
+            SELECT COUNT(*) FROM {predictions_table.full_name()}
             WHERE endpoint_id = '{test_endpoint}'
             """
         )
@@ -464,7 +453,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
             # Create a proper Statement object with parameters
             stmt = Statement(
                 sql=f"""
-                INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                INSERT INTO {predictions_table.full_name()}
                 (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
                 VALUES (NOW(), %s, 0.1, '{{}}', 1.0, 1)
                 """,
@@ -477,7 +466,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         # Verify deletion
         result = connection.run(
-            query=f"SELECT COUNT(*) FROM {predictions_table.schema}.{predictions_table.table_name}"
+            query=f"SELECT COUNT(*) FROM {predictions_table.full_name()}"
         )
         assert result.data[0][0] == 0
 
@@ -601,7 +590,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         result = connection.run(
             query=f"""
             SELECT endpoint_id, application_name, result_name
-            FROM {app_results_table.schema}.{app_results_table.table_name}
+            FROM {app_results_table.full_name()}
             WHERE endpoint_id = '测试端点'
             """
         )
@@ -629,7 +618,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
             connection.run(
                 statements=[
                     f"""
-                INSERT INTO {predictions_table.schema}.{predictions_table.table_name}
+                INSERT INTO {predictions_table.full_name()}
                 (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
                 VALUES (NOW(), '{endpoint_id}', {0.1 + i * 0.001}, '{{}}', 1.0, 1)
                 """
@@ -638,7 +627,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         # Verify all data inserted
         result = connection.run(
-            query=f"SELECT COUNT(*) FROM {predictions_table.schema}.{predictions_table.table_name}"
+            query=f"SELECT COUNT(*) FROM {predictions_table.full_name()}"
         )
         assert result.data[0][0] == endpoint_count
 
@@ -648,7 +637,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         # Verify deletion
         result = connection.run(
-            query=f"SELECT COUNT(*) FROM {predictions_table.schema}.{predictions_table.table_name}"
+            query=f"SELECT COUNT(*) FROM {predictions_table.full_name()}"
         )
         assert result.data[0][0] == 50
 
@@ -671,7 +660,6 @@ class TestTimescaleDBOperationsHandlerIntegration:
     def test_concurrent_operations(self, operations_handler):
         """Test concurrent operations on the same handler."""
         import threading
-        import time
 
         operations_handler.create_tables()
 
@@ -718,7 +706,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         metrics_table = operations_handler.tables[mm_schemas.TimescaleDBTables.METRICS]
 
         result = connection.run(
-            query=f"SELECT COUNT(*) FROM {metrics_table.schema}.{metrics_table.table_name}"
+            query=f"SELECT COUNT(*) FROM {metrics_table.full_name()}"
         )
         assert result.data[0][0] == 15  # 3 workers * 5 metrics each
 

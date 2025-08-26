@@ -14,8 +14,8 @@
 
 from datetime import datetime, timezone
 from typing import Optional
-import deepdiff
 
+import deepdiff
 from pydantic.v1 import BaseModel, Extra, Field
 
 import mlrun.common.types

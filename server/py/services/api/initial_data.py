@@ -328,6 +328,8 @@ def _add_default_hub_source_if_needed(
         index=mlrun.common.schemas.hub.last_source_index,
         raise_on_not_found=False,
     )
+    if not hub_source:
+        return
     # update the default hub if configuration has changed
     if default_hub_source.diff(hub_source.source):
         mlrun.utils.logger.debug(

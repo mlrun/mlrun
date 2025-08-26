@@ -858,6 +858,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param reference_data:    Pandas data-frame or :py:class:`~mlrun.artifacts.dataset.DatasetArtifact` URI as
                                   the reference dataset.
                                   When set, its statistics override the model endpoint's feature statistics.
+                                  You do not need to have a model endpoint to use this option.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
         :param class_handler:     The relative path to the class, useful when using Git sources or code from images.

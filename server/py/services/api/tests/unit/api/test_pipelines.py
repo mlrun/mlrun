@@ -859,7 +859,7 @@ def test_terminate_pipeline_success(
         namespace=unittest.mock.ANY,
     )
     mock_get_bg.assert_called_with(
-        db_session=unittest.mock.ANY,
+        unittest.mock.ANY,
         status=BackgroundTaskState.running,
         labels={BackGroundTaskLabel.pipeline: RUN_ID},
     )

@@ -20,7 +20,6 @@ import typing
 
 import fastapi
 import fastapi.concurrency
-import sqlalchemy.orm
 
 import mlrun
 import mlrun.common.runtimes.constants
@@ -249,8 +248,8 @@ class Service(framework.service.Service):
             "Getting all runs which are in non terminal state and require logs collection"
         )
         runs_uids = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             get_db().list_distinct_runs_uids,
-            db_session,
             requested_logs_modes=[None, False],
             only_uids=True,
             states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
@@ -261,8 +260,8 @@ class Service(framework.service.Service):
         )
         runs_uids.extend(
             await fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
                 get_db().list_distinct_runs_uids,
-                db_session,
                 requested_logs_modes=[None, False],
                 # get only uids as there might be many runs which reached terminal state while the API was down, the
                 # run objects will be fetched in the next step
@@ -299,15 +298,14 @@ class Service(framework.service.Service):
             # terminal state while the API was down)
             await self._start_log_and_update_runs(
                 start_logs_limit=start_logs_limit,
-                db_session=db_session,
                 runs_uids=runs_uids,
                 best_effort=True,
             )
 
             if skipped_run_uids:
                 await fastapi.concurrency.run_in_threadpool(
+                    framework.db.session.run_function_with_new_db_session,
                     get_db().update_runs_requested_logs,
-                    db_session,
                     uids=skipped_run_uids,
                     requested_logs=True,
                 )
@@ -318,55 +316,48 @@ class Service(framework.service.Service):
         are in a state which requires logs collection and will initiate the logs collection process for each of them.
         :param start_logs_limit: a semaphore which limits the number of concurrent logs collection processes
         """
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-        try:
-            # list all the runs currently still running in the system which we didn't request logs collection for yet
-            runs_uids = await fastapi.concurrency.run_in_threadpool(
+        # list all the runs currently still running in the system which we didn't request logs collection for yet
+        runs_uids = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
+            get_db().list_distinct_runs_uids,
+            requested_logs_modes=[False],
+            only_uids=True,
+            states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
+        )
+
+        last_update_time = datetime.datetime.now(
+            datetime.timezone.utc
+        ) - datetime.timedelta(
+            seconds=int(mlconf.runtime_resources_deletion_grace_period)
+        )
+
+        # Add all the completed/failed runs in the system which we didn't request logs collection for yet.
+        # Aborted means the pods were deleted and logs were already fetched.
+        run_states = mlrun.common.runtimes.constants.RunStates.terminal_states()
+        run_states.remove(mlrun.common.runtimes.constants.RunStates.aborted)
+        runs_uids.extend(
+            await fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
                 get_db().list_distinct_runs_uids,
-                db_session,
                 requested_logs_modes=[False],
                 only_uids=True,
-                states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
+                last_update_time_from=last_update_time,
+                states=run_states,
             )
-
-            last_update_time = datetime.datetime.now(
-                datetime.timezone.utc
-            ) - datetime.timedelta(
-                seconds=int(mlconf.runtime_resources_deletion_grace_period)
+        )
+        if runs_uids:
+            self._logger.debug(
+                "Found runs which require logs collection",
+                runs_uids=len(runs_uids),
             )
-
-            # Add all the completed/failed runs in the system which we didn't request logs collection for yet.
-            # Aborted means the pods were deleted and logs were already fetched.
-            run_states = mlrun.common.runtimes.constants.RunStates.terminal_states()
-            run_states.remove(mlrun.common.runtimes.constants.RunStates.aborted)
-            runs_uids.extend(
-                await fastapi.concurrency.run_in_threadpool(
-                    get_db().list_distinct_runs_uids,
-                    db_session,
-                    requested_logs_modes=[False],
-                    only_uids=True,
-                    last_update_time_from=last_update_time,
-                    states=run_states,
-                )
+            await self._start_log_and_update_runs(
+                start_logs_limit=start_logs_limit,
+                runs_uids=runs_uids,
             )
-            if runs_uids:
-                self._logger.debug(
-                    "Found runs which require logs collection",
-                    runs_uids=len(runs_uids),
-                )
-                await self._start_log_and_update_runs(
-                    start_logs_limit=start_logs_limit,
-                    db_session=db_session,
-                    runs_uids=runs_uids,
-                )
-
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     async def _start_log_and_update_runs(
         self,
         start_logs_limit: asyncio.Semaphore,
-        db_session: sqlalchemy.orm.Session,
         runs_uids: list[str],
         best_effort: bool = False,
     ):
@@ -375,8 +366,8 @@ class Service(framework.service.Service):
 
         # get the runs from the DB
         runs = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             get_db().list_runs,
-            db_session,
             uid=runs_uids,
             project="*",
         )
@@ -437,8 +428,8 @@ class Service(framework.service.Service):
             )
             # update the runs to indicate that we have requested log collection for them
             await fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
                 get_db().update_runs_requested_logs,
-                db_session,
                 uids=runs_to_mark_as_requested_logs,
             )
 
@@ -703,30 +694,26 @@ class Service(framework.service.Service):
             "Getting current log collected runs which have reached terminal state and already have logs requested",
             run_uids_in_progress_count=len(run_uids_in_progress),
         )
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-        try:
-            runs = await fastapi.concurrency.run_in_threadpool(
-                get_db().list_distinct_runs_uids,
-                db_session,
-                requested_logs_modes=[True],
-                only_uids=False,
-                states=mlrun.common.runtimes.constants.RunStates.terminal_states()
-                + [
-                    # add unknown state as well, as it's possible that the run reached such state
-                    # usually it happens when run pods get preempted
-                    mlrun.common.runtimes.constants.RunStates.unknown,
-                ],
-                specific_uids=run_uids_in_progress,
-            )
+        runs = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
+            get_db().list_distinct_runs_uids,
+            requested_logs_modes=[True],
+            only_uids=False,
+            states=mlrun.common.runtimes.constants.RunStates.terminal_states()
+            + [
+                # add unknown state as well, as it's possible that the run reached such state
+                # usually it happens when run pods get preempted
+                mlrun.common.runtimes.constants.RunStates.unknown,
+            ],
+            specific_uids=run_uids_in_progress,
+        )
 
-            if len(runs) > 0:
-                self._logger.debug(
-                    "Stopping logs for runs which reached terminal state before startup",
-                    runs_count=len(runs),
-                )
-                await self._stop_logs_for_runs(runs)
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+        if len(runs) > 0:
+            self._logger.debug(
+                "Stopping logs for runs which reached terminal state before startup",
+                runs_count=len(runs),
+            )
+            await self._stop_logs_for_runs(runs)
 
     async def _monitor_runs(self):
         stale_runs = await framework.db.session.run_async_function_with_new_db_session(
@@ -888,28 +875,22 @@ class Service(framework.service.Service):
             "Getting all runs which reached terminal state in the previous interval and have logs requested",
             interval_seconds=int(mlconf.log_collector.stop_logs_interval),
         )
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-        try:
-            runs = await fastapi.concurrency.run_in_threadpool(
-                get_db().list_distinct_runs_uids,
-                db_session,
-                requested_logs_modes=[True],
-                only_uids=False,
-                states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
-                last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(
-                    seconds=1.5 * mlconf.log_collector.stop_logs_interval
-                ),
-            )
+        runs = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
+            get_db().list_distinct_runs_uids,
+            requested_logs_modes=[True],
+            only_uids=False,
+            states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
+            last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(seconds=1.5 * mlconf.log_collector.stop_logs_interval),
+        )
 
-            if len(runs) > 0:
-                self._logger.debug(
-                    "Stopping logs for runs which reached terminal state in the previous interval",
-                    runs_count=len(runs),
-                )
-                await self._stop_logs_for_runs(runs)
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+        if len(runs) > 0:
+            self._logger.debug(
+                "Stopping logs for runs which reached terminal state in the previous interval",
+                runs_count=len(runs),
+            )
+            await self._stop_logs_for_runs(runs)
 
     async def _stop_logs_for_runs(self, runs: list, chunk_size: int = 10):
         project_to_run_uids = collections.defaultdict(list)
@@ -946,15 +927,14 @@ class Service(framework.service.Service):
         This function is called periodically to retry jobs that have failed and can be retried.
         """
         self._logger.debug("Retrying jobs with retry policy configured")
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         fetch_runs_limit = int(mlconf.monitoring.runs.retry.fetch_runs_limit)
         stale_after = mlconf.get_run_retry_staleness_threshold_timedelta()
         now = datetime.datetime.now(datetime.timezone.utc)
         try:
             offset = 0
             while runs := await fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
                 get_db().list_runs,
-                db_session,
                 project="*",
                 states=[mlrun.common.runtimes.constants.RunStates.pending_retry],
                 limit=fetch_runs_limit,
@@ -1048,8 +1028,6 @@ class Service(framework.service.Service):
                 exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     def _submit_run_for_retry(self, run: mlrun.RunObject):
         self._retry_in_progress_run_uids[run.metadata.uid] = datetime.datetime.now(

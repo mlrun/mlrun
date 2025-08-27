@@ -329,6 +329,8 @@ def _add_default_hub_source_if_needed(
         raise_on_not_found=False,
     )
     if not hub_source:
+        # if not exists, just create one
+        _update_default_hub_source(db, db_session, default_hub_source)
         return
     # update the default hub if configuration has changed
     if default_hub_source.diff(hub_source.source):

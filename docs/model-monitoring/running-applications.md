@@ -42,6 +42,7 @@ Choose the start and end time. Here we choose the first two hours of the data:
 
 ```py
 from datetime import timedelta
+
 start_time = model_endpoint.status.first_request - timedelta(microseconds=10)
 end_time = model_endpoint.status.first_request + timedelta(hours=2)
 ```

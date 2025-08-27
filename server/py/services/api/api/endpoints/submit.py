@@ -26,6 +26,7 @@ import mlrun.utils.helpers
 from mlrun.utils import logger
 
 import framework.api.utils
+import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
@@ -60,9 +61,9 @@ async def submit_job(
         )
 
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
-        data["task"]["metadata"]["project"],
+        name=data["task"]["metadata"]["project"],
         auth_info=auth_info,
     )
     function_dict, function_url, task = framework.api.utils.parse_submit_run_body(data)

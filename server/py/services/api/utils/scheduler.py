@@ -76,7 +76,8 @@ class Scheduler:
         # don't fail the start on re-scheduling failure
         try:
             await fastapi.concurrency.run_in_threadpool(
-                self._reload_schedules, db_session
+                framework.db.session.run_function_with_new_db_session,
+                self._reload_schedules,
             )
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=err_to_str(exc))
@@ -447,10 +448,10 @@ class Scheduler:
     ):
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             get_db().get_schedule,
-            db_session,
-            project,
-            name,
+            project=project,
+            name=name,
         )
         await fastapi.concurrency.run_in_threadpool(
             self._ensure_auth_info_has_access_key, auth_info, db_schedule.kind

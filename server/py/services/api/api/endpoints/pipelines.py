@@ -41,6 +41,7 @@ import mlrun_pipelines.utils
 import framework.api
 import framework.api.deps
 import framework.api.utils
+import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.notifications
@@ -90,16 +91,16 @@ async def list_pipelines(
             else format_
         )
         total_size, next_page_token, runs = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             services.api.crud.Pipelines().list_pipelines,
-            db_session,
-            allowed_project_names,
-            namespace,
-            sort_by,
-            page_token,
-            filter_,
-            name_contains,
-            computed_format,
-            page_size,
+            project=allowed_project_names,
+            namespace=namespace,
+            sort_by=sort_by,
+            page_token=page_token,
+            filter_=filter_,
+            name_contains=name_contains,
+            format_=computed_format,
+            page_size=page_size,
         )
     allowed_runs = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
@@ -160,8 +161,8 @@ async def retry_pipeline(
 ):
     project: mlrun.common.schemas.ProjectOut = (
         await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             framework.utils.singletons.project_member.get_project_member().get_project,
-            db_session=db_session,
             name=project,
             leader_session=auth_info.session,
         )
@@ -183,8 +184,8 @@ async def retry_pipeline(
             original_runner,
             original_workflow_id,
         ) = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             services.api.crud.Pipelines().get_original_workflow_run,
-            db_session=db_session,
             run_id=run_id,
             project=project.metadata.name,
         )
@@ -215,16 +216,16 @@ async def retry_pipeline(
         # we lock the original-runner row, mark it retrying, and block any
         # parallel retry requests until it’s cleared.
         rerun_index = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             services.api.crud.Pipelines().lock_run_and_mark_retrying,
-            db_session=db_session,
             project=project.metadata.name,
             run_id=original_runner.metadata.uid,
         )
     except mlrun.errors.MLRunConflictError as exc:
         try:
             return await fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
                 services.api.crud.Pipelines().get_running_rerun_runner,
-                db_session=db_session,
                 project=project.metadata.name,
                 original_workflow_id=original_workflow_id,
             )
@@ -236,8 +237,8 @@ async def retry_pipeline(
     try:
         workflow_response: mlrun.common.schemas.WorkflowResponse = (
             await fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
                 services.api.crud.Pipelines().rerun_pipeline_via_runner,
-                db_session=db_session,
                 run_id=original_workflow_id,
                 project=project,
                 original_runner=original_runner,
@@ -340,8 +341,8 @@ async def push_notifications(
     )
 
     background_task = await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
-        db_session,
         project,
         background_tasks,
         _push_notifications,
@@ -547,8 +548,8 @@ async def _terminate_pipeline(
         framework.utils.background_tasks.ProjectBackgroundTasksHandler()
     )
     existing_terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         background_task_handler.get_background_task_by_state_and_labels,
-        db_session=db_session,
         status=mlrun.common.schemas.BackgroundTaskState.running,
         labels={
             mlrun.common.schemas.background_task.BackGroundTaskLabel.pipeline: run_id,
@@ -564,8 +565,8 @@ async def _terminate_pipeline(
         return existing_terminate_pipeline_task
     else:
         terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
-            db_session,
             project,
             background_tasks,
             services.api.crud.pipelines.Pipelines().terminate_pipeline,

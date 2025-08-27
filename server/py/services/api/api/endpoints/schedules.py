@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 from mlrun.utils import logger
 
+import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
@@ -302,9 +303,9 @@ async def set_schedule_notifications(
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
-        project,
+        name=project,
         auth_info=auth_info,
     )
 
@@ -337,11 +338,11 @@ async def set_schedule_notifications(
         )
 
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         services.api.crud.Notifications().set_object_notifications,
-        db_session,
-        auth_info,
-        project,
-        set_notifications_request.notifications,
-        mlrun.common.schemas.ScheduleIdentifier(name=name),
+        auth_info=auth_info,
+        project=project,
+        notifications=set_notifications_request.notifications,
+        notification_parent=mlrun.common.schemas.ScheduleIdentifier(name=name),
     )
     return fastapi.Response(status_code=HTTPStatus.OK.value)

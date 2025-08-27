@@ -26,6 +26,7 @@ from mlrun.utils import logger
 
 import framework.api.deps
 import framework.api.utils
+import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.helpers
@@ -465,8 +466,8 @@ async def load_project(
 
     # Ensure the project exists before calling the remote load_project function
     project, _ = await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         get_project_member().create_project,
-        db_session=db_session,
         project=project,
         projects_role=auth_info.projects_role,
         leader_session=auth_info.session,
@@ -490,10 +491,10 @@ async def load_project(
 
     # Creating the auxiliary function for loading the project:
     load_project_runner = await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         services.api.crud.LoadRunner().create_runner,
         run_name=f"load-{name}",
         project=name,
-        db_session=db_session,
         auth_info=auth_info,
         image=mlrun.mlconf.default_base_image,
     )

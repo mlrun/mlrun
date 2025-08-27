@@ -23,6 +23,7 @@ import mlrun.common.schemas
 from mlrun.utils.helpers import tag_name_regex_as_string
 
 import framework.api.deps
+import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.singletons.project_member
 import services.api.crud.tags
@@ -43,9 +44,9 @@ async def overwrite_object_tags_with_tag(
     ),
 ):
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
-        project,
+        name=project,
         auth_info=auth_info,
     )
 
@@ -64,11 +65,11 @@ async def overwrite_object_tags_with_tag(
     _check_reserved_tag(tag)
 
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         services.api.crud.Tags().overwrite_object_tags_with_tag,
-        db_session,
-        project,
-        tag,
-        tag_objects,
+        project=project,
+        tag=tag,
+        tag_objects=tag_objects,
     )
     return mlrun.common.schemas.Tag(name=tag, project=project)
 
@@ -86,9 +87,9 @@ async def append_tag_to_objects(
     ),
 ):
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
-        project,
+        name=project,
         auth_info=auth_info,
     )
 
@@ -105,11 +106,11 @@ async def append_tag_to_objects(
     _check_reserved_tag(tag)
 
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         services.api.crud.Tags().append_tag_to_objects,
-        db_session,
-        project,
-        tag,
-        tag_objects,
+        project=project,
+        tag=tag,
+        tag_objects=tag_objects,
     )
     return mlrun.common.schemas.Tag(name=tag, project=project)
 
@@ -127,9 +128,9 @@ async def delete_tag_from_objects(
     ),
 ):
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
-        project,
+        name=project,
         auth_info=auth_info,
     )
 
@@ -147,11 +148,11 @@ async def delete_tag_from_objects(
     _check_reserved_tag(tag)
 
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         services.api.crud.Tags().delete_tag_from_objects,
-        db_session,
-        project,
-        tag,
-        tag_objects,
+        project=project,
+        tag=tag,
+        tag_objects=tag_objects,
     )
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 

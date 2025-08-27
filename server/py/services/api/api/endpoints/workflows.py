@@ -32,6 +32,7 @@ from mlrun.k8s_utils import sanitize_label_value
 from mlrun.utils.helpers import logger
 
 import framework.api.deps
+import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
@@ -476,10 +477,10 @@ async def set_run_retrying_status(
 
     # call into your CRUD
     await fastapi.concurrency.run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session,
         services.api.crud.RerunRunner().set_run_retrying_status,
-        db_session,
-        project,
-        uid,
-        retrying,
+        project=project,
+        run_id=uid,
+        retrying=retrying,
     )
     return {}

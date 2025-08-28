@@ -531,8 +531,11 @@ class TestKubejobRuntime(TestRuntimeBase):
                 ],
                 {
                     "user-node-selector": "some-value",
+                    "app.iguazio.com/lifecycle": "preemptible",
                 },
-                {},
+                create_node_affinity_with_terms(
+                    preemptible_affinity_iguazio + preemptible_affinity_cloud_provider
+                ),
             ),
             # Mode "allow" with no preemptible toleration.
             (

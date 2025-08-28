@@ -341,7 +341,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert len(self.project.list_model_endpoints()) == 1
+        assert len(self.project.list_model_endpoints().endpoints) == 1
 
         assert deployment == function.get_url()  # check function url
 

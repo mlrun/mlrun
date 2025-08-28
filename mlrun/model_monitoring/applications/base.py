@@ -903,12 +903,12 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   Note: the model monitoring infrastructure must be up for the writing to work.
         :param existing_data_handling:
                                   How to handle the existing application data for the model endpoints when writing
-                                  new data whose requested `start` time precedes the `end `time of a previous run 
-                                  that also wrote to the database. Relevant only when ``write_output=True``. 
+                                  new data whose requested `start` time precedes the `end `time of a previous run
+                                  that also wrote to the database. Relevant only when ``write_output=True``.
                                   The options are:
 
                                   - ``"fail_on_overlap"``: Default. An error is raised.
-                                  - ``"skip_overlap"``:  the overlapping data is ignored and the 
+                                  - ``"skip_overlap"``:  the overlapping data is ignored and the
                                     time window is cut so that it starts at the earliest possible time after ``start``.
                                   - ``"delete_all"``: delete all the data that was written by the application to the
                                     model endpoints, regardless of the time window, and write the new data.

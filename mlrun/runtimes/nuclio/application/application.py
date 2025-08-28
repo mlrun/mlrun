@@ -79,6 +79,10 @@ class ApplicationSpec(NuclioSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        serving_spec=None,
+        graph=None,
+        parameters=None,
+        track_models=None,
         internal_application_port=None,
         application_ports=None,
     ):
@@ -120,6 +124,10 @@ class ApplicationSpec(NuclioSpec):
             security_context=security_context,
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
+            serving_spec=serving_spec,
+            graph=graph,
+            parameters=parameters,
+            track_models=track_models,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
         )

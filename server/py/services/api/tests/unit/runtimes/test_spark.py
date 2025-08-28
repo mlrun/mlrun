@@ -745,68 +745,50 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
                     }
                 ],
             ),
-            # Case: allow mode should clean affinity/selector and add tolerations
+            # Case: allow mode keeps preemptible selector and adds tolerations
             (
-                {"function-label": "val"},
-                {"label-1": "val1"},
-                {"label-1": "val1"},
-                {
-                    "nodeAffinity": {
-                        "requiredDuringSchedulingIgnoredDuringExecution": {
-                            "nodeSelectorTerms": [
-                                {
-                                    "matchExpressions": [
-                                        {
-                                            "key": "spot",
-                                            "operator": "In",
-                                            "values": ["true"],
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "nodeAffinity": {
-                        "requiredDuringSchedulingIgnoredDuringExecution": {
-                            "nodeSelectorTerms": [
-                                {
-                                    "matchExpressions": [
-                                        {
-                                            "key": "spot",
-                                            "operator": "In",
-                                            "values": ["true"],
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    }
-                },
-                None,
-                None,
-                "allow",
-                {},
-                {},
-                False,
-                False,
-                [
+                    {"function-label": "val"},
+                    {"label-1": "val1"},
+                    {"label-1": "val1"},
                     {
-                        "key": "spot",
-                        "operator": "Equal",
-                        "value": "true",
-                        "effect": "NoSchedule",
-                    }
-                ],
-                [
+                        "nodeAffinity": {
+                            "requiredDuringSchedulingIgnoredDuringExecution": {
+                                "nodeSelectorTerms": [
+                                    {
+                                        "matchExpressions": [
+                                            {"key": "spot", "operator": "In", "values": ["true"]}
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
                     {
-                        "key": "spot",
-                        "operator": "Equal",
-                        "value": "true",
-                        "effect": "NoSchedule",
-                    }
-                ],
+                        "nodeAffinity": {
+                            "requiredDuringSchedulingIgnoredDuringExecution": {
+                                "nodeSelectorTerms": [
+                                    {
+                                        "matchExpressions": [
+                                            {"key": "spot", "operator": "In", "values": ["true"]}
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    None,
+                    None,
+                    "allow",
+                    {"label-1": "val1"},
+                    {"label-1": "val1"}, 
+                    False,
+                    False,
+                    [
+                        {"key": "spot", "operator": "Equal", "value": "true", "effect": "NoSchedule"}
+                    ],
+                    [
+                        {"key": "spot", "operator": "Equal", "value": "true", "effect": "NoSchedule"}
+                    ],
             ),
         ],
     )

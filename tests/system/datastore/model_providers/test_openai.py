@@ -72,7 +72,10 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         self.url_prefix = f"ds://{self.profile_name}/"
         self.model_url = self.url_prefix + self.basic_llm_model
 
-    @pytest.mark.parametrize("execution_mechanism", ["naive", "asyncio"])
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
     def test_basic_openai_model_runner(self, execution_mechanism):
         mlrun_model_name = "sync_invoke_model"
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(

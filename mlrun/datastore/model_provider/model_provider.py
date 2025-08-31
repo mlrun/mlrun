@@ -128,15 +128,15 @@ class ModelProvider(BaseRemoteClient):
 
     def load_client(self) -> None:
         """
-        Initializes the SDK client for the model provider with the given keyword arguments
-        and assigns it to an instance attribute (e.g., self._client).
+        Initialize the SDK client for the model provider and assign it to an instance attribute.
 
-        Subclasses should override this method to:
-        - Create and configure the provider-specific client instance.
-        - Assign the client instance to self._client.
+        Subclasses should override this method to create and configure the provider-specific client.
         """
 
         raise NotImplementedError("load_client method is not implemented")
+
+    def load_async_client(self) -> Any:
+        raise NotImplementedError("load_async_client method is not implemented")
 
     @property
     def client(self) -> Any:

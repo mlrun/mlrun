@@ -598,7 +598,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         elif (start_dt.tzinfo is None) or (end_dt.tzinfo is None):
             raise mlrun.errors.MLRunValueError(
                 "The start and end times must either both include time zone information or both be naive (no time "
-                f"zone). One of them is time zone aware and the other is naive: start={start}, end={end}."
+                f"zone). Asserting the above failed, aborting the evaluate request: start={start}, end={end}."
             )
 
         if existing_data_handling != ExistingDataHandling.delete_all:

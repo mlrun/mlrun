@@ -1248,7 +1248,18 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param k8s_secret: Kubernetes secret object containing tokenExpiration.
         :return: Expiration as int (epoch timestamp) or None if decoding fails.
         """
-        if not k8s_secret.data or "tokenExpiration" not in k8s_secret.data:
+        if not k8s_secret.data:
+            logger.warning(
+                "Secret has no data, skipping expiration decode",
+                secret_name=k8s_secret.metadata.name,
+            )
+            return None
+
+        if "tokenExpiration" not in k8s_secret.data:
+            logger.warning(
+                "Secret does not contain 'tokenExpiration', skipping expiration decode",
+                secret_name=k8s_secret.metadata.name,
+            )
             return None
 
         try:

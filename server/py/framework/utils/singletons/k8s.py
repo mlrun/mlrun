@@ -1132,17 +1132,17 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self, k8s_secret: client.V1Secret, new_expiration: int
     ) -> bool:
         """
-        Determine if the secret should be updated based on tokenExpiration
-        """
-        if not k8s_secret.data or "tokenExpiration" not in k8s_secret.data:
-            return True
+        Determine if the secret should be updated based on tokenExpiration.
 
-        try:
-            existing_exp = int(
-                base64.b64decode(k8s_secret.data["tokenExpiration"]).decode()
-            )
-        except Exception:
-            existing_exp = 0
+        :param k8s_secret: Existing Kubernetes secret.
+        :param new_expiration: Expiration timestamp of the new token.
+        :return: True if the secret should be updated, False otherwise.
+        """
+        existing_exp = self._decode_secret_expiration(k8s_secret)
+
+        # If no expiration could be decoded, assume it needs an update
+        if existing_exp is None:
+            return True
 
         return new_expiration > existing_exp
 
@@ -1156,7 +1156,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         :param username: The user whose tokens should be listed.
         :param namespace: Kubernetes namespace where the secrets are stored.
-        :return: List of dicts containing {"name": <token_name>, "expiration": <int>}
+        :return: List of SecretTokenInfo objects, each containing the token name and expiration.
         """
         namespace = self.resolve_namespace(namespace)
         labels = {
@@ -1187,20 +1187,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 continue
 
             token_name = secret_name[len(prefix) :]
-            # Extract and decode expiration from secret data
-            expiration = None
-            if k8s_secret.data and "tokenExpiration" in k8s_secret.data:
-                try:
-                    expiration_b64 = k8s_secret.data["tokenExpiration"]
-                    expiration_str = base64.b64decode(expiration_b64).decode("utf-8")
-                    expiration = int(expiration_str)
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to decode 'tokenExpiration' from secret",
-                        secret_name=secret_name,
-                        error=mlrun.errors.err_to_str(exc),
-                    )
-                    continue
+
+            expiration = self._decode_secret_expiration(k8s_secret)
+            if expiration is None:
+                continue
 
             secret_tokens.append(
                 mlrun.common.schemas.SecretTokenInfo(
@@ -1225,10 +1215,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         namespace = self.resolve_namespace(namespace)
 
-        label_selector = None
-        if labels:
-            # Convert dict to Kubernetes label selector string: key1=value1,key2=value2,...
-            label_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
+        # Convert dict to Kubernetes label selector string: key1=value1,key2=value2,...
+        label_selector = (
+            ",".join(f"{k}={v}" for k, v in labels.items()) if labels else None
+        )
 
         logger.debug(
             "Listing secrets from Kubernetes",
@@ -1251,6 +1241,27 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             raise
 
         return secrets_list.items or []
+
+    def _decode_secret_expiration(self, k8s_secret) -> typing.Optional[int]:
+        """Decode the expiration timestamp from a Kubernetes secret.
+
+        :param k8s_secret: Kubernetes secret object containing tokenExpiration.
+        :return: Expiration as int (epoch timestamp) or None if decoding fails.
+        """
+        if not k8s_secret.data or "tokenExpiration" not in k8s_secret.data:
+            return None
+
+        try:
+            expiration_b64 = k8s_secret.data["tokenExpiration"]
+            expiration_str = base64.b64decode(expiration_b64).decode("utf-8")
+            return int(expiration_str)
+        except Exception as exc:
+            logger.warning(
+                "Failed to decode 'tokenExpiration' from secret",
+                secret_name=k8s_secret.metadata.name,
+                error=mlrun.errors.err_to_str(exc),
+            )
+            return None
 
 
 class BasePod:

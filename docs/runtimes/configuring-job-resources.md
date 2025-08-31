@@ -188,8 +188,8 @@ MLRun aims to hide this complexity from the user by creating a standard interfac
 it to the underlying Kubernetes constructs per the deployment type.<br>
 You still have the option of manually setting these low-level configurations, given that you know the specific configurations that are needed.
 
-MLRun applies scheduling constraints to the run object at execution time (and does not modify the function definition).
-Your original scheduling constraints appear on the function, but the actual run may have different constraints applied dynamically when it executes.
+MLRun applies preemptible-related scheduling constraints to the run object at execution time without modifying the function definition.
+Original scheduling constraints remain on the function, but actual execution may use different constraints based on the function's preemption mode.
 
 ### Choosing the node type
 

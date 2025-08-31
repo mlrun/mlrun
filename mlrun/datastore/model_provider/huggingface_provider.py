@@ -98,7 +98,8 @@ class HuggingFaceProvider(ModelProvider):
         """
         Processes and formats the raw response from the HuggingFace pipeline according to the specified format.
 
-        Expected to receive the response with `return_full_text=False`.
+        The response should exclude the user’s input (no repetition in the output).
+        This can be accomplished by invoking the pipeline with `return_full_text=False`.
 
         :param response:                The raw response from the HuggingFace pipeline, typically a list of dictionaries
                                         containing generated text sequences.

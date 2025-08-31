@@ -444,7 +444,6 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "dockerfiles/mlrun-kfp/locked-requirements.txt",  # lock file
         "dockerfiles/mlrun-kfp/locked-requirements_3.9.txt",  # lock file
         "dockerfiles/mlrun-kfp/locked-requirements_3.11.txt",  # lock file
-
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 

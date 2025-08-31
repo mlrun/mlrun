@@ -36,7 +36,6 @@ class HubObjectMetadata(BaseModel):
         extra = Extra.allow
 
 
-# Currently only functions are supported. Will add more in the future.
 class HubSourceType(mlrun.common.types.StrEnum):
     functions = "functions"
     modules = "modules"

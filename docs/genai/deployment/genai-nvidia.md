@@ -1,5 +1,15 @@
-(genai-nvidia-flywheel)=
-# Integrating with the NVIDIA data flywheel
+(genai-nvidia)=
+# Integrating with the NVIDIA
+
+## Integrating with NVIDIA NIM
+MLRun can use Nvidia NIM in the application runtime, and adding to it API gateway with monitoring application (openai or equiv - not NIM).
+
+
+
+
+
+
+## Integrating with NVIDIA data flywheel
 
 Data flywheels are processes that enrich and optimize AI agent applications with inference, business data, and user preference data.
 AI data flywheels create a loop whereby AI models continuously improve by integrating institutional knowledge and user feedback, for example, LLM prompt or response logs, and expert labeling.

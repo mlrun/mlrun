@@ -62,7 +62,6 @@ class HuggingFaceProvider(ModelProvider):
         )
         self.options = self.get_client_options()
         self._expected_operation_type = None
-        self.load_client()
 
     @staticmethod
     def _extract_string_output(response: list[dict]) -> str:
@@ -85,6 +84,17 @@ class HuggingFaceProvider(ModelProvider):
             # In HuggingFace, "/" in a model name is part of the name — `subpath` is not used.
             subpath = ""
         return endpoint, subpath
+
+    @property
+    def client(self) -> Any:
+        """
+        Lazily return the HuggingFace-pipeline client.
+
+        If the client has not been initialized yet, it will be created
+        by calling `load_client`.
+        """
+        self.load_client()
+        return self._client
 
     def _response_handler(
         self,
@@ -161,6 +171,8 @@ class HuggingFaceProvider(ModelProvider):
         :raises:
             ImportError: If the `transformers` package is not installed.
         """
+        if self._client:
+            return
         try:
             from transformers import pipeline, AutoModelForCausalLM  # noqa
             from transformers import AutoTokenizer  # noqa

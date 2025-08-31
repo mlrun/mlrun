@@ -879,9 +879,13 @@ class KubeResource(BaseRuntime):
     @staticmethod
     def detect_preemptible_node_selector(node_selector: dict[str, str]) -> list[str]:
         """
-        Checks if any provided node selector matches the preemptible node selectors.
-        Issues a warning if a selector may be pruned at runtime depending on preemption mode.
-        :param node_selector: The user-provided node selector dictionary.
+        Check whether any provided node selector matches preemptible selectors.
+
+        Args:
+            node_selector: User-provided node selector mapping.
+
+        Returns:
+            List of `"key='value'"` strings that match a preemptible selector.
         """
         preemptible_node_selector = mlconf.get_preemptible_node_selector()
 
@@ -895,9 +899,13 @@ class KubeResource(BaseRuntime):
         self, tolerations: list[k8s_client.V1Toleration]
     ) -> list[str]:
         """
-        Checks if any provided toleration matches preemptible tolerations.
-        Issues a warning if a toleration may be pruned at runtime depending on preemption mode.
-        :param tolerations: The user-provided list of tolerations.
+        Check whether any provided toleration matches preemptible tolerations.
+
+        Args:
+            tolerations: User-provided tolerations.
+
+        Returns:
+            List of formatted toleration strings that are considered preemptible.
         """
         preemptible_tolerations = [
             k8s_client.V1Toleration(
@@ -919,11 +927,14 @@ class KubeResource(BaseRuntime):
 
     def detect_preemptible_affinity(self, affinity: k8s_client.V1Affinity) -> list[str]:
         """
-        Checks if any provided affinity rules match preemptible affinity configurations.
-        Issues a warning if an affinity rule may be pruned at runtime depending on preemption mode.
-        :param affinity: The user-provided affinity object.
-        """
+        Check whether any provided affinity rules match preemptible affinity configs.
 
+        Args:
+            affinity: User-provided affinity object.
+
+        Returns:
+            List of formatted expressions that overlap with preemptible terms.
+        """
         preemptible_affinity_terms = generate_preemptible_nodes_affinity_terms()
         conflicting_affinities = []
 
@@ -962,10 +973,17 @@ class KubeResource(BaseRuntime):
         affinity: typing.Optional[k8s_client.V1Affinity],
     ) -> None:
         """
-        Detects conflicts and issues a single warning if necessary.
-        :param node_selector: The user-provided node selector dictionary.
-        :param tolerations: The user-provided list of tolerations.
-        :param affinity: The user-provided affinity object.
+        Detect conflicts and emit a single consolidated warning if needed.
+
+        Args:
+            node_selector: User-provided node selector.
+            tolerations: User-provided tolerations.
+            affinity: User-provided affinity.
+
+        Warns:
+            PreemptionWarning: Emitted when any of the provided selectors,
+                tolerations, or affinity terms match the configured
+                preemptible settings. The message lists the conflicting items.
         """
         conflict_messages = []
 
@@ -1005,32 +1023,32 @@ class KubeResource(BaseRuntime):
         tolerations: typing.Optional[list[k8s_client.V1Toleration]] = None,
     ):
         """
-               Configure Kubernetes node scheduling for this function.
+        Configure Kubernetes node scheduling for this function.
 
-               Updates one or more scheduling hints: exact node pinning, label-based
-               selection, affinity/anti-affinity rules, and taint tolerations.
-               Passing ``None`` leaves the current value unchanged; pass an empty
-               dict/list (e.g. ``{}``, ``[]``) to clear the corresponding field.
+        Updates one or more scheduling hints: exact node pinning, label-based
+        selection, affinity/anti-affinity rules, and taint tolerations.
+        Passing ``None`` leaves the current value unchanged; pass an empty
+        dict/list (e.g. ``{}``, ``[]``) to clear the corresponding field.
 
-               Node selectors are validated before being applied. After
-               updating, a preemption/spot compatibility warning may be emitted if the
-               provided selectors, tolerations, or affinity conflict with the current function
-               preemption mode.
+        Node selectors are validated before being applied. After
+        updating, a preemption/spot compatibility warning may be emitted if the
+        provided selectors, tolerations, or affinity conflict with the current function
+        preemption mode.
 
-               Args:
-                   node_name: Exact Kubernetes node name to pin the pod to.
-                   node_selector: Mapping of label selectors; the pod is eligible only
-                       on nodes matching all labels. Use ``{}`` to clear.
-                   affinity: Kubernetes ``V1Affinity`` defining (anti)affinity constraints.
-                   tolerations: List of ``V1Toleration`` allowing scheduling onto tainted
-                       nodes. Use ``[]`` to clear.
+        Args:
+            node_name: Exact Kubernetes node name to pin the pod to.
+            node_selector: Mapping of label selectors; the pod is eligible only
+                on nodes matching all labels. Use ``{}`` to clear.
+            affinity: Kubernetes ``V1Affinity`` defining (anti)affinity constraints.
+            tolerations: List of ``V1Toleration`` allowing scheduling onto tainted
+                nodes. Use ``[]`` to clear.
 
-               Examples:
-                   # Prefer a GPU pool and allow scheduling on spot nodes:
-                   job.with_node_selection(
-                       node_selector={"nodepool": "gpu"},
-                       tolerations=[k8s_client.V1Toleration(key="spot", operator="Exists")]
-                   )
+        Examples:
+            # Prefer a GPU pool and allow scheduling on spot nodes:
+            job.with_node_selection(
+                node_selector={"nodepool": "gpu"},
+                tolerations=[k8s_client.V1Toleration(key="spot", operator="Exists")]
+            )
         """
         if node_name:
             self.spec.node_name = node_name

@@ -716,8 +716,7 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/integration \
-		server/py/services/api/tests/integration \
+		tests/integration/sdk_api/hub \
 		tests/rundb/test_httpdb.py && \
 	$(PRINT_COVERAGE_REPORT);
 

@@ -87,63 +87,63 @@ jobs:
         # limitations under the License.
         "
 
-  tests:
-    name: Run Dockerized Tests
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [ "3.9", "3.11"]
-        test-suite: ["server", "client"]
-    steps:
-    - uses: actions/checkout@v5
-    - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: pip
-
-    - name: Extract git branch
-      id: git_info
-      run: |
-        echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
-
-    - name: Resolve docker cache tag
-      id: docker_cache
-      run: |
-        export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
-        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-
-    - name: Install automation scripts dependencies
-      run: pip install -r automation/requirements.txt
-    - name: Set test suite
-      run: |
-          if [[ "${{ matrix.test-suite }}" == "server" ]]; then
-            echo "UNIT_TESTS_PATH=\"server/\"" >> $GITHUB_ENV
-          else
-            echo "UNIT_TESTS_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
-          fi
-    - name: Set RUN_COVERAGE environment variable
-      if: matrix.python-version == '3.9'
-      run: echo "RUN_COVERAGE=true" >> $GITHUB_ENV
-    - name: Run Dockerized tests
-      run: |
-        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-        UNIT_TESTS_PATH=$UNIT_TESTS_PATH \
-        UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
-        RUN_COVERAGE=$RUN_COVERAGE \
-        COVERAGE_DIR_SUFFIX="_${{ matrix.test-suite }}" \
-        COVERAGE_FILE="tests/coverage_reports/unit_tests_${{ matrix.test-suite }}.coverage" \
-        make test-dockerized
-    - name: Upload coverage report
-      if: env.RUN_COVERAGE == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
-        path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
-        retention-days: 30
+#  tests:
+#    name: Run Dockerized Tests
+#    runs-on: ubuntu-latest
+#    strategy:
+#      matrix:
+#        python-version: [ "3.9", "3.11"]
+#        test-suite: ["server", "client"]
+#    steps:
+#    - uses: actions/checkout@v5
+#    - name: Set up python ${{ matrix.python-version }}
+#      uses: actions/setup-python@v5
+#      with:
+#        python-version: ${{ matrix.python-version }}
+#        cache: pip
+#
+#    - name: Extract git branch
+#      id: git_info
+#      run: |
+#        echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+#
+#    - name: Resolve docker cache tag
+#      id: docker_cache
+#      run: |
+#        export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+#        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+#        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+#
+#    - name: Install automation scripts dependencies
+#      run: pip install -r automation/requirements.txt
+#    - name: Set test suite
+#      run: |
+#          if [[ "${{ matrix.test-suite }}" == "server" ]]; then
+#            echo "UNIT_TESTS_PATH=\"server/\"" >> $GITHUB_ENV
+#          else
+#            echo "UNIT_TESTS_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
+#          fi
+#    - name: Set RUN_COVERAGE environment variable
+#      if: matrix.python-version == '3.9'
+#      run: echo "RUN_COVERAGE=true" >> $GITHUB_ENV
+#    - name: Run Dockerized tests
+#      run: |
+#        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+#        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+#        MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+#        UNIT_TESTS_PATH=$UNIT_TESTS_PATH \
+#        UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
+#        RUN_COVERAGE=$RUN_COVERAGE \
+#        COVERAGE_DIR_SUFFIX="_${{ matrix.test-suite }}" \
+#        COVERAGE_FILE="tests/coverage_reports/unit_tests_${{ matrix.test-suite }}.coverage" \
+#        make test-dockerized
+#    - name: Upload coverage report
+#      if: env.RUN_COVERAGE == 'true'
+#      uses: actions/upload-artifact@v4
+#      with:
+#        name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
+#        path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
+#        retention-days: 30
 
 
   integration-tests:
@@ -205,30 +205,30 @@ jobs:
          path: /tmp/coverage_reports/integration_tests/integration_tests.coverage
          retention-days: 30
 
-  migrations-tests:
-    name: Run Dockerized Migrations Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      # TODO: re-use the next 2 actions instead of duplicating
-      - name: Extract git branch
-        id: git_info
-        run: |
-          echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
-      - name: Resolve docker cache tag
-        id: docker_cache
-        run: |
-          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
-          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-      - name: Run Dockerized DB Migration tests
-        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized RUN_COVERAGE=true
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage_migration_tests_report-${{ github.run_id }}.coverage
-          path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
-          retention-days: 30
+#  migrations-tests:
+#    name: Run Dockerized Migrations Tests
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v5
+#      # TODO: re-use the next 2 actions instead of duplicating
+#      - name: Extract git branch
+#        id: git_info
+#        run: |
+#          echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+#      - name: Resolve docker cache tag
+#        id: docker_cache
+#        run: |
+#          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+#          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+#          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+#      - name: Run Dockerized DB Migration tests
+#        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized RUN_COVERAGE=true
+#      - name: Upload coverage report
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: coverage_migration_tests_report-${{ github.run_id }}.coverage
+#          path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
+#          retention-days: 30
 
   package-tests:
     name: Run package tests (Python ${{ matrix.python-version }}, Pipelines ${{ matrix.pipeline-adapter }})

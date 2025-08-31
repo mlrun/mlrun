@@ -1205,7 +1205,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self,
         username: str,
         token_name: str,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
     ) -> str:
         """
         Retrieve the offline token string for a specific user and token name.
@@ -1334,7 +1334,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self,
         username: str,
         token_name: str,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
     ) -> None:
         """
         Delete a Kubernetes secret corresponding to a user's offline token.

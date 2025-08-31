@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import typing
 from abc import ABC, abstractmethod
 
 import mlrun.common.schemas
@@ -71,7 +72,7 @@ class SecretProviderInterface(ABC):
         self,
         username: str,
         token_name: str,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
     ) -> str:
         pass
 
@@ -80,7 +81,7 @@ class SecretProviderInterface(ABC):
         self,
         username: str,
         token_name: str,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
     ) -> None:
         pass
 
@@ -174,7 +175,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         self,
         username: str,
         token_name: str,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
     ) -> str:
         raise NotImplementedError()
 
@@ -182,7 +183,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         self,
         username: str,
         token_name: str,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
     ) -> None:
         raise NotImplementedError()
 

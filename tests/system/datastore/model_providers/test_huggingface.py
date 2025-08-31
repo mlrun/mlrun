@@ -15,6 +15,7 @@
 import json
 import os
 
+import pytest
 from transformers import AutoTokenizer
 
 from mlrun.datastore.datastore_profile import (
@@ -52,7 +53,11 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         self.url_prefix = f"ds://{self.profile_name}/"
         self.model_url = self.url_prefix + model_name
 
-    def test_basic_huggingface_model_runner(self):
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_basic_huggingface_model_runner(self, execution_mechanism):
         self.setup_datastore_profile()
         mlrun_model_name = "sync_invoke_model"
         requirements_path = os.path.join(
@@ -65,6 +70,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             image=self.image,
             requirements_file=requirements_path,
             default_config={"max_new_tokens": 50},
+            execution_mechanism=execution_mechanism,
         )
 
         # Running models requires higher CPU for this pod.

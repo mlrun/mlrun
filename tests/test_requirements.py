@@ -219,19 +219,30 @@ def test_requirement_specifiers_inconsistencies():
             '~=2024.4.4; python_version >= "3.11"',
             '~=1.4,<1.9.0; python_version < "3.11"',
         },
-        "dask": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
-        },
-        "distributed": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
-        },
-        "mlrun-pipelines-kfp-v1-8": {"~=0.4.3", '~=0.4.2; python_version < "3.11"'},
         "urllib3": {
             '>=1.26.20; python_version < "3.11"',
             '>=2.5.0; python_version >= "3.11"',
+        },
+        "dask": {
+            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '~=2024.8.0; python_version >= "3.11"',
+        },
+        "distributed": {
+            '~=2023.12.1; python_version < "3.11"',
+            '~=2024.8.0; python_version >= "3.11"',
+        },
+        "grpcio": {
+            '~=1.59.0; python_version <= "3.9"',
+            '~=1.74.0; python_version > "3.9"',
+        },
+        "kfp": {
+            '==1.8.22; python_version < "3.11"',
+            '~=1.8.23; python_version >= "3.11"',
+        },
+        "scikit-learn": {
+            "~=1.5.1",
+            "~=1.5.2",
         },
     }
 

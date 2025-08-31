@@ -932,6 +932,7 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 		dockerfiles/mlrun-api/requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
 		dev-requirements.txt \
+		--python-version $(MLRUN_PYTHON_VERSION) \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/test/locked-requirements.txt
 

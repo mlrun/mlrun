@@ -108,7 +108,7 @@ class ModelProvider(BaseRemoteClient):
                                                 additional metadata or token usage statistics, in this format:
                                                 {"answer": <string>, "usage": <dict>}
 
-                                       - FULL: Return the full raw response object unmodified.
+                                       - FULL: Return the full raw response object.
 
         :param kwargs:                  Additional parameters that may be required by specific implementations.
 

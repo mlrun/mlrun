@@ -1016,7 +1016,7 @@ class KubeResource(BaseRuntime):
                updating, a preemption/spot compatibility warning may be emitted if the
                provided selectors, tolerations, or affinity conflict with the current function
                preemption mode.
-        ס
+
                Args:
                    node_name: Exact Kubernetes node name to pin the pod to.
                    node_selector: Mapping of label selectors; the pod is eligible only

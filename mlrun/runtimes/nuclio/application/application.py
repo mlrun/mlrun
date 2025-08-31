@@ -134,10 +134,6 @@ class ApplicationSpec(NuclioSpec):
             track_models=track_models,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
-            serving_spec=serving_spec,
-            graph=graph,
-            parameters=parameters,
-            track_models=track_models,
             foo=foo,
         )
 

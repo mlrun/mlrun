@@ -62,6 +62,7 @@ class HuggingFaceProvider(ModelProvider):
         )
         self.options = self.get_client_options()
         self._expected_operation_type = None
+        self._download_model()
 
     @staticmethod
     def _extract_string_output(response: list[dict]) -> str:
@@ -95,6 +96,15 @@ class HuggingFaceProvider(ModelProvider):
         """
         self.load_client()
         return self._client
+
+    def _download_model(self):
+        try:
+            from huggingface_hub import snapshot_download
+
+            # Download the model and tokenizer files directly to the cache.
+            snapshot_download(repo_id=self.model)
+        except ImportError as exc:
+            raise ImportError("huggingface_hub package is not installed") from exc
 
     def _response_handler(
         self,
@@ -178,6 +188,8 @@ class HuggingFaceProvider(ModelProvider):
             from transformers import AutoTokenizer  # noqa
             from transformers.pipelines.base import Pipeline  # noqa
 
+            self.options["model_kwargs"] = self.options.get("model_kwargs", {})
+            self.options["model_kwargs"]["local_files_only"] = True
             self._client = pipeline(model=self.model, **self.options)
             self._expected_operation_type = Pipeline
         except ImportError as exc:

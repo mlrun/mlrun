@@ -584,7 +584,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def read_secret(
         self,
         secret_name: str,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
         labels: typing.Optional[dict[str, str]] = None,
         silent=False,
     ) -> typing.Optional[client.V1Secret]:
@@ -1047,7 +1047,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token_name: str,
         token: str,
         expiration: int,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.SecretEventActions:
         """
         Creates or updates a Kubernetes secret for a user's offline token.
@@ -1149,7 +1149,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def list_user_token_secrets(
         self,
         username: str,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         """
         List all offline token secrets for a given user.
@@ -1203,7 +1203,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def list_secrets(
         self,
-        namespace: str = "",
+        namespace: typing.Optional[str] = None,
         labels: typing.Optional[dict[str, str]] = None,
     ) -> list[client.V1Secret]:
         """

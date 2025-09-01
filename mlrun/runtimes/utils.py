@@ -173,8 +173,9 @@ def results_to_iter(results, runspec, execution):
             elif state == mlrun.common.runtimes.constants.RunStates.pending_retry:
                 pending_retry += 1
                 err = get_in(task, ["status", "error"], "")
+                retry_count = get_in(task, ["status", "retry_count"], 0)
                 logger.warning(
-                    f"pending retry in task {execution.uid}:{id} - {err_to_str(err)}"
+                    f"pending retry in task {execution.uid}:{id} - {err_to_str(err)}. Retry count: {retry_count}"
                 )
             elif state != mlrun.common.runtimes.constants.RunStates.completed:
                 running += 1

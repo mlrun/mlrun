@@ -21,6 +21,7 @@ import git
 import pytest
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.runtimes.utils
 
 
@@ -143,3 +144,57 @@ def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_t
             )
             == {}
         )
+
+
+def test_results_to_iter(rundb_mock):
+    results = [
+        {
+            "spec": {"parameters": {"p1": 2, "p2": 0}},
+            "status": {
+                "state": "pendingRetry",
+                "error": "division by zero",
+                "retry_count": None,
+            },
+        },
+        {
+            "spec": {"parameters": {"p1": 2, "p2": 1}},
+            "status": {"state": "completed", "results": {"multiplier": 2.0}},
+        },
+        {
+            "spec": {"parameters": {"p1": 2, "p2": 2}},
+            "status": {"state": "completed", "results": {"multiplier": 1.0}},
+        },
+    ]
+    run = {
+        "kind": "run",
+        "spec": {
+            "log_level": "info",
+            "parameters": {"p1": 2, "p2": 0},
+            "handler": "my_function",
+            "outputs": [],
+            "output_path": "artifacts",
+            "inputs": {},
+            "notifications": [],
+            "retry": {"count": 2, "backoff": {"base_delay": "30 sec"}},
+            "data_stores": [],
+        },
+    }
+    run = mlrun.run.RunObject.from_dict(run)
+
+    execution = mlrun.execution.MLClientCtx.from_dict(
+        run.to_dict(),
+        rundb_mock,
+        autocommit=False,
+        is_api=True,
+        store_run=False,
+    )
+    # Replace execution.commit with a no-op
+    execution.commit = lambda: None
+
+    mlrun.runtimes.utils.results_to_iter(results, run, execution)
+    assert execution.state == mlrun.common.runtimes.constants.RunStates.pending_retry
+
+    # replace to make them all successful
+    results[0] = results[1]
+    mlrun.runtimes.utils.results_to_iter(results, run, execution)
+    assert execution.state == mlrun.common.runtimes.constants.RunStates.completed

@@ -683,7 +683,6 @@ test: clean ## Run mlrun tests
 		$$COMMON_IGNORE_TEST_FLAGS \
 		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
 		$$IGNORE_ADDITION \
-		--forked \
 		-rf \
 		$$UNIT_TESTS_PATH && \
 	$(PRINT_COVERAGE_REPORT) ;

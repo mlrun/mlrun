@@ -58,13 +58,21 @@ class _NotificationPusherBase:
                 asyncio.set_event_loop(event_loop)
 
             if not event_loop.is_running():
+                logger.debug("push: fresh event loop")
                 event_loop.run_until_complete(async_push_callback())
+                logger.debug("push: async done (fresh loop)")
             else:
+                logger.debug(
+                    "push: existing event loop - submitting with run_coroutine_threadsafe"
+                )
                 asyncio.run_coroutine_threadsafe(async_push_callback(), event_loop)
+                logger.debug("push: existing event loop - async submitted")
 
         # then push sync notifications
         if not mlrun.config.is_running_as_api():
+            logger.debug("push: sync lane start")
             sync_push_callback()
+            logger.debug("push: sync lane done")
 
     def _run_coroutine_in_jupyter_notebook(self, coroutine_method):
         """
@@ -166,9 +174,11 @@ class NotificationPusher(_NotificationPusherBase):
         """
 
         if not len(self._sync_notifications) and not len(self._async_notifications):
+            logger.debug("notifications: nothing to push")
             return
 
         def sync_push():
+            logger.debug(f"notifications: sync start ({len(self._sync_notifications)})")
             for notification_data in self._sync_notifications:
                 try:
                     self._push_notification_sync(
@@ -181,8 +191,12 @@ class NotificationPusher(_NotificationPusherBase):
                         "Failed to push notification sync",
                         error=mlrun.errors.err_to_str(exc),
                     )
+            logger.debug("notifications: sync done")
 
         async def async_push():
+            logger.debug(
+                f"notifications: async prepare (count={len(self._async_notifications)})"
+            )
             tasks = []
             for notification_data in self._async_notifications:
                 tasks.append(
@@ -194,7 +208,10 @@ class NotificationPusher(_NotificationPusherBase):
                 )
 
             # return exceptions to "best-effort" fire all notifications
+            logger.debug("notifications: async gather start")
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            logger.debug(f"notifications: async gather done (results={len(results)})")
+
             for result in results:
                 if isinstance(result, Exception):
                     logger.warning(
@@ -212,9 +229,13 @@ class NotificationPusher(_NotificationPusherBase):
             notifications_amount=len(self._sync_notifications)
             + len(self._async_notifications),
         )
+        logger.debug(
+            f"notifications: start (sync={len(self._sync_notifications)}, async={len(self._async_notifications)})"
+        )
         sync_push_callback = sync_push_callback or sync_push
         async_push_callback = async_push_callback or async_push
         self._push(sync_push_callback, async_push_callback)
+        logger.debug("notifications: finished")
 
     @staticmethod
     def _should_notify(
@@ -323,6 +344,7 @@ class NotificationPusher(_NotificationPusherBase):
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
     ):
+        logger.debug("sync notif: push begin")
         message, severity, runs = self._prepare_notification_args(
             run, notification_object
         )
@@ -363,9 +385,11 @@ class NotificationPusher(_NotificationPusherBase):
             )
             raise exc
         finally:
+            logger.debug("sync notif: status update begin")
             self._update_notification_status(
                 **update_notification_status_kwargs,
             )
+            logger.debug("sync notif: status update done")
 
     async def _push_notification_async(
         self,
@@ -373,6 +397,7 @@ class NotificationPusher(_NotificationPusherBase):
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
     ):
+        logger.debug("async notif: push begin")
         message, severity, runs = self._prepare_notification_args(
             run, notification_object
         )
@@ -414,10 +439,12 @@ class NotificationPusher(_NotificationPusherBase):
             )
             raise exc
         finally:
+            logger.debug("async notif: status update begin")
             await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
                 **update_notification_status_kwargs,
             )
+            logger.debug("async notif: status update done")
 
     @staticmethod
     def _update_notification_status(

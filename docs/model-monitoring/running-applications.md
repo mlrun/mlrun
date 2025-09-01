@@ -98,8 +98,8 @@ batch_app_run = batch_app_job.run(
 ```
 
 You can divide the run into small time windows with the `base_period` parameter. When used, the
-difference between the `start` and `end` times will be divided into smaller non-overlapping
-intervals, each `base_period` minutes length.
+difference between the `start` and `end` times is divided into smaller non-overlapping intervals,
+each `base_period` minutes length.
 
 ### Running locally
 
@@ -110,7 +110,7 @@ See {ref}`mm-tsdb-streaming-platforms`.
 
 ### Overriding written data
 
-The `existing_data_handling` parameter allows you to control how the application handles existing data
+Use the `existing_data_handling` parameter to control how the application handles existing data
 in the output databases. By default, no time window overlap is allowed - `"fail_on_overlap"`.
 
 If you want to override the existing data, use the `"delete_all"` value. It removes all the

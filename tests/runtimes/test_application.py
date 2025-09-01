@@ -93,6 +93,23 @@ def test_create_application_runtime_many_ports(rundb_mock, igz_version_mock):
     assert fn.spec.internal_application_port == 22
 
 
+def test_application_runtime_update_port(rundb_mock, igz_version_mock):
+    # deploy with default value
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun", command="echo"
+    )
+    # both should be the same
+    assert fn.spec.internal_application_port == 8050
+    assert fn.spec.application_ports == [8050]
+
+    # simulate the case where the user updates the application port (without setting application ports)
+
+    fn.set_internal_application_port(5000)
+
+    assert fn.spec.internal_application_port == 5000
+    assert fn.spec.application_ports == [5000]
+
+
 def test_deploy_application_runtime(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(

@@ -146,7 +146,14 @@ def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_t
         )
 
 
-def test_results_to_iter(rundb_mock):
+def test_results_to_iter_status_resolution(rundb_mock):
+    """
+    Test that results_to_iter correctly updates the execution state based on the results provided.
+    Results objects contains result of each iteration, including their parameters and status.
+
+    The test first simulates a scenario where one of the iteration fails and is pending a retry,
+    then it simulates all iterations being successful.
+    """
     results = [
         {
             "spec": {"parameters": {"p1": 2, "p2": 0}},
@@ -188,13 +195,13 @@ def test_results_to_iter(rundb_mock):
         is_api=True,
         store_run=False,
     )
-    # Replace execution.commit with a no-op
+    # Replace execution.commit with a no-op to avoid persisting changes during test
     execution.commit = lambda: None
 
     mlrun.runtimes.utils.results_to_iter(results, run, execution)
     assert execution.state == mlrun.common.runtimes.constants.RunStates.pending_retry
 
-    # replace to make them all successful
-    results[0] = results[1]
+    # delete the failed result to simulate all iterations being successful
+    results = results[1:]
     mlrun.runtimes.utils.results_to_iter(results, run, execution)
     assert execution.state == mlrun.common.runtimes.constants.RunStates.completed

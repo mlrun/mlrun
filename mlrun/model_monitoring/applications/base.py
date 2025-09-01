@@ -903,7 +903,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   Note: the model monitoring infrastructure must be up for the writing to work.
         :param existing_data_handling:
                                   How to handle the existing application data for the model endpoints when writing
-                                  new data whose requested `start` time precedes the `end `time of a previous run
+                                  new data whose requested ``start`` time precedes the ``end`` time of a previous run
                                   that also wrote to the database. Relevant only when ``write_output=True``.
                                   The options are:
 

@@ -834,6 +834,14 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
     },
+    "auth_with_oauth_token": {
+        "enabled": False,
+        "request_timeout": 5,
+        "refresh_threshold": 0.75,
+        "auth_token_file": "~/.igz.yml",
+        "auth_token_name": "",
+    },
+    "auth_token_endpoint": "",
     "services": {
         # The running service name. One of: "api", "alerts"
         "service_name": "api",

@@ -46,7 +46,11 @@ import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
 from mlrun.common.types import AuthenticationMode
-from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
+from mlrun.db.auth_utils import (
+    IGTokenProvider,
+    OAuthClientIDTokenProvider,
+    StaticTokenProvider,
+)
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun_pipelines.utils import compile_pipeline
 
@@ -179,6 +183,10 @@ class HTTPRunDB(RunDBInterface):
                 client_id=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
                 client_secret=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
                 timeout=config.auth_with_client_id.request_timeout,
+            )
+        elif config.auth_with_oauth_token.enabled:
+            self.token_provider = IGTokenProvider(
+                token_endpoint=config.auth_token_endpoint,
             )
         else:
             username, password, token = mlrun.platforms.add_or_refresh_credentials(

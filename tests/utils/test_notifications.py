@@ -381,7 +381,6 @@ def test_notification_reason(notification_kind):
     )
 
 
-@pytest.mark.skip("Failing on CI - temporarily skipped pending fix")
 @pytest.mark.parametrize(
     "when, run_state, store_count",
     [
@@ -449,7 +448,6 @@ def test_notification_update_notification_status(when, run_state, store_count):
     assert db.store_run_notifications.call_count == store_count
 
 
-@pytest.mark.skip("Failing on CI - temporarily skipped pending fix")
 @pytest.mark.parametrize(
     "notification_kind",
     [

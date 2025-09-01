@@ -9,7 +9,7 @@ require (
 	github.com/nuclio/logger v0.0.1
 	github.com/nuclio/loggerus v0.0.6
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.16.0
 	google.golang.org/grpc v1.75.0
 	k8s.io/api v0.32.5

@@ -41,9 +41,12 @@ class TestFeatureStoreGcsSparkEngine(SparkHadoopTestBase):
 
     def test_basic_remote_spark_ingest_ds_gcs(self):
         bucket = self.env["GCS_BUCKET_NAME"]
+        with open(self.env["GOOGLE_APPLICATION_CREDENTIALS"]) as gcs_credentials_path:
+            #  environ expect credentials as string
+            credentials = gcs_credentials_path.read()
         ds_profile = DatastoreProfileGCS(
             name=self.ds_profile_name,
-            gcp_credentials=self.env["GCP_CREDENTIALS"],
+            gcp_credentials=credentials,
             bucket=bucket,
         )
         register_temporary_client_datastore_profile(ds_profile)

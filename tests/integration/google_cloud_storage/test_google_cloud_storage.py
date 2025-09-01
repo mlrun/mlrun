@@ -91,16 +91,11 @@ class TestGoogleCloudStorage:
     def setup_class(cls):
         with open(cls.test_file) as f:
             cls.test_string = f.read()
-        try:
-            credentials = json.loads(cls.credentials_path)
-            token = credentials
-            cls.credentials = cls.credentials_path
-        except json.JSONDecodeError:
-            token = cls.credentials_path
-            with open(cls.credentials_path) as gcs_credentials_path:
-                cls.credentials = gcs_credentials_path.read()
+        with open(cls.credentials_path) as gcs_credentials_path:
+            #  environ expect credentials as string
+            cls.credentials = gcs_credentials_path.read()
 
-        cls._gcs_fs = fsspec.filesystem("gcs", token=token)
+        cls._gcs_fs = fsspec.filesystem("gcs", token=json.loads(cls.credentials))
         cls.clean_test_directory()
 
     def _setup_profile(self, profile_auth_by):

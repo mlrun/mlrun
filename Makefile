@@ -346,6 +346,7 @@ mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
+		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) .
@@ -1044,6 +1045,7 @@ upgrade-mlrun-test-deps-lock: ## Upgrade mlrun test locked requirements file
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--python-version $(MLRUN_PYTHON_VERSION) \
+		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		--output-file dockerfiles/test/locked-requirements_${MLRUN_PYTHON_VERSION}.txt
 
 .PHONY: upgrade-mlrun-system-test-deps-lock

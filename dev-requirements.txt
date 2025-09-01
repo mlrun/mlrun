@@ -36,7 +36,6 @@ scikit-learn~=1.5.2
 lightgbm~=4.3
 xgboost~=1.1
 # TODO: once tensorflow upgrades their dependencies to support a newer version protobuf, we can uncomment this line
-#tensorflow~=2.19; python_version > "3.9"
 tensorflow~=2.15; python_version <= "3.9"
 cryptography~=44.0
 

@@ -1025,30 +1025,28 @@ class KubeResource(BaseRuntime):
         """
         Configure Kubernetes node scheduling for this function.
 
-        Updates one or more scheduling hints: exact node pinning, label-based
-        selection, affinity/anti-affinity rules, and taint tolerations.
-        Passing ``None`` leaves the current value unchanged; pass an empty
-        dict/list (e.g. ``{}``, ``[]``) to clear the corresponding field.
-
-        Node selectors are validated before being applied. After
-        updating, a preemption/spot compatibility warning may be emitted if the
-        provided selectors, tolerations, or affinity conflict with the current function
-        preemption mode.
+        Updates one or more scheduling hints: exact node pinning, label-based selection,
+        affinity/anti-affinity rules, and taint tolerations. Passing ``None`` leaves the
+        current value unchanged; pass an empty dict/list (e.g., ``{}``, ``[]``) to clear.
 
         Args:
             node_name: Exact Kubernetes node name to pin the pod to.
-            node_selector: Mapping of label selectors; the pod is eligible only
-                on nodes matching all labels. Use ``{}`` to clear.
-            affinity: Kubernetes ``V1Affinity`` defining (anti)affinity constraints.
-            tolerations: List of ``V1Toleration`` allowing scheduling onto tainted
-                nodes. Use ``[]`` to clear.
+            node_selector: Mapping of label selectors. Use ``{}`` to clear.
+            affinity: :class:`kubernetes.client.V1Affinity` constraints.
+            tolerations: List of :class:`kubernetes.client.V1Toleration`. Use ``[]`` to clear.
 
-        Examples:
-            # Prefer a GPU pool and allow scheduling on spot nodes:
-            job.with_node_selection(
-                node_selector={"nodepool": "gpu"},
-                tolerations=[k8s_client.V1Toleration(key="spot", operator="Exists")]
-            )
+        Warns:
+            PreemptionWarning: Emitted if provided selectors/tolerations/affinity
+                conflict with the function's preemption mode.
+
+        Example usage::
+            Prefer a GPU pool and allow scheduling on spot nodes:
+
+               job.with_node_selection(
+                   node_selector={"nodepool": "gpu"},
+                   tolerations=[k8s_client.V1Toleration(key="spot", operator="Exists")]
+                   )
+
         """
         if node_name:
             self.spec.node_name = node_name

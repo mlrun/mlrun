@@ -91,7 +91,7 @@ project.run(name="training_pipeline", arguments={...})
 ```
 
 ### Git integration
-Docs: [Create and use functions](./runtimes/create-and-use-functions.ipynb#multiple-source-files)
+Docs: [Create and use functions](./runtimes/create-and-use-functions.ipynb#create-a-function-with-multiple-source-files)
 
 An MLRun project can be backed by a Git repo. Functions consume the repo and pull the code either: once when Docker image is built (production workflow); or at runtime (development workflow).
 

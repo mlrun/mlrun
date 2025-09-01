@@ -3397,9 +3397,9 @@ terminado==0.18.1 \
     # via
     #   jupyter-server
     #   jupyter-server-terminals
-textual==5.3.0 ; sys_platform != 'win32' \
-    --hash=sha256:02a6abc065514c4e21f94e79aaecea1f78a28a85d11d7bfc64abf3392d399890 \
-    --hash=sha256:1b6128b339adef2e298cc23ab4777180443240ece5c232f29b22960efd658d4d
+textual==6.0.0 ; sys_platform != 'win32' \
+    --hash=sha256:833588ebe6c7b0e58d085a018cf064b995aa1ee9632fa95229acf7ac2ef8be9f \
+    --hash=sha256:cb8882e7601a80a130a96d01393bd4c6d1bffb7dc9f6a820eb6b526acf0bfe10
     # via memray
 threadpoolctl==3.6.0 \
     --hash=sha256:43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb \

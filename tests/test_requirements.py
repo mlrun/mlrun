@@ -150,10 +150,6 @@ def test_requirement_specifiers_convention():
         "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
-        "urllib3": {
-            '>=1.26.20; python_version < "3.11"',
-            '>=2.5.0; python_version >= "3.11"',
-        },
         "dask": {
             '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
             '~=2023.12.1; python_version < "3.11"',
@@ -168,12 +164,13 @@ def test_requirement_specifiers_convention():
             '~=1.74.0; python_version > "3.9"',
         },
         "kfp": {
-            '==1.8.22; python_version < "3.11"',
-            '~=1.8.23; python_version >= "3.11"',
+            "~=1.8.22",
         },
         "scikit-learn": {
             "~=1.5.1",
-            "~=1.5.2",
+        },
+        "urllib3": {
+            ">=1.26.20",
         },
     }
 
@@ -211,17 +208,9 @@ def test_requirement_specifiers_inconsistencies():
         # on the other hand, mlrun client can have both and thus the inconsistency
         "pydantic": {">=1,<2", ">=1.10.15"},
         # packages that require specific versions per python version
-        "v3io-frames": {
-            '>=0.13.0; python_version >= "3.11"',
-            '~=0.10.15; python_version < "3.11"',
-        },
         "dask-ml": {
             '~=2024.4.4; python_version >= "3.11"',
             '~=1.4,<1.9.0; python_version < "3.11"',
-        },
-        "urllib3": {
-            '>=1.26.20; python_version < "3.11"',
-            '>=2.5.0; python_version >= "3.11"',
         },
         "dask": {
             '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
@@ -235,14 +224,6 @@ def test_requirement_specifiers_inconsistencies():
         "grpcio": {
             '~=1.59.0; python_version <= "3.9"',
             '~=1.74.0; python_version > "3.9"',
-        },
-        "kfp": {
-            '==1.8.22; python_version < "3.11"',
-            '~=1.8.23; python_version >= "3.11"',
-        },
-        "scikit-learn": {
-            "~=1.5.1",
-            "~=1.5.2",
         },
     }
 

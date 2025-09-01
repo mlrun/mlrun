@@ -38,3 +38,4 @@ cryptography~=44.0
 
 # install to verify it doesn't cause a warning (ML-8951)
 evidently~=0.7.6
+tensorflow~=2.15 ; python_version < "3.11"

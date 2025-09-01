@@ -98,6 +98,15 @@ class HuggingFaceProvider(ModelProvider):
         return self._client
 
     def _download_model(self):
+        """
+        Pre-downloads model files locally to prevent race conditions in multiprocessing.
+
+        Uses snapshot_download with local_dir_use_symlinks=False to ensure proper
+        file copying for safe concurrent access across multiple processes.
+
+        :raises:
+            ImportError: If huggingface_hub package is not installed.
+        """
         try:
             from huggingface_hub import snapshot_download
 

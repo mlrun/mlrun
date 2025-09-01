@@ -91,16 +91,11 @@ class TestGoogleCloudStorage:
     def setup_class(cls):
         with open(cls.test_file) as f:
             cls.test_string = f.read()
-        try:
-            credentials = json.loads(cls.credentials_path)
-            token = credentials
-            cls.credentials = cls.credentials_path
-        except json.JSONDecodeError:
-            token = cls.credentials_path
-            with open(cls.credentials_path) as gcs_credentials_path:
-                cls.credentials = gcs_credentials_path.read()
+        with open(cls.credentials_path) as gcs_credentials_path:
+            #  environ expect credentials as string
+            cls.credentials = gcs_credentials_path.read()
 
-        cls._gcs_fs = fsspec.filesystem("gcs", token=token)
+        cls._gcs_fs = fsspec.filesystem("gcs", token=json.loads(cls.credentials))
         cls.clean_test_directory()
 
     def _setup_profile(self, profile_auth_by):
@@ -109,7 +104,9 @@ class TestGoogleCloudStorage:
                 kwargs = {"credentials_path": self.credentials_path}
             else:
                 kwargs = {"gcp_credentials": self.credentials}
-            profile = DatastoreProfileGCS(name=self.profile_name, **kwargs)
+            profile = DatastoreProfileGCS(
+                name=self.profile_name, bucket=self.bucket_name, **kwargs
+            )
             register_temporary_client_datastore_profile(profile)
 
     @pytest.fixture(autouse=True)
@@ -121,7 +118,7 @@ class TestGoogleCloudStorage:
         os.environ.pop("GCP_CREDENTIALS", None)
         remove_temporary_client_datastore_profile(self.profile_name)
         self._bucket_path = (
-            f"ds://{self.profile_name}/{self.bucket_name}"
+            f"ds://{self.profile_name}"
             if use_datastore_profile
             else f"gcs://{self.bucket_name}"
         )
@@ -440,7 +437,7 @@ class TestGoogleCloudStorage:
                 {"gcp_credentials": fake_credentials} if credentials_value else {}
             )
             self.profile = DatastoreProfileGCS(
-                name=self.profile_name, **gcp_credentials_dict
+                name=self.profile_name, bucket=self.bucket_name, **gcp_credentials_dict
             )
             register_temporary_client_datastore_profile(self.profile)
         elif fake_credentials:

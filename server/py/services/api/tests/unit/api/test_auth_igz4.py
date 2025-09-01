@@ -280,7 +280,7 @@ def test_is_access_token_valid(
     ],
 )
 def test_get_token_lifetime_and_expiry(token, expected_lifetime, expected_expiration):
-    lifetime, expiry = IGTokenProvider.get_token_lifetime_and_expiry(token)
+    lifetime, expiry = IGTokenProvider._get_token_lifetime_and_expiry(token)
     assert lifetime == expected_lifetime
     if expected_lifetime > 0:
         # allow small delta for dynamic timestamp comparison

@@ -213,33 +213,6 @@ class IGTokenProvider(TokenProvider):
             > config.auth_with_oauth_token.refresh_threshold
         )
 
-    @staticmethod
-    def get_token_lifetime_and_expiry(
-        token: str,
-    ) -> tuple[int, typing.Optional[datetime]]:
-        """
-        Calculate the total lifetime and expiration time of the token.
-
-        :param token: The access token to decode.
-        :return: A tuple containing the total lifetime of the token in seconds and its expiration time as a datetime.
-        """
-        if not token:
-            return 0, None
-        try:
-            decoded_token = jwt.decode(token, options={"verify_signature": False})
-            exp_timestamp = decoded_token.get("exp")
-            iat_timestamp = decoded_token.get("iat")
-            if exp_timestamp and iat_timestamp:
-                return exp_timestamp - iat_timestamp, datetime.fromtimestamp(
-                    exp_timestamp
-                )
-        except jwt.PyJWTError as exc:
-            logger.warning(
-                "Failed to decode access token",
-                error=str(exc),
-            )
-        return 0, None
-
     def _fetch_access_token(self, raise_on_error=False):
         """
         Fetch a new access token using the offline token.
@@ -249,6 +222,9 @@ class IGTokenProvider(TokenProvider):
             # Error already handled in `_load_offline_token`
             return
 
+        self._send_refresh_request(offline_token, raise_on_error=raise_on_error)
+
+    def _send_refresh_request(self, offline_token: str, raise_on_error=False):
         try:
             headers = {"Content-Type": "application/json"}
             request_body = {"refreshToken": offline_token}
@@ -287,8 +263,36 @@ class IGTokenProvider(TokenProvider):
 
         self._access_token = access_token
         self._token_total_lifetime, self._token_expiry_time = (
-            self.get_token_lifetime_and_expiry(access_token)
+            self._get_token_lifetime_and_expiry(access_token)
         )
+
+    @staticmethod
+    def _get_token_lifetime_and_expiry(
+        token: str,
+    ) -> tuple[int, typing.Optional[datetime]]:
+        """
+        Calculate the total lifetime and expiration time of the token.
+
+        :param token: The access token to decode.
+        :return: A tuple containing the total lifetime of the token in seconds and its expiration time as a datetime.
+        """
+        if not token:
+            return 0, None
+        try:
+            # already been verified earlier during the refresh access token call
+            decoded_token = jwt.decode(token, options={"verify_signature": False})
+            exp_timestamp = decoded_token.get("exp")
+            iat_timestamp = decoded_token.get("iat")
+            if exp_timestamp and iat_timestamp:
+                return exp_timestamp - iat_timestamp, datetime.fromtimestamp(
+                    exp_timestamp
+                )
+        except jwt.PyJWTError as exc:
+            logger.warning(
+                "Failed to decode access token",
+                error=str(exc),
+            )
+        return 0, None
 
     def _load_offline_token(self, raise_on_error=True) -> typing.Optional[str]:
         """

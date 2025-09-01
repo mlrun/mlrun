@@ -32,6 +32,7 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
             "root['source']['metadata']['created']",
         ]
         for i in range(len(expected_response)):
+            print(f"[DD] iteration {i} response in the test: {response[i]}")
             assert (
                 deepdiff.DeepDiff(
                     expected_response[i].dict(),

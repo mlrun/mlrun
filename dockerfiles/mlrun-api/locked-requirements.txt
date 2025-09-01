@@ -729,9 +729,9 @@ durationpy==0.10 \
     --hash=sha256:1fa6893409a6e739c9c72334fc65cca1f355dbdd93405d30f726deb5bde42fba \
     --hash=sha256:3b41e1b601234296b4fb368338fdcd3e13e0b4fb5b67345948f4f2bf9868b286
     # via kubernetes
-executing==2.2.0 \
-    --hash=sha256:11387150cad388d62750327a53d3339fad4888b39a6fe233c3afbb54ecffd3aa \
-    --hash=sha256:5d108c028108fe2551d1a7b2e8b713341e2cb4fc0aa7dcf966fa4327a5226755
+executing==2.2.1 \
+    --hash=sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4 \
+    --hash=sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017
     # via stack-data
 fastapi==0.115.14 \
     --hash=sha256:6c0c8bf9420bd58f565e585036d971872472b4f7d3f6c73b698e10cffdefb3ca \
@@ -935,10 +935,6 @@ fsspec==2024.6.1 \
     #   s3fs
     #   storey
     #   v3iofs
-future==1.0.0 \
-    --hash=sha256:929292d34f5872e70396626ef385ec22355a1fae8ad29e1a734c3e43f9fbc216 \
-    --hash=sha256:bd2968309307861edae1458a4f8a4f3598c03be43b97521076aebf5d94c07b05
-    # via v3io
 gcsfs==2024.6.1 \
     --hash=sha256:13fd18095425e54e248870594fd155812723966b1bda3b102b3a5c44ec436a03 \
     --hash=sha256:e8858c7a893b2265e9bfce2fe270a024a2e348c74c23528801db388fc0224ed7
@@ -3520,8 +3516,8 @@ uvicorn==0.32.1 \
     # via
     #   -r dockerfiles/mlrun-api/requirements.txt
     #   mlflow-skinny
-v3io==0.7.1 \
-    --hash=sha256:435cb5ae0156ba92a4fd49c2027c824909cd11cd2ef61849bd5de5a12905d33a
+v3io==0.7.2 \
+    --hash=sha256:1eef6ebbc744c703b7f2fbeec4a47063c6606045c7307587bec2f0b7167a8629
     # via
     #   -r requirements.txt
     #   storey
@@ -3529,9 +3525,7 @@ v3io==0.7.1 \
 v3io-frames==0.13.10 \
     --hash=sha256:199a76c47e4a04e2808defe8631e8b499bb428250b6b0dc02cc65f99f6f0d655 \
     --hash=sha256:9a12893c45a84e0c41a3fa685b12926ec555d807205c4192fce119349dd41434
-    # via
-    #   -r requirements.txt
-    #   storey
+    # via storey
 v3iofs==0.1.18 \
     --hash=sha256:b628588905becd70f546e700c1ec06c027cb001fe58e2a56ab1be840fd4ec5fd \
     --hash=sha256:dc52cda02573bcab5d6fd5919753c24321f50b150a44681790ae5797ac10a648

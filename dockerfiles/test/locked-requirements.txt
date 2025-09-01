@@ -997,9 +997,9 @@ exceptiongroup==1.3.0 ; python_full_version < '3.11' \
     #   ipython
     #   litestar
     #   pytest
-executing==2.2.0 \
-    --hash=sha256:11387150cad388d62750327a53d3339fad4888b39a6fe233c3afbb54ecffd3aa \
-    --hash=sha256:5d108c028108fe2551d1a7b2e8b713341e2cb4fc0aa7dcf966fa4327a5226755
+executing==2.2.1 \
+    --hash=sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4 \
+    --hash=sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017
     # via stack-data
 faker==37.6.0 \
     --hash=sha256:0f8cc34f30095184adf87c3c24c45b38b33ad81c35ef6eb0a3118f301143012c \
@@ -1218,10 +1218,6 @@ fsspec==2024.6.1 \
     #   s3fs
     #   storey
     #   v3iofs
-future==1.0.0 \
-    --hash=sha256:929292d34f5872e70396626ef385ec22355a1fae8ad29e1a734c3e43f9fbc216 \
-    --hash=sha256:bd2968309307861edae1458a4f8a4f3598c03be43b97521076aebf5d94c07b05
-    # via v3io
 gast==0.6.0 ; python_full_version < '3.11' \
     --hash=sha256:52b182313f7330389f72b069ba00f174cfe2a06411099547288839c6cbafbd54 \
     --hash=sha256:88fc5300d32c7ac6ca7b515310862f71e6fdf2c029bbec7c66c0f5dd47b6b1fb
@@ -5307,8 +5303,8 @@ uvloop==0.21.0 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     --hash=sha256:f3df876acd7ec037a3d005b3ab85a7e4110422e4d9c1571d4fc89b0fc41b6816 \
     --hash=sha256:f7089d2dc73179ce5ac255bdf37c236a9f914b264825fdaacaded6990a7fb4c2
     # via uvicorn
-v3io==0.7.1 \
-    --hash=sha256:435cb5ae0156ba92a4fd49c2027c824909cd11cd2ef61849bd5de5a12905d33a
+v3io==0.7.2 \
+    --hash=sha256:1eef6ebbc744c703b7f2fbeec4a47063c6606045c7307587bec2f0b7167a8629
     # via
     #   -r requirements.txt
     #   storey

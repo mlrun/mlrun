@@ -155,6 +155,8 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
+            # Load the client before using async operations
+            self.model_provider.load_async_client()
             coros = [
                 timed(
                     self.model_provider.async_invoke(

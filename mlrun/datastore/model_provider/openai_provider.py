@@ -67,7 +67,6 @@ class OpenAIProvider(ModelProvider):
             default_invoke_kwargs=default_invoke_kwargs,
         )
         self.options = self.get_client_options()
-        self.load_client()
 
     @classmethod
     def _import_response_class(cls) -> None:
@@ -98,24 +97,56 @@ class OpenAIProvider(ModelProvider):
             subpath = ""
         return endpoint, subpath
 
+    @property
+    def client(self) -> Any:
+        """
+        Lazily return the synchronous OpenAI client.
+
+        If the client has not been initialized yet, it will be created
+        by calling `load_client`.
+        """
+        self.load_client()
+        return self._client
+
     def load_client(self) -> None:
         """
-        Initializes the OpenAI SDK client using the provided options.
+        Lazily initialize the synchronous OpenAI client.
 
-        This method imports the `OpenAI` class from the `openai` package, instantiates
-        a client with the given keyword arguments (`self.options`), and assigns it to
-        `self._client` and `self._async_client`.
-
-        Raises:
-            ImportError: If the `openai` package is not installed.
+        The client is created only if it does not already exist.
+        Raises ImportError if the openai package is not installed.
         """
-        try:
-            from openai import OpenAI, AsyncOpenAI  # noqa
+        if not self._client:
+            try:
+                from openai import OpenAI  # noqa
 
-            self._client = OpenAI(**self.options)
-            self._async_client = AsyncOpenAI(**self.options)
-        except ImportError as exc:
-            raise ImportError("openai package is not installed") from exc
+                self._client = OpenAI(**self.options)
+            except ImportError as exc:
+                raise ImportError("openai package is not installed") from exc
+
+    def load_async_client(self) -> None:
+        """
+        Lazily initialize the asynchronous OpenAI client.
+
+        The client is created only if it does not already exist.
+        Raises ImportError if the openai package is not installed.
+        """
+        if not self._async_client:
+            try:
+                from openai import AsyncOpenAI  # noqa
+
+                self._async_client = AsyncOpenAI(**self.options)
+            except ImportError as exc:
+                raise ImportError("openai package is not installed") from exc
+
+    @property
+    def async_client(self) -> Any:
+        """
+        Return the asynchronous OpenAI client, creating it on first access.
+
+        The client is lazily initialized via `load_async_client`.
+        """
+        self.load_async_client()
+        return self._async_client
 
     def get_client_options(self) -> dict:
         res = dict(

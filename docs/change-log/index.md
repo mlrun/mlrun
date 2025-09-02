@@ -519,7 +519,7 @@ To upgrade the MLRun server:
 | ML-1835 | The index record is not duplicated in the datasets metadata.                                                                                                                                      | 
 | ML-3714 | Runs that complete successfully do not show errors in Kubeflow.                                                                                                                                   |
 | ML-3856 | Documentation: Add how to update a feature set with appending ingestion (and not create a new FS on every ingest). See [Ingest data locally](../data-prep/ingest-data-fs.md#ingest-data-locally). |
-| ML-4093 | Documentation: Improved description of [handlers](../runtimes/create-and-use-functions.ipynb#using-set_function) and {ref}`functions`.                                                            |
+| ML-4093 | Documentation: Improved description of [handlers](../runtimes/create-and-use-functions.ipynb#creating-functions) and {ref}`functions`.                                                            |
 | ML-4370 | Hyper-param and single runs no longer generate artifacts with the same name.                                                                                                                      |
 | ML-4563 | Local jobs can now be aborted in the UI.                                                                                                                                                          |
 | ML-4585 | The `mlrun/mlrun` image now supports mpijob.                                                                                                                                                      | 

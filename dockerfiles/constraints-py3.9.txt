@@ -1,3 +1,4 @@
 kfp==1.8.22
-urllib3==1.26.20
-v3io-frames==0.10.15
+urllib3~=1.26.20
+v3io-frames~=0.10.15
+grpcio~=1.59.0

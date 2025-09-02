@@ -275,7 +275,6 @@ mlrun-kfp: update-version-file ## Build mlrun docker image with KFP
 		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) .
@@ -923,6 +922,7 @@ upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter lock
 		dockerfiles/jupyter/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--python-version $(MLRUN_PYTHON_VERSION) \
+		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-test-deps-lock
@@ -930,23 +930,23 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
-		dockerfiles/mlrun-api/requirements.txt \
-		dockerfiles/mlrun-kfp/requirements.txt \
+		dockerfiles/test/requirements.txt \
 		dev-requirements.txt \
 		--python-version $(MLRUN_PYTHON_VERSION) \
 		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/test/locked-requirements.txt
+		--output-file dockerfiles/test/locked-requirements_$(MLRUN_PYTHON_VERSION).txt
 
 .PHONY: upgrade-mlrun-system-test-deps-lock
 upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system test locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
-		dockerfiles/mlrun-kfp/requirements.txt \
-		dockerfiles/mlrun-api/requirements.txt \
+		dockerfiles/test/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
+		--python-version $(MLRUN_PYTHON_VERSION) \
+		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		--output-file dockerfiles/test-system/locked-requirements.txt
 
 
@@ -972,6 +972,7 @@ upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
 		--python-version $(MLRUN_PYTHON_VERSION) \
+		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements_$(MLRUN_PYTHON_VERSION).txt
 

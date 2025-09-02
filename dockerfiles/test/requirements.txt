@@ -1,2 +1,4 @@
+-r ../mlrun-api/requirements.txt
+# additional dependencies for kfp
 kfp~=1.8.22
 mlrun-pipelines-kfp-v1-8~=0.4.3

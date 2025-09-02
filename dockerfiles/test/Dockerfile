@@ -58,7 +58,7 @@ ARG MLRUN_PYTHON_VERSION=3.9
 # kfp 1.8 *even though it is explicitly set on locked file that kfp 1.8 is for python < 3.11*
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \
+    --mount=type=bind,source=dockerfiles/test/locked-requirements_${MLRUN_PYTHON_VERSION}.txt,target=locked-requirements.txt \
     uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
 COPY . .

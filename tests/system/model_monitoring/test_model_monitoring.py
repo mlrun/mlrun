@@ -702,12 +702,19 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
     def test_mep_with_remote_model(self):
         model_name = "my_model"
-        model_url = "http://localhost:8080/v2/models/mymodel/infer"
+        model_url = "mock://my-model-url"
         default_config = {"model_version": "4"}
         model_artifact = self.project.log_model(
             model_name,
             model_url=model_url,
             default_config=default_config,
+        )
+        llm_prompt = self.project.log_llm_prompt(
+            "my-llm-prompt",
+            prompt_template=[
+                {"role": "user", "content": "What is the capital of France?"}
+            ],
+            model_artifact=model_artifact,
         )
         function = mlrun.code_to_function(
             name="function_with_model",
@@ -718,6 +725,13 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             image=self.image,
         )
         graph = function.set_topology("flow", engine="async")
+        graph.add_shared_model(
+            model_class="LLModel",
+            execution_mechanism="naive",
+            result_path="result",
+            name="shared-model",
+            model_artifact=model_artifact,
+        )
         model_runner_step = mlrun.serving.states.ModelRunnerStep(
             name="model-runner-step"
         )
@@ -725,20 +739,64 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             model_class="MyRemoteModel",
             execution_mechanism="naive",
             endpoint_name="my-model-1",
-            model_artifact=model_artifact.uri,
+            model_artifact=model_artifact,
+        )
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my-model-2",
+            model_artifact=llm_prompt.uri,
+        )
+        model_runner_step.add_model(
+            model_class="LLModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model-3",
+            model_artifact=llm_prompt.uri,
         )
         graph.to(model_runner_step, "runner").respond()
 
-        function.set_tracking()
         function.deploy()
 
         response = function.invoke(
             f"v2/models/{model_name}/infer",
             json.dumps({"prompt": "What is the capital of france?"}),
         )
-        assert response["default_config"] == default_config
-        assert response["url"] == model_url
-        assert response["prompt"] == "What is the capital of france?"
+
+        assert response["my-model-1"]["default_config"] == default_config
+        assert response["my-model-1"]["url"] == model_url
+        assert response["my-model-1"]["prompt"] == "What is the capital of france?"
+
+        assert (
+            response["my-model-2"]["result"]["answer"]
+            == "You are using a mock model provider, no actual inference is performed."
+        )
+        assert response["my-model-2"]["result"]["usage"] == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        assert (
+            response["my-model-3"]["answer"]
+            == "You are using a mock model provider, no actual inference is performed."
+        )
+        assert response["my-model-3"]["usage"] == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        meps = self.project.list_model_endpoints()
+        assert (
+            len(meps.endpoints) == 3
+        ), f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        mep_2: ModelEndpoint = self.project.list_model_endpoints(
+            names="my-model-2"
+        ).endpoints[0]
+        assert mep_2.spec.label_names == ["answer", "usage"]
+        assert mep_2.spec.model_class == "LLModel"
+
+        mep_3: ModelEndpoint = self.project.list_model_endpoints(
+            names="my-model-3"
+        ).endpoints[0]
+        assert mep_3.spec.label_names == ["answer", "usage"]
+        assert mep_3.spec.model_class == "LLModel"
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

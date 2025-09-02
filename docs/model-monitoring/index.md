@@ -76,6 +76,7 @@ For example:
 
 <img src="../_static/images/mm_metrics.png" width="700" >
 
+(mm-tsdb-streaming-platforms)=
 ## Selecting the streaming and TSDB platforms
 
 Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO TSDB platforms.

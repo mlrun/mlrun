@@ -38,6 +38,7 @@ import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.utils import get_in, logger
 
+import framework.utils.clients.helpers as clients_helpers
 import framework.utils.helpers
 import framework.utils.projects.remotes.leader as project_leader
 
@@ -934,14 +935,7 @@ class Client(
             kwargs["cookies"] = cookies
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
-        if "projects" in path:
-            if mlrun.common.schemas.HeaderNames.projects_role not in kwargs.get(
-                "headers", {}
-            ):
-                kwargs.setdefault("headers", {})[
-                    mlrun.common.schemas.HeaderNames.projects_role
-                ] = "mlrun"
-
+        clients_helpers.add_project_role_headers_if_needed(path, kwargs)
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness
         for kwarg in ["headers", "params"]:

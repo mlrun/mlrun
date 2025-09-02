@@ -333,7 +333,9 @@ class DatastoreProfileGCS(DatastoreProfile):
             #  in gcs the path after schema is starts with bucket, wherefore it should not start with "/".
             subpath = subpath[1:]
         if self.bucket:
-            return f"gcs://{self.bucket}/{subpath}"
+            return (
+                f"gcs://{self.bucket}/{subpath}" if subpath else f"gcs://{self.bucket}"
+            )
         else:
             return f"gcs://{subpath}"
 
@@ -370,7 +372,11 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
             #  in azure the path after schema is starts with container, wherefore it should not start with "/".
             subpath = subpath[1:]
         if self.container:
-            return f"az://{self.container}/{subpath}"
+            return (
+                f"az://{self.container}/{subpath}"
+                if subpath
+                else f"az://{self.container}"
+            )
         else:
             return f"az://{subpath}"
 

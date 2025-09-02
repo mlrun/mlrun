@@ -22,6 +22,7 @@ import mlrun
 import mlrun.runtimes.databricks_job.databricks_runtime
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
+import mlrun.runtimes.nuclio.application
 import mlrun.runtimes.pod
 
 
@@ -54,6 +55,7 @@ def test_runtimes_inheritance(method, base_classes):
         ],
         mlrun.runtimes.nuclio.function.NuclioSpec: [
             mlrun.runtimes.nuclio.serving.ServingSpec,
+            mlrun.runtimes.nuclio.application.application.ApplicationSpec,
         ],
         mlrun.runtimes.base.FunctionStatus: [
             mlrun.runtimes.daskjob.DaskStatus,

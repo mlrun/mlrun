@@ -56,6 +56,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
                 f"The following openai keys are missing: {missing_env_variables}"
             )
         cls.basic_llm_model = "gpt-4o-mini"
+        cls.embedding_model = "text-embedding-3-small"
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
@@ -130,3 +131,31 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             model_name=self.basic_llm_model,
             total_duration=total_duration,
         )
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_open_ai_custom(self, execution_mechanism):
+        mlrun_model_name = "custom_invoke_model"
+        model_url = self.url_prefix + self.embedding_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            model_url,
+            mlrun_model_name=mlrun_model_name,
+            execution_mechanism=execution_mechanism,
+            image=self.image,
+            requirements=["openai==1.77.0"],
+            model_class="MyOpenAICustom",
+            default_config={"dimensions": 256},
+        )
+        function.deploy()
+        prompt = "Hello GPT"
+        result = function.invoke(
+            f"v2/models/{mlrun_model_name}/infer",
+            json.dumps({"input": prompt}),
+        )["result"]
+        encoding = tiktoken.encoding_for_model(self.embedding_model)
+        token_count = len(encoding.encode(prompt))
+        assert len(result["data"][0]["embedding"]) == 256
+        assert result["usage"]["total_tokens"] == token_count

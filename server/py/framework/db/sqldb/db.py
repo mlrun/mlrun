@@ -5746,7 +5746,7 @@ class SQLDB(DBInterface):
         model_name: Optional[str] = None,
         model_tag: Optional[str] = None,
         top_level: Optional[bool] = None,
-        mode: Optional[EndpointMode] = None,
+        modes: Optional[list[EndpointMode]] = None,
         labels: Optional[list[str]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -5767,7 +5767,8 @@ class SQLDB(DBInterface):
         :param model_name: The model name of the model endpoint.
         :param model_tag: The model tag associated with the model endpoint.
         :param top_level: If True, filters for top-level model endpoints.
-        :param mode: Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or both if set to None.
+        :param modes: Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+                      "batch_legacy" (2). If set to None, all are included.
         :param labels: The labels to filter model endpoints.
         :param start: Start date-time filter.
         :param end: End date-time filter.
@@ -5817,19 +5818,36 @@ class SQLDB(DBInterface):
             query = query.filter(
                 ModelEndpoint.endpoint_type.in_(EndpointType.top_level_list())
             )
-        if mode is not None:
-            if mode == EndpointMode.REAL_TIME:
-                # Real Time + Old Batch EP (none value)
+        if modes is not None:
+            batch_legacy = EndpointMode.BATCH_LEGACY in modes
+            real_time = EndpointMode.REAL_TIME in modes
+
+            if batch_legacy and real_time:
                 query = query.filter(
                     or_(
-                        ModelEndpoint.mode == EndpointMode.REAL_TIME,
+                        ModelEndpoint.mode.in_(modes),
                         ModelEndpoint.mode.is_(None),
                     )
                 )
-
+            elif batch_legacy:
+                query = query.filter(
+                    or_(
+                        ModelEndpoint.mode.in_(modes),
+                        and_(
+                            ModelEndpoint.mode.is_(None),
+                            ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
+                        ),
+                    )
+                )
+            elif real_time:
+                query = query.filter(
+                    or_(
+                        ModelEndpoint.mode.in_(modes),
+                        ModelEndpoint.endpoint_type != EndpointType.BATCH_EP,
+                    )
+                )
             else:
-                # Batch EP
-                query = query.filter(ModelEndpoint.mode == EndpointMode.BATCH)
+                query = query.filter(ModelEndpoint.mode.in_(modes))
 
         # Apply function-related filters
         if function_name or function_tag:
@@ -7996,7 +8014,7 @@ class SQLDB(DBInterface):
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
-        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: typing.Optional[list[mlrun.common.schemas.EndpointMode]] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
@@ -8023,7 +8041,7 @@ class SQLDB(DBInterface):
             model_name=model_name,
             model_tag=model_tag,
             top_level=top_level,
-            mode=mode,
+            modes=modes,
             start=start,
             end=end,
             uids=uids,

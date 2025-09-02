@@ -801,7 +801,11 @@ class MonitoringApplicationController:
         logger.info("Starting monitoring controller chief")
         applications_names = []
         endpoints = self.project_obj.list_model_endpoints(
-            tsdb_metrics=False, mode=mm_constants.EndpointMode.REAL_TIME
+            tsdb_metrics=False,
+            modes=[
+                mm_constants.EndpointMode.REAL_TIME,
+                mm_constants.EndpointMode.BATCH_LEGACY,
+            ],
         ).endpoints
         last_request_dict = self.tsdb_connector.get_last_request(
             endpoint_ids=[mep.metadata.uid for mep in endpoints]
@@ -859,7 +863,11 @@ class MonitoringApplicationController:
                 for endpoint in endpoints:
                     last_request = last_request_dict.get(endpoint.metadata.uid, None)
                     if isinstance(last_request, float):
-                        last_request = pd.to_datetime(last_request, unit="ms", utc=True)
+                        last_request = datetime.datetime.fromtimestamp(
+                            last_request, tz=datetime.timezone.utc
+                        )
+                    elif isinstance(last_request, pd.Timestamp):
+                        last_request = last_request.to_pydatetime()
                     endpoint.status.last_request = (
                         last_request or endpoint.status.last_request
                     )

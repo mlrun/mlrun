@@ -3770,9 +3770,7 @@ class HTTPRunDB(RunDBInterface):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
-        modes: Optional[
-            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
-        ] = None,
+        modes: Optional[list[mm_constants.EndpointMode]] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -3793,7 +3791,7 @@ class HTTPRunDB(RunDBInterface):
                                 If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                                 will be included.
         :param top_level:       Whether to return only top level model endpoints.
-        :param modes:           Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+        :param modes:           Specifies the modes of the model endpoints. Can be "real-time" (0), "batch" (1),
                                 "batch_legacy" (2). If set to None, all are included.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.

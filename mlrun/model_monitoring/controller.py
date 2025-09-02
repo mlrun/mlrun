@@ -859,7 +859,9 @@ class MonitoringApplicationController:
                 for endpoint in endpoints:
                     last_request = last_request_dict.get(endpoint.metadata.uid, None)
                     if isinstance(last_request, float):
-                        last_request = datetime.datetime.fromtimestamp(last_request, tz=datetime.timezone.utc)
+                        last_request = datetime.datetime.fromtimestamp(
+                            last_request, tz=datetime.timezone.utc
+                        )
                     elif isinstance(last_request, pd.Timestamp):
                         last_request = last_request.to_pydatetime()
                     endpoint.status.last_request = (

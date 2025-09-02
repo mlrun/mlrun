@@ -663,6 +663,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
 		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
+		--ignore=tests/frameworks/tf_keras/test_tf_keras.py \
 		"),) && \
 	if [ "$(UNIT_TESTS_IGNORE_PATH)" != "" ]; then \
   		IGNORE_ADDITION="--ignore=$(UNIT_TESTS_IGNORE_PATH)"; \
@@ -1083,6 +1084,7 @@ upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
 		--python-version $(MLRUN_PYTHON_VERSION) \
+		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements_$(MLRUN_PYTHON_VERSION).txt
 

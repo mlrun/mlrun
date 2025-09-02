@@ -29,12 +29,6 @@ except ImportError:
     pass
 
 
-pytest.importorskip(
-    "tensorflow",
-    reason="tensorflow not installed",
-)
-
-
 def preprocess_data(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # Normalize pixel values to be between 0 and 1
     x = x.astype("float32") / 255.0

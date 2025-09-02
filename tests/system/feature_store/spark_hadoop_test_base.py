@@ -55,14 +55,13 @@ class SparkHadoopTestBase(TestMLRunSystem):
                 "azure-storage-blob git+https://github.com/mlrun/mlrun.git@development",
             )
         def test_basic_remote_spark_ingest_ds_basic(self):
-            bucket = 'my_bucket'
-            ds_profile = DatastoreProfileBasic(name=self.ds_profile_name)
+            ds_profile = DatastoreProfileBasic(name=self.ds_profile_name, bucket = 'my_bucket')
             register_temporary_client_datastore_profile(ds_profile)
             self.project.register_datastore_profile(ds_profile)
-            self.ds_upload_src(ds_profile, bucket)
+            self.ds_upload_src(ds_profile)
             self.do_test(
-                self.ds_src_path(ds_profile, bucket),
-                self.ds_target_path(ds_profile, bucket),
+                self.ds_src_path(ds_profile),
+                self.ds_target_path(ds_profile),
             )
 
     It is also possible to run the tests locally if you have pyspark installed. To run locally, call
@@ -101,7 +100,7 @@ class SparkHadoopTestBase(TestMLRunSystem):
 
             # TestMLRunSystem will create this project later in the initialization process, but we need it now
             # to avoid a "project does not exist" error now because the default project was dropped in 1.8.0
-            mlrun.get_or_create_project(cls.project_name)
+            mlrun.get_or_create_project(cls.project_name, allow_cross_project=True)
 
             sj = new_function(
                 kind="remote-spark",
@@ -116,18 +115,14 @@ class SparkHadoopTestBase(TestMLRunSystem):
             get_run_db().delete_function(name=sj.metadata.name)
             cls.spark_image_deployed = True
 
-    def ds_src_path(self, ds_profile, bucket):
-        return f"ds://{ds_profile.name}/{bucket}/bigdata/{self.pq_source}"
+    def ds_src_path(self, ds_profile):
+        return f"ds://{ds_profile.name}/bigdata/{self.pq_source}"
 
-    def ds_target_path(self, ds_profile, bucket):
-        return (
-            f"ds://{ds_profile.name}/{bucket}/bigdata/{self.project_name}/spark_output"
-        )
+    def ds_target_path(self, ds_profile):
+        return f"ds://{ds_profile.name}/bigdata/{self.project_name}/spark_output"
 
-    def ds_upload_src(self, ds_profile, bucket):
-        store, _, _ = store_manager.get_or_create_store(
-            f"ds://{ds_profile.name}/{bucket}"
-        )
+    def ds_upload_src(self, ds_profile):
+        store, _, _ = store_manager.get_or_create_store(f"ds://{ds_profile.name}")
         store.upload(
             f"/bigdata/{self.pq_source}",
             os.path.relpath(str(self.get_assets_path() / self.pq_source)),

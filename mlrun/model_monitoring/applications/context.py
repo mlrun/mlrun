@@ -24,15 +24,12 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.feature_store as fstore
 import mlrun.feature_store.feature_set as fs
-import mlrun.features
 import mlrun.serving
 import mlrun.utils
 from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact, get_model
 from mlrun.common.model_monitoring.helpers import FeatureStats
 from mlrun.common.schemas import ModelEndpoint
-from mlrun.model_monitoring.helpers import (
-    calculate_inputs_statistics,
-)
+from mlrun.model_monitoring.helpers import calculate_inputs_statistics
 
 
 class _ArtifactsLogger(Protocol):

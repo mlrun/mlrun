@@ -229,18 +229,25 @@ class AzureBlobStore(DataStore):
         st = self.storage_options
         service = "blob"
         primary_url = None
-        if st.get("connection_string"):
+
+        # Parse connection string (fills account_name/account_key or SAS)
+        connection_string = st.get("connection_string")
+        if connection_string:
             primary_url, _, parsed_credential = parse_connection_str(
-                st.get("connection_string"), credential=None, service=service
+                connection_string, credential=None, service=service
             )
-            for key in ["account_name", "account_key"]:
-                parsed_value = parsed_credential.get(key)
-                if parsed_value:
+
+            if isinstance(parsed_credential, str):
+                # SharedAccessSignature as raw string
+                parsed_credential = {"sas_token": parsed_credential}
+
+            for key in ["account_name", "account_key", "sas_token"]:
+                if parsed_value := parsed_credential.get(key):
                     if key in st and st[key] != parsed_value:
                         if key == "account_name":
                             raise mlrun.errors.MLRunInvalidArgumentError(
-                                f"Storage option for '{key}' is '{st[key]}',\
-                                    which does not match corresponding connection string '{parsed_value}'"
+                                f"Storage option for '{key}' is '{st[key]}', "
+                                f"which does not match corresponding connection string '{parsed_value}'"
                             )
                         else:
                             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -249,6 +256,7 @@ class AzureBlobStore(DataStore):
                     st[key] = parsed_value
 
         account_name = st.get("account_name")
+        # Derive host (prefer connection string primary URL)
         if primary_url:
             if primary_url.startswith("http://"):
                 primary_url = primary_url[len("http://") :]
@@ -258,48 +266,63 @@ class AzureBlobStore(DataStore):
         elif account_name:
             host = f"{account_name}.{service}.core.windows.net"
         else:
+            # nothing to configure yet
             return res
 
-        if "account_key" in st:
+        host = host.rstrip("/")
+
+        # Account key (optional; WASB supports it)
+        if "account_key" in st and st["account_key"]:
             res[f"spark.hadoop.fs.azure.account.key.{host}"] = st["account_key"]
 
-        if "client_secret" in st or "client_id" in st or "tenant_id" in st:
-            res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "OAuth"
-            res[f"spark.hadoop.fs.azure.account.oauth.provider.type.{host}"] = (
-                "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
-            )
-            if "client_id" in st:
-                res[f"spark.hadoop.fs.azure.account.oauth2.client.id.{host}"] = st[
-                    "client_id"
-                ]
-            if "client_secret" in st:
-                res[f"spark.hadoop.fs.azure.account.oauth2.client.secret.{host}"] = st[
-                    "client_secret"
-                ]
-            if "tenant_id" in st:
-                tenant_id = st["tenant_id"]
-                res[f"spark.hadoop.fs.azure.account.oauth2.client.endpoint.{host}"] = (
-                    f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
-                )
+        # --- WASB + SAS (container-scoped key; no provider classes needed) ---
+        if "sas_token" in st and st["sas_token"]:
+            sas = st["sas_token"].lstrip("?")
+            if container := getattr(self, "endpoint", None) or st.get("container"):
+                # fs.azure.sas.<container>.<account>.blob.core.windows.net = <sas>
+                res[f"spark.hadoop.fs.azure.sas.{container}.{host}"] = sas
 
-        if "sas_token" in st:
-            res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "SAS"
-            res[f"spark.hadoop.fs.azure.sas.token.provider.type.{host}"] = (
-                "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider"
-            )
-            res[f"spark.hadoop.fs.azure.sas.fixed.token.{host}"] = st["sas_token"]
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Container name is required for WASB SAS. "
+                    "Set self.endpoint or storage_options['container']."
+                )
         return res
 
     @property
     def spark_url(self):
-        spark_options = self.get_spark_options()
-        url = f"wasbs://{self.endpoint}"
-        prefix = "spark.hadoop.fs.azure.account.key."
-        if spark_options:
-            for key in spark_options:
-                if key.startswith(prefix):
-                    account_key = key[len(prefix) :]
-                    if not url.endswith(account_key):
-                        url += f"@{account_key}"
-                    break
-        return url
+        # Build: wasbs://<container>@<host>
+        st = self.storage_options
+        service = "blob"
+
+        container = getattr(self, "endpoint", None) or st.get("container")
+        if not container:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Container is required to build the WASB URL "
+                "(self.endpoint or storage_options['container'])."
+            )
+
+        # Prefer host from connection string; else synthesize from account_name
+        host = None
+        account_name = st.get("account_name")
+        connection_string = st.get("connection_string")
+
+        if connection_string:
+            primary_url, _, _ = parse_connection_str(
+                connection_string, credential=None, service=service
+            )
+            if primary_url.startswith("http://"):
+                primary_url = primary_url[len("http://") :]
+            if primary_url.startswith("https://"):
+                primary_url = primary_url[len("https://") :]
+            host = primary_url.rstrip("/")
+
+        if not host and account_name:
+            host = f"{account_name}.{service}.core.windows.net"
+
+        if not host:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "account_name is required (or provide a connection_string) to build the WASB URL."
+            )
+
+        return f"wasbs://{container}@{host}"

@@ -1018,7 +1018,9 @@ decorator==5.2.1 \
 deepdiff==7.0.1 \
     --hash=sha256:260c16f052d4badbf60351b4f77e8390bee03a0b516246f6839bc813fb429ddf \
     --hash=sha256:447760081918216aa4fd4ca78a4b6a848b81307b2ea94c810255334b759e1dc3
-    # via -r dev-requirements.txt
+    # via
+    #   -r dev-requirements.txt
+    #   -r requirements.txt
 defusedxml==0.7.1 \
     --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
     --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
@@ -5224,9 +5226,9 @@ testcontainers==4.10.0 \
     --hash=sha256:03f85c3e505d8b4edeb192c72a961cebbcba0dd94344ae778b4a159cb6dcf8d3 \
     --hash=sha256:31ed1a81238c7e131a2a29df6db8f23717d892b592fa5a1977fd0dcd0c23fc23
     # via -r dev-requirements.txt
-textual==6.0.0 ; sys_platform != 'win32' \
-    --hash=sha256:833588ebe6c7b0e58d085a018cf064b995aa1ee9632fa95229acf7ac2ef8be9f \
-    --hash=sha256:cb8882e7601a80a130a96d01393bd4c6d1bffb7dc9f6a820eb6b526acf0bfe10
+textual==6.1.0 ; sys_platform != 'win32' \
+    --hash=sha256:a3f5e6710404fcdc6385385db894699282dccf2ad50103cebc677403c1baadd5 \
+    --hash=sha256:cc89826ca2146c645563259320ca4ddc75d183c77afb7d58acdd46849df9144d
     # via memray
 tf-keras==2.18.0 \
     --hash=sha256:c431d04027eef790fcd3261cf7fdf93eb74f3cb32e05078b57b7f5a54bd53262 \

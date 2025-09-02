@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional, Union, cast
 
 import pandas as pd
@@ -591,6 +591,16 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)
 
+        # If `start_dt` and `end_dt` do not include time zone information - change them to UTC
+        if (start_dt.tzinfo is None) and (end_dt.tzinfo is None):
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        elif (start_dt.tzinfo is None) or (end_dt.tzinfo is None):
+            raise mlrun.errors.MLRunValueError(
+                "The start and end times must either both include time zone information or both be naive (no time "
+                f"zone). Asserting the above failed, aborting the evaluate request: start={start}, end={end}."
+            )
+
         if existing_data_handling != ExistingDataHandling.delete_all:
             start_dt = cls._validate_monotonically_increasing_data(
                 application_schedules=application_schedules,
@@ -858,6 +868,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param reference_data:    Pandas data-frame or :py:class:`~mlrun.artifacts.dataset.DatasetArtifact` URI as
                                   the reference dataset.
                                   When set, its statistics override the model endpoint's feature statistics.
+                                  You do not need to have a model endpoint to use this option.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
         :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
@@ -878,8 +889,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param start:             The start time of the endpoint's data, not included.
                                   If you want the model endpoint's data at ``start`` included, you need to subtract a
                                   small ``datetime.timedelta`` from it.
-                                  Make sure to include the time zone when constructing `datetime.datetime` objects
-                                  manually.
+                                  Make sure to include the time zone when constructing ``datetime.datetime`` objects
+                                  manually. When both ``start`` and ``end`` times do not include a time zone, they will
+                                  be treated as UTC.
         :param end:               The end time of the endpoint's data, included.
                                   Please note: when ``start`` and ``end`` are set, they create a left-open time interval
                                   ("window") :math:`(\\operatorname{start}, \\operatorname{end}]` that excludes the

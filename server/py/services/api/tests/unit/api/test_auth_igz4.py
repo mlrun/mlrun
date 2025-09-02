@@ -20,9 +20,10 @@ import jwt
 import pytest
 import yaml
 
+import mlrun.auth.utils
 import mlrun.common.schemas
+from mlrun.auth.providers import IGTokenProvider
 from mlrun.config import config
-from mlrun.db.auth_utils import IGTokenProvider
 
 
 def test_ig_token_provider_successful_flow():
@@ -40,7 +41,7 @@ def test_ig_token_provider_successful_flow():
     encoded_jwt = jwt.encode(token_payload, key=None, algorithm="none")
 
     with patch.object(
-        IGTokenProvider, "_load_offline_token", return_value="offline-token"
+        mlrun.auth.utils, "load_offline_token", return_value="offline-token"
     ):
         with patch("mlrun.utils.HTTPSessionWithRetry") as mock_session:
             mock_session_instance = mock_session.return_value
@@ -59,10 +60,10 @@ def test_ig_token_provider_successful_flow():
 
 def test_get_offline_token_from_env(monkeypatch):
     monkeypatch.setenv("MLRUN_AUTH_OFFLINE_TOKEN", "env-token")
-    token = IGTokenProvider._get_offline_token_from_env()
+    token = mlrun.auth.utils.get_offline_token_from_env()
     assert token == "env-token"
     monkeypatch.delenv("MLRUN_AUTH_OFFLINE_TOKEN", raising=False)
-    assert IGTokenProvider._get_offline_token_from_env() is None
+    assert mlrun.auth.utils.get_offline_token_from_env() is None
 
 
 @pytest.mark.parametrize(
@@ -136,7 +137,7 @@ def test_parse_offline_token_data_cases(data, token_name, expected_token, monkey
     token_file = "/fake/path.yaml"
 
     # Suppress raising errors, we just check return value
-    token = IGTokenProvider._parse_offline_token_data(
+    token = mlrun.auth.utils.parse_offline_token_data(
         data, token_file, raise_on_error=False
     )
     assert token == expected_token
@@ -173,7 +174,7 @@ def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch)
     token_file = "/fake/path.yaml"
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        IGTokenProvider._parse_offline_token_data(data, token_file, raise_on_error=True)
+        mlrun.auth.utils.parse_offline_token_data(data, token_file, raise_on_error=True)
 
 
 def test_with_empty_endpoint():
@@ -193,28 +194,27 @@ def test_with_empty_endpoint():
     ],
 )
 def test_load_offline_token_parametrized(env_token, file_token, expected):
-    # create provider without __init__
-    provider = IGTokenProvider.__new__(IGTokenProvider)
-
     with (
-        patch.object(provider, "_get_offline_token_from_env", return_value=env_token),
-        patch.object(provider, "_get_offline_token_from_file", return_value=file_token),
+        patch.object(
+            mlrun.auth.utils, "get_offline_token_from_env", return_value=env_token
+        ),
+        patch.object(
+            mlrun.auth.utils, "get_offline_token_from_file", return_value=file_token
+        ),
     ):
-        token = provider._load_offline_token()
+        token = mlrun.auth.utils.load_offline_token(raise_on_error=False)
         assert token == expected
 
 
 def test_token_file_not_exists(monkeypatch):
     fake_file = "no_such_file.yaml"
     monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", str(fake_file))
-    # create provider without __init__
-    provider = IGTokenProvider.__new__(IGTokenProvider)
 
-    result = provider._get_offline_token_from_file(raise_on_error=False)
+    result = mlrun.auth.utils.get_offline_token_from_file(raise_on_error=False)
     assert result is None
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        provider._get_offline_token_from_file(raise_on_error=True)
+        mlrun.auth.utils.get_offline_token_from_file(raise_on_error=True)
 
 
 @pytest.mark.parametrize(
@@ -236,7 +236,7 @@ def test_is_access_token_valid(
 ):
     # create provider without __init__
     provider = IGTokenProvider.__new__(IGTokenProvider)
-    provider._access_token = "token"
+    provider._token = "token"
     provider._token_total_lifetime = total_lifetime
     provider._token_expiry_time = datetime.now() + timedelta(seconds=remaining_seconds)
 
@@ -246,7 +246,7 @@ def test_is_access_token_valid(
         )
     # if threshold is None -> we don't patch, expect default 0.75
 
-    assert provider._is_access_token_valid() is expected
+    assert provider._is_token_valid() is expected
 
 
 @pytest.mark.parametrize(
@@ -324,13 +324,12 @@ def test_get_offline_token_from_file(
         "mlrun.config.config.auth_with_oauth_token.auth_token_file", str(token_file)
     )
 
-    # Create IGTokenProvider instance without calling __init__
-    provider = IGTokenProvider.__new__(IGTokenProvider)
-
     if expected_token is None and raise_on_error:
         # Expect MLRunRuntimeError
         with pytest.raises(mlrun.errors.MLRunRuntimeError):
-            provider._get_offline_token_from_file(raise_on_error=True)
+            mlrun.auth.utils.get_offline_token_from_file(raise_on_error=True)
     else:
-        token = provider._get_offline_token_from_file(raise_on_error=raise_on_error)
+        token = mlrun.auth.utils.get_offline_token_from_file(
+            raise_on_error=raise_on_error
+        )
         assert token == expected_token

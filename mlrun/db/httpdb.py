@@ -32,6 +32,7 @@ import semver
 from pydantic.v1 import parse_obj_as
 
 import mlrun
+import mlrun.auth
 import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.runtimes
@@ -46,11 +47,6 @@ import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
 from mlrun.common.types import AuthenticationMode
-from mlrun.db.auth_utils import (
-    IGTokenProvider,
-    OAuthClientIDTokenProvider,
-    StaticTokenProvider,
-)
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun_pipelines.utils import compile_pipeline
 
@@ -178,14 +174,14 @@ class HTTPRunDB(RunDBInterface):
         self.token_provider = None
 
         if config.auth_with_client_id.enabled:
-            self.token_provider = OAuthClientIDTokenProvider(
+            self.token_provider = mlrun.auth.OAuthClientIDTokenProvider(
                 token_endpoint=mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
                 client_id=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
                 client_secret=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
                 timeout=config.auth_with_client_id.request_timeout,
             )
         elif config.auth_with_oauth_token.enabled:
-            self.token_provider = IGTokenProvider(
+            self.token_provider = mlrun.auth.IGTokenProvider(
                 token_endpoint=config.auth_token_endpoint,
             )
         else:
@@ -194,7 +190,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
             if token:
-                self.token_provider = StaticTokenProvider(token)
+                self.token_provider = mlrun.auth.StaticTokenProvider(token)
 
         self.user = username
         self.password = password

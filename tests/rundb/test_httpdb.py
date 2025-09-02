@@ -41,7 +41,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
-from mlrun.db.auth_utils import StaticTokenProvider
+from mlrun.auth.providers import StaticTokenProvider
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 

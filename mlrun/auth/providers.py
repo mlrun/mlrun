@@ -1,0 +1,372 @@
+# Copyright 2024 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import typing
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
+
+import jwt
+import requests
+
+import mlrun.auth.utils
+import mlrun.errors
+import mlrun.secrets
+import mlrun.utils.helpers
+from mlrun.config import config
+from mlrun.utils import logger
+
+
+class TokenProvider(ABC):
+    @abstractmethod
+    def get_token(self):
+        pass
+
+    @abstractmethod
+    def is_iguazio_session(self):
+        pass
+
+
+class StaticTokenProvider(TokenProvider):
+    def __init__(self, token: str):
+        self.token = token
+
+    def get_token(self):
+        return self.token
+
+    def is_iguazio_session(self):
+        return mlrun.platforms.iguazio.is_iguazio_session(self.token)
+
+
+class DynamicTokenProvider(TokenProvider):
+    """
+    A token provider that dynamically fetches and refreshes tokens from a token endpoint.
+
+    This class handles token retrieval and automatic refresh when the token is expired or about to expire.
+    It uses a session with retry capabilities for robust communication with the token endpoint.
+
+    :param token_endpoint: The URL of the token endpoint.
+    :param timeout: The timeout for token requests, in seconds.
+    """
+
+    def __init__(self, token_endpoint: str, timeout=5):
+        if not token_endpoint:
+            raise mlrun.errors.MLRunValueError(
+                "No token endpoint provided, cannot initialize token provider"
+            )
+        self._token = None
+        self._token_endpoint = token_endpoint
+        self.timeout = timeout
+
+        # Since we're only issuing POST requests, which are actually a disguised GET, then it's ok to allow retries
+        # on them.
+        self._session = mlrun.utils.HTTPSessionWithRetry(
+            retry_on_post=True,
+            verbose=True,
+        )
+        self._cleanup()
+        self._refresh_token_if_needed(raise_on_error=True)
+
+    def get_token(self):
+        """
+        Retrieve the current access token, refreshing it if necessary.
+
+        :return: The current access token.
+        """
+        self._refresh_token_if_needed()
+        return self._token
+
+    def fetch_token(self, raise_on_error=False):
+        """
+        Fetch a new access token from the token endpoint.
+
+        This method builds the token request, sends it to the token endpoint, and parses the response.
+        If the request fails, it either raises an error or logs a warning based on the `raise_on_error` parameter.
+
+        :param raise_on_error: Whether to raise an error if token retrieval fails.
+        """
+        try:
+            request_body, headers = self._build_token_request(raise_on_error=True)
+        except mlrun.errors.MLRunRuntimeError as err:
+            mlrun.utils.raise_or_log_error(
+                f"Failed to build token request. Error: {err}", raise_on_error
+            )
+            return
+
+        try:
+            response = self._session.request(
+                "POST",
+                self._token_endpoint,
+                timeout=self.timeout,
+                headers=headers,
+                data=request_body,
+            )
+        except requests.RequestException as exc:
+            error = f"Retrieving token failed: {mlrun.errors.err_to_str(exc)}"
+            if raise_on_error:
+                raise mlrun.errors.MLRunRuntimeError(error) from exc
+            else:
+                logger.warning(error)
+                return
+
+        if not response.ok:
+            error = "No error available"
+            if response.content:
+                try:
+                    data = response.json()
+                    error = data.get("error")
+                except Exception:
+                    pass
+            logger.warning(
+                "Retrieving token failed", status=response.status_code, error=error
+            )
+            if raise_on_error:
+                mlrun.errors.raise_for_status(response)
+            return
+
+        self._parse_response(response.json())
+
+    def is_iguazio_session(self):
+        return False
+
+    def _refresh_token_if_needed(self, raise_on_error=False):
+        """
+        Refresh the access token if it is expired or about to expire.
+
+        :param raise_on_error: Whether to raise an error if token refresh fails.
+        :return: The refreshed access token.
+        """
+        # Check if there is an existing access token and if it is valid
+        if self._token and self._is_token_valid(cleanup_if_expired=True):
+            return self._token
+
+        # Use the offline token to fetch a new access token
+        self.fetch_token(raise_on_error=raise_on_error)
+        return self._token
+
+    @abstractmethod
+    def _is_token_valid(self, cleanup_if_expired=True) -> bool:
+        """
+        Check if the current access token is valid.
+
+        :param cleanup_if_expired: Whether to clean up the token if it is expired.
+        :return: True if the token is valid, False otherwise.
+        """
+        pass
+
+    @abstractmethod
+    def _cleanup(self):
+        """
+        Clean up the token and related metadata.
+        """
+        pass
+
+    @abstractmethod
+    def _build_token_request(self, raise_on_error=False):
+        """
+        Build the request body and headers for the token request.
+
+        :param raise_on_error: Whether to raise an error if the request cannot be built.
+        :return: A tuple containing the request body and headers.
+        """
+        pass
+
+    @abstractmethod
+    def _parse_response(self, data: dict):
+        """
+        Parse the response from the token endpoint.
+
+        :param data: The JSON response data from the token endpoint.
+        """
+        pass
+
+
+class OAuthClientIDTokenProvider(DynamicTokenProvider):
+    def __init__(
+        self, token_endpoint: str, client_id: str, client_secret: str, timeout=5
+    ):
+        if not token_endpoint or not client_id or not client_secret:
+            raise mlrun.errors.MLRunValueError(
+                "Invalid client_id configuration for authentication. Must provide token endpoint, client-id and secret"
+            )
+        # should be set before calling the parent constructor
+        self.client_id = client_id
+        self.client_secret = client_secret
+        super().__init__(token_endpoint=token_endpoint, timeout=timeout)
+
+    def _cleanup(self):
+        self._token = self.token_expiry_time = self.token_refresh_time = None
+
+    def _is_token_valid(self, cleanup_if_expired=True) -> bool:
+        """
+        Check if the current access token is valid.
+
+        :param cleanup_if_expired: Whether to clean up the token if it is expired.
+        :return: True if the token is valid, False otherwise.
+        """
+        if not self._token or not self.token_expiry_time:
+            return False
+        now = datetime.now()
+        if now <= self.token_refresh_time:
+            return True
+        expired = now >= self.token_expiry_time
+
+        if expired and cleanup_if_expired:
+            # We only cleanup if token was really expired - even if we fail in refreshing the token, we can still
+            # use the existing one given that it's not expired.
+            self._cleanup()
+        return expired
+
+    def _build_token_request(self, raise_on_error=False):
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        request_body = {
+            "grant_type": "client_credentials",
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+        }
+        return request_body, headers
+
+    def _parse_response(self, data: dict):
+        # Response is described in https://datatracker.ietf.org/doc/html/rfc6749#section-4.4.3
+        # According to spec, there isn't a refresh token - just the access token and its expiry time (in seconds).
+        self._token = data.get("access_token")
+        expires_in = data.get("expires_in")
+        if not self._token or not expires_in:
+            token_str = "****" if self._token else "missing"
+            logger.warning(
+                "Failed to parse token response", token=token_str, expires_in=expires_in
+            )
+            return
+
+        now = datetime.now()
+        self.token_expiry_time = now + timedelta(seconds=expires_in)
+        self.token_refresh_time = now + timedelta(seconds=expires_in / 2)
+        logger.info(
+            "Successfully retrieved client-id token",
+            expires_in=expires_in,
+            expiry=str(self.token_expiry_time),
+            refresh=str(self.token_refresh_time),
+        )
+
+
+class IGTokenProvider(DynamicTokenProvider):
+    """
+    A token provider for Iguazio that uses a refresh token to fetch access tokens.
+
+    This class implements the Iguazio-specific token refresh flow to retrieve access tokens
+    from a token endpoint.
+
+    :param token_endpoint: The URL of the token endpoint.
+    :param timeout: The timeout for token requests, in seconds.
+    """
+
+    def __init__(self, token_endpoint: str, timeout=5):
+        super().__init__(token_endpoint=token_endpoint, timeout=timeout)
+
+    def _cleanup(self):
+        self._token = None
+        self._token_total_lifetime = 0
+        self._token_expiry_time = None
+
+    def _is_token_valid(self, cleanup_if_expired=True) -> bool:
+        """
+        Check if the current access token is valid and has sufficient lifetime remaining.
+
+        :param cleanup_if_expired: Whether to clean up the token if it is expired.
+        :return: True if the token is valid, False otherwise.
+        """
+        if (
+            not self._token
+            or self._token_total_lifetime <= 0
+            or not self._token_expiry_time
+        ):
+            return False
+
+        now = datetime.now()
+        remaining_lifetime = (self._token_expiry_time - now).total_seconds()
+        if remaining_lifetime <= 0 and cleanup_if_expired:
+            self._cleanup()
+            return False
+
+        return (
+            remaining_lifetime / self._token_total_lifetime
+            > config.auth_with_oauth_token.refresh_threshold
+        )
+
+    def _build_token_request(self, raise_on_error=False):
+        """
+        Build the request body and headers for the token request.
+
+        :param raise_on_error: Whether to raise an error if the request cannot be built.
+        :return: A tuple containing the request body and headers.
+        """
+        offline_token = mlrun.auth.utils.load_offline_token(
+            raise_on_error=raise_on_error
+        )
+        if not offline_token:
+            # Error already handled in `_load_offline_token`
+            return None, None
+
+        headers = {"Content-Type": "application/json"}
+        request_body = {"refreshToken": offline_token}
+        return request_body, headers
+
+    def _parse_response(self, response_data: dict, raise_on_error=False):
+        """
+        Parse the response from the token endpoint.
+
+        :param response_data: The JSON response data from the token endpoint.
+        :param raise_on_error: Whether to raise an error if the response cannot be parsed.
+        """
+        spec = response_data.get("spec", {})
+        access_token = spec.get("accessToken")
+
+        if not access_token:
+            mlrun.utils.helpers.raise_or_log_error(
+                "Access token is missing in the response from the token endpoint",
+                raise_on_error,
+            )
+            return
+
+        self._token = access_token
+        self._token_total_lifetime, self._token_expiry_time = (
+            self.get_token_lifetime_and_expiry(access_token)
+        )
+
+    @staticmethod
+    def get_token_lifetime_and_expiry(
+        token: str,
+    ) -> tuple[int, typing.Optional[datetime]]:
+        """
+        Calculate the total lifetime and expiration time of the token.
+
+        :param token: The access token to decode.
+        :return: A tuple containing the total lifetime of the token in seconds and its expiration time as a datetime.
+        """
+        if not token:
+            return 0, None
+        try:
+            # already been verified earlier during the refresh access token call
+            decoded_token = jwt.decode(token, options={"verify_signature": False})
+            exp_timestamp = decoded_token.get("exp")
+            iat_timestamp = decoded_token.get("iat")
+            if exp_timestamp and iat_timestamp:
+                return exp_timestamp - iat_timestamp, datetime.fromtimestamp(
+                    exp_timestamp
+                )
+        except jwt.PyJWTError as exc:
+            logger.warning(
+                "Failed to decode access token",
+                error=str(exc),
+            )
+        return 0, None

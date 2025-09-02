@@ -131,6 +131,30 @@ async def timed(coro):
     return result, duration
 
 
+class MyOpenAICustom(mlrun.serving.states.Model):
+    def predict(self, body: Any, **kwargs) -> Any:
+        if isinstance(
+            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            result = self.model_provider.custom_invoke(
+                operation=self.model_provider.client.embeddings.create,
+                input=body["input"],
+            )
+            body["result"] = result.to_dict()
+        return body
+
+    async def predict_async(self, body: Any, **kwargs) -> Any:
+        if isinstance(
+            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            result = await self.model_provider.async_custom_invoke(
+                operation=self.model_provider.async_client.embeddings.create,
+                input=body["input"],
+            )
+            body["result"] = result.to_dict()
+        return body
+
+
 class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
     async def run_async(
         self, body: Any, path: str, origin_name: Optional[str] = None

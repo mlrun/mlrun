@@ -377,20 +377,14 @@ class BaseStep(ModelObj):
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
-                            * **overwrite**:
+                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                              create a new model endpoint entry and set it as `latest`.
 
-                            1. If model endpoints with the same name exist, delete the `latest` one.
-                            2. Create a new model endpoint entry and set it as `latest`.
+                            * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
+                              otherwise, create a new entry.
 
-                            * **inplace** (default):
-
-                            1. If model endpoints with the same name exist, update the `latest` entry.
-                            2. Otherwise, create a new entry.
-
-                            * **archive**:
-
-                            1. If model endpoints with the same name exist, preserve them.
-                            2. Create a new model endpoint with the same name and set it to `latest`.
+                            * **archive**: If model endpoints with the same name exist, preserve them;
+                              create a new model endpoint with the same name and set it to `latest`.
 
         :param class_args:  class init arguments
         """
@@ -1041,20 +1035,14 @@ class RouterStep(TaskStep):
         :param function:   function this step should run in
         :param creation_strategy: Strategy for creating or updating the model endpoint:
 
-                           * **overwrite**:
+                           * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                             create a new model endpoint entry and set it as `latest`.
 
-                           1. If model endpoints with the same name exist, delete the `latest` one.
-                           2. Create a new model endpoint entry and set it as `latest`.
+                           * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
+                             otherwise, create a new entry.
 
-                           * **inplace** (default):
-
-                           1. If model endpoints with the same name exist, update the `latest` entry.
-                           2. Otherwise, create a new entry.
-
-                           * **archive**:
-
-                           1. If model endpoints with the same name exist, preserve them.
-                           2. Create a new model endpoint with the same name and set it to `latest`.
+                           * **archive**: If model endpoints with the same name exist, preserve them;
+                             create a new model endpoint with the same name and set it to `latest`.
 
         """
         if len(self.routes.keys()) >= MAX_MODELS_PER_ROUTER and key not in self.routes:
@@ -1646,8 +1634,9 @@ class ModelRunnerStep(MonitoredStep):
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
       an error. If False, the error will appear in the output event.
 
-    :raise ModelRunnerError - when a model raise an error the ModelRunnerStep will handle it, collect errors and outputs
-                              from added models, If raise_exception is True will raise ModelRunnerError Else will add
+    raise ModelRunnerError - 
+                              when a model raises an error the ModelRunnerStep will handle it, collect errors and outputs
+                              from added models. If raise_exception is True will raise ModelRunnerError. Else will add
                               the error msg as part of the event body mapped by model name if more than one model was
                               added to the ModelRunnerStep
     """
@@ -1714,15 +1703,15 @@ class ModelRunnerStep(MonitoredStep):
         :param shared_model_name:   str, the name of the shared model that is already defined within the graph
         :param labels:              model endpoint labels, should be list of str or mapping of str:str
         :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
-          * **overwrite**:
-          1. If model endpoints with the same name exist, delete the `latest` one.
-          2. Create a new model endpoint entry and set it as `latest`.
-          * **inplace** (default):
-          1. If model endpoints with the same name exist, update the `latest` entry.
-          2. Otherwise, create a new entry.
-          * **archive**:
-          1. If model endpoints with the same name exist, preserve them.
-          2. Create a new model endpoint with the same name and set it to `latest`.
+
+                 * **overwrite**: If model endpoints with the same name exist, delete the `latest` one; 
+                   create a new model endpoint entry and set it as `latest`.
+
+                 * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
+                   otherwise, create a new entry.
+
+                 * **archive**: If model endpoints with the same name exist, preserve them;
+                   create a new model endpoint with the same name and set it to `latest`.
 
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         """
@@ -1831,49 +1820,58 @@ class ModelRunnerStep(MonitoredStep):
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
         :param model_class:         Model class name
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
-            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
-                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
-                Lock (GIL).
-            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
-                tasks that also require significant Runnable-specific initialization (e.g. a large model).
-            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
-                otherwise block the main event loop thread.
-            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
-                event loop to continue running while waiting for a response.
-            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
-                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
-                useful when:
-                - You want to share a heavy resource like a large model loaded onto a GPU.
-                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
-                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
-                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
-                memory and hardware accelerators.
-            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
-                It means that the runnable will not actually be run in parallel to anything else.
 
-            :param model_artifact:      model artifact or mlrun model artifact uri
-            :param labels:              model endpoint labels, should be list of str or mapping of str:str
-            :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
-              * **overwrite**:
-              1. If model endpoints with the same name exist, delete the `latest` one.
-              2. Create a new model endpoint entry and set it as `latest`.
-              * **inplace** (default):
-              1. If model endpoints with the same name exist, update the `latest` entry.
-              2. Otherwise, create a new entry.
-              * **archive**:
-              1. If model endpoints with the same name exist, preserve them.
-              2. Create a new model endpoint with the same name and set it to `latest`.
+                            * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
+                              intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
+                              Lock (GIL).
 
-          :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
+                            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
+                              tasks that also require significant Runnable-specific initialization (e.g. a large model).
+
+                            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+                              otherwise block the main event loop thread.
+
+                            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
+                              event loop to continue running while waiting for a response.
+
+                            * **shared_executor**: Reuses an external executor (typically managed by the flow or context) to execute the
+                              runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially useful when:
+
+                              - You want to share a heavy resource like a large model loaded onto a GPU.
+
+                              - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+
+                              - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+
+                              The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
+                              memory and hardware accelerators.
+
+                            * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
+                              It means that the runnable will not actually be run in parallel to anything else.
+
+        :param model_artifact:      model artifact or mlrun model artifact uri
+        :param labels:              model endpoint labels, should be list of str or mapping of str:str
+        :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
+
+                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                              create a new model endpoint entry and set it as `latest`.
+
+                            * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
+                              otherwise, create a new entry.
+
+                            * **archive**: If model endpoints with the same name exist, preserve them;
+                              create a new model endpoint with the same name and set it to `latest`.
+
+        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
                                       that been configured in the model artifact, please note that those inputs need to
                                       be equal in length and order to the inputs that model_class predict method expects
-          :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
+        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
 
                                       When using LLModel, the output will be overridden with UsageResponseKeys.fields().
 
-          :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
+        :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
                                       this require that the event body will behave like a dict, expects scopes to be
                                       defined by dot notation (e.g "data.d").
                                       examples: input_path="data.b"
@@ -1883,7 +1881,7 @@ class ModelRunnerStep(MonitoredStep):
                                       be {"f0": [1, 2]}.
                                       if a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the input schema.
-          :param result_path:         when specified selects the key/path in the output event to use as model monitoring
+        :param result_path:         when specified selects the key/path in the output event to use as model monitoring
                                       outputs this require that the output event body will behave like a dict,
                                       expects scopes to be defined by dot notation (e.g "data.d").
                                       examples: result_path="out.b"
@@ -1894,8 +1892,8 @@ class ModelRunnerStep(MonitoredStep):
                                       if a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the output schema.
 
-          :param override:            bool allow override existing model on the current ModelRunnerStep.
-          :param model_parameters:    Parameters for model instantiation
+        :param override:            bool allow override existing model on the current ModelRunnerStep.
+        :param model_parameters:    Parameters for model instantiation
         """
         if isinstance(model_class, Model) and model_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -2330,20 +2328,14 @@ class FlowStep(BaseStep):
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
-                            * **overwrite**:
+                             * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                              create a new model endpoint entry and set it as `latest`.
 
-                            1. If model endpoints with the same name exist, delete the `latest` one.
-                            2. Create a new model endpoint entry and set it as `latest`.
+                            * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
+                              otherwise, create a new entry.
 
-                            * **inplace** (default):
-
-                            1. If model endpoints with the same name exist, update the `latest` entry.
-                            2. Otherwise, create a new entry.
-
-                            * **archive**:
-
-                            1. If model endpoints with the same name exist, preserve them.
-                            2. Create a new model endpoint with the same name and set it to `latest`.
+                            * **archive**: If model endpoints with the same name exist, preserve them;
+                              create a new model endpoint with the same name and set it to `latest`.
 
         :param class_args:  class init arguments
         """
@@ -2850,24 +2842,34 @@ class RootFlowStep(FlowStep):
         :param name:                Name of the shared model (should be unique in the graph)
         :param model_class:         Model class name
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
-            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
+
+            * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
                 intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
                 Lock (GIL).
-            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
+
+            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
                 tasks that also require significant Runnable-specific initialization (e.g. a large model).
-            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+
+            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
                 otherwise block the main event loop thread.
-            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
+
+            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
                 event loop to continue running while waiting for a response.
-            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
+
+            * **shared_executor":  Reuses an external executor (typically managed by the flow or context) to execute the
                 runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
                 useful when:
+
                 - You want to share a heavy resource like a large model loaded onto a GPU.
+
                 - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+
                 - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+
                 The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
                 memory and hardware accelerators.
-            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
+
+            * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
                 It means that the runnable will not actually be run in parallel to anything else.
 
             :param model_artifact:      model artifact or mlrun model artifact uri

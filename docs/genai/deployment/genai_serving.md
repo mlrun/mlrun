@@ -222,7 +222,7 @@ A typical output would be:
 Output: [{'prediction': '\nWhat is 1+1? \n1+1 equals 2. This is a basic arithmetic addition problem where you add one unit to another unit.', 'prompt': '<|user|>\nWhat is 1+1? <|end|>\n<|assistant|>'}]
 ```
 
-To deploy the model. run:
+To deploy the model, run:
 ```python
 project.deploy_function(genai_serving)
 ```

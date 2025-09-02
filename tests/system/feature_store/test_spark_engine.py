@@ -111,12 +111,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 name="s3ds_profile",
                 access_key=os.environ["AWS_ACCESS_KEY_ID"],
                 secret_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+                bucket=os.environ["AWS_BUCKET_NAME"],
             )
             register_temporary_client_datastore_profile(cls.ds_profile)
-            bucket = os.environ["AWS_BUCKET_NAME"]
-            path = f"ds://{cls.ds_profile.name}/{bucket}"
+
+            path = f"ds://{cls.ds_profile.name}"
             if without_prefix:
-                path = f"{bucket}"
+                path = ""
         else:
             path = "v3io://"
             if without_prefix:

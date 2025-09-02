@@ -16,7 +16,7 @@ import json
 import sys
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
-from datetime import datetime, timezone
+from datetime import datetime
 from types import TracebackType
 from typing import TYPE_CHECKING, Final, Optional
 
@@ -281,9 +281,7 @@ class ModelMonitoringSchedulesFileApplication(ModelMonitoringSchedulesFileBase):
         self, endpoint_uid: str, last_analyzed: datetime
     ) -> None:
         self._check_open_schedules()
-        self._schedules[endpoint_uid] = last_analyzed.astimezone(
-            timezone.utc
-        ).isoformat()
+        self._schedules[endpoint_uid] = last_analyzed.isoformat()
 
     def delete_endpoints_last_analyzed(self, endpoint_uids: list[str]) -> None:
         self._check_open_schedules()

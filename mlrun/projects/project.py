@@ -2749,16 +2749,18 @@ class MlrunProject(ModelObj):
         | Creating a function with non project source is done by specifying a module ``handler`` and on the
          returned function set the source with ``function.with_source_archive(<source>)``.
 
-        Support URL prefixes:
+        Supported URL prefixes:
 
-            | Object (s3://, v3io://, ..)
-            | MLRun DB e.g. db://project/func:ver
-            | Functions hub/market: e.g. hub://auto-trainer:master
+        - Object: s3://, v3io://, etc.
+        - MLRun DB: e.g db://project/func:ver
+        - Function hub/market: e.g. hub://auto-trainer:master
 
         Examples::
 
             proj.set_function(func_object)
-            proj.set_function("http://.../mynb.ipynb", "train")
+            proj.set_function(
+                "http://.../mynb.ipynb", "train", kind="job", image="mlrun/mlrun"
+            )
             proj.set_function("./func.yaml")
             proj.set_function("hub://get_toy_data", "getdata")
 
@@ -2785,18 +2787,6 @@ class MlrunProject(ModelObj):
             # By providing a path to a pip requirements file
             proj.set_function("my.py", requirements="requirements.txt")
 
-        One of the most important parameters is 'kind', used to specify the chosen runtime. The options are:
-           - local: execute a local python or shell script
-           - job: insert the code into a Kubernetes pod and execute it
-           - nuclio: insert the code into a real-time serverless nuclio function
-           - serving: insert code into orchestrated nuclio function(s) forming a DAG
-           - dask: run the specified python code / script as Dask Distributed job
-           - mpijob: run distributed Horovod jobs over the MPI job operator
-           - spark: run distributed Spark job using Spark Kubernetes Operator
-           - remote-spark: run distributed Spark job on remote Spark service
-           - databricks: run code on Databricks cluster (python scripts, Spark etc.)
-           - application: run a long living application (e.g. a web server, UI, etc.)
-
         Learn more about :doc:`../../concepts/functions-overview`.
 
         :param func:                Function object or spec/code url, None refers to current Notebook
@@ -2804,8 +2794,20 @@ class MlrunProject(ModelObj):
                                     Versions (e.g. myfunc:v1). If the `tag` parameter is provided, the tag in the name
                                     must match the tag parameter.
                                     Specifying a tag in the name will update the project's tagged function (myfunc:v1)
-        :param kind:                Runtime kind e.g. job, nuclio, spark, dask, mpijob
-                                    Default: job
+        :param kind:                Default: job. One of
+
+                          - local: execute a local python or shell script
+                          - job: insert the code into a Kubernetes pod and execute it
+                          - nuclio: insert the code into a real-time serverless nuclio function
+                          - serving: insert code into orchestrated nuclio function(s) forming a DAG
+                          - dask: run the specified python code / script as Dask Distributed job
+                          - mpijob: run distributed Horovod jobs over the MPI job operator
+                          - spark: run distributed Spark job using Spark Kubernetes Operator
+                          - remote-spark: run distributed Spark job on remote Spark service
+                          - databricks: run code on Databricks cluster (python scripts, Spark etc.)
+                          - application: run a long living application (e.g. a web server, UI, etc.)
+                          - handler: execute a python handler (used automatically in notebooks or for debug)
+
         :param image:               Docker image to be used, can also be specified in the function object/yaml
         :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in

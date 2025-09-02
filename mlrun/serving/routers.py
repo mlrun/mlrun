@@ -186,13 +186,25 @@ class BaseModelRouter(RouterToDict):
             server: mlrun.serving.GraphServer = getattr(
                 self.context, "_server", None
             ) or getattr(self.context, "server", None)
-            (
-                self._background_task_current_state,
-                self._background_task_check_timestamp,
-            ) = get_model_endpoints_creation_task_status(
-                server,
-                log_background_task_state,
-            )
+            if not self.context.is_mock:
+                (
+                    self._background_task_current_state,
+                    self._background_task_check_timestamp,
+                ) = get_model_endpoints_creation_task_status(
+                    server,
+                    log_background_task_state,
+                )
+            elif self.context.monitoring_mock:
+                self._background_task_current_state = (
+                    mlrun.common.schemas.BackgroundTaskState.succeeded
+                )
+                self._background_task_check_timestamp = mlrun.utils.now_date()
+            else:
+                self._background_task_current_state = (
+                    mlrun.common.schemas.BackgroundTaskState.failed
+                )
+                self._background_task_check_timestamp = mlrun.utils.now_date()
+
         if event.body:
             event.body["background_task_state"] = (
                 self._background_task_current_state

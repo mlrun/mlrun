@@ -131,7 +131,6 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
             return str(v)
         return v
 
-
     @validator("mode", pre=True, always=True)
     def _set_mode_based_on_endpoint_type(cls, v, values):  # noqa: N805
         if v is None:

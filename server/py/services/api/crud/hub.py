@@ -200,6 +200,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         tag: Optional[str] = None,
         version: Optional[str] = None,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
+        mlrun.utils.logger.info("[DD] here in list_hub_sources of the crud")
         hub_sources = framework.utils.singletons.db.get_db().list_hub_sources(
             db_session
         )

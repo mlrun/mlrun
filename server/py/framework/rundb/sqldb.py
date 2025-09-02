@@ -908,6 +908,7 @@ class SQLRunDB(RunDBInterface):
         tag: Optional[str] = None,
         version: Optional[str] = None,
     ):
+        mlrun.utils.logger.info("[DD] here in list_hub_sources at sqldb")
         return self._transform_db_error(
             framework.db.session.run_function_with_new_db_session,
             services.api.crud.Hub().list_hub_sources,

@@ -81,7 +81,7 @@ def start_server(workdir, env_config: dict):
     cmd = [
         executable,
         "-m",
-        "services.api.main",
+        "server.py.services.api.main",
     ]
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
@@ -340,11 +340,11 @@ def test_basic_auth(create_server):
     db: HTTPRunDB = server.conn
 
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-        db.list_runs()
+        db.list_runs(project="test")
 
     db.user = user
     db.password = password
-    db.list_runs()
+    db.list_runs(project="test")
 
 
 def test_bearer_auth(create_server):
@@ -358,10 +358,10 @@ def test_bearer_auth(create_server):
     db: HTTPRunDB = server.conn
 
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-        db.list_runs()
+        db.list_runs(project="test")
 
     db.token_provider = StaticTokenProvider(token)
-    db.list_runs()
+    db.list_runs(project="test")
 
 
 def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch):
@@ -693,9 +693,9 @@ def test_feature_sets(create_server):
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set.metadata.labels) == 2, "Labels didn't get updated"
 
-    features = db.list_features(project, "time")
+    features = db.list_features_v2(project, "time")
     # The feature-set with different labels also counts here
-    assert len(features) == count + 1
+    assert len(features["features"]) == count + 1
     # Only count, since we modified the entity of the last feature-set - other name, no labels
     entities = db.list_entities_v2(project, "ticker")
     assert len(entities["entities"]) == count

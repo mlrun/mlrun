@@ -1,5 +1,4 @@
-#!/bin/bash
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,25 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun
 
-get_os() {
-  unameOut="$(uname -s)"
-  case "${unameOut}" in
-      Linux*)     os=Linux;;
-      Darwin*)    os=Mac;;
-      *)          os="UNKNOWN:${unameOut}"
-  esac
-  echo "${os}"
-}
 
-mv proto/build/proto proto/build/py
-
-SED_REGEX='s/from proto import/from \. import/g'
-OS=$(get_os)
-SCHEMA_FILES=$(find proto/build/ -name '*pb2_grpc.py')
-
-if [ "${OS}" = "Mac" ]; then
-  sed -i '' -e "${SED_REGEX}" ${SCHEMA_FILES}
-else
-  sed -i -e "${SED_REGEX}" ${SCHEMA_FILES}
-fi
+def my_func(context, event):
+    return mlrun.get_current_project().to_json()

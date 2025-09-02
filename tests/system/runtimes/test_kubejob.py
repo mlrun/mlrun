@@ -691,7 +691,51 @@ def print_df(df):
             task.metadata.name for task in background_tasks
         ]
 
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "thread_pool", "process_pool", "dedicated_process"],
+    )
     @pytest.mark.parametrize("local", [True, False])
+    def test_job_from_serving_with_mrs(self, execution_mechanism: str, local: bool):
+        import mlrun.serving.states
+
+        serving_func_obj = self.project.set_function(
+            func=str(self.assets_path / "function_with_model.py"),
+            name="srv_fn",
+            kind="serving",
+            image=self.image,
+        )
+        mode_runner_obj = mlrun.serving.states.ModelRunnerStep(
+            name="model_runner_step_name"
+        )
+        mode_runner_obj.add_model(
+            endpoint_name="my-endpoint",
+            model_class="DummyModel",
+            execution_mechanism=execution_mechanism,
+        )
+        graph_obj = serving_func_obj.set_topology("flow", engine="async")
+        graph_obj.to(mode_runner_obj).respond()
+        job = serving_func_obj.to_job()
+        local_input_path = str(self.assets_path / "in.csv")
+        if local:
+            input_path = local_input_path
+        else:
+            with open(local_input_path) as fp:
+                code = fp.read()
+            input_path_in_container = f"{self.project_name}/in.csv"
+            input_path = f"v3io:///projects/{input_path_in_container}"
+            v3io_client = v3io.Client()
+            try:
+                v3io_client.object.put("projects", input_path_in_container, body=code)
+            finally:
+                v3io_client.close()
+        inputs = {"data": input_path}
+        run_object = self.project.run_function(job, inputs=inputs, local=local)
+        assert run_object.status.results == {
+            "return": [{"x": "a", "y": 1, "extra": 123}],
+        }
+
+    @pytest.mark.parametrize("local", [False])
     def test_job_from_serving_runtime(self, local):
         function = self.project.set_function(
             func=str(self.assets_path / "function_with_simple_transformation.py"),
@@ -719,6 +763,43 @@ def print_df(df):
             )
             inputs = {"data": f"v3io:///projects/{self.project_name}/in.csv"}
             self.project.run_function(job, inputs=inputs, local=local)
+            read_back_df = pd.read_parquet(
+                f"v3io:///projects/{self.project_name}/out.parquet"
+            )
+            assert (
+                "Mickey Mouse" in read_back_df["Product"].values
+            ), f"Dataframe {read_back_df} was not transformed as expected"
+        finally:
+            v3io_client.close()
+
+    @pytest.mark.asyncio
+    async def test_job_from_serving_runtime_from_inside_running_asyncio_loop(self):
+        function = self.project.set_function(
+            func=str(self.assets_path / "function_with_simple_transformation.py"),
+            name="test",
+            kind="serving",
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(name="transformation", handler="transform").to(
+            name="parquet",
+            class_name="storey.ParquetTarget",
+            path=f"v3io:///projects/{self.project_name}/out.parquet",
+        )
+
+        job = function.to_job()
+
+        with open(str(self.assets_path / "test_data.csv")) as f:
+            csv_content = f.read()
+
+        v3io_client = v3io.Client()
+        try:
+            v3io_client.object.put(
+                "projects", f"{self.project_name}/in.csv", body=csv_content
+            )
+            inputs = {"data": f"v3io:///projects/{self.project_name}/in.csv"}
+            self.project.run_function(job, inputs=inputs, local=True)
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )

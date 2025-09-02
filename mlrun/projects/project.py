@@ -1908,13 +1908,51 @@ class MlrunProject(ModelObj):
 
         Examples::
 
+            # Log directly with an inline prompt template
+            project.log_llm_prompt(
+                key="customer_support_prompt",
+                prompt_template=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful customer support assistant.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "The customer reports: {issue_description}",
+                    },
+                ],
+                prompt_legend={
+                    "issue_description": {
+                        "field": "user_issue",
+                        "description": "Detailed description of the customer's issue",
+                    },
+                    "solution": {
+                        "field": "proposed_solution",
+                        "description": "Suggested fix for the customer's issue",
+                    },
+                },
+                model_artifact=model,
+                model_configuration={"temperature": 0.5, "max_tokens": 200},
+                description="Prompt for handling customer support queries",
+                tag="support-v1",
+                labels={"domain": "support"},
+            )
+
             # Log a prompt from file
             project.log_llm_prompt(
-                key="qa-prompt",
-                prompt_path="prompts/qa_template.txt",
-                prompt_legend={"question": "user_question"},
+                key="qa_prompt",
+                prompt_path="prompts/template.json",
+                prompt_legend={
+                    "question": {
+                        "field": "user_question",
+                        "description": "The actual question asked by the user",
+                    }
+                },
                 model_artifact=model,
+                model_configuration={"temperature": 0.7, "max_tokens": 256},
+                description="Q&A prompt template with user-provided question",
                 tag="v2",
+                labels={"task": "qa", "stage": "experiment"},
             )
 
         :param key: Unique key for the prompt artifact.
@@ -1923,7 +1961,10 @@ class MlrunProject(ModelObj):
          "role": "user", "content": "I need your help with {profession}"]. only "role" and "content" keys allow in any
          str format (upper/lower case), keys will be modified to lower case.
          Cannot be used with `prompt_path`.
-        :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
+        :param prompt_path: Path to a JSON file containing the prompt template.
+                            Cannot be used together with `prompt_template`.
+                            The file should define a list of dictionaries in the same format
+                            supported by `prompt_template`.
         :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
                and the value is a dictionary holding two keys, "field", "description". "field" points to the field in
                the event where the value of the place-holder inside the event, if None or not exist will be replaced
@@ -1932,9 +1973,11 @@ class MlrunProject(ModelObj):
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param model_configuration: Configuration dictionary for model generation parameters
                (e.g., temperature, max tokens).
-        :param description: Optional description of the prompt.
-        :param target_path: Optional local target path for saving prompt content.
-        :param artifact_path: Storage path for the logged artifact.
+        :param description:   Optional description of the prompt.
+        :param target_path:   Absolute target path (instead of using artifact_path + local_path)
+        :param artifact_path: Target artifact path (when not using the default)
+                              To define a subpath under the default location use:
+                              `artifact_path=context.artifact_subpath('data')`
         :param tag: Version tag for the artifact (e.g., "v1", "latest").
         :param labels: Labels to tag the artifact for filtering and organization.
         :param upload: Whether to upload the artifact to a remote datastore. Defaults to True.
@@ -2706,16 +2749,18 @@ class MlrunProject(ModelObj):
         | Creating a function with non project source is done by specifying a module ``handler`` and on the
          returned function set the source with ``function.with_source_archive(<source>)``.
 
-        Support URL prefixes:
+        Supported URL prefixes:
 
-            | Object (s3://, v3io://, ..)
-            | MLRun DB e.g. db://project/func:ver
-            | Functions hub/market: e.g. hub://auto-trainer:master
+        - Object: s3://, v3io://, etc.
+        - MLRun DB: e.g db://project/func:ver
+        - Function hub/market: e.g. hub://auto-trainer:master
 
         Examples::
 
             proj.set_function(func_object)
-            proj.set_function("http://.../mynb.ipynb", "train")
+            proj.set_function(
+                "http://.../mynb.ipynb", "train", kind="job", image="mlrun/mlrun"
+            )
             proj.set_function("./func.yaml")
             proj.set_function("hub://get_toy_data", "getdata")
 
@@ -2742,18 +2787,6 @@ class MlrunProject(ModelObj):
             # By providing a path to a pip requirements file
             proj.set_function("my.py", requirements="requirements.txt")
 
-        One of the most important parameters is 'kind', used to specify the chosen runtime. The options are:
-           - local: execute a local python or shell script
-           - job: insert the code into a Kubernetes pod and execute it
-           - nuclio: insert the code into a real-time serverless nuclio function
-           - serving: insert code into orchestrated nuclio function(s) forming a DAG
-           - dask: run the specified python code / script as Dask Distributed job
-           - mpijob: run distributed Horovod jobs over the MPI job operator
-           - spark: run distributed Spark job using Spark Kubernetes Operator
-           - remote-spark: run distributed Spark job on remote Spark service
-           - databricks: run code on Databricks cluster (python scripts, Spark etc.)
-           - application: run a long living application (e.g. a web server, UI, etc.)
-
         Learn more about :doc:`../../concepts/functions-overview`.
 
         :param func:                Function object or spec/code url, None refers to current Notebook
@@ -2761,8 +2794,20 @@ class MlrunProject(ModelObj):
                                     Versions (e.g. myfunc:v1). If the `tag` parameter is provided, the tag in the name
                                     must match the tag parameter.
                                     Specifying a tag in the name will update the project's tagged function (myfunc:v1)
-        :param kind:                Runtime kind e.g. job, nuclio, spark, dask, mpijob
-                                    Default: job
+        :param kind:                Default: job. One of
+
+                          - local: execute a local python or shell script
+                          - job: insert the code into a Kubernetes pod and execute it
+                          - nuclio: insert the code into a real-time serverless nuclio function
+                          - serving: insert code into orchestrated nuclio function(s) forming a DAG
+                          - dask: run the specified python code / script as Dask Distributed job
+                          - mpijob: run distributed Horovod jobs over the MPI job operator
+                          - spark: run distributed Spark job using Spark Kubernetes Operator
+                          - remote-spark: run distributed Spark job on remote Spark service
+                          - databricks: run code on Databricks cluster (python scripts, Spark etc.)
+                          - application: run a long living application (e.g. a web server, UI, etc.)
+                          - handler: execute a python handler (used automatically in notebooks or for debug)
+
         :param image:               Docker image to be used, can also be specified in the function object/yaml
         :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in
@@ -3901,6 +3946,7 @@ class MlrunProject(ModelObj):
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         top_level: bool = False,
+        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         tsdb_metrics: bool = False,
@@ -3916,8 +3962,9 @@ class MlrunProject(ModelObj):
         5) function_tag
         6) labels
         7) top level
-        8) uids
-        9) start and end time, corresponding to the `created` field.
+        8) mode
+        9) uids
+        10) start and end time, corresponding to the `created` field.
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
@@ -3937,6 +3984,8 @@ class MlrunProject(ModelObj):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
+                                both if set to None.
         :param uids:            If passed will return a list `ModelEndpoint` object with uid in uids.
         :param tsdb_metrics:    When True, the time series metrics will be added to the output
                                 of the resulting.
@@ -3958,6 +4007,7 @@ class MlrunProject(ModelObj):
             start=start,
             end=end,
             top_level=top_level,
+            mode=mode,
             uids=uids,
             latest_only=latest_only,
             tsdb_metrics=tsdb_metrics,

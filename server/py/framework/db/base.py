@@ -17,7 +17,6 @@ import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
-from deprecated import deprecated
 from sqlalchemy.orm import Session
 
 import mlrun.alerts
@@ -637,24 +636,6 @@ class DBInterface(ABC):
         tag: Optional[str] = None,
         uid: Optional[str] = None,
     ) -> mlrun.common.schemas.FeatureSet:
-        pass
-
-    # TODO: remove in 1.10.0
-    @deprecated(
-        version="1.7.0",
-        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_features(
-        self,
-        session,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
     @abstractmethod
@@ -1347,6 +1328,7 @@ class DBInterface(ABC):
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
+        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime.datetime] = None,
         end: typing.Optional[datetime.datetime] = None,
@@ -1371,6 +1353,8 @@ class DBInterface(ABC):
         :param model_name:      The model name.
         :param model_tag:       The model tag.
         :param top_level:       Whether to return only top level model endpoints (1,2,4).
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
+                                both if set to None.
         :param labels:          The labels to filter by.
         :param start:           The start time to filter by.
         :param end:             The end time to filter by.

@@ -18,13 +18,16 @@ from typing import Any, Optional
 import mlrun
 import mlrun.artifacts
 import mlrun.serving
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+)
 from mlrun.serving import ModelRunnerStep
 from mlrun.serving.states import LLModel  # noqa
 
 INPUT_DATA = [
     {
-        "question": "What is the capital of France, and give a historical overview.",
+        "question": "What is the capital of France? Answer with one word first, then provide a historical overview.",
         "depth_level": "detailed",
         "persona": "teacher",
         "tone": "casual",
@@ -78,12 +81,14 @@ def setup_remote_model_test(
     execution_mechanism="naive",
     image=None,
     requirements=None,
-    model_class="LLModel",
+    requirements_file=None,
+    model_class: str = "LLModel",
+    default_config: Optional[dict] = None,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
         model_url=model_url,
-        default_config={"max_tokens": 100},
+        default_config=default_config,
     )
     llm_prompt_artifact = project.log_llm_prompt(
         "my_llm_prompt",
@@ -104,6 +109,7 @@ def setup_remote_model_test(
         filename=__file__,
         image=image,
         requirements=requirements,
+        requirements_file=requirements_file,
     )
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
@@ -112,6 +118,7 @@ def setup_remote_model_test(
         endpoint_name="my_endpoint",
         execution_mechanism=execution_mechanism,
         model_artifact=llm_prompt_artifact,
+        result_path="output",
     )
     graph.to(model_runner_step).respond()
     return model_artifact, llm_prompt_artifact, function
@@ -139,16 +146,22 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
         )
 
     async def predict_async(
-        self, body, messages: list[dict], model_configuration: dict
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
     ):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
+            # Load the client before using async operations
+            self.model_provider.load_async_client()
             coros = [
                 timed(
                     self.model_provider.async_invoke(
                         messages=[message],
-                        as_str=True,
+                        invoke_response_format=InvokeResponseFormat.STRING,
                         **(model_configuration or {}),
                     )
                 )
@@ -171,5 +184,8 @@ def assert_async_invocations(results_with_times, model_name, total_duration):
     encoding = tiktoken.encoding_for_model(model_name)
     for i in range(len(EXPECTED_RESULTS)):
         assert EXPECTED_RESULTS[i] in results[i].lower()
-        assert len(encoding.encode(results[i])) == 100
+        number_of_tokens = len(encoding.encode(results[i]))
+        assert (
+            number_of_tokens == 100
+        ), f"Expected 100 tokens for input #{i}, but got {number_of_tokens}"
     assert total_duration < sum(invoke_times)

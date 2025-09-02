@@ -14,7 +14,7 @@
 
 import pytest
 
-import framework.utils.singletons.db
+import framework.utils.db.dsn
 
 
 @pytest.mark.parametrize(
@@ -35,5 +35,5 @@ import framework.utils.singletons.db
     ],
 )
 def test_masked_dsn(dsn, expected_masked_dsn):
-    masked_dsn = framework.utils.singletons.db._mask_dsn(dsn)
-    assert masked_dsn == expected_masked_dsn
+    masked_dsn = framework.utils.db.dsn.Dsn(dsn)
+    assert str(masked_dsn) == str(expected_masked_dsn)

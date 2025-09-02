@@ -67,6 +67,7 @@ from mlrun.common.schemas.feature_store import (
     FeatureSetDigestSpecV2,
 )
 from mlrun.common.schemas.model_monitoring import (
+    EndpointMode,
     EndpointType,
     ModelEndpointSchema,
     ModelMonitoringAppLabel,
@@ -339,7 +340,7 @@ class SQLDB(DBInterface):
     ) -> dict:
         """
         Atomically acquire a FOR UPDATE lock on the specified run row, then add or remove
-        the `retrying` label.
+        the `retrying` label and update the `rerun_counter`.
 
         :param session:  SQLAlchemy session to use for the transaction.
         :param project:     Name of the project containing the run.
@@ -348,7 +349,7 @@ class SQLDB(DBInterface):
                             - When setting to True, this will:
                               1. lock the row
                               2. verify no existing `retrying` label (else MLRunConflictError)
-                              3. add `retrying="true"`
+                              3. add `retrying="true"` and bump `rerun_counter`
                             - When setting to False, it will remove the `retrying` label.
         :returns:           The updated struct of the run.
         :raises MLRunNotFoundError:   If the run does not exist.
@@ -367,13 +368,15 @@ class SQLDB(DBInterface):
             if not retrying:
                 labels.pop("retrying", None)
             elif mlrun_constants.MLRunInternalLabels.retrying in labels:
-                # flush and commit so the lock is released immediately
-                session.commit()
                 raise mlrun.errors.MLRunConflictError
             else:
-                # TODO: bump counter label here in follow-up
                 labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
-
+                labels[mlrun_constants.MLRunInternalLabels.rerun_counter] = str(
+                    int(
+                        labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0)
+                    )
+                    + 1
+                )
             update_labels(run, labels)
             run.struct = struct
             self._upsert(session, [run])
@@ -1708,7 +1711,8 @@ class SQLDB(DBInterface):
                     tree=parent.producer_id,
                     uid=parent.uid,
                     tag=parent_tag
-                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or []),
+                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or [])
+                    or None,
                 ),
             )
         else:
@@ -3923,6 +3927,10 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
+        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+            logger.debug("Partition management not supported for SQLite")
+            return {}, {}, {}
+
         project_to_endpoint_alerts_count = collections.defaultdict(int)
         project_to_job_alerts_count = collections.defaultdict(int)
         project_to_other_alerts_count = collections.defaultdict(int)
@@ -4366,72 +4374,6 @@ class SQLDB(DBInterface):
             query = query.filter(FeatureSet.id.in_(feature_set_keys))
 
         return query
-
-    def list_features(
-        self,
-        session,
-        project: str,
-        name: typing.Optional[str] = None,
-        tag: typing.Optional[str] = None,
-        entities: typing.Optional[list[str]] = None,
-        labels: typing.Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
-        # We don't filter by feature-set name here, as the name parameter refers to features
-        feature_set_id_tags = self._get_records_to_tags_map(
-            session, FeatureSet, project, tag, name=None
-        )
-
-        query = self._generate_feature_or_entity_list_query(
-            session, Feature, project, feature_set_id_tags.keys(), name, tag, labels
-        )
-
-        if entities:
-            query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
-
-        features_results = []
-        transform_feature_set_model_to_schema = MemoizationCache(
-            self._transform_feature_set_model_to_schema
-        ).memoize
-        generate_feature_set_digest = MemoizationCache(
-            self._generate_feature_set_digest
-        ).memoize
-
-        for row in query:
-            feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
-            feature_name = feature_record.name
-
-            feature_sets = self._generate_records_with_tags_assigned(
-                row.FeatureSet,
-                transform_feature_set_model_to_schema,
-                feature_set_id_tags,
-                tag,
-            )
-
-            for feature_set in feature_sets:
-                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
-                # in the DB)
-                feature = next(
-                    (
-                        feature
-                        for feature in feature_set.spec.features
-                        if feature.name == feature_name
-                    ),
-                    None,
-                )
-                if not feature:
-                    raise mlrun.errors.MLRunInternalServerError(
-                        "Inconsistent data in DB - features in DB not in feature-set document"
-                    )
-
-                feature_set_digest = generate_feature_set_digest(feature_set)
-
-                features_results.append(
-                    mlrun.common.schemas.FeatureListOutput(
-                        feature=feature,
-                        feature_set_digest=feature_set_digest,
-                    )
-                )
-        return mlrun.common.schemas.FeaturesOutput(features=features_results)
 
     @staticmethod
     def _dedup_and_append_feature_set(
@@ -5804,6 +5746,7 @@ class SQLDB(DBInterface):
         model_name: Optional[str] = None,
         model_tag: Optional[str] = None,
         top_level: Optional[bool] = None,
+        mode: Optional[EndpointMode] = None,
         labels: Optional[list[str]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -5824,6 +5767,7 @@ class SQLDB(DBInterface):
         :param model_name: The model name of the model endpoint.
         :param model_tag: The model tag associated with the model endpoint.
         :param top_level: If True, filters for top-level model endpoints.
+        :param mode: Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or both if set to None.
         :param labels: The labels to filter model endpoints.
         :param start: Start date-time filter.
         :param end: End date-time filter.
@@ -5873,6 +5817,19 @@ class SQLDB(DBInterface):
             query = query.filter(
                 ModelEndpoint.endpoint_type.in_(EndpointType.top_level_list())
             )
+        if mode is not None:
+            if mode == EndpointMode.REAL_TIME:
+                # Real Time + Old Batch EP (none value)
+                query = query.filter(
+                    or_(
+                        ModelEndpoint.mode == EndpointMode.REAL_TIME,
+                        ModelEndpoint.mode.is_(None),
+                    )
+                )
+
+            else:
+                # Batch EP
+                query = query.filter(ModelEndpoint.mode == EndpointMode.BATCH)
 
         # Apply function-related filters
         if function_name or function_tag:
@@ -6761,7 +6718,7 @@ class SQLDB(DBInterface):
                 * MySQL: the "LESS THAN" boundary value for the partition.
                 * Postgres: a string "lower,upper" defining the range.
         """
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def drop_partitions(
@@ -6776,7 +6733,7 @@ class SQLDB(DBInterface):
         :param table_name: The name of the table with partitions.
         :param cutoff_partition_name: The cutoff partition name for dropping old partitions.
         """
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def get_partition_expression_for_table(
@@ -6793,7 +6750,7 @@ class SQLDB(DBInterface):
         - dayofmonth(`activation_time`)
         - yearweek(`activation_time`, 1)
         """
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def table_exists(
@@ -6808,7 +6765,7 @@ class SQLDB(DBInterface):
 
         :return: True if the table exists, False otherwise.
         """
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def _transform_alert_template_schema_to_record(
@@ -7920,6 +7877,7 @@ class SQLDB(DBInterface):
             function_id=function_record.id if function_record else None,
             model_id=model_endpoint.spec._model_id or None,
             endpoint_type=model_endpoint.metadata.endpoint_type.value,
+            mode=model_endpoint.metadata.mode.value,
             created=current_time,
             updated=current_time,
         )
@@ -8038,6 +7996,7 @@ class SQLDB(DBInterface):
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
+        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
@@ -8064,6 +8023,7 @@ class SQLDB(DBInterface):
             model_name=model_name,
             model_tag=model_tag,
             top_level=top_level,
+            mode=mode,
             start=start,
             end=end,
             uids=uids,
@@ -8080,7 +8040,7 @@ class SQLDB(DBInterface):
                 model_endpoints[
                     (
                         f"{mep_record.project}-{mep_record.function.name}-"
-                        f"{self._get_function_tag(mep_record.function.tags)}-{mep_record.name}"
+                        f"{self._get_obj_tag_prioritizing_user_tag(mep_record.function.tags)}-{mep_record.name}"
                     )
                 ] = mep_record
         return model_endpoints

@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 from os import environ, path, remove
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
+from uuid import UUID
 
 import pydantic.v1
 import requests
@@ -2554,50 +2555,6 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error_message)
         return FeatureSet.from_dict(resp.json())
 
-    def list_features(
-        self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> list[dict]:
-        """List feature-sets which contain specific features. This function may return multiple versions of the same
-        feature-set if a specific tag is not requested. Note that the various filters of this function actually
-        refer to the feature-set object containing the features, not to the features themselves.
-
-        :param project: Project which contains these features.
-        :param name: Name of the feature to look for. The name is used in a like query, and is not case-sensitive. For
-            example, looking for ``feat`` will return features which are named ``MyFeature`` as well as ``defeat``.
-        :param tag: Return feature-sets which contain the features looked for, and are tagged with the specific tag.
-        :param entities: Return only feature-sets which contain an entity whose name is contained in this list.
-        :param labels: Filter feature-sets by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :returns: A list of mapping from feature to a digest of the feature-set, which contains the feature-set
-            meta-data. Multiple entries may be returned for any specific feature due to multiple tags or versions
-            of the feature-set.
-        """
-
-        project = project or config.active_project
-        labels = self._parse_labels(labels)
-        params = {
-            "name": name,
-            "tag": tag,
-            "entity": entities or [],
-            "label": labels,
-        }
-
-        path = f"projects/{project}/features"
-
-        error_message = f"Failed listing features, project: {project}, query: {params}"
-        resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["features"]
-
     def list_features_v2(
         self,
         project: Optional[str] = None,
@@ -3623,7 +3580,7 @@ class HTTPRunDB(RunDBInterface):
                                 intersection {"intersect_metrics":[], "intersect_results":[]}
         :return: A dictionary of application metrics and/or results for the model endpoints formatted by events_format.
         """
-        path = f"projects/{project}/model-endpoints/metrics"
+        path = f"projects/{project}/model-monitoring/metrics"
         params = {
             "type": type,
             "endpoint-id": endpoint_ids,
@@ -3813,6 +3770,7 @@ class HTTPRunDB(RunDBInterface):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
+        mode: mm_constants.EndpointMode = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -3833,6 +3791,8 @@ class HTTPRunDB(RunDBInterface):
                                 If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                                 will be included.
         :param top_level:       Whether to return only top level model endpoints.
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
+                                both if set to None.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
         :return:                A list of model endpoints.
@@ -3856,6 +3816,7 @@ class HTTPRunDB(RunDBInterface):
                 "tsdb-metrics": tsdb_metrics,
                 "metric": metric_list,
                 "top-level": top_level,
+                "mode": mode,
                 "uid": uids,
                 "latest-only": latest_only,
             },
@@ -3964,6 +3925,13 @@ class HTTPRunDB(RunDBInterface):
             raise MLRunInvalidArgumentError(
                 "Either endpoint_uid or function_name and function_tag must be provided"
             )
+        if uid:
+            try:
+                UUID(uid)
+            except (ValueError, TypeError):
+                raise MLRunInvalidArgumentError(
+                    "endpoint_id must be a valid UUID string"
+                )
 
     def update_model_monitoring_controller(
         self,
@@ -4151,6 +4119,26 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.PUT,
             path=f"projects/{project}/model-monitoring/credentials",
             params={**credentials, "replace_creds": replace_creds},
+        )
+
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        """
+        Delete model endpoints metrics values.
+
+        :param project:           The name of the project.
+        :param application_name:  The name of the application.
+        :param endpoint_ids:      The unique IDs of the model endpoints to delete metrics values from. If none is
+                                  provided, the metrics values will be deleted from all project's model endpoints.
+        """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.DELETE,
+            path=f"projects/{project}/model-monitoring/metrics",
+            params={"endpoint-id": endpoint_ids, "application-name": application_name},
         )
 
     def get_monitoring_function_summaries(

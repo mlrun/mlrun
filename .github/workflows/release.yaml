@@ -70,7 +70,7 @@ jobs:
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
 
           # Fetch all history for all tags and branches
@@ -143,9 +143,9 @@ jobs:
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up uv
-        uses: astral-sh/setup-uv@7edac99f961f18b581bbd960d59d049f04c0002f # 6.4.1
+        uses: astral-sh/setup-uv@4959332f0f014c5280e7eac8b70c90cb574c9f9b # 6.6.0
       - name: Build & push to PyPI
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
@@ -202,11 +202,11 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Create tutorials tar
         run: |
-          wget -c https://github.com/v3io/tutorials/blob/mlrun-release-stable/welcome.ipynb -P docs
-          wget -c https://github.com/v3io/tutorials/blob/mlrun-release-stable/README.md -P docs
+          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
+          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/README.md -P docs
           tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb
           rm -rf docs/welcome.ipynb docs/README.md
       - name: Add tutorials tar to release
@@ -223,7 +223,7 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Python venv
         run: |
           venv="$HOME/.local/share/venv"
@@ -251,7 +251,7 @@ jobs:
     # runs lastly to avoid conflicts with other release-related jobs
     needs: [ prepare-inputs, update-tutorials, update-demos ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5

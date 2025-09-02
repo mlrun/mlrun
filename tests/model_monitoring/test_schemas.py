@@ -36,9 +36,9 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ("fqn", "expected_result", "expectation"),
     [
         (
-            "1infer-model-tsdb-t3.histogram-data-drift.result.general_drift",
+            "infer-model-tsdb-t3.histogram-data-drift.result.general_drift",
             ModelEndpointMonitoringMetric(
-                project="1infer-model-tsdb-t3",
+                project="infer-model-tsdb-t3",
                 app="histogram-data-drift",
                 type=ModelEndpointMonitoringMetricType.RESULT,
                 name="general_drift",
@@ -46,12 +46,12 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
             does_not_raise(),
         ),
         (
-            "proj_j.app-123.metric.error-count",
+            "proj-j.app-123.metric.error_count",
             ModelEndpointMonitoringMetric(
-                project="proj_j",
+                project="proj-j",
                 app="app-123",
                 type=ModelEndpointMonitoringMetricType.METRIC,
-                name="error-count",
+                name="error_count",
             ),
             does_not_raise(),
         ),

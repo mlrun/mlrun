@@ -988,6 +988,9 @@ with warnings.catch_warnings():
         )
         name = Column(framework.db.sqldb.sql_types.Utf8BinText)
         endpoint_type = Column(Integer, nullable=False)
+        mode = Column(
+            Integer, default=mlrun.common.schemas.EndpointMode.REAL_TIME.value
+        )
         project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         body = Column(framework.db.sqldb.sql_types.Blob)
         created = Column(
@@ -1152,12 +1155,6 @@ def bootstrap_partitions(
             first_partition_name=partition_name,
             first_partition_upper_bound=partition_value,
         )
-
-
-def get_partitioned_table_names():
-    return [
-        AlertActivation.__tablename__,
-    ]
 
 
 # Must be after all table definitions

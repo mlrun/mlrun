@@ -537,6 +537,12 @@ class ModelEndpoints:
                     for f in model_obj.spec.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
+            elif model_endpoint.spec.label_names:
+                model_label_names = [
+                    mlrun.feature_store.api.norm_column_name(name)
+                    for name in model_endpoint.spec.label_names
+                ]
+                model_endpoint.spec.label_names = model_label_names
 
             if not model_endpoint.spec.feature_names:
                 features = self._get_features(
@@ -550,6 +556,12 @@ class ModelEndpoints:
                     for feature in features
                     if feature.name not in model_endpoint.spec.label_names
                 ]
+            elif model_endpoint.spec.feature_names:
+                model_endpoint_feature_names = [
+                    mlrun.feature_store.api.norm_column_name(name)
+                    for name in model_endpoint.spec.feature_names
+                ]
+                model_endpoint.spec.feature_names = model_endpoint_feature_names
 
         return model_endpoint, features
 
@@ -992,6 +1004,7 @@ class ModelEndpoints:
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
         top_level: typing.Optional[bool] = None,
+        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
         tsdb_metrics: typing.Optional[bool] = None,
         metric_list: Optional[list[str]] = None,
         uids: typing.Optional[list[str]] = None,
@@ -1009,6 +1022,8 @@ class ModelEndpoints:
         :param start:               The start time of the model endpoint creation.
         :param end:                 The end time of the model endpoint creation.
         :param top_level:           When True, only top level model endpoints will be returned.
+        :param mode:                Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or
+                                    both if set to None.
         :param tsdb_metrics:        When True, the time series metrics will be added to the output of the resulting
         :param metric_list:         List of metrics to include from the time series DB. Defaults to all metrics.
                                     If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
@@ -1034,6 +1049,7 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
+            mode=mode,
             tsdb_metrics=tsdb_metrics,
             metric_list=metric_list,
             uids=uids,
@@ -1054,6 +1070,7 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
+            mode=mode,
             uids=uids,
             latest_only=latest_only,
         )
@@ -1092,11 +1109,13 @@ class ModelEndpoints:
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
-        logger.debug(
-            "Deleting model monitoring endpoints resources", project_name=project_name
-        )
         stream_path = mlrun.model_monitoring.get_stream_path(
             project=project_name, profile=stream_profile
+        )
+        logger.debug(
+            "Deleting model monitoring endpoints resources",
+            project_name=project_name,
+            stream_path=stream_path,
         )
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
@@ -1134,17 +1153,6 @@ class ModelEndpoints:
                 error=mlrun.errors.err_to_str(e),
             )
             tsdb_connector = None
-        except mlrun.errors.MLRunInvalidMMStoreTypeError:
-            # TODO: delete in 1.10.0 - for BC trying to delete from v3io store
-            if not mlrun.mlconf.is_ce_mode():
-                tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                    project=project_name,
-                    profile=mlrun.datastore.datastore_profile.DatastoreProfileV3io(
-                        name="tmp"
-                    ),
-                )
-            else:
-                tsdb_connector = None
         if tsdb_connector:
             tsdb_connector.delete_tsdb_resources()
         cls._delete_model_monitoring_stream_resources(

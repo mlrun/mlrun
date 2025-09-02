@@ -17,13 +17,17 @@ __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 import asyncio
 import base64
 import copy
+import importlib
 import json
 import os
+import pathlib
 import socket
 import traceback
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional, Union
 
+import pandas as pd
 import storey
 from nuclio import Context as NuclioContext
 from nuclio.request import Logger as NuclioLogger
@@ -40,6 +44,7 @@ from mlrun.secrets import SecretsStore
 
 from ..common.helpers import parse_versioned_object_uri
 from ..common.schemas.model_monitoring.constants import FileTargetKind
+from ..common.schemas.serving import MAX_BATCH_JOB_DURATION
 from ..datastore import DataItem, get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
@@ -358,6 +363,7 @@ def add_error_raiser_step(
             raise_exception=monitored_step.raise_exception,
             models_names=list(monitored_step.class_args["models"].keys()),
             model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+            function=monitored_step.function,
         )
         if monitored_step.responder:
             monitored_step.responder = False
@@ -561,25 +567,41 @@ def v2_serving_init(context, namespace=None):
 async def async_execute_graph(
     context: MLClientCtx,
     data: DataItem,
+    timestamp_column: Optional[str],
     batching: bool,
     batch_size: Optional[int],
     read_as_lists: bool,
     nest_under_inputs: bool,
 ) -> list[Any]:
     spec = mlrun.utils.get_serving_spec()
-
-    namespace = {}
+    modname = None
     code = os.getenv("MLRUN_EXEC_CODE")
     if code:
         code = base64.b64decode(code).decode("utf-8")
-        exec(code, namespace)
+        with open("user_code.py", "w") as fp:
+            fp.write(code)
+        modname = "user_code"
     else:
         # TODO: find another way to get the local file path, or ensure that MLRUN_EXEC_CODE
         #  gets set in local flow and not just in the remote pod
-        source_filename = spec.get("filename", None)
-        if source_filename:
-            with open(source_filename) as f:
-                exec(f.read(), namespace)
+        source_file_path = spec.get("filename", None)
+        if source_file_path:
+            source_file_path_object = pathlib.Path(source_file_path).resolve()
+            current_dir_path_object = pathlib.Path(".").resolve()
+            if not source_file_path_object.is_relative_to(current_dir_path_object):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Source file path '{source_file_path}' is not under the current working directory "
+                    f"(which is required when running with local=True)"
+                )
+            relative_path_to_source_file = source_file_path_object.relative_to(
+                current_dir_path_object
+            )
+            modname = ".".join(relative_path_to_source_file.with_suffix("").parts)
+
+    namespace = {}
+    if modname:
+        mod = importlib.import_module(modname)
+        namespace = mod.__dict__
 
     server = GraphServer.from_dict(spec)
 
@@ -605,10 +627,43 @@ async def async_execute_graph(
                 f"(status='{task_state}')"
             )
 
+    df = data.as_df()
+
+    if df.empty:
+        context.logger.warn("Job terminated due to empty inputs (0 rows)")
+        return []
+
+    track_models = spec.get("track_models")
+
+    if track_models and timestamp_column:
+        context.logger.info(f"Sorting dataframe by {timestamp_column}")
+        df[timestamp_column] = pd.to_datetime(  # in case it's a string
+            df[timestamp_column]
+        )
+        df.sort_values(by=timestamp_column, inplace=True)
+        if len(df) > 1:
+            start_time = df[timestamp_column].iloc[0]
+            end_time = df[timestamp_column].iloc[-1]
+            time_range = end_time - start_time
+            start_time = start_time.isoformat()
+            end_time = end_time.isoformat()
+            # TODO: tie this to the controller's base period
+            if time_range > pd.Timedelta(MAX_BATCH_JOB_DURATION):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Dataframe time range is too long: {time_range}. "
+                    "Please disable tracking or reduce the input dataset's time range below the defined limit "
+                    f"of {MAX_BATCH_JOB_DURATION}."
+                )
+        else:
+            start_time = end_time = df["timestamp"].iloc[0].isoformat()
+    else:
+        # end time will be set from clock time when the batch completes
+        start_time = datetime.now(tz=timezone.utc).isoformat()
+
     server.graph = add_system_steps_to_graph(
         server.project,
         copy.deepcopy(server.graph),
-        spec.get("track_models"),
+        track_models,
         context,
         spec,
         pause_until_background_task_completion=False,  # we've already awaited it
@@ -633,19 +688,28 @@ async def async_execute_graph(
     if server.verbose:
         context.logger.info(server.to_yaml())
 
-    df = data.as_df()
-
-    responses = []
-
     async def run(body):
         event = storey.Event(id=index, body=body)
-        response = await server.run(event, context)
-        responses.append(response)
+        if timestamp_column:
+            if batching:
+                # we use the first row in the batch to determine the timestamp for the whole batch
+                body = body[0]
+            if not isinstance(body, dict):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"When timestamp_column=True, event body must be a dict – got {type(body).__name__} instead"
+                )
+            if timestamp_column not in body:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Event body '{body}' did not contain timestamp column '{timestamp_column}'"
+                )
+            event._original_timestamp = body[timestamp_column]
+        return await server.run(event, context)
 
     if batching and not batch_size:
         batch_size = len(df)
 
     batch = []
+    tasks = []
     for index, row in df.iterrows():
         data = row.to_list() if read_as_lists else row.to_dict()
         if nest_under_inputs:
@@ -653,24 +717,76 @@ async def async_execute_graph(
         if batching:
             batch.append(data)
             if len(batch) == batch_size:
-                await run(batch)
+                tasks.append(asyncio.create_task(run(batch)))
                 batch = []
         else:
-            await run(data)
+            tasks.append(asyncio.create_task(run(data)))
 
     if batch:
-        await run(batch)
+        tasks.append(asyncio.create_task(run(batch)))
+
+    responses = await asyncio.gather(*tasks)
 
     termination_result = server.wait_for_completion()
     if asyncio.iscoroutine(termination_result):
         await termination_result
 
+    model_endpoint_uids = spec.get("model_endpoint_uids", [])
+
+    # needed for output_stream to be created
+    server = GraphServer.from_dict(spec)
+    server.init_states(None, namespace)
+
+    batch_completion_time = datetime.now(tz=timezone.utc).isoformat()
+
+    if not timestamp_column:
+        end_time = batch_completion_time
+
+    mm_stream_record = dict(
+        kind="batch_complete",
+        project=context.project,
+        first_timestamp=start_time,
+        last_timestamp=end_time,
+        batch_completion_time=batch_completion_time,
+    )
+    output_stream = server.context.stream.output_stream
+    for mep_uid in spec.get("model_endpoint_uids", []):
+        mm_stream_record["endpoint_id"] = mep_uid
+        output_stream.push(mm_stream_record, partition_key=mep_uid)
+
+    context.logger.info(
+        f"Job completed processing {len(df)} rows",
+        timestamp_column=timestamp_column,
+        model_endpoint_uids=model_endpoint_uids,
+    )
+
     return responses
+
+
+def _is_inside_asyncio_loop():
+    try:
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
+
+
+# Workaround for running with local=True in Jupyter (ML-10620)
+def _workaround_asyncio_nesting():
+    try:
+        import nest_asyncio
+    except ImportError:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Cannot execute graph from within an already running asyncio loop. "
+            "Attempt to import nest_asyncio as a workaround failed as well."
+        )
+    nest_asyncio.apply()
 
 
 def execute_graph(
     context: MLClientCtx,
     data: DataItem,
+    timestamp_column: Optional[str] = None,
     batching: bool = False,
     batch_size: Optional[int] = None,
     read_as_lists: bool = False,
@@ -681,6 +797,9 @@ def execute_graph(
 
     :param context: The job's execution client context.
     :param data: The input data to the job, to be pushed into the graph row by row, or in batches.
+    :param timestamp_column: The name of the column that will be used as the timestamp for model monitoring purposes.
+        when timestamp_column is used in conjunction with batching, the first timestamp will be used for the entire
+        batch.
     :param batching: Whether to push one or more batches into the graph rather than row by row.
     :param batch_size: The number of rows to push per batch. If not set, and batching=True, the entire dataset will
         be pushed into the graph in one batch.
@@ -689,9 +808,18 @@ def execute_graph(
 
     :return: A list of responses.
     """
+    if _is_inside_asyncio_loop():
+        _workaround_asyncio_nesting()
+
     return asyncio.run(
         async_execute_graph(
-            context, data, batching, batch_size, read_as_lists, nest_under_inputs
+            context,
+            data,
+            timestamp_column,
+            batching,
+            batch_size,
+            read_as_lists,
+            nest_under_inputs,
         )
     )
 

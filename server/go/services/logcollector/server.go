@@ -238,7 +238,7 @@ func (s *Server) StartLog(ctx context.Context,
 			"logFilePath", logFilePath)
 		return &protologcollector.BaseResponse{
 			Success:      false,
-			ErrorCode:    common.ErrCodeNotFound,
+			ErrorCode:    common.ErrCodeInternal,
 			ErrorMessage: err.Error(),
 		}, err
 	}

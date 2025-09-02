@@ -478,10 +478,8 @@ class V2ModelServer(StepToDict):
         ) or getattr(self.context, "server", None)
         if not self.context.is_mock or self.context.monitoring_mock:
             if server.model_endpoint_creation_task_name:
-                background_task_state, _ = (
-                    get_model_endpoints_creation_task_status(
-                        server, log_background_task_state
-                    )
+                background_task_state, _ = get_model_endpoints_creation_task_status(
+                    server, log_background_task_state
                 )
                 if (
                     background_task_state

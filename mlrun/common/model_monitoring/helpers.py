@@ -18,7 +18,6 @@ from datetime import datetime
 
 import mlrun.common
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.serving
 
 FeatureStats = typing.NewType("FeatureStats", dict[str, dict[str, typing.Any]])
 Histogram = typing.NewType("Histogram", list[list])
@@ -93,7 +92,7 @@ def pad_features_hist(feature_stats: FeatureStats) -> None:
 
 
 def get_model_endpoints_creation_task_status(
-    server: mlrun.serving.GraphServer,
+    server,
     logging_method: typing.Callable,
 ) -> tuple[
     mlrun.common.schemas.BackgroundTaskState, typing.Optional[mlrun.utils.now_date]

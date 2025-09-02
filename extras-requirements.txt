@@ -10,18 +10,18 @@
 # we have a test test_extras_requirement_file_aligned to verify this file is aligned to setup.py
 # The versions of gcsfs and s3fs should be identical to the fsspec version;
 # Therefore, they must be equal to each other.
-s3fs>=2023.9.2, <2024.7
-gcsfs>=2023.9.2, <2024.7
-ossfs==2023.12.0
+s3fs>=2025.5.1, <=2025.7.0
+gcsfs>=2025.5.1, <=2025.7.0
+ossfs==2025.5.0
 boto3>=1.28.0,<1.36
-oss2==2.18.1
+oss2==2.18.4
 aiobotocore>=2.5.0,<2.16
 # https://github.com/Azure/azure-sdk-for-python/issues/24765#issuecomment-1150310498
 msrest~=0.6.21
 azure-core~=1.24
 # This version is required in order to support the self._strip_protocol
 # function in Azure Blob File System functions (such as _ls and more).
-adlfs==2023.9.0
+adlfs==2024.12.0
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 # cryptography>=39, which is required by azure, needs this, or else we get

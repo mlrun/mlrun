@@ -84,7 +84,7 @@ class TestAwsS3:
 
     @classmethod
     def teardown_class(cls):
-        test_dir = f"{cls.bucket_name}{cls.test_dir}"
+        test_dir = f"{cls.test_dir}"
         if not cls._fs:
             return
         if cls._fs.exists(test_dir):
@@ -97,6 +97,7 @@ class TestAwsS3:
             name=self.profile_name,
             access_key_id=self.access_key_id,
             secret_key=self._secret_access_key,
+            bucket=self.bucket_name,
         )
         register_temporary_client_datastore_profile(self.profile)
 
@@ -113,12 +114,12 @@ class TestAwsS3:
         if use_datastore_profile:
             os.environ["AWS_ACCESS_KEY_ID"] = "wrong_access_key"
             os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"
-            self.prefix_path = f"ds://{self.profile_name}/"
+            self.prefix_path = f"ds://{self.profile_name}"
         else:
             os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
-            self.prefix_path = "s3://"
-        self._bucket_path = f"{self.prefix_path}{self.bucket_name}"
+            self.prefix_path = f"s3://{self.bucket_name}"
+        self._bucket_path = self.prefix_path
         self.run_dir_url = f"{self._bucket_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
         self.object_url = f"{self.run_dir_url}{object_file}"
@@ -374,7 +375,7 @@ class TestAwsS3:
         )
         if use_datastore_profile:
             self.profile = DatastoreProfileS3(
-                name=self.profile_name, **credentials_dict
+                name=self.profile_name, bucket=self.bucket_name, **credentials_dict
             )
             register_temporary_client_datastore_profile(self.profile)
         else:

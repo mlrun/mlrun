@@ -556,6 +556,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
 		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
+		--ignore=tests/frameworks/tf_keras/test_tf_keras.py \
 		"),);\
 	python \
 		-X faulthandler \

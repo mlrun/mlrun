@@ -147,7 +147,6 @@ def test_requirement_specifiers_convention():
             '~=1.4,<1.9.0; python_version < "3.11"',
             '~=2024.4.4; python_version >= "3.11"',
         },
-        "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
         "dask": {
@@ -171,6 +170,9 @@ def test_requirement_specifiers_convention():
         },
         "urllib3": {
             ">=1.26.20",
+        },
+        "v3io-frames": {
+            ">=0.10.15",
         },
     }
 
@@ -220,10 +222,6 @@ def test_requirement_specifiers_inconsistencies():
         "distributed": {
             '~=2023.12.1; python_version < "3.11"',
             '~=2024.8.0; python_version >= "3.11"',
-        },
-        "grpcio": {
-            '~=1.59.0; python_version <= "3.9"',
-            '~=1.74.0; python_version > "3.9"',
         },
     }
 
@@ -422,9 +420,10 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "dockerfiles/gpu/locked-requirements.txt",  # lock file
         "dockerfiles/test/locked-requirements.txt",  # lock file
         "dockerfiles/test-system/locked-requirements.txt",  # lock file
-        "dockerfiles/mlrun-kfp/locked-requirements.txt",  # lock file
         "dockerfiles/mlrun-kfp/locked-requirements_3.9.txt",  # lock file
         "dockerfiles/mlrun-kfp/locked-requirements_3.11.txt",  # lock file
+        "dockerfiles/test/locked-requirements_3.9.txt",  # lock file
+        "dockerfiles/test/locked-requirements_3.11.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 

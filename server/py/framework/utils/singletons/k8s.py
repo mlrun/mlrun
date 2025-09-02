@@ -1172,32 +1172,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secret_tokens: list[mlrun.common.schemas.SecretTokenInfo] = []
 
         for k8s_secret in k8s_secrets:
-            secret_name = k8s_secret.metadata.name
-
-            prefix = (
-                mlrun.mlconf.secret_stores.kubernetes.user_token_secret_name.format(
-                    username=username, token_name=""
-                )
-            )
-            if not secret_name.startswith(prefix):
-                logger.warning(
-                    "Skipping secret with unexpected name format",
-                    secret_name=secret_name,
-                )
-                continue
-
-            token_name = secret_name[len(prefix) :]
-
-            expiration = self._decode_secret_expiration(k8s_secret)
-            if expiration is None:
-                continue
-
-            secret_tokens.append(
-                mlrun.common.schemas.SecretTokenInfo(
-                    name=token_name,
-                    expiration=expiration,
-                )
-            )
+            token_info = self._convert_secret_to_token_info(k8s_secret, username)
+            if token_info:
+                secret_tokens.append(token_info)
 
         return secret_tokens
 
@@ -1241,6 +1218,39 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             raise
 
         return secrets_list.items or []
+
+    def _convert_secret_to_token_info(
+        self, k8s_secret, username: str
+    ) -> typing.Optional[mlrun.common.schemas.SecretTokenInfo]:
+        """
+        Convert a Kubernetes secret to a SecretTokenInfo object if valid.
+
+        :param k8s_secret: Kubernetes secret object.
+        :param username: Expected username for validation.
+        :return: SecretTokenInfo object or None if invalid/expired.
+        """
+        secret_name = k8s_secret.metadata.name
+        prefix = mlrun.mlconf.secret_stores.kubernetes.user_token_secret_name.format(
+            username=username, token_name=""
+        )
+
+        if not secret_name.startswith(prefix):
+            logger.warning(
+                "Skipping secret with unexpected name format",
+                secret_name=secret_name,
+            )
+            return None
+
+        token_name = secret_name[len(prefix) :]
+
+        expiration = self._decode_secret_expiration(k8s_secret)
+        if expiration is None:
+            return None
+
+        return mlrun.common.schemas.SecretTokenInfo(
+            name=token_name,
+            expiration=expiration,
+        )
 
     def _decode_secret_expiration(self, k8s_secret) -> typing.Optional[int]:
         """Decode the expiration timestamp from a Kubernetes secret.

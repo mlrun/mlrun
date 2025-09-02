@@ -171,9 +171,6 @@ def test_requirement_specifiers_convention():
             '~=2023.12.1; python_version < "3.11"',
             '~=2024.8.0; python_version >= "3.11"',
         },
-        "grpcio": {
-            '~=1.74.0; python_version > "3.9"',
-        },
         "mlrun_pipelines_kfp_v1_8[kfp]": {
             ">=0.5.7",
         },
@@ -182,13 +179,15 @@ def test_requirement_specifiers_convention():
         },
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
-        "urllib3": {
-            '>=1.26.20; python_version < "3.11"',
-            '>=2.5.0; python_version >= "3.11"',
+        "grpcio": {
+            '~=1.59.0; python_version <= "3.9"',
+            '~=1.74.0; python_version > "3.9"',
         },
         "kfp": {
-            '==1.8.22; python_version < "3.11"',
-            '~=1.8.23; python_version >= "3.11"',
+            "~=1.8.22",
+        },
+        "urllib3": {
+            ">=1.26.20",
         },
     }
 
@@ -234,21 +233,13 @@ def test_requirement_specifiers_inconsistencies():
             '~=2023.12.1; python_version < "3.11"',
             '~=2024.8.0; python_version >= "3.11"',
         },
-        "v3io-frames": {
-            '>=0.13.0; python_version >= "3.11"',
-            '~=0.10.15; python_version < "3.11"',
-        },
         "dask-ml": {
             '~=2024.4.4; python_version >= "3.11"',
             '~=1.4,<1.9.0; python_version < "3.11"',
         },
-        "urllib3": {
-            '>=1.26.20; python_version < "3.11"',
-            '>=2.5.0; python_version >= "3.11"',
-        },
-        "kfp": {
-            '==1.8.22; python_version < "3.11"',
-            '~=1.8.23; python_version >= "3.11"',
+        "grpcio": {
+            '~=1.59.0; python_version <= "3.9"',
+            '~=1.74.0; python_version > "3.9"',
         },
     }
 

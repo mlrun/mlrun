@@ -131,7 +131,7 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
             return str(v)
         return v
 
-    @classmethod
+    @validator()
     def _set_mode_based_on_endpoint_type(cls, v, values):
         if v is None:
             if values.get("endpoint_type") == EndpointType.BATCH_EP:

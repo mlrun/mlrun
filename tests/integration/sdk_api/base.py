@@ -116,7 +116,7 @@ class TestMLRunIntegration:
 
     @pytest.fixture(scope="function", autouse=True)
     def _api(self, db_engine):
-        self._run_api(db_engine)
+        container = self._run_api(db_engine)
         self.api_url = self._resolve_mlrun_api_url()
         self._setup_env({"MLRUN_DBPATH": self.api_url})
         self._check_api_is_healthy(self.api_url)
@@ -126,6 +126,9 @@ class TestMLRunIntegration:
         try:
             yield
         finally:
+            logs = container.logs(tail=100).decode()
+            logger.info("[DD]")
+            logger.info(logs)
             self.custom_teardown()
             self._stop_api()
 
@@ -138,7 +141,7 @@ class TestMLRunIntegration:
         container_name: str = "mlrun-api",
         image: Optional[str] = None,
         wait_timeout: int = 60,
-    ) -> None:
+    ):
         cls._logger.debug("Starting API")
 
         url_obj = sqlalchemy.engine.make_url(db_engine.url).set(
@@ -180,7 +183,7 @@ class TestMLRunIntegration:
             try:
                 if requests.get(health_url, timeout=2).status_code == 200:
                     cls._logger.debug("API is ready")
-                    return
+                    return container
             except requests.RequestException:
                 pass
             time.sleep(1)

@@ -210,20 +210,19 @@ class GraphServer(ModelObj):
         context.monitoring_mock = monitoring_mock
         context.root = self.graph
 
-        if stream_profile:
-            self.parameters["stream_profile"] = stream_profile
-        elif (
-            is_mock
-            and monitoring_mock
-            and not (
+        if is_mock and monitoring_mock:
+            if stream_profile:
+                # Add the user-defined stream profile to the parameters
+                self.parameters["stream_profile"] = stream_profile
+            elif not (
                 self.parameters.get(FileTargetKind.LOG_STREAM)
                 or mlrun.get_secret_or_env(
                     mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME
                 )
-            )
-        ):
-            # Set a dummy log stream for mocking purposes
-            self.parameters[FileTargetKind.LOG_STREAM] = DUMMY_STREAM
+            ):
+                # Set a dummy log stream for mocking purposes if there is no direct
+                # user-defined stream profile and no information in the environment
+                self.parameters[FileTargetKind.LOG_STREAM] = DUMMY_STREAM
 
         context.stream = _StreamContext(
             self.track_models, self.parameters, self.function_uri

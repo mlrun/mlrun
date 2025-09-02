@@ -2299,7 +2299,7 @@ def encode_user_code(
     return encoded
 
 
-def raise_or_log_error(message: str, raise_on_error: bool):
+def raise_or_log_error(message: str, raise_on_error: bool = True):
     """
     Handle errors by either raising an exception or logging a warning.
 

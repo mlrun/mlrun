@@ -204,10 +204,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         hub_sources = framework.utils.singletons.db.get_db().list_hub_sources(
             db_session
         )
-        mlrun.utils.logger.info(f"[DD] response in the crud: {hub_sources}")
-        result = self.filter_hub_sources(hub_sources, item_name, tag, version)
-        mlrun.utils.logger.info(f"[DD] result in the crud: {result}")
-        return result
+        return self.filter_hub_sources(hub_sources, item_name, tag, version)
 
     def filter_hub_sources(
         self,

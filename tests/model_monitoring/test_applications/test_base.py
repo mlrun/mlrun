@@ -28,6 +28,7 @@ import mlrun.utils
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.model_monitoring.applications import (
+    ExistingDataHandling,
     ModelMonitoringApplicationBase,
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
@@ -267,6 +268,58 @@ class TestEvaluate:
             in captured.out
         ), "The error message is different than expected or was not captured"
 
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("pass_sample", "pass_reference"), [(True, False), (False, True), (True, True)]
+    )
+    def test_invalid_custom_dataframe_with_write_output(
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+        pass_sample: bool,
+        pass_reference: bool,
+    ) -> None:
+        """write_output=True with sample_data/reference_data should be blocked"""
+        project = mlrun.get_or_create_project(
+            "local-test-sample-df", context=str(tmp_path)
+        )
+        project.artifact_path = str(tmp_path)
+
+        if pass_sample:
+            sample_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            sample_artifact_path = project.log_dataset(
+                "sample-df", df=sample_df
+            ).target_path
+        else:
+            sample_artifact_path = None
+
+        if pass_reference:
+            reference_df = pd.DataFrame({"a": [1, 0, 1], "b": [5, 5, 6]})
+            reference_artifact_path = project.log_dataset(
+                "reference-df", df=reference_df
+            ).target_path
+        else:
+            reference_artifact_path = None
+
+        ModelEndpointAccessApp.evaluate(
+            func_path=__file__,
+            endpoints=[("ep-name", "ep-uid")],
+            sample_data=sample_artifact_path,
+            reference_data=reference_artifact_path,
+            start=datetime(2025, 5, 3),
+            end=datetime(2025, 5, 4),
+            run_local=True,
+            write_output=True,
+            stream_profile=DatastoreProfileKafkaSource(
+                name="kafka-stream", brokers=["broker-address:9092"], topics=[]
+            ),
+        )
+        captured = capsys.readouterr()
+        assert (
+            "Writing the results of an application to the TSDB is possible only when "
+            "working with endpoints, without any custom data-frame input"
+            in captured.out
+        ), "The error message is different than expected or was not captured"
+
 
 @pytest.mark.parametrize(
     ("start", "end", "base_period", "expectation"),
@@ -287,6 +340,15 @@ class TestEvaluate:
                 match="`base_period` must be a nonnegative integer .*",
             ),
         ),
+        (
+            datetime(2008, 9, 1, 10, 2, 1).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            None,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The start and end times must either both include time zone information or both be naive",
+            ),
+        ),
     ],
 )
 def test_window_generator_validation(
@@ -304,7 +366,7 @@ def test_window_generator_validation(
                 application_schedules=None,
                 endpoint_id="",
                 application_name="",
-                fail_on_overlap=True,
+                existing_data_handling=ExistingDataHandling.fail_on_overlap,
             )
         )
 
@@ -324,8 +386,8 @@ def test_window_generator_validation(
             ],
         ),
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 1, 10, 2, 1),
+            datetime(2008, 9, 2, 6, 2, 1),
             600,
             [
                 (
@@ -378,7 +440,7 @@ def test_windows(
                 application_schedules=None,
                 endpoint_id="",
                 application_name="",
-                fail_on_overlap=True,
+                existing_data_handling=ExistingDataHandling.fail_on_overlap,
             )
         )
         == expected_windows
@@ -661,7 +723,7 @@ def run_context() -> mlrun.MLClientCtx:
                     "base_period": None,
                     "end": "2025-07-27T10:01:36.665785+00:00",
                     "endpoints": ["classifier-0"],
-                    "fail_on_overlap": True,
+                    "existing_data_handling": "fail_on_overlap",
                     "start": "2025-07-27T10:00:31.527024+00:00",
                     "stream_profile": None,
                     "write_output": False,

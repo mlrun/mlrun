@@ -1691,7 +1691,6 @@ class SQLDB(DBInterface):
     def _set_parent_uri(
         self, artifact: dict, parent: ArtifactV2, parent_uri: Optional[str] = None
     ):
-        _, uri = mlrun.datastore.parse_store_uri(parent_uri)
         (
             _,
             _,
@@ -1699,7 +1698,7 @@ class SQLDB(DBInterface):
             parent_tag,
             _,
             _,
-        ) = parse_artifact_uri(uri)
+        ) = self._get_parent_artifact_params_from_uri(parent_uri)
         artifact_spec = artifact.setdefault("spec", {})
         if parent:
             artifact_spec["parent_uri"] = mlrun.datastore.get_store_uri(
@@ -1710,8 +1709,9 @@ class SQLDB(DBInterface):
                     iter=parent.iteration,
                     tree=parent.producer_id,
                     uid=parent.uid,
-                    tag=parent_tag
-                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or [])
+                    tag=self._get_obj_tag_prioritizing_user_tag(
+                        parent.tags or [], parent_tag
+                    )
                     or None,
                 ),
             )
@@ -2157,22 +2157,7 @@ class SQLDB(DBInterface):
             parent_tag,
             parent_tree,
             parent_uid,
-        ) = [None] * 6
-        if mlrun.datastore.is_store_uri(parent_uri):
-            # Parse the parent URI to extract project, key, iteration, tag, tree, and uid
-            _, uri = mlrun.datastore.parse_store_uri(parent_uri)
-            (
-                parent_project,
-                parent_key,
-                parent_iteration,
-                parent_tag,
-                parent_tree,
-                parent_uid,
-            ) = parse_artifact_uri(uri)
-        elif ":" in parent_uri:
-            parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
-        else:
-            parent_key = parent_uri
+        ) = self._get_parent_artifact_params_from_uri(parent_uri)
 
         ref_alias = aliased(ArtifactV2)
 
@@ -2208,6 +2193,50 @@ class SQLDB(DBInterface):
                 column=ref_tag.name,
             )
         return query
+
+    @staticmethod
+    def _get_parent_artifact_params_from_uri(
+        parent_uri: str,
+    ) -> tuple[
+        Optional[str],
+        Optional[str],
+        Optional[int],
+        Optional[str],
+        Optional[str],
+        Optional[str],
+    ]:
+        (
+            parent_project,
+            parent_key,
+            parent_iteration,
+            parent_tag,
+            parent_tree,
+            parent_uid,
+        ) = [None] * 6
+        if mlrun.datastore.is_store_uri(parent_uri):
+            # Parse the parent URI to extract project, key, iteration, tag, tree, and uid
+            _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+            (
+                parent_project,
+                parent_key,
+                parent_iteration,
+                parent_tag,
+                parent_tree,
+                parent_uid,
+            ) = parse_artifact_uri(uri)
+        elif parent_uri and ":" in parent_uri:
+            parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
+        else:
+            parent_key = parent_uri
+
+        return (
+            parent_project,
+            parent_key,
+            parent_iteration,
+            parent_tag,
+            parent_tree,
+            parent_uid,
+        )
 
     @staticmethod
     def _add_artifact_category_query(category, query):
@@ -5746,7 +5775,7 @@ class SQLDB(DBInterface):
         model_name: Optional[str] = None,
         model_tag: Optional[str] = None,
         top_level: Optional[bool] = None,
-        mode: Optional[EndpointMode] = None,
+        modes: Optional[list[EndpointMode]] = None,
         labels: Optional[list[str]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -5767,7 +5796,8 @@ class SQLDB(DBInterface):
         :param model_name: The model name of the model endpoint.
         :param model_tag: The model tag associated with the model endpoint.
         :param top_level: If True, filters for top-level model endpoints.
-        :param mode: Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or both if set to None.
+        :param modes: Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+                      "batch_legacy" (2). If set to None, all are included.
         :param labels: The labels to filter model endpoints.
         :param start: Start date-time filter.
         :param end: End date-time filter.
@@ -5817,19 +5847,36 @@ class SQLDB(DBInterface):
             query = query.filter(
                 ModelEndpoint.endpoint_type.in_(EndpointType.top_level_list())
             )
-        if mode is not None:
-            if mode == EndpointMode.REAL_TIME:
-                # Real Time + Old Batch EP (none value)
+        if modes is not None:
+            batch_legacy = EndpointMode.BATCH_LEGACY in modes
+            real_time = EndpointMode.REAL_TIME in modes
+
+            if batch_legacy and real_time:
                 query = query.filter(
                     or_(
-                        ModelEndpoint.mode == EndpointMode.REAL_TIME,
+                        ModelEndpoint.mode.in_(modes),
                         ModelEndpoint.mode.is_(None),
                     )
                 )
-
+            elif batch_legacy:
+                query = query.filter(
+                    or_(
+                        ModelEndpoint.mode.in_(modes),
+                        and_(
+                            ModelEndpoint.mode.is_(None),
+                            ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
+                        ),
+                    )
+                )
+            elif real_time:
+                query = query.filter(
+                    or_(
+                        ModelEndpoint.mode.in_(modes),
+                        ModelEndpoint.endpoint_type != EndpointType.BATCH_EP,
+                    )
+                )
             else:
-                # Batch EP
-                query = query.filter(ModelEndpoint.mode == EndpointMode.BATCH)
+                query = query.filter(ModelEndpoint.mode.in_(modes))
 
         # Apply function-related filters
         if function_name or function_tag:
@@ -6081,18 +6128,35 @@ class SQLDB(DBInterface):
         return model_endpoint_full_dict
 
     @staticmethod
-    def _get_obj_tag_prioritizing_user_tag(function_tag_list):
+    def _get_obj_tag_prioritizing_user_tag(obj_tag_list, desired_tag=None) -> str:
         """
-        Used by model endpoints, this extracts the function/model tag from the list,
-        prioritizing the user tag over the system's latest tag if available.
-        If neither exists, it returns an empty string.
+        Determine which tag to use from a list of function/model tags.
+
+        Args:
+            obj_tag_list (list): List of tag objects (with `.name`).
+            desired_tag (str, optional): Specific tag name to prioritize.
+
+        Returns:
+            str: The selected tag name, or an empty string if no match is found.
         """
+        obj_tag_list_names = [tag.name for tag in obj_tag_list]
+
+        # Case 1: desired tag is explicitly in the list
+        if desired_tag and desired_tag in obj_tag_list_names:
+            return desired_tag
+
         latest = False
-        for tag in function_tag_list:
-            if tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
+        first_tag = None
+        for tag_name in obj_tag_list_names:
+            if tag_name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
                 latest = True
-            else:
-                return tag.name
+            elif not first_tag:
+                first_tag = tag_name
+            if desired_tag and desired_tag in tag_name:
+                return tag_name
+
+        if first_tag:
+            return first_tag
         if latest:
             return mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         return ""
@@ -7996,7 +8060,7 @@ class SQLDB(DBInterface):
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
-        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: typing.Optional[list[mlrun.common.schemas.EndpointMode]] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
@@ -8023,7 +8087,7 @@ class SQLDB(DBInterface):
             model_name=model_name,
             model_tag=model_tag,
             top_level=top_level,
-            mode=mode,
+            modes=modes,
             start=start,
             end=end,
             uids=uids,

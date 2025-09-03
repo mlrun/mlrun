@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import datetime
 import json
 import logging
@@ -26,8 +27,11 @@ import urllib.parse
 from typing import Union
 
 import click
+import orjson
 import paramiko
 import yaml
+
+JsonSerializable = Union[dict, list, str, int, float, bool, None]
 
 
 class Logger:
@@ -313,6 +317,19 @@ class SystemTestPreparer:
 
         return stdout, stderr, exit_status
 
+    @staticmethod
+    def _encode_json_to_base64(data: JsonSerializable) -> str:
+        """
+        Convert a Python object to base64-encoded JSON string.
+
+        Args:
+            data: Any JSON-serializable Python object (dict, list, etc.)
+
+        Returns:
+            Base64-encoded JSON string
+        """
+        return base64.b64encode(orjson.dumps(data)).decode()
+
     def _prepare_env_remote(self):
         self._run_command(
             "mkdir",
@@ -352,6 +369,19 @@ class SystemTestPreparer:
             "MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL": "0 Seconds",
             # to allow batch_function to have parquet files sooner
             "MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS": "100",
+            "MLRUN_PREEMPTIBLE_NODES__NODE_SELECTOR": self._encode_json_to_base64(
+                {"app.iguazio.com/lifecycle": "preemptible"}
+            ),
+            "MLRUN_PREEMPTIBLE_NODES__TOLERATIONS": self._encode_json_to_base64(
+                [
+                    {
+                        "key": "app.iguazio.com/lifecycle",
+                        "operator": "Equal",
+                        "value": "preemptible",
+                        "effect": "NoSchedule",
+                    }
+                ]
+            ),
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"

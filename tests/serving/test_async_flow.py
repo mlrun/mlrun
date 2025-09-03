@@ -813,7 +813,7 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
     function = mlrun.new_function("tests", kind="serving")
     model_artifact = project.log_model(
         "my_model",
-        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        model_url="mock://my-model",
         default_config={"model_version": "4"},
     )
     llm_artifact = None
@@ -846,13 +846,14 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
         model_runner_step = ModelRunnerStep(
             name="model-runner", raise_exception=raise_exception
         )
-        model_class = "MyLLM" if llm else "MyRemoteModel"
+        model_class = "LLModel" if llm else "MyRemoteModel"
         if shared:
             graph.add_shared_model(
                 name="shared-model",
                 execution_mechanism="naive",
                 model_class=model_class,
                 model_artifact=model_artifact_param,
+                result_path="outputs" if llm else None,
             )
             model_runner_step.add_shared_model_proxy(
                 endpoint_name="my-model",
@@ -865,6 +866,7 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
                 execution_mechanism="naive",
                 endpoint_name="my-model",
                 model_artifact=llm_artifact_param or model_artifact_param,
+                result_path="outputs" if llm else None,
             )
 
         graph.to(model_runner_step).respond()
@@ -872,12 +874,18 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
         server = function.to_mock_server()
         try:
             resp = server.test(body={"country": "france"})
-            assert resp["default_config"] == {"model_version": "4"}
-            assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
             if llm:
-                assert resp["prompt"] == [
-                    {"role": "user", "content": "What is the capital city of france?"}
-                ]
+                assert (
+                    resp["outputs"]["answer"]
+                    == "You are using a mock model provider, no actual inference is performed."
+                )
+                assert resp["outputs"]["usage"] == {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                }
+            else:
+                assert resp["default_config"] == {"model_version": "4"}
+                assert resp["url"] == "mock://my-model"
             server.test(body={"country": "france"})
         finally:
             server.wait_for_completion()

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from typing import Annotated, Literal, Optional, Union
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -34,15 +34,14 @@ from mlrun.utils import logger
 
 import framework.api.deps
 import framework.utils.auth.verifier
+import services.api.common.constants as api_constants
 import services.api.crud
 from framework.api import deps
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
-ProjectAnnotation = Annotated[str, Path(pattern=mm_constants.PROJECT_PATTERN)]
-EndpointIDAnnotation = Annotated[
-    str, Path(pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN)
-]
+ProjectAnnotation = api_constants.ProjectAnnotation
+EndpointIDAnnotation = api_constants.EndpointIDAnnotation
 
 
 @router.post(
@@ -242,7 +241,7 @@ async def list_model_endpoints(
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     top_level: bool = Query(False, alias="top-level"),
-    mode: mm_constants.EndpointMode = None,
+    modes: Optional[list[mm_constants.EndpointMode]] = Query(None, alias="mode"),
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
     metric_list: Optional[list[str]] = Query(None, alias="metric"),
     uids: list[str] = Query(None, alias="uid"),
@@ -267,8 +266,8 @@ async def list_model_endpoints(
                             If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                             will be included.
     :param top_level:       Whether to return only top level model endpoints.
-    :param mode:            Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or both if
-                            set to None.
+    :param modes:           Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+                            "batch_legacy" (2). If set to None, all are included.
     :param uids:            A list of unique ids to filter by.
     :param latest_only:     Whether to return only the latest model endpoint for each name.
     :param auth_info:       The auth info of the request.
@@ -292,7 +291,7 @@ async def list_model_endpoints(
         start=start,
         end=end,
         top_level=top_level,
-        mode=mode,
+        modes=modes,
         tsdb_metrics=tsdb_metrics,
         metric_list=metric_list,
         uids=uids,
@@ -396,9 +395,15 @@ async def get_model_endpoint_monitoring_metrics(
     return metrics
 
 
+# TODO: remove in 1.12.0
 @router.get(
     "/metrics",
     response_model=dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
+    deprecated=True,
+    description=(
+        "This endpoint is deprecated from 1.10.0 and will be removed in MLRun 1.12.0. "
+        "Use the GET '/projects/{project}/model-monitoring/metrics' API endpoint instead."
+    ),
 )
 async def get_metrics_by_multiple_endpoints(
     project: ProjectAnnotation,

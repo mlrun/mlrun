@@ -14,7 +14,7 @@
 import pathlib
 import typing
 import unittest.mock
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from datetime import datetime
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -30,10 +30,7 @@ from kfp_server_api.models.api_experiment import ApiExperiment
 
 import mlrun
 import mlrun.common.schemas
-import mlrun.common.secrets
-import mlrun.db.factory
 import mlrun.launcher.factory
-import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.singleton
 import mlrun_pipelines.client
@@ -41,18 +38,14 @@ import mlrun_pipelines.utils
 
 import framework.utils.clients.iguazio
 import framework.utils.projects.remotes.leader
-import framework.utils.runtimes.nuclio
-import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import services.api.crud
+import services.api.daemon
 import services.api.launcher
 import services.api.runtime_handlers.mpijob
 import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.scheduler
-from framework.tests.unit.common_fixtures import (
-    K8sSecretsMock,
-    TestServiceBase,
-)
+from framework.tests.unit.common_fixtures import K8sSecretsMock, TestServiceBase
 from services.api.daemon import daemon
 
 tests_root_directory = pathlib.Path(__file__).absolute().parent
@@ -61,7 +54,7 @@ assets_path = tests_root_directory.joinpath("assets")
 
 class TestAPIBase(TestServiceBase):
     @pytest.fixture(scope="module")
-    def app(self) -> fastapi.FastAPI:
+    def app(self) -> Iterator[fastapi.FastAPI]:
         mlrun.mlconf.services.service_name = "api"
         mlrun.mlconf.services.hydra.services = ""
         yield services.api.daemon.app()

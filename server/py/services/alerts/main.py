@@ -547,7 +547,10 @@ class Service(framework.service.Service):
             get_project_member().start()
 
         if self._is_chief_or_standalone():
-            services.alerts.initial_data.update_default_configuration_data(self._logger)
+            await fastapi.concurrency.run_in_threadpool(
+                services.alerts.initial_data.update_default_configuration_data,
+                self._logger,
+            )
             await self._start_periodic_functions()
 
     @staticmethod
@@ -596,9 +599,6 @@ class Service(framework.service.Service):
         self.app.include_router(
             alerts_v1_router, prefix=self.base_versioned_service_prefix
         )
-
-    async def _custom_setup_service(self):
-        pass
 
     async def _start_periodic_functions(self):
         self._start_periodic_events_generation()

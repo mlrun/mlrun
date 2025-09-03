@@ -6128,26 +6128,26 @@ class SQLDB(DBInterface):
         return model_endpoint_full_dict
 
     @staticmethod
-    def _get_obj_tag_prioritizing_user_tag(function_tag_list, desired_tag=None) -> str:
+    def _get_obj_tag_prioritizing_user_tag(obj_tag_list, desired_tag=None) -> str:
         """
         Determine which tag to use from a list of function/model tags.
 
         Args:
-            function_tag_list (list): List of tag objects (with `.name`).
+            obj_tag_list (list): List of tag objects (with `.name`).
             desired_tag (str, optional): Specific tag name to prioritize.
 
         Returns:
             str: The selected tag name, or an empty string if no match is found.
         """
-        function_tag_list_names = [tag.name for tag in function_tag_list]
+        obj_tag_list_names = [tag.name for tag in obj_tag_list]
 
         # Case 1: desired tag is explicitly in the list
-        if desired_tag and desired_tag in function_tag_list_names:
+        if desired_tag and desired_tag in obj_tag_list_names:
             return desired_tag
 
         latest = False
         first_tag = None
-        for tag_name in function_tag_list_names:
+        for tag_name in obj_tag_list_names:
             if tag_name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
                 latest = True
             elif not first_tag:

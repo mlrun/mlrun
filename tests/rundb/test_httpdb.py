@@ -439,7 +439,7 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
         mlrun.common.schemas.HeaderNames.authorization
         not in requests_mock.last_request.headers
     )
-    assert db.token_provider.token is None
+    assert db.token_provider.get_token() is None
 
 
 def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:

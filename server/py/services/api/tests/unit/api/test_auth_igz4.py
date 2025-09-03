@@ -133,13 +133,8 @@ def test_parse_offline_token_data_cases(data, token_name, expected_token, monkey
     monkeypatch.setattr(
         "mlrun.config.config.auth_with_oauth_token.auth_token_name", token_name
     )
-
-    token_file = "/fake/path.yaml"
-
     # Suppress raising errors, we just check return value
-    token = mlrun.auth.utils.parse_offline_token_data(
-        data, token_file, raise_on_error=False
-    )
+    token = mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=False)
     assert token == expected_token
 
 
@@ -171,10 +166,8 @@ def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch)
         "mlrun.config.config.auth_with_oauth_token.auth_token_name", token_name
     )
 
-    token_file = "/fake/path.yaml"
-
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        mlrun.auth.utils.parse_offline_token_data(data, token_file, raise_on_error=True)
+        mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=True)
 
 
 def test_with_empty_endpoint():

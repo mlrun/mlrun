@@ -49,13 +49,28 @@ def get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[
     :param raise_on_error: Whether to raise an error or log a warning on failure.
     :return: The offline token if found, otherwise None.
     """
+    data = read_secret_tokens_file(raise_on_error=raise_on_error)
+    return parse_offline_token_data(data=data, raise_on_error=raise_on_error)
+
+
+def read_secret_tokens_file(raise_on_error: bool = True) -> typing.Optional[dict]:
+    """
+    Read and parse the secret tokens file.
+
+    This function attempts to read the token file specified in the configuration and parse its content as YAML.
+    If the file does not exist or cannot be parsed, it either raises an error or logs a warning based on the
+    `raise_on_error` parameter.
+
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The parsed content of the token file as a dictionary, or None if an error occurs.
+    """
     token_file = config.auth_with_oauth_token.auth_token_file
     if not os.path.exists(token_file):
         mlrun.utils.helpers.raise_or_log_error(
             f"Token file not found at {token_file}", raise_on_error
         )
         return None
-
+    data = None
     try:
         with open(token_file) as token_file_io:
             data = yaml.safe_load(token_file_io)
@@ -64,12 +79,11 @@ def get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[
             f"Failed to parse token file {token_file}: {exc}", raise_on_error
         )
         return None
-
-    return parse_offline_token_data(data, token_file, raise_on_error)
+    return data
 
 
 def parse_offline_token_data(
-    data: dict, token_file: str, raise_on_error: bool = True
+    data: dict, raise_on_error: bool = True
 ) -> typing.Optional[str]:
     """
     Extract the correct offline token entry from parsed YAML.
@@ -95,14 +109,13 @@ def parse_offline_token_data(
     4. If any of the above steps fail, raise a detailed configuration error or log a warning.
 
     :param data: The parsed YAML data.
-    :param token_file: The path to the token file.
     :param raise_on_error: Whether to raise an error or log a warning on failure.
     :return: The resolved offline token, or None if resolution fails.
     """
     tokens = data.get("secretTokens")
     if not isinstance(tokens, list) or not tokens:
         mlrun.utils.helpers.raise_or_log_error(
-            f"Invalid token file: 'secretTokens' must be a non-empty list in {token_file}",
+            "Invalid token file: 'secretTokens' must be a non-empty list",
             raise_on_error,
         )
         return None
@@ -114,7 +127,7 @@ def parse_offline_token_data(
 
     if len(matches) != 1:
         mlrun.utils.helpers.raise_or_log_error(
-            f"Failed to resolve a unique token. Found {len(matches)} entries for name '{name}' in {token_file}",
+            f"Failed to resolve a unique token. Found {len(matches)} entries for name '{name}'",
             raise_on_error,
         )
         return None
@@ -122,7 +135,7 @@ def parse_offline_token_data(
     token_value = matches[0].get("token")
     if not token_value:
         mlrun.utils.helpers.raise_or_log_error(
-            f"Resolved token entry missing 'token' field in {token_file}",
+            "Resolved token entry missing 'token' field",
             raise_on_error,
         )
         return None

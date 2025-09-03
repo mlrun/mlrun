@@ -1,4 +1,4 @@
-# Copyright 2024 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -216,16 +216,22 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
         """
         if not self._token or not self.token_expiry_time:
             return False
+
         now = datetime.now()
+
         if now <= self.token_refresh_time:
             return True
-        expired = now >= self.token_expiry_time
 
-        if expired and cleanup_if_expired:
+        if now < self.token_expiry_time:
+            # past refresh time but not expired yet → not valid
+            return False
+
+        # expired
+        if cleanup_if_expired:
             # We only cleanup if token was really expired - even if we fail in refreshing the token, we can still
             # use the existing one given that it's not expired.
             self._cleanup()
-        return expired
+        return False
 
     def _build_token_request(self, raise_on_error=False):
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -340,11 +346,11 @@ class IGTokenProvider(DynamicTokenProvider):
 
         self._token = access_token
         self._token_total_lifetime, self._token_expiry_time = (
-            self.get_token_lifetime_and_expiry(access_token)
+            self._get_token_lifetime_and_expiry(access_token)
         )
 
     @staticmethod
-    def get_token_lifetime_and_expiry(
+    def _get_token_lifetime_and_expiry(
         token: str,
     ) -> tuple[int, typing.Optional[datetime]]:
         """

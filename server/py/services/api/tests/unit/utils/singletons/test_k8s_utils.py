@@ -565,6 +565,127 @@ def test_store_user_token_secret_skipped(k8s_helper):
     k8s_helper._create_secret.assert_not_called()
 
 
+def test_list_secrets_with_labels(k8s_helper):
+    secret1 = _make_k8s_secret(
+        "secret1",
+        labels={
+            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+        },
+    )
+    secret2 = _make_k8s_secret(
+        "secret2",
+        labels={
+            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+        },
+    )
+
+    fake_secret_list = mock.MagicMock()
+    fake_secret_list.items = [secret1, secret2]
+
+    # k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.list_namespaced_secret = mock.MagicMock(
+        return_value=fake_secret_list
+    )
+
+    result = k8s_helper.list_secrets(
+        namespace="default",
+        labels={
+            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+        },
+    )
+
+    assert result == [secret1, secret2]
+    k8s_helper.v1api.list_namespaced_secret.assert_called_once_with(
+        namespace="default", label_selector="mlrun/user=test-user"
+    )
+
+
+def test_list_secrets_no_labels(k8s_helper):
+    secret = _make_k8s_secret("secret-no-labels")
+
+    fake_secret_list = mock.MagicMock()
+    fake_secret_list.items = [secret]
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.list_namespaced_secret = mock.MagicMock(
+        return_value=fake_secret_list
+    )
+
+    result = k8s_helper.list_secrets(namespace="default")
+
+    assert result == [secret]
+    k8s_helper.v1api.list_namespaced_secret.assert_called_once_with(
+        namespace="default", label_selector=None
+    )
+
+
+def test_list_secrets_empty(k8s_helper):
+    fake_secret_list = mock.MagicMock()
+    fake_secret_list.items = []
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.list_namespaced_secret = mock.MagicMock(
+        return_value=fake_secret_list
+    )
+
+    result = k8s_helper.list_secrets(namespace="default")
+    assert result == []
+
+
+def test_list_user_token_secrets_valid(k8s_helper):
+    token1_name = "token1"
+    token2_name = "token2"
+    username = "test-user"
+    secret1_name = k8s_helper._resolve_user_token_secret_name(username, token1_name)
+    secret2_name = k8s_helper._resolve_user_token_secret_name(username, token2_name)
+    secret1 = _make_user_token_secret(secret1_name, expiration=1111)
+    secret2 = _make_user_token_secret(secret2_name, expiration=2222)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[secret1, secret2])
+
+    result = k8s_helper.list_user_token_secrets(username=username, namespace="default")
+
+    assert len(result) == 2
+    assert result[0].name == token1_name
+    assert result[0].expiration == 1111
+    assert result[1].name == token2_name
+    assert result[1].expiration == 2222
+
+    k8s_helper.list_secrets.assert_called_once_with(
+        namespace="default",
+        labels={
+            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+        },
+    )
+
+
+def test_list_user_token_secrets_unexpected_name(k8s_helper):
+    bad_secret = _make_user_token_secret("some-other-secret", expiration=1234)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
+
+    result = k8s_helper.list_user_token_secrets(
+        username="test-user", namespace="default"
+    )
+
+    assert result == []
+
+
+def test_list_user_token_secrets_invalid_expiration(k8s_helper):
+    username = "test-user"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, "token1")
+    bad_secret = _make_user_token_secret(
+        secret_name=secret_name, expiration=b"not-a-number"
+    )
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
+
+    result = k8s_helper.list_user_token_secrets(username=username, namespace="default")
+    assert len(result) == 0
+
+
 def test_get_user_token_secret_value_valid(k8s_helper):
     username = "test-user"
     token_name = "my-token"

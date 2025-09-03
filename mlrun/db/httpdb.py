@@ -5149,6 +5149,22 @@ class HTTPRunDB(RunDBInterface):
         return response
 
     @iguazio_v4_only
+    def list_secret_tokens(
+        self,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        """
+        List all secret tokens for the current user.
+        """
+        endpoint_path = "user-secrets/tokens"
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.GET,
+            endpoint_path,
+            "list user secret tokens",
+        )
+
+        return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
+
+    @iguazio_v4_only
     def revoke_secret_token(self, token_name: str) -> None:
         endpoint_path = f"user-secrets/tokens/{token_name}"
         self.api_call(

@@ -119,7 +119,7 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
     project: constr(regex=PROJECT_PATTERN)
     endpoint_type: EndpointType = EndpointType.NODE_EP
     uid: Optional[constr(regex=MODEL_ENDPOINT_ID_PATTERN)]
-    mode: EndpointMode = EndpointMode.REAL_TIME
+    mode: Optional[EndpointMode] = None
 
     @classmethod
     def mutable_fields(cls):
@@ -129,6 +129,15 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
     def _uid_to_str(cls, v):  # noqa: N805
         if isinstance(v, UUID):
             return str(v)
+        return v
+
+    @validator("mode", pre=True, always=True)
+    def _set_mode_based_on_endpoint_type(cls, v, values):  # noqa: N805
+        if v is None:
+            if values.get("endpoint_type") == EndpointType.BATCH_EP:
+                return EndpointMode.BATCH_LEGACY
+            else:
+                return EndpointMode.REAL_TIME
         return v
 
 

@@ -45,3 +45,4 @@ mlrun-pipelines-kfp-v1-8~=0.5.7
 docstring_parser~=0.16
 # TODO: Remove it after moving notificaions to the server side(ML-8069)
 aiosmtplib~=3.0
+deepdiff~=7.0

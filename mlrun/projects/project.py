@@ -3946,7 +3946,9 @@ class MlrunProject(ModelObj):
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         top_level: bool = False,
-        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: Optional[
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         tsdb_metrics: bool = False,
@@ -3962,7 +3964,7 @@ class MlrunProject(ModelObj):
         5) function_tag
         6) labels
         7) top level
-        8) mode
+        8) modes
         9) uids
         10) start and end time, corresponding to the `created` field.
         By default, when no filters are applied, all available endpoints for the given project will be listed.
@@ -3984,8 +3986,8 @@ class MlrunProject(ModelObj):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
-        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
-                                both if set to None.
+        :param modes:           Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+                                "batch_legacy" (2). If set to None, all are included.
         :param uids:            If passed will return a list `ModelEndpoint` object with uid in uids.
         :param tsdb_metrics:    When True, the time series metrics will be added to the output
                                 of the resulting.
@@ -4007,7 +4009,7 @@ class MlrunProject(ModelObj):
             start=start,
             end=end,
             top_level=top_level,
-            mode=mode,
+            modes=modes,
             uids=uids,
             latest_only=latest_only,
             tsdb_metrics=tsdb_metrics,

@@ -19,9 +19,9 @@ import httpx
 # iguazio package is only supported in Python >= 3.11
 if sys.version_info >= (3, 11):
     import iguazio
-    from iguazio.schemas.v1.resources.access_token import (
-        RefreshAccessTokenOptions,
-        RevokeOfflineTokenOptions,
+    from iguazio.schemas import (
+        RefreshAccessTokenOptionsV1,
+        RevokeOfflineTokenOptionsV1,
     )
 
 import mlrun.common.schemas
@@ -66,7 +66,7 @@ class Client(BaseClient):
 
         try:
             # Validate the offline token by sending it to Iguazio
-            options = RefreshAccessTokenOptions(refresh_token=secret_token.token)
+            options = RefreshAccessTokenOptionsV1(refresh_token=secret_token.token)
             self._client.refresh_access_token(options=options)
             self._logger.info(
                 "Successfully refreshed access token via Iguazio",
@@ -127,7 +127,7 @@ class Client(BaseClient):
 
         try:
             # Use Iguazio client to revoke the token
-            options = RevokeOfflineTokenOptions(token=token)
+            options = RevokeOfflineTokenOptionsV1(token=token)
             self._client.revoke_offline_token(options=options)
             self._logger.info("Successfully revoked offline token via Iguazio")
         except httpx.HTTPStatusError as exc:

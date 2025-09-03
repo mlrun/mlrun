@@ -115,9 +115,7 @@ def parse_offline_token_data(
     :return: The resolved offline token, or None if resolution fails.
     """
     if not data:
-        mlrun.utils.helpers.raise_or_log_error(
-            "Empty token data", raise_on_error
-        )
+        mlrun.utils.helpers.raise_or_log_error("Empty token data", raise_on_error)
         return None
     tokens = data.get("secretTokens")
     if not isinstance(tokens, list) or not tokens:

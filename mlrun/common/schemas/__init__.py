@@ -210,10 +210,12 @@ from .schedule import (
 )
 from .secret import (
     AuthSecretData,
+    ListSecretTokensResponse,
     SecretKeysData,
     SecretProviderName,
     SecretsData,
     SecretToken,
+    SecretTokenInfo,
     StoreSecretTokensResponse,
 )
 from .tag import Tag, TagObjects

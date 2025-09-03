@@ -58,3 +58,12 @@ class StoreSecretTokensResponse(BaseModel):
     created_tokens: list[str] = []
     updated_tokens: list[str] = []
     skipped_tokens: list[str] = []
+
+
+class SecretTokenInfo(BaseModel):
+    name: str
+    expiration: int
+
+
+class ListSecretTokensResponse(BaseModel):
+    secret_tokens: list[SecretTokenInfo]

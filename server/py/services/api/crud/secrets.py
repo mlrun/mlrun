@@ -502,6 +502,35 @@ class Secrets(
             ],
         )
 
+    def list_secret_tokens(
+        self,
+        authenticated_username: str,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        """
+        List all offline tokens stored for the authenticated user.
+
+        :param authenticated_username: Username whose tokens will be listed.
+        :return: ListSecretTokensResponse containing token names and expirations.
+        """
+        logger.debug(
+            "Listing secret tokens for user",
+            username=authenticated_username,
+        )
+
+        secret_tokens = self.secrets_provider.list_user_token_secrets(
+            username=authenticated_username,
+        )
+
+        logger.debug(
+            "Finished listing secret tokens",
+            username=authenticated_username,
+            token_count=len(secret_tokens),
+        )
+
+        return mlrun.common.schemas.ListSecretTokensResponse(
+            secret_tokens=secret_tokens
+        )
+
     @staticmethod
     def _validate_token_name(token_name: str, seen_names: set):
         if not token_name or token_name in seen_names:

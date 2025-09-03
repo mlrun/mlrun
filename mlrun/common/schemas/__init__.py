@@ -213,10 +213,12 @@ from .schedule import (
 )
 from .secret import (
     AuthSecretData,
+    ListSecretTokensResponse,
     SecretKeysData,
     SecretProviderName,
     SecretsData,
     SecretToken,
+    SecretTokenInfo,
     StoreSecretTokensResponse,
 )
 from .serving import ModelRunnerStepData, ModelsData, MonitoringData

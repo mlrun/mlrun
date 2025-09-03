@@ -1328,7 +1328,7 @@ class DBInterface(ABC):
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
-        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: typing.Optional[list[mlrun.common.schemas.EndpointMode]] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime.datetime] = None,
         end: typing.Optional[datetime.datetime] = None,

@@ -926,7 +926,7 @@ class MonitoringDeployment:
             infra_function_summaries_list + application_function_summaries_list
         )
 
-        if include_stats:
+        if function_summaries and include_stats:
             await self._enrich_with_stream_stats(
                 function_summaries=function_summaries, agg_stats=agg_stream_stats
             )

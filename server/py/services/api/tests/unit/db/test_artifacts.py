@@ -2693,12 +2693,21 @@ class TestArtifacts(TestDatabaseBase):
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == child_artifact_name
 
+        # Filter using parent_tag
+        artifacts = self._db.list_artifacts(
+            self._db_session, parent_uri=":lat", project=project
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == child_artifact_name
+        assert "latest" in artifacts[0]["spec"]["parent_uri"]
+
         # Filter using partial parent_tag
         artifacts = self._db.list_artifacts(
             self._db_session, parent_uri=":ref", project=project
         )
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == child_artifact_name
+        assert "ref-tag" in artifacts[0]["spec"]["parent_uri"]
 
         # Filter using both name and tag
         artifacts = self._db.list_artifacts(

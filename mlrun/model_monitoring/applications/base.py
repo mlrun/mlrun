@@ -851,7 +851,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
         model monitoring logic as a :py:class:`~mlrun.runtimes.KubejobRuntime`, which is an MLRun function.
 
-        This function has default values for all of its arguments. You should be change them when you want to pass
+        This function has default values for all of its arguments. You should change them when you want to pass
         data to the application.
 
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
@@ -914,13 +914,13 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   if ``endpoints`` are passed.
                                   Note: the model monitoring infrastructure must be up for the writing to work.
         :param existing_data_handling:
-                                  How to handle the existing application data for the model endpoints when writing the
-                                  new data. Relevant only when ``write_output=True``. The default is
-                                  ``"fail_on_overlap"``. The options are:
+                                  How to handle the existing application data for the model endpoints when writing
+                                  new data whose requested ``start`` time precedes the ``end`` time of a previous run
+                                  that also wrote to the database. Relevant only when ``write_output=True``.
+                                  The options are:
 
-                                  - ``"fail_on_overlap"``: when the requested ``start`` time precedes the
-                                    ``end`` time of a previous run that also wrote to the database - an error is raised.
-                                  - ``"skip_overlap"``: when the previously described situation occurs, the relevant
+                                  - ``"fail_on_overlap"``: Default. An error is raised.
+                                  - ``"skip_overlap"``:  the overlapping data is ignored and the
                                     time window is cut so that it starts at the earliest possible time after ``start``.
                                   - ``"delete_all"``: delete all the data that was written by the application to the
                                     model endpoints, regardless of the time window, and write the new data.

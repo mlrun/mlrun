@@ -1059,7 +1059,7 @@ class SQLRunDB(RunDBInterface):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
-        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: Optional[list[mm_constants.EndpointMode]] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         as_dict: Optional[bool] = None,

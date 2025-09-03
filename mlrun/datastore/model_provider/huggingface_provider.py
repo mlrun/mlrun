@@ -65,7 +65,7 @@ class HuggingFaceProvider(ModelProvider):
         )
         self.options = self.get_client_options()
         self._expected_operation_type = None
-        self.load_client()
+        self._download_model()
 
     @staticmethod
     def _extract_string_output(response: list[dict]) -> str:
@@ -87,6 +87,35 @@ class HuggingFaceProvider(ModelProvider):
             # In HuggingFace, "/" in a model name is part of the name — `subpath` is not used.
             subpath = ""
         return endpoint, subpath
+
+    @property
+    def client(self) -> Any:
+        """
+        Lazily return the HuggingFace-pipeline client.
+
+        If the client has not been initialized yet, it will be created
+        by calling `load_client`.
+        """
+        self.load_client()
+        return self._client
+
+    def _download_model(self):
+        """
+        Pre-downloads model files locally to prevent race conditions in multiprocessing.
+
+        Uses snapshot_download with local_dir_use_symlinks=False to ensure proper
+        file copying for safe concurrent access across multiple processes.
+
+        :raises:
+            ImportError: If huggingface_hub package is not installed.
+        """
+        try:
+            from huggingface_hub import snapshot_download
+
+            # Download the model and tokenizer files directly to the cache.
+            snapshot_download(repo_id=self.model, local_dir_use_symlinks=False)
+        except ImportError as exc:
+            raise ImportError("huggingface_hub package is not installed") from exc
 
     def _response_handler(
         self,
@@ -182,11 +211,15 @@ class HuggingFaceProvider(ModelProvider):
         :raises:
             ImportError: If the `transformers` package is not installed.
         """
+        if self._client:
+            return
         try:
             from transformers import pipeline, AutoModelForCausalLM  # noqa
             from transformers import AutoTokenizer  # noqa
             from transformers.pipelines.base import Pipeline  # noqa
 
+            self.options["model_kwargs"] = self.options.get("model_kwargs", {})
+            self.options["model_kwargs"]["local_files_only"] = True
             self._client = pipeline(model=self.model, **self.options)
             self._expected_operation_type = Pipeline
         except ImportError as exc:

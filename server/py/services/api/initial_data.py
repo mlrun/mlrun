@@ -355,7 +355,7 @@ def _update_default_hub_source(
         return
 
     _delete_default_hub_source(db_session)
-    mlrun.utils.logger.info("Adding default hub source")
+    mlrun.utils.logger.info(f"Adding default hub source: {hub_source}")
     # Not using db.store_hub_source() since it doesn't allow changing the default hub source.
     hub_record = db._transform_hub_source_schema_to_record(
         mlrun.common.schemas.IndexedHubSource(

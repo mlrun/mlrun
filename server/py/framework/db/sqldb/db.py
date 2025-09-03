@@ -1691,7 +1691,6 @@ class SQLDB(DBInterface):
     def _set_parent_uri(
         self, artifact: dict, parent: ArtifactV2, parent_uri: Optional[str] = None
     ):
-        _, uri = mlrun.datastore.parse_store_uri(parent_uri)
         (
             _,
             _,
@@ -1699,7 +1698,7 @@ class SQLDB(DBInterface):
             parent_tag,
             _,
             _,
-        ) = parse_artifact_uri(uri)
+        ) = self._get_parent_artifact_params_from_uri(parent_uri)
         artifact_spec = artifact.setdefault("spec", {})
         if parent:
             artifact_spec["parent_uri"] = mlrun.datastore.get_store_uri(
@@ -1710,8 +1709,9 @@ class SQLDB(DBInterface):
                     iter=parent.iteration,
                     tree=parent.producer_id,
                     uid=parent.uid,
-                    tag=parent_tag
-                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or [])
+                    tag=self._get_obj_tag_prioritizing_user_tag(
+                        parent.tags or [], parent_tag
+                    )
                     or None,
                 ),
             )
@@ -2157,22 +2157,7 @@ class SQLDB(DBInterface):
             parent_tag,
             parent_tree,
             parent_uid,
-        ) = [None] * 6
-        if mlrun.datastore.is_store_uri(parent_uri):
-            # Parse the parent URI to extract project, key, iteration, tag, tree, and uid
-            _, uri = mlrun.datastore.parse_store_uri(parent_uri)
-            (
-                parent_project,
-                parent_key,
-                parent_iteration,
-                parent_tag,
-                parent_tree,
-                parent_uid,
-            ) = parse_artifact_uri(uri)
-        elif ":" in parent_uri:
-            parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
-        else:
-            parent_key = parent_uri
+        ) = self._get_parent_artifact_params_from_uri(parent_uri)
 
         ref_alias = aliased(ArtifactV2)
 
@@ -2208,6 +2193,50 @@ class SQLDB(DBInterface):
                 column=ref_tag.name,
             )
         return query
+
+    @staticmethod
+    def _get_parent_artifact_params_from_uri(
+        parent_uri: str,
+    ) -> tuple[
+        Optional[str],
+        Optional[str],
+        Optional[int],
+        Optional[str],
+        Optional[str],
+        Optional[str],
+    ]:
+        (
+            parent_project,
+            parent_key,
+            parent_iteration,
+            parent_tag,
+            parent_tree,
+            parent_uid,
+        ) = [None] * 6
+        if mlrun.datastore.is_store_uri(parent_uri):
+            # Parse the parent URI to extract project, key, iteration, tag, tree, and uid
+            _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+            (
+                parent_project,
+                parent_key,
+                parent_iteration,
+                parent_tag,
+                parent_tree,
+                parent_uid,
+            ) = parse_artifact_uri(uri)
+        elif parent_uri and ":" in parent_uri:
+            parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
+        else:
+            parent_key = parent_uri
+
+        return (
+            parent_project,
+            parent_key,
+            parent_iteration,
+            parent_tag,
+            parent_tree,
+            parent_uid,
+        )
 
     @staticmethod
     def _add_artifact_category_query(category, query):
@@ -6099,18 +6128,35 @@ class SQLDB(DBInterface):
         return model_endpoint_full_dict
 
     @staticmethod
-    def _get_obj_tag_prioritizing_user_tag(function_tag_list):
+    def _get_obj_tag_prioritizing_user_tag(obj_tag_list, desired_tag=None) -> str:
         """
-        Used by model endpoints, this extracts the function/model tag from the list,
-        prioritizing the user tag over the system's latest tag if available.
-        If neither exists, it returns an empty string.
+        Determine which tag to use from a list of function/model tags.
+
+        Args:
+            obj_tag_list (list): List of tag objects (with `.name`).
+            desired_tag (str, optional): Specific tag name to prioritize.
+
+        Returns:
+            str: The selected tag name, or an empty string if no match is found.
         """
+        obj_tag_list_names = [tag.name for tag in obj_tag_list]
+
+        # Case 1: desired tag is explicitly in the list
+        if desired_tag and desired_tag in obj_tag_list_names:
+            return desired_tag
+
         latest = False
-        for tag in function_tag_list:
-            if tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
+        first_tag = None
+        for tag_name in obj_tag_list_names:
+            if tag_name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
                 latest = True
-            else:
-                return tag.name
+            elif not first_tag:
+                first_tag = tag_name
+            if desired_tag and desired_tag in tag_name:
+                return tag_name
+
+        if first_tag:
+            return first_tag
         if latest:
             return mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         return ""

@@ -6343,9 +6343,7 @@ class SQLDB(DBInterface):
         results = []
         query = self._query(session, HubSource).order_by(HubSource.index.desc())
         for record in query:
-            logger.info(f"[DD] Hub source record: {record.name}, index: {record.index}") # TODO: delete after debugging
             ordered_source = self._transform_hub_source_record_to_schema(record)
-            logger.info(f"[DD] ordered_source: {ordered_source}") # TODO: delete after debugging
             # Need this to make the list return such that the default source is last in the response.
             if ordered_source.index != mlrun.common.schemas.last_source_index:
                 results.insert(0, ordered_source)

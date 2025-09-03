@@ -4307,10 +4307,6 @@ class HTTPRunDB(RunDBInterface):
         if version:
             params["version"] = version
         response = self.api_call(method="GET", path=path, params=params).json()
-
-        # TODO: delete after debugging:
-        logger.info(f"[DD] list_hub_sources response in the SDK: {response}")
-
         results = []
         for item in response:
             results.append(mlrun.common.schemas.IndexedHubSource(**item))

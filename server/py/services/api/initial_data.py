@@ -308,12 +308,6 @@ def _add_default_hub_source_if_needed(
         raise_on_not_found=False,
     )
 
-    # TODO: delete after debugging
-    if not hub_source:
-        mlrun.utils.logger.info("[DD] didn't find any hub source in inital_data")
-    else:
-        mlrun.utils.logger.info(f"[DD] found hub source in initial_data: {hub_source}")
-
     # update the default hub if configured url has changed
     hub_source_path = hub_source.source.spec.path if hub_source else None
     if not hub_source_path or hub_source_path != default_hub_source.spec.path:

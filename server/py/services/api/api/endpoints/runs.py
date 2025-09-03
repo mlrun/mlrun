@@ -168,6 +168,87 @@ async def delete_run(
     )
     return {}
 
+@router.get("/projects/{project}/completed_runs")
+async def list_completed_runs(
+    project: Optional[str] = None,
+    name: Optional[str] = None,
+    uid: list[str] = Query([]),
+    labels: list[str] = Query([], alias="label"),
+    sort: bool = True,
+    iter: bool = True,
+    start_time_from: Optional[str] = None,
+    start_time_to: Optional[str] = None,
+    last_update_time_from: Optional[str] = None,
+    last_update_time_to: Optional[str] = None,
+    end_time_from: Optional[str] = None,
+    end_time_to: Optional[str] = None,
+    partition_by: mlrun.common.schemas.RunPartitionByField = Query(
+        None, alias="partition-by"
+    ),
+    rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
+    partition_sort_by: mlrun.common.schemas.SortField = Query(
+        None, alias="partition-sort-by"
+    ),
+    partition_order: mlrun.common.schemas.OrderType = Query(
+        mlrun.common.schemas.OrderType.desc, alias="partition-order"
+    ),
+    max_partitions: int = Query(0, alias="max-partitions", ge=0),
+    with_notifications: bool = Query(False, alias="with-notifications"),
+    page: int = Query(None, gt=0),
+    page_size: int = Query(None, alias="page-size", gt=0),
+    page_token: str = Query(None, alias="page-token"),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+
+    allowed_project_names = await _get_allowed_project_names(project, auth_info, db_session)
+
+    paginator = framework.utils.pagination.Paginator()
+
+    #TODO refactor to avoid code duplication with list_runs
+    async def _filter_runs(_runs):
+        return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.run,
+            _runs,
+            lambda run: (
+                run.get("metadata", {}).get("project"),
+                run.get("metadata", {}).get("uid"),
+            ),
+            auth_info,
+        )
+
+    runs, page_info = await paginator.paginate_permission_filtered_request(
+        db_session,
+        services.api.crud.Runs().list_runs,
+        _filter_runs,
+        auth_info,
+        token=page_token,
+        page=page,
+        page_size=page_size,
+        name=name,
+        uid=uid,
+        project=allowed_project_names,
+        labels=labels,
+        states=[mlrun.common.runtimes.constants.RunStates.completed],
+        sort=sort,
+        iter=iter,
+        start_time_from=start_time_from,
+        start_time_to=start_time_to,
+        last_update_time_from=last_update_time_from,
+        last_update_time_to=last_update_time_to,
+        end_time_from=end_time_from,
+        end_time_to=end_time_to,
+        partition_by=partition_by,
+        rows_per_partition=rows_per_partition,
+        partition_sort_by=partition_sort_by,
+        partition_order=partition_order,
+        max_partitions=max_partitions,
+        with_notifications=with_notifications,
+    )
+    return {
+        "runs": runs,
+        "pagination": page_info,
+    }
 
 @router.get("/projects/{project}/runs")
 async def list_runs(
@@ -207,16 +288,11 @@ async def list_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if not project:
-        raise mlrun.errors.MLRunMissingProjectError()
-    allowed_project_names = (
-        await services.api.crud.Projects().list_allowed_project_names(
-            db_session, auth_info, project=project
-        )
-    )
+    allowed_project_names = _get_allowed_project_names(project, auth_info, db_session)
 
     paginator = framework.utils.pagination.Paginator()
 
+    #TODO refactor to avoid code duplication with list_completed_runs
     async def _filter_runs(_runs):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.run,
@@ -550,3 +626,12 @@ def _push_notifications(db_session, run):
         [run],
         run_notification_pusher_class.resolve_notifications_default_params(),
     ).push()
+
+
+async def _get_allowed_project_names(project, auth_info, db_session):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
+    return await services.api.crud.Projects().list_allowed_project_names(
+        db_session, auth_info, project=project
+    )
+

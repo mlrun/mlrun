@@ -278,7 +278,7 @@ async def delete_model_monitoring_function(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     background_tasks: fastapi.BackgroundTasks,
     response: fastapi.Response,
-    functions: list[str] = Query([], alias="functions"),
+    functions: list[str] = Query([], alias="function"),
 ):
     """
     Delete model monitoring functions.

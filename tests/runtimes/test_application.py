@@ -93,6 +93,30 @@ def test_create_application_runtime_many_ports(rundb_mock, igz_version_mock):
     assert fn.spec.internal_application_port == 22
 
 
+def test_create_application_runtime_multiple_ports_different_nuclio_versions(
+    rundb_mock,
+):
+    # Test multiple ports with different nuclio versions
+    for nuclio_version in ["1.14.13", "1.14.14", "1.14.15"]:
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(mlrun.mlconf, "nuclio_version", nuclio_version)
+            fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+                "application-test",
+                kind="application",
+                image="mlrun/mlrun",
+                command="echo",
+            )
+            if nuclio_version >= "1.14.14":
+                fn.with_sidecar("echo", command="echo", ports=[80, 22])
+                fn.deploy()
+                assert fn.spec.application_ports == [80, 22]
+            else:
+                with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+                    fn.with_sidecar("echo", command="echo", ports=[80, 22])
+                with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+                    fn.spec.application_ports = [22, 80]
+
+
 def test_application_runtime_update_port(rundb_mock, igz_version_mock):
     # deploy with default value
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(

@@ -11,20 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun.common.schemas
 
-ARG MLRUN_PYTHON_VERSION=3.11
-ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
 
-FROM --platform=${DOCKER_DEFAULT_PLATFORM} gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    DEBIAN_FRONTEND=noninteractive apt-get update -q && \
-    apt-get -y upgrade -o Acquire::Check-Valid-Until=false && \
-    apt-get install -y --no-install-recommends \
-        build-essential \
-        ca-certificates \
-        cmake \
-        curl \
-        git \
-        libffi-dev \
-        python3-dev \
-        unzip
+def add_project_role_headers_if_needed(path: str, kwargs: dict):
+    if "projects" in path:
+        if mlrun.common.schemas.HeaderNames.projects_role not in kwargs.get(
+            "headers", {}
+        ):
+            kwargs.setdefault("headers", {})[
+                mlrun.common.schemas.HeaderNames.projects_role
+            ] = "mlrun"

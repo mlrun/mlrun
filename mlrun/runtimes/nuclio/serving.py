@@ -22,6 +22,7 @@ from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas as schemas
+import mlrun.datastore.datastore_profile as ds_profile
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -740,6 +741,7 @@ class ServingRuntime(RemoteRuntime):
         current_function="*",
         track_models=False,
         workdir=None,
+        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
         **kwargs,
     ) -> GraphServer:
         """create mock server object for local testing/emulation
@@ -748,6 +750,7 @@ class ServingRuntime(RemoteRuntime):
         :param current_function: specify if you want to simulate a child function, * for all functions
         :param track_models: allow model tracking (disabled by default in the mock server)
         :param workdir:   working directory to locate the source code (if not the current one)
+        :param stream_profile:   stream profile to use for the mock server output stream.
         """
 
         # set the namespaces/modules to look for the steps code in
@@ -787,6 +790,7 @@ class ServingRuntime(RemoteRuntime):
             logger=logger,
             is_mock=True,
             monitoring_mock=self.spec.track_models,
+            stream_profile=stream_profile,
         )
 
         server.graph = add_system_steps_to_graph(

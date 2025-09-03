@@ -15,14 +15,15 @@
 import os
 import string
 from collections.abc import Iterator
+from http import HTTPStatus
 from random import choice, randint
 from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
+from fastapi.testclient import TestClient
 
 import mlrun.common.schemas
-import mlrun.model_monitoring
 from mlrun.errors import MLRunBadRequestError
 
 import services.api.api.endpoints.model_endpoints
@@ -232,14 +233,17 @@ def _get_auth_info() -> mlrun.common.schemas.AuthInfo:
 
 
 def _mock_random_endpoint(
-    state: Optional[str] = None,
+    state: Optional[str] = None, name: str = "some-name"
 ) -> mlrun.common.schemas.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
 
     return mlrun.common.schemas.ModelEndpoint(
         metadata=mlrun.common.schemas.ModelEndpointMetadata(
-            project=TEST_PROJECT, labels=random_labels(), uid=str(randint(1000, 5000))
+            name=name,
+            project=TEST_PROJECT,
+            labels=random_labels(),
+            uid=str(randint(1000, 5000)),
         ),
         spec=mlrun.common.schemas.ModelEndpointSpec(
             function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
@@ -269,3 +273,22 @@ async def test_get_metrics_values_no_tsdb(get_project_secret_mock: Mock) -> None
     )
     assert metrics_values == []
     assert get_project_secret_mock.call_count == 1
+
+
+@patch(
+    "services.api.crud.model_monitoring.model_endpoints.ModelEndpoints.delete_model_endpoint"
+)
+def test_delete_model_endpoint(
+    delete_model_endpoint_mock: Mock, client: TestClient
+) -> None:
+    endpoint = _mock_random_endpoint(name="metrics-values")
+    resp = client.delete(
+        f"projects/{TEST_PROJECT}/model-endpoints/{endpoint.metadata.name}",
+        params={
+            "function_name": endpoint.spec.function_uri,
+            "function_tag": endpoint.spec.function_tag,
+            "auth_info": _get_auth_info().json(),
+        },
+    )
+    assert resp.status_code == HTTPStatus.NO_CONTENT, resp.text
+    delete_model_endpoint_mock.assert_called_once()

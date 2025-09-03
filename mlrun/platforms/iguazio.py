@@ -96,7 +96,11 @@ class OutputStream:
         if access_key:
             v3io_client_kwargs["access_key"] = access_key
 
-        self._v3io_client = v3io.dataplane.Client(**v3io_client_kwargs)
+        if not mock:
+            self._v3io_client = v3io.dataplane.Client(**v3io_client_kwargs)
+        else:
+            self._v3io_client = None
+
         self._container, self._stream_path = split_path(stream_path)
         self._shards = shards
         self._retention_in_hours = retention_in_hours
@@ -105,7 +109,7 @@ class OutputStream:
         self._mock = mock
         self._mock_queue = []
 
-    def create_stream(self):
+    def create_stream(self) -> None:
         # this import creates an import loop via the utils module, so putting it in execution path
         from mlrun.utils.helpers import logger
 
@@ -210,7 +214,7 @@ class KafkaOutputStream:
         self._initialized = False
 
     def _lazy_init(self):
-        if self._initialized:
+        if self._initialized or self._mock:
             return
 
         import kafka

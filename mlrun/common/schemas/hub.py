@@ -15,6 +15,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+import deepdiff
 from pydantic.v1 import BaseModel, Extra, Field
 
 import mlrun.common.types
@@ -79,6 +80,19 @@ class HubSource(BaseModel):
                 channel=mlrun.mlconf.hub.default_source.channel,
             ),
             status=ObjectStatus(state="created"),
+        )
+
+    def diff(self, another_source: "HubSource") -> dict:
+        """
+        Compare this HubSource with another one.
+        Returns a dict of differences (metadata, spec, status).
+        """
+        exclude_paths = [
+            "root['metadata']['updated']",
+            "root['metadata']['created']",
+        ]
+        return deepdiff.DeepDiff(
+            self.dict(), another_source.dict(), exclude_paths=exclude_paths
         )
 
 

@@ -33,6 +33,12 @@ def api_url() -> str:
 
 
 @pytest.fixture()
+def projects_leader(request, db):
+    mlrun.mlconf.httpdb.projects.leader = "mlrun"
+    framework.utils.singletons.project_member.initialize_project_member()
+
+
+@pytest.fixture()
 def nuclio_client(
     api_url: str,
 ) -> framework.utils.clients.nuclio.Client:
@@ -221,6 +227,60 @@ def test_store_project_creation(
             == {}
         )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
+
+    # mock project not found so store will create
+    requests_mock.get(
+        f"{api_url}/api/projects/{project_name}",
+        status_code=http.HTTPStatus.NOT_FOUND.value,
+    )
+    requests_mock.post(f"{api_url}/api/projects", json=verify_store_creation)
+    nuclio_client.store_project(
+        None,
+        project_name,
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=project_name,
+                labels=project_labels,
+                annotations=project_annotations,
+            ),
+            spec=mlrun.common.schemas.ProjectSpec(description=project_description),
+        ),
+    )
+
+
+def test_store_project_creation_when_mlrun_is_leader(
+    api_url: str,
+    nuclio_client: framework.utils.clients.nuclio.Client,
+    requests_mock: requests_mock_package.Mocker,
+    projects_leader,
+):
+    project_name = "project-name"
+    project_description = "some description"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
+    project_annotations = {
+        "some-annotation": "some-annotation-value",
+    }
+
+    def verify_store_creation(request, context):
+        assert (
+            deepdiff.DeepDiff(
+                _generate_project_body(
+                    project_name,
+                    project_description,
+                    project_labels,
+                    project_annotations,
+                    with_namespace=False,
+                ),
+                request.json(),
+                ignore_order=True,
+            )
+            == {}
+        )
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
+
+        assert request.headers.get("x-projects-role") == "mlrun"
 
     # mock project not found so store will create
     requests_mock.get(

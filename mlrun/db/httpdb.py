@@ -4306,7 +4306,6 @@ class HTTPRunDB(RunDBInterface):
             params["tag"] = tag
         if version:
             params["version"] = version
-        logger.info(f"[DD] list_hub_sources params in the SDK: {params}. making a request to the server...")
         response = self.api_call(method="GET", path=path, params=params).json()
 
         # TODO: delete after debugging:

@@ -48,7 +48,6 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
             index=-1,
             source=mlrun.common.schemas.HubSource.generate_default_source(),
         )
-        print(f"test_hub default_source for comparison: {default_source}")
         self._assert_source_lists_match([default_source])
 
         new_source = mlrun.common.schemas.IndexedHubSource(

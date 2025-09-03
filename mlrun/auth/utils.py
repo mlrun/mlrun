@@ -50,6 +50,8 @@ def get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[
     :return: The offline token if found, otherwise None.
     """
     data = read_secret_tokens_file(raise_on_error=raise_on_error)
+    if not data:
+        return None
     return parse_offline_token_data(data=data, raise_on_error=raise_on_error)
 
 
@@ -112,6 +114,8 @@ def parse_offline_token_data(
     :param raise_on_error: Whether to raise an error or log a warning on failure.
     :return: The resolved offline token, or None if resolution fails.
     """
+    if not data:
+        return None
     tokens = data.get("secretTokens")
     if not isinstance(tokens, list) or not tokens:
         mlrun.utils.helpers.raise_or_log_error(

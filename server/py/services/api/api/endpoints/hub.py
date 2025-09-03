@@ -85,7 +85,7 @@ async def list_sources(
             auth_info,
         )
     )
-
+    mlrun.utils.logger.info("[DD] list_hub_source endpoint")
     return await run_in_threadpool(
         services.api.crud.Hub().list_hub_sources,
         db_session,

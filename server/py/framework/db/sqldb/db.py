@@ -6340,8 +6340,10 @@ class SQLDB(DBInterface):
         )
 
     def list_hub_sources(self, session) -> list[mlrun.common.schemas.IndexedHubSource]:
+        logger.info(f"[DD] list_hub_sources at the db.py")  # TODO: delete after debugging
         results = []
         query = self._query(session, HubSource).order_by(HubSource.index.desc())
+        logger.info(f"[DD] query results in db: {query.all()}") # TODO: delete after debugging
         for record in query:
             logger.info(f"[DD] Hub source record found in db: {record.name}, index: {record.index}") # TODO: delete after debugging
             ordered_source = self._transform_hub_source_record_to_schema(record)

@@ -665,6 +665,7 @@ class RunDBMock:
         return list(self._functions.values())[0]
 
     def list_hub_sources(self, *args, **kwargs):
+        mlrun.utils.logger.info("[DD] dummy list_hub_sources")
         return [self._create_dummy_indexed_hub_source()]
 
     def get_hub_source(self, *args, **kwargs):

@@ -15,7 +15,7 @@ import asyncio
 import time
 from typing import Any, Optional
 
-from PIL import Image
+import fsspec
 
 import mlrun
 import mlrun.artifacts
@@ -144,8 +144,12 @@ class MyHuggingFaceCustom(mlrun.serving.states.Model):
 
     def predict(self, body: Any, **kwargs) -> Any:
         if isinstance(self.model_provider, ModelProvider):
-            # Load image from path
-            image = Image.open(body["input"])
+            # Imported here to avoid requiring Pillow in environments where it's not needed
+            from PIL import Image
+
+            with fsspec.open(body["input"], "rb") as f:
+                image = Image.open(f)
+                image.load()  # ensure image is fully read into memory
 
             result = self.model_provider.custom_invoke(
                 inputs=image,

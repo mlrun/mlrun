@@ -22,6 +22,7 @@ from mlrun.datastore.datastore_profile import (
     HuggingFaceProfile,
 )
 from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
+from mlrun.runtimes.mounts import mount_v3io
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
@@ -38,6 +39,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
     image = "mlrun/mlrun"
     profile_name = "huggingface_profile"
     basic_llm_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    image_classification_model = "microsoft/resnet-50"
 
     def setup_datastore_profile(self, task=None, model_name=None):
         # noinspection PyAttributeOutsideInit
@@ -104,3 +106,59 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         assert (
             stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]
         )
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_custom_huggingface_model_runner(self, execution_mechanism):
+        self.setup_datastore_profile(
+            task="image-classification", model_name=self.image_classification_model
+        )
+        image_local_path = os.path.join(self.assets_path, "cat.jpg")
+        artifact = self.project.log_artifact(
+            "my_artifact", local_path=image_local_path, upload=True
+        )
+        v3io_path = artifact.get_target_path()
+
+        mlrun_model_name = "custom_hf_model"
+        requirements_path = os.path.join(
+            os.path.dirname(__file__), "hf_requirements.txt"
+        )
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            self.model_url,
+            mlrun_model_name=mlrun_model_name,
+            image=self.image,
+            requirements_file=requirements_path,
+            default_config={"top_k": 2},
+            execution_mechanism=execution_mechanism,
+            model_class="MyHuggingFaceCustom",
+            include_llm_artifact=False,
+        )
+
+        # Running models requires higher CPU for this pod.
+        # The default Nuclio resource configuration is:
+        # {"requests": {"cpu": "25m", "memory": "1Mi"}, "limits": {"cpu": "2", "memory": "20Gi"}}
+        function.spec.resources = {
+            "limits": {"cpu": "3", "memory": "30Gi"},
+            "requests": {"cpu": "500m", "memory": "1Mi"},
+        }
+        function.spec.max_replicas = (
+            1  # to avoid allocating extended resources to multiple pods
+        )
+        function.apply(mount_v3io())
+        function.deploy()
+        results = function.invoke(
+            f"v2/models/{mlrun_model_name}/infer",
+            {"input": v3io_path},
+        )["result"]
+        assert len(results) == 2
+        # # Verify the top result contains 'cat' (assuming the test image is a cat)
+        assert "cat" in results[0]["label"].lower()
+        # Verify each result has the expected structure
+        for result in results:
+            assert "label" in result
+            assert "score" in result
+            assert isinstance(result["score"], float)
+            assert 0 <= result["score"] <= 1

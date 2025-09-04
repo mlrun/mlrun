@@ -60,12 +60,13 @@ def delete_project_old_pipelines(
 
     # get KFP client
     kfp_client = _get_kfp_client()
-    experiment = kfp_client.get_experiment_with_project_name(
-        project_name=project_name,
+    experiments = kfp_client.get_candidate_experiments_for_projects(
+        project_names=[project_name],
     )
+    experiment_ids = [experiment.id for experiment in experiments]
     # Generate filter and query runs
     query_filter = mlrun.utils.get_kfp_list_runs_filter(
-        experiment_id=experiment.id,
+        experiment_ids=experiment_ids,
         end_date=end_date,
         start_date=start_date,
     )
@@ -79,7 +80,7 @@ def delete_project_old_pipelines(
     _delete_runs_and_empty_experiments(
         context, kfp_client, runs, experiments_ids, dry_run
     )
-    _delete_runs(context, kfp_client, runs, dry_run)
+    _delete_runs(context, kfp_client, runs)
 
     # Find and delete empty experiments
     _delete_empty_experiments(context, kfp_client, experiments_ids)

@@ -1218,7 +1218,7 @@ def get_kfp_list_runs_filter(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     filter_: Optional[str] = None,
-    experiment_id: Optional[str] = None,
+    experiment_ids: Optional[list[str]] = None,
 ) -> str:
     """
     Generate a filter for KFP runs based on start and end dates, and experiment IDs.
@@ -1249,12 +1249,12 @@ def get_kfp_list_runs_filter(
             }
         )
 
-    if experiment_id:
+    if experiment_ids:
         new_predicates.append(
             {
                 "key": "experiment_id",
-                "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
-                "string_value": experiment_id,
+                "op": mlrun_pipelines.models.FilterOperations.IN.value,
+                "string_values": experiment_ids,
             }
         )
 

@@ -18,6 +18,8 @@ import http
 import tempfile
 import traceback
 import typing
+from asyncio import as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 import kfp_server_api
 import sqlalchemy.orm
@@ -73,18 +75,20 @@ class Pipelines(
                 "Summary format is not supported for list pipelines, use get instead"
             )
         kfp_client = self.initialize_kfp_client(namespace)
-
-        experiment_id = None
+        projects = []
+        experiment_ids = []
         if isinstance(project, str) and project != "*":
+            projects = [project]
+        if projects:
             mlrun.utils.logger.debug(
                 "Resolving experiments by project-based substring match",
                 project=project,
             )
-            experiment = kfp_client.get_experiment_with_project_name(project)
-            experiment_id = experiment.id
+            experiments = kfp_client.get_candidate_experiments_for_projects(projects)
+            experiment_ids = [experiment.id for experiment in experiments]
         filter_json = mlrun.utils.get_kfp_list_runs_filter(
             filter_=filter_,
-            experiment_id=experiment_id,
+            experiment_ids=experiment_ids,
         )
 
         runs, next_page_token = self._paginate_runs(
@@ -757,8 +761,15 @@ class Pipelines(
         kfp_client: mlrun_pipelines.client.Client = None,
     ) -> list[dict]:
         formatted_runs = []
-        for run in runs:
-            formatted_runs.append(self._format_run(run, format_, kfp_client))
+
+        def worker(run):
+            return self._format_run(run, format_, kfp_client)
+
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(worker, run) for run in runs]
+            for future in as_completed(futures):
+                formatted_runs.append(future.result())
+
         return formatted_runs
 
     def _format_run(

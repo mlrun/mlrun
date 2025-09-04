@@ -185,7 +185,7 @@ class AbstractClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_experiment_with_project_name(
+    def get_candidate_experiments_for_projects(
         self,
         project_name: str,
     ):

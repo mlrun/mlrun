@@ -664,40 +664,42 @@ class Client(
             )
             raise error
 
-    def get_experiment_with_project_name(
+    def get_candidate_experiments_for_projects(
         self,
-        project_name: str,
-    ) -> kfp_server_api.ApiExperiment:
+        project_names: list[str],
+    ) -> list[kfp_server_api.ApiExperiment]:
         """
         Retrieve an experiment by project name.
         This method searches for an experiment whose name matches the project name,
         allowing for a dash-prefixed match (e.g., "myproject-").
-        :param project_name: The name of the project to search for.
-        :return: An ApiExperiment object representing the found experiment.
+        :param project_names: The names of the projects to search for.
+        :return: A list of ApiExperiment objects representing the found experiments.
         :raises ValueError: If no experiment is found with the specified project name.
         """
+        matching_experiments = []
 
-        filter_json = orjson.dumps(
-            {
-                "predicates": [
-                    {
-                        "key": "name",
-                        "op": mlrun_pipelines.models.FilterOperations.IS_SUBSTRING,
-                        "string_value": project_name,
-                    }
-                ]
-            }
-        ).decode()
+        for project_name in project_names:
+            filter_json = orjson.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "name",
+                            "op": mlrun_pipelines.models.FilterOperations.IS_SUBSTRING,
+                            "string_value": project_name,
+                        }
+                    ]
+                }
+            ).decode()
 
-        experiments = (
-            self._experiment_api.list_experiment(filter=filter_json).experiments or []
-        )
-        for experiment in experiments:
-            normalized_name = experiment.name.rsplit("-", 1)[0]
-            if project_name in (normalized_name, experiment.name):
-                return experiment
-        else:
-            raise ValueError(f"No experiment found with for project '{project_name}'")
+            experiments = (
+                self._experiment_api.list_experiment(filter=filter_json).experiments
+                or []
+            )
+            for experiment in experiments:
+                normalized_name = experiment.name.rsplit("-", 1)[0]
+                if project_name in (normalized_name, experiment.name):
+                    matching_experiments.append(experiment)
+        return matching_experiments
 
     def _create_job_config(
         self,

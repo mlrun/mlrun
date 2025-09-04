@@ -249,7 +249,7 @@ async def list_model_endpoints(
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     as_dict: Optional[bool] = Query(None, alias="as_dict"),
-) -> Union[schemas.ModelEndpointList, dict]:
+) -> Union[schemas.ModelEndpointList, dict[str, str]]:
     """
     List model endpoints.
 
@@ -273,7 +273,9 @@ async def list_model_endpoints(
     :param latest_only:     Whether to return only the latest model endpoint for each name.
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
-    :param as_dict:         When True, the result will be returned as a dictionary of str, ModelEndpoint schema.
+    :param as_dict:         When True, the result will be returned as a dictionary of str in the structure of
+                            "<project name>-<function_name>-<function_tag>-<endpoint_name>" map to model
+                            endpoint uid.
     :return:                A list of model endpoints.
     """
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(

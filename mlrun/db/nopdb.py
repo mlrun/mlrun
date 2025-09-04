@@ -630,7 +630,7 @@ class NopDB(RunDBInterface):
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         as_dict: Optional[bool] = None,
-    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict]:
+    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict[str, str]]:
         pass
 
     def get_model_endpoint(

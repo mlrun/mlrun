@@ -1024,12 +1024,14 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
             tolerations=preemptible_tolerations,
         )
         logger.info(
-            "constrain -> allow, with preemptible node selector and affinity and tolerations,"
-            " expecting affinity and node selector to be removed and only preemptible tolerations to stay"
+            "constrain -> allow, with preemptible node selector, "
+            "expecting node selector to remain and preemptible tolerations to be added"
         )
         runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
-        self.assert_node_selection(tolerations=preemptible_tolerations)
+        self.assert_node_selection(
+            tolerations=preemptible_tolerations, node_selector=preemptible_node_selector
+        )
 
         logger.info(
             "allow -> allow, with not preemptible node selector and preemptible tolerations, expecting to stay"
@@ -1280,11 +1282,11 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
             affinity=self._generate_preemptible_affinity(),
         )
         logger.info(
-            "constrain -> allow with preemptible node selector and affinity, expecting both to be removed"
+            "constrain -> allow with preemptible node selector, expecting to remain the same"
         )
         runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
-        self.assert_node_selection()
+        self.assert_node_selection(node_selector=preemptible_node_selector)
 
         logger.info(
             "allow -> allow, with not preemptible node selector, expecting to stay"
@@ -1419,8 +1421,7 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         )
 
         logger.info(
-            "constrain -> allow, with not preemptible tolerations and preemptible affinity, "
-            "expecting only not preemptible tolerations"
+            "constrain -> allow, with non preemptible tolerations, expected to stay the same"
         )
         runtime.with_preemption_mode(
             mode=mlrun.common.schemas.PreemptionModes.allow.value

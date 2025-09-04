@@ -1708,7 +1708,9 @@ def test_format_datetime(dt, expected):
                     {
                         "key": "experiment_id",
                         "op": mlrun_pipelines.models.FilterOperations.IN.value,
-                        "string_values": ["721ff4f8-d465-455e-bdab-a79857a62136"],
+                        "string_values": {
+                            "values": ["721ff4f8-d465-455e-bdab-a79857a62136"]
+                        },
                     },
                 ]
             },

@@ -248,7 +248,7 @@ async def list_model_endpoints(
     latest_only: bool = Query(False, alias="latest-only"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    as_dict: Optional[bool] = Query(None, alias="as_dict"),
+    as_dict: Optional[bool] = Query(None, alias="as-dict"),
 ) -> Union[schemas.ModelEndpointList, dict[str, str]]:
     """
     List model endpoints.

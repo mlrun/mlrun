@@ -65,8 +65,9 @@ class _NotificationPusherBase:
                 logger.debug(
                     "push: existing event loop - submitting with run_coroutine_threadsafe"
                 )
-                asyncio.run_coroutine_threadsafe(async_push_callback(), event_loop)
-                logger.debug("push: existing event loop - async submitted")
+                fut = asyncio.run_coroutine_threadsafe(async_push_callback(), event_loop)
+                fut.result()  # ADDED — wait for completion to avoid lingering tasks/threads
+                logger.debug("push: existing event loop - async done")
 
         # then push sync notifications
         if not mlrun.config.is_running_as_api():

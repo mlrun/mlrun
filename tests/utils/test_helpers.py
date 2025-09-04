@@ -1707,8 +1707,8 @@ def test_format_datetime(dt, expected):
                     },
                     {
                         "key": "experiment_id",
-                        "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
-                        "string_value": "721ff4f8-d465-455e-bdab-a79857a62136",
+                        "op": mlrun_pipelines.models.FilterOperations.IN.value,
+                        "string_values": ["721ff4f8-d465-455e-bdab-a79857a62136"],
                     },
                 ]
             },
@@ -1722,11 +1722,14 @@ def test_get_kfp_list_runs_filter(
     input_experiment_id: Optional[str],
     expected_filter_object: dict,
 ):
+    experiment_ids = []
+    if input_experiment_id:
+        experiment_ids.append(input_experiment_id)
     generated_filter_json: str = mlrun.utils.helpers.get_kfp_list_runs_filter(
         start_date=input_start_date,
         end_date=input_end_date,
         filter_=input_existing_filter_json,
-        experiment_id=input_experiment_id,
+        experiment_ids=experiment_ids,
     )
     generated_filter_object = json.loads(generated_filter_json)
     assert generated_filter_object == expected_filter_object

@@ -1181,7 +1181,6 @@ grpcio==1.74.0 \
     --hash=sha256:fd3c71aeee838299c5887230b8a1822795325ddfea635edd82954c1eaa831e24 \
     --hash=sha256:fe0f540750a13fd8e5da4b3eaba91a785eea8dca5ccd2bc2ffe978caa403090e
     # via
-    #   -r dockerfiles/mlrun-api/requirements.txt
     #   google-api-core
     #   google-cloud-bigquery
     #   grpcio-status
@@ -3623,7 +3622,9 @@ v3io==0.7.2 \
 v3io-frames==0.13.10 \
     --hash=sha256:199a76c47e4a04e2808defe8631e8b499bb428250b6b0dc02cc65f99f6f0d655 \
     --hash=sha256:9a12893c45a84e0c41a3fa685b12926ec555d807205c4192fce119349dd41434
-    # via storey
+    # via
+    #   -r requirements.txt
+    #   storey
 v3iofs==0.1.18 \
     --hash=sha256:b628588905becd70f546e700c1ec06c027cb001fe58e2a56ab1be840fd4ec5fd \
     --hash=sha256:dc52cda02573bcab5d6fd5919753c24321f50b150a44681790ae5797ac10a648

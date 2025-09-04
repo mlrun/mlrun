@@ -3968,6 +3968,7 @@ v3io-frames==0.10.15 \
     --hash=sha256:d0f7bccfb1a615b16c1cdfd0eb4d0cd44a328da30df6d6b41581e0464bbeafad
     # via
     #   -c dockerfiles/constraints-py3.9.txt
+    #   -r requirements.txt
     #   storey
 v3iofs==0.1.18 \
     --hash=sha256:b628588905becd70f546e700c1ec06c027cb001fe58e2a56ab1be840fd4ec5fd \

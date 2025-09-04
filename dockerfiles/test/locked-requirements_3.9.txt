@@ -1639,64 +1639,7 @@ grimp==3.11 \
     --hash=sha256:f7a664800055a075716e992bb47722453a765229a73a9841e64cdeafe9ef4e0d \
     --hash=sha256:f8e65499eb64ea4b719f82d49f65b89afa2601bfebb435a1a3ff90fe21f295c6
     # via import-linter
-grpcio==1.59.5 ; python_full_version < '3.10' \
-    --hash=sha256:065b5c27a8c9c342e1d1a1802aea72b54fa0bfe14409e3c2f5a246bc9a66bc30 \
-    --hash=sha256:0828cfdbdced21e548a84b0d57ce0bd7ec75e681abe13336e8dda1ffb9fee96d \
-    --hash=sha256:1c6cc24e7619073926c5aca6a0912c58c9dfc801ecfb74bea7300d01e675b7d1 \
-    --hash=sha256:2b30e79bbfb31be7d088d9ac79a00d4349e4f2cc9eab8431975f42d4bbe2e495 \
-    --hash=sha256:2c90ee78bbbd7de7fb266d640ce8bd932a4e0ca64fa10b6175970ae32970cde6 \
-    --hash=sha256:3111488f5c4d350b02881a4afa23fa9de114b241a07df7787eb54c1f853a9c3b \
-    --hash=sha256:3213c6baf48d92f9d7ffaadd13f564c813484efdaa626b7f2f89a34a25bfb232 \
-    --hash=sha256:3dd4cc5176c2f03c76d138ba1a682ebe3b370574bb98689b9a0630b888c0da93 \
-    --hash=sha256:46c49520c2d6bfb76c9417adb6959a01399fe20e33653db2d9cb0dd377400dec \
-    --hash=sha256:4b1ab9af7a8d31a13f532c8587e857412c2bbe21f83cb474b833bfba4a4a33c3 \
-    --hash=sha256:4e5786ac9bb2691345a5cb1852a5421d0945371343b50f17a7f24f781e10de41 \
-    --hash=sha256:5289c1ffab6afdc6c88f158a7007366130b674132f9f8c90b43cc321eceac6b3 \
-    --hash=sha256:54b2b8a2545259ea2d1ba324f8543615f474c93017ef1c2c0d14b20c4d0fa516 \
-    --hash=sha256:5a5dbdbc1a0494627530234cdb8df80ad62632f757abab03aea3e36205991b47 \
-    --hash=sha256:62baa0859039ee4535dda6a811771b2c96d0b11140c1a7fac3f9184185c7c7a1 \
-    --hash=sha256:6681ae0a3968dddc6d596fc5e1bdafa8edd75de94a430b72578eb948c8a6ee25 \
-    --hash=sha256:67eebc8e350f6c59f9c26594e53df58cb3ece2cbf17f0e0acaafd3f27cacf911 \
-    --hash=sha256:6a8c986753c381fa5f763dcdee23c7d79202973256ac17a62b361ff42c780d1e \
-    --hash=sha256:6bdb863964da187997119069513c950cd6aae57eca9b26bf8cb6362a8a83da9f \
-    --hash=sha256:7c3ec71228574f15400382c2703c73353f86899f5711c9b9eb9852568ff0cb3d \
-    --hash=sha256:84aa142b33cae40e78dbeacc0280dc0541018f32aa6e66ce8df16b4d221b19d3 \
-    --hash=sha256:910c70895ecedfffbd05047fd8e129b02a207467a691b1a928701b73f1d3f7c0 \
-    --hash=sha256:9743961b11a767eb5446c677a96c0b5b57a42c7d3fc63126707cf286a6d0c771 \
-    --hash=sha256:9a83a9d6105a1a5b87477c753a3228dcf168c9ca18204efacf287d3be5107226 \
-    --hash=sha256:9b3246063b18634b413148a0b760ae1d0e25c92ea25ff29d8c4cdb2b784a8e35 \
-    --hash=sha256:9c4af5b7b83bf67664a4e087dffb735360955d90d0cc0ce0f99e9ee28ab17d70 \
-    --hash=sha256:9c89d844c8caf16fd19d05df5dacbc6d46b789ca40738157d0fcf05a827f059f \
-    --hash=sha256:9e5a9d4fbc5e70f92c8d40253a671451193d1ae19030431961ad95e2f2c1a06c \
-    --hash=sha256:a90121c95df9ca7a2aad30477817a1d07a9cc46f75ba970fad634078f24ddeea \
-    --hash=sha256:b4d7cfd6cc57e500f8a3d39e94a8f2564e7dcdf4ac943ca61d5cbc0e33f49a34 \
-    --hash=sha256:b52956670ba50d7430431e62a73acf7cc80e0d6553829e4cc444042c8a1582ae \
-    --hash=sha256:b5f5075b7fcb84b0479917b534b5644b98eca1d83ea995a95ebdab9f4ea5dd54 \
-    --hash=sha256:bcec472be4d0b7cbc7343da9816026fd2cbd4e63b4157e66daa0a95ee5ed4478 \
-    --hash=sha256:be604e1e818547edd16a0e2529eb87bb1a15847fe89600481b860010afc87b0e \
-    --hash=sha256:c0fd81629bbea081342988f4e71f42eadd2483da48a37eb2e0e01760dbe873d8 \
-    --hash=sha256:c416075bb90a1c308b62c469cd862c1430ad120624ea62a034f3b4d33605e698 \
-    --hash=sha256:c75a1ebff0bb99b1d1b84e0ae945b777479a28b68ce1258edf168e3fb53ed207 \
-    --hash=sha256:d82ee9da24d9002d100026b6898f611ce05525609d8714e2bc6b27322d4e5a9e \
-    --hash=sha256:d9d339a74f430c7ed5b46ab0bbfd23cb3113bb0e9b9a47d657139bf8efa05ace \
-    --hash=sha256:df9108c4614c3a68c94b44d0b77ec740c98d73d12d85afb2c88bc6097d1a56f6 \
-    --hash=sha256:e11193816a5a4af93ff8f07d10bd59a52b0ac8e5d9957c4c5310bc1de46ab01d \
-    --hash=sha256:e25185950572917d0935f07024c49dcad832c73957312cf9f0d2a7096ba0151e \
-    --hash=sha256:eb10f07753650d7112c2b9685bae824855a72ef86a0b79b2dda7363d8175502d \
-    --hash=sha256:ef5064a13ec7251170ffb99604fc0c38814b78ba7390048293e1a9dc3b27caa2 \
-    --hash=sha256:f2c59b76a0dad6dfceb60ccae9ac51252414fc7e3a608bdef7225e92b3475954 \
-    --hash=sha256:f8995b7caa931f43bfce52654acd446fe72da58b26d1ed035b9c7f4f4b33de6b \
-    --hash=sha256:f8e0f898660fe37384d34cef46a6d7c5290e615a1ad0fc6ac8da1949b3855b7d \
-    --hash=sha256:ff2e2a443435967ff037507fff50af6fe1ca6a26b7d1247444022392271eb4ae
-    # via
-    #   -r dockerfiles/mlrun-api/requirements.txt
-    #   google-api-core
-    #   google-cloud-bigquery
-    #   grpcio-status
-    #   grpcio-tools
-    #   tensorboard
-    #   tensorflow
-grpcio==1.74.0 ; python_full_version >= '3.10' \
+grpcio==1.74.0 \
     --hash=sha256:0f87bddd6e27fc776aacf7ebfec367b6d49cad0455123951e4488ea99d9b9b8f \
     --hash=sha256:136b53c91ac1d02c8c24201bfdeb56f8b3ac3278668cbb8e0ba49c88069e1bdc \
     --hash=sha256:1733969040989f7acc3d94c22f55b4a9501a30f6aaacdbccfaba0a3ffb255ab7 \
@@ -1749,11 +1692,12 @@ grpcio==1.74.0 ; python_full_version >= '3.10' \
     --hash=sha256:fd3c71aeee838299c5887230b8a1822795325ddfea635edd82954c1eaa831e24 \
     --hash=sha256:fe0f540750a13fd8e5da4b3eaba91a785eea8dca5ccd2bc2ffe978caa403090e
     # via
-    #   -r dockerfiles/mlrun-api/requirements.txt
     #   google-api-core
     #   google-cloud-bigquery
     #   grpcio-status
     #   grpcio-tools
+    #   tensorboard
+    #   tensorflow
 grpcio-status==1.48.2 \
     --hash=sha256:2c33bbdbe20188b2953f46f31af669263b6ee2a9b2d38fa0d36ee091532e21bf \
     --hash=sha256:53695f45da07437b7c344ee4ef60d370fd2850179f5a28bb26d8e2aa1102ec11
@@ -4036,9 +3980,9 @@ pyreadline3==3.5.4 ; sys_platform == 'win32' \
     --hash=sha256:8d57d53039a1c75adba8e50dd3d992b28143480816187ea5efbd5c78e6c885b7 \
     --hash=sha256:eaf8e6cc3c49bcccf145fc6067ba8643d1df34d604a1ec0eccbf7a18e6d3fae6
     # via humanfriendly
-pytest==8.4.1 \
-    --hash=sha256:539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7 \
-    --hash=sha256:7c67fd69174877359ed9371ec3af8a3d2b04741818c51e5e99cc1742251fa93c
+pytest==8.4.2 \
+    --hash=sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01 \
+    --hash=sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79
     # via
     #   -r dev-requirements.txt
     #   pytest-alembic
@@ -5599,6 +5543,7 @@ v3io-frames==0.10.15 \
     --hash=sha256:d0f7bccfb1a615b16c1cdfd0eb4d0cd44a328da30df6d6b41581e0464bbeafad
     # via
     #   -c dockerfiles/constraints-py3.9.txt
+    #   -r requirements.txt
     #   storey
 v3iofs==0.1.18 \
     --hash=sha256:b628588905becd70f546e700c1ec06c027cb001fe58e2a56ab1be840fd4ec5fd \

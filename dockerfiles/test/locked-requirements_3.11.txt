@@ -1503,7 +1503,6 @@ grpcio==1.74.0 \
     --hash=sha256:fd3c71aeee838299c5887230b8a1822795325ddfea635edd82954c1eaa831e24 \
     --hash=sha256:fe0f540750a13fd8e5da4b3eaba91a785eea8dca5ccd2bc2ffe978caa403090e
     # via
-    #   -r dockerfiles/mlrun-api/requirements.txt
     #   google-api-core
     #   google-cloud-bigquery
     #   grpcio-status
@@ -3400,9 +3399,9 @@ pyreadline3==3.5.4 ; sys_platform == 'win32' \
     --hash=sha256:8d57d53039a1c75adba8e50dd3d992b28143480816187ea5efbd5c78e6c885b7 \
     --hash=sha256:eaf8e6cc3c49bcccf145fc6067ba8643d1df34d604a1ec0eccbf7a18e6d3fae6
     # via humanfriendly
-pytest==8.4.1 \
-    --hash=sha256:539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7 \
-    --hash=sha256:7c67fd69174877359ed9371ec3af8a3d2b04741818c51e5e99cc1742251fa93c
+pytest==8.4.2 \
+    --hash=sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01 \
+    --hash=sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79
     # via
     #   -r dev-requirements.txt
     #   pytest-alembic
@@ -4798,6 +4797,7 @@ v3io-frames==0.13.10 \
     --hash=sha256:9a12893c45a84e0c41a3fa685b12926ec555d807205c4192fce119349dd41434
     # via
     #   -c dockerfiles/constraints-py3.11.txt
+    #   -r requirements.txt
     #   storey
 v3iofs==0.1.18 \
     --hash=sha256:b628588905becd70f546e700c1ec06c027cb001fe58e2a56ab1be840fd4ec5fd \

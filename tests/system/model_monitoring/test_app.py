@@ -709,7 +709,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         function_summaries = self.project.get_monitoring_function_summaries()
         assert len(function_summaries) == 3 + len(self.apps_data)
         function_summaries = self.project.get_monitoring_function_summaries(
-            include_infra=False
+            include_infra=False, start=datetime(2020, 1, 1)
         )
         assert len(function_summaries) == len(self.apps_data)
 
@@ -1367,9 +1367,22 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
                 mm_constants.HistogramDataDriftApplicationConstants.NAME
             )
             v3io_client.stream.describe(container, stream_path)
+            self._deploy_demo_app()
 
             # check that the stream of the histogram data drift app is deleted
             self._delete_histogram_app()
+
+            # check that only the demo app is remaining
+            monitoring_functions = self.project.list_model_monitoring_functions(
+                tag="latest"
+            )
+            assert len(monitoring_functions) == 1, (
+                "expected a single monitoring function after deletion of histogram "
+                "app"
+            )
+            assert [fn.metadata.name for fn in monitoring_functions] == [
+                DemoMonitoringApp.NAME
+            ], "the remaining function should be the demo app"
 
             with pytest.raises(v3io.dataplane.response.HttpResponseError):
                 v3io_client.stream.describe(container, stream_path)
@@ -1430,6 +1443,22 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
                 f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{mm_constants.HistogramDataDriftApplicationConstants.NAME}_v1"
                 not in topics
             )
+
+    def _deploy_demo_app(self):
+        demo_app = _AppData(
+            class_=DemoMonitoringApp,
+            rel_path="assets/application.py",
+            results={"data_drift_test", "model_perf"},
+        )
+        fn = self.project.set_model_monitoring_function(
+            func=demo_app.abs_path,
+            application_class=demo_app.class_.__name__,
+            name=demo_app.class_.NAME,
+            image="mlrun/mlrun" if self.image is None else self.image,
+            requirements=demo_app.requirements,
+            **demo_app.kwargs,
+        )
+        fn.deploy()
 
     def _disable_stream_function(self):
         self.project.disable_model_monitoring(

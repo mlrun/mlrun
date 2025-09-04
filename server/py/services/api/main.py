@@ -110,7 +110,9 @@ class Service(framework.service.Service):
             mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
         ):
-            services.api.initial_data.update_default_configuration_data()
+            await fastapi.concurrency.run_in_threadpool(
+                services.api.initial_data.update_default_configuration_data
+            )
             await self._start_periodic_functions()
 
         await self._move_mounted_services_to_online()
@@ -476,9 +478,7 @@ class Service(framework.service.Service):
                 return run_uid
             try:
                 runtime_handler: services.api.runtime_handlers.BaseRuntimeHandler = (
-                    await fastapi.concurrency.run_in_threadpool(
-                        get_runtime_handler, run_kind
-                    )
+                    get_runtime_handler(run_kind)
                 )
                 object_id = runtime_handler.resolve_object_id(run)
                 label_selector = runtime_handler.resolve_label_selector(

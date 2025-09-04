@@ -83,11 +83,6 @@ class TestAwsS3(TestMLRunSystem):
                 "",  # no bucket, since it is part of the ds profile
                 object_sub_dir,
             ),
-            "ds_no_bucket": self._make_target_names(
-                "ds://s3ds_profile_no_bucket/",
-                self._bucket_name,
-                object_sub_dir,
-            ),
         }
 
         mlrun.get_or_create_project(self.project_name)
@@ -96,13 +91,6 @@ class TestAwsS3(TestMLRunSystem):
             access_key_id=self._access_key_id,
             secret_key=self._secret_access_key,
             bucket=self._bucket_name,
-        )
-        register_temporary_client_datastore_profile(profile)
-
-        profile = DatastoreProfileS3(
-            name="s3ds_profile_no_bucket",
-            access_key_id=self._access_key_id,
-            secret_key=self._secret_access_key,
         )
         register_temporary_client_datastore_profile(profile)
 
@@ -117,7 +105,7 @@ class TestAwsS3(TestMLRunSystem):
                 s3_fs.rm(file, recursive=True)
             s3_fs.rm(full_path)
 
-    @pytest.mark.parametrize("url_type", ["s3", "ds_with_bucket", "ds_no_bucket"])
+    @pytest.mark.parametrize("url_type", ["s3", "ds_with_bucket"])
     @pytest.mark.parametrize("target_path", ["parquets_url", "parquet_url"])
     def test_ingest_with_parquet_source(self, url_type, target_path):
         #  create source

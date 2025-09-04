@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun.common.schemas
 
-from .serving import ServingRuntime, new_v2_model_server  # noqa
-from .nuclio import nuclio_init_hook  # noqa
-from .function import (
-    min_nuclio_versions,
-    multiple_port_sidecar_is_supported,
-    RemoteRuntime,
-)  # noqa
-from .api_gateway import APIGateway
+
+def add_project_role_headers_if_needed(path: str, kwargs: dict):
+    if "projects" in path:
+        if mlrun.common.schemas.HeaderNames.projects_role not in kwargs.get(
+            "headers", {}
+        ):
+            kwargs.setdefault("headers", {})[
+                mlrun.common.schemas.HeaderNames.projects_role
+            ] = "mlrun"

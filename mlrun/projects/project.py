@@ -2749,16 +2749,18 @@ class MlrunProject(ModelObj):
         | Creating a function with non project source is done by specifying a module ``handler`` and on the
          returned function set the source with ``function.with_source_archive(<source>)``.
 
-        Support URL prefixes:
+        Supported URL prefixes:
 
-            | Object (s3://, v3io://, ..)
-            | MLRun DB e.g. db://project/func:ver
-            | Functions hub/market: e.g. hub://auto-trainer:master
+        - Object: s3://, v3io://, etc.
+        - MLRun DB: e.g db://project/func:ver
+        - Function hub/market: e.g. hub://auto-trainer:master
 
         Examples::
 
             proj.set_function(func_object)
-            proj.set_function("http://.../mynb.ipynb", "train")
+            proj.set_function(
+                "http://.../mynb.ipynb", "train", kind="job", image="mlrun/mlrun"
+            )
             proj.set_function("./func.yaml")
             proj.set_function("hub://get_toy_data", "getdata")
 
@@ -2785,18 +2787,6 @@ class MlrunProject(ModelObj):
             # By providing a path to a pip requirements file
             proj.set_function("my.py", requirements="requirements.txt")
 
-        One of the most important parameters is 'kind', used to specify the chosen runtime. The options are:
-           - local: execute a local python or shell script
-           - job: insert the code into a Kubernetes pod and execute it
-           - nuclio: insert the code into a real-time serverless nuclio function
-           - serving: insert code into orchestrated nuclio function(s) forming a DAG
-           - dask: run the specified python code / script as Dask Distributed job
-           - mpijob: run distributed Horovod jobs over the MPI job operator
-           - spark: run distributed Spark job using Spark Kubernetes Operator
-           - remote-spark: run distributed Spark job on remote Spark service
-           - databricks: run code on Databricks cluster (python scripts, Spark etc.)
-           - application: run a long living application (e.g. a web server, UI, etc.)
-
         Learn more about :doc:`../../concepts/functions-overview`.
 
         :param func:                Function object or spec/code url, None refers to current Notebook
@@ -2804,8 +2794,20 @@ class MlrunProject(ModelObj):
                                     Versions (e.g. myfunc:v1). If the `tag` parameter is provided, the tag in the name
                                     must match the tag parameter.
                                     Specifying a tag in the name will update the project's tagged function (myfunc:v1)
-        :param kind:                Runtime kind e.g. job, nuclio, spark, dask, mpijob
-                                    Default: job
+        :param kind:                Default: job. One of
+
+                          - local: execute a local python or shell script
+                          - job: insert the code into a Kubernetes pod and execute it
+                          - nuclio: insert the code into a real-time serverless nuclio function
+                          - serving: insert code into orchestrated nuclio function(s) forming a DAG
+                          - dask: run the specified python code / script as Dask Distributed job
+                          - mpijob: run distributed Horovod jobs over the MPI job operator
+                          - spark: run distributed Spark job using Spark Kubernetes Operator
+                          - remote-spark: run distributed Spark job on remote Spark service
+                          - databricks: run code on Databricks cluster (python scripts, Spark etc.)
+                          - application: run a long living application (e.g. a web server, UI, etc.)
+                          - handler: execute a python handler (used automatically in notebooks or for debug)
+
         :param image:               Docker image to be used, can also be specified in the function object/yaml
         :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in
@@ -3944,7 +3946,9 @@ class MlrunProject(ModelObj):
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         top_level: bool = False,
-        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: Optional[
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         tsdb_metrics: bool = False,
@@ -3960,7 +3964,7 @@ class MlrunProject(ModelObj):
         5) function_tag
         6) labels
         7) top level
-        8) mode
+        8) modes
         9) uids
         10) start and end time, corresponding to the `created` field.
         By default, when no filters are applied, all available endpoints for the given project will be listed.
@@ -3982,8 +3986,8 @@ class MlrunProject(ModelObj):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
-        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
-                                both if set to None.
+        :param modes:           Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+                                "batch_legacy" (2). If set to None, all are included.
         :param uids:            If passed will return a list `ModelEndpoint` object with uid in uids.
         :param tsdb_metrics:    When True, the time series metrics will be added to the output
                                 of the resulting.
@@ -4005,7 +4009,7 @@ class MlrunProject(ModelObj):
             start=start,
             end=end,
             top_level=top_level,
-            mode=mode,
+            modes=modes,
             uids=uids,
             latest_only=latest_only,
             tsdb_metrics=tsdb_metrics,

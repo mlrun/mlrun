@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional, Union, cast
 
 import pandas as pd
@@ -347,6 +347,21 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         feature_stats=feature_stats,
                     )
                 )
+
+                if (
+                    monitoring_context.endpoint_id
+                    and monitoring_context.sample_df.empty
+                ):
+                    # The current sample is empty
+                    context.logger.warning(
+                        "No sample data available for tracking",
+                        application_name=application_name,
+                        endpoint_id=monitoring_context.endpoint_id,
+                        start_time=monitoring_context.start_infer_time,
+                        end_time=monitoring_context.end_infer_time,
+                    )
+                    return
+
                 result = self.do_tracking(monitoring_context)
                 endpoints_output[monitoring_context.endpoint_id].append(
                     (monitoring_context, result)
@@ -590,6 +605,16 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)
+
+        # If `start_dt` and `end_dt` do not include time zone information - change them to UTC
+        if (start_dt.tzinfo is None) and (end_dt.tzinfo is None):
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        elif (start_dt.tzinfo is None) or (end_dt.tzinfo is None):
+            raise mlrun.errors.MLRunValueError(
+                "The start and end times must either both include time zone information or both be naive (no time "
+                f"zone). Asserting the above failed, aborting the evaluate request: start={start}, end={end}."
+            )
 
         if existing_data_handling != ExistingDataHandling.delete_all:
             start_dt = cls._validate_monotonically_increasing_data(
@@ -841,7 +866,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
         model monitoring logic as a :py:class:`~mlrun.runtimes.KubejobRuntime`, which is an MLRun function.
 
-        This function has default values for all of its arguments. You should be change them when you want to pass
+        This function has default values for all of its arguments. You should change them when you want to pass
         data to the application.
 
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
@@ -858,6 +883,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param reference_data:    Pandas data-frame or :py:class:`~mlrun.artifacts.dataset.DatasetArtifact` URI as
                                   the reference dataset.
                                   When set, its statistics override the model endpoint's feature statistics.
+                                  You do not need to have a model endpoint to use this option.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
         :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
@@ -878,8 +904,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param start:             The start time of the endpoint's data, not included.
                                   If you want the model endpoint's data at ``start`` included, you need to subtract a
                                   small ``datetime.timedelta`` from it.
-                                  Make sure to include the time zone when constructing `datetime.datetime` objects
-                                  manually.
+                                  Make sure to include the time zone when constructing ``datetime.datetime`` objects
+                                  manually. When both ``start`` and ``end`` times do not include a time zone, they will
+                                  be treated as UTC.
         :param end:               The end time of the endpoint's data, included.
                                   Please note: when ``start`` and ``end`` are set, they create a left-open time interval
                                   ("window") :math:`(\\operatorname{start}, \\operatorname{end}]` that excludes the
@@ -902,13 +929,13 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   if ``endpoints`` are passed.
                                   Note: the model monitoring infrastructure must be up for the writing to work.
         :param existing_data_handling:
-                                  How to handle the existing application data for the model endpoints when writing the
-                                  new data. Relevant only when ``write_output=True``. The default is
-                                  ``"fail_on_overlap"``. The options are:
+                                  How to handle the existing application data for the model endpoints when writing
+                                  new data whose requested ``start`` time precedes the ``end`` time of a previous run
+                                  that also wrote to the database. Relevant only when ``write_output=True``.
+                                  The options are:
 
-                                  - ``"fail_on_overlap"``: when the requested ``start`` time precedes the
-                                    ``end`` time of a previous run that also wrote to the database - an error is raised.
-                                  - ``"skip_overlap"``: when the previously described situation occurs, the relevant
+                                  - ``"fail_on_overlap"``: Default. An error is raised.
+                                  - ``"skip_overlap"``:  the overlapping data is ignored and the
                                     time window is cut so that it starts at the earliest possible time after ``start``.
                                   - ``"delete_all"``: delete all the data that was written by the application to the
                                     model endpoints, regardless of the time window, and write the new data.

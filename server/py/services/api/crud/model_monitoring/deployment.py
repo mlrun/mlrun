@@ -926,7 +926,7 @@ class MonitoringDeployment:
             infra_function_summaries_list + application_function_summaries_list
         )
 
-        if include_stats:
+        if function_summaries and include_stats:
             await self._enrich_with_stream_stats(
                 function_summaries=function_summaries, agg_stats=agg_stream_stats
             )
@@ -1191,13 +1191,14 @@ class MonitoringDeployment:
             labels=labels, format_=mlrun.common.formatters.FunctionFormat.minimal
         )
         function_summaries_list = []
-
         if not mm_functions_list:
             logger.info("No model monitoring applications found")
             return []
         if names:
+            # generate a list of lowercase names for filtering
+            lower_names = [name.lower() for name in names]
             mm_functions_list = [
-                fn for fn in mm_functions_list if fn["metadata"]["name"] in names
+                fn for fn in mm_functions_list if fn["metadata"]["name"] in lower_names
             ]
 
         detection_stats_dict = {}
@@ -1217,6 +1218,7 @@ class MonitoringDeployment:
                     mm_constants.ResultStatusApp.detected.value,
                     mm_constants.ResultStatusApp.potential_detection.value,
                 ],
+                application_names=names,
             )
 
         if include_processed_model_endpoints:
@@ -1238,14 +1240,14 @@ class MonitoringDeployment:
                 function_summary.stats = {
                     mm_constants.ResultStatusApp.detected.name: detection_stats_dict.get(
                         (
-                            function_summary.name,
+                            function_summary.name.lower(),
                             mm_constants.ResultStatusApp.detected.value,
                         ),
                         0,
                     ),
                     mm_constants.ResultStatusApp.potential_detection.name: detection_stats_dict.get(
                         (
-                            function_summary.name,
+                            function_summary.name.lower(),
                             mm_constants.ResultStatusApp.potential_detection.value,
                         ),
                         0,

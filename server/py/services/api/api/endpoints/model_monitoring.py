@@ -77,7 +77,8 @@ async def _verify_authorization(
 ) -> None:
     """Verify project authorization"""
     if (
-        semver.Version.parse(client_version)
+        client_version
+        and semver.Version.parse(client_version)
         < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
         and "unstable" not in client_version
     ):
@@ -372,10 +373,6 @@ async def _common_function_parameters(
                 "The start time must be before the end time. Note that if end time is not provided, "
                 "the current time is used by default."
             )
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Provided only one of start time, end time. Please provide both or neither."
-        )
 
     return _FunctionSummariesParams(
         project=project,

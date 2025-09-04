@@ -108,7 +108,7 @@ class ModelProvider(BaseRemoteClient):
                                                 additional metadata or token usage statistics, in this format:
                                                 {"answer": <string>, "usage": <dict>}
 
-                                       - FULL: Return the full raw response object unmodified.
+                                       - FULL: Return the full raw response object.
 
         :param kwargs:                  Additional parameters that may be required by specific implementations.
 
@@ -128,15 +128,15 @@ class ModelProvider(BaseRemoteClient):
 
     def load_client(self) -> None:
         """
-        Initializes the SDK client for the model provider with the given keyword arguments
-        and assigns it to an instance attribute (e.g., self._client).
+        Initialize the SDK client for the model provider and assign it to an instance attribute.
 
-        Subclasses should override this method to:
-        - Create and configure the provider-specific client instance.
-        - Assign the client instance to self._client.
+        Subclasses should override this method to create and configure the provider-specific client.
         """
 
         raise NotImplementedError("load_client method is not implemented")
+
+    def load_async_client(self) -> Any:
+        raise NotImplementedError("load_async_client method is not implemented")
 
     @property
     def client(self) -> Any:
@@ -164,7 +164,9 @@ class ModelProvider(BaseRemoteClient):
             )
         return self._async_client
 
-    def custom_invoke(self, operation: Optional[Callable], **invoke_kwargs) -> Any:
+    def custom_invoke(
+        self, operation: Optional[Callable] = None, **invoke_kwargs
+    ) -> Any:
         """
         Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
 
@@ -263,5 +265,61 @@ class ModelProvider(BaseRemoteClient):
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, dict[str, Any], Any]:
-        """Async version of `invoke`. See `invoke` for full documentation."""
+        """
+        Asynchronously invokes a generative AI model with the provided messages and additional parameters.
+        This method is designed to be a flexible interface for interacting with various
+        generative AI backends (e.g., OpenAI, Hugging Face, etc.). It allows users to send
+        a list of messages (following a standardized format) and receive a response.
+
+        :param messages:            A list of dictionaries representing the conversation history or input messages.
+                                    Each dictionary should follow the format::
+                                    {"role": "system"| "user" | "assistant" ..., "content":
+                                    "Message content as a string"}
+
+                                    Example:
+
+                                    .. code-block:: json
+
+                                        [
+                                            {"role": "system", "content": "You are a helpful assistant."},
+                                            {"role": "user", "content": "What is the capital of France?"}
+                                        ]
+
+                                    This format is consistent across all backends. Defaults to None if no messages
+                                    are provided.
+
+        :param invoke_response_format:   Determines how the model response is returned:
+
+                                    - string:   Returns only the generated text content from the model output,
+                                                for single-answer responses only.
+
+                                    - usage:    Combines the STRING response with additional metadata (token usage),
+                                                and returns the result in a dictionary.
+
+                                                Note: The usage dictionary may contain additional
+                                                keys depending on the model provider:
+
+                                    .. code-block:: json
+
+                                    {
+                                        "answer": "<generated_text>",
+                                        "usage": {
+                                        "prompt_tokens": <int>,
+                                        "completion_tokens": <int>,
+                                        "total_tokens": <int>
+                                        }
+
+                                    }
+
+                                    - full:   Returns the full model output.
+
+        :param invoke_kwargs:
+                                    Additional keyword arguments to be passed to the underlying model API call.
+                                    These can include parameters such as temperature, max tokens, etc.,
+                                    depending on the capabilities of the specific backend being used.
+
+        :return:                    The invoke result formatted according to the specified
+                                    invoke_response_format parameter.
+
+        """
         raise NotImplementedError("async_invoke is not implemented")

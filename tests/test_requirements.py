@@ -174,9 +174,6 @@ def test_requirement_specifiers_convention():
         "mlrun_pipelines_kfp_v1_8[kfp]": {
             ">=0.5.7",
         },
-        "v3io-frames": {
-            '>=0.13.0; python_version >= "3.11"',
-        },
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
         "grpcio": {
@@ -188,6 +185,9 @@ def test_requirement_specifiers_convention():
         },
         "urllib3": {
             ">=1.26.20",
+        },
+        "v3io-frames": {
+            ">=0.10.15",
         },
     }
 
@@ -236,10 +236,6 @@ def test_requirement_specifiers_inconsistencies():
         "dask-ml": {
             '~=2024.4.4; python_version >= "3.11"',
             '~=1.4,<1.9.0; python_version < "3.11"',
-        },
-        "grpcio": {
-            '~=1.59.0; python_version <= "3.9"',
-            '~=1.74.0; python_version > "3.9"',
         },
     }
 

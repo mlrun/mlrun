@@ -189,6 +189,7 @@ class BaseModelRouter(RouterToDict):
                 (
                     self._background_task_current_state,
                     self._background_task_check_timestamp,
+                    _,
                 ) = get_model_endpoints_creation_task_status(server)
             elif self.context.monitoring_mock:
                 self._background_task_current_state = (

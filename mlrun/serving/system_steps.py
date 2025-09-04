@@ -319,6 +319,8 @@ class BackgroundTaskStatus(storey.MapClass):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.listed_model_endpoint_uids = []
+        self.model_runner_uids: dict[str, list[str]] = {}
         self.server: mlrun.serving.GraphServer = (
             getattr(self.context, "server", None) if self.context else None
         )
@@ -339,13 +341,49 @@ class BackgroundTaskStatus(storey.MapClass):
                 )
             )
         ):
-            self._background_task_state, self._background_task_check_timestamp = (
-                get_model_endpoints_creation_task_status(self.server)
-            )
+            (
+                self._background_task_state,
+                self._background_task_check_timestamp,
+                self.listed_model_endpoint_uids,
+            ) = get_model_endpoints_creation_task_status(self.server)
+        if self.listed_model_endpoint_uids:
+            model_runner_name = event._metadata.get("model_runner_name", "")
+            if model_runner_name not in self.model_runner_uids:
+                step = (
+                    self.server.graph.steps[model_runner_name] if self.server else None
+                )
+                if not step or not hasattr(step, "monitoring_data"):
+                    raise mlrun.errors.MLRunRuntimeError(
+                        f"ModelRunnerStep name {model_runner_name} is not found in the graph or does not have monitoring"
+                        f" data"
+                    )
+                monitoring_data = step.monitoring_data
+                current_uids = []
+                if len(monitoring_data) > 1:
+                    for model in event.body.keys():
+                        current_uids.append(
+                            monitoring_data[model].get(
+                                mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+                            )
+                        )
+                else:
+                    model = list(monitoring_data.keys())[0]
+                    current_uids.append(
+                        monitoring_data[model].get(
+                            mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+                        )
+                    )
+                self.model_runner_uids[model_runner_name] = current_uids
+            matching_endpoints = set(
+                self.model_runner_uids[model_runner_name]
+            ).issubset(set(self.listed_model_endpoint_uids))
+        else:
+            matching_endpoints = True
 
         if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
+            and matching_endpoints
         ):
             return event
         else:

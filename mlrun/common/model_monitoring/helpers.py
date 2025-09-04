@@ -93,10 +93,13 @@ def pad_features_hist(feature_stats: FeatureStats) -> None:
 
 def get_model_endpoints_creation_task_status(
     server,
-) -> tuple[mlrun.common.schemas.BackgroundTaskState, typing.Optional[datetime]]:
+) -> tuple[
+    mlrun.common.schemas.BackgroundTaskState, typing.Optional[datetime], list[str]
+]:
     background_task = None
     background_task_state = mlrun.common.schemas.BackgroundTaskState.running
     background_task_check_timestamp = None
+    model_endpoint_uids = []
     try:
         background_task = mlrun.get_run_db().get_project_background_task(
             server.project, server.model_endpoint_creation_task_name
@@ -121,12 +124,14 @@ def get_model_endpoints_creation_task_status(
                 as_dict=True,
             )
             if model_endpoints:
+                model_endpoint_uids = list(model_endpoints.values())
                 logger.info(
                     "Model endpoints found after background task not found, model monitoring will monitor "
                     "events",
                     project=server.project,
                     function_name=server.function_name,
                     function_tag=server.function_tag,
+                    uids=model_endpoint_uids,
                 )
                 background_task_state = (
                     mlrun.common.schemas.BackgroundTaskState.succeeded
@@ -151,7 +156,7 @@ def get_model_endpoints_creation_task_status(
                 function_tag=server.function_tag,
             )
             background_task_state = mlrun.common.schemas.BackgroundTaskState.failed
-    return background_task_state, background_task_check_timestamp
+    return background_task_state, background_task_check_timestamp, model_endpoint_uids
 
 
 def log_background_task_state(

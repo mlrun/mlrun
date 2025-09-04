@@ -677,7 +677,6 @@ test: clean ## Run mlrun tests
 		-X faulthandler \
 		$(COVERAGE_ADDITION) \
 		-m pytest -v \
-		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		$$COMMON_IGNORE_TEST_FLAGS \

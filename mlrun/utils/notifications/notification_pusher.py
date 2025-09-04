@@ -65,8 +65,7 @@ class _NotificationPusherBase:
                 logger.debug(
                     "push: existing event loop - submitting with run_coroutine_threadsafe"
                 )
-                fut = asyncio.run_coroutine_threadsafe(async_push_callback(), event_loop)
-                fut.result()  # ADDED — wait for completion to avoid lingering tasks/threads
+                asyncio.run_coroutine_threadsafe(async_push_callback(), event_loop)
                 logger.debug("push: existing event loop - async done")
 
         # then push sync notifications

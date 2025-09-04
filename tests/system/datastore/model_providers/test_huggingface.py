@@ -22,7 +22,6 @@ from mlrun.datastore.datastore_profile import (
     HuggingFaceProfile,
 )
 from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
-from mlrun.runtimes.mounts import mount_v3io
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
@@ -147,7 +146,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         function.spec.max_replicas = (
             1  # to avoid allocating extended resources to multiple pods
         )
-        function.apply(mount_v3io())
         function.deploy()
         results = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",

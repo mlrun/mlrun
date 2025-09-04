@@ -116,41 +116,27 @@ def get_model_endpoints_creation_task_status(
             task_name=server.model_endpoint_creation_task_name,
         )
     if background_task is None:
-        try:
-            model_endpoints = mlrun.get_run_db().list_model_endpoints(
+        model_endpoints = mlrun.get_run_db().list_model_endpoints(
+            project=server.project,
+            function_name=server.function_name,
+            function_tag=server.function_tag,
+            as_dict=True,
+        )
+        if model_endpoints:
+            model_endpoint_uids = list(model_endpoints.values())
+            logger.info(
+                "Model endpoints found after background task not found, model monitoring will monitor "
+                "events",
                 project=server.project,
                 function_name=server.function_name,
                 function_tag=server.function_tag,
-                as_dict=True,
+                uids=model_endpoint_uids,
             )
-            if model_endpoints:
-                model_endpoint_uids = list(model_endpoints.values())
-                logger.info(
-                    "Model endpoints found after background task not found, model monitoring will monitor "
-                    "events",
-                    project=server.project,
-                    function_name=server.function_name,
-                    function_tag=server.function_tag,
-                    uids=model_endpoint_uids,
-                )
-                background_task_state = (
-                    mlrun.common.schemas.BackgroundTaskState.succeeded
-                )
-            else:
-                logger.warning(
-                    "Model endpoints not found after background task not found, model monitoring will not "
-                    "monitor events",
-                    project=server.project,
-                    function_name=server.function_name,
-                    function_tag=server.function_tag,
-                )
-                background_task_state = mlrun.common.schemas.BackgroundTaskState.failed
-        except mlrun.errors.MLRunNotFoundError:
-            # If we cannot find the model endpoints, we assume that the background task failed
-            # and we will not monitor events
+            background_task_state = mlrun.common.schemas.BackgroundTaskState.succeeded
+        else:
             logger.warning(
-                "Model endpoints not found after background task not found, model monitoring will not monitor "
-                "events",
+                "Model endpoints not found after background task not found, model monitoring will not "
+                "monitor events",
                 project=server.project,
                 function_name=server.function_name,
                 function_tag=server.function_tag,

@@ -1234,7 +1234,7 @@ def get_kfp_list_runs_filter(
     if end_date:
         new_predicates.append(
             {
-                "key": "created_at",
+                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
                 "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
                 "timestamp_value": end_date,
             }
@@ -1243,7 +1243,7 @@ def get_kfp_list_runs_filter(
     if start_date:
         new_predicates.append(
             {
-                "key": "created_at",
+                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
                 "op": mlrun_pipelines.models.FilterOperations.GREATER_THAN_EQUALS.value,
                 "timestamp_value": start_date,
             }
@@ -1252,7 +1252,7 @@ def get_kfp_list_runs_filter(
     if experiment_ids:
         new_predicates.append(
             {
-                "key": "experiment_id",
+                "key": mlrun_pipelines.models.FilterFields.EXPERIMENT_ID,
                 "op": mlrun_pipelines.models.FilterOperations.IN.value,
                 "string_values": {"values": experiment_ids},
             }

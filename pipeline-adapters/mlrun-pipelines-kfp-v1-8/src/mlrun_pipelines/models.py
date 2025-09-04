@@ -14,7 +14,7 @@
 
 import json
 import typing
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from typing import Any, Union
 
 from kfp_server_api.models.api_run_detail import ApiRunDetail
@@ -203,3 +203,8 @@ class FilterOperations(IntEnum):
     IS_SUBSTRING = 9
     IN = 8
     NOT_IN = 10
+
+
+class FilterFields(StrEnum):
+    CREATED_AT = "created_at"
+    EXPERIMENT_ID = "experiment_id"

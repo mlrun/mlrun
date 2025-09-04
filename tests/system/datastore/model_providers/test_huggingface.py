@@ -136,16 +136,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             include_llm_artifact=False,
         )
 
-        # Running models requires higher CPU for this pod.
-        # The default Nuclio resource configuration is:
-        # {"requests": {"cpu": "25m", "memory": "1Mi"}, "limits": {"cpu": "2", "memory": "20Gi"}}
-        function.spec.resources = {
-            "limits": {"cpu": "3", "memory": "30Gi"},
-            "requests": {"cpu": "500m", "memory": "1Mi"},
-        }
-        function.spec.max_replicas = (
-            1  # to avoid allocating extended resources to multiple pods
-        )
+        function.spec.max_replicas = 1  # to avoid allocating resources to multiple pods
         function.deploy()
         results = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",

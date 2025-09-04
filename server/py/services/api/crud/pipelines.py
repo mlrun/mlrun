@@ -18,8 +18,7 @@ import http
 import tempfile
 import traceback
 import typing
-from asyncio import as_completed
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import kfp_server_api
 import sqlalchemy.orm
@@ -75,10 +74,11 @@ class Pipelines(
                 "Summary format is not supported for list pipelines, use get instead"
             )
         kfp_client = self.initialize_kfp_client(namespace)
-        projects = []
         experiment_ids = []
         if isinstance(project, str) and project != "*":
             projects = [project]
+        else:
+            projects = project
         if projects:
             mlrun.utils.logger.debug(
                 "Resolving experiments by project-based substring match",

@@ -20,7 +20,6 @@ kfp = [
   "kfp~=1.8.23",
 ]
 
-
 [build-system]
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"

@@ -14,11 +14,12 @@
 
 import json
 import typing
-from enum import IntEnum, StrEnum
+from enum import IntEnum
 from typing import Any, Union
 
 from kfp_server_api.models.api_run_detail import ApiRunDetail
 
+from mlrun.common.types import StrEnum
 from mlrun_pipelines.common.helpers import FlexibleMapper
 from mlrun_pipelines.imports import ContainerOp
 

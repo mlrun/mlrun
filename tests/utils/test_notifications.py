@@ -14,6 +14,9 @@
 
 import asyncio
 import builtins
+import faulthandler
+import threading
+import time
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass, field
@@ -33,6 +36,45 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.notifications.notification.mail as mail
 import mlrun.utils.notifications.notification.webhook
+
+
+@pytest.fixture
+def diag_faulthandler():
+    faulthandler.enable()
+    faulthandler.dump_traceback_later(60, repeat=True)
+    yield
+    faulthandler.cancel_dump_traceback_later()
+
+
+@pytest.fixture
+def diag_no_executor_leaks():
+    before = {t.ident for t in threading.enumerate()}
+    yield
+    time.sleep(0.05)
+    leaked = [
+        t
+        for t in threading.enumerate()
+        if t.ident not in before and t.is_alive() and "ThreadPoolExecutor" in t.name
+    ]
+    if leaked:
+        mlrun.utils.logger.warning(
+            f"Leaked executor threads: {[t.name for t in leaked]}"
+        )
+        # flip to assert if you want failures:
+        # assert not leaked, f"Leaked executor threads: {[t.name for t in leaked]}"
+
+
+@pytest.fixture
+def diag_log_pending_tasks():
+    yield
+    try:
+        loop = asyncio.get_event_loop()
+        if not loop.is_closed():
+            pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+            if pending:
+                mlrun.utils.logger.warning(f"Pending tasks after test: {pending}")
+    except RuntimeError:
+        pass
 
 
 @pytest.mark.parametrize(
@@ -381,6 +423,9 @@ def test_notification_reason(notification_kind):
     )
 
 
+@pytest.mark.usefixtures(
+    "diag_faulthandler", "diag_no_executor_leaks", "diag_log_pending_tasks"
+)
 @pytest.mark.parametrize(
     "when, run_state, store_count",
     [
@@ -448,6 +493,9 @@ def test_notification_update_notification_status(when, run_state, store_count):
     assert db.store_run_notifications.call_count == store_count
 
 
+@pytest.mark.usefixtures(
+    "diag_faulthandler", "diag_no_executor_leaks", "diag_log_pending_tasks"
+)
 @pytest.mark.parametrize(
     "notification_kind",
     [

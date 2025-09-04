@@ -177,9 +177,10 @@ class TestMLRunIntegration:
         if real_path := os.getenv("MLRUN_HTTPDB__REAL_PATH"):
             env_vars["MLRUN_HTTPDB__REAL_PATH"] = real_path
 
-        image = image or os.getenv(
-            "MLRUN_API_IMAGE_NAME_TAGGED", "mlrun/mlrun-api:unstable"
-        )
+        image = "mlrun/mlrun-api:unstable"
+        # image = image or os.getenv(
+        #     "MLRUN_API_IMAGE_NAME_TAGGED", "mlrun/mlrun-api:unstable"
+        # )
 
         client = docker.from_env()
 

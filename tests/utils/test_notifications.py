@@ -405,10 +405,10 @@ def test_notification_reason(notification_kind):
     ).get_notification()
     if asyncio.iscoroutinefunction(notification_kind_type.push):
         concrete_notification = notification_pusher._async_notifications[0][0]
+        concrete_notification.push = unittest.mock.AsyncMock(side_effect=error_exc)  # awaitable
     else:
         concrete_notification = notification_pusher._sync_notifications[0][0]
-
-    concrete_notification.push = unittest.mock.MagicMock(side_effect=error_exc)
+        concrete_notification.push = unittest.mock.MagicMock(side_effect=error_exc)
 
     # send notifications
     notification_pusher.push()
@@ -535,12 +535,13 @@ def test_update_notification_status(notification_kind, run_status):
     notification_kind_type = getattr(
         mlrun.utils.notifications.NotificationTypes, notification_kind
     ).get_notification()
+
     if asyncio.iscoroutinefunction(notification_kind_type.push):
         concrete_notification = notification_pusher._async_notifications[0][0]
+        concrete_notification.push = unittest.mock.AsyncMock()  # awaitable
     else:
         concrete_notification = notification_pusher._sync_notifications[0][0]
-
-    concrete_notification.push = unittest.mock.MagicMock()
+        concrete_notification.push = unittest.mock.MagicMock()
 
     db = mlrun.get_run_db()
     db.store_run_notifications = unittest.mock.MagicMock()

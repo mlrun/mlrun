@@ -1254,7 +1254,7 @@ def get_kfp_list_runs_filter(
             {
                 "key": "experiment_id",
                 "op": mlrun_pipelines.models.FilterOperations.IN.value,
-                "string_values": {"values" : experiment_ids},
+                "string_values": {"values": experiment_ids},
             }
         )
 

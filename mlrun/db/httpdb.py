@@ -4081,7 +4081,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.DELETE,
             path=f"projects/{project}/model-monitoring/functions",
-            params={"functions": functions},
+            params={"function": functions},
         )
         deletion_failed = False
         if response.status_code == http.HTTPStatus.ACCEPTED:

@@ -881,11 +881,8 @@ class KubeResource(BaseRuntime):
         """
         Check whether any provided node selector matches preemptible selectors.
 
-        Args:
-            node_selector: User-provided node selector mapping.
-
-        Returns:
-            List of `"key='value'"` strings that match a preemptible selector.
+        :param node_selector: User-provided node selector mapping.
+        :return: List of `"key='value'"` strings that match a preemptible selector.
         """
         preemptible_node_selector = mlconf.get_preemptible_node_selector()
 
@@ -901,11 +898,8 @@ class KubeResource(BaseRuntime):
         """
         Check whether any provided toleration matches preemptible tolerations.
 
-        Args:
-            tolerations: User-provided tolerations.
-
-        Returns:
-            List of formatted toleration strings that are considered preemptible.
+        :param tolerations: User-provided tolerations.
+        :return: List of formatted toleration strings that are considered preemptible.
         """
         preemptible_tolerations = [
             k8s_client.V1Toleration(
@@ -929,11 +923,8 @@ class KubeResource(BaseRuntime):
         """
         Check whether any provided affinity rules match preemptible affinity configs.
 
-        Args:
-            affinity: User-provided affinity object.
-
-        Returns:
-            List of formatted expressions that overlap with preemptible terms.
+        :param affinity: User-provided affinity object.
+        :return: List of formatted expressions that overlap with preemptible terms.
         """
         preemptible_affinity_terms = generate_preemptible_nodes_affinity_terms()
         conflicting_affinities = []
@@ -975,15 +966,12 @@ class KubeResource(BaseRuntime):
         """
         Detect conflicts and emit a single consolidated warning if needed.
 
-        Args:
-            node_selector: User-provided node selector.
-            tolerations: User-provided tolerations.
-            affinity: User-provided affinity.
-
-        Warns:
-            PreemptionWarning: Emitted when any of the provided selectors,
-                tolerations, or affinity terms match the configured
-                preemptible settings. The message lists the conflicting items.
+        :param node_selector: User-provided node selector.
+        :param tolerations: User-provided tolerations.
+        :param affinity: User-provided affinity.
+        :warns: PreemptionWarning - Emitted when any of the provided selectors,
+                tolerations, or affinity terms match the configured preemptible
+                settings. The message lists the conflicting items.
         """
         conflict_messages = []
 
@@ -1007,9 +995,9 @@ class KubeResource(BaseRuntime):
         if conflict_messages:
             warning_componentes = "; \n".join(conflict_messages)
             warnings.warn(
-                f"Warning: based on the preemptible node settings configured in your MLRun configuration,\n"
-                f"{warning_componentes}\n"
-                f" may be removed or adjusted at runtime.\n"
+                f"Warning: based on MLRun's preemptible node configuration, the following components \n"
+                f"may be removed or adjusted at runtime:\n"
+                f"{warning_componentes}.\n"
                 "This adjustment depends on the function's preemption mode. \n"
                 "The list of potential adjusted preemptible selectors can be viewed here: "
                 "mlrun.mlconf.get_preemptible_node_selector() and mlrun.mlconf.get_preemptible_tolerations()."
@@ -1029,24 +1017,20 @@ class KubeResource(BaseRuntime):
         affinity/anti-affinity rules, and taint tolerations. Passing ``None`` leaves the
         current value unchanged; pass an empty dict/list (e.g., ``{}``, ``[]``) to clear.
 
-        Args:
-            node_name: Exact Kubernetes node name to pin the pod to.
-            node_selector: Mapping of label selectors. Use ``{}`` to clear.
-            affinity: :class:`kubernetes.client.V1Affinity` constraints.
-            tolerations: List of :class:`kubernetes.client.V1Toleration`. Use ``[]`` to clear.
-
-        Warns:
-            PreemptionWarning: Emitted if provided selectors/tolerations/affinity
+        :param node_name: Exact Kubernetes node name to pin the pod to.
+        :param node_selector: Mapping of label selectors. Use ``{}`` to clear.
+        :param affinity: :class:`kubernetes.client.V1Affinity` constraints.
+        :param tolerations: List of :class:`kubernetes.client.V1Toleration`. Use ``[]`` to clear.
+        :warns: PreemptionWarning - Emitted if provided selectors/tolerations/affinity
                 conflict with the function's preemption mode.
 
-        Example usage::
-            Prefer a GPU pool and allow scheduling on spot nodes:
+        Example usage:
+            Prefer a GPU pool and allow scheduling on spot nodes::
 
-               job.with_node_selection(
-                   node_selector={"nodepool": "gpu"},
-                   tolerations=[k8s_client.V1Toleration(key="spot", operator="Exists")]
-                   )
-
+                job.with_node_selection(
+                    node_selector={"nodepool": "gpu"},
+                    tolerations=[k8s_client.V1Toleration(key="spot", operator="Exists")],
+                )
         """
         if node_name:
             self.spec.node_name = node_name

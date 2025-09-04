@@ -834,6 +834,9 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
     },
+    "auth_with_oauth_token": {
+        "auth_token_file": "~/.igz.yml",
+    },
     "services": {
         # The running service name. One of: "api", "alerts"
         "service_name": "api",

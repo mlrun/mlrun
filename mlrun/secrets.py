@@ -16,7 +16,10 @@ from ast import literal_eval
 from os import environ, getenv
 from typing import Callable, Optional, Union
 
-from .utils import AzureVaultStore, list2dict
+import mlrun.auth.utils
+import mlrun.utils.helpers
+
+from .utils import AzureVaultStore, list2dict, logger
 
 
 class SecretsStore:
@@ -202,3 +205,34 @@ def get_secret_or_env(
         or getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
         or default
     )
+
+
+def sync_secret_tokens() -> None:
+    """
+    Synchronize local secret tokens with the backend.
+
+    This function:
+      1. Reads the local token file (default: ~/.igz.yml, configurable via
+         `config.auth_with_oauth_token.auth_token_file`).
+      2. Validates and converts its content into `SecretToken` objects.
+      3. Uploads the tokens to the backend.
+      4. Logs a warning if any tokens were updated on the backend due to newer
+         expiration times found locally.
+    """
+
+    # TODO: Runtime Context Check - Avoid sending a backend request when running inside a runtime, where secrets
+    #  are already injected via Kubernetes and syncing is unnecessary
+
+    token_file = mlrun.mlconf.auth_with_oauth_token.auth_token_file
+
+    tokens_list = mlrun.auth.utils.load_secret_tokens_from_file(token_file)
+
+    secret_tokens = mlrun.auth.utils.validate_secret_tokens(tokens_list, token_file)
+
+    response = mlrun.get_run_db().store_secret_tokens(secret_tokens, log_warning=False)
+
+    if response.updated_tokens:
+        logger.warning(
+            "Some tokens were updated on the backend due to newer expiration found locally",
+            updated_tokens=response.updated_tokens,
+        )

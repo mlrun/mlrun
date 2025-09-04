@@ -354,8 +354,8 @@ class BackgroundTaskStatus(storey.MapClass):
                 )
                 if not step or not hasattr(step, "monitoring_data"):
                     raise mlrun.errors.MLRunRuntimeError(
-                        f"ModelRunnerStep name {model_runner_name} is not found in the graph or does not have monitoring"
-                        f" data"
+                        f"ModelRunnerStep name {model_runner_name} is not found in the graph or does not have "
+                        f"monitoring data"
                     )
                 monitoring_data = step.monitoring_data
                 current_uids = []

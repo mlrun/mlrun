@@ -798,6 +798,11 @@ with ctx:
                     tolerations=tolerations,
                 )
             )
+            enriched_tolerations, enriched_affinity = (
+                mlrun.k8s_utils.sanitize_scheduling_configuration(
+                    enriched_tolerations, enriched_affinity
+                )
+            )
 
             if enriched_tolerations:
                 update_in(job, f"spec.{component}.tolerations", enriched_tolerations)

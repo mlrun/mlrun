@@ -492,7 +492,8 @@ class V3IOTSDBConnector(TSDBConnector):
         # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
         for i in range(0, len(endpoint_ids), V3IO_FRAMESD_MEPS_LIMIT):
             endpoint_id_chunk = endpoint_ids[i : i + V3IO_FRAMESD_MEPS_LIMIT]
-            filter_query = f"endpoint_id IN({str(endpoint_id_chunk)[1:-1]}) "
+            endpoints_list = "', '".join(endpoint_id_chunk)
+            filter_query = f"endpoint_id IN('{endpoints_list}')"
             for table in tables:
                 try:
                     self.frames_client.delete(
@@ -530,6 +531,43 @@ class V3IOTSDBConnector(TSDBConnector):
                     f"Failed to delete last request record for endpoint '{endpoint_id}'",
                     error=mlrun.errors.err_to_str(e),
                     project=self.project,
+                )
+
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete application records from the TSDB for the given model endpoints or all if ``endpoint_ids`` is ``None``.
+        """
+        base_filter_query = f"application_name=='{application_name}'"
+
+        filter_queries: list[str] = []
+        if endpoint_ids:
+            for i in range(0, len(endpoint_ids), V3IO_FRAMESD_MEPS_LIMIT):
+                endpoint_id_chunk = endpoint_ids[i : i + V3IO_FRAMESD_MEPS_LIMIT]
+                endpoints_list = "', '".join(endpoint_id_chunk)
+                filter_queries.append(
+                    f"{base_filter_query} AND endpoint_id IN ('{endpoints_list}')"
+                )
+        else:
+            filter_queries = [base_filter_query]
+
+        for table in [
+            self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS],
+            self.tables[mm_schemas.V3IOTSDBTables.METRICS],
+        ]:
+            logger.debug(
+                "Deleting application records from TSDB",
+                table=table,
+                filter_queries=filter_queries,
+                project=self.project,
+            )
+            for filter_query in filter_queries:
+                self.frames_client.delete(
+                    backend=_TSDB_BE,
+                    table=table,
+                    filter=filter_query,
+                    start="0",
                 )
 
     def get_model_endpoint_real_time_metrics(

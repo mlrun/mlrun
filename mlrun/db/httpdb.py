@@ -3580,7 +3580,7 @@ class HTTPRunDB(RunDBInterface):
                                 intersection {"intersect_metrics":[], "intersect_results":[]}
         :return: A dictionary of application metrics and/or results for the model endpoints formatted by events_format.
         """
-        path = f"projects/{project}/model-endpoints/metrics"
+        path = f"projects/{project}/model-monitoring/metrics"
         params = {
             "type": type,
             "endpoint-id": endpoint_ids,
@@ -3770,7 +3770,7 @@ class HTTPRunDB(RunDBInterface):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
-        mode: mm_constants.EndpointMode = None,
+        modes: Optional[list[mm_constants.EndpointMode]] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -3791,8 +3791,8 @@ class HTTPRunDB(RunDBInterface):
                                 If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                                 will be included.
         :param top_level:       Whether to return only top level model endpoints.
-        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
-                                both if set to None.
+        :param modes:           Specifies the modes of the model endpoints. Can be "real-time" (0), "batch" (1),
+                                "batch_legacy" (2). If set to None, all are included.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
         :return:                A list of model endpoints.
@@ -3801,6 +3801,8 @@ class HTTPRunDB(RunDBInterface):
         labels = self._parse_labels(labels)
         if names and isinstance(names, str):
             names = [names]
+        if isinstance(modes, mm_constants.EndpointMode):
+            modes = [modes]
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
@@ -3816,7 +3818,7 @@ class HTTPRunDB(RunDBInterface):
                 "tsdb-metrics": tsdb_metrics,
                 "metric": metric_list,
                 "top-level": top_level,
-                "mode": mode,
+                "mode": modes,
                 "uid": uids,
                 "latest-only": latest_only,
             },
@@ -4079,7 +4081,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.DELETE,
             path=f"projects/{project}/model-monitoring/functions",
-            params={"functions": functions},
+            params={"function": functions},
         )
         deletion_failed = False
         if response.status_code == http.HTTPStatus.ACCEPTED:
@@ -4119,6 +4121,26 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.PUT,
             path=f"projects/{project}/model-monitoring/credentials",
             params={**credentials, "replace_creds": replace_creds},
+        )
+
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        """
+        Delete model endpoints metrics values.
+
+        :param project:           The name of the project.
+        :param application_name:  The name of the application.
+        :param endpoint_ids:      The unique IDs of the model endpoints to delete metrics values from. If none is
+                                  provided, the metrics values will be deleted from all project's model endpoints.
+        """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.DELETE,
+            path=f"projects/{project}/model-monitoring/metrics",
+            params={"endpoint-id": endpoint_ids, "application-name": application_name},
         )
 
     def get_monitoring_function_summaries(

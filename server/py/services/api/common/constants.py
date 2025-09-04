@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .serving import ServingRuntime, new_v2_model_server  # noqa
-from .nuclio import nuclio_init_hook  # noqa
-from .function import (
-    min_nuclio_versions,
-    multiple_port_sidecar_is_supported,
-    RemoteRuntime,
-)  # noqa
-from .api_gateway import APIGateway
+from typing import Annotated
+
+import fastapi
+
+from mlrun.common.schemas.model_monitoring.constants import (
+    MODEL_ENDPOINT_ID_PATTERN,
+    PROJECT_PATTERN,
+)
+
+ProjectAnnotation = Annotated[str, fastapi.Path(pattern=PROJECT_PATTERN)]
+EndpointIDAnnotation = Annotated[str, fastapi.Path(pattern=MODEL_ENDPOINT_ID_PATTERN)]

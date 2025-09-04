@@ -153,7 +153,7 @@ class TestTDEngineSchema:
             super_table._get_subtables_query_by_tag(
                 filter_tag=tag, filter_values=[values[tag]]
             )
-            == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
+            == f"SELECT DISTINCT TBNAME FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
             f"{tag} LIKE '{values[tag]}';"
         )
 
@@ -163,7 +163,7 @@ class TestTDEngineSchema:
             super_table._get_subtables_query_by_tag(
                 filter_tag=tag, filter_values=filter_values, operator=operator
             )
-            == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
+            == f"SELECT DISTINCT TBNAME FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
             f"{tag} LIKE '{values[tag]}' {operator} {tag} LIKE '{filter_values[1]}' {operator} {tag} "
             f"LIKE '{filter_values[2]}';"
         )

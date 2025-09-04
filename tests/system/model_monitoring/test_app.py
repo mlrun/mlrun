@@ -55,7 +55,10 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
 )
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring.applications import ModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications import (
+    ExistingDataHandling,
+    ModelMonitoringApplicationBase,
+)
 from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
@@ -706,7 +709,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         function_summaries = self.project.get_monitoring_function_summaries()
         assert len(function_summaries) == 3 + len(self.apps_data)
         function_summaries = self.project.get_monitoring_function_summaries(
-            include_infra=False
+            include_infra=False, start=datetime(2020, 1, 1)
         )
         assert len(function_summaries) == len(self.apps_data)
 
@@ -1364,9 +1367,22 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
                 mm_constants.HistogramDataDriftApplicationConstants.NAME
             )
             v3io_client.stream.describe(container, stream_path)
+            self._deploy_demo_app()
 
             # check that the stream of the histogram data drift app is deleted
             self._delete_histogram_app()
+
+            # check that only the demo app is remaining
+            monitoring_functions = self.project.list_model_monitoring_functions(
+                tag="latest"
+            )
+            assert len(monitoring_functions) == 1, (
+                "expected a single monitoring function after deletion of histogram "
+                "app"
+            )
+            assert [fn.metadata.name for fn in monitoring_functions] == [
+                DemoMonitoringApp.NAME
+            ], "the remaining function should be the demo app"
 
             with pytest.raises(v3io.dataplane.response.HttpResponseError):
                 v3io_client.stream.describe(container, stream_path)
@@ -1427,6 +1443,22 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
                 f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{mm_constants.HistogramDataDriftApplicationConstants.NAME}_v1"
                 not in topics
             )
+
+    def _deploy_demo_app(self):
+        demo_app = _AppData(
+            class_=DemoMonitoringApp,
+            rel_path="assets/application.py",
+            results={"data_drift_test", "model_perf"},
+        )
+        fn = self.project.set_model_monitoring_function(
+            func=demo_app.abs_path,
+            application_class=demo_app.class_.__name__,
+            name=demo_app.class_.NAME,
+            image="mlrun/mlrun" if self.image is None else self.image,
+            requirements=demo_app.requirements,
+            **demo_app.kwargs,
+        )
+        fn.deploy()
 
     def _disable_stream_function(self):
         self.project.disable_model_monitoring(
@@ -1970,12 +2002,13 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
         ]
 
         for i, endpoints in enumerate(endpoints_params):
-            # Do not write except the first time
-            write_output_this_time = write_output if i == 0 else False
+            # Do not write except the first and last time
+            last = i == len(endpoints_params) - 1
+            write_output_this_time = write_output if (i == 0 or last) else False
 
             run_result = CountApp.evaluate(
                 func_path=str(Path(__file__).parent / "assets/application.py"),
-                func_name=f"count-app-{i}-batch",
+                func_name="count-app-batch",
                 endpoints=endpoints,
                 start=start,
                 end=end,
@@ -1988,6 +2021,9 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                     if run_local and write_output_this_time
                     else None
                 ),
+                existing_data_handling=ExistingDataHandling.delete_all
+                if last
+                else ExistingDataHandling.fail_on_overlap,
             )
 
             # Test the state
@@ -2034,10 +2070,10 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                 assert metrics == [
                     ModelEndpointMonitoringMetric(
                         project=self.project_name,
-                        app="count-app-0-batch",
+                        app="count-app-batch",
                         type="result",
                         name="count",
-                        full_name=f"{self.project_name}.count-app-0-batch.result.count",
+                        full_name=f"{self.project_name}.count-app-batch.result.count",
                         kind=ResultKindApp.model_performance,
                     ),
                     ModelEndpointMonitoringMetric(

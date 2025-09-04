@@ -122,10 +122,7 @@ class TDEngineSchema:
             )
         return f"DELETE FROM {self.database}.{subtable} WHERE {values};"
 
-    def drop_subtable_query(
-        self,
-        subtable: str,
-    ) -> str:
+    def drop_subtable_query(self, subtable: str) -> str:
         return f"DROP TABLE if EXISTS {self.database}.`{subtable}`;"
 
     def drop_supertable_query(self) -> str:
@@ -145,8 +142,10 @@ class TDEngineSchema:
         values = f" {operator} ".join(
             f"{filter_tag} LIKE '{val}'" for val in filter_values
         )
+        return self._get_tables_query_by_condition(values)
 
-        return f"SELECT DISTINCT tbname FROM {self.database}.{self.super_table} WHERE {values};"
+    def _get_tables_query_by_condition(self, condition: str) -> str:
+        return f"SELECT DISTINCT TBNAME FROM {self.database}.{self.super_table} WHERE {condition};"
 
     @staticmethod
     def _get_records_query(

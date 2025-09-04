@@ -1249,7 +1249,7 @@ def get_kfp_list_runs_filter(
             }
         )
 
-    if experiment_ids:
+    if experiment_ids and all(experiment_ids):
         new_predicates.append(
             {
                 "key": mlrun_pipelines.models.FilterFields.EXPERIMENT_ID,

@@ -249,7 +249,7 @@ async def list_model_endpoints(
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     as_dict: Optional[bool] = Query(None, alias="as_dict"),
-) -> schemas.ModelEndpointList:
+) -> Union[schemas.ModelEndpointList, dict]:
     """
     List model endpoints.
 

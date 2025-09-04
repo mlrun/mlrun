@@ -26,7 +26,6 @@ from mlrun.utils import logger, now_date
 
 from ..common.model_monitoring.helpers import (
     get_model_endpoints_creation_task_status,
-    log_background_task_state,
 )
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
@@ -479,7 +478,7 @@ class V2ModelServer(StepToDict):
         if not self.context.is_mock or self.context.monitoring_mock:
             if server.model_endpoint_creation_task_name:
                 background_task_state, _ = get_model_endpoints_creation_task_status(
-                    server, log_background_task_state
+                    server
                 )
                 if (
                     background_task_state

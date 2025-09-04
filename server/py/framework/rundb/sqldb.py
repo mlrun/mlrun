@@ -1063,7 +1063,7 @@ class SQLRunDB(RunDBInterface):
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         as_dict: Optional[bool] = None,
-    ) -> mlrun.common.schemas.ModelEndpointList:
+    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict]:
         raise NotImplementedError()
 
     def get_model_endpoint(

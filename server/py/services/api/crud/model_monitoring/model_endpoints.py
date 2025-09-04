@@ -1010,7 +1010,7 @@ class ModelEndpoints:
         uids: typing.Optional[list[str]] = None,
         latest_only: typing.Optional[bool] = None,
         as_dict: typing.Optional[bool] = None,
-    ) -> mlrun.common.schemas.ModelEndpointList:
+    ) -> typing.Union[mlrun.common.schemas.ModelEndpointList, dict]:
         """
         List model endpoints based on the provided filters.
         :param project:             The name of the project.
@@ -1031,7 +1031,9 @@ class ModelEndpoints:
                                     will be included.
         :param uids:                A list of unique ids of the model endpoints.
         :param latest_only:         When True, only the latest model endpoint will be returned.
-        :param as_dict:             When True, the result will be returned as a dictionary of str, ModelEndpoint schema.
+        :param as_dict:             When True, the result will be returned as a dictionary of str in the structure of
+                                    "<project name>-<function_name>-<function_tag>-<endpoint_name>" map to
+                                    ModelEndpoint db schema.
         :return:                    A list of `ModelEndpoint` objects.
         """
 

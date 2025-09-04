@@ -26,7 +26,6 @@ import mlrun.feature_store
 import mlrun.serving
 from mlrun.common.model_monitoring.helpers import (
     get_model_endpoints_creation_task_status,
-    log_background_task_state,
 )
 from mlrun.common.schemas import MonitoringData
 from mlrun.utils import get_data_from_path, logger
@@ -341,10 +340,7 @@ class BackgroundTaskStatus(storey.MapClass):
             )
         ):
             self._background_task_state, self._background_task_check_timestamp = (
-                get_model_endpoints_creation_task_status(
-                    self.server,
-                    log_background_task_state,
-                )
+                get_model_endpoints_creation_task_status(self.server)
             )
 
         if (

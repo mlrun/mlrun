@@ -33,7 +33,6 @@ from mlrun.utils import logger, now_date
 
 from ..common.model_monitoring.helpers import (
     get_model_endpoints_creation_task_status,
-    log_background_task_state,
 )
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
@@ -190,10 +189,7 @@ class BaseModelRouter(RouterToDict):
                 (
                     self._background_task_current_state,
                     self._background_task_check_timestamp,
-                ) = get_model_endpoints_creation_task_status(
-                    server,
-                    log_background_task_state,
-                )
+                ) = get_model_endpoints_creation_task_status(server)
             elif self.context.monitoring_mock:
                 self._background_task_current_state = (
                     mlrun.common.schemas.BackgroundTaskState.succeeded

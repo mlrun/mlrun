@@ -93,10 +93,7 @@ def pad_features_hist(feature_stats: FeatureStats) -> None:
 
 def get_model_endpoints_creation_task_status(
     server,
-    logging_method: typing.Callable,
-) -> tuple[
-    mlrun.common.schemas.BackgroundTaskState, typing.Optional[mlrun.utils.now_date]
-]:
+) -> tuple[mlrun.common.schemas.BackgroundTaskState, typing.Optional[datetime]]:
     background_task = None
     background_task_state = mlrun.common.schemas.BackgroundTaskState.running
     background_task_check_timestamp = None
@@ -105,7 +102,7 @@ def get_model_endpoints_creation_task_status(
             server.project, server.model_endpoint_creation_task_name
         )
         background_task_check_timestamp = mlrun.utils.now_date()
-        logging_method(
+        log_background_task_state(
             server, background_task.status.state, background_task_check_timestamp
         )
         background_task_state = background_task.status.state

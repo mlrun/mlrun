@@ -3774,7 +3774,7 @@ class HTTPRunDB(RunDBInterface):
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         as_dict: Optional[bool] = None,
-    ) -> mlrun.common.schemas.ModelEndpointList:
+    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict]:
         """
         List model endpoints with optional filtering by name, function name, model name, labels, and time range.
 

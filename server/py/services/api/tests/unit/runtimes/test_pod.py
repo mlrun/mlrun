@@ -135,8 +135,8 @@ class TestKubeResource(TestRuntimeBase):
                 if not expected_attribute:
                     assert result == expected_attribute
                 else:
-                    # not using deepdiff on the whole object since the Toleration objects has some fields with hidden magic
-                    # and they fail the deepdiff comparison
+                    # not using deepdiff on the whole object since the Toleration objects has some fields
+                    # with hidden magic and they fail the deepdiff comparison
                     assert (
                         deepdiff.DeepDiff(
                             [i.to_dict() for i in result]

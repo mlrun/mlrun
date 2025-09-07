@@ -790,6 +790,7 @@ dask==2024.8.0 \
     --hash=sha256:250ea3df30d4a25958290eec4f252850091c6cfaed82d098179c3b25bba18309 \
     --hash=sha256:f1fec39373d2f101bc045529ad4e9b30e34e6eb33b7aa0fa7073aec7b1bf9eee
     # via
+    #   -c dockerfiles/constraints-py3.11.txt
     #   -r extras-requirements.txt
     #   dask-kubernetes
     #   distributed
@@ -841,12 +842,10 @@ decorator==5.2.1 \
     # via
     #   gcsfs
     #   ipython
-deepdiff==7.0.1 \
-    --hash=sha256:260c16f052d4badbf60351b4f77e8390bee03a0b516246f6839bc813fb429ddf \
-    --hash=sha256:447760081918216aa4fd4ca78a4b6a848b81307b2ea94c810255334b759e1dc3
-    # via
-    #   -r dev-requirements.txt
-    #   -r requirements.txt
+deepdiff==8.6.1 \
+    --hash=sha256:ec56d7a769ca80891b5200ec7bd41eec300ced91ebcc7797b41eb2b3f3ff643a \
+    --hash=sha256:ee8708a7f7d37fb273a541fa24ad010ed484192cd0c4ffc0fa0ed5e2d4b9e78b
+    # via -r requirements.txt
 defusedxml==0.7.1 \
     --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
     --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
@@ -2053,9 +2052,9 @@ mako==1.3.10 \
     --hash=sha256:99579a6f39583fa7e5630a28c3c1f440e4e97a414b80372649c0ce338da2ea28 \
     --hash=sha256:baef24a52fc4fc514a0887ac600f9f1cff3d82c61d4d700a1fa84d597b88db59
     # via alembic
-markdown==3.8.2 \
-    --hash=sha256:247b9a70dd12e27f67431ce62523e675b866d254f900c4fe75ce3dda62237c45 \
-    --hash=sha256:5c83764dbd4e00bdd94d85a19b8d55ccca20fe35b2e678a1422b380324dd5f24
+markdown==3.9 \
+    --hash=sha256:9f4d91ed810864ea88a6f32c07ba8bee1346c0cc1f6b1f9f6c822f2a9667d280 \
+    --hash=sha256:d2900fe1782bd33bdbbd56859defef70c2e78fc46668f8eb9df3128138f2cb6a
     # via mlflow
 markdown-it-py==4.0.0 \
     --hash=sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147 \
@@ -2622,9 +2621,9 @@ objgraph==3.6.2 \
     --hash=sha256:00b9f2f40f7422e3c7f45a61c4dafdaf81f03ff0649d6eaec866f01030e51ad8 \
     --hash=sha256:8114c97712291c3ba30d882406a384d0a7651b307ea9a06e0d83836ccde85e15
     # via -r dockerfiles/mlrun-api/requirements.txt
-openai==1.106.0 \
-    --hash=sha256:47bf9d07df203cd2b7f90ac2da84aea40340dbdebb2da2f4f70e3a133c605d57 \
-    --hash=sha256:8c5ae2ae61a619cd8ba22aeda8fdff00428280041eff5be5555287634ea6f460
+openai==1.106.1 \
+    --hash=sha256:5f575967e3a05555825c43829cdcd50be6e49ab6a3e5262f0937a3f791f917f1 \
+    --hash=sha256:bfdef37c949f80396c59f2c17e0eda35414979bc07ef3379596a93c9ed044f3a
     # via -r dev-requirements.txt
 opentelemetry-api==1.36.0 \
     --hash=sha256:02f20bcacf666e1333b6b1f04e647dc1d5111f86b8e510238fcc56d7762cda8c \
@@ -2641,9 +2640,9 @@ opentelemetry-semantic-conventions==0.57b0 \
     --hash=sha256:609a4a79c7891b4620d64c7aac6898f872d790d75f22019913a660756f27ff32 \
     --hash=sha256:757f7e76293294f124c827e514c2a3144f191ef175b069ce8d1211e1e38e9e78
     # via opentelemetry-sdk
-ordered-set==4.1.0 \
-    --hash=sha256:046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562 \
-    --hash=sha256:694a8e44c87657c59292ede72891eb91d34131f6531463aab3009191c77364a8
+orderly-set==5.5.0 \
+    --hash=sha256:46f0b801948e98f427b412fcabb831677194c05c3b699b80de260374baa0b1e7 \
+    --hash=sha256:e87185c8e4d8afa64e7f8160ee2c542a475b738bc891dc3f58102e654125e6ce
     # via deepdiff
 orjson==3.11.3 \
     --hash=sha256:00f1a271e56d511d1569937c0447d7dce5a99a33ea0dec76673706360a051904 \
@@ -4552,13 +4551,13 @@ traitlets==5.14.3 \
     #   nbclient
     #   nbconvert
     #   nbformat
-transformers==4.56.0 \
-    --hash=sha256:6ca9c3f38aa4da93ebf877db7156368c1c188c7465f09dbe70951e7622e987fa \
-    --hash=sha256:bacf539c38dd850690856881c4974321af93a22f2ee96bcc994741a2121d8e71
+transformers==4.56.1 \
+    --hash=sha256:0d88b1089a563996fc5f2c34502f10516cad3ea1aa89f179f522b54c8311fe74 \
+    --hash=sha256:1697af6addfb6ddbce9618b763f4b52d5a756f6da4899ffd1b4febf58b779248
     # via -r dev-requirements.txt
-typer==0.17.3 \
-    --hash=sha256:0c600503d472bcf98d29914d4dcd67f80c24cc245395e2e00ba3603c9332e8ba \
-    --hash=sha256:643919a79182ab7ac7581056d93c6a2b865b026adf2872c4d02c72758e6f095b
+typer==0.17.4 \
+    --hash=sha256:015534a6edaa450e7007eba705d5c18c3349dcea50a6ad79a5ed530967575824 \
+    --hash=sha256:b77dc07d849312fd2bb5e7f20a7af8985c7ec360c45b051ed5412f64d8dc1580
     # via
     #   evidently
     #   kfp
@@ -4805,9 +4804,9 @@ v3iofs==0.1.18 \
     # via
     #   -r requirements.txt
     #   storey
-vale==3.12.0.1 \
-    --hash=sha256:c174f5ee49cb4c7d6e5bfd381c2190d7a6cebd59cb45e452e10bb58fa02f9a5e \
-    --hash=sha256:d27071a5f2d69315349c4d5eaa48c44dd6ee5b15028066688812979563911ffd
+vale==3.12.0.2 \
+    --hash=sha256:4e71964738cdf231bc098c9870a2c988970bc4b2f19c02911d209e900e77dbbf \
+    --hash=sha256:790f506610980e0d407be1d7110758802112b68266582805b7faefe20408bf43
     # via -r dev-requirements.txt
 waitress==3.0.2 ; sys_platform == 'win32' \
     --hash=sha256:682aaaf2af0c44ada4abfb70ded36393f0e307f4ab9456a215ce0020baefc31f \

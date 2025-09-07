@@ -628,9 +628,9 @@ cycler==0.12.1 \
     --hash=sha256:85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30 \
     --hash=sha256:88bb128f02ba341da8ef447245a9e138fae777f6a23943da4540077d3601eb1c
     # via matplotlib
-dask==2024.8.2 \
-    --hash=sha256:1d05e09166ac7927a54401e998aa1599e86aac666edbdaeb3096bf4b957029e0 \
-    --hash=sha256:484c317ee870140dbeccc759a91fd98821bba98d71a43eda7856fc9e859b03a1
+dask==2025.7.0 \
+    --hash=sha256:073c29c4e99c2400a39a8a67874f35c1d15bf7af9ae3d0c30af3c7c1199f24ae \
+    --hash=sha256:c3a0d4e78882e85ea81dbc71e6459713e45676e2d17e776c2f3f19848039e4cf
     # via
     #   -r extras-requirements.txt
     #   dask-kubernetes
@@ -683,9 +683,9 @@ decorator==5.2.1 \
     # via
     #   gcsfs
     #   ipython
-deepdiff==7.0.1 \
-    --hash=sha256:260c16f052d4badbf60351b4f77e8390bee03a0b516246f6839bc813fb429ddf \
-    --hash=sha256:447760081918216aa4fd4ca78a4b6a848b81307b2ea94c810255334b759e1dc3
+deepdiff==8.6.1 \
+    --hash=sha256:ec56d7a769ca80891b5200ec7bd41eec300ced91ebcc7797b41eb2b3f3ff643a \
+    --hash=sha256:ee8708a7f7d37fb273a541fa24ad010ed484192cd0c4ffc0fa0ed5e2d4b9e78b
     # via -r requirements.txt
 defusedxml==0.7.1 \
     --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
@@ -715,9 +715,9 @@ deprecated==1.2.18 \
     # via
     #   -r requirements.txt
     #   igz-mgmt
-distributed==2024.8.2 \
-    --hash=sha256:0c75888bd1208e59990a373ea139eed8fba3927fff6ea1e56e43536d8fd4f105 \
-    --hash=sha256:3fceae46d6e7b771c15cc1e2c8349f2900f003bb9846c471c14c19a0c0025197
+distributed==2025.7.0 \
+    --hash=sha256:51b74526c2bee409ca968ee5532c79de1c1a1713664f5ccf90bdd81f17cfdc73 \
+    --hash=sha256:5f8ec20d3cdfb286452831c6f9ebee84527e9323256c20dd2938d9c6e62c5c18
     # via
     #   -r extras-requirements.txt
     #   dask-kubernetes
@@ -1532,9 +1532,9 @@ mako==1.3.10 \
     --hash=sha256:99579a6f39583fa7e5630a28c3c1f440e4e97a414b80372649c0ce338da2ea28 \
     --hash=sha256:baef24a52fc4fc514a0887ac600f9f1cff3d82c61d4d700a1fa84d597b88db59
     # via alembic
-markdown==3.8.2 \
-    --hash=sha256:247b9a70dd12e27f67431ce62523e675b866d254f900c4fe75ce3dda62237c45 \
-    --hash=sha256:5c83764dbd4e00bdd94d85a19b8d55ccca20fe35b2e678a1422b380324dd5f24
+markdown==3.9 \
+    --hash=sha256:9f4d91ed810864ea88a6f32c07ba8bee1346c0cc1f6b1f9f6c822f2a9667d280 \
+    --hash=sha256:d2900fe1782bd33bdbbd56859defef70c2e78fc46668f8eb9df3128138f2cb6a
     # via mlflow
 markdown-it-py==4.0.0 ; sys_platform != 'win32' \
     --hash=sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147 \
@@ -2053,9 +2053,9 @@ opentelemetry-semantic-conventions==0.57b0 \
     --hash=sha256:609a4a79c7891b4620d64c7aac6898f872d790d75f22019913a660756f27ff32 \
     --hash=sha256:757f7e76293294f124c827e514c2a3144f191ef175b069ce8d1211e1e38e9e78
     # via opentelemetry-sdk
-ordered-set==4.1.0 \
-    --hash=sha256:046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562 \
-    --hash=sha256:694a8e44c87657c59292ede72891eb91d34131f6531463aab3009191c77364a8
+orderly-set==5.5.0 \
+    --hash=sha256:46f0b801948e98f427b412fcabb831677194c05c3b699b80de260374baa0b1e7 \
+    --hash=sha256:e87185c8e4d8afa64e7f8160ee2c542a475b738bc891dc3f58102e654125e6ce
     # via deepdiff
 orjson==3.11.3 \
     --hash=sha256:00f1a271e56d511d1569937c0447d7dce5a99a33ea0dec76673706360a051904 \

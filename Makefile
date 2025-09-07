@@ -346,7 +346,6 @@ mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) .
@@ -1081,14 +1080,12 @@ upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
-		--python-version $(MLRUN_PYTHON_VERSION) \
-		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/mlrun-kfp/locked-requirements_$(MLRUN_PYTHON_VERSION).txt
+		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
-	@$(MAKE) -j \
+	@$(MAKE)  \
 		upgrade-mlrun-mlrun-deps-lock \
 		upgrade-mlrun-api-deps-lock \
 		upgrade-mlrun-jupyter-deps-lock \

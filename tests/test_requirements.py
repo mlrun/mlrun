@@ -186,12 +186,10 @@ def test_requirement_specifiers_convention():
         "dask": {
             '>=2023.12.1; python_version < "3.11"',
             '>=2024.8; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
             '>=2023.12.1; python_version < "3.11"',
             '>=2024.8; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
         },
     }
 
@@ -232,12 +230,10 @@ def test_requirement_specifiers_inconsistencies():
         "dask": {
             '>=2023.12.1; python_version < "3.11"',
             '>=2024.8; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
             '>=2023.12.1; python_version < "3.11"',
             '>=2024.8; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
         },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',

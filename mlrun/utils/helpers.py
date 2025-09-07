@@ -2299,6 +2299,18 @@ def encode_user_code(
     return encoded
 
 
+def iguazio_v4_only(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        if not mlrun.mlconf.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
+            )
+        return function(*args, **kwargs)
+
+    return wrapper
+
+
 def raise_or_log_error(message: str, raise_on_error: bool = True):
     """
     Handle errors by either raising an exception or logging a warning.

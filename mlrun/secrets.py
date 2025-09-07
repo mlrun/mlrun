@@ -207,6 +207,7 @@ def get_secret_or_env(
     )
 
 
+@mlrun.utils.iguazio_v4_only
 def sync_secret_tokens() -> None:
     """
     Synchronize local secret tokens with the backend.

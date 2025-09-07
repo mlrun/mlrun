@@ -120,10 +120,12 @@ def get_model_endpoints_creation_task_status(
             project=server.project,
             function_name=server.function_name,
             function_tag=server.function_tag,
-            as_dict=True,
+            tsdb_metrics=False,
         )
         if model_endpoints:
-            model_endpoint_uids = list(model_endpoints.values())
+            model_endpoint_uids = [
+                endpoint.metadata.uid for endpoint in model_endpoints.endpoints
+            ]
             logger.info(
                 "Model endpoints found after background task not found, model monitoring will monitor "
                 "events",

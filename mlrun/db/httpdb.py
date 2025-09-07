@@ -3773,8 +3773,7 @@ class HTTPRunDB(RunDBInterface):
         modes: Optional[list[mm_constants.EndpointMode]] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
-        as_dict: Optional[bool] = None,
-    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict[str, str]]:
+    ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints with optional filtering by name, function name, model name, labels, and time range.
 
@@ -3796,9 +3795,6 @@ class HTTPRunDB(RunDBInterface):
                                 "batch_legacy" (2). If set to None, all are included.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
-        :param as_dict:         When True, the result will be returned as a dictionary of str in the structure of
-                                "<project name>-<function_name>-<function_tag>-<endpoint_name>" map to model
-                                endpoint uid.
         :return:                A list of model endpoints.
         """
         path = f"projects/{project}/model-endpoints"
@@ -3825,7 +3821,6 @@ class HTTPRunDB(RunDBInterface):
                 "mode": modes,
                 "uid": uids,
                 "latest-only": latest_only,
-                "as-dict": as_dict,
             },
         )
 

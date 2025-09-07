@@ -30,7 +30,6 @@ import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 import mlrun.utils.helpers
 from mlrun import MLRunInvalidArgumentError
-from mlrun.common.schemas import ModelEndpointList
 from mlrun.utils import logger
 
 import framework.api.deps
@@ -249,8 +248,7 @@ async def list_model_endpoints(
     latest_only: bool = Query(False, alias="latest-only"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    as_dict: Optional[bool] = Query(None, alias="as-dict"),
-) -> Union[schemas.ModelEndpointList, dict[str, str]]:
+) -> schemas.ModelEndpointList:
     """
     List model endpoints.
 
@@ -274,9 +272,6 @@ async def list_model_endpoints(
     :param latest_only:     Whether to return only the latest model endpoint for each name.
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
-    :param as_dict:         When True, the result will be returned as a dictionary of str in the structure of
-                            "<project name>-<function_name>-<function_tag>-<endpoint_name>" map to model
-                            endpoint uid.
     :return:                A list of model endpoints.
     """
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -302,20 +297,18 @@ async def list_model_endpoints(
         uids=uids,
         latest_only=latest_only,
         db_session=db_session,
-        as_dict=as_dict,
     )
-    if isinstance(endpoints, ModelEndpointList):
-        allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-            schemas.AuthorizationResourceTypes.model_endpoint,
-            endpoints.endpoints,
-            lambda _endpoint: (
-                _endpoint.metadata.project,
-                _endpoint.metadata.uid,
-            ),
-            auth_info,
-        )
+    allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+        schemas.AuthorizationResourceTypes.model_endpoint,
+        endpoints.endpoints,
+        lambda _endpoint: (
+            _endpoint.metadata.project,
+            _endpoint.metadata.uid,
+        ),
+        auth_info,
+    )
 
-        endpoints.endpoints = allowed_endpoints
+    endpoints.endpoints = allowed_endpoints
 
     return endpoints
 

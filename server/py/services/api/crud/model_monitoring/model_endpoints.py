@@ -1009,8 +1009,7 @@ class ModelEndpoints:
         metric_list: Optional[list[str]] = None,
         uids: typing.Optional[list[str]] = None,
         latest_only: typing.Optional[bool] = None,
-        as_dict: typing.Optional[bool] = None,
-    ) -> typing.Union[mlrun.common.schemas.ModelEndpointList, dict[str, str]]:
+    ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints based on the provided filters.
         :param project:             The name of the project.
@@ -1031,19 +1030,13 @@ class ModelEndpoints:
                                     will be included.
         :param uids:                A list of unique ids of the model endpoints.
         :param latest_only:         When True, only the latest model endpoint will be returned.
-        :param as_dict:             When True, the result will be returned as a dictionary of str in the structure of
-                                    "<project name>-<function_name>-<function_tag>-<endpoint_name>" map to model
-                                    endpoint uid.
         :return:                    A list of `ModelEndpoint` objects.
         """
 
         if function_name and function_tag is None:
             logger.info("Function tag not provided, setting to 'latest'")
             function_tag = DEFAULT_FUNCTION_TAG
-        if tsdb_metrics and as_dict:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Cannot set tsdb_metrics when as_dict is True"
-            )
+
         logger.info(
             "Listing endpoints",
             names=names,
@@ -1061,7 +1054,6 @@ class ModelEndpoints:
             metric_list=metric_list,
             uids=uids,
             latest_only=latest_only,
-            as_dict=as_dict,
         )
 
         # Initialize an empty model endpoints list
@@ -1081,7 +1073,6 @@ class ModelEndpoints:
             modes=modes,
             uids=uids,
             latest_only=latest_only,
-            as_dict=as_dict,
         )
 
         if tsdb_metrics and endpoint_list.endpoints:

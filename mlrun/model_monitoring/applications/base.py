@@ -347,6 +347,21 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         feature_stats=feature_stats,
                     )
                 )
+
+                if (
+                    monitoring_context.endpoint_id
+                    and monitoring_context.sample_df.empty
+                ):
+                    # The current sample is empty
+                    context.logger.warning(
+                        "No sample data available for tracking",
+                        application_name=application_name,
+                        endpoint_id=monitoring_context.endpoint_id,
+                        start_time=monitoring_context.start_infer_time,
+                        end_time=monitoring_context.end_infer_time,
+                    )
+                    return
+
                 result = self.do_tracking(monitoring_context)
                 endpoints_output[monitoring_context.endpoint_id].append(
                     (monitoring_context, result)

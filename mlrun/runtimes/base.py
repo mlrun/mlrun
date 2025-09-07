@@ -142,9 +142,6 @@ class FunctionSpec(ModelObj):
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
 
-    def enrich_function_preemption_spec(self):
-        pass
-
     def validate_service_account(self, allowed_service_accounts):
         pass
 

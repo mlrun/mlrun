@@ -745,7 +745,7 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
                     }
                 ],
             ),
-            # Case: allow mode should clean affinity/selector and add tolerations
+            # Case: allow mode keeps preemptible selector and adds tolerations
             (
                 {"function-label": "val"},
                 {"label-1": "val1"},
@@ -787,8 +787,8 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
                 None,
                 None,
                 "allow",
-                {},
-                {},
+                {"label-1": "val1"},
+                {"label-1": "val1"},
                 False,
                 False,
                 [

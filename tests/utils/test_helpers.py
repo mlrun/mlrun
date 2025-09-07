@@ -25,6 +25,7 @@ from pandas import Timedelta, Timestamp
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
@@ -234,7 +235,7 @@ def test_spark_job_name_regex(value, expected):
     ],
 )
 def test_extend_hub_uri(rundb_mock, case):
-    hub_url = mlrun.mlconf.get_default_hub_source()
+    hub_url = mlrun.mlconf.get_default_hub_source_url_prefix(HubSourceType.functions)
     input_uri = case["input_uri"]
     expected_output = case["expected_output"]
     output, is_hub_url = extend_hub_uri_if_needed(input_uri)

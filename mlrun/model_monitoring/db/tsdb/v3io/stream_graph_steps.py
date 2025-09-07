@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 import mlrun.feature_store.steps
 from mlrun.common.schemas.model_monitoring import (
@@ -23,7 +23,7 @@ from mlrun.common.schemas.model_monitoring import (
 from mlrun.utils import logger
 
 
-def _normalize_dict_for_v3io_frames(event: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_dict_for_v3io_frames(event: dict[str, Any]) -> dict[str, Any]:
     """
     Normalize user-defined keys (e.g., model input data and predictions) to a format V3IO Frames tolerates.
 
@@ -40,7 +40,7 @@ def _normalize_dict_for_v3io_frames(event: Dict[str, Any]) -> Dict[str, Any]:
             return prefix + key
         return key
 
-    def flatten_dict(d: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:
+    def flatten_dict(d: dict[str, Any], parent_key: str = "") -> dict[str, Any]:
         items = {}
         for k, v in d.items():
             new_key = norm_key(k)

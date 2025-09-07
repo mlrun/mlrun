@@ -2309,3 +2309,15 @@ def iguazio_v4_only(function):
         return function(*args, **kwargs)
 
     return wrapper
+
+
+def raise_or_log_error(message: str, raise_on_error: bool = True):
+    """
+    Handle errors by either raising an exception or logging a warning.
+
+    :param message: The error message.
+    :param raise_on_error: If True, raises an exception. Otherwise, logs a warning.
+    """
+    if raise_on_error:
+        raise mlrun.errors.MLRunRuntimeError(message)
+    logger.warning(message)

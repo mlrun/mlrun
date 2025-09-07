@@ -168,6 +168,7 @@ async def delete_run(
     )
     return {}
 
+
 @router.get("/projects/{project}/completed_runs")
 async def list_completed_runs(
     project: Optional[str] = None,
@@ -200,12 +201,13 @@ async def list_completed_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-
-    allowed_project_names = await _get_allowed_project_names(project, auth_info, db_session)
+    allowed_project_names = await _get_allowed_project_names(
+        project, auth_info, db_session
+    )
 
     paginator = framework.utils.pagination.Paginator()
 
-    #TODO refactor to avoid code duplication with list_runs
+    # TODO refactor to avoid code duplication with list_runs
     async def _filter_runs(_runs):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.run,
@@ -250,6 +252,7 @@ async def list_completed_runs(
         "pagination": page_info,
     }
 
+
 @router.get("/projects/{project}/runs")
 async def list_runs(
     project: Optional[str] = None,
@@ -292,7 +295,7 @@ async def list_runs(
 
     paginator = framework.utils.pagination.Paginator()
 
-    #TODO refactor to avoid code duplication with list_completed_runs
+    # TODO refactor to avoid code duplication with list_completed_runs
     async def _filter_runs(_runs):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.run,
@@ -634,4 +637,3 @@ async def _get_allowed_project_names(project, auth_info, db_session):
     return await services.api.crud.Projects().list_allowed_project_names(
         db_session, auth_info, project=project
     )
-

@@ -148,6 +148,53 @@ class SQLRunDB(RunDBInterface):
             format_,
         )
 
+    def list_completed_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, list[str]]] = None,
+        project: Optional[Union[str, list[str]]] = None,
+        labels: Optional[Union[str, list[str]]] = None,
+        sort: bool = True,
+        iter: bool = False,
+        start_time_from: Optional[datetime.datetime] = None,
+        start_time_to: Optional[datetime.datetime] = None,
+        last_update_time_from: Optional[datetime.datetime] = None,
+        last_update_time_to: Optional[datetime.datetime] = None,
+        end_time_from: Optional[datetime.datetime] = None,
+        end_time_to: Optional[datetime.datetime] = None,
+        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+    ):
+        return self._transform_db_error(
+            framework.db.session.run_function_with_new_db_session,
+            services.api.crud.Runs().list_runs,
+            name=name,
+            uid=uid,
+            project=project,
+            labels=labels,
+            states=[mlrun.common.runtimes.constants.RunStates.completed],
+            sort=sort,
+            iter=iter,
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
+            end_time_from=end_time_from,
+            end_time_to=end_time_to,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
+            max_partitions=max_partitions,
+            with_notifications=with_notifications,
+        )
+
     def list_runs(
         self,
         name: Optional[str] = None,

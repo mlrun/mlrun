@@ -40,6 +40,7 @@ import yaml
 
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 
 env_prefix = "MLRUN_"
@@ -1377,6 +1378,18 @@ class Config:
         # True if the setup is in CE environment
         return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
+        )
+
+    def is_iguazio_mode(self):
+        return (
+            mlrun.mlconf.httpdb.authentication.mode
+            == mlrun.common.types.AuthenticationMode.IGUAZIO
+        )
+
+    def is_iguazio_v4_mode(self):
+        return (
+            mlrun.mlconf.httpdb.authentication.mode
+            == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 
     def is_explicit_ack_enabled(self) -> bool:

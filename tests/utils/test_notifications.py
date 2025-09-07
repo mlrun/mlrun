@@ -439,7 +439,7 @@ def test_notification_update_notification_status(when, run_state, store_count):
     ]
 
     db = mlrun.get_run_db()
-    db.store_run_notifications = unittest.mock.MagicMock()
+    db.store_run_notifications = unittest.mock.AsyncMock()
 
     notification_pusher = (
         mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
@@ -454,7 +454,7 @@ def test_notification_update_notification_status(when, run_state, store_count):
     else:
         concrete_notification = notification_pusher._sync_notifications[0][0]
 
-    concrete_notification.push = unittest.mock.MagicMock()
+    concrete_notification.push = unittest.mock.AsyncMock()
 
     # send notifications
     notification_pusher.push()
@@ -511,10 +511,10 @@ def test_update_notification_status(notification_kind, run_status):
         concrete_notification.push = unittest.mock.AsyncMock()  # awaitable
     else:
         concrete_notification = notification_pusher._sync_notifications[0][0]
-        concrete_notification.push = unittest.mock.MagicMock()
+        concrete_notification.push = unittest.mock.AsyncMock()
 
     db = mlrun.get_run_db()
-    db.store_run_notifications = unittest.mock.MagicMock()
+    db.store_run_notifications = unittest.mock.AsyncMock()
 
     # send notifications
     notification_pusher.push()

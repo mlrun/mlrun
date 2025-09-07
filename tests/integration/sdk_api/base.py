@@ -128,25 +128,6 @@ class TestMLRunIntegration:
         finally:
             self.custom_teardown()
             logs = container.logs(tail=100).decode()
-            logger.info(
-                "[DD] mlrun-api container created at: %s, image: %s",
-                container.attrs["Created"],
-                container.attrs["Config"]["Image"],
-            )
-            logger.info(
-                "[DD] Image created at: %s",
-                container.image.attrs["Created"],
-            )
-            logger.info(
-                "[DD] mlrun-api container mlrun.mlconf.hub.default_source: %s",
-                container.exec_run(
-                    [
-                        "python3",
-                        "-c",
-                        "import mlrun; print(mlrun.mlconf.hub.default_source)"
-                    ]
-                ).output.decode().strip(),
-            )
             logger.info("[DD] mlrun-api logs:")
             logger.info(logs)
             self._stop_api()

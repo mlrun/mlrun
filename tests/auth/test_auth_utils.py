@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import textwrap
 
 import pytest
@@ -155,3 +156,32 @@ def test_read_secret_tokens_file_non_existent(tmp_path):
     # Should raise MLRunRuntimeError if raise_on_error=True
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         auth_utils._read_secret_tokens_file(str(file_path), raise_on_error=True)
+
+
+def test_read_secret_tokens_file_alternative_extension(tmp_path):
+    """Test that the function correctly reads a file with alternative extension fallback."""
+    yml_content = """
+    secretTokens:
+      - name: token1
+        token: abc123
+    """
+    yaml_content = """
+    secretTokens:
+      - name: token2
+        token: def456
+    """
+
+    # Write both files
+    yml_path = _write_file(tmp_path, "tokens.yml", yml_content)
+    _write_file(tmp_path, "tokens.yaml", yaml_content)
+
+    # Case 1: Read existing .yml
+    result = auth_utils._read_secret_tokens_file(yml_path)
+    assert result["secretTokens"][0]["name"] == "token1"
+
+    # Remove .yml to force fallback to .yaml
+    os.remove(yml_path)
+
+    # Case 2: Read non-existent .yml, should fallback to .yaml
+    result = auth_utils._read_secret_tokens_file(yml_path)
+    assert result["secretTokens"][0]["name"] == "token2"

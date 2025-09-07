@@ -80,17 +80,33 @@ def _read_secret_tokens_file(
 ) -> typing.Optional[dict]:
     """
     Read and parse a secret tokens file as a dictionary.
+    Supports both .yaml and .yml extensions for igz files.
 
     :param token_file: Path to the secret tokens file.
     :param raise_on_error: Whether to raise exceptions on failure.
     :return: Parsed file content as a dictionary, or None if an error occurs.
     """
     token_file = os.path.expanduser(token_file)
+
+    # If the file doesn't exist, try the alternative extension
     if not os.path.exists(token_file):
-        mlrun.utils.helpers.raise_or_log_error(
-            f"Token file not found at {token_file}", raise_on_error
-        )
-        return None
+        base, ext = os.path.splitext(token_file)
+        if ext in [".yml", ".yaml"]:
+            alt_ext = ".yaml" if ext == ".yml" else ".yml"
+            alt_file = base + alt_ext
+            if os.path.exists(alt_file):
+                token_file = alt_file
+            else:
+                mlrun.utils.helpers.raise_or_log_error(
+                    f"Token file not found at {token_file} or {alt_file}",
+                    raise_on_error,
+                )
+                return None
+        else:
+            mlrun.utils.helpers.raise_or_log_error(
+                f"Token file not found at {token_file}", raise_on_error
+            )
+            return None
 
     try:
         with open(token_file) as token_file_io:

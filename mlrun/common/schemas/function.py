@@ -122,9 +122,6 @@ class Backoff(pydantic.v1.BaseModel):
 class RetrySpec(pydantic.v1.BaseModel):
     backoff: Backoff
 
-class Foo(pydantic.v1.BaseModel):
-    default: typing.Optional[str]
-
 
 class Foo(pydantic.v1.BaseModel):
     default: typing.Optional[str]
@@ -148,5 +145,3 @@ class Function(pydantic.v1.BaseModel):
 
     class Config:
         extra = pydantic.v1.Extra.allow
-
-

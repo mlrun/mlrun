@@ -20,7 +20,8 @@ from sqlalchemy.orm import Session
 import mlrun
 from mlrun.common.types import AuthenticationMode
 
-API_USER_SECRETS_PATH = "user-secrets"
+API_USER_SECRETS_PATH = "/user-secrets"
+API_USER_SECRETS_TOKENS_PATH = API_USER_SECRETS_PATH + "/tokens"
 
 
 def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
@@ -28,6 +29,6 @@ def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.BASIC
 
     # Pick an endpoint that includes the iguazio_v4_only dependency
-    response = client.put("/user-secrets/tokens", json=[])
+    response = client.put(API_USER_SECRETS_TOKENS_PATH, json=[])
 
     assert response.status_code == HTTPStatus.BAD_REQUEST.value

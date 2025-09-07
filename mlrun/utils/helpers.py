@@ -2297,3 +2297,15 @@ def encode_user_code(
             "Consider using `with_source_archive` to add user code as a remote source to the function."
         )
     return encoded
+
+
+def iguazio_v4_only(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        if not mlrun.mlconf.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
+            )
+        return function(*args, **kwargs)
+
+    return wrapper

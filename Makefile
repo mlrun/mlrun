@@ -1000,7 +1000,6 @@ upgrade-mlrun-api-deps-lock: ## Upgrade mlrun-api locked requirements file
 		extras-requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--python-version $(MLRUN_PYTHON_VERSION) \
 		--output-file dockerfiles/mlrun-api/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-mlrun-deps-lock
@@ -1010,7 +1009,6 @@ upgrade-mlrun-mlrun-deps-lock: ## Upgrade mlrun-mlrun locked requirements file
 		extras-requirements.txt \
 		dockerfiles/mlrun/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--python-version $(MLRUN_PYTHON_VERSION) \
 		--output-file dockerfiles/mlrun/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-gpu-deps-lock
@@ -1020,7 +1018,6 @@ upgrade-mlrun-gpu-deps-lock: ## Upgrade mlrun-gpu locked requirements file
 		extras-requirements.txt \
 		dockerfiles/mlrun/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--python-version $(MLRUN_PYTHON_VERSION) \
 		--output-file dockerfiles/gpu/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-jupyter-deps-lock
@@ -1030,7 +1027,6 @@ upgrade-mlrun-jupyter-deps-lock: ## Upgrade mlrun-jupyter locked requirements fi
 		extras-requirements.txt \
 		dockerfiles/jupyter/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--python-version $(MLRUN_PYTHON_VERSION) \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-test-deps-lock
@@ -1055,7 +1051,6 @@ upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked require
 		dockerfiles/mlrun-api/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--python-version $(MLRUN_PYTHON_VERSION) \
 		--output-file dockerfiles/test-system/locked-requirements.txt
 
 
@@ -1080,6 +1075,7 @@ upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
+		--python-version $(MLRUN_PYTHON_VERSION) \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 

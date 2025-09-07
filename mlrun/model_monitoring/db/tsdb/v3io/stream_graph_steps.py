@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict
 
 import mlrun.feature_store.steps
 from mlrun.common.schemas.model_monitoring import (
@@ -23,12 +23,14 @@ from mlrun.common.schemas.model_monitoring import (
 from mlrun.utils import logger
 
 
-def _normalize_dict_for_v3io_frames(event: dict[str, Any]) -> dict[str, Any]:
+def _normalize_dict_for_v3io_frames(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Normalize user defined keys - input data to a model and its predictions,
-    to a form V3IO frames tolerates.
+    Normalize user-defined keys (e.g., model input data and predictions) to a format V3IO Frames tolerates.
 
-    The dictionary keys should conform to '^[a-zA-Z_:]([a-zA-Z0-9_:])*$'.
+    - Keys must match regex: '^[a-zA-Z_:]([a-zA-Z0-9_:])*$'
+    - Replace invalid characters (e.g., '-') with '_'.
+    - Prefix keys starting with digits with '_'.
+    - Flatten nested dictionaries using dot notation, while normalizing keys recursively.
     """
     prefix = "_"
 
@@ -38,7 +40,18 @@ def _normalize_dict_for_v3io_frames(event: dict[str, Any]) -> dict[str, Any]:
             return prefix + key
         return key
 
-    return {norm_key(k): v for k, v in event.items()}
+    def flatten_dict(d: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:
+        items = {}
+        for k, v in d.items():
+            new_key = norm_key(k)
+            full_key = f"{parent_key}.{new_key}" if parent_key else new_key
+            if isinstance(v, dict):
+                items.update(flatten_dict(v, full_key))
+            else:
+                items[full_key] = v
+        return items
+
+    return flatten_dict(event)
 
 
 class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):

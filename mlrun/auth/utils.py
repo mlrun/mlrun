@@ -85,6 +85,7 @@ def _read_secret_tokens_file(
     :param raise_on_error: Whether to raise exceptions on failure.
     :return: Parsed file content as a dictionary, or None if an error occurs.
     """
+    token_file = os.path.expanduser(token_file)
     if not os.path.exists(token_file):
         mlrun.utils.helpers.raise_or_log_error(
             f"Token file not found at {token_file}", raise_on_error
@@ -121,6 +122,7 @@ def _validate_secret_tokens(
     valid_tokens = []
     seen = set()
 
+    token_file = os.path.expanduser(token_file)
     for token in tokens_list:
         name = token.get("name")
         token_value = token.get("token")
@@ -158,6 +160,7 @@ def _translate_secret_tokens(
     :param raise_on_error: Whether to raise exceptions on translation errors.
     :return: List of SecretToken objects.
     """
+    token_file = os.path.expanduser(token_file)
     tokens = []
     for token in tokens_list:
         try:

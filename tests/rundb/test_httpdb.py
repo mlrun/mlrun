@@ -42,7 +42,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
-from mlrun.db.auth_utils import StaticTokenProvider
+from mlrun.auth.providers import StaticTokenProvider
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -452,7 +452,7 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
         mlrun.common.schemas.HeaderNames.authorization
         not in requests_mock.last_request.headers
     )
-    assert db.token_provider.token is None
+    assert db.token_provider.get_token() is None
 
 
 def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:

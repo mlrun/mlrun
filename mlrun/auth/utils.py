@@ -23,6 +23,28 @@ import mlrun.utils.helpers
 from mlrun.config import config
 
 
+def load_and_prepare_secret_tokens(
+    token_file: str, raise_on_error: bool = True
+) -> list[mlrun.common.schemas.SecretToken]:
+    """
+    Load, validate, and translate secret tokens from a file into SecretToken objects.
+
+    :param token_file: Path to the secret tokens file.
+    :param raise_on_error: Whether to raise exceptions on errors.
+    :return: List of SecretToken objects.
+    """
+    tokens_list = load_secret_tokens_from_file(
+        token_file, raise_on_error=raise_on_error
+    )
+    validated_tokens = _validate_secret_tokens(
+        tokens_list, token_file, raise_on_error=raise_on_error
+    )
+    secret_tokens = _translate_secret_tokens(
+        validated_tokens, token_file, raise_on_error=raise_on_error
+    )
+    return secret_tokens
+
+
 def load_secret_tokens_from_file(
     token_file: typing.Optional[str] = None,
     raise_on_error: bool = True,
@@ -53,54 +75,6 @@ def load_secret_tokens_from_file(
     return tokens_list
 
 
-def validate_secret_tokens(
-    tokens_list: list[dict], token_file: str, raise_on_error: bool = True
-) -> list[mlrun.common.schemas.SecretToken]:
-    """
-    Validate a list of token dictionaries and convert to SecretToken objects.
-
-    Checks performed:
-      - Each token has a non-empty 'name' and 'token'.
-      - No duplicate token names.
-
-    :param tokens_list: List of token dictionaries.
-    :param token_file: Path to the file (used in error messages).
-    :param raise_on_error: Whether to raise exceptions on invalid entries.
-    :return: List of validated SecretToken objects.
-    """
-    tokens = []
-    seen = set()
-
-    for token in tokens_list:
-        name = token.get("name")
-        token_value = token.get("token")
-
-        if not name or not token_value:
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Invalid token entry in {token_file}: missing 'name' or 'token'",
-                raise_on_error,
-            )
-            continue
-
-        if name in seen:
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Duplicate token name '{name}' found in {token_file}",
-                raise_on_error,
-            )
-            continue
-
-        seen.add(name)
-        try:
-            tokens.append(mlrun.common.schemas.SecretToken(**token))
-        except Exception as exc:
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Failed to create SecretToken from entry in {token_file}: {exc}",
-                raise_on_error,
-            )
-
-    return tokens
-
-
 def _read_secret_tokens_file(
     token_file: str, raise_on_error: bool = True
 ) -> typing.Optional[dict]:
@@ -125,3 +99,72 @@ def _read_secret_tokens_file(
             f"Failed to parse token file {token_file}: {exc}", raise_on_error
         )
         return None
+
+
+def _validate_secret_tokens(
+    tokens_list: list[dict], token_file: str, raise_on_error: bool = True
+) -> list[dict]:
+    """
+    Validate a list of token dictionaries.
+
+    Checks performed:
+      - Each token has a non-empty 'name' and 'token'.
+        (If raise_on_error=False, invalid entries will be ignored)
+      - No duplicate token names.
+        (If raise_on_error=False, duplicates will be ignored)
+
+    :param tokens_list: List of token dictionaries.
+    :param token_file: Path to the file (used in error messages).
+    :param raise_on_error: Whether to raise exceptions on invalid entries.
+    :return: List of validated token dictionaries.
+    """
+    valid_tokens = []
+    seen = set()
+
+    for token in tokens_list:
+        name = token.get("name")
+        token_value = token.get("token")
+
+        if not name or not token_value:
+            # If raise_on_error=False, this invalid entry will be ignored
+            mlrun.utils.helpers.raise_or_log_error(
+                f"Invalid token entry in {token_file}: missing 'name' or 'token'",
+                raise_on_error,
+            )
+            continue
+
+        if name in seen:
+            # If raise_on_error=False, this duplicate will be ignored
+            mlrun.utils.helpers.raise_or_log_error(
+                f"Duplicate token name '{name}' found in {token_file}",
+                raise_on_error,
+            )
+            continue
+
+        seen.add(name)
+        valid_tokens.append(token)
+
+    return valid_tokens
+
+
+def _translate_secret_tokens(
+    tokens_list: list[dict], token_file: str, raise_on_error: bool = True
+) -> list[mlrun.common.schemas.SecretToken]:
+    """
+    Translate a list of validated token dictionaries to SecretToken objects.
+
+    :param tokens_list: List of validated token dictionaries.
+    :param token_file: Path to the file (used in error messages).
+    :param raise_on_error: Whether to raise exceptions on translation errors.
+    :return: List of SecretToken objects.
+    """
+    tokens = []
+    for token in tokens_list:
+        try:
+            tokens.append(mlrun.common.schemas.SecretToken(**token))
+        except Exception as exc:
+            mlrun.utils.helpers.raise_or_log_error(
+                f"Failed to create SecretToken from entry in {token_file}: {exc}",
+                raise_on_error,
+            )
+    return tokens

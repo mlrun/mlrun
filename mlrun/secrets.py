@@ -214,21 +214,20 @@ def sync_secret_tokens() -> None:
     This function:
       1. Reads the local token file (default: ~/.igz.yml, configurable via
          `config.auth_with_oauth_token.auth_token_file`).
-      2. Validates and converts its content into `SecretToken` objects.
+      2. Validates its content and converts validated tokens into `SecretToken` objects.
       3. Uploads the tokens to the backend.
       4. Logs a warning if any tokens were updated on the backend due to newer
          expiration times found locally.
     """
-
     # TODO: Runtime Context Check - Avoid sending a backend request when running inside a runtime, where secrets
     #  are already injected via Kubernetes and syncing is unnecessary
 
     token_file = mlrun.mlconf.auth_with_oauth_token.auth_token_file
 
-    tokens_list = mlrun.auth.utils.load_secret_tokens_from_file(token_file)
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(token_file)
 
-    secret_tokens = mlrun.auth.utils.validate_secret_tokens(tokens_list, token_file)
-
+    # The log_warning=False flag ensures the SDK doesn’t log unnecessary warnings about local file updates, since
+    # this method reads from the file, not updates it.
     response = mlrun.get_run_db().store_secret_tokens(secret_tokens, log_warning=False)
 
     if response.updated_tokens:

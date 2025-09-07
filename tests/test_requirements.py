@@ -154,22 +154,10 @@ def test_requirement_specifiers_convention():
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
         "dask[array,dataframe,distributed]": {
-            '~=2023.12.1; python_version < "3.11"',
-        },
-        "dask-ml": {
-            '~=1.4,<1.9.0; python_version < "3.11"',
-            '~=2024.4.4; python_version >= "3.11"',
-        },
-        "dask": {
-            '~=2023.12.1; python_version < "3.11"',
-            '~=2024.8.0; python_version >= "3.11"',
+            '>=2023.12.1; python_version < "3.11"',
         },
         "dask[complete]": {
-            '~=2024.8.0; python_version >= "3.11"',
-        },
-        "distributed": {
-            '~=2023.12.1; python_version < "3.11"',
-            '~=2024.8.0; python_version >= "3.11"',
+            '>=2024.8; python_version >= "3.11"',
         },
         "mlrun_pipelines_kfp_v1_8[kfp]": {
             ">=0.5.7",
@@ -180,14 +168,30 @@ def test_requirement_specifiers_convention():
             '~=1.59.0; python_version <= "3.9"',
             '~=1.74.0; python_version > "3.9"',
         },
-        "kfp": {
-            "~=1.8.22",
-        },
         "urllib3": {
             ">=1.26.20",
         },
         "v3io-frames": {
             ">=0.10.15",
+        },
+        "dask-ml": {
+            '~=1.4,<1.9.0; python_version < "3.11"',
+            '~=1.4,<1.9.0; python_version == "3.9"',
+            '~=2024.4.4; python_version >= "3.11"',
+        },
+        "kfp": {
+            '==1.8.22; python_version <= "3.9"',
+            '==1.8.23; python_version > "3.9"',
+        },
+        "dask": {
+            '>=2023.12.1; python_version < "3.11"',
+            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+        },
+        "distributed": {
+            '>=2023.12.1; python_version < "3.11"',
+            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
         },
     }
 
@@ -226,16 +230,23 @@ def test_requirement_specifiers_inconsistencies():
         "pydantic": {">=1,<2", ">=1.10.15"},
         # packages that require specific versions per python version
         "dask": {
+            '>=2023.12.1; python_version < "3.11"',
+            '>=2024.8; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
-            '~=2024.8.0; python_version >= "3.11"',
         },
         "distributed": {
+            '>=2023.12.1; python_version < "3.11"',
+            '>=2024.8; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
-            '~=2024.8.0; python_version >= "3.11"',
         },
         "dask-ml": {
-            '~=2024.4.4; python_version >= "3.11"',
             '~=1.4,<1.9.0; python_version < "3.11"',
+            '~=1.4,<1.9.0; python_version == "3.9"',
+            '~=2024.4.4; python_version >= "3.11"',
+        },
+        "kfp": {
+            '==1.8.22; python_version <= "3.9"',
+            '==1.8.23; python_version > "3.9"',
         },
     }
 

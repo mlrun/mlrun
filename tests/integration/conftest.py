@@ -73,8 +73,6 @@ def db_engine(
 ) -> sqlalchemy.engine.Engine:
     db_type = os.getenv("MLRUN_TEST_DB", "mysql").lower()
     logger.info("Starting database engine", db_type=db_type)
-    logger.info("[DD] Wiping database BEFORE THE TEST", db_type=db_type)
-    _wipe_database(_mysql_engine)
     yield _mysql_engine
     logger.info("Wiping database", db_type=db_type)
     _wipe_database(_mysql_engine)

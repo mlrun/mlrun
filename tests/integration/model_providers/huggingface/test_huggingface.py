@@ -263,11 +263,18 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
 
 class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
-    def test_hf_model_runner(self):
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_hf_model_runner(self, execution_mechanism):
         project = mlrun.new_project("test-hf-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-            project, model_url, default_config={"max_new_tokens": 100}
+            project,
+            model_url,
+            default_config={"max_new_tokens": 100},
+            execution_mechanism=execution_mechanism,
         )
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.

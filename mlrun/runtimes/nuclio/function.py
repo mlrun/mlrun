@@ -1045,6 +1045,9 @@ class RemoteRuntime(KubeResource):
             sidecar["image"] = image
 
         ports = mlrun.utils.helpers.as_list(ports)
+        if len(ports) > 1:
+            mlrun.runtimes.nuclio.multiple_port_sidecar_is_supported()
+
         # according to RFC-6335, port name should be less than 15 characters,
         # so we truncate it if needed and leave room for the index
         port_name = name[:13].rstrip("-_") if len(name) > 13 else name
@@ -1458,3 +1461,10 @@ def enrich_nuclio_function_from_headers(
         else []
     )
     func.status.container_image = headers.get("x-mlrun-container-image", "")
+
+
+@min_nuclio_versions("1.14.14")
+def multiple_port_sidecar_is_supported():
+    # multiple ports are supported from nuclio version 1.14.14
+    # this method exists only for running the min_nuclio_versions decorator
+    return True

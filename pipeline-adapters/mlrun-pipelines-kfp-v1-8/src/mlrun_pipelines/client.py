@@ -696,8 +696,7 @@ class Client(
                 or []
             )
             for experiment in experiments:
-                normalized_name = experiment.name.rsplit("-", 1)[0]
-                if project_name in (normalized_name, experiment.name):
+                if experiment.name.startswith(project_name):
                     matching_experiments.append(experiment)
         return matching_experiments
 

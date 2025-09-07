@@ -55,17 +55,14 @@ def _write_file(tmp_path, name: str, content: str) -> str:
         ),
     ],
 )
-def test_load_and_validate_secret_tokens_valid(tmp_path, content, expected_count):
+def test_load_and_prepare_secret_tokens_valid(tmp_path, content, expected_count):
     """Test loading and validating valid secret tokens from file."""
     path = _write_file(tmp_path, "tokens.yml", content)
 
-    # Step 1: load (returns list of dicts)
-    tokens_list = auth_utils.load_secret_tokens_from_file(path)
-    assert isinstance(tokens_list, list)
-    assert len(tokens_list) == expected_count
-
-    # Step 2: validate & convert to SecretToken objects
-    secret_tokens = auth_utils.validate_secret_tokens(tokens_list, path)
+    # Use the new combined utility function
+    secret_tokens = auth_utils.load_and_prepare_secret_tokens(path)
+    assert isinstance(secret_tokens, list)
+    assert len(secret_tokens) == expected_count
     assert all(isinstance(t, mlrun.common.schemas.SecretToken) for t in secret_tokens)
 
 
@@ -145,7 +142,7 @@ def test_validate_secret_tokens_invalid_entries(tmp_path, content):
     tokens_list = auth_utils.load_secret_tokens_from_file(path, raise_on_error=False)
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        auth_utils.validate_secret_tokens(tokens_list, path)
+        auth_utils._validate_secret_tokens(tokens_list, path)
 
 
 def test_read_secret_tokens_file_non_existent(tmp_path):

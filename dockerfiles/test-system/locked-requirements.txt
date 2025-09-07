@@ -5432,9 +5432,9 @@ transformers==4.56.1 \
     --hash=sha256:0d88b1089a563996fc5f2c34502f10516cad3ea1aa89f179f522b54c8311fe74 \
     --hash=sha256:1697af6addfb6ddbce9618b763f4b52d5a756f6da4899ffd1b4febf58b779248
     # via -r dev-requirements.txt
-typer==0.17.3 \
-    --hash=sha256:0c600503d472bcf98d29914d4dcd67f80c24cc245395e2e00ba3603c9332e8ba \
-    --hash=sha256:643919a79182ab7ac7581056d93c6a2b865b026adf2872c4d02c72758e6f095b
+typer==0.17.4 \
+    --hash=sha256:015534a6edaa450e7007eba705d5c18c3349dcea50a6ad79a5ed530967575824 \
+    --hash=sha256:b77dc07d849312fd2bb5e7f20a7af8985c7ec360c45b051ed5412f64d8dc1580
     # via
     #   evidently
     #   kfp
@@ -5712,9 +5712,9 @@ v3iofs==0.1.18 \
     # via
     #   -r requirements.txt
     #   storey
-vale==3.12.0.1 \
-    --hash=sha256:c174f5ee49cb4c7d6e5bfd381c2190d7a6cebd59cb45e452e10bb58fa02f9a5e \
-    --hash=sha256:d27071a5f2d69315349c4d5eaa48c44dd6ee5b15028066688812979563911ffd
+vale==3.12.0.2 \
+    --hash=sha256:4e71964738cdf231bc098c9870a2c988970bc4b2f19c02911d209e900e77dbbf \
+    --hash=sha256:790f506610980e0d407be1d7110758802112b68266582805b7faefe20408bf43
     # via -r dev-requirements.txt
 waitress==3.0.2 ; sys_platform == 'win32' \
     --hash=sha256:682aaaf2af0c44ada4abfb70ded36393f0e307f4ab9456a215ce0020baefc31f \

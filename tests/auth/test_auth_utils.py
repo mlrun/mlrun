@@ -59,7 +59,6 @@ def test_load_and_prepare_secret_tokens_valid(tmp_path, content, expected_count)
     """Test loading and validating valid secret tokens from file."""
     path = _write_file(tmp_path, "tokens.yml", content)
 
-    # Use the new combined utility function
     secret_tokens = auth_utils.load_and_prepare_secret_tokens(path)
     assert isinstance(secret_tokens, list)
     assert len(secret_tokens) == expected_count

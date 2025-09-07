@@ -17,6 +17,7 @@ import datetime
 import os
 import traceback
 import typing
+from asyncio import TimeoutError, wait_for
 from concurrent.futures import ThreadPoolExecutor
 
 import mlrun.common.constants as mlrun_constants
@@ -440,11 +441,18 @@ class NotificationPusher(_NotificationPusherBase):
             raise exc
         finally:
             logger.debug("async notif: status update begin")
-            await mlrun.utils.helpers.run_in_threadpool(
-                self._update_notification_status,
-                **update_notification_status_kwargs,
-            )
-            logger.debug("async notif: status update done")
+            try:
+                await wait_for(
+                    mlrun.utils.helpers.run_in_threadpool(
+                        self._update_notification_status,
+                        **update_notification_status_kwargs,
+                    ),
+                    timeout=10,
+                )
+                logger.debug("async notif: status update done!!!")
+            except TimeoutError:
+                logger.error("YAELLL status update hang (threadpool never returned)")
+                raise
 
     @staticmethod
     def _update_notification_status(

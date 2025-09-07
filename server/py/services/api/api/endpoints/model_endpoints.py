@@ -30,6 +30,7 @@ import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 import mlrun.utils.helpers
 from mlrun import MLRunInvalidArgumentError
+from mlrun.common.schemas import ModelEndpointList
 from mlrun.utils import logger
 
 import framework.api.deps
@@ -303,17 +304,18 @@ async def list_model_endpoints(
         db_session=db_session,
         as_dict=as_dict,
     )
-    allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        schemas.AuthorizationResourceTypes.model_endpoint,
-        endpoints.endpoints,
-        lambda _endpoint: (
-            _endpoint.metadata.project,
-            _endpoint.metadata.uid,
-        ),
-        auth_info,
-    )
+    if isinstance(endpoints, ModelEndpointList):
+        allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            schemas.AuthorizationResourceTypes.model_endpoint,
+            endpoints.endpoints,
+            lambda _endpoint: (
+                _endpoint.metadata.project,
+                _endpoint.metadata.uid,
+            ),
+            auth_info,
+        )
 
-    endpoints.endpoints = allowed_endpoints
+        endpoints.endpoints = allowed_endpoints
 
     return endpoints
 

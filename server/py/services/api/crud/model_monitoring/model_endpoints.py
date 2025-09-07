@@ -1040,7 +1040,10 @@ class ModelEndpoints:
         if function_name and function_tag is None:
             logger.info("Function tag not provided, setting to 'latest'")
             function_tag = DEFAULT_FUNCTION_TAG
-
+        if tsdb_metrics and as_dict:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot set tsdb_metrics when as_dict is True"
+            )
         logger.info(
             "Listing endpoints",
             names=names,

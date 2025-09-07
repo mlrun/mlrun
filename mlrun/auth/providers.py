@@ -66,7 +66,7 @@ class DynamicTokenProvider(TokenProvider):
             )
         self._token = None
         self._token_endpoint = token_endpoint
-        self.timeout = timeout
+        self._timeout = timeout
 
         # Since we're only issuing POST requests, which are actually a disguised GET, then it's ok to allow retries
         # on them.
@@ -107,7 +107,7 @@ class DynamicTokenProvider(TokenProvider):
             response = self._session.request(
                 "POST",
                 self._token_endpoint,
-                timeout=self.timeout,
+                timeout=self._timeout,
                 headers=headers,
                 data=request_body,
             )
@@ -150,7 +150,6 @@ class DynamicTokenProvider(TokenProvider):
         if self._token and self._is_token_valid(cleanup_if_expired=True):
             return self._token
 
-        # Use the offline token to fetch a new access token
         self.fetch_token(raise_on_error=raise_on_error)
         return self._token
 
@@ -200,8 +199,8 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
                 "Invalid client_id configuration for authentication. Must provide token endpoint, client-id and secret"
             )
         # should be set before calling the parent constructor
-        self.client_id = client_id
-        self.client_secret = client_secret
+        self._client_id = client_id
+        self._client_secret = client_secret
         super().__init__(token_endpoint=token_endpoint, timeout=timeout)
 
     def _cleanup(self):
@@ -237,8 +236,8 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         request_body = {
             "grant_type": "client_credentials",
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
+            "client_id": self._client_id,
+            "client_secret": self._client_secret,
         }
         return request_body, headers
 

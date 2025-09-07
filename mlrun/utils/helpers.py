@@ -2423,3 +2423,14 @@ def get_module_name_from_path(source_file_path: str) -> str:
         current_dir_path_object
     )
     return ".".join(relative_path_to_source_file.with_suffix("").parts)
+
+def iguazio_v4_only(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        if not mlrun.mlconf.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
+            )
+        return function(*args, **kwargs)
+
+    return wrapper

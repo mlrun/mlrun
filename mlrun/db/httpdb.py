@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import enum
-import functools
 import http
 import re
 import time
@@ -82,19 +81,6 @@ _artifact_keys = [
 
 def bool2str(val):
     return "yes" if val else "no"
-
-
-def iguazio_v4_only(function):
-    @functools.wraps(function)
-    def wrapper(*args, **kwargs):
-        authentication_mode = mlrun.mlconf.httpdb.authentication.mode
-        if authentication_mode != AuthenticationMode.IGUAZIO_V4:
-            raise mlrun.errors.MLRunRuntimeError(
-                "This method is only supported in an Iguazio V4 system."
-            )
-        return function(*args, **kwargs)
-
-    return wrapper
 
 
 class HTTPRunDB(RunDBInterface):
@@ -5236,7 +5222,7 @@ class HTTPRunDB(RunDBInterface):
             **response.json()
         )
 
-    @iguazio_v4_only
+    @mlrun.utils.iguazio_v4_only
     def store_secret_token(
         self,
         secret_token: mlrun.common.schemas.SecretToken,
@@ -5277,7 +5263,7 @@ class HTTPRunDB(RunDBInterface):
         # maybe the response should not be a list?
         return response
 
-    @iguazio_v4_only
+    @mlrun.utils.iguazio_v4_only
     def store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
@@ -5320,7 +5306,7 @@ class HTTPRunDB(RunDBInterface):
 
         return response
 
-    @iguazio_v4_only
+    @mlrun.utils.iguazio_v4_only
     def list_secret_tokens(
         self,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
@@ -5336,6 +5322,7 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
+    @mlrun.utils.iguazio_v4_only
     def _store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],

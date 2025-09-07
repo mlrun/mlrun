@@ -309,11 +309,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _iguazio_auth_configured():
-        return mlrun.mlconf.httpdb.authentication.mode == AuthenticationMode.IGUAZIO
+        return mlrun.mlconf.is_iguazio_mode()
 
     @staticmethod
     def _iguaziov4_auth_configured():
-        return mlrun.mlconf.httpdb.authentication.mode == AuthenticationMode.IGUAZIO_V4
+        return mlrun.mlconf.is_iguazio_v4_mode()
 
     @staticmethod
     def _parse_basic_auth(header):

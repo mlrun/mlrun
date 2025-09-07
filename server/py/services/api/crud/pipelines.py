@@ -18,7 +18,6 @@ import http
 import tempfile
 import traceback
 import typing
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import kfp_server_api
 import sqlalchemy.orm
@@ -111,7 +110,10 @@ class Pipelines(
 
         runs = self._filter_runs_by_name(runs, name_contains)
         runs = self._format_runs(runs, format_, kfp_client)
+        # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
+        # so don't pass it to the client in such case
         total_size = -1 if next_page_token else len(runs)
+
         return total_size, next_page_token, runs
 
     def delete_pipelines_runs(
@@ -668,7 +670,7 @@ class Pipelines(
         filter_: typing.Optional[str] = None,
     ) -> tuple[list[mlrun_pipelines.models.PipelineRun], typing.Optional[int]]:
         next_page_token = -1
-        mlrun.utils.logger.warning(
+        mlrun.utils.logger.debug(
             "Paginating runs from KFP",
             page_token=page_token,
             page_size=page_size,
@@ -699,7 +701,7 @@ class Pipelines(
                 )
                 runs.extend(page_runs)
                 page_token = next_page_token
-        mlrun.utils.logger.warning(
+        mlrun.utils.logger.debug(
             "Finished paginating runs from KFP",
             page_token=page_token,
             page_size=page_size,
@@ -718,26 +720,12 @@ class Pipelines(
         filter_: typing.Optional[str] = None,
     ) -> tuple[list[mlrun_pipelines.models.PipelineRun], typing.Optional[str]]:
         try:
-            mlrun.utils.logger.warning(
-                "Listing runs from KFP",
-                page_token=page_token,
-                page_size=page_size,
-                sort_by=sort_by,
-                filter_=filter_,
-            )
             response = kfp_client.list_runs(
                 page_token=page_token,
                 page_size=page_size
                 or mlrun.common.schemas.PipelinesPagination.default_page_size,
                 sort_by=sort_by if not page_token else "",
                 filter=filter_ if not page_token else "",
-            )
-            mlrun.utils.logger.warning(
-                "Recieved list runs response from KFP",
-                page_token=page_token,
-                page_size=page_size,
-                sort_by=sort_by,
-                filter_=filter_,
             )
         except kfp_server_api.ApiException as exc:
             # extract the summary of the error message from the exception
@@ -761,15 +749,8 @@ class Pipelines(
         kfp_client: mlrun_pipelines.client.Client = None,
     ) -> list[dict]:
         formatted_runs = []
-
-        def worker(run):
-            return self._format_run(run, format_, kfp_client)
-
-        with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(worker, run) for run in runs]
-            for future in as_completed(futures):
-                formatted_runs.append(future.result())
-
+        for run in runs:
+            formatted_runs.append(self._format_run(run, format_, kfp_client))
         return formatted_runs
 
     def _format_run(

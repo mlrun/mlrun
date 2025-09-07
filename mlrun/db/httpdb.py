@@ -45,8 +45,6 @@ import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
-from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
-from mlrun.common.types import AuthenticationMode
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun_pipelines.utils import compile_pipeline
 

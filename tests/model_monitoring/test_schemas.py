@@ -31,7 +31,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _parse_metric_fqn_to_monitoring_metric,
 )
 from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
-    _normalize_dict_for_v3io_frames,  # update with actual path
+    _normalize_dict_for_v3io_frames,
 )
 
 

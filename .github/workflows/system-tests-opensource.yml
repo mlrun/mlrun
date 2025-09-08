@@ -278,7 +278,9 @@ jobs:
         source venv/bin/activate
         python automation/system_test/prepare.py env \
           --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
 
     - name: Run system tests
       run: |

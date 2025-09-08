@@ -307,7 +307,7 @@ def test_args_integrity():
 
 def test_get_or_create_ctx_run_kind():
     # varify the default run kind is local
-    context = mlrun.get_or_create_ctx("ctx")
+    context = mlrun.get_or_create_ctx("ctx", project="dummy-project")
     assert context.labels.get("kind") == "local"
     assert context.state == "running"
     context.commit(completed=True)
@@ -335,7 +335,7 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
 ):
     monkeypatch.setenv(
         "MLRUN_EXEC_CONFIG",
-        '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
+        '{"spec":{},"metadata":{"project":"dummy-project", "uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
     )
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "spark"

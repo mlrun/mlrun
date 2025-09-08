@@ -96,7 +96,7 @@ class DynamicTokenProvider(TokenProvider):
         :param raise_on_error: Whether to raise an error if token retrieval fails.
         """
         try:
-            request_body, headers, request_type = self._build_token_request(
+            request_body, headers, body_type = self._build_token_request(
                 raise_on_error=True
             )
         except mlrun.errors.MLRunRuntimeError as err:
@@ -113,7 +113,7 @@ class DynamicTokenProvider(TokenProvider):
                 "headers": headers,
                 "verify": mlrun.mlconf.httpdb.http.verify,
             }
-            if request_type == "json":
+            if body_type == "json":
                 request_kwargs["json"] = request_body
             else:
                 request_kwargs["data"] = request_body

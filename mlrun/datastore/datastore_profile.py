@@ -19,6 +19,7 @@ import typing
 from urllib.parse import ParseResult, urlparse
 
 import pydantic.v1
+from deprecated import deprecated
 from mergedeep import merge
 
 import mlrun
@@ -138,6 +139,10 @@ class ConfigProfile(DatastoreProfile):
         return res
 
 
+@deprecated(
+    "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
+    "Use `DatastoreProfileKafkaStream` instead."
+)
 class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.v1.Field("kafka_target")
     _private_attributes = "kwargs_private"
@@ -158,8 +163,8 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
         return attributes
 
 
-class DatastoreProfileKafkaSource(DatastoreProfile):
-    type: str = pydantic.v1.Field("kafka_source")
+class DatastoreProfileKafkaStream(DatastoreProfile):
+    type: str = pydantic.v1.Field("kafka_stream")
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
     brokers: typing.Union[str, list[str]]
     topics: typing.Union[str, list[str]]
@@ -196,6 +201,14 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         ):
             attributes["sasl"] = sasl
         return attributes
+
+
+@deprecated(
+    "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
+    "Use `DatastoreProfileKafkaStream` instead."
+)
+class DatastoreProfileKafkaSource(DatastoreProfileKafkaStream):
+    type: str = pydantic.v1.Field("kafka_source")
 
 
 class DatastoreProfileV3io(DatastoreProfile):
@@ -524,6 +537,7 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "basic": DatastoreProfileBasic,
     "kafka_target": DatastoreProfileKafkaTarget,
     "kafka_source": DatastoreProfileKafkaSource,
+    "kafka_stream": DatastoreProfileKafkaStream,
     "dbfs": DatastoreProfileDBFS,
     "gcs": DatastoreProfileGCS,
     "az": DatastoreProfileAzureBlob,

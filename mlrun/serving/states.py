@@ -3414,7 +3414,7 @@ def _init_async_objects(context, steps):
                         else:
                             raise mlrun.errors.MLRunValueError(
                                 f"Received an unexpected stream profile type: {type(datastore_profile)}\n"
-                                "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+                                "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
                             )
                     elif stream_path.startswith("kafka://") or kafka_brokers:
                         topic, brokers = parse_kafka_url(stream_path, kafka_brokers)

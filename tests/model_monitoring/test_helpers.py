@@ -36,8 +36,8 @@ from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.datastore import KafkaOutputStream, OutputStream
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
-    DatastoreProfileKafkaSource,
-    DatastoreProfileKafkaTarget,
+    DatastoreProfileKafkaStream,
+    DatastoreProfileS3,
     DatastoreProfileV3io,
 )
 from mlrun.db.nopdb import NopDB
@@ -580,7 +580,7 @@ def test_get_kafka_topic(
     ("profile", "expected_output_stream_type"),
     [
         (
-            DatastoreProfileKafkaSource(
+            DatastoreProfileKafkaStream(
                 name="test-kafka-profile",
                 brokers=["localhost"],
                 topics=[],
@@ -620,16 +620,14 @@ def test_get_output_stream_unsupported() -> None:
         mlrun.errors.MLRunValueError,
         match=(
             r".*an unexpected stream profile type: "
-            r"<class 'mlrun\.datastore\.datastore_profile\.DatastoreProfileKafkaTarget'>"
+            r"<class 'mlrun\.datastore\.datastore_profile\.DatastoreProfileS3'>"
             r".*"
         ),
     ):
         get_output_stream(
             project="nmo",
             function_name="model-monitoring-controller",
-            profile=DatastoreProfileKafkaTarget(
-                name="k-tgt", brokers="localhost", topic="t1"
-            ),
+            profile=DatastoreProfileS3(name="k-tgt", bucket="b2"),
         )
 
 

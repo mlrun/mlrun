@@ -28,7 +28,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.common.schemas import ModelEndpointCreationStrategy
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
-    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaStream,
     DatastoreProfileRedis,
     DatastoreProfileV3io,
     register_temporary_client_datastore_profile,
@@ -264,7 +264,7 @@ def serving_output_stream(
         )
         expected_stream_type = OutputStream
     elif request.param == "kafka":
-        profile = DatastoreProfileKafkaSource(
+        profile = DatastoreProfileKafkaStream(
             name=stream_profile_name,
             brokers=["localhost"],
             topics=[],
@@ -1316,7 +1316,7 @@ def test_stream_is_set(serving_fn: ServingRuntime) -> None:
     ("stream_profile", "expectation"),
     [
         (
-            DatastoreProfileKafkaSource(
+            DatastoreProfileKafkaStream(
                 name="kafka-profile",
                 brokers=["localhost"],
                 topics=[],
@@ -1330,7 +1330,7 @@ def test_stream_is_set(serving_fn: ServingRuntime) -> None:
             ),
             pytest.raises(
                 mlrun.errors.MLRunValueError,
-                match="Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`",
+                match="Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`",
             ),
         ),
     ],

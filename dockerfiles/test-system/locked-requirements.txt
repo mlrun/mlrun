@@ -1978,9 +1978,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.138.14 \
-    --hash=sha256:1a702ecfff7034b3252d7a83328093388641cdba863197169559839e841c2154 \
-    --hash=sha256:5c1aa1ce3f1094b5c04ea03476017695bda408a174330e5275e40ddd06d3307a
+hypothesis==6.138.15 \
+    --hash=sha256:6b0e1aa182eacde87110995a3543530d69ef411f642162a656efcd46c2823ad1 \
+    --hash=sha256:b7cf743d461c319eb251a13c8e1dcf00f4ef7085e4ab5bf5abf102b2a5ffd694
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -2184,9 +2184,9 @@ jsonschema==4.25.1 \
     #   jupyter-events
     #   kfp
     #   nbformat
-jsonschema-specifications==2025.4.1 \
-    --hash=sha256:4653bffbd6584f7de83a67e0d620ef16900b390ddc7939d56684d6c81e33f1af \
-    --hash=sha256:630159c9f4dbea161a6a2205c3011cc4f18ff381b189fff48bb39b9bf26ae608
+jsonschema-specifications==2025.9.1 \
+    --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe \
+    --hash=sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d
     # via jsonschema
 jupyter-client==8.6.3 \
     --hash=sha256:35b3a0947c4a6e9d589eb97d7d4cd5e90f910ee73101611f01283732bd6d9419 \
@@ -5174,8 +5174,8 @@ statsmodels==0.14.5 \
     --hash=sha256:f2ad5aee04ae7196c429df2174df232c057e478c5fa63193d01c8ec9aae04d31 \
     --hash=sha256:f402fc793458dd6d96e099acb44cd1de1428565bf7ef3030878a8daff091f08a
     # via evidently
-storey==1.10.11 \
-    --hash=sha256:73f7cf36e01a0401856032f7aa10e4cd8d948004508f1f3a211b706768626d0d
+storey==1.10.12 \
+    --hash=sha256:5d125d534b44a941e1c132a43be0ad687acb6890806fe63fc589edae04a7f75f
     # via -r requirements.txt
 strip-hints==0.1.13 ; python_full_version < '3.11' \
     --hash=sha256:1feaebde61269ba0dea1e7f093df7ff9d4df4980cce7e3c22ed6d86ae43dbd06 \

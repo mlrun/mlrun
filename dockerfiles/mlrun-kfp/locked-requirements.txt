@@ -1580,9 +1580,9 @@ jsonschema==4.25.1 \
     #   jupyter-events
     #   kfp
     #   nbformat
-jsonschema-specifications==2025.4.1 \
-    --hash=sha256:4653bffbd6584f7de83a67e0d620ef16900b390ddc7939d56684d6c81e33f1af \
-    --hash=sha256:630159c9f4dbea161a6a2205c3011cc4f18ff381b189fff48bb39b9bf26ae608
+jsonschema-specifications==2025.9.1 \
+    --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe \
+    --hash=sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d
     # via jsonschema
 jupyter-client==8.6.3 \
     --hash=sha256:35b3a0947c4a6e9d589eb97d7d4cd5e90f910ee73101611f01283732bd6d9419 \
@@ -3961,8 +3961,8 @@ starlette==0.47.3 \
     --hash=sha256:6bc94f839cc176c4858894f1f8908f0ab79dfec1a6b8402f6da9be26ebea52e9 \
     --hash=sha256:89c0778ca62a76b826101e7c709e70680a1699ca7da6b44d38eb0a7e61fe4b51
     # via fastapi
-storey==1.10.11 \
-    --hash=sha256:73f7cf36e01a0401856032f7aa10e4cd8d948004508f1f3a211b706768626d0d
+storey==1.10.12 \
+    --hash=sha256:5d125d534b44a941e1c132a43be0ad687acb6890806fe63fc589edae04a7f75f
     # via -r requirements.txt
 strip-hints==0.1.13 ; python_full_version < '3.11' \
     --hash=sha256:1feaebde61269ba0dea1e7f093df7ff9d4df4980cce7e3c22ed6d86ae43dbd06 \

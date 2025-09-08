@@ -14,6 +14,7 @@
 import random
 from copy import copy
 from datetime import timedelta
+from enum import Enum
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -29,6 +30,17 @@ from mlrun.common.model_monitoring.helpers import (
 )
 from mlrun.common.schemas import MonitoringData
 from mlrun.utils import get_data_from_path, logger
+
+
+class MatchingEndpointsState(Enum):
+    all_matched = "all_matched"
+    not_all_matched = "not_all_matched"
+    no_check_needed = "no_check_needed"
+    not_yet_checked = "not_yet_matched"
+
+    @property
+    def success_states(self) -> set["MatchingEndpointsState"]:
+        return {self.all_matched, self.no_check_needed}
 
 
 class MonitoringPreProcessor(storey.MapClass):
@@ -319,8 +331,11 @@ class BackgroundTaskStatus(storey.MapClass):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.matching_endpoints: MatchingEndpointsState = (
+            MatchingEndpointsState.not_yet_checked
+        )
+        self.graph_model_endpoint_uids = None
         self.listed_model_endpoint_uids = []
-        self.model_runner_uids: dict[str, list[str]] = {}
         self.server: mlrun.serving.GraphServer = (
             getattr(self.context, "server", None) if self.context else None
         )
@@ -346,48 +361,44 @@ class BackgroundTaskStatus(storey.MapClass):
                 self._background_task_check_timestamp,
                 self.listed_model_endpoint_uids,
             ) = get_model_endpoints_creation_task_status(self.server)
-        if self.listed_model_endpoint_uids:
-            model_runner_name = event._metadata.get("model_runner_name", "")
-            if model_runner_name not in self.model_runner_uids:
-                step = (
-                    self.server.graph.steps[model_runner_name] if self.server else None
+        if (
+            self.listed_model_endpoint_uids
+            and self.matching_endpoints == MatchingEndpointsState.not_yet_checked
+        ):
+            if not self.graph_model_endpoint_uids:
+                self.graph_model_endpoint_uids = collect_model_endpoint_uids(
+                    self.server
                 )
-                if not step or not hasattr(step, "monitoring_data"):
-                    raise mlrun.errors.MLRunRuntimeError(
-                        f"ModelRunnerStep name {model_runner_name} is not found in the graph or does not have "
-                        f"monitoring data"
-                    )
-                monitoring_data = step.monitoring_data
-                current_uids = []
-                if len(monitoring_data) > 1:
-                    for model in event.body.keys():
-                        current_uids.append(
-                            monitoring_data[model].get(
-                                mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
-                            )
-                        )
-                else:
-                    model = list(monitoring_data.keys())[0]
-                    current_uids.append(
-                        monitoring_data[model].get(
-                            mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
-                        )
-                    )
-                self.model_runner_uids[model_runner_name] = current_uids
-            matching_endpoints = set(
-                self.model_runner_uids[model_runner_name]
-            ).issubset(set(self.listed_model_endpoint_uids))
-        else:
-            matching_endpoints = True
+
+            if set(self.graph_model_endpoint_uids).issubset(
+                set(self.listed_model_endpoint_uids)
+            ):
+                self.matching_endpoints = MatchingEndpointsState.all_matched
+        elif not self.listed_model_endpoint_uids:
+            self.matching_endpoints = MatchingEndpointsState.no_check_needed
 
         if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
-            and matching_endpoints
+            and self.matching_endpoints in MatchingEndpointsState.success_states
         ):
             return event
         else:
             return None
+
+
+def collect_model_endpoint_uids(server: mlrun.serving.GraphServer) -> list[str]:
+    """Collects all model endpoint UIDs from the server's graph steps."""
+    model_endpoint_uids = []
+    for step in server.graph.steps.values():
+        if hasattr(step, "monitoring_data"):
+            for model in step.monitoring_data.keys():
+                uid = step.monitoring_data[model].get(
+                    mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+                )
+                if uid:
+                    model_endpoint_uids.append(uid)
+    return model_endpoint_uids
 
 
 class SamplingStep(storey.MapClass):

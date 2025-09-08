@@ -1,7 +1,7 @@
 # Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-# You may not use this file except in compliance with the License.
+# you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #   http://www.apache.org/licenses/LICENSE-2.0
@@ -28,10 +28,10 @@ from mlrun.config import config
 
 def test_get_offline_token_from_env(monkeypatch):
     monkeypatch.setenv("MLRUN_AUTH_OFFLINE_TOKEN", "env-token")
-    token = mlrun.auth.utils._get_offline_token_from_env()
+    token = mlrun.auth.utils.get_offline_token_from_env()
     assert token == "env-token"
     monkeypatch.delenv("MLRUN_AUTH_OFFLINE_TOKEN", raising=False)
-    assert mlrun.auth.utils._get_offline_token_from_env() is None
+    assert mlrun.auth.utils.get_offline_token_from_env() is None
 
 
 @pytest.mark.parametrize(
@@ -102,7 +102,7 @@ def test_parse_offline_token_data_cases(data, token_name, expected_token, monkey
         "mlrun.config.config.auth_with_oauth_token.auth_token_name", token_name
     )
     # Suppress raising errors, we just check return value
-    token = mlrun.auth.utils._parse_offline_token_data(data, raise_on_error=False)
+    token = mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=False)
     assert token == expected_token
 
 

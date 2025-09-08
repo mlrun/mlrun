@@ -109,7 +109,7 @@ creating a user with login to configure in the secret.
 ```
 Where:
 
-- `<your-registry-server>` is your Private Docker Registry FQDN. (https://registry.hub.docker.com/ for Docker Hub).
+- `<your-registry-server>` is your Private Docker Registry FQDN. (`index.docker.io/<your-username>` for Docker Hub).
 - `<your-username>` is your Docker username.
 - `<your-password>` is your Docker password.
 - `<your-email>` is your Docker email.

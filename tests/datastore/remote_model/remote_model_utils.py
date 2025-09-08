@@ -163,7 +163,9 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
         model_configuration = {}
         all_messages = []
         for event in body["input"]:
-            messages, model_configuration = self.enrich_prompt(event, origin_name)
+            messages, model_configuration = self.enrich_prompt(
+                event, origin_name, llm_prompt_artifact=self.invocation_artifact
+            )
             all_messages.extend(messages)
         return await self.predict_async(
             body, messages=all_messages, model_configuration=model_configuration

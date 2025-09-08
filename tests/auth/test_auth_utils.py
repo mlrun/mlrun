@@ -22,7 +22,6 @@ import yaml
 import mlrun.auth.utils
 import mlrun.common.schemas
 import mlrun.errors
-from mlrun.auth import utils as auth_utils
 from mlrun.config import config
 
 
@@ -39,59 +38,37 @@ def test_get_offline_token_from_env(monkeypatch):
     [
         # 1. Valid default token
         (
-            {"secretTokens": [{"name": "default", "token": "file-token"}]},
+            [{"name": "default", "token": "file-token"}],
             None,
             "file-token",
         ),
         # 2. Valid token with custom name
         (
-            {"secretTokens": [{"name": "custom", "token": "custom-token"}]},
+            [{"name": "custom", "token": "custom-token"}],
             "custom",
             "custom-token",
         ),
-        # 3. secretTokens missing
+        # # 3. secretTokens not a list
+        ("not-a-list", None, None),
+        # # 4. secretTokens empty list
+        ([], None, None),
+        # 5. Multiple matching tokens
         (
-            {},
+            [
+                {"name": "default", "token": "t1"},
+                {"name": "default", "token": "t2"},
+            ],
             None,
             None,
         ),
-        # 4. secretTokens not a list
+        # 6. Token entry missing 'token' field
+        ([{"name": "default"}], None, None),
+        # 7. Empty default token name, no default, use 1st token
         (
-            {"secretTokens": "not-a-list"},
-            None,
-            None,
-        ),
-        # 5. secretTokens empty list
-        (
-            {"secretTokens": []},
-            None,
-            None,
-        ),
-        # 6. Multiple matching tokens
-        (
-            {
-                "secretTokens": [
-                    {"name": "default", "token": "t1"},
-                    {"name": "default", "token": "t2"},
-                ]
-            },
-            None,
-            None,
-        ),
-        # 7. Token entry missing 'token' field
-        (
-            {"secretTokens": [{"name": "default"}]},
-            None,
-            None,
-        ),
-        # 8. Empty default token name, no default, use 1st token
-        (
-            {
-                "secretTokens": [
-                    {"name": "token1", "token": "file-token1"},
-                    {"name": "token2", "token": "file-token2"},
-                ]
-            },
+            [
+                {"name": "token1", "token": "file-token1"},
+                {"name": "token2", "token": "file-token2"},
+            ],
             None,
             "file-token1",
         ),
@@ -101,7 +78,6 @@ def test_parse_offline_token_data_cases(data, token_name, expected_token, monkey
     monkeypatch.setattr(
         "mlrun.config.config.auth_with_oauth_token.auth_token_name", token_name
     )
-    # Suppress raising errors, we just check return value
     token = mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=False)
     assert token == expected_token
 
@@ -109,31 +85,22 @@ def test_parse_offline_token_data_cases(data, token_name, expected_token, monkey
 @pytest.mark.parametrize(
     "data, token_name",
     [
-        # secretTokens missing
-        ({}, None),
-        # secretTokens not a list
-        ({"secretTokens": "not-a-list"}, None),
-        # secretTokens empty
-        ({"secretTokens": []}, None),
-        # Multiple matching tokens
+        ([], None),
+        ("not-a-list", None),
         (
-            {
-                "secretTokens": [
-                    {"name": "default", "token": "t1"},
-                    {"name": "default", "token": "t2"},
-                ]
-            },
+            [
+                {"name": "default", "token": "t1"},
+                {"name": "default", "token": "t2"},
+            ],
             None,
         ),
-        # Token entry missing 'token'
-        ({"secretTokens": [{"name": "default"}]}, None),
+        ([{"name": "default"}], None),
     ],
 )
 def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch):
     monkeypatch.setattr(
         "mlrun.config.config.auth_with_oauth_token.auth_token_name", token_name
     )
-
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=True)
 
@@ -141,11 +108,8 @@ def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch)
 @pytest.mark.parametrize(
     "env_token, file_token, expected",
     [
-        # env token exists
         ("env-token", None, "env-token"),
-        # only file token exists
         (None, "file-token", "file-token"),
-        # token missing
         (None, None, None),
     ],
 )
@@ -176,17 +140,11 @@ def test_token_file_not_exists(monkeypatch):
 @pytest.mark.parametrize(
     "file_content, expected_token, raise_on_error",
     [
-        # Valid token file with default name
         ({"secretTokens": [{"name": "default", "token": "abc123"}]}, "abc123", True),
-        # Valid token file with custom name
         ({"secretTokens": [{"name": "custom", "token": "xyz789"}]}, "xyz789", True),
-        # Missing token field
         ({"secretTokens": [{"name": "default"}]}, None, False),
-        # Empty secretTokens list
         ({"secretTokens": []}, None, False),
-        # Invalid secretTokens type
         ({"secretTokens": "not-a-list"}, None, False),
-        # Malformed YAML case (special marker)
         ("__MALFORMED__", None, True),
     ],
 )
@@ -195,21 +153,19 @@ def test_get_offline_token_from_file(
 ):
     token_file = tmp_path / "token.yaml"
 
-    # Write content to file
     if file_content == "__MALFORMED__":
-        # Write invalid YAML
         token_file.write_text("invalid: [unbalanced brackets")
     else:
-        with open(token_file, "w") as f:
-            yaml.safe_dump(file_content, f)
+        if isinstance(file_content, dict):
+            yaml.safe_dump(file_content, token_file.open("w"))
+        else:
+            token_file.write_text(file_content)
 
-    # Monkeypatch config to point to temp file
     monkeypatch.setattr(
-        "mlrun.config.config.auth_with_oauth_token.auth_token_file", str(token_file)
+        config.auth_with_oauth_token, "auth_token_file", str(token_file)
     )
 
     if expected_token is None and raise_on_error:
-        # Expect MLRunRuntimeError
         with pytest.raises(mlrun.errors.MLRunRuntimeError):
             mlrun.auth.utils.get_offline_token_from_file(raise_on_error=True)
     else:
@@ -223,34 +179,32 @@ def test_get_offline_token_from_file(
     "content,expected_count",
     [
         (
-            textwrap.dedent(
-                """
-                secretTokens:
-                  - name: token1
-                    token: abc123
-                """
-            ),
+            textwrap.dedent("""\
+            secretTokens:
+              - name: token1
+                token: abc123
+        """),
             1,
         ),
         (
-            textwrap.dedent(
-                """
-                secretTokens:
-                  - name: token1
-                    token: abc123
-                  - name: token2
-                    token: def456
-                """
-            ),
+            textwrap.dedent("""\
+            secretTokens:
+              - name: token1
+                token: abc123
+              - name: token2
+                token: def456
+        """),
             2,
         ),
     ],
 )
-def test_load_and_prepare_secret_tokens_valid(tmp_path, content, expected_count):
-    """Test loading and validating valid secret tokens from file."""
+def test_load_and_prepare_secret_tokens_valid(
+    tmp_path, content, expected_count, monkeypatch
+):
     path = _write_file(tmp_path, "tokens.yml", content)
+    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", path)
 
-    secret_tokens = auth_utils.load_and_prepare_secret_tokens(path)
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
     assert isinstance(secret_tokens, list)
     assert len(secret_tokens) == expected_count
     assert all(isinstance(t, mlrun.common.schemas.SecretToken) for t in secret_tokens)
@@ -259,126 +213,94 @@ def test_load_and_prepare_secret_tokens_valid(tmp_path, content, expected_count)
 @pytest.mark.parametrize(
     "content",
     [
-        # Missing secretTokens field
-        textwrap.dedent(
-            """
+        textwrap.dedent("""\
             notSecretTokens:
               - name: token1
                 token: abc123
-            """
-        ),
-        # Empty secretTokens list
-        textwrap.dedent(
-            """
+        """),
+        textwrap.dedent("""\
             secretTokens: []
-            """
-        ),
-        # Wrong type (dict instead of list)
-        textwrap.dedent(
-            """
+        """),
+        textwrap.dedent("""\
             secretTokens:
               token1: abc123
-            """
-        ),
+        """),
     ],
 )
-def test_load_secret_tokens_from_file_invalid(tmp_path, content):
-    """
-    Test that loading invalid secret token files raises MLRunRuntimeError.
-    """
+def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
     path = _write_file(tmp_path, "tokens.yml", content)
+    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", path)
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        auth_utils.load_secret_tokens_from_file(path)
+        mlrun.auth.utils.load_secret_tokens_from_file()
 
 
 @pytest.mark.parametrize(
     "content",
     [
-        # Missing name field
-        textwrap.dedent(
-            """
+        textwrap.dedent("""\
             secretTokens:
               - token: abc123
-            """
-        ),
-        # Duplicate name
-        textwrap.dedent(
-            """
+        """),
+        textwrap.dedent("""\
             secretTokens:
               - name: dup
                 token: abc123
               - name: dup
                 token: def456
-            """
-        ),
-        # Missing token field
-        textwrap.dedent(
-            """
+        """),
+        textwrap.dedent("""\
             secretTokens:
               - name: missing_token
-            """
-        ),
+        """),
     ],
 )
-def test_validate_secret_tokens_invalid_entries(tmp_path, content):
-    """
-    Test that validate_secret_tokens raises MLRunRuntimeError for invalid token entries:
-    - Missing 'name' or 'token' field
-    - Duplicate token names
-    """
+def test_validate_secret_tokens_invalid_entries(tmp_path, content, monkeypatch):
     path = _write_file(tmp_path, "tokens.yml", content)
-
-    # Load tokens without raising for file-level issues
-    tokens_list = auth_utils.load_secret_tokens_from_file(path, raise_on_error=False)
-
+    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", path)
+    tokens_list = mlrun.auth.utils.load_secret_tokens_from_file(raise_on_error=False)
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        auth_utils.validate_secret_tokens(tokens_list, path)
+        mlrun.auth.utils.validate_secret_tokens(tokens_list)
 
 
-def test_read_secret_tokens_file_non_existent(tmp_path):
-    """Test reading a file that does not exist."""
+def test_read_secret_tokens_file_non_existent(tmp_path, monkeypatch):
     file_path = tmp_path / "does_not_exist.yml"
+    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", str(file_path))
 
-    # Should return None if raise_on_error=False
-    result = auth_utils.read_secret_tokens_file(str(file_path), raise_on_error=False)
+    result = mlrun.auth.utils.read_secret_tokens_file(raise_on_error=False)
     assert result is None
 
-    # Should raise MLRunRuntimeError if raise_on_error=True
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        auth_utils.read_secret_tokens_file(str(file_path), raise_on_error=True)
+        mlrun.auth.utils.read_secret_tokens_file(raise_on_error=True)
 
 
-def test_read_secret_tokens_file_alternative_extension(tmp_path):
-    """Test that the function correctly reads a file with alternative extension fallback."""
-    yml_content = """
-    secretTokens:
-      - name: token1
-        token: abc123
-    """
-    yaml_content = """
-    secretTokens:
-      - name: token2
-        token: def456
-    """
+def test_read_secret_tokens_file_alternative_extension(tmp_path, monkeypatch):
+    yml_content = textwrap.dedent("""\
+        secretTokens:
+          - name: token1
+            token: abc123
+    """)
+    yaml_content = textwrap.dedent("""\
+        secretTokens:
+          - name: token2
+            token: def456
+    """)
 
-    # Write both files
     yml_path = _write_file(tmp_path, "tokens.yml", yml_content)
     _write_file(tmp_path, "tokens.yaml", yaml_content)
 
-    # Case 1: Read existing .yml
-    result = auth_utils.read_secret_tokens_file(yml_path)
+    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", yml_path)
+    result = mlrun.auth.utils.read_secret_tokens_file()
     assert result["secretTokens"][0]["name"] == "token1"
 
-    # Remove .yml to force fallback to .yaml
     os.remove(yml_path)
-
-    # Case 2: Read non-existent .yml, should fallback to .yaml
-    result = auth_utils.read_secret_tokens_file(yml_path)
+    result = mlrun.auth.utils.read_secret_tokens_file()
     assert result["secretTokens"][0]["name"] == "token2"
 
 
-def _write_file(tmp_path, name: str, content: str) -> str:
-    """Helper to write YAML content to a file under tmp_path and return the path."""
+def _write_file(tmp_path, name: str, content) -> str:
     file_path = tmp_path / name
-    file_path.write_text(content)
+    if isinstance(content, dict):
+        yaml.safe_dump(content, file_path.open("w"))
+    else:
+        file_path.write_text(content)
     return str(file_path)

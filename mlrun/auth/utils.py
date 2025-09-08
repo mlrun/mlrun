@@ -182,15 +182,10 @@ def parse_offline_token_data(
     :param raise_on_error: Whether to raise an error or log a warning on failure.
     :return: The resolved offline token, or None if resolution fails.
     """
-    if not tokens:
+    if not isinstance(tokens, list) or not tokens:
         mlrun.utils.helpers.raise_or_log_error(
-            "No tokens available to resolve offline token", raise_on_error
-        )
-        return None
-
-    if not isinstance(tokens, list):
-        mlrun.utils.helpers.raise_or_log_error(
-            f"Expected a list of tokens, got {type(tokens).__name__}", raise_on_error
+            "Invalid token file: 'secretTokens' must be a non-empty list",
+            raise_on_error,
         )
         return None
 

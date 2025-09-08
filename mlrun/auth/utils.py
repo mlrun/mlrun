@@ -18,50 +18,93 @@ import typing
 import yaml
 
 import mlrun.common.schemas
-import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.config import config
 
 
+def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
+    """
+    Load the offline token from the environment variable or YAML file.
+    The function first attempts to retrieve the offline token from the environment variable.
+    If not found, it tries to load the token from a YAML file. If both methods fail, it either
+    raises an error or logs a warning based on the `raise_on_error` parameter.
+    :param raise_on_error: If True, raises an error when the offline token cannot be resolved.
+                           If False, logs a warning instead.
+    :return: The offline token if found, otherwise None.
+    """
+    if token_env := _get_offline_token_from_env():
+        return token_env
+    return _get_offline_token_from_file(raise_on_error=raise_on_error)
+
+
 def load_and_prepare_secret_tokens(
-    token_file: str, raise_on_error: bool = True
+    raise_on_error: bool = True,
 ) -> list[mlrun.common.schemas.SecretToken]:
     """
     Load, validate, and translate secret tokens from a file into SecretToken objects.
 
-    :param token_file: Path to the secret tokens file.
-    :param raise_on_error: Whether to raise exceptions on errors.
+    Steps performed:
+      1. Load the secret tokens from the configured file.
+      2. Validate each token for required fields and uniqueness.
+      3. Translate validated token dictionaries into SecretToken objects.
+
+    :param raise_on_error: Whether to raise exceptions or log warnings on failure
+                           in any of the steps (loading, validation, translation).
     :return: List of SecretToken objects.
+    :rtype: list[mlrun.common.schemas.SecretToken]
     """
-    tokens_list = load_secret_tokens_from_file(
-        token_file, raise_on_error=raise_on_error
-    )
+    tokens_list = _load_secret_tokens_from_file(raise_on_error=raise_on_error)
     validated_tokens = _validate_secret_tokens(
-        tokens_list, token_file, raise_on_error=raise_on_error
+        tokens_list, raise_on_error=raise_on_error
     )
     secret_tokens = _translate_secret_tokens(
-        validated_tokens, token_file, raise_on_error=raise_on_error
+        validated_tokens, raise_on_error=raise_on_error
     )
     return secret_tokens
 
 
-def load_secret_tokens_from_file(
-    token_file: typing.Optional[str] = None,
+def _get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[str]:
+    """
+    Retrieve the offline token from a configured file.
+    This function reads the token file specified in the configuration, parses its content,
+    and extracts the offline token. If the file does not exist or cannot be parsed, it either
+    raises an error or logs a warning based on the `raise_on_error` parameter.
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The offline token if found, otherwise None.
+    """
+    tokens = _load_secret_tokens_from_file(raise_on_error=raise_on_error)
+    if not tokens:
+        return None
+    return _parse_offline_token_data(tokens=tokens, raise_on_error=raise_on_error)
+
+
+def _load_secret_tokens_from_file(
     raise_on_error: bool = True,
 ) -> list[dict]:
     """
-    Load and parse secret tokens from a file.
+    Load and parse secret tokens from a configured file.
 
-    This function reads the token file and returns the raw list of token dictionaries.
-    It does NOT validate the tokens.
+    This function reads the secret tokens file (specified in
+    ``config.auth_with_oauth_token.auth_token_file``) and returns the raw list
+    of token dictionaries under the ``secretTokens`` key. It does NOT validate
+    the tokens.
 
-    :param token_file: Path to the secret tokens file. If None, uses MLRun config.
+    If the file is missing, empty, or malformed, the behavior depends on
+    ``raise_on_error``. In such cases, the function will either raise/log an
+    error and return an empty list.
+
     :param raise_on_error: Whether to raise exceptions on read/parse failure.
-    :return: List of token dictionaries from 'secretTokens'.
+    :return: List of token dictionaries from ``secretTokens``.
+             Returns an empty list if parsing fails or no tokens exist.
+    :rtype: list[dict[str, Any]]
     """
-    token_file = token_file or config.auth_with_oauth_token.auth_token_file
-    data = _read_secret_tokens_file(token_file, raise_on_error=raise_on_error)
+    token_file = os.path.expanduser(config.auth_with_oauth_token.auth_token_file)
+    data = _read_secret_tokens_file(raise_on_error=raise_on_error)
     if not data:
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Token file is empty or could not be parsed: {token_file}",
+            raise_on_error,
+        )
         return []
 
     tokens_list = data.get("secretTokens")
@@ -76,17 +119,25 @@ def load_secret_tokens_from_file(
 
 
 def _read_secret_tokens_file(
-    token_file: str, raise_on_error: bool = True
-) -> typing.Optional[dict]:
+    raise_on_error: bool = True,
+) -> typing.Optional[dict[str, typing.Any]]:
     """
-    Read and parse a secret tokens file as a dictionary.
-    Supports both .yaml and .yml extensions for igz files.
+    Read and parse the secret tokens file.
 
-    :param token_file: Path to the secret tokens file.
-    :param raise_on_error: Whether to raise exceptions on failure.
-    :return: Parsed file content as a dictionary, or None if an error occurs.
+    This function attempts to read the token file specified in the configuration
+    and parse its content as YAML.
+
+    Supports both ``.yaml`` and ``.yml`` extensions and will attempt to use the
+    alternate extension if the file with the configured extension does not exist.
+
+    If the file does not exist, is empty, or cannot be parsed, the behavior
+    depends on ``raise_on_error``: either raise an error or log a warning.
+
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The parsed content of the token file as a dictionary, or None if an error occurs.
+    :rtype: Optional[dict[str, Any]]
     """
-    token_file = os.path.expanduser(token_file)
+    token_file = os.path.expanduser(config.auth_with_oauth_token.auth_token_file)
 
     # If the file doesn't exist, try the alternative extension
     if not os.path.exists(token_file):
@@ -110,7 +161,20 @@ def _read_secret_tokens_file(
 
     try:
         with open(token_file) as token_file_io:
-            return yaml.safe_load(token_file_io)
+            data = yaml.safe_load(token_file_io)
+            if not data:
+                mlrun.utils.helpers.raise_or_log_error(
+                    f"Token file {token_file} is empty or invalid",
+                    raise_on_error,
+                )
+                return None
+            if not isinstance(data, dict):
+                mlrun.utils.helpers.raise_or_log_error(
+                    f"Token file {token_file} must contain a YAML mapping (dictionary)",
+                    raise_on_error,
+                )
+                return None
+            return data
     except yaml.YAMLError as exc:
         mlrun.utils.helpers.raise_or_log_error(
             f"Failed to parse token file {token_file}: {exc}", raise_on_error
@@ -118,41 +182,102 @@ def _read_secret_tokens_file(
         return None
 
 
+def _parse_offline_token_data(
+    tokens: list[dict[str, typing.Any]], raise_on_error: bool = True
+) -> typing.Optional[str]:
+    """
+    Extract the correct offline token entry from the parsed tokens list.
+
+    Logic:
+    1. Determine the target token name:
+       - If ``config.auth_with_oauth_token.auth_token_name`` is set, use it.
+       - Otherwise, default to "default".
+    2. Look for a matching token entry by name:
+       - If found, use it.
+       - If not found:
+         - If no name was configured, fall back to the first token in the list.
+         - Otherwise, resolution fails.
+    3. Validate the matched entry:
+       - Ensure it has a non-empty ``token`` field.
+       - If valid, return it as the resolved offline token.
+
+    :param tokens: List of token dictionaries loaded from the YAML file.
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The resolved offline token string, or None if resolution fails.
+    :rtype: Optional[str]
+    """
+    token_name = config.auth_with_oauth_token.auth_token_name or "default"
+
+    # Try to find an entry matching the configured/default name
+    matches = [t for t in tokens if t.get("name") == token_name]
+
+    # If no configured name was set, fall back to the first entry if available
+    if not matches and not config.auth_with_oauth_token.auth_token_name and tokens:
+        matches = [tokens[0]]
+
+    if len(matches) != 1:
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Failed to resolve a unique token. Found {len(matches)} entries for name '{token_name}'",
+            raise_on_error,
+        )
+        return None
+
+    token_value = matches[0].get("token")
+    if not token_value or not isinstance(token_value, str):
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Resolved token entry for '{token_name}' is missing a valid 'token' field",
+            raise_on_error,
+        )
+        return None
+
+    return token_value
+
+
+def _get_offline_token_from_env() -> typing.Optional[str]:
+    """
+    Retrieve the offline token from the environment variable.
+    This function checks the environment for the `MLRUN_AUTH_OFFLINE_TOKEN` variable
+    and returns its value if set.
+    :return: The offline token if found in the environment, otherwise None.
+    """
+    return mlrun.secrets.get_secret_or_env("MLRUN_AUTH_OFFLINE_TOKEN")
+
+
 def _validate_secret_tokens(
-    tokens_list: list[dict], token_file: str, raise_on_error: bool = True
-) -> list[dict]:
+    tokens_list: list[dict[str, typing.Any]], raise_on_error: bool = True
+) -> list[dict[str, typing.Any]]:
     """
     Validate a list of token dictionaries.
 
     Checks performed:
       - Each token has a non-empty 'name' and 'token'.
-        (If raise_on_error=False, invalid entries will be ignored)
+        If raise_on_error=False, invalid entries are ignored.
       - No duplicate token names.
-        (If raise_on_error=False, duplicates will be ignored)
+        If raise_on_error=False, duplicates are ignored.
 
-    :param tokens_list: List of token dictionaries.
-    :param token_file: Path to the file (used in error messages).
+    :param tokens_list: List of token dictionaries to validate.
     :param raise_on_error: Whether to raise exceptions on invalid entries.
     :return: List of validated token dictionaries.
+    :rtype: list[dict[str, Any]]
     """
     valid_tokens = []
     seen = set()
 
-    token_file = os.path.expanduser(token_file)
+    token_file = os.path.expanduser(config.auth_with_oauth_token.auth_token_file)
     for token in tokens_list:
         name = token.get("name")
         token_value = token.get("token")
 
-        if not name or not token_value:
-            # If raise_on_error=False, this invalid entry will be ignored
+        if not name or not isinstance(token_value, str) or not token_value.strip():
+            # Invalid entry
             mlrun.utils.helpers.raise_or_log_error(
-                f"Invalid token entry in {token_file}: missing 'name' or 'token'",
+                f"Invalid token entry in {token_file}: missing or empty 'name' or 'token'",
                 raise_on_error,
             )
             continue
 
         if name in seen:
-            # If raise_on_error=False, this duplicate will be ignored
+            # Duplicate entry
             mlrun.utils.helpers.raise_or_log_error(
                 f"Duplicate token name '{name}' found in {token_file}",
                 raise_on_error,
@@ -166,17 +291,21 @@ def _validate_secret_tokens(
 
 
 def _translate_secret_tokens(
-    tokens_list: list[dict], token_file: str, raise_on_error: bool = True
+    tokens_list: list[dict[str, typing.Any]], raise_on_error: bool = True
 ) -> list[mlrun.common.schemas.SecretToken]:
     """
-    Translate a list of validated token dictionaries to SecretToken objects.
+    Translate a list of validated token dictionaries into SecretToken objects.
+
+    Each dictionary in the list must be validated and contain the required fields
+    for SecretToken creation. If an entry fails to translate, behavior depends on
+    ``raise_on_error``: raise an exception or log a warning.
 
     :param tokens_list: List of validated token dictionaries.
-    :param token_file: Path to the file (used in error messages).
     :param raise_on_error: Whether to raise exceptions on translation errors.
-    :return: List of SecretToken objects.
+    :return: List of SecretToken objects created from the input dictionaries.
+    :rtype: list[mlrun.common.schemas.SecretToken]
     """
-    token_file = os.path.expanduser(token_file)
+    token_file = os.path.expanduser(config.auth_with_oauth_token.auth_token_file)
     tokens = []
     for token in tokens_list:
         try:

@@ -223,9 +223,7 @@ def sync_secret_tokens() -> None:
     # TODO: Runtime Context Check - Avoid sending a backend request when running inside a runtime, where secrets
     #  are already injected via Kubernetes and syncing is unnecessary
 
-    token_file = mlrun.mlconf.auth_with_oauth_token.auth_token_file
-
-    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(token_file)
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
 
     # The log_warning=False flag ensures the SDK doesn’t log unnecessary warnings about local file updates, since
     # this method reads from the file, not updates it.

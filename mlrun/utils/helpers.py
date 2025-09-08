@@ -2314,6 +2314,7 @@ def iguazio_v4_only(function):
 def raise_or_log_error(message: str, raise_on_error: bool = True):
     """
     Handle errors by either raising an exception or logging a warning.
+
     :param message: The error message.
     :param raise_on_error: If True, raises an exception. Otherwise, logs a warning.
     """

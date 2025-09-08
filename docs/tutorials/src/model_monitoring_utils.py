@@ -2,7 +2,7 @@ import os
 
 import mlrun
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaStream,
     DatastoreProfileTDEngine,
     DatastoreProfileV3io,
 )
@@ -32,7 +32,7 @@ def enable_model_monitoring(
             port="6041",
         )
 
-        stream_profile = DatastoreProfileKafkaSource(
+        stream_profile = DatastoreProfileKafkaStream(
             name=stream_profile_name,
             brokers=f"kafka-stream.{mlrun_namespace}.svc.cluster.local:9092",
             topics=[],

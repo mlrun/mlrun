@@ -193,7 +193,7 @@ tsdb_profile = DatastoreProfileTDEngine(
 project.register_datastore_profile(tsdb_profile)
 
 # Create and register stream profile
-stream_profile = DatastoreProfileKafkaSource(
+stream_profile = DatastoreProfileKafkaStream(
     name="my-kafka",
     brokers=["<kafka-broker-ip-address>:9094"],
     topics=[],

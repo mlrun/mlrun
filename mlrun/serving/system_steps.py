@@ -333,11 +333,9 @@ class BackgroundTaskStatus(storey.MapClass):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.matching_endpoints: MatchingEndpointsState = (
-            MatchingEndpointsState.not_yet_checked
-        )
-        self.graph_model_endpoint_uids = None
-        self.listed_model_endpoint_uids = []
+        self.matching_endpoints = MatchingEndpointsState.not_yet_checked
+        self.graph_model_endpoint_uids: set = set()
+        self.listed_model_endpoint_uids: set = set()
         self.server: mlrun.serving.GraphServer = (
             getattr(self.context, "server", None) if self.context else None
         )
@@ -372,11 +370,9 @@ class BackgroundTaskStatus(storey.MapClass):
                     self.server
                 )
 
-            if set(self.graph_model_endpoint_uids).issubset(
-                set(self.listed_model_endpoint_uids)
-            ):
+            if self.graph_model_endpoint_uids.issubset(self.listed_model_endpoint_uids):
                 self.matching_endpoints = MatchingEndpointsState.all_matched
-        elif not self.listed_model_endpoint_uids:
+        elif self.listed_model_endpoint_uids is None:
             self.matching_endpoints = MatchingEndpointsState.no_check_needed
 
         if (
@@ -389,9 +385,9 @@ class BackgroundTaskStatus(storey.MapClass):
             return None
 
 
-def collect_model_endpoint_uids(server: mlrun.serving.GraphServer) -> list[str]:
+def collect_model_endpoint_uids(server: mlrun.serving.GraphServer) -> set[str]:
     """Collects all model endpoint UIDs from the server's graph steps."""
-    model_endpoint_uids = []
+    model_endpoint_uids = set()
     for step in server.graph.steps.values():
         if hasattr(step, "monitoring_data"):
             for model in step.monitoring_data.keys():
@@ -399,7 +395,7 @@ def collect_model_endpoint_uids(server: mlrun.serving.GraphServer) -> list[str]:
                     mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
                 )
                 if uid:
-                    model_endpoint_uids.append(uid)
+                    model_endpoint_uids.add(uid)
     return model_endpoint_uids
 
 

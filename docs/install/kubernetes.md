@@ -413,10 +413,11 @@ Set up the following project-secrets (refer to [**Data stores**](../store/datast
 for any project used:
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; S3 credentials
-* `S3_ENDPOINT_URL` &mdash; the AWS S3 endpoint to use, depending on the region. For example: 
+* `AWS_ENDPOINT_URL_S3` &mdash; the AWS S3 endpoint to use, depending on the region. For example: 
     ``` console
-    S3_ENDPOINT_URL = https://s3.us-east-2.amazonaws.com/
+    AWS_ENDPOINT_URL_S3 = https://s3.us-east-2.amazonaws.com/
     ```
+    **Note**: `S3_ENDPOINT_URL` is deprecated as of v1.10.0 and will be removed in v1.12.0. Use `AWS_ENDPOINT_URL_S3` instead.
 
 ### Disabling auto-mount
 

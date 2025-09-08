@@ -232,7 +232,7 @@ class DatastoreProfileS3(DatastoreProfile):
         if self.secret_key:
             res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
         if self.endpoint_url:
-            res["S3_ENDPOINT_URL"] = self.endpoint_url
+            res["AWS_ENDPOINT_URL_S3"] = self.endpoint_url
         if self.force_non_anonymous:
             res["S3_NON_ANONYMOUS"] = self.force_non_anonymous
         if self.profile_name:

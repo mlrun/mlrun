@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import textwrap
 from unittest.mock import patch
 
 import pytest
@@ -213,3 +215,47 @@ def test_get_offline_token_from_file(
             raise_on_error=raise_on_error
         )
         assert token == expected_token
+
+
+def test_read_secret_tokens_file_non_existent(tmp_path, monkeypatch):
+    file_path = tmp_path / "does_not_exist.yml"
+    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", str(file_path))
+
+    result = mlrun.auth.utils.read_secret_tokens_file(raise_on_error=False)
+    assert result is None
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        mlrun.auth.utils.read_secret_tokens_file(raise_on_error=True)
+
+
+def test_read_secret_tokens_file_alternative_extension(tmp_path, monkeypatch):
+    yml_content = textwrap.dedent("""\
+        secretTokens:
+          - name: token1
+            token: abc123
+    """)
+    yaml_content = textwrap.dedent("""\
+        secretTokens:
+          - name: token2
+            token: def456
+    """)
+
+    yml_path = _write_file(tmp_path, "tokens.yml", yml_content)
+    _write_file(tmp_path, "tokens.yaml", yaml_content)
+
+    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", yml_path)
+    result = mlrun.auth.utils.read_secret_tokens_file()
+    assert result["secretTokens"][0]["name"] == "token1"
+
+    os.remove(yml_path)
+    result = mlrun.auth.utils.read_secret_tokens_file()
+    assert result["secretTokens"][0]["name"] == "token2"
+
+
+def _write_file(tmp_path, name: str, content) -> str:
+    file_path = tmp_path / name
+    if isinstance(content, dict):
+        yaml.safe_dump(content, file_path.open("w"))
+    else:
+        file_path.write_text(content)
+    return str(file_path)

@@ -14,7 +14,6 @@
 import random
 from copy import copy
 from datetime import timedelta
-from enum import Enum
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -32,15 +31,18 @@ from mlrun.common.schemas import MonitoringData
 from mlrun.utils import get_data_from_path, logger
 
 
-class MatchingEndpointsState(Enum):
+class MatchingEndpointsState(mlrun.common.types.StrEnum):
     all_matched = "all_matched"
     not_all_matched = "not_all_matched"
     no_check_needed = "no_check_needed"
     not_yet_checked = "not_yet_matched"
 
-    @property
-    def success_states(self) -> set["MatchingEndpointsState"]:
-        return {self.all_matched, self.no_check_needed}
+    @staticmethod
+    def success_states() -> list[str]:
+        return [
+            MatchingEndpointsState.all_matched,
+            MatchingEndpointsState.no_check_needed,
+        ]
 
 
 class MonitoringPreProcessor(storey.MapClass):
@@ -380,7 +382,7 @@ class BackgroundTaskStatus(storey.MapClass):
         if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
-            and self.matching_endpoints in MatchingEndpointsState.success_states
+            and self.matching_endpoints in MatchingEndpointsState.success_states()
         ):
             return event
         else:

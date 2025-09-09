@@ -14,7 +14,7 @@
 
 from typing import Optional
 
-import psycopg2
+import psycopg
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
@@ -95,7 +95,7 @@ class TimescaleDBOperationsHandler:
             self._connection.run(
                 statements=["CREATE EXTENSION IF NOT EXISTS timescaledb"]
             )
-        except psycopg2.errors.DuplicateObject:
+        except psycopg.errors.DuplicateObject:
             # Extension already loaded - this is fine
             pass
         except Exception:
@@ -429,23 +429,23 @@ class TimescaleDBOperationsHandler:
                 tuple([schema_name] + parameters[1:]),
             )
 
-            # Build separate pattern conditions for materialized views (use matviewname column)
+            # Build separate pattern conditions for TimescaleDB continuous aggregates
             view_pattern_conditions = []
             view_parameters = [schema_name]
 
             for pattern in base_patterns:
-                # For materialized views, only look for _cagg_ pattern
-                view_pattern_conditions.append("matviewname LIKE %s")
+                # For continuous aggregates, look for _cagg_ pattern
+                view_pattern_conditions.append("view_name LIKE %s")
                 view_parameters.append(TimescaleDBNaming.get_cagg_pattern(pattern))
 
-            # Discover materialized views (continuous aggregates)
+            # Discover TimescaleDB continuous aggregates (use TimescaleDB catalog, not pg_matviews)
             views_stmt = Statement(
                 f"""
-                SELECT matviewname as table_name
-                FROM pg_matviews
-                WHERE schemaname = %s
+                SELECT view_name as table_name
+                FROM timescaledb_information.continuous_aggregates
+                WHERE view_schema = %s
                 AND ({' OR '.join(view_pattern_conditions)})
-                ORDER BY matviewname
+                ORDER BY view_name
                 """,
                 tuple(view_parameters),
             )

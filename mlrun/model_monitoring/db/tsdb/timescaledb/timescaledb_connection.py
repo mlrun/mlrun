@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
 import time
-from threading import Lock
 from typing import Callable, Optional, Union
 
 import pandas as pd
-import psycopg2
-import psycopg2.pool
+import psycopg
+from psycopg_pool import ConnectionPool
 
 import mlrun.errors
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateHandler
@@ -81,16 +79,16 @@ class Statement:
             cursor.execute(self.sql, self.parameters)
 
 
-# Global connection pool and lock
-_connection_pool = None
-_connection_lock = Lock()
-
-
 class TimescaleDBConnection:
     """
     TimescaleDB connection with shared connection pool and parameterized query support.
 
     """
+
+    # TimescaleDB version requirements
+    MIN_TIMESCALEDB_VERSION = (
+        "2.7.0"  # Minimum version with finalized continuous aggregates
+    )
 
     def __init__(
         self,
@@ -109,31 +107,97 @@ class TimescaleDBConnection:
         self.prefix_statements: list[Union[str, Statement]] = []
         self._autocommit = autocommit
 
-    def pool(self) -> psycopg2.pool.ThreadedConnectionPool:
-        """Get or create the shared connection pool (thread-safe singleton pattern)."""
-        global _connection_pool
+        # Connection pools (lazy initialization)
+        self._pool: Optional[ConnectionPool] = None
+        self._timescaledb_version: Optional[str] = None
+        self._version_checked: bool = False
 
-        if _connection_pool:
-            return _connection_pool
-
-        with _connection_lock:
-            if not _connection_pool:
-                _connection_pool = self._create_pool()
-
-        return _connection_pool
-
-    def _create_pool(self) -> psycopg2.pool.ThreadedConnectionPool:
-        """Create a new shared connection pool."""
-        try:
-            return psycopg2.pool.ThreadedConnectionPool(
-                minconn=self._min_connections,
-                maxconn=self._max_connections,
-                dsn=self._dsn,
+    @property
+    def pool(self) -> ConnectionPool:
+        """Get or create the synchronous connection pool."""
+        if self._pool is None:
+            self._pool = ConnectionPool(
+                conninfo=self._dsn,
+                min_size=self._min_connections,
+                max_size=self._max_connections,
+                timeout=30.0,
             )
-        except psycopg2.Error as e:
+        return self._pool
+
+    def _parse_version(self, version_string: str) -> tuple[int, int, int]:
+        """Parse TimescaleDB version string into comparable tuple."""
+        try:
+            # Handle versions like "2.22.0", "2.7.1-dev", etc.
+            version_parts = version_string.split("-")[0].split(".")
+            major = int(version_parts[0])
+            minor = int(version_parts[1]) if len(version_parts) > 1 else 0
+            patch = int(version_parts[2]) if len(version_parts) > 2 else 0
+            return (major, minor, patch)
+        except (ValueError, IndexError) as e:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed to create connection pool: {e}"
+                f"Invalid TimescaleDB version format: {version_string}"
             ) from e
+
+    def _version_compare(self, version1: str, version2: str) -> int:
+        """Compare two version strings. Returns -1, 0, or 1."""
+        v1_tuple = self._parse_version(version1)
+        v2_tuple = self._parse_version(version2)
+
+        if v1_tuple < v2_tuple:
+            return -1
+        elif v1_tuple > v2_tuple:
+            return 1
+        else:
+            return 0
+
+    def _check_timescaledb_version(self) -> None:
+        """Check TimescaleDB version and raise error if less than 2.7.0."""
+        if self._version_checked:
+            return
+
+        try:
+            with self.pool.connection() as conn:
+                with conn.cursor() as cursor:
+                    # Check if TimescaleDB extension is installed
+                    cursor.execute(
+                        "SELECT extversion FROM pg_extension WHERE extname = %s",
+                        ("timescaledb",),
+                    )
+                    result = cursor.fetchone()
+
+                    if not result:
+                        raise mlrun.errors.MLRunRuntimeError(
+                            "TimescaleDB extension is not installed"
+                        )
+
+                    self._timescaledb_version = result[0]
+
+                    # Check minimum version (2.7.0+)
+                    if (
+                        self._version_compare(
+                            self._timescaledb_version, self.MIN_TIMESCALEDB_VERSION
+                        )
+                        < 0
+                    ):
+                        raise mlrun.errors.MLRunRuntimeError(
+                            f"TimescaleDB version {self._timescaledb_version} is not supported. "
+                            f"Minimum required version: {self.MIN_TIMESCALEDB_VERSION} "
+                            f"(required for finalized continuous aggregates)"
+                        )
+
+        except psycopg.Error as e:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to check TimescaleDB version: {e}"
+            ) from e
+        finally:
+            self._version_checked = True
+
+    @property
+    def timescaledb_version(self) -> Optional[str]:
+        """Get the TimescaleDB version (triggers version check if not done)."""
+        if not self._version_checked:
+            self._check_timescaledb_version()
+        return self._timescaledb_version
 
     def run(
         self,
@@ -153,19 +217,23 @@ class TimescaleDBConnection:
         :param query: Optional query to execute after statements. Can be str or Statement.
         :return: QueryResult if query provided, None otherwise
         """
+        # Perform version check on first use
+        if not self._version_checked:
+            self._check_timescaledb_version()
+
         statements = self._normalize_statements(statements)
 
         for attempt in range(self._max_retries + 1):
             try:
                 return self._execute_operation(statements, query)
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+            except (psycopg.OperationalError, psycopg.InterfaceError) as e:
                 if attempt < self._max_retries:
                     self._handle_retry(attempt)
                 else:
                     raise mlrun.errors.MLRunRuntimeError(
                         f"Database operation failed after {self._max_retries + 1} attempts: {e}"
                     ) from e
-            except psycopg2.Error as e:
+            except psycopg.Error as e:
                 raise mlrun.errors.MLRunRuntimeError(
                     f"Database operation failed: {e}"
                 ) from e
@@ -189,25 +257,20 @@ class TimescaleDBConnection:
         query: Optional[Union[str, Statement]],
     ) -> Optional[QueryResult]:
         """Execute a single database operation (statements + optional query)."""
-        conn = self.pool().getconn()
-        conn.autocommit = self._autocommit
-        cursor = None
+        with self.pool.connection() as conn:
+            conn.autocommit = self._autocommit
 
-        try:
-            cursor = conn.cursor()
+            with conn.cursor() as cursor:
+                try:
+                    self._execute_statements(cursor, statements)
+                    if not self._autocommit:
+                        conn.commit()
 
-            self._execute_statements(cursor, statements)
-            if not self._autocommit:
-                conn.commit()
-
-            return self._execute_query(cursor, query) if query else None
-        except Exception:
-            if not self._autocommit:
-                with contextlib.suppress(Exception):
-                    conn.rollback()
-            raise
-        finally:
-            self._cleanup_connection(conn, cursor)
+                    return self._execute_query(cursor, query) if query else None
+                except Exception:
+                    if not self._autocommit:
+                        conn.rollback()
+                    raise
 
     def _execute_statements(
         self, cursor, statements: list[Union[str, Statement]]
@@ -235,7 +298,7 @@ class TimescaleDBConnection:
             cursor.execute(query)
 
         if cursor.description:
-            field_names = [desc[0] for desc in cursor.description]
+            field_names = [desc.name for desc in cursor.description]
             results = cursor.fetchall()
             data = [tuple(row) for row in results]
             return QueryResult(data, field_names)
@@ -246,21 +309,6 @@ class TimescaleDBConnection:
         """Handle retry logic with exponential backoff."""
         wait_time = self._retry_delay * (2**attempt)
         time.sleep(wait_time)
-
-    def _cleanup_connection(self, conn, cursor) -> None:
-        """Clean up connection and cursor resources."""
-        # Clean up cursor
-        if cursor:
-            with contextlib.suppress(Exception):
-                cursor.close()
-        # Return connection to pool if healthy
-        if conn and not conn.closed:
-            try:
-                self.pool().putconn(conn)
-            except Exception:
-                # If putconn fails, just close the connection
-                with contextlib.suppress(Exception):
-                    conn.close()
 
     def execute_with_fallback(
         self,

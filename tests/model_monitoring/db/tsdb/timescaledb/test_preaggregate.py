@@ -56,33 +56,39 @@ class TestPreAggregateHandler:
         """Test validation fails when no config but params provided."""
         handler = PreAggregateHandler()
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"Pre-aggregate configuration not available",
+        ):
             handler.validate_interval_and_function("1h", None)
-        assert "Pre-aggregate configuration not available" in str(exc_info.value)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"Pre-aggregate configuration not available",
+        ):
             handler.validate_interval_and_function(None, "avg")
-        assert "Pre-aggregate configuration not available" in str(exc_info.value)
 
     def test_validate_interval_and_function_invalid_interval(self):
         """Test validation fails for invalid interval."""
         config = MockPreAggregateConfig(intervals=["1h", "1d"])
         handler = PreAggregateHandler(config)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"Interval '5m' not available.*Available intervals: \['1h', '1d'\]",
+        ):
             handler.validate_interval_and_function("5m", "avg")
-        assert "Interval '5m' not available" in str(exc_info.value)
-        assert "Available intervals: ['1h', '1d']" in str(exc_info.value)
 
     def test_validate_interval_and_function_invalid_function(self):
         """Test validation fails for invalid aggregation function."""
         config = MockPreAggregateConfig(functions=["sum", "avg"])
         handler = PreAggregateHandler(config)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"Aggregation function 'median' not available.*Available functions: \['sum', 'avg'\]",
+        ):
             handler.validate_interval_and_function("1h", "median")
-        assert "Aggregation function 'median' not available" in str(exc_info.value)
-        assert "Available functions: ['sum', 'avg']" in str(exc_info.value)
 
     def test_validate_interval_and_function_valid_params(self):
         """Test validation passes for valid parameters."""
@@ -267,13 +273,17 @@ class TestPreAggregateHandler:
 
     def test_get_start_end_invalid_types(self):
         """Test get_start_end raises error for invalid types."""
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"Both start and end must be datetime objects",
+        ):
             PreAggregateHandler.get_start_end("2025-01-01", None)
-        assert "Both start and end must be datetime objects" in str(exc_info.value)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"Both start and end must be datetime objects",
+        ):
             PreAggregateHandler.get_start_end(None, "2025-01-15")
-        assert "Both start and end must be datetime objects" in str(exc_info.value)
 
     def test_multiple_interval_formats(self):
         """Test various interval format edge cases."""

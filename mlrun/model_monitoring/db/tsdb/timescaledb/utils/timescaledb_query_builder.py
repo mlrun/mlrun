@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Union
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -41,7 +41,9 @@ class TimescaleDBQueryBuilder:
             )
 
     @staticmethod
-    def build_time_range_filter(start, end, time_column: str) -> str:
+    def build_time_range_filter(
+        start: datetime, end: datetime, time_column: str
+    ) -> str:
         """
         Generate SQL filter for time range.
 
@@ -67,7 +69,7 @@ class TimescaleDBQueryBuilder:
             return f"{mm_schemas.WriterEvent.APPLICATION_NAME} IN ('{app_list}')"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid 'app_names' filter: must be a string or a list."
+                "Invalid 'app_names' filter: must be either a string or a list of strings"
             )
 
     @staticmethod
@@ -133,7 +135,7 @@ class TimescaleDBQueryBuilder:
         :param operator: SQL operator to use (AND/OR)
         :return: Combined filter string or None if no filters
         """
-        if valid_filters := [f for f in filters if f and f.strip()]:
+        if valid_filters := [f for f in filters if f.strip()]:
             return (
                 valid_filters[0]
                 if len(valid_filters) == 1
@@ -154,7 +156,6 @@ class TimescaleDBQueryBuilder:
         :param end: End time
         :return: Optimal interval string (in Python format like "1h", "1d")
         """
-        from datetime import timedelta
 
         # Calculate the time difference to determine appropriate interval
         time_diff = end - start

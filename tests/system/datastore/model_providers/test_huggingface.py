@@ -114,6 +114,10 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         self.setup_datastore_profile(
             task="image-classification", model_name=self.image_classification_model
         )
+
+        # cat.jpg – free for personal & commercial use (Unsplash license)
+        # https://unsplash.com/photos/brown-tabby-cat-on-white-stairs-mJaD10XeD7w
+        # https://unsplash.com/license
         image_local_path = os.path.join(self.assets_path, "cat.jpg")
         artifact = self.project.log_artifact(
             "my_artifact", local_path=image_local_path, upload=True

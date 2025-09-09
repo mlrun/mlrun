@@ -64,6 +64,10 @@ class TestBasicHuggingFaceProvider:
         cls.basic_llm_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
         cls.image_classification_model = "microsoft/resnet-50"
         cls.system_prompt_llm_model = "microsoft/Phi-3-mini-4k-instruct"
+
+        # cat.jpg – free for personal & commercial use (Unsplash license):
+        # https://unsplash.com/photos/brown-tabby-cat-on-white-stairs-mJaD10XeD7w
+        # https://unsplash.com/license
         cls.image_path = os.path.join(os.path.dirname(__file__), "cat.jpg")
 
     @classmethod

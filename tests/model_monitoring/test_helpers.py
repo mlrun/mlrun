@@ -36,6 +36,7 @@ from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.datastore import KafkaOutputStream, OutputStream
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
+    DatastoreProfileKafkaSource,
     DatastoreProfileKafkaStream,
     DatastoreProfileS3,
     DatastoreProfileV3io,
@@ -581,6 +582,17 @@ def test_get_kafka_topic(
     [
         (
             DatastoreProfileKafkaStream(
+                name="test-kafka-profile",
+                brokers=["localhost"],
+                topics=[],
+                sasl_user="user1",
+                sasl_pass="1234",
+                kwargs_public={"api_version": (3, 9)},
+            ),
+            KafkaOutputStream,
+        ),
+        (
+            DatastoreProfileKafkaSource(
                 name="test-kafka-profile",
                 brokers=["localhost"],
                 topics=[],

@@ -8070,13 +8070,13 @@ class SQLDB(DBInterface):
         limit: typing.Optional[int] = None,
         order_by: typing.Optional[str] = None,
         as_dict: bool = False,
-    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict[str, ModelEndpoint]]:
+    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict[str, str]]:
         if not as_dict:
             model_endpoints: mlrun.common.schemas.ModelEndpointList = (
                 mlrun.common.schemas.ModelEndpointList(endpoints=[])
             )
         else:
-            model_endpoints: dict[str, ModelEndpoint] = {}
+            model_endpoints: dict[str, str] = {}
         for mep_record in self._find_model_endpoints(
             session=session,
             names=names,
@@ -8106,7 +8106,7 @@ class SQLDB(DBInterface):
                         f"{mep_record.project}-{mep_record.function.name}-"
                         f"{self._get_obj_tag_prioritizing_user_tag(mep_record.function.tags)}-{mep_record.name}"
                     )
-                ] = mep_record
+                ] = mep_record.uid
         return model_endpoints
 
     def delete_model_endpoint(

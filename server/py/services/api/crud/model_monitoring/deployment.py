@@ -65,7 +65,6 @@ import framework.utils.clients.async_nuclio
 import framework.utils.singletons.k8s
 import services.api.crud
 import services.api.crud.model_monitoring.helpers
-from framework.db.sqldb.models import ModelEndpoint
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
@@ -1996,7 +1995,7 @@ class MonitoringDeployment:
                 else None
             )
 
-        model_endpoints_dict: dict[str, ModelEndpoint] = await run_in_threadpool(
+        model_endpoints_dict: dict[str, str] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
             function_name=function_name,
@@ -2033,7 +2032,7 @@ class MonitoringDeployment:
             mlrun.serving.states.RouterStep, mlrun.serving.states.RootFlowStep
         ],
         sampling_percentage: float,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
         user_function_name: typing.Optional[str] = None,
@@ -2085,7 +2084,7 @@ class MonitoringDeployment:
         track_models: bool,
         router_step: mlrun.serving.states.RouterStep,
         sampling_percentage: float,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
         user_function_name: typing.Optional[str] = None,
@@ -2190,7 +2189,7 @@ class MonitoringDeployment:
         track_models: bool,
         root_flow_step: mlrun.serving.states.RootFlowStep,
         sampling_percentage: float,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
         user_function_name: typing.Optional[str] = None,
@@ -2276,16 +2275,16 @@ class MonitoringDeployment:
         project: str,
         function_name: str,
         function_tag: str,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         creation_strategy: str,
         endpoint_name: str,
     ) -> str:
-        old_model_endpoint = model_endpoints_dict.get(
+        old_model_endpoint_uid = model_endpoints_dict.get(
             f"{project}-{function_name}-{function_tag}-{endpoint_name}"
         )
         uid = (
-            old_model_endpoint.uid
-            if old_model_endpoint
+            old_model_endpoint_uid
+            if old_model_endpoint_uid
             and creation_strategy == mm_constants.ModelEndpointCreationStrategy.INPLACE
             else uuid.uuid4().hex
         )
@@ -2398,7 +2397,7 @@ class MonitoringDeployment:
         track_models: bool,
         model_runner: mlrun.serving.states.ModelRunnerStep,
         sampling_percentage: float,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
         user_function_name: typing.Optional[str] = None,

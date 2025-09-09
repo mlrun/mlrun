@@ -96,7 +96,9 @@ class DynamicTokenProvider(TokenProvider):
         :param raise_on_error: Whether to raise an error if token retrieval fails.
         """
         try:
-            request_body, headers = self._build_token_request(raise_on_error=True)
+            request_body, headers, body_type = self._build_token_request(
+                raise_on_error=True
+            )
         except mlrun.errors.MLRunRuntimeError as err:
             mlrun.utils.raise_or_log_error(
                 f"Failed to build token request. Error: {err}", raise_on_error
@@ -104,13 +106,19 @@ class DynamicTokenProvider(TokenProvider):
             return
 
         try:
-            response = self._session.request(
-                "POST",
-                self._token_endpoint,
-                timeout=self._timeout,
-                headers=headers,
-                data=request_body,
-            )
+            request_kwargs = {
+                "method": "POST",
+                "url": self._token_endpoint,
+                "timeout": self._timeout,
+                "headers": headers,
+                "verify": mlrun.mlconf.httpdb.http.verify,
+            }
+            if body_type == "json":
+                request_kwargs["json"] = request_body
+            else:
+                request_kwargs["data"] = request_body
+
+            response = self._session.request(**request_kwargs)
         except requests.RequestException as exc:
             error = f"Retrieving token failed: {mlrun.errors.err_to_str(exc)}"
             if raise_on_error:
@@ -239,7 +247,7 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
             "client_id": self._client_id,
             "client_secret": self._client_secret,
         }
-        return request_body, headers
+        return request_body, headers, "data"
 
     def _parse_response(self, data: dict):
         # Response is described in https://datatracker.ietf.org/doc/html/rfc6749#section-4.4.3
@@ -324,7 +332,7 @@ class IGTokenProvider(DynamicTokenProvider):
 
         headers = {"Content-Type": "application/json"}
         request_body = {"refreshToken": offline_token}
-        return request_body, headers
+        return request_body, headers, "json"
 
     def _parse_response(self, response_data: dict, raise_on_error=False):
         """

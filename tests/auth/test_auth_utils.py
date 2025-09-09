@@ -78,6 +78,7 @@ def test_parse_offline_token_data_cases(data, token_name, expected_token, monkey
     monkeypatch.setattr(
         "mlrun.config.config.auth_with_oauth_token.auth_token_name", token_name
     )
+    # Suppress raising errors, we just check return value
     token = mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=False)
     assert token == expected_token
 
@@ -101,6 +102,7 @@ def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch)
     monkeypatch.setattr(
         "mlrun.config.config.auth_with_oauth_token.auth_token_name", token_name
     )
+
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=True)
 
@@ -108,8 +110,11 @@ def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch)
 @pytest.mark.parametrize(
     "env_token, file_token, expected",
     [
+        # env token exists
         ("env-token", None, "env-token"),
+        # only file token exists
         (None, "file-token", "file-token"),
+        # token missing
         (None, None, None),
     ],
 )
@@ -140,11 +145,17 @@ def test_token_file_not_exists(monkeypatch):
 @pytest.mark.parametrize(
     "file_content, expected_token, raise_on_error",
     [
+        # Valid token file with default name
         ({"secretTokens": [{"name": "default", "token": "abc123"}]}, "abc123", True),
+        # Valid token file with custom name
         ({"secretTokens": [{"name": "custom", "token": "xyz789"}]}, "xyz789", True),
+        # Missing token field
         ({"secretTokens": [{"name": "default"}]}, None, False),
+        # Empty secretTokens list
         ({"secretTokens": []}, None, False),
+        # Invalid secretTokens type
         ({"secretTokens": "not-a-list"}, None, False),
+        # Malformed YAML case (special marker)
         ("__MALFORMED__", None, True),
     ],
 )
@@ -153,7 +164,9 @@ def test_get_offline_token_from_file(
 ):
     token_file = tmp_path / "token.yaml"
 
+    # Write content to file
     if file_content == "__MALFORMED__":
+        # Write invalid YAML
         token_file.write_text("invalid: [unbalanced brackets")
     else:
         if isinstance(file_content, dict):
@@ -161,11 +174,13 @@ def test_get_offline_token_from_file(
         else:
             token_file.write_text(file_content)
 
+    # Monkeypatch config to point to temp file
     monkeypatch.setattr(
-        config.auth_with_oauth_token, "auth_token_file", str(token_file)
+        "mlrun.config.config.auth_with_oauth_token.auth_token_file", str(token_file)
     )
 
     if expected_token is None and raise_on_error:
+        # Expect MLRunRuntimeError
         with pytest.raises(mlrun.errors.MLRunRuntimeError):
             mlrun.auth.utils.get_offline_token_from_file(raise_on_error=True)
     else:
@@ -295,6 +310,47 @@ def test_read_secret_tokens_file_alternative_extension(tmp_path, monkeypatch):
     os.remove(yml_path)
     result = mlrun.auth.utils.read_secret_tokens_file()
     assert result["secretTokens"][0]["name"] == "token2"
+
+
+@pytest.mark.parametrize(
+    "file_name, file_content, raise_on_error, expect_error, expected_result",
+    [
+        # 1. Empty file
+        ("tokens.yaml", "", True, True, None),
+        ("tokens.yaml", "", False, False, None),
+        # 2. Non-dict YAML (list at root)
+        ("tokens.yaml", "- just-a-list-item", True, True, None),
+        ("tokens.yaml", "- just-a-list-item", False, False, None),
+        # 3. Non-yaml extension (no fallback logic triggered)
+        (
+            "tokens.txt",
+            {"secretTokens": [{"name": "n1", "token": "t1"}]},
+            True,
+            False,
+            {"secretTokens": [{"name": "n1", "token": "t1"}]},
+        ),
+    ],
+)
+def test_read_secret_tokens_file_edge_cases(
+    tmp_path,
+    monkeypatch,
+    file_name,
+    file_content,
+    raise_on_error,
+    expect_error,
+    expected_result,
+):
+    # Use shared helper to write file
+    file_path = _write_file(tmp_path, file_name, file_content)
+
+    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", str(file_path))
+
+    if expect_error and raise_on_error:
+        with pytest.raises(mlrun.errors.MLRunRuntimeError):
+            mlrun.auth.utils.read_secret_tokens_file(raise_on_error=raise_on_error)
+    else:
+        result = mlrun.auth.utils.read_secret_tokens_file(raise_on_error=raise_on_error)
+        assert result == expected_result
 
 
 def _write_file(tmp_path, name: str, content) -> str:

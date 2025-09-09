@@ -106,8 +106,10 @@ def read_secret_tokens_file(
     If the file does not exist or cannot be parsed, it either raises an error or logs a warning based on the
     `raise_on_error` parameter.
 
-    Supports both ``.yaml`` and ``.yml`` extensions and will attempt to use the
-    alternate extension if the file with the configured extension does not exist.
+    - Supports both ``.yaml`` and ``.yml`` extensions and will attempt to use the
+      alternate extension if the file with the configured extension does not exist.
+    - The configured path may use ``~`` to represent the user’s home directory, which
+      will be expanded automatically.
 
     :param raise_on_error: Whether to raise an error or log a warning on failure.
     :return: The parsed content of the token file as a dictionary, or None if an error occurs.
@@ -124,32 +126,35 @@ def read_secret_tokens_file(
                 token_file = alt_file
             else:
                 mlrun.utils.helpers.raise_or_log_error(
-                    f"Token file not found at {token_file} or {alt_file}",
+                    (
+                        f"Configured token file not found: {token_file}. "
+                        f"Tried alternative extension: {alt_file}, also not found."
+                    ),
                     raise_on_error,
                 )
                 return None
         else:
             mlrun.utils.helpers.raise_or_log_error(
-                f"Token file not found at {token_file}", raise_on_error
+                f"Configured token file not found: {token_file}", raise_on_error
             )
             return None
 
     try:
         with open(token_file) as token_file_io:
             data = yaml.safe_load(token_file_io)
-            if not data:
-                mlrun.utils.helpers.raise_or_log_error(
-                    f"Token file {token_file} is empty or invalid",
-                    raise_on_error,
-                )
-                return None
-            if not isinstance(data, dict):
-                mlrun.utils.helpers.raise_or_log_error(
-                    f"Token file {token_file} must contain a YAML mapping (dictionary)",
-                    raise_on_error,
-                )
-                return None
-            return data
+        if not data:
+            mlrun.utils.helpers.raise_or_log_error(
+                f"Token file {token_file} is empty or invalid",
+                raise_on_error,
+            )
+            return None
+        if not isinstance(data, dict):
+            mlrun.utils.helpers.raise_or_log_error(
+                f"Token file {token_file} must contain a YAML mapping (dictionary)",
+                raise_on_error,
+            )
+            return None
+        return data
     except yaml.YAMLError as exc:
         mlrun.utils.helpers.raise_or_log_error(
             f"Failed to parse token file {token_file}: {exc}", raise_on_error

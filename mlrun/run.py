@@ -284,7 +284,8 @@ def get_or_create_ctx(
         and not mlconf.active_project
     ):
         raise mlrun.errors.MLRunMissingProjectError(
-            "No 'project' parameter specified, and no active project available."
+            """No active project found. Make sure to set an active project using: mlrun.get_or_create_project()
+            You can verify the active project with: mlrun.mlconf.active_project"""
         )
 
     if not newspec:

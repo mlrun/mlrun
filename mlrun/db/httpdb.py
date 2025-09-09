@@ -628,6 +628,10 @@ class HTTPRunDB(RunDBInterface):
                         prefix,
                         store_prefix_value,
                     )
+            config.httpdb.authentication.mode = (
+                server_cfg.get("authentication_mode")
+                or config.httpdb.authentication.mode
+            )
 
         except Exception as exc:
             logger.warning(

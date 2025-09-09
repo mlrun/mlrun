@@ -93,6 +93,8 @@ class SystemTestPreparer:
         branch: typing.Optional[str] = None,
         mlrun_dbpath: typing.Optional[str] = None,
         kubeconfig_content: typing.Optional[str] = None,
+        openai_base_url: typing.Optional[str] = None,
+        openai_api_key: typing.Optional[str] = None,
     ):
         self._logger = logger
         self._debug = debug
@@ -124,6 +126,8 @@ class SystemTestPreparer:
             # (e.g. tests which use public repos, therefor doesn't need that access token)
             "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
             "MLRUN_SYSTEM_TEST_KUBECONFIG": kubeconfig_content,
+            "OPENAI_BASE_URL": openai_base_url,
+            "OPENAI_API_KEY": openai_api_key,
         }
 
     def prepare_local_env(self, save_to_path: str = ""):
@@ -873,6 +877,14 @@ def run(
     "--kubeconfig-content",
     help="Kubeconfig file content encoded in base64",
 )
+@click.option(
+    "--openai-base-url",
+    help="Base URL for the OpenAI API endpoint",
+)
+@click.option(
+    "--openai-api-key",
+    help="API key for accessing the OpenAI service",
+)
 def env(
     data_cluster_ip: str,
     data_cluster_ssh_username: str,
@@ -886,6 +898,8 @@ def env(
     save_to_path: str,
     mlrun_dbpath: str,
     kubeconfig_content: str,
+    openai_base_url: str,
+    openai_api_key: str,
 ):
     system_test_preparer = SystemTestPreparer(
         data_cluster_ip=data_cluster_ip,
@@ -899,6 +913,8 @@ def env(
         github_access_token=github_access_token,
         mlrun_dbpath=mlrun_dbpath,
         kubeconfig_content=kubeconfig_content,
+        openai_base_url=openai_base_url,
+        openai_api_key=openai_api_key,
     )
     try:
         system_test_preparer.connect_to_remote()

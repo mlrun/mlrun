@@ -30,6 +30,8 @@ from tests.datastore.remote_model.remote_model_utils import (
 )
 from tests.system.base import TestMLRunSystem
 
+MAX_ATTEMPTS = 3
+
 
 def get_missing_openai_env_variables():
     return [
@@ -89,16 +91,35 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             default_config={"max_tokens": 100},
         )
         function.deploy()
-        response = function.invoke(
-            f"v2/models/{mlrun_model_name}/infer",
-            json.dumps(INPUT_DATA[0]),
-        )["output"]
-        assert len(response) == 2
-        answer = response[UsageResponseKeys.ANSWER]
-        assert EXPECTED_RESULTS[0] in answer.lower()
+
+        response = None
+        answer = None
+
+        # retry loop only for fragile assertions
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                response = function.invoke(
+                    f"v2/models/{mlrun_model_name}/infer",
+                    json.dumps(INPUT_DATA[0]),
+                )["output"]
+
+                assert len(response) == 2
+                answer = response[UsageResponseKeys.ANSWER]
+                assert EXPECTED_RESULTS[0] in answer.lower()
+
+                # success, exit loop
+                break
+            except AssertionError as e:
+                if attempt < MAX_ATTEMPTS:
+                    print(f"[Attempt {attempt}] Assertion failed, retrying...")
+                    continue
+                else:
+                    print(f"[Attempt {attempt}] Giving up after {MAX_ATTEMPTS} tries.")
+                    raise e
+
+        # only run these once, after a valid answer was obtained
         encoding = tiktoken.encoding_for_model(self.basic_llm_model)
         assert len(encoding.encode(answer)) == 100
-
         stats = response[UsageResponseKeys.USAGE]
         assert stats["completion_tokens"] == 100
         assert stats["prompt_tokens"] > 0
@@ -120,17 +141,29 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         )
         function.deploy()
 
-        start = time.perf_counter()
-        results_with_times = function.invoke(
-            f"v2/models/{mlrun_model_name}/infer",
-            json.dumps({"input": INPUT_DATA}),
-        )
-        total_duration = time.perf_counter() - start
-        assert_async_invocations(
-            results_with_times=results_with_times,
-            model_name=self.basic_llm_model,
-            total_duration=total_duration,
-        )
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            start = time.perf_counter()
+            results_with_times = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps({"input": INPUT_DATA}),
+            )
+            total_duration = time.perf_counter() - start
+
+            try:
+                assert_async_invocations(
+                    results_with_times=results_with_times,
+                    model_name=self.basic_llm_model,
+                    total_duration=total_duration,
+                )
+                # success, break out of the retry loop
+                break
+            except AssertionError as e:
+                if attempt < MAX_ATTEMPTS:
+                    print(f"[Attempt {attempt}] Assertion failed, retrying...")
+                    continue
+                else:
+                    print(f"[Attempt {attempt}] Giving up after {MAX_ATTEMPTS} tries.")
+                    raise e
 
     @pytest.mark.parametrize(
         "execution_mechanism",

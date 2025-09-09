@@ -62,6 +62,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
             parent_uri=model_artifact.uri
             if isinstance(model_artifact, model_art.ModelArtifact)
             else model_artifact,
+            format=kwargs.pop("format", "") or "json",
             **kwargs,
         )
 

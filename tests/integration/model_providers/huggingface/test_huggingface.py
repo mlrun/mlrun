@@ -62,7 +62,12 @@ class TestBasicHuggingFaceProvider:
     @classmethod
     def setup_class(cls):
         cls.basic_llm_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        cls.image_classification_model = "microsoft/resnet-50"
         cls.system_prompt_llm_model = "microsoft/Phi-3-mini-4k-instruct"
+
+        # cat.jpg – free for personal & commercial use (Unsplash license):
+        # https://unsplash.com/photos/brown-tabby-cat-on-white-stairs-mJaD10XeD7w
+        # https://unsplash.com/license
         cls.image_path = os.path.join(os.path.dirname(__file__), "cat.jpg")
 
     @classmethod
@@ -229,7 +234,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
     @pytest.mark.parametrize("use_datastore_profile", [True, False])
     def test_custom_invoke(self, use_datastore_profile):
-        model_name = "microsoft/resnet-50"
+        model_name = self.image_classification_model
         task = "image-classification"
         secrets = None
         top_k = 2
@@ -313,5 +318,53 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
                 stats["total_tokens"]
                 == stats["completion_tokens"] + stats["prompt_tokens"]
             )
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_hf_custom_model_runner(self, execution_mechanism):
+        project = mlrun.new_project("test-hf-model", save=False)
+        self.setup_datastore_profile(task="image-classification")
+        model_url = self.url_prefix + self.image_classification_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            model_class="tests.datastore.remote_model.remote_model_utils.MyHuggingFaceCustom",
+            default_config={"top_k": 2},
+            include_llm_artifact=False,
+        )
+        # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+        # # Mocked function used to verify artifact URI is passed correctly.
+        #
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            results = server.test(body={"input": self.image_path})["result"]
+            # Verify we got the expected number of results
+            assert len(results) == 2
+            # # Verify the top result contains 'cat' (assuming the test image is a cat)
+            assert "cat" in results[0]["label"].lower()
+            # Verify each result has the expected structure
+            for result in results:
+                assert "label" in result
+                assert "score" in result
+                assert isinstance(result["score"], float)
+                assert 0 <= result["score"] <= 1
         finally:
             server.wait_for_completion()

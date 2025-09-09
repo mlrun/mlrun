@@ -143,7 +143,7 @@ def get_stream_path(
         return stream_uri.replace("v3io://", f"ds://{profile.name}")
 
     elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream
     ):
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=project, function_name=function_name
@@ -152,7 +152,7 @@ def get_stream_path(
     else:
         raise mlrun.errors.MLRunValueError(
             f"Received an unexpected stream profile type: {type(profile)}\n"
-            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
         )
 
 
@@ -300,7 +300,7 @@ def _get_v3io_output_stream(
 
 def _get_kafka_output_stream(
     *,
-    kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+    kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
     project: str,
     function_name: str,
     mock: bool = False,
@@ -356,7 +356,7 @@ def get_output_stream(
         )
 
     elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream
     ):
         return _get_kafka_output_stream(
             kafka_profile=profile,
@@ -368,7 +368,7 @@ def get_output_stream(
     else:
         raise mlrun.errors.MLRunValueError(
             f"Received an unexpected stream profile type: {type(profile)}\n"
-            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
         )
 
 

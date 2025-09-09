@@ -417,6 +417,7 @@ def add_monitoring_general_steps(
             "mlrun.serving.system_steps.BackgroundTaskStatus",
             "background_task_status_step",
             model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+            full_event=True,
         )
     monitor_flow_step = graph.add_step(
         "storey.Filter",

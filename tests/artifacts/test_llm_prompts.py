@@ -86,6 +86,7 @@ def test_prompt_limitation():
 
     prompt_template = llm_prompt.read_prompt()
     assert prompt_template == [{"role": "user", "content": "A" * 2000}]
+    assert llm_prompt.target_path.endswith(f"{llm_key}.json")
 
 
 @pytest.mark.parametrize(

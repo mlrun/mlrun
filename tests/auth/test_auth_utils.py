@@ -86,8 +86,11 @@ def test_parse_offline_token_data_cases(data, token_name, expected_token, monkey
 @pytest.mark.parametrize(
     "data, token_name",
     [
-        ([], None),
+        # secretTokens not a list
         ("not-a-list", None),
+        # secretTokens empty
+        ([], None),
+        # Multiple matching tokens
         (
             [
                 {"name": "default", "token": "t1"},
@@ -95,6 +98,7 @@ def test_parse_offline_token_data_cases(data, token_name, expected_token, monkey
             ],
             None,
         ),
+        # Token entry missing 'token'
         ([{"name": "default"}], None),
     ],
 )

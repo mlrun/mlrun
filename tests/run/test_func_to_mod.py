@@ -16,7 +16,7 @@ from mlrun import function_to_module, get_or_create_ctx, new_task
 from tests.conftest import examples_path
 
 
-def test_local_py():
+def test_local_py(ensure_project):
     file_path = f"{examples_path}/training.py"
     mod = function_to_module(file_path)
     task = new_task(inputs={"infile.txt": f"{examples_path}/infile.txt"})

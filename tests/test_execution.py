@@ -126,7 +126,7 @@ def test_local_context(rundb_mock):
     assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
 
 
-def test_context_from_dict_when_start_time_is_string():
+def test_context_from_dict_when_start_time_is_string(ensure_project):
     context = mlrun.get_or_create_ctx("ctx")
     context_dict = context.to_dict()
     context = mlrun.MLClientCtx.from_dict(context_dict)

@@ -305,9 +305,9 @@ def test_args_integrity():
     assert output.find("It's, a, nice, day!") != -1, "params not detected in argv"
 
 
-def test_get_or_create_ctx_run_kind():
+def test_get_or_create_ctx_run_kind(ensure_project):
     # varify the default run kind is local
-    context = mlrun.get_or_create_ctx("ctx", project="dummy-project")
+    context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "local"
     assert context.state == "running"
     context.commit(completed=True)

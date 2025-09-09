@@ -624,7 +624,7 @@ class HTTPRunDB(RunDBInterface):
                         store_prefix_value,
                     )
             config.httpdb.authentication.mode = (
-                server_cfg.get("httpdb_authentication_mode")
+                server_cfg.get("authentication_mode")
                 or config.httpdb.authentication.mode
             )
 

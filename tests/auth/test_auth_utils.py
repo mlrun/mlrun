@@ -252,6 +252,47 @@ def test_read_secret_tokens_file_alternative_extension(tmp_path, monkeypatch):
     assert result["secretTokens"][0]["name"] == "token2"
 
 
+@pytest.mark.parametrize(
+    "file_name, file_content, raise_on_error, expect_error, expected_result",
+    [
+        # 1. Empty file
+        ("tokens.yaml", "", True, True, None),
+        ("tokens.yaml", "", False, False, None),
+        # 2. Non-dict YAML (list at root)
+        ("tokens.yaml", "- just-a-list-item", True, True, None),
+        ("tokens.yaml", "- just-a-list-item", False, False, None),
+        # 3. Non-yaml extension (no fallback logic triggered)
+        (
+            "tokens.txt",
+            {"secretTokens": [{"name": "n1", "token": "t1"}]},
+            True,
+            False,
+            {"secretTokens": [{"name": "n1", "token": "t1"}]},
+        ),
+    ],
+)
+def test_read_secret_tokens_file_edge_cases(
+    tmp_path,
+    monkeypatch,
+    file_name,
+    file_content,
+    raise_on_error,
+    expect_error,
+    expected_result,
+):
+    # Use shared helper to write file
+    file_path = _write_file(tmp_path, file_name, file_content)
+
+    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", str(file_path))
+
+    if expect_error and raise_on_error:
+        with pytest.raises(mlrun.errors.MLRunRuntimeError):
+            mlrun.auth.utils.read_secret_tokens_file(raise_on_error=raise_on_error)
+    else:
+        result = mlrun.auth.utils.read_secret_tokens_file(raise_on_error=raise_on_error)
+        assert result == expected_result
+
+
 def _write_file(tmp_path, name: str, content) -> str:
     file_path = tmp_path / name
     if isinstance(content, dict):

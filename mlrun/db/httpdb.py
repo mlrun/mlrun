@@ -5265,8 +5265,8 @@ class HTTPRunDB(RunDBInterface):
         ):
             logger.warning(
                 f"Token '{secret_token.name}' was stored in the backend, "
-                "but the local configuration file (~/.igz.yaml) was not updated. "
-                "Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
+                f"but the local configuration file ({mlrun.mlconf.auth_with_oauth_token.auth_token_file}) was not "
+                "updated. Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
             )
         # maybe the response should not be a list?
         return response
@@ -5308,8 +5308,8 @@ class HTTPRunDB(RunDBInterface):
             token_names = "', '".join(affected_tokens)
             logger.warning(
                 f"Tokens '{token_names}' were stored in the backend, "
-                "but the local configuration file (~/.igz.yaml) was not updated. "
-                "Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
+                f"but the local configuration file ({mlrun.mlconf.auth_with_oauth_token.auth_token_file}) was not "
+                "updated. Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
             )
 
         return response

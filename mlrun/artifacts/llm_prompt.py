@@ -72,7 +72,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
             model_configuration, dict
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "LLMPromptArtifact model_configuration must be a dictionary" " or None"
+                "LLMPromptArtifact model_configuration must be a dictionary or None"
             )
         self.model_configuration = model_configuration or {}
         self.description = description

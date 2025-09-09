@@ -139,9 +139,14 @@ class ConfigProfile(DatastoreProfile):
         return res
 
 
+# TODO: Remove in 1.12.0
 @deprecated(
-    "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
-    "Use `DatastoreProfileKafkaStream` instead."
+    version="1.10.0",
+    reason=(
+        "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
+        "Use `DatastoreProfileKafkaStream` instead."
+    ),
+    category=FutureWarning,
 )
 class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.v1.Field("kafka_target")
@@ -203,9 +208,14 @@ class DatastoreProfileKafkaStream(DatastoreProfile):
         return attributes
 
 
+# TODO: Remove in 1.12.0
 @deprecated(
-    "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
-    "Use `DatastoreProfileKafkaStream` instead."
+    version="1.10.0",
+    reason=(
+        "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
+        "Use `DatastoreProfileKafkaStream` instead."
+    ),
+    category=FutureWarning,
 )
 class DatastoreProfileKafkaSource(DatastoreProfileKafkaStream):
     type: str = pydantic.v1.Field("kafka_source")

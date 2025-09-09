@@ -121,6 +121,9 @@ class ClientSpec(
             model_endpoint_monitoring_store_prefixes=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.store_prefixes"
             ),
+            authentication_mode=self._get_config_value_if_not_default(
+                "httpdb.authentication.mode"
+            ),
         )
 
     @staticmethod

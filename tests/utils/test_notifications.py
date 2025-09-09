@@ -14,7 +14,7 @@
 
 import asyncio
 import builtins
-import threading
+import functools
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass, field
@@ -37,16 +37,13 @@ import mlrun.utils.notifications.notification.webhook
 
 
 @pytest.fixture
-def log_executor_threads():
-    before = {t.ident for t in threading.enumerate() if "ThreadPoolExecutor" in t.name}
-    yield
-    after = [t for t in threading.enumerate() if "ThreadPoolExecutor" in t.name]
-    leaked = [t for t in after if t.ident not in before]
-    if leaked:
-        mlrun.utils.logger.debug(
-            "Executor threads still alive after test: %s",
-            [f"{t.name} (alive={t.is_alive()})" for t in leaked],
-        )
+def inline_run_in_threadpool(monkeypatch):
+    async def _inline(func, *args, **kwargs):
+        if kwargs:
+            func = functools.partial(func, **kwargs)
+        return func(*args)
+
+    monkeypatch.setattr(mlrun.utils.helpers, "run_in_threadpool", _inline)
 
 
 @pytest.mark.parametrize(
@@ -397,7 +394,7 @@ def test_notification_reason(notification_kind):
     )
 
 
-@pytest.mark.usefixtures("log_executor_threads")
+@pytest.mark.usefixtures("inline_run_in_threadpool")
 @pytest.mark.parametrize(
     "when, run_state, store_count",
     [
@@ -465,7 +462,7 @@ def test_notification_update_notification_status(when, run_state, store_count):
     assert db.store_run_notifications.call_count == store_count
 
 
-@pytest.mark.usefixtures("log_executor_threads")
+@pytest.mark.usefixtures("inline_run_in_threadpool")
 @pytest.mark.parametrize(
     "notification_kind",
     [

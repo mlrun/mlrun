@@ -1790,9 +1790,11 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self.execute_function(function)
         args, _ = nuclio.deploy.deploy_config.call_args
-
-        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
-            function.invoke("/")
+        with unittest.mock.patch.object(
+                function, "_get_state", return_value=("ready", "", None)
+        ):
+            with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+                function.invoke("/")
 
     def test_error_on_multiple_stream_triggers_old_nuclio_explicit_ack(self):
         mlconf.nuclio_version = "1.13.11"

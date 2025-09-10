@@ -886,6 +886,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     @pytest.mark.asyncio
     async def test_monitor_run_retry_exhausted(self, db: Session, client: TestClient):
+        # label the pods with the retry attempt (3). Without this, the pods would remain unlabeled and the monitor
+        # logic would treat them as outdated, causing them to be skipped.
+        for pod in [self.pending_job_pod, self.running_job_pod, self.failed_job_pod]:
+            pod.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] = "3"
+
         list_namespaced_pods_calls = [
             [self.pending_job_pod],
             [self.running_job_pod],

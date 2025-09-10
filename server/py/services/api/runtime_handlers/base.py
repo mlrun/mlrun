@@ -2039,11 +2039,8 @@ class BaseRuntimeHandler(ABC):
         )
         run_retry_count = run.get("status", {}).get("retry_count") or 0
 
-        # If no retry label is present, treat pod as initial attempt (normalized to -1).
-        pod_retry_attempt = int(pod_retry_label) if pod_retry_label is not None else -1
+        if pod_retry_label is None:
+            # pods without a retry label are outdated once retries have started
+            return run_retry_count > 0
 
-        # first run with unlabeled pod is not outdated
-        if run_retry_count == 0 and pod_retry_attempt == -1:
-            return False
-
-        return pod_retry_attempt < run_retry_count
+        return int(pod_retry_label) < run_retry_count

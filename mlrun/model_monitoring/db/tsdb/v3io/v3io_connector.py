@@ -1512,21 +1512,32 @@ class V3IOTSDBConnector(TSDBConnector):
         return self._df_to_drift_data(df)
 
     @staticmethod
-    def _aggregate_raw_drift_data(df: pd.DataFrame, start, end, interval: str) -> pd.DataFrame:
+    def _aggregate_raw_drift_data(
+        df: pd.DataFrame, start, end, interval: str
+    ) -> pd.DataFrame:
         """
         Assumes df has a DatetimeIndex (time) and columns:
           - result_status
           - endpoint_id
         """
+        if df.empty:
+            return df
         if not isinstance(df.index, pd.DatetimeIndex):
             raise TypeError("Expected a DatetimeIndex on the DataFrame (time index).")
-        df["endpoint_id"] = df["endpoint_id"].astype(
-            "string").str.strip()  # remove extra data carried by the category dtype
-        window = df.loc[(df.index >= start) & (df.index < end), ["result_status", "endpoint_id"]]
+        df["endpoint_id"] = (
+            df["endpoint_id"].astype("string").str.strip()
+        )  # remove extra data carried by the category dtype
+        window = df.loc[
+            (df.index >= start) & (df.index < end), ["result_status", "endpoint_id"]
+        ]
         out = (
             window.groupby(
-                ["endpoint_id",
-                 pd.Grouper(freq=interval, origin=start, label="left", closed="left")]
+                [
+                    "endpoint_id",
+                    pd.Grouper(
+                        freq=interval, origin=start, label="left", closed="left"
+                    ),
+                ]
                 # align to start, [start, end) intervals
             )["result_status"]
             .max()
@@ -1534,4 +1545,5 @@ class V3IOTSDBConnector(TSDBConnector):
             .rename(columns={"result_status": "max(result_status)"})
         )
         return out.rename(
-            columns={"time": "_wstart"})  # rename datetime column to _wstart to align with the tdengine result
+            columns={"time": "_wstart"}
+        )  # rename datetime column to _wstart to align with the tdengine result

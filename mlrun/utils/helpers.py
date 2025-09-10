@@ -15,7 +15,6 @@
 import asyncio
 import base64
 import enum
-import functools
 import gzip
 import hashlib
 import inspect
@@ -1862,10 +1861,7 @@ async def run_in_threadpool(func, *args, **kwargs):
     Run a sync-function in the loop default thread pool executor pool and await its result.
     Note that this function is not suitable for CPU-bound tasks, as it will block the event loop.
     """
-    loop = asyncio.get_running_loop()
-    if kwargs:
-        func = functools.partial(func, **kwargs)
-    return await loop.run_in_executor(None, func, *args)
+    return await asyncio.to_thread(func, *args, **kwargs)
 
 
 def is_explicit_ack_supported(context):

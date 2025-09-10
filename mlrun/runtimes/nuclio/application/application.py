@@ -22,7 +22,10 @@ import mlrun.errors
 import mlrun.run
 from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.runtimes import RemoteRuntime
-from mlrun.runtimes.nuclio import min_nuclio_versions
+from mlrun.runtimes.nuclio import (
+    min_nuclio_versions,
+    multiple_port_sidecar_is_supported,
+)
 from mlrun.runtimes.nuclio.api_gateway import (
     APIGateway,
     APIGatewayMetadata,
@@ -182,7 +185,13 @@ class ApplicationSpec(NuclioSpec):
             if port != self.internal_application_port:
                 cleaned_ports.append(port)
 
-        self._application_ports = [self.internal_application_port] + cleaned_ports
+        application_ports = [self.internal_application_port] + cleaned_ports
+
+        # ensure multiple ports are supported in Nuclio
+        if len(application_ports) > 1:
+            multiple_port_sidecar_is_supported()
+
+        self._application_ports = application_ports
 
     @property
     def internal_application_port(self):

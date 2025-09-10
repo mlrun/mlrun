@@ -119,13 +119,14 @@ class OpenAIProvider(ModelProvider):
         The client is created only if it does not already exist.
         Raises ImportError if the openai package is not installed.
         """
-        if not self._client:
-            try:
-                from openai import OpenAI  # noqa
+        if self._client:
+            return
+        try:
+            from openai import OpenAI  # noqa
 
-                self._client = OpenAI(**self.options)
-            except ImportError as exc:
-                raise ImportError("openai package is not installed") from exc
+            self._client = OpenAI(**self.options)
+        except ImportError as exc:
+            raise ImportError("openai package is not installed") from exc
 
     def load_async_client(self) -> None:
         """

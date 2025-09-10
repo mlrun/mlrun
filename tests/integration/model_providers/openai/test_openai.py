@@ -83,6 +83,7 @@ class TestBasicOpenAIProvider:
     @classmethod
     def setup_class(cls):
         cls.basic_llm_model = "gpt-4o-mini"
+        cls.embedding_model = "text-embedding-3-small"
 
     @classmethod
     def reset_env(cls):
@@ -237,8 +238,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
     @pytest.mark.asyncio
     @pytest.mark.parametrize("run_async", [True, False])
     async def test_custom_invoke(self, run_async):
-        model_name = "text-embedding-3-small"
-        model_url = self.url_prefix + model_name
+        model_url = self.url_prefix + self.embedding_model
         model_provider = mlrun.get_model_provider(url=model_url)
         prompt = "OpenAI is amazing"
         client: OpenAI = model_provider.client
@@ -264,7 +264,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 match="OpenAI custom_invoke " "operation must be a callable",
             ):
                 _ = await model_provider.custom_invoke(operation="test", input=prompt)
-        encoding = tiktoken.encoding_for_model(model_name)
+        encoding = tiktoken.encoding_for_model(self.embedding_model)
         token_count = len(encoding.encode(prompt))
         assert embeddings.data[0].embedding is not None
         assert len(embeddings.data[0].embedding) > 0
@@ -361,5 +361,49 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
                 model_name=self.basic_llm_model,
                 total_duration=total_duration,
             )
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_open_ai_custom(self, execution_mechanism):
+        project = mlrun.new_project("test-openai-custom", save=False)
+        model_url = self.url_prefix + self.embedding_model
+        # Using full path as a model class is a workaround for ML-10937
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            model_class="tests.datastore.remote_model.remote_model_utils.MyOpenAICustom",
+            default_config={"dimensions": 256},
+        )
+        # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+        # # Mocked function used to verify artifact URI is passed correctly.
+        #
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        prompt = "Hello GPT"
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            results_with_times = server.test(body={"input": prompt})["result"]
+            encoding = tiktoken.encoding_for_model(self.embedding_model)
+            token_count = len(encoding.encode(prompt))
+            assert len(results_with_times["data"][0]["embedding"]) == 256
+            assert results_with_times["usage"]["total_tokens"] == token_count
+
         finally:
             server.wait_for_completion()

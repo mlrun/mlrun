@@ -243,19 +243,11 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
         model_artifact = self.project.log_model(
             "my_model",
             model_url="http://localhost:8080/v2/models/mymodel/infer",
-            default_config={"model_version": "4"},
-            tag="v1",
-        )
-
-        # stole the tag from the model artifact above
-        _ = self.project.log_model(
-            "my_model",
-            model_url="http://localhost:8080/v2/models/mymodel/infer-2",
             default_config={"model_version": "4"},
             tag="v1",
         )
@@ -276,6 +268,13 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
                     "description": "great legend are small",
                 }
             },
+        )
+        # stole the tag from the model artifact above
+        _ = self.project.log_model(
+            "my_model",
+            model_url="http://localhost:8080/v2/models/mymodel/infer-2",
+            default_config={"model_version": "4"},
+            tag="v1",
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -341,7 +340,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert len(self.project.list_model_endpoints()) == 1
+        assert len(self.project.list_model_endpoints().endpoints) == 1
 
         assert deployment == function.get_url()  # check function url
 

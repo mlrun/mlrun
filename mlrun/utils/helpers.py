@@ -804,7 +804,7 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
 
 def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     """
-    Retrieve the full uri of the item's yaml in the hub.
+    Retrieve the full uri of the function's yaml in the hub.
 
     :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
 
@@ -845,7 +845,10 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
     function_suffix = f"{name}/{tag}/src/function.yaml"
-    return indexed_source.source.get_full_uri(function_suffix), is_hub_uri
+    function_type = mlrun.common.schemas.hub.HubSourceType.functions
+    return indexed_source.source.get_full_uri(
+        function_suffix, function_type
+    ), is_hub_uri
 
 
 def gen_md_table(header, rows=None):

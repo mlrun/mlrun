@@ -29,12 +29,12 @@ def extra_requirements() -> dict[str, list[str]]:
         "s3": [
             "boto3>=1.28.0,<1.36",
             "aiobotocore>=2.5.0,<2.16",
-            "s3fs>=2023.9.2, <2024.7",
+            "s3fs>=2025.5.1, <=2025.7.0",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
             "azure-core~=1.24",
-            "adlfs==2023.9.0",
+            "adlfs==2024.12.0",
             "pyopenssl>=23",
         ],
         "azure-key-vault": [
@@ -53,7 +53,7 @@ def extra_requirements() -> dict[str, list[str]]:
             # (https://github.com/pypa/setuptools/issues/4476) with setuptools (ML-7273)
             "google-cloud-bigquery-storage~=2.17",
             "google-cloud==0.34",
-            "gcsfs>=2023.9.2, <2024.7",
+            "gcsfs>=2025.5.1, <=2025.7.0",
         ],
         "kafka": [
             "kafka-python~=2.1.0",
@@ -72,7 +72,7 @@ def extra_requirements() -> dict[str, list[str]]:
             'dask~=2023.12.1; python_version < "3.11"',
             'distributed~=2023.12.1; python_version < "3.11"',
         ],
-        "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
+        "alibaba-oss": ["ossfs==2025.5.0", "oss2==2.18.4"],
         "tdengine": ["taos-ws-py==0.3.2"],
         "snowflake": ["snowflake-connector-python~=3.7"],
     }

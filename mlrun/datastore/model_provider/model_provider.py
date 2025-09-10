@@ -108,7 +108,7 @@ class ModelProvider(BaseRemoteClient):
                                                 additional metadata or token usage statistics, in this format:
                                                 {"answer": <string>, "usage": <dict>}
 
-                                       - FULL: Return the full raw response object unmodified.
+                                       - FULL: Return the full raw response object.
 
         :param kwargs:                  Additional parameters that may be required by specific implementations.
 
@@ -164,7 +164,9 @@ class ModelProvider(BaseRemoteClient):
             )
         return self._async_client
 
-    def custom_invoke(self, operation: Optional[Callable], **invoke_kwargs) -> Any:
+    def custom_invoke(
+        self, operation: Optional[Callable] = None, **invoke_kwargs
+    ) -> Any:
         """
         Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
 
@@ -178,7 +180,7 @@ class ModelProvider(BaseRemoteClient):
         raise NotImplementedError("custom_invoke method is not implemented")
 
     async def async_custom_invoke(
-        self, operation: Optional[Callable[..., Awaitable[Any]]], **invoke_kwargs
+        self, operation: Optional[Callable[..., Awaitable[Any]]] = None, **invoke_kwargs
     ) -> Any:
         """
         Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)

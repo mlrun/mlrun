@@ -30,6 +30,9 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     _parse_metric_fqn_to_monitoring_metric,
 )
+from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
+    _normalize_dict_for_v3io_frames,
+)
 
 
 @pytest.mark.parametrize(
@@ -125,3 +128,43 @@ def test_project_pattern() -> None:
         r"^.{0,63}$",
         r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
     ], f"The `project_name` regex changed, please update {PROJECT_PATTERN=} accordingly"
+
+
+@pytest.mark.parametrize(
+    "event,expected",
+    [
+        # basic case: valid key
+        ({"validKey": 1}, {"validKey": 1}),
+        # hyphens replaced with underscores
+        ({"key-name": 42}, {"key_name": 42}),
+        # keys starting with digit
+        ({"123abc": "value"}, {"_123abc": "value"}),
+        # nested dict flattening
+        (
+            {"outer": {"inner-key": 99}},
+            {"outer.inner_key": 99},
+        ),
+        # multiple nested levels
+        (
+            {"a": {"b": {"c-key": 5}}},
+            {"a.b.c_key": 5},
+        ),
+        # mixed dicts and values
+        (
+            {"root": {"sub1": 1, "sub-2": {"deep-key": "x"}}, "plain": 7},
+            {"root.sub1": 1, "root.sub_2.deep_key": "x", "plain": 7},
+        ),
+        # key with digit prefix deep inside
+        (
+            {"root": {"123abc": {"-bad-key": 1}}},
+            {"root._123abc._bad_key": 1},
+        ),
+    ],
+)
+def test_normalize_dict(event, expected):
+    result = _normalize_dict_for_v3io_frames(event)
+    assert result == expected
+
+
+def test_empty_dict():
+    assert _normalize_dict_for_v3io_frames({}) == {}

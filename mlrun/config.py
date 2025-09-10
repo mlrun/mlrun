@@ -718,7 +718,6 @@ default_config = {
             "name": "default",
             "description": "MLRun global function hub",
             "url": "https://mlrun.github.io/marketplace",
-            "object_type": "functions",
             "channel": "master",
         },
     },
@@ -1000,9 +999,9 @@ class Config:
         )
 
     @staticmethod
-    def get_default_hub_source() -> str:
+    def get_default_hub_source_url_prefix(object_type) -> str:
         default_source = config.hub.default_source
-        return f"{default_source.url}/{default_source.object_type}/{default_source.channel}/"
+        return f"{default_source.url}/{object_type}/{default_source.channel}/"
 
     @staticmethod
     def decode_base64_config_and_load_to_object(

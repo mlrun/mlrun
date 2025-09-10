@@ -101,6 +101,9 @@ You can divide the run into small time windows with the `base_period` parameter.
 difference between the `start` and `end` times is divided into smaller non-overlapping intervals,
 each `base_period` minutes length.
 
+When the model endpoint does not have data in the requested time window, the application will not
+run.
+
 ### Running locally
 
 When running locally and writing outputs (with `run_local=True` and `write_output=True`),

@@ -1781,7 +1781,7 @@ class BaseRuntimeHandler(ABC):
                 )
 
         logger.info(
-            "Updating run state - ensure_run_state flow",
+            "Ensuring run state",
             run_uid=uid,
             run_state=run_state,
         )

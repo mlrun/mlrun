@@ -988,6 +988,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             ("1", 2, True),
             # pod attempt equals current run retry, pod is still valid
             ("2", 2, False),
+            # edge case: pod attempt label is ahead of the run's retry count.
+            # this situation shouldn't normally occur, but if it does (e.g. due to a transient state or race condition),
+            # we treat the pod as valid (not outdated) to avoid skipping an active attempt.
+            ("3", 2, False),
         ],
     )
     def test_is_pod_from_outdated_retry(

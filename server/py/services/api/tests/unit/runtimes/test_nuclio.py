@@ -1791,7 +1791,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.execute_function(function)
         args, _ = nuclio.deploy.deploy_config.call_args
         with unittest.mock.patch.object(
-                function, "_get_state", return_value=("ready", "", None)
+            function, "_get_state", return_value=("ready", "", None)
         ):
             with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
                 function.invoke("/")

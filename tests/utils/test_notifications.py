@@ -1741,12 +1741,17 @@ class DummySessionContext:
 @pytest.fixture
 def client_session(monkeypatch: pytest.MonkeyPatch) -> None:
     """
-    Patch aiohttp.ClientSession only for the tests that need it.
+    Patch the session factory used by webhook notifications so tests
+    get a DummySessionContext instead of a real aiohttp session.
     """
+
+    def make_dummy_session(self, **kwargs):
+        return DummySessionContext(**kwargs)
+
     monkeypatch.setattr(
-        mlrun.utils.notifications.notification.webhook.aiohttp,
-        "ClientSession",
-        DummySessionContext,
+        mlrun.utils.notifications.notification.webhook.TimedHTTPClient,
+        "session",
+        make_dummy_session,
     )
 
 

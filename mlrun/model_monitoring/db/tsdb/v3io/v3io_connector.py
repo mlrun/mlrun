@@ -1499,20 +1499,39 @@ class V3IOTSDBConnector(TSDBConnector):
     ) -> mm_schemas.ModelEndpointDriftValues:
         table = mm_schemas.V3IOTSDBTables.APP_RESULTS
         start, end, interval = self._prepare_aligned_start_end(start, end)
-
-        # get per time-interval x endpoint_id combination the max result status
         df = self._get_records(
             table=table,
             start=start,
             end=end,
-            interval=interval,
-            sliding_window_step=interval,
             columns=[mm_schemas.ResultData.RESULT_STATUS],
-            agg_funcs=["max"],
-            group_by=mm_schemas.WriterEvent.ENDPOINT_ID,
         )
+        df = self._aggregate_raw_drift_data(df, start, end, interval)
         if df.empty:
             return mm_schemas.ModelEndpointDriftValues(values=[])
         df = df[df[f"max({mm_schemas.ResultData.RESULT_STATUS})"] >= 1]
-        df = df.reset_index(names="_wstart")
         return self._df_to_drift_data(df)
+
+    @staticmethod
+    def _aggregate_raw_drift_data(df: pd.DataFrame, start, end, interval: str) -> pd.DataFrame:
+        """
+        Assumes df has a DatetimeIndex (time) and columns:
+          - result_status
+          - endpoint_id
+        """
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise TypeError("Expected a DatetimeIndex on the DataFrame (time index).")
+        df["endpoint_id"] = df["endpoint_id"].astype(
+            "string").str.strip()  # remove extra data carried by the category dtype
+        window = df.loc[(df.index >= start) & (df.index < end), ["result_status", "endpoint_id"]]
+        out = (
+            window.groupby(
+                ["endpoint_id",
+                 pd.Grouper(freq=interval, origin=start, label="left", closed="left")]
+                # align to start, [start, end) intervals
+            )["result_status"]
+            .max()
+            .reset_index()
+            .rename(columns={"result_status": "max(result_status)"})
+        )
+        return out.rename(
+            columns={"time": "_wstart"})  # rename datetime column to _wstart to align with the tdengine result

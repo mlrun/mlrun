@@ -3816,7 +3816,7 @@ class MlrunProject(ModelObj):
 
             import mlrun
             from mlrun.datastore.datastore_profile import (
-                DatastoreProfileKafkaSource,
+                DatastoreProfileKafkaStream,
                 DatastoreProfileTDEngine,
             )
 
@@ -3833,7 +3833,7 @@ class MlrunProject(ModelObj):
             project.register_datastore_profile(tsdb_profile)
 
             # Create and register stream profile
-            stream_profile = DatastoreProfileKafkaSource(
+            stream_profile = DatastoreProfileKafkaStream(
                 name="my-kafka",
                 brokers=["<kafka-broker-ip-address>:9094"],
                 topics=[],  # Keep the topics list empty
@@ -3875,9 +3875,9 @@ class MlrunProject(ModelObj):
 
         .. code-block:: python
 
-            from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+            from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
 
-            stream_profile = DatastoreProfileKafkaSource(
+            stream_profile = DatastoreProfileKafkaStream(
                 name="confluent-kafka",
                 brokers=["<server-domain-start>.confluent.cloud:9092"],
                 topics=[],
@@ -3906,7 +3906,7 @@ class MlrunProject(ModelObj):
                                           The supported profiles are:
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
-                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream`
 
                                           You need to register one of them, and pass the profile's name.
         :param replace_creds:             If ``True`` - override the existing credentials.

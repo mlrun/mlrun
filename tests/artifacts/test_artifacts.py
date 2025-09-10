@@ -129,6 +129,23 @@ def test_model_artifact_validators():
         )
 
 
+def test_llm_prompt_artifact_validator():
+    model_artifact = mlrun.artifacts.ModelArtifact(
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="LLMPromptArtifact model_configuration must be a dictionary or None",
+    ):
+        mlrun.artifacts.LLMPromptArtifact(
+            model_artifact=model_artifact, model_configuration=50
+        )
+    llm_prompt_artifact = mlrun.artifacts.LLMPromptArtifact(
+        model_artifact=model_artifact, model_configuration=None
+    )
+    assert llm_prompt_artifact.spec.model_configuration == {}
+
+
 class FakeProducer:
     def __init__(self, name="", kind="run"):
         self.kind = kind

@@ -54,7 +54,7 @@ from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
 )
-from mlrun.model_monitoring.writer import ModelMonitoringWriter
+from mlrun.model_monitoring.writer import WriterGraphEnabler
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
@@ -704,12 +704,10 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
-        graph.to(
-            ModelMonitoringWriter(
-                project=self.project, secret_provider=self._secret_provider
-            )
-        )  # writer
+        WriterGraphEnabler.apply_writer_graph(
+            function,
+            self._tsdb_connector,
+        )
 
         # Set the project to the serving function
         function.metadata.project = self.project

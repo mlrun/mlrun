@@ -196,6 +196,10 @@ class WriterEventKind(MonitoringStrEnum):
     RESULT = "result"
     STATS = "stats"
 
+    @classmethod
+    def user_app_outputs(cls):
+        return [cls.METRIC, cls.RESULT]
+
 
 class ControllerEvent(MonitoringStrEnum):
     KIND = "kind"

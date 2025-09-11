@@ -369,6 +369,47 @@ class V3IOTSDBConnector(TSDBConnector):
         apply_storey_filter()
         apply_tsdb_target(name="tsdb3", after="FilterNotNone")
 
+    def apply_writer_steps(self, graph, **kwargs) -> None:
+        graph.add_step(
+            "storey.TSDBTarget",
+            name="tsdb_metrics",
+            after="kind_chooser",
+            path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.METRICS]}",
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            container=self.container,
+            v3io_frames=self.v3io_framesd,
+            infer_columns_from_data=True,
+            index_cols=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.WriterEvent.ENDPOINT_NAME,
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.MetricData.METRIC_NAME,
+            ],
+            max_events=1000,
+            flush_after_seconds=30,
+            key=mm_schemas.EventFieldType.ENDPOINT_ID,
+        )
+
+        graph.add_step(
+            "storey.TSDBTarget",
+            name="tsdb_app_results",
+            after="kind_chooser",
+            path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]}",
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            container=self.container,
+            v3io_frames=self.v3io_framesd,
+            infer_columns_from_data=True,
+            index_cols=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.WriterEvent.ENDPOINT_NAME,
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.ResultData.RESULT_NAME,
+            ],
+            max_events=1000,
+            flush_after_seconds=30,
+            key=mm_schemas.EventFieldType.ENDPOINT_ID,
+        )
+
     def handle_model_error(
         self,
         graph,

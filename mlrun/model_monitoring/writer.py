@@ -13,8 +13,11 @@
 # limitations under the License.
 
 import json
+import typing
 from datetime import datetime, timezone
 from typing import Any, Callable, NewType, Optional
+
+import storey
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas
@@ -31,6 +34,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     WriterEvent,
     WriterEventKind,
 )
+from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db._stats import (
     ModelMonitoringCurrentStatsFile,
     ModelMonitoringDriftMeasuresFile,
@@ -73,7 +77,6 @@ class ModelMonitoringWriter(StepToDict):
         self._tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project, secret_provider=secret_provider
         )
-        self._endpoints_records = {}
 
     def _generate_event_on_drift(
         self,
@@ -226,3 +229,102 @@ class ModelMonitoringWriter(StepToDict):
             )
 
         logger.info("Model monitoring writer finished handling event")
+
+
+class WriterGraphEnabler:
+    @staticmethod
+    def apply_writer_graph(
+        fn: mlrun.runtimes.ServingRuntime,
+        tsdb_connector: TSDBConnector,
+    ):
+        graph = typing.cast(
+            mlrun.serving.states.RootFlowStep,
+            fn.set_topology(mlrun.serving.states.StepKinds.flow, engine="async"),
+        )
+
+        graph.to("ReconstructWriterEvent", "event_reconstructor").to(
+            "KindChoice", "kind_chooser"
+        )
+        tsdb_connector.apply_writer_steps(
+            graph=graph,
+            after="kind_chooser",
+        )
+        graph.add_step(
+            "AlertGenerator",
+            name="alert_generator",
+            after="kind_chooser",
+        )
+        graph.add_step(
+            "StatsWriter",
+            name="stats_writer",
+            after="kind_chooser",
+        )
+
+
+class ReconstructWriterEvent(storey.MapClass):
+    def __init__(self):
+        super().__init__()
+
+    def do(self, event: dict) -> dict[str, Any]:
+        kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)
+        result_event = _AppResultEvent(json.loads(event.pop(WriterEvent.DATA, "{}")))
+        result_event.update(_AppResultEvent(event))
+
+        expected_keys = list(
+            set(WriterEvent.list()).difference(
+                [WriterEvent.EVENT_KIND, WriterEvent.DATA]
+            )
+        )
+        if kind == WriterEventKind.METRIC:
+            expected_keys.extend(MetricData.list())
+        elif kind == WriterEventKind.RESULT:
+            expected_keys.extend(ResultData.list())
+        elif kind == WriterEventKind.STATS:
+            expected_keys.extend(StatsData.list())
+        else:
+            raise _WriterEventValueError(
+                f"Unknown event kind: {kind}, expected one of: {WriterEventKind.list()}"
+            )
+        missing_keys = [key for key in expected_keys if key not in result_event]
+        if missing_keys:
+            raise _WriterEventValueError(
+                f"The received event misses some keys compared to the expected "
+                f"monitoring application event schema: {missing_keys} for event kind {kind}"
+            )
+        result_event["kind"] = kind
+        if kind in WriterEventKind.user_app_outputs():
+            result_event[WriterEvent.END_INFER_TIME] = datetime.fromisoformat(
+                event[WriterEvent.END_INFER_TIME]
+            )
+        return result_event
+
+
+class KindChoice(storey.Choice):
+    def select_outlets(self, event):
+        if event.get("kind") == WriterEventKind.METRIC:
+            outlets = ["tsdb_metrics"]
+        elif event.get("kind") == WriterEventKind.RESULT:
+            outlets = ["tsdb_app_results", "AlertGenerator"]
+        elif event.get("kind") == WriterEventKind.STATS:
+            outlets = ["StatsWriter"]
+        else:
+            raise _WriterEventValueError(
+                f"Unknown event kind: {event.get('kind')}, expected one of: {WriterEventKind.list()}"
+            )
+        return outlets
+
+
+class AlertGenerator(storey.MapClass):
+    def __init__(self):
+        super().__init__()
+
+    def do(self, event: dict) -> dict[str, Any]:
+        return event
+
+
+class StatsWriter(storey.MapClass):
+    def __init__(self):
+        super().__init__()
+
+    def do(self, event: dict) -> dict[str, Any]:
+        return event

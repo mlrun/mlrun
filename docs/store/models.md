@@ -142,15 +142,27 @@ run = func.run(
 ```
 
 ## Remote models
-You can use models stored in a remote source, for example HuggingFace. You can load the model from the remote source, without saving it in your datastore. A remote `ModelArtifact` instance does not have any extra data or similar facilities that the locally stored model artifact supports. 
+You can use models stored in a remote source, for example HuggingFace. You can load the model from the remote source, without saving it in your datastore. A remote `ModelArtifact` instance does not have any extra data or similar facilities that the locally stored model artifact supports. Remote models are specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas, as described in the next sections.
+### HTTPS
+`https://`: Use a generic remote model that is invoked through http calls.
+### HuggingFace
+`hugging_face://<model-path>`: Use the Hugging Face pipeline as a client to download models and use them. The URL contains the vendor and name of model, for example: `huggingface://google/gemma-3-27b-it`.
+   - Hugging Face use Pipeline as a client; it downloads the model and loads it to the RAM. Therefore, it might required more resources than usual.
+   - By default, in LLModel usage, metrics are calculated after invocation. These token metrics are estimates and may not be fully accurate.
+   - Hugging Face's Inference Provider is designed to handle OpenAI-style chat format (role/content) and therefore requires models that support `tokenizer.apply_chat_template`. If a model does not provide this functionality, you must implement a manual solution.
+### OpenAI
+ `openai://<model-name>`: work with a model that supports the OpenAI protocol. By default, models are assumed to be models served by OpenAI. The secrets/env options are:
+- api_key / "OPENAI_API_KEY"
+- organization / "OPENAI_ORG_ID"
+- project / "OPENAI_PROJECT_ID"
+- base_url / "OPENAI_BASE_URL"
+- timeout / "OPENAI_TIMEOUT"
+- max_retries / "OPENAI_MAX_RETRIES"
+- endpoint_url parameter that allows other endpoints to be used. For example: to deploy a model that supports OpenAI protocol using a Nuclio function, the URL would be `openai://<model_name>` and the endpoint URL provided would be similar to `http://my.nuclio.function.url`.
+### ds
+`ds://<profile name>/<model-name>`: Use a datastore profile for model connection parameters. The profile must contain the required connection parameters: secrets and credentials, as well as parameters that determine the routing to the model (such as the endpoint URL), but not the actual model name. Since the profile does not contain the model name, it can be used for multiple models. 
 
-Remote models are specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas:
-- `http://` or `https://`: Use a generic remote model that is invoked through http calls.
-- `hugging_face://<model-path>`: Download and use a model from HuggingFace. The URL contains the vendor and name of model, for example: `hugging_face://google/gemma-3-27b-it`.
-- `openai://<model-name>`: work with a model that supports the OpenAI protocol. By default, models are assumed to be models served by OpenAI. You can also to pass an `endpoint_url` parameter that allows other endpoints to be used. For example: to deploy a model that supports OpenAI protocol using a Nuclio function, the url would be `openai://<model_name>` and the endpoint URL provided would be similar to `http://my.nuclio.function.url`. 
-ds://<profile name>/<model-name>: Use a datastore profile for model connection parameters. The profile must contain the required connection parameters: secrets and credentials, as well as parameters that determine the routing to the model (such as the endpoint URL), but not the actual model name. A datastore profile can therefore be used for multiple models. 
-
-Guidelines for using the parameter `model_url`:
+### Guidelines for the parameter `model_url`:
 - Remote model artifacts cannot be uploaded or downloaded. Consequently, the `upload` parameter cannot be set to `True`.
 - The `model_dir` and `model_file` parameters cannot be specified.
 - The `body` parameter cannot be specified.

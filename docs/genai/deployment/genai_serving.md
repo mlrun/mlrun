@@ -1,7 +1,7 @@
 (genai-serving)=
 # Serving gen AI models
 
-With MLRun you can serve any model, locally hosted, (including pretrained models from the Hugging Face model hub, as well as models that are fine-tuned with MLRun) and remote models. (See [Hugging Face model hub](https://huggingface.co/docs/hub/en/models-the-hub).)
+With MLRun you can serve any model, locally hosted (including pretrained models that are downloaded from the Hugging Face model hub, as well as models that are fine-tuned with MLRun) and remote models. (See [Hugging Face model hub](https://huggingface.co/docs/hub/en/models-the-hub).)
 The main differences between serving a gen AI model and any other model are the inputs and outputs, which in gen AI are usually unstructured (text or images), and the model is usually a transformer model. 
 
 Another common use case is to serve the model as part of an inference pipeline, where the model is used as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This is covered in the {ref}`gen AI serving graph section <genai-serving-graph>`.
@@ -9,6 +9,9 @@ Another common use case is to serve the model as part of an inference pipeline, 
 **In this section**
 - [Serving a local model from the function hub](#serving-a-local-model-from-the-function-hub)
 - [Serving using a remote model](#serving-using-a-remote-model)
+- [Implementing your own model serving function](#implementing-your-own-model-serving-function)
+
+# Guidelines 
 
 ## Serving a local model from the function hub
 
@@ -45,7 +48,6 @@ print(f"Output: {result['outputs']}")
 ## Serving using a remote model
 
 The following code shows the basics of serving and deploying a remote model.
-For a complete example, see . 
 
 ```python
 graph = function.set_topology("flow", engine="async")
@@ -178,7 +180,7 @@ During load, the code above downloads a model from the Hugging Face hub and crea
 
 During prediction, the code collects all prompts, tokenizes the prompts, generates the response tokens, and decodes the output tokens to text.
 
-Save the code above to `src/onnx_genai_serving.ay` and then create a model serving functions with the following code:
+Save the code above to `src/onnx_genai_serving.py` and then create a model serving function with the following code:
 
 ``` python
 import os

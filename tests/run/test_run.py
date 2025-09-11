@@ -305,7 +305,7 @@ def test_args_integrity():
     assert output.find("It's, a, nice, day!") != -1, "params not detected in argv"
 
 
-def test_get_or_create_ctx_run_kind():
+def test_get_or_create_ctx_run_kind(ensure_project):
     # varify the default run kind is local
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "local"
@@ -335,7 +335,7 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
 ):
     monkeypatch.setenv(
         "MLRUN_EXEC_CONFIG",
-        '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
+        '{"spec":{},"metadata":{"project":"dummy-project", "uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
     )
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "spark"

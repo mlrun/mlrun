@@ -257,7 +257,11 @@ class TestModelEndpoint(TestDatabaseBase):
         self._store_function()
         self._store_function(tag="v1")
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
-            metadata={"name": "model-endpoint-1", "project": "project-1"},
+            metadata={
+                "name": "model-endpoint-1",
+                "project": "project-1",
+                "mode": mlrun.common.schemas.EndpointMode.REAL_TIME,
+            },
             spec={
                 "function_name": "function-1",
                 "function_tag": "latest",
@@ -266,7 +270,12 @@ class TestModelEndpoint(TestDatabaseBase):
             status={"monitoring_mode": "enabled"},
         )
         different_name_model_endpoint = mlrun.common.schemas.ModelEndpoint(
-            metadata={"name": "model-endpoint-2", "project": "project-1"},
+            metadata={
+                "name": "model-endpoint-2",
+                "project": "project-1",
+                "mode": mlrun.common.schemas.EndpointMode.BATCH,
+                "endpoint_type": EndpointType.BATCH_EP,
+            },
             spec={
                 "function_name": "function-1",
                 "function_tag": "latest",
@@ -446,6 +455,30 @@ class TestModelEndpoint(TestDatabaseBase):
             latest_only=True,
             project=model_endpoint.metadata.project,
             names=["model-endpoint-1"],
+        ).endpoints
+        assert len(list_mep) == 1
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            modes=[
+                mlrun.common.schemas.EndpointMode.REAL_TIME,
+                mlrun.common.schemas.EndpointMode.BATCH,
+            ],
+        ).endpoints
+        assert len(list_mep) == 2
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            modes=[mlrun.common.schemas.EndpointMode.REAL_TIME],
+        ).endpoints
+        assert len(list_mep) == 1
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            modes=[mlrun.common.schemas.EndpointMode.BATCH],
         ).endpoints
         assert len(list_mep) == 1
 

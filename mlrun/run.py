@@ -222,7 +222,8 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:  project to initiate the context in (by default `mlrun.mlconf.active_project`)
+    :param project:  project to initiate the context in (by default `mlrun.mlconf.active_project`).
+                              If not set, an active project must exist.
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
     :return: execution context
@@ -276,6 +277,16 @@ def get_or_create_ctx(
 
     if newspec and not isinstance(newspec, dict):
         newspec = json.loads(newspec)
+
+    if (
+        not newspec.get("metadata", {}).get("project")
+        and not project
+        and not mlconf.active_project
+    ):
+        raise mlrun.errors.MLRunMissingProjectError(
+            """No active project found. Make sure to set an active project using: mlrun.get_or_create_project()
+            You can verify the active project with: mlrun.mlconf.active_project"""
+        )
 
     if not newspec:
         newspec = {}

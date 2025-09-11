@@ -45,6 +45,7 @@ import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun.secrets import get_secret_or_env
@@ -3770,7 +3771,7 @@ class HTTPRunDB(RunDBInterface):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
-        mode: mm_constants.EndpointMode = None,
+        modes: Optional[list[mm_constants.EndpointMode]] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -3791,8 +3792,8 @@ class HTTPRunDB(RunDBInterface):
                                 If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                                 will be included.
         :param top_level:       Whether to return only top level model endpoints.
-        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
-                                both if set to None.
+        :param modes:           Specifies the modes of the model endpoints. Can be "real-time" (0), "batch" (1),
+                                "batch_legacy" (2). If set to None, all are included.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
         :return:                A list of model endpoints.
@@ -3801,6 +3802,8 @@ class HTTPRunDB(RunDBInterface):
         labels = self._parse_labels(labels)
         if names and isinstance(names, str):
             names = [names]
+        if isinstance(modes, mm_constants.EndpointMode):
+            modes = [modes]
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
@@ -3816,7 +3819,7 @@ class HTTPRunDB(RunDBInterface):
                 "tsdb-metrics": tsdb_metrics,
                 "metric": metric_list,
                 "top-level": top_level,
-                "mode": mode,
+                "mode": modes,
                 "uid": uids,
                 "latest-only": latest_only,
             },
@@ -4079,7 +4082,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.DELETE,
             path=f"projects/{project}/model-monitoring/functions",
-            params={"functions": functions},
+            params={"function": functions},
         )
         deletion_failed = False
         if response.status_code == http.HTTPStatus.ACCEPTED:
@@ -4359,6 +4362,7 @@ class HTTPRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
+        object_type: HubSourceType = HubSourceType.functions,
     ):
         """
         Retrieve the item catalog for a specified hub source.
@@ -4371,6 +4375,7 @@ class HTTPRunDB(RunDBInterface):
             rather than rely on cached information which may exist from previous get requests. For example,
             if the source was re-built,
             this will make the server get the updated information. Default is ``False``.
+        :param object_type: Type of object to retrieve from the hub source (e.g: functions, modules).
         :returns: :py:class:`~mlrun.common.schemas.hub.HubCatalog` object, which is essentially a list
             of :py:class:`~mlrun.common.schemas.hub.HubItem` entries.
         """
@@ -4379,6 +4384,7 @@ class HTTPRunDB(RunDBInterface):
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
+            "object_type": object_type,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return mlrun.common.schemas.HubCatalog(**response.json())
@@ -4390,6 +4396,7 @@ class HTTPRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: str = "latest",
         force_refresh: bool = False,
+        item_type: HubSourceType = HubSourceType.functions,
     ):
         """
         Retrieve a specific hub item.
@@ -4401,6 +4408,7 @@ class HTTPRunDB(RunDBInterface):
         :param force_refresh: Make the server fetch the information from the actual hub
             source, rather than
             rely on cached information. Default is ``False``.
+        :param item_type: The type of item to retrieve from the hub source (e.g: functions, modules).
         :returns: :py:class:`~mlrun.common.schemas.hub.HubItem`.
         """
         path = (f"hub/sources/{source_name}/items/{item_name}",)
@@ -4408,6 +4416,7 @@ class HTTPRunDB(RunDBInterface):
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
+            "item_type": item_type,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return mlrun.common.schemas.HubItem(**response.json())
@@ -4419,6 +4428,7 @@ class HTTPRunDB(RunDBInterface):
         asset_name: str,
         version: Optional[str] = None,
         tag: str = "latest",
+        item_type: HubSourceType = HubSourceType.functions,
     ):
         """
         Get hub asset from item.
@@ -4428,13 +4438,14 @@ class HTTPRunDB(RunDBInterface):
         :param asset_name:  Name of the asset to retrieve.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
-
+        :param item_type: The type of item to retrieve from the hub source (e.g: functions, modules).
         :returns: http response with the asset in the content attribute
         """
         path = f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}"
         params = {
             "version": version,
             "tag": tag,
+            "item_type": item_type,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return response

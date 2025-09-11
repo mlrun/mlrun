@@ -14,6 +14,7 @@
 
 import os
 import typing
+import warnings
 from collections import namedtuple
 
 from mlrun.config import config
@@ -247,10 +248,22 @@ def mount_s3(
     def _use_s3_cred(runtime: "KubeResource"):
         _access_key = aws_access_key or os.environ.get(prefix + "AWS_ACCESS_KEY_ID")
         _secret_key = aws_secret_key or os.environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
-        _endpoint_url = endpoint_url or os.environ.get(prefix + "S3_ENDPOINT_URL")
+
+        # Check for endpoint URL with backward compatibility
+        _endpoint_url = endpoint_url or os.environ.get(prefix + "AWS_ENDPOINT_URL_S3")
+        if not _endpoint_url:
+            # Check for deprecated environment variable
+            _endpoint_url = os.environ.get(prefix + "S3_ENDPOINT_URL")
+            if _endpoint_url:
+                warnings.warn(
+                    "S3_ENDPOINT_URL is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                    "use AWS_ENDPOINT_URL_S3 instead.",
+                    # TODO: Remove this in 1.12.0
+                    FutureWarning,
+                )
 
         if _endpoint_url:
-            runtime.set_env(prefix + "S3_ENDPOINT_URL", _endpoint_url)
+            runtime.set_env(prefix + "AWS_ENDPOINT_URL_S3", _endpoint_url)
         if aws_region:
             runtime.set_env(prefix + "AWS_REGION", aws_region)
         if non_anonymous:

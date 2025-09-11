@@ -1634,7 +1634,7 @@ class ModelRunnerStep(MonitoredStep):
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
       an error. If False, the error will appear in the output event.
 
-    raise ModelRunnerError - 
+    raise ModelRunnerError -
                               when a model raises an error the ModelRunnerStep will handle it, collect errors and outputs
                               from added models. If raise_exception is True will raise ModelRunnerError. Else will add
                               the error msg as part of the event body mapped by model name if more than one model was
@@ -1704,7 +1704,7 @@ class ModelRunnerStep(MonitoredStep):
         :param labels:              model endpoint labels, should be list of str or mapping of str:str
         :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
 
-                 * **overwrite**: If model endpoints with the same name exist, delete the `latest` one; 
+                 * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
                    create a new model endpoint entry and set it as `latest`.
 
                  * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;

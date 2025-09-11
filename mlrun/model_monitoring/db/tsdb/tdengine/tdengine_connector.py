@@ -286,10 +286,9 @@ class TDEngineConnector(TSDBConnector):
             url=f"ds://{self._tdengine_connection_profile.name}",
             supertable=self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table,
             table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
-            time_col=mm_schemas.EventFieldType.TIME,
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
             database=self.database,
             columns=[
-                mm_schemas.WriterEvent.END_INFER_TIME,
                 mm_schemas.WriterEvent.START_INFER_TIME,
                 mm_schemas.MetricData.METRIC_VALUE,
             ],
@@ -311,10 +310,9 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.TDEngineSuperTables.APP_RESULTS
             ].super_table,
             table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
-            time_col=mm_schemas.EventFieldType.TIME,
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
             database=self.database,
             columns=[
-                mm_schemas.WriterEvent.END_INFER_TIME,
                 mm_schemas.WriterEvent.START_INFER_TIME,
                 mm_schemas.ResultData.RESULT_VALUE,
                 mm_schemas.ResultData.RESULT_STATUS,

@@ -1225,7 +1225,7 @@ class RemoteRuntime(KubeResource):
             url = mlrun.utils.helpers.join_urls(
                 f"http://{self.status.internal_invocation_urls[0]}", path
             )
-            logger.info(
+            logger.debug(
                 f"Using internal invocation url {url}. Make sure you have network access to the k8s cluster. "
                 f"Otherwise, set force_external_address to True"
             )

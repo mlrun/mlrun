@@ -636,6 +636,7 @@ def _set_source_code_and_handler(function, config):
         body = nuclio.build.mlrun_footer.format(
             mlrun.runtimes.nuclio.serving.serving_subkind
         )
+        body += "\nfrom mlrun.serving.states import LLModel # noqa"
         mlrun.utils.update_in(
             config,
             "spec.build.functionSourceCode",

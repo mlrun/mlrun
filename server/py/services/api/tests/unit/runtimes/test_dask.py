@@ -530,7 +530,6 @@ class TestDaskRuntime(TestRuntimeBase):
                 function, secrets, client_version, client_python_version
             )
         )
-        expected_affinity = mlrun.k8s_utils.sanitize_k8s_objects(expected_affinity)
         assert scheduler_pod.metadata.namespace == namespace
         assert worker_pod.metadata.namespace == namespace
         assert scheduler_pod.metadata.labels == expected_labels

@@ -886,6 +886,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     @pytest.mark.asyncio
     async def test_monitor_run_retry_exhausted(self, db: Session, client: TestClient):
+        # label the pods with the retry attempt (3). Without this, the pods would remain unlabeled and the monitor
+        # logic would treat them as outdated, causing them to be skipped.
+        for pod in [self.pending_job_pod, self.running_job_pod, self.failed_job_pod]:
+            pod.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] = "3"
+
         list_namespaced_pods_calls = [
             [self.pending_job_pod],
             [self.running_job_pod],
@@ -970,6 +975,37 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "reason": "Some reason",
                 "status_text": "Run failed attempt 1 of 4 with error: Failed message",
             },
+        )
+
+    @pytest.mark.parametrize(
+        "pod_retry_label, run_retry_count, expected_result",
+        [
+            # first run, no retry label means pod is valid and not outdated
+            (None, 0, False),
+            # retry count > 0 and no retry label is present, pod is outdated
+            (None, 1, True),
+            # pod attempt is older than current run retry, pod is outdated
+            ("1", 2, True),
+            # pod attempt equals current run retry, pod is still valid
+            ("2", 2, False),
+            # edge case: pod attempt label is ahead of the run's retry count.
+            # this situation shouldn't normally occur, but if it does (e.g. due to a transient state or race condition),
+            # we treat the pod as valid (not outdated) to avoid skipping an active attempt.
+            ("3", 2, False),
+        ],
+    )
+    def test_is_pod_from_outdated_retry(
+        self, pod_retry_label, run_retry_count, expected_result
+    ):
+        pod = self._generate_pod("pod", self.job_labels, PodPhases.pending)
+        if pod_retry_label is not None:
+            pod.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] = (
+                pod_retry_label
+            )
+        self.run["status"]["retry_count"] = run_retry_count
+        assert (
+            self.runtime_handler._is_pod_from_outdated_retry(pod.to_dict(), self.run)
+            is expected_result
         )
 
     def _mock_list_resources_pods(self, pod=None):

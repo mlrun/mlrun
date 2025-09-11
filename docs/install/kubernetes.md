@@ -109,7 +109,7 @@ creating a user with login to configure in the secret.
 ```
 Where:
 
-- `<your-registry-server>` is your Private Docker Registry FQDN. (https://registry.hub.docker.com/ for Docker Hub).
+- `<your-registry-server>` is your Private Docker Registry FQDN. (`index.docker.io/<your-username>` for Docker Hub).
 - `<your-username>` is your Docker username.
 - `<your-password>` is your Docker password.
 - `<your-email>` is your Docker email.
@@ -193,7 +193,7 @@ tsdb_profile = DatastoreProfileTDEngine(
 project.register_datastore_profile(tsdb_profile)
 
 # Create and register stream profile
-stream_profile = DatastoreProfileKafkaSource(
+stream_profile = DatastoreProfileKafkaStream(
     name="my-kafka",
     brokers=["<kafka-broker-ip-address>:9094"],
     topics=[],
@@ -413,10 +413,11 @@ Set up the following project-secrets (refer to [**Data stores**](../store/datast
 for any project used:
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; S3 credentials
-* `S3_ENDPOINT_URL` &mdash; the AWS S3 endpoint to use, depending on the region. For example: 
+* `AWS_ENDPOINT_URL_S3` &mdash; the AWS S3 endpoint to use, depending on the region. For example: 
     ``` console
-    S3_ENDPOINT_URL = https://s3.us-east-2.amazonaws.com/
+    AWS_ENDPOINT_URL_S3 = https://s3.us-east-2.amazonaws.com/
     ```
+    **Note**: `S3_ENDPOINT_URL` is deprecated as of v1.10.0 and will be removed in v1.12.0. Use `AWS_ENDPOINT_URL_S3` instead.
 
 ### Disabling auto-mount
 

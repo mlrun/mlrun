@@ -28,6 +28,7 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         for i in range(len(expected_response)):
             assert expected_response[i].source.diff(response[i].source) == {}
 
+    @pytest.mark.skip(reason="Mismatch between test image and CI image, see ML-11002")
     def test_hub(self):
         db = mlrun.get_run_db()
 

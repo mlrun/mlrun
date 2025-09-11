@@ -40,7 +40,7 @@ def in_mem_store() -> InMemoryStore:
     return InMemoryStore()
 
 
-def test_in_memory(in_mem_store: InMemoryStore) -> None:
+def test_in_memory(in_mem_store: InMemoryStore, ensure_project) -> None:
     context = mlrun.get_or_create_ctx("test-in-mem")
     context.artifact_path = "memory://"
     k1 = context.log_artifact("k1", body="abc")
@@ -57,7 +57,7 @@ def test_in_memory(in_mem_store: InMemoryStore) -> None:
     ), "failed to log in mem artifact"
 
 
-def test_file(rundb_mock, tmpdir: Path) -> None:
+def test_file(rundb_mock, tmpdir: Path, ensure_project) -> None:
     data = mlrun.run.get_dataitem(str(tmpdir / "test1.txt"))
     data.put("abc")
     assert data.get() == b"abc", "failed put/get test"

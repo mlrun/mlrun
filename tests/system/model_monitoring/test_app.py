@@ -51,7 +51,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
 )
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
-    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaStream,
     DatastoreProfileV3io,
 )
 from mlrun.datastore.targets import ParquetTarget
@@ -351,7 +351,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         self.set_mm_credentials()
         self._external_stream_delay = 0
         if isinstance(
-            self.mm_stream_profile, DatastoreProfileKafkaSource
+            self.mm_stream_profile, DatastoreProfileKafkaStream
         ) and self.mm_stream_profile.attributes()["brokers"][0].endswith(
             ".confluent.cloud:9092"
         ):
@@ -391,7 +391,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     path=f"pipelines/{self.project_name}/model-endpoints/{mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER}/serving-state.json",
                 )
 
-        elif isinstance(stream_profile, DatastoreProfileKafkaSource):
+        elif isinstance(stream_profile, DatastoreProfileKafkaStream):
             kafka_profile_attributes = stream_profile.attributes()
             kafka_consumer_kwargs = mlrun.datastore.utils.KafkaParameters(
                 kafka_profile_attributes
@@ -1387,7 +1387,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             with pytest.raises(v3io.dataplane.response.HttpResponseError):
                 v3io_client.stream.describe(container, stream_path)
 
-        elif isinstance(stream_profile, DatastoreProfileKafkaSource):
+        elif isinstance(stream_profile, DatastoreProfileKafkaStream):
             consumer = kafka.KafkaConsumer(bootstrap_servers=stream_profile.brokers)
             topics = consumer.topics()
 

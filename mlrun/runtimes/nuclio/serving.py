@@ -683,17 +683,13 @@ class ServingRuntime(RemoteRuntime):
             isinstance(step_type, mlrun.serving.states.ModelRunnerStep)
             for step_type in self.spec.graph.steps.values()
         ):
-            #  Add importing LLModel
+            # Add import for LLModel
             decoded_code = b64decode(self.spec.build.functionSourceCode).decode("utf-8")
-            if not decoded_code.startswith(
-                "from mlrun.serving.states import LLModel\n"
-            ):
-                decoded_code = (
-                    "from mlrun.serving.states import LLModel\n" + decoded_code
-                )
+            import_llmodel_code = "\nfrom mlrun.serving.states import LLModel\n"
+            if import_llmodel_code not in decoded_code:
+                decoded_code += import_llmodel_code
             encoded_code = mlrun.utils.helpers.encode_user_code(decoded_code)
             self.spec.build.functionSourceCode = encoded_code
-            self.save()
 
         # Handle secret processing before handling child functions, since secrets are transferred to them
         if self.spec.secret_sources:

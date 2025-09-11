@@ -685,9 +685,15 @@ class ServingRuntime(RemoteRuntime):
         ):
             #  Add importing LLModel
             decoded_code = b64decode(self.spec.build.functionSourceCode).decode("utf-8")
-            decoded_code = "from mlrun.serving.states import LLModel\n" + decoded_code
+            if not decoded_code.startswith(
+                "from mlrun.serving.states import LLModel\n"
+            ):
+                decoded_code = (
+                    "from mlrun.serving.states import LLModel\n" + decoded_code
+                )
             encoded_code = mlrun.utils.helpers.encode_user_code(decoded_code)
             self.spec.build.functionSourceCode = encoded_code
+            self.save()
 
         # Handle secret processing before handling child functions, since secrets are transferred to them
         if self.spec.secret_sources:

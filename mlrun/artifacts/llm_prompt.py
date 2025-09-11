@@ -62,12 +62,19 @@ class LLMPromptArtifactSpec(ArtifactSpec):
             parent_uri=model_artifact.uri
             if isinstance(model_artifact, model_art.ModelArtifact)
             else model_artifact,
+            format=kwargs.pop("format", "") or "json",
             **kwargs,
         )
 
         self.prompt_template = prompt_template
         self.prompt_legend = prompt_legend
-        self.model_configuration = model_configuration
+        if model_configuration is not None and not isinstance(
+            model_configuration, dict
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "LLMPromptArtifact model_configuration must be a dictionary or None"
+            )
+        self.model_configuration = model_configuration or {}
         self.description = description
         self._model_artifact = (
             model_artifact

@@ -22,6 +22,7 @@ import mlrun.common.schemas.hub
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun.datastore import store_manager
 
@@ -69,6 +70,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
+        object_type: HubSourceType = HubSourceType.functions,
     ) -> mlrun.common.schemas.hub.HubCatalog:
         """
         Getting the catalog object by source.
@@ -79,15 +81,18 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         :param tag:             tag of items to filter by
         :param force_refresh:   if True, the catalog will be loaded from source always,
                                 otherwise will be pulled from db (if loaded before)
+        :param object_type:     The type of the object to retrieve from the source (e.g: functions, modules).
         :return: catalog object
         """
         source_name = source.metadata.name
         if not self._catalogs.get(source_name) or force_refresh:
-            url = source.get_catalog_uri()
+            url = source.get_catalog_uri(object_type)
             credentials = self._get_source_credentials(source_name)
             catalog_data = mlrun.run.get_object(url=url, secrets=credentials)
             catalog_dict = json.loads(catalog_data)
-            catalog = self._transform_catalog_dict_to_schema(source, catalog_dict)
+            catalog = self._transform_catalog_dict_to_schema(
+                source, catalog_dict, object_type
+            )
             self._catalogs[source_name] = catalog
         else:
             catalog = self._catalogs[source_name]
@@ -112,6 +117,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
+        item_type: HubSourceType = HubSourceType.functions,
     ) -> mlrun.common.schemas.hub.HubItem:
         """
         Retrieve item from source. The item is filtered by tag and version.
@@ -122,12 +128,15 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         :param tag:             tag of the item
         :param force_refresh:   if True, the catalog will be loaded from source always,
                                 otherwise will be pulled from db (if loaded before)
+        :param item_type:       the type of the item to retrieve (e.g: functions, modules)
 
         :return: hub item object
 
         :raise if the number of collected items from catalog is not exactly one.
         """
-        catalog = self.get_source_catalog(source, version, tag, force_refresh)
+        catalog = self.get_source_catalog(
+            source, version, tag, force_refresh, item_type
+        )
         items = self._get_catalog_items_filtered_by_name(catalog.catalog, item_name)
         num_items = len(items)
 
@@ -202,6 +211,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
+        item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
         """
         Retrieve only the sources that contains the item name
@@ -211,6 +221,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         :param item_name:   item name. If not provided the original list will be returned.
         :param tag:         item tag to filter by, supported only if item name is provided.
         :param version:     item version to filter by, supported only if item name is provided.
+        :param item_type:   the type of the item to filter by (e.g: functions, modules).
 
         :return:
         """
@@ -221,12 +232,18 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
                 )
             return sources
 
+        if item_name and not item_type:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Item type must be provided when filtering by item name"
+            )
+
         filtered_sources = []
         for source in sources:
             catalog = self.get_source_catalog(
                 source=source.source,
                 version=version,
                 tag=tag,
+                object_type=item_type,
             )
             for item in catalog.catalog:
                 if item.metadata.name == item_name:
@@ -311,11 +328,14 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
                 f"item={item.metadata.name}, version={item.metadata.version}, tag={item.metadata.tag}"
             )
         item_path = item.metadata.get_relative_path()
-        return source.get_full_uri(item_path + asset_path)
+        item_type = item.metadata.source
+        return source.get_full_uri(item_path + asset_path, item_type)
 
     @staticmethod
     def _transform_catalog_dict_to_schema(
-        source: mlrun.common.schemas.hub.HubSource, catalog_dict: dict[str, Any]
+        source: mlrun.common.schemas.hub.HubSource,
+        catalog_dict: dict[str, Any],
+        object_type: HubSourceType = HubSourceType.functions,
     ) -> mlrun.common.schemas.hub.HubCatalog:
         """
         Transforms catalog dictionary to HubCatalog schema
@@ -323,6 +343,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         :param catalog_dict:    raw catalog dict, top level keys are item names,
                                 second level keys are version tags ("latest, "1.1.0", ...) and
                                 bottom level keys include spec as a dict and all the rest is considered as metadata.
+        :param object_type:    The type of the object to retrieve from the source (e.g: functions, modules).
         :return: catalog object
         """
         catalog = mlrun.common.schemas.hub.HubCatalog(
@@ -343,7 +364,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
                 metadata = mlrun.common.schemas.hub.HubItemMetadata(
                     tag=version_tag, **object_details_dict
                 )
-                item_uri = source.get_full_uri(metadata.get_relative_path())
+                item_uri = source.get_full_uri(
+                    metadata.get_relative_path(), object_type
+                )
                 spec = mlrun.common.schemas.hub.HubItemSpec(
                     item_uri=item_uri, assets=assets, **spec_dict
                 )

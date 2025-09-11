@@ -328,14 +328,15 @@ def _add_default_hub_source_if_needed(
         index=mlrun.common.schemas.hub.last_source_index,
         raise_on_not_found=False,
     )
-
-    # update the default hub if configured url has changed
-    hub_source_path = hub_source.source.spec.path if hub_source else None
-    if not hub_source_path or hub_source_path != default_hub_source.spec.path:
+    if not hub_source:
+        # create the default hub source if it does not exist
+        _update_default_hub_source(db, db_session, default_hub_source)
+        return
+    # update the default hub if configuration has changed
+    if difference := default_hub_source.diff(hub_source.source):
         mlrun.utils.logger.debug(
             "Updating default hub source",
-            hub_source_path=hub_source_path,
-            default_hub_source_path=default_hub_source.spec.path,
+            difference=difference,
         )
         _update_default_hub_source(db, db_session, default_hub_source)
 

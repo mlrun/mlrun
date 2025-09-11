@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.schemas
 import mlrun.common.schemas.hub
+from mlrun.common.schemas.hub import HubSourceType
 
 import framework.api.deps
 import framework.utils.auth.verifier
@@ -193,6 +194,7 @@ async def get_catalog(
     version: Optional[str] = Query(None),
     tag: Optional[str] = Query(None),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
+    object_type: HubSourceType = Query(HubSourceType.functions),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         framework.api.deps.authenticate_request
@@ -217,6 +219,7 @@ async def get_catalog(
         version,
         tag,
         force_refresh,
+        object_type,
     )
 
 
@@ -230,6 +233,7 @@ async def get_item(
     version: Optional[str] = Query(None),
     tag: Optional[str] = Query("latest"),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
+    item_type: HubSourceType = Query(HubSourceType.functions),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         framework.api.deps.authenticate_request
@@ -255,6 +259,7 @@ async def get_item(
         version,
         tag,
         force_refresh,
+        item_type,
     )
 
 
@@ -303,6 +308,7 @@ async def get_asset(
     asset_name: str,
     tag: Optional[str] = Query("latest"),
     version: Optional[str] = Query(None),
+    item_type: HubSourceType = Query(HubSourceType.functions),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         framework.api.deps.authenticate_request
@@ -316,6 +322,7 @@ async def get_asset(
     :param asset_name:  the name of the asset to retrieve
     :param tag:         tag of item - latest or version number
     :param version:     item version
+    :param item_type:   the type of the item, e.g., functions, modules, etc.
     :param db_session:  a session that manages the current dialog with the database
     :param auth_info:   the auth info of the request
 
@@ -341,6 +348,7 @@ async def get_asset(
         item_name,
         version,
         tag,
+        item_type,
     )
 
     # Getting the asset from the item

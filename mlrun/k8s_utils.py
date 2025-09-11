@@ -470,20 +470,6 @@ def _handle_allow_mode(
     list[kubernetes.client.V1Toleration],
     typing.Optional[kubernetes.client.V1Affinity],
 ]:
-    for op in [
-        mlrun.common.schemas.NodeSelectorOperator.node_selector_op_not_in.value,
-        mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value,
-    ]:
-        affinity = _prune_affinity_node_selector_requirement(
-            generate_preemptible_node_selector_requirements(op),
-            affinity=affinity,
-        )
-
-    node_selector = _prune_node_selector(
-        mlconfig.get_preemptible_node_selector(),
-        enriched_node_selector=node_selector,
-    )
-
     tolerations = _merge_tolerations(tolerations, preemptible_tolerations)
     return node_selector, tolerations, affinity
 

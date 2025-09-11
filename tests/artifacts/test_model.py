@@ -32,7 +32,7 @@ model_file = pathlib.Path(__file__).parent / "assets" / "model.pkl"
     [(True, "da39a3ee5e6b4b0d3255bfef95601890afd80709"), (False, None)],
 )
 def test_model_target_paths(
-    generate_target_path_from_artifact_hash, expected_model_target_file
+    generate_target_path_from_artifact_hash, expected_model_target_file, ensure_project
 ):
     mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
         generate_target_path_from_artifact_hash

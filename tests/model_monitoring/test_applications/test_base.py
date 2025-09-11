@@ -26,7 +26,7 @@ import pytest
 import mlrun
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
-from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
 from mlrun.model_monitoring.applications import (
     ExistingDataHandling,
     ModelMonitoringApplicationBase,
@@ -239,7 +239,7 @@ class TestEvaluate:
                 end=end,
                 run_local=run_local,
                 write_output=write_output,
-                stream_profile=DatastoreProfileKafkaSource(
+                stream_profile=DatastoreProfileKafkaStream(
                     name="should-not-be-passed-on-remote",
                     brokers=["broker-address:9092"],
                     topics=[],
@@ -255,7 +255,7 @@ class TestEvaluate:
             end=datetime(2025, 5, 4),
             run_local=True,
             write_output=True,
-            stream_profile=DatastoreProfileKafkaSource(
+            stream_profile=DatastoreProfileKafkaStream(
                 name="should-not-be-passed-on-remote",
                 brokers=["broker-address:9092"],
                 topics=[],
@@ -309,7 +309,7 @@ class TestEvaluate:
             end=datetime(2025, 5, 4),
             run_local=True,
             write_output=True,
-            stream_profile=DatastoreProfileKafkaSource(
+            stream_profile=DatastoreProfileKafkaStream(
                 name="kafka-stream", brokers=["broker-address:9092"], topics=[]
             ),
         )
@@ -338,6 +338,15 @@ class TestEvaluate:
             pytest.raises(
                 mlrun.errors.MLRunValueError,
                 match="`base_period` must be a nonnegative integer .*",
+            ),
+        ),
+        (
+            datetime(2008, 9, 1, 10, 2, 1).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            None,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The start and end times must either both include time zone information or both be naive",
             ),
         ),
     ],
@@ -377,8 +386,8 @@ def test_window_generator_validation(
             ],
         ),
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 1, 10, 2, 1),
+            datetime(2008, 9, 2, 6, 2, 1),
             600,
             [
                 (

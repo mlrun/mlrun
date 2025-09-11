@@ -14,6 +14,7 @@
 import json
 import os
 import warnings
+from base64 import b64decode
 from copy import deepcopy
 from typing import Optional, Union
 
@@ -678,7 +679,15 @@ class ServingRuntime(RemoteRuntime):
                         f"function {function} is used in steps and is not defined, "
                         "use the .add_child_function() to specify child function attributes"
                     )
-
+        if any(
+            isinstance(step_type, mlrun.serving.states.ModelRunnerStep)
+            for step_type in self.spec.graph.steps.values()
+        ):
+            #  Add importing LLModel
+            decoded_code = b64decode(self.spec.build.functionSourceCode).decode("utf-8")
+            decoded_code = "from mlrun.serving.states import LLModel\n" + decoded_code
+            encoded_code = mlrun.utils.helpers.encode_user_code(decoded_code)
+            self.spec.build.functionSourceCode = encoded_code
         # Handle secret processing before handling child functions, since secrets are transferred to them
         if self.spec.secret_sources:
             # Before passing to remote builder, secrets values must be retrieved (for example from ENV)

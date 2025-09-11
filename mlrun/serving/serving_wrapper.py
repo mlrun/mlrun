@@ -14,7 +14,7 @@
 
 # serving runtime hooks, used in empty serving functions
 from mlrun.runtimes import nuclio_init_hook
-from mlrun.serving.states import LLModel # noqa
+from mlrun.serving.states import LLModel  # noqa
 
 
 def init_context(context):

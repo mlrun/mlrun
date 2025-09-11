@@ -278,6 +278,13 @@ class TDEngineConnector(TSDBConnector):
             after="ProcessBeforeTDEngine",
         )
 
+    def add_pre_writer_steps(self, graph, after):
+        return graph.add_step(
+            "mlrun.model_monitoring.db.tsdb.tdengine.writer_graph_steps.ProcessBeforeTDEngine",
+            name="ProcessBeforeTDEngine",
+            after=after,
+        )
+
     def apply_writer_steps(self, graph, after, **kwargs) -> None:
         graph.add_step(
             "mlrun.datastore.storeytargets.TDEngineStoreyTarget",

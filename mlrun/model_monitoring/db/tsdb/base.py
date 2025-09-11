@@ -793,3 +793,6 @@ class TSDBConnector(ABC):
             )
         )
         return mm_schemas.ModelEndpointDriftValues(values=values)
+
+    def add_pre_writer_steps(self, graph, after):
+        return None

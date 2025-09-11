@@ -242,9 +242,12 @@ class WriterGraphEnabler:
             fn.set_topology(mlrun.serving.states.StepKinds.flow, engine="async"),
         )
 
-        graph.to("ReconstructWriterEvent", "event_reconstructor").to(
-            "KindChoice", "kind_choice_step"
+        graph.to("ReconstructWriterEvent", "event_reconstructor")
+        step = tsdb_connector.add_pre_writer_steps(
+            graph=graph, after="event_reconstructor"
         )
+        before_choice = step.name if step else "event_reconstructor"
+        graph.add_step("KindChoice", "kind_choice_step", after=before_choice)
         tsdb_connector.apply_writer_steps(
             graph=graph,
             after="kind_choice_step",

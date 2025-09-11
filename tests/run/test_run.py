@@ -74,7 +74,7 @@ def test_noparams(rundb_mock):
     assert result.status.artifacts[0]["metadata"].get("key") == "chart", "failed to run"
 
     # verify the DF artifact was created and stored
-    df = result.artifact("mydf").as_df()
+    result.artifact("mydf").as_df()
 
 
 def test_ensure_remote_run(tmp_path, monkeypatch):

@@ -1641,6 +1641,9 @@ class ModelRunnerStep(MonitoredStep):
         model_runner_step.add_model(..., model_class=MyModel(name="my_model"))
         graph.to(model_runner_step)
 
+    Note when ModelRunnerStep is used in a graph, MLRun automatically imports
+    the default language model class (LLModel) during function deployment.
+
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
@@ -1902,7 +1905,8 @@ class ModelRunnerStep(MonitoredStep):
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
         if type(model_class) is LLModel or (
-            isinstance(model_class, str) and model_class == LLModel.__name__
+            isinstance(model_class, str)
+            and model_class.split(".")[-1] == LLModel.__name__
         ):
             if outputs:
                 warnings.warn(
@@ -2892,7 +2896,8 @@ class RootFlowStep(FlowStep):
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
         if type(model_class) is LLModel or (
-            isinstance(model_class, str) and model_class == LLModel.__name__
+            isinstance(model_class, str)
+            and model_class.split(".")[-1] == LLModel.__name__
         ):
             if outputs:
                 warnings.warn(

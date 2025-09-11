@@ -60,7 +60,7 @@ class TSDBConnector(ABC):
         """
         pass
 
-    def apply_writer_steps(self, graph, **kwargs) -> None:
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
         """
         Apply TSDB steps on the provided writer graph. Throughout these steps, the graph stores metrics / results.
         This data is being used by mlrun UI and the monitoring dashboards in grafana.

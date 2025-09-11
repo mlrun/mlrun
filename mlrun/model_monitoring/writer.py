@@ -243,21 +243,21 @@ class WriterGraphEnabler:
         )
 
         graph.to("ReconstructWriterEvent", "event_reconstructor").to(
-            "KindChoice", "kind_chooser"
+            "KindChoice", "kind_choice_step"
         )
         tsdb_connector.apply_writer_steps(
             graph=graph,
-            after="kind_chooser",
+            after="kind_choice_step",
         )
         graph.add_step(
             "AlertGenerator",
             name="alert_generator",
-            after="kind_chooser",
+            after="kind_choice_step",
         )
         graph.add_step(
             "StatsWriter",
             name="stats_writer",
-            after="kind_chooser",
+            after="kind_choice_step",
         )
 
 

@@ -22,6 +22,7 @@ import taosws
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.types
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
+from mlrun.config import config
 from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
@@ -277,11 +278,11 @@ class TDEngineConnector(TSDBConnector):
             after="ProcessBeforeTDEngine",
         )
 
-    def apply_writer_steps(self, graph, **kwargs) -> None:
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
         graph.add_step(
             "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
             name="tsdb_metrics",
-            after="kind_chooser",
+            after=after,
             url=f"ds://{self._tdengine_connection_profile.name}",
             supertable=self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table,
             table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
@@ -297,14 +298,14 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.WriterEvent.APPLICATION_NAME,
                 mm_schemas.MetricData.METRIC_NAME,
             ],
-            max_events=1000,
-            flush_after_seconds=30,
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
         )
 
         graph.add_step(
             "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
             name="tsdb_app_results",
-            after="kind_chooser",
+            after=after,
             url=f"ds://{self._tdengine_connection_profile.name}",
             supertable=self.tables[
                 mm_schemas.TDEngineSuperTables.APP_RESULTS
@@ -325,8 +326,8 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.ResultData.RESULT_NAME,
                 mm_schemas.ResultData.RESULT_KIND,
             ],
-            max_events=1000,
-            flush_after_seconds=30,
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
         )
 
     def handle_model_error(

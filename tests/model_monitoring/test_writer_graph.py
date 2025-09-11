@@ -33,7 +33,7 @@ from mlrun.model_monitoring.writer import WriterGraphEnabler
         ),
     ],
 )
-def test_plot_monitoring_serving_graph(tsdb_profile: DatastoreProfile) -> None:
+def test_plot_writer_graph(tsdb_profile: DatastoreProfile) -> None:
     project_name = "test-writer"
     project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
 

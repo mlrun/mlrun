@@ -25,6 +25,7 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas import EventFieldType
+from mlrun.config import config
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn, get_start_end
 from mlrun.utils import logger
@@ -369,11 +370,11 @@ class V3IOTSDBConnector(TSDBConnector):
         apply_storey_filter()
         apply_tsdb_target(name="tsdb3", after="FilterNotNone")
 
-    def apply_writer_steps(self, graph, **kwargs) -> None:
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
         graph.add_step(
             "storey.TSDBTarget",
             name="tsdb_metrics",
-            after="kind_chooser",
+            after=after,
             path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.METRICS]}",
             time_col=mm_schemas.WriterEvent.END_INFER_TIME,
             container=self.container,
@@ -385,15 +386,15 @@ class V3IOTSDBConnector(TSDBConnector):
                 mm_schemas.WriterEvent.ENDPOINT_ID,
                 mm_schemas.MetricData.METRIC_NAME,
             ],
-            max_events=1000,
-            flush_after_seconds=30,
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
             key=mm_schemas.EventFieldType.ENDPOINT_ID,
         )
 
         graph.add_step(
             "storey.TSDBTarget",
             name="tsdb_app_results",
-            after="kind_chooser",
+            after=after,
             path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]}",
             time_col=mm_schemas.WriterEvent.END_INFER_TIME,
             container=self.container,
@@ -405,8 +406,8 @@ class V3IOTSDBConnector(TSDBConnector):
                 mm_schemas.WriterEvent.ENDPOINT_ID,
                 mm_schemas.ResultData.RESULT_NAME,
             ],
-            max_events=1000,
-            flush_after_seconds=30,
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
             key=mm_schemas.EventFieldType.ENDPOINT_ID,
         )
 

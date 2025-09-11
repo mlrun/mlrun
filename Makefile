@@ -1054,14 +1054,6 @@ upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked require
 		--output-file dockerfiles/test-system/locked-requirements.txt
 
 
-upgrade-mlrun-kfp-deps-lock-all: upgrade-mlrun-kfp-deps-lock-3.11 upgrade-mlrun-kfp-deps-lock-3.9
-
-upgrade-mlrun-kfp-deps-lock-3.11:
-	$(MAKE) upgrade-mlrun-kfp-deps-lock MLRUN_PYTHON_VERSION=3.11
-
-upgrade-mlrun-kfp-deps-lock-3.9:
-	$(MAKE) upgrade-mlrun-kfp-deps-lock MLRUN_PYTHON_VERSION=3.9
-
 upgrade-mlrun-test-deps-lock-all: upgrade-mlrun-test-deps-lock-3.11 upgrade-mlrun-test-deps-lock-3.9
 
 upgrade-mlrun-test-deps-lock-3.11:
@@ -1075,7 +1067,6 @@ upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
-		--python-version $(MLRUN_PYTHON_VERSION) \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 
@@ -1086,7 +1077,7 @@ upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 		upgrade-mlrun-api-deps-lock \
 		upgrade-mlrun-jupyter-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
-		upgrade-mlrun-kfp-deps-lock-all \
+		upgrade-mlrun-kfp-deps-lock \
 		upgrade-mlrun-test-deps-lock-all \
 		upgrade-mlrun-system-test-deps-lock
 

@@ -973,6 +973,9 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> dict[str, float]:
+        if not endpoint_ids:
+            return {}
+
         # Get the last request timestamp for each endpoint from the KV table.
         # The result of the query is a list of dictionaries,
         # each dictionary contains the endpoint id and the last request timestamp.

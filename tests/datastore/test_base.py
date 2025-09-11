@@ -24,13 +24,12 @@ import pytest
 import pytz
 
 import mlrun.datastore
-import mlrun.datastore.wasbfs
 from mlrun import MLRunInvalidArgumentError, new_function
 from mlrun.datastore import KafkaSource
 from mlrun.datastore.azure_blob import AzureBlobStore
 from mlrun.datastore.base import HttpStore
 from mlrun.datastore.datastore import schema_to_model_provider, schema_to_store
-from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
 from mlrun.datastore.dbfs_store import DBFSStore
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
@@ -97,7 +96,7 @@ def test_kafka_source_with_attributes():
 
 
 def test_kafka_source_with_attributes_as_ds_profile():
-    ds = DatastoreProfileKafkaSource(
+    ds = DatastoreProfileKafkaStream(
         name="dskafkasrc",
         brokers="broker_host:9092",
         topics="mytopic",
@@ -133,7 +132,7 @@ def test_kafka_source_with_attributes_as_ds_profile():
 
 
 def test_kafka_source_with_attributes_as_ds_profile_brokers_list():
-    ds = DatastoreProfileKafkaSource(
+    ds = DatastoreProfileKafkaStream(
         name="dskafkasrc",
         brokers=["broker_host:9092", "broker_host2:9093"],
         topics=["mytopic", "mytopic2"],

@@ -18,6 +18,7 @@ import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import partial
 from typing import Any, Callable, Optional
 
 import aiohttp
@@ -33,6 +34,16 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.notifications.notification.mail as mail
 import mlrun.utils.notifications.notification.webhook
+
+
+@pytest.fixture
+def inline_run_in_threadpool(monkeypatch):
+    async def _inline(func, *args, **kwargs):
+        if kwargs:
+            func = partial(func, **kwargs)
+        return func(*args)
+
+    monkeypatch.setattr(mlrun.utils.helpers, "run_in_threadpool", _inline)
 
 
 @pytest.mark.parametrize(
@@ -381,7 +392,7 @@ def test_notification_reason(notification_kind):
     )
 
 
-@pytest.mark.skip("Failing on CI - temporarily skipped pending fix")
+@pytest.mark.usefixtures("inline_run_in_threadpool")
 @pytest.mark.parametrize(
     "when, run_state, store_count",
     [
@@ -435,10 +446,10 @@ def test_notification_update_notification_status(when, run_state, store_count):
     ).get_notification()
     if asyncio.iscoroutinefunction(notification_kind_type.push):
         concrete_notification = notification_pusher._async_notifications[0][0]
+        concrete_notification.push = unittest.mock.AsyncMock()
     else:
         concrete_notification = notification_pusher._sync_notifications[0][0]
-
-    concrete_notification.push = unittest.mock.MagicMock()
+        concrete_notification.push = unittest.mock.MagicMock()
 
     # send notifications
     notification_pusher.push()
@@ -449,7 +460,7 @@ def test_notification_update_notification_status(when, run_state, store_count):
     assert db.store_run_notifications.call_count == store_count
 
 
-@pytest.mark.skip("Failing on CI - temporarily skipped pending fix")
+@pytest.mark.usefixtures("inline_run_in_threadpool")
 @pytest.mark.parametrize(
     "notification_kind",
     [
@@ -491,10 +502,10 @@ def test_update_notification_status(notification_kind, run_status):
     ).get_notification()
     if asyncio.iscoroutinefunction(notification_kind_type.push):
         concrete_notification = notification_pusher._async_notifications[0][0]
+        concrete_notification.push = unittest.mock.AsyncMock()
     else:
         concrete_notification = notification_pusher._sync_notifications[0][0]
-
-    concrete_notification.push = unittest.mock.MagicMock()
+        concrete_notification.push = unittest.mock.MagicMock()
 
     db = mlrun.get_run_db()
     db.store_run_notifications = unittest.mock.MagicMock()
@@ -1730,12 +1741,17 @@ class DummySessionContext:
 @pytest.fixture
 def client_session(monkeypatch: pytest.MonkeyPatch) -> None:
     """
-    Patch aiohttp.ClientSession only for the tests that need it.
+    Patch the session factory used by webhook notifications so tests
+    get a DummySessionContext instead of a real aiohttp session.
     """
+
+    def make_dummy_session(self, **kwargs):
+        return DummySessionContext(**kwargs)
+
     monkeypatch.setattr(
-        mlrun.utils.notifications.notification.webhook.aiohttp,
-        "ClientSession",
-        DummySessionContext,
+        mlrun.utils.notifications.notification.webhook.TimedHTTPClient,
+        "session",
+        make_dummy_session,
     )
 
 

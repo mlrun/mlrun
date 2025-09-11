@@ -15,9 +15,27 @@
 import asyncio
 import typing
 from copy import deepcopy
+from typing import Optional
+
+import aiohttp
 
 import mlrun.common.schemas
 import mlrun.lists
+
+
+class TimedHTTPClient:
+    def __init__(self, timeout: Optional[float] = 30.0):
+        """
+        HTTP client wrapper with built-in timeout.
+
+        Args:
+            timeout: Request timeout in seconds (default: 30.0)
+        """
+        self.timeout = aiohttp.ClientTimeout(total=timeout)
+
+    def session(self, **kwargs) -> aiohttp.ClientSession:
+        """Create a new ClientSession with the configured timeout and additional parameters."""
+        return aiohttp.ClientSession(timeout=self.timeout, **kwargs)
 
 
 class NotificationBase:

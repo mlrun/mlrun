@@ -577,6 +577,10 @@ class TestTDEngineConnector:
             "2024-12-27 05:13:47 +00:00"
         ).astimezone(datetime.timezone.utc)
 
+        # ML-10944
+        last_request = connector.get_last_request(endpoint_ids=[])
+        assert len(last_request) == 0
+
     def test_get_drift_data(self, connector):
         now = datetime.datetime.now().astimezone()
         end = now

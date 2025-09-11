@@ -807,6 +807,11 @@ class MonitoringApplicationController:
                 mm_constants.EndpointMode.BATCH_LEGACY,
             ],
         ).endpoints
+
+        if not endpoints:
+            logger.info("No model endpoints found", project=self.project)
+            return
+
         last_request_dict = self.tsdb_connector.get_last_request(
             endpoint_ids=[mep.metadata.uid for mep in endpoints]
         )
@@ -815,9 +820,6 @@ class MonitoringApplicationController:
                 mm_constants.EventFieldType.ENDPOINT_ID
             )[mm_constants.ModelEndpointSchema.LAST_REQUEST].to_dict()
 
-        if not endpoints:
-            logger.info("No model endpoints found", project=self.project)
-            return
         monitoring_functions = self.project_obj.list_model_monitoring_functions()
         if monitoring_functions:
             # if monitoring_functions: - TODO : ML-7700

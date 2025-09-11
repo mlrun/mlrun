@@ -1113,6 +1113,7 @@ class SQLRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
+        object_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         raise NotImplementedError()
 
@@ -1123,6 +1124,18 @@ class SQLRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: str = "latest",
         force_refresh: bool = False,
+        item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
+    ):
+        raise NotImplementedError()
+
+    def get_hub_asset(
+        self,
+        source_name: str,
+        item_name: str,
+        asset_name: str,
+        version: Optional[str] = None,
+        tag: str = "latest",
+        item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         raise NotImplementedError()
 

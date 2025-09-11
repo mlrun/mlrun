@@ -126,7 +126,7 @@ def test_local_context(rundb_mock):
     assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
 
 
-def test_context_from_dict_when_start_time_is_string():
+def test_context_from_dict_when_start_time_is_string(ensure_project):
     context = mlrun.get_or_create_ctx("ctx")
     context_dict = context.to_dict()
     context = mlrun.MLClientCtx.from_dict(context_dict)
@@ -283,6 +283,51 @@ def test_set_state_pending_retry(rundb_mock, max_retries, retry_count, expected_
     context.set_state(error="mock error", commit=False)
 
     assert context._state == expected_state, "task state was not set correctly"
+
+
+@pytest.mark.parametrize(
+    "active_project, project_name, should_raise, expected_project",
+    [
+        (
+            "",
+            None,
+            True,
+            None,
+        ),  # No project and no active project -> should raise error
+        (
+            "myproject",
+            None,
+            False,
+            "myproject",
+        ),  # active_project is set -> should not raise error
+        (
+            "",
+            "otherproject",
+            False,
+            "otherproject",
+        ),  # project argument is set -> should not raise error
+        (
+            "myproject",
+            "otherproject",
+            False,
+            "otherproject",
+        ),  # active_project and project argument are set -> should not raise error and use project argument
+    ],
+)
+def test_get_or_create_ctx_project_handling(
+    monkeypatch, active_project, project_name, should_raise, expected_project
+):
+    monkeypatch.setattr(mlrun.mlconf, "active_project", active_project)
+    if should_raise:
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            mlrun.get_or_create_ctx("test")
+    else:
+        if project_name:
+            ctx = mlrun.get_or_create_ctx("test", project=project_name)
+            assert ctx._project == expected_project
+        else:
+            ctx = mlrun.get_or_create_ctx("test")
+            assert ctx._project == expected_project
 
 
 def _generate_run_dict():

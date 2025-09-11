@@ -93,7 +93,7 @@ pytestmark = pytest.mark.parametrize(
 )
 
 
-def test_log_dask_to_azure(auth_method):
+def test_log_dask_to_azure(auth_method, ensure_project):
     verify_auth_parameters_and_configure_env(auth_method)
     artifact_path = "az://" + config["env"].get("AZURE_CONTAINER") + "/"
 
@@ -116,7 +116,7 @@ def test_log_dask_to_azure(auth_method):
     pd.testing.assert_frame_equal(df, df2)
 
 
-def test_log_large_dask_dataframe_to_azure(auth_method):
+def test_log_large_dask_dataframe_to_azure(auth_method, ensure_project):
     # Create the environmental variables
     verify_auth_parameters_and_configure_env(auth_method)
 

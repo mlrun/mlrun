@@ -45,6 +45,7 @@ import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun.secrets import get_secret_or_env
@@ -4361,6 +4362,7 @@ class HTTPRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
+        object_type: HubSourceType = HubSourceType.functions,
     ):
         """
         Retrieve the item catalog for a specified hub source.
@@ -4373,6 +4375,7 @@ class HTTPRunDB(RunDBInterface):
             rather than rely on cached information which may exist from previous get requests. For example,
             if the source was re-built,
             this will make the server get the updated information. Default is ``False``.
+        :param object_type: Type of object to retrieve from the hub source (e.g: functions, modules).
         :returns: :py:class:`~mlrun.common.schemas.hub.HubCatalog` object, which is essentially a list
             of :py:class:`~mlrun.common.schemas.hub.HubItem` entries.
         """
@@ -4381,6 +4384,7 @@ class HTTPRunDB(RunDBInterface):
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
+            "object_type": object_type,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return mlrun.common.schemas.HubCatalog(**response.json())
@@ -4392,6 +4396,7 @@ class HTTPRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: str = "latest",
         force_refresh: bool = False,
+        item_type: HubSourceType = HubSourceType.functions,
     ):
         """
         Retrieve a specific hub item.
@@ -4403,6 +4408,7 @@ class HTTPRunDB(RunDBInterface):
         :param force_refresh: Make the server fetch the information from the actual hub
             source, rather than
             rely on cached information. Default is ``False``.
+        :param item_type: The type of item to retrieve from the hub source (e.g: functions, modules).
         :returns: :py:class:`~mlrun.common.schemas.hub.HubItem`.
         """
         path = (f"hub/sources/{source_name}/items/{item_name}",)
@@ -4410,6 +4416,7 @@ class HTTPRunDB(RunDBInterface):
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
+            "item_type": item_type,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return mlrun.common.schemas.HubItem(**response.json())
@@ -4421,6 +4428,7 @@ class HTTPRunDB(RunDBInterface):
         asset_name: str,
         version: Optional[str] = None,
         tag: str = "latest",
+        item_type: HubSourceType = HubSourceType.functions,
     ):
         """
         Get hub asset from item.
@@ -4430,13 +4438,14 @@ class HTTPRunDB(RunDBInterface):
         :param asset_name:  Name of the asset to retrieve.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
-
+        :param item_type: The type of item to retrieve from the hub source (e.g: functions, modules).
         :returns: http response with the asset in the content attribute
         """
         path = f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}"
         params = {
             "version": version,
             "tag": tag,
+            "item_type": item_type,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return response

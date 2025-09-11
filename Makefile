@@ -1066,6 +1066,7 @@ upgrade-mlrun-test-deps-lock-3.9:
 upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
+		extras-requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt

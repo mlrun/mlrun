@@ -1,6 +1,6 @@
 [project]
 name = "mlrun-pipelines-kfp-v1-8"
-version = "0.5.9"
+version = "0.5.8"
 description = "MLRun Pipelines adapter package for providing KFP 1.8 compatibility"
 readme = "README.md"
 requires-python = ">=3.9, <3.12"
@@ -17,8 +17,8 @@ dependencies = [
 
 [project.optional-dependencies]
 kfp = [
-  "kfp~=1.8.22; python_version <= '3.9'",
-  "kfp~=1.8.23; python_version > '3.9'",
+  "kfp~=1.8.22; python_version < '3.11'",
+  "kfp~=1.8.23; python_version >= '3.11'",
 ]
 
 [build-system]

@@ -176,12 +176,11 @@ def test_requirement_specifiers_convention():
         },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',
-            '~=1.4,<1.9.0; python_version == "3.9"',
             '~=2024.4.4; python_version >= "3.11"',
         },
         "kfp": {
-            '==1.8.22; python_version <= "3.9"',
-            '==1.8.23; python_version > "3.9"',
+            '==1.8.22; python_version < "3.11"',
+            '==1.8.23; python_version >= "3.11"',
         },
         "dask": {
             '>=2023.12.1; python_version < "3.11"',
@@ -237,12 +236,11 @@ def test_requirement_specifiers_inconsistencies():
         },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',
-            '~=1.4,<1.9.0; python_version == "3.9"',
             '~=2024.4.4; python_version >= "3.11"',
         },
         "kfp": {
-            '==1.8.22; python_version <= "3.9"',
-            '==1.8.23; python_version > "3.9"',
+            '==1.8.22; python_version < "3.11"',
+            '==1.8.23; python_version >= "3.11"',
         },
     }
 
@@ -488,16 +486,9 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "tests/test_requirements.py",  # this test file
         "docs/change-log/index.md",  # a historic document
         "docs/genai/development/working-with-rag.ipynb",  # includes a generated requirement
+        # below are server side / agents - do not run scikit-learn directly.
         "dockerfiles/mlrun-api/locked-requirements.txt",  # lock file
-        "dockerfiles/mlrun/locked-requirements.txt",  # lock file
-        "dockerfiles/base/locked-requirements.txt",  # lock file
-        "dockerfiles/jupyter/locked-requirements.txt",  # lock file
-        "dockerfiles/gpu/locked-requirements.txt",  # lock file
-        "dockerfiles/test/locked-requirements.txt",  # lock file
-        "dockerfiles/test-system/locked-requirements_3.11.txt",  # lock file
-        "dockerfiles/test-system/locked-requirements_3.9.txt",  # lock file
-        "dockerfiles/mlrun-kfp/locked-requirements_3.11.txt",  # lock file
-        "dockerfiles/mlrun-kfp/locked-requirements_3.9.txt",  # lock file
+        "dockerfiles/mlrun-kfp/locked-requirements.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 

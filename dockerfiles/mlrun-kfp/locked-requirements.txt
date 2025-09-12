@@ -241,9 +241,9 @@ avro==1.12.0 \
     --hash=sha256:9a255c72e1837341dd4f6ff57b2b6f68c0f0cecdef62dd04962e10fd33bec05b \
     --hash=sha256:cad9c53b23ceed699c7af6bddced42e2c572fd6b408c257a7d4fc4e8cf2e2d6b
     # via -r extras-requirements.txt
-azure-core==1.35.0 \
-    --hash=sha256:8db78c72868a58f3de8991eb4d22c4d368fae226dac1002998d6c50437e7dad1 \
-    --hash=sha256:c0be528489485e9ede59b6971eb63c1eaacf83ef53001bfe3904e475e972be5c
+azure-core==1.35.1 \
+    --hash=sha256:12da0c9e08e48e198f9158b56ddbe33b421477e1dc98c2e1c8f9e254d92c468b \
+    --hash=sha256:435d05d6df0fff2f73fb3c15493bb4721ede14203f1ff1382aa6b6b2bdd7e562
     # via
     #   -r extras-requirements.txt
     #   adlfs
@@ -254,9 +254,9 @@ azure-datalake-store==0.0.53 \
     --hash=sha256:05b6de62ee3f2a0a6e6941e6933b792b800c3e7f6ffce2fc324bc19875757393 \
     --hash=sha256:a30c902a6e360aa47d7f69f086b426729784e71c536f330b691647a51dc42b2b
     # via adlfs
-azure-identity==1.24.0 \
-    --hash=sha256:6c3a40b2a70af831e920b89e6421e8dcd4af78a0cb38b9642d86c67643d4930c \
-    --hash=sha256:9e04997cde0ab02ed66422c74748548e620b7b29361c72ce622acab0267ff7c4
+azure-identity==1.25.0 \
+    --hash=sha256:4177df34d684cddc026e6cf684e1abb57767aa9d84e7f2129b080ec45eee7733 \
+    --hash=sha256:becaec086bbdf8d1a6aa4fb080c2772a0f824a97d50c29637ec8cc4933f1e82d
     # via
     #   -r extras-requirements.txt
     #   adlfs
@@ -1332,15 +1332,15 @@ grpcio==1.74.0 \
     #   google-cloud-bigquery
     #   grpcio-status
     #   grpcio-tools
-grpcio-status==1.48.2 ; python_full_version < '3.10' \
+grpcio-status==1.48.2 ; python_full_version < '3.11' \
     --hash=sha256:2c33bbdbe20188b2953f46f31af669263b6ee2a9b2d38fa0d36ee091532e21bf \
     --hash=sha256:53695f45da07437b7c344ee4ef60d370fd2850179f5a28bb26d8e2aa1102ec11
     # via google-api-core
-grpcio-status==1.74.0 ; python_full_version >= '3.10' \
+grpcio-status==1.74.0 ; python_full_version >= '3.11' \
     --hash=sha256:52cdbd759a6760fc8f668098a03f208f493dd5c76bf8e02598bbbaf1f6fc2876 \
     --hash=sha256:c58c1b24aa454e30f1fc6a7e0dbbc194c54a408143971a94b5f4e40bb5831432
     # via google-api-core
-grpcio-tools==1.48.2 ; python_full_version < '3.10' \
+grpcio-tools==1.48.2 ; python_full_version < '3.11' \
     --hash=sha256:0119aabd9ceedfdf41b56b9fdc8284dd85a7f589d087f2694d743f346a368556 \
     --hash=sha256:072234859f6069dc43a6be8ad6b7d682f4ba1dc2e2db2ebf5c75f62eee0f6dfb \
     --hash=sha256:0fb6c1c1e56eb26b224adc028a4204b6ad0f8b292efa28067dff273bbc8b27c4 \
@@ -1388,7 +1388,7 @@ grpcio-tools==1.48.2 ; python_full_version < '3.10' \
     --hash=sha256:f75973a42c710999acd419968bc79f00327e03e855bbe82c6529e003e49af660 \
     --hash=sha256:f766050e491d0b3203b6b85638015f543816a2eb7d089fc04e86e00f6de0e31d
     # via v3io-frames
-grpcio-tools==1.74.0 ; python_full_version >= '3.10' \
+grpcio-tools==1.74.0 ; python_full_version >= '3.11' \
     --hash=sha256:03787990b56f5c3b3f72c722a7e74fbc5a3b769bbc31ad426e2c6f6a28a9d7c8 \
     --hash=sha256:051ce925b0b99ae2daf61b3cba19962b8655cc2a72758ce4081b89272206f5a3 \
     --hash=sha256:0cab5a2c6ae75b555fee8a1a9a9b575205171e1de392fe2d4139a29e67d8f5bb \
@@ -1596,21 +1596,21 @@ kafka-python==2.1.6 \
     --hash=sha256:8a9e12694b687977cb8750b95eb060ce2907ec2d60fd5fa5c1616ab664ff5efb \
     --hash=sha256:b967ffb5beeb16f3f04d7c08c549b3d1679f07c344e6323fa077e2667e1f3ab0
     # via -r extras-requirements.txt
-kfp==1.8.22 ; python_full_version < '3.10' \
+kfp==1.8.22 ; python_full_version < '3.11' \
     --hash=sha256:3d300cb0f6d5bb303c1197f4d2740f2f27ab1fa6fd6aaa6dd8e72cfa85a72989
     # via
     #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   mlrun-pipelines-kfp-v1-8
-kfp==1.8.23 ; python_full_version >= '3.10' \
+kfp==1.8.23 ; python_full_version >= '3.11' \
     --hash=sha256:a929ff58ce1c41a8e1a62f8ca65e7a5e35bc427d8f89158079d1e54e557cef60 \
     --hash=sha256:b3acdd56fc617e7bba38e417efa426317daac2442b746cfb5b6db309fd8cd4fa
     # via
     #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   mlrun-pipelines-kfp-v1-8
-kfp-pipeline-spec==0.1.16 ; python_full_version < '3.10' \
+kfp-pipeline-spec==0.1.16 ; python_full_version < '3.11' \
     --hash=sha256:4cefae00ac50145cf862127202a8b8a783ed7504c773d7d7c517bd115283be25
     # via kfp
-kfp-pipeline-spec==0.8.0 ; python_full_version >= '3.10' \
+kfp-pipeline-spec==0.8.0 ; python_full_version >= '3.11' \
     --hash=sha256:618c64ba021db905091b6f39ed2a431b38e8d83748e19b2dc2cb3a1bee843d7e \
     --hash=sha256:ea8913bc2a1c44d68c5af730e21ef56cb7d8435294bf947723a5aa6fe2898d12
     # via kfp
@@ -2652,9 +2652,9 @@ plotly==5.24.1 \
     --hash=sha256:dbc8ac8339d248a4bcc36e08a5659bacfe1b079390b8953533f4eb22169b4bae \
     --hash=sha256:f67073a1e637eb0dc3e46324d9d51e2fe76e9727c892dde64ddf1e1b51f29089
     # via -r extras-requirements.txt
-prometheus-client==0.23.0 \
-    --hash=sha256:1f5eb6aeaf73891f15aa23ec44912c96410d90d027dc0618a3faae5911e1ff24 \
-    --hash=sha256:6ee02bc4e34275a62b3a48f2afce1c29b8e64bfc7f4bd0b19ca4f9d359151781
+prometheus-client==0.22.1 \
+    --hash=sha256:190f1331e783cf21eb60bca559354e0a4d4378facecf78f5428c39b675d20d28 \
+    --hash=sha256:cca895342e308174341b2cbf99a56bef291fbc0ef7b9e5412a0f26d653ba7094
     # via jupyter-server
 prompt-toolkit==3.0.52 \
     --hash=sha256:28cde192929c8e7321de85de1ddbe736f1375148b02f2e17edd840042b1be855 \
@@ -2768,7 +2768,7 @@ proto-plus==1.26.1 \
     # via
     #   google-api-core
     #   google-cloud-bigquery-storage
-protobuf==3.20.3 ; python_full_version < '3.10' \
+protobuf==3.20.3 ; python_full_version < '3.11' \
     --hash=sha256:03038ac1cfbc41aa21f6afcbcd357281d7521b4157926f30ebecc8d4ea59dcb7 \
     --hash=sha256:28545383d61f55b57cf4df63eebd9827754fd2dc25f80c5253f9184235db242c \
     --hash=sha256:2e3427429c9cffebf259491be0af70189607f365c2f41c7c3764af6f337105f2 \
@@ -2802,7 +2802,7 @@ protobuf==3.20.3 ; python_full_version < '3.10' \
     #   mlflow-skinny
     #   proto-plus
     #   v3io-frames
-protobuf==6.31.1 ; python_full_version >= '3.10' \
+protobuf==6.31.1 ; python_full_version >= '3.11' \
     --hash=sha256:0414e3aa5a5f3ff423828e1e6a6e907d6c65c1d5b7e6e975793d5590bdeecc16 \
     --hash=sha256:426f59d2964864a1a366254fa703b8632dcec0790d8862d30034d8245e1cd447 \
     --hash=sha256:4ee898bf66f7a8b0bd21bce523814e6fbd8c6add948045ce958b73af7e8878c6 \
@@ -3293,11 +3293,11 @@ requests-oauthlib==2.0.0 \
     #   google-auth-oauthlib
     #   kubernetes
     #   msrest
-requests-toolbelt==0.10.1 ; python_full_version < '3.10' \
+requests-toolbelt==0.10.1 ; python_full_version < '3.11' \
     --hash=sha256:18565aa58116d9951ac39baa288d3adb5b3ff975c4f25eee78555d89e8f247f7 \
     --hash=sha256:62e09f7ff5ccbda92772a29f394a49c3ad6cb181d568b1337626b2abb628a63d
     # via kfp
-requests-toolbelt==1.0.0 ; python_full_version >= '3.10' \
+requests-toolbelt==1.0.0 ; python_full_version >= '3.11' \
     --hash=sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6 \
     --hash=sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06
     # via kfp
@@ -4033,7 +4033,7 @@ uritemplate==3.0.1 \
     # via
     #   google-api-python-client
     #   kfp
-urllib3==1.26.20 ; python_full_version < '3.10' \
+urllib3==1.26.20 ; python_full_version < '3.11' \
     --hash=sha256:0ed14ccfbf1c30a9072c7ca157e4319b70d65f623e91e7b32fadb2853431016e \
     --hash=sha256:40c2dc0c681e47eb8f90e7e27bf6ff7df2e677421fd46756da1161c39ca70d32
     # via
@@ -4046,7 +4046,7 @@ urllib3==1.26.20 ; python_full_version < '3.10' \
     #   kubernetes
     #   requests
     #   snowflake-connector-python
-urllib3==2.5.0 ; python_full_version >= '3.10' \
+urllib3==2.5.0 ; python_full_version >= '3.11' \
     --hash=sha256:3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760 \
     --hash=sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc
     # via
@@ -4068,13 +4068,13 @@ v3io==0.7.2 \
     #   -r requirements.txt
     #   storey
     #   v3iofs
-v3io-frames==0.10.15 ; python_full_version < '3.10' \
+v3io-frames==0.10.15 ; python_full_version < '3.11' \
     --hash=sha256:9316929bef23d95a82beef1228fbc78112caa548973c8dc0c6127e7ee850ea28 \
     --hash=sha256:d0f7bccfb1a615b16c1cdfd0eb4d0cd44a328da30df6d6b41581e0464bbeafad
     # via
     #   -r requirements.txt
     #   storey
-v3io-frames==0.13.11 ; python_full_version >= '3.10' \
+v3io-frames==0.13.11 ; python_full_version >= '3.11' \
     --hash=sha256:c12f2f0b9c403c48e736bbb75660a4808e453827500e27a8e0592059cb622570 \
     --hash=sha256:fe6df5d76ba0c423357e5754b722df65db8272e5e33172deb247b9e5a9cc35ec
     # via

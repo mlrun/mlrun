@@ -21,23 +21,47 @@ import pytest
 
 import mlrun.auth.utils
 import mlrun.common.schemas
+import mlrun.common.types
+import mlrun.utils.logger
 from mlrun.auth.providers import IGTokenProvider
 from mlrun.config import config
 
 
-def test_ig_token_provider_successful_flow():
-    # Generate dynamic iat and exp
+@pytest.fixture
+def ig4_auth(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+    )
+    yield
+
+
+@pytest.fixture
+def patch_sync_secret_tokens_none(monkeypatch):
+    monkeypatch.setattr("mlrun.secrets.sync_secret_tokens", lambda: None)
+    yield
+
+
+@pytest.fixture
+def encoded_jwt_token():
     iat = int(time.time())
     exp = iat + 1000
-    token_payload = {
+    payload = {
         "iat": iat,
         "exp": exp,
-        "sub": "21c5db16-f0ca-4951-9702-3208a022bad6",
+        "sub": "test-user",
         "typ": "Bearer",
         "preferred_username": "admin",
     }
+    token = jwt.encode(payload, key=None, algorithm="none")
+    return token, iat, exp
 
-    encoded_jwt = jwt.encode(token_payload, key=None, algorithm="none")
+
+def test_ig_token_provider_successful_flow(
+    ig4_auth, patch_sync_secret_tokens_none, encoded_jwt_token
+):
+    encoded_jwt, iat, exp = encoded_jwt_token
 
     with patch.object(
         mlrun.auth.utils, "load_offline_token", return_value="offline-token"
@@ -132,3 +156,75 @@ def test_get_token_lifetime_and_expiry(token, expected_lifetime, expected_expira
         assert abs((expiry - expected_expiration).total_seconds()) < 2
     else:
         assert expiry is None
+
+
+def test_token_cleanup_when_expired(encoded_jwt_token, monkeypatch):
+    token, iat, exp = encoded_jwt_token
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = token
+    provider._token_total_lifetime = 100
+    provider._token_expiry_time = datetime.now() - timedelta(seconds=5)
+
+    monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.5)
+
+    assert not provider._is_token_valid(cleanup_if_expired=True)
+    assert provider._token is None
+    assert provider._token_expiry_time is None
+
+
+def test_post_fetch_hook_warns_near_expiry(monkeypatch, encoded_jwt_token):
+    token, _, _ = encoded_jwt_token
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = token
+    provider._token_total_lifetime = 100
+    provider._token_expiry_time = datetime.now() + timedelta(seconds=2)
+
+    monkeypatch.setattr("mlrun.secrets.sync_secret_tokens", MagicMock())
+    monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.9)
+    # simulate the case where after fetch almost expired token still in the provider (due to the fetching failure)
+    # post fetch hook in this case will make sure that token is not expired yet one more time
+    provider._post_fetch_hook()
+    assert provider._token == token
+
+
+def test_post_fetch_hook_raises_if_no_token(monkeypatch):
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = None
+    monkeypatch.setattr("mlrun.secrets.sync_secret_tokens", MagicMock())
+    # should detect empty token and raise error
+    with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        provider._post_fetch_hook()
+
+
+def test_refresh_token_fails_and_is_not_valid(
+    monkeypatch, ig4_auth, patch_sync_secret_tokens_none
+):
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+
+    # expired token setup
+    provider._token = "expired"
+    provider._token_total_lifetime = 100
+    provider._token_expiry_time = datetime.now() - timedelta(seconds=5)
+
+    monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.5)
+
+    # should fail during building request, because file with token doesn't exist
+    # raises error because fetch failed, token expired, hence cleaned up
+    with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        provider._refresh_token_if_needed()
+
+    # ensure expired token was cleaned
+    assert provider._token is None
+    assert provider._token_expiry_time is None
+
+    # set token lifetime to be almost expired
+    provider._token = "almost_expired_token"
+    provider._token_total_lifetime = 100
+    provider._token_expiry_time = datetime.now() + timedelta(seconds=2)
+
+    # refresh will fail, but should not raise an error in this case, because _token is not empty after post hook
+    provider._refresh_token_if_needed()
+
+    assert provider._token == "almost_expired_token"
+    assert provider._token is not None
+    assert provider._token_expiry_time is not None

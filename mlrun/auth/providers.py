@@ -67,6 +67,7 @@ class DynamicTokenProvider(TokenProvider):
         self._token = None
         self._token_endpoint = token_endpoint
         self._timeout = timeout
+        self._max_retries = 1
 
         # Since we're only issuing POST requests, which are actually a disguised GET, then it's ok to allow retries
         # on them.
@@ -86,7 +87,9 @@ class DynamicTokenProvider(TokenProvider):
         self._refresh_token_if_needed()
         return self._token
 
-    def fetch_token_with_retries(self, max_retries=3):
+    def fetch_token_with_retries(self, max_retries=None):
+        if not max_retries:
+            max_retries = self._max_retries
         for attempt in range(max_retries):
             try:
                 self.fetch_token()
@@ -286,10 +289,7 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
         A hook that is called after fetching a new token.
         Can be used to perform additional actions, such as logging or updating state.
         """
-        if not self._token:
-            raise mlrun.errors.MLRunRuntimeError(
-                "Failed to fetch token, no token available after fetch"
-            )
+        pass
 
 
 class IGTokenProvider(DynamicTokenProvider):
@@ -305,6 +305,7 @@ class IGTokenProvider(DynamicTokenProvider):
 
     def __init__(self, token_endpoint: str, timeout=5):
         super().__init__(token_endpoint=token_endpoint, timeout=timeout)
+        self._max_retries = 3
 
     def _cleanup(self):
         self._token = None

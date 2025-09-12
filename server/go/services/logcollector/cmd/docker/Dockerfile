@@ -42,10 +42,7 @@ RUN GOOS=linux \
     go build -a -installsuffix cgo -ldflags="-s -w" -o logcollector ./services/logcollector/cmd/main.go
 
 
-FROM gcr.io/iguazio/alpine:3.21
-
-# Upgrade OS packages
-RUN apk --update --no-cache upgrade
+FROM gcr.io/distroless/static-debian12
 
 COPY --from=build-binary /app/logcollector /main
 COPY --from=install-health-probe /ko-app/grpc-health-probe /grpc_health_probe

@@ -204,6 +204,8 @@ def test_refresh_token_fails_and_is_not_valid(
     # expired token setup
     provider._token = "expired"
     provider._token_total_lifetime = 100
+    provider._max_retries = 3
+
     provider._token_expiry_time = datetime.now() - timedelta(seconds=5)
 
     monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.5)

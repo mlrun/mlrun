@@ -968,24 +968,6 @@ class RemoteRuntime(KubeResource):
         self._mock_server = None
 
         if "://" not in path:
-            if not self.status.address:
-                # here we check that if default http trigger is disabled, function contains a custom http trigger
-                # Otherwise, the function is not invokable, so we raise an error
-                if (
-                    not self._trigger_of_kind_exists(kind="http")
-                    and self.spec.disable_default_http_trigger
-                ):
-                    raise mlrun.errors.MLRunPreconditionFailedError(
-                        "Default http trigger creation is disabled and there is no any other custom http trigger, "
-                        "so function can not be invoked via http. Either enable default http trigger creation or "
-                        "create custom http trigger"
-                    )
-                state, _, _ = self._get_state()
-                if state not in ["ready", "scaledToZero"]:
-                    logger.warning(f"Function is in the {state} state")
-                if not self.status.address:
-                    raise ValueError("no function address first run .deploy()")
-
             path = self._resolve_invocation_url(path, force_external_address)
 
         if headers is None:
@@ -1228,19 +1210,47 @@ class RemoteRuntime(KubeResource):
         # internal / external invocation urls is a nuclio >= 1.6.x feature
         # try to infer the invocation url from the internal and if not exists, use external.
         # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc.)
+
+        # check function state before invocation
+        state, _, _ = self._get_state()
+        if state not in ["ready", "scaledToZero"]:
+            logger.warning(f"Function is in the {state} state")
+
+        # prefer internal invocation url if running inside k8s cluster
         if (
             not force_external_address
             and self.status.internal_invocation_urls
             and mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
         ):
-            return mlrun.utils.helpers.join_urls(
+            url = mlrun.utils.helpers.join_urls(
                 f"http://{self.status.internal_invocation_urls[0]}", path
             )
+            logger.debug(
+                f"Using internal invocation url {url}. Make sure you have network access to the k8s cluster. "
+                f"Otherwise, set force_external_address to True"
+            )
+            return url
 
         if self.status.external_invocation_urls:
             return mlrun.utils.helpers.join_urls(
                 f"http://{self.status.external_invocation_urls[0]}", path
             )
+
+        if not self.status.address:
+            # if there is no address
+            # here we check that if default http trigger is disabled, function contains a custom http trigger
+            # Otherwise, the function is not invokable, so we raise an error
+            if (
+                not self._trigger_of_kind_exists(kind="http")
+                and self.spec.disable_default_http_trigger
+            ):
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    "Default http trigger creation is disabled and there is no any other custom http trigger, "
+                    "so function can not be invoked via http. Either enable default http trigger creation or "
+                    "create custom http trigger"
+                )
+            else:
+                raise ValueError("no function address first run .deploy()")
         else:
             return mlrun.utils.helpers.join_urls(f"http://{self.status.address}", path)
 
@@ -1294,6 +1304,8 @@ class RemoteRuntime(KubeResource):
     def get_url(
         self,
         force_external_address: bool = False,
+        # leaving auth_info for BC
+        # TODO: remove in 1.12.0
         auth_info: AuthInfo = None,
     ):
         """
@@ -1304,13 +1316,10 @@ class RemoteRuntime(KubeResource):
 
         :return: returns function's url
         """
-        if not self.status.address:
-            state, _, _ = self._get_state(auth_info=auth_info)
-            if state != "ready" or not self.status.address:
-                raise ValueError(
-                    "no function address or not ready, first run .deploy()"
-                )
-
+        if auth_info:
+            logger.warning(
+                "Deprecated parameter 'auth_info' was provided, but will be ignored. Will be removed in 1.12.0."
+            )
         return self._resolve_invocation_url("", force_external_address)
 
     @staticmethod

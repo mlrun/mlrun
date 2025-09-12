@@ -1,2 +1,1 @@
-# Intstall KFP when testing python 3.9 client
-mlrun-pipelines-kfp-v1-8[kfp]~=0.5.4; python_version < "3.11"
+mlrun-pipelines-kfp-v1-8[kfp]~=0.5.7

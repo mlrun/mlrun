@@ -14,9 +14,6 @@
 
 ARG GO_VERSION=1.25
 
-ARG GRPC_HEALTH_PROBE_VERSION=v0.4.40
-FROM ghcr.io/grpc-ecosystem/grpc-health-probe:${GRPC_HEALTH_PROBE_VERSION} AS install-health-probe
-
 FROM gcr.io/iguazio/golang:${GO_VERSION} AS build-binary
 
 RUN mkdir /app
@@ -45,7 +42,6 @@ RUN GOOS=linux \
 FROM gcr.io/distroless/static-debian12
 
 COPY --from=build-binary /app/logcollector /main
-COPY --from=install-health-probe /ko-app/grpc-health-probe /grpc_health_probe
 
 EXPOSE 8080
 

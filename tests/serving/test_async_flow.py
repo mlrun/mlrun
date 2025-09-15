@@ -196,7 +196,7 @@ class MyRemoteModel(Model):
         body["default_config"] = self.model_artifact.default_config
         return body
 
-    async def predict_async(self, body):
+    async def predict_async(self, body, **kwargs):
         body["async_triggered"] = "Async predict was triggered."
         return body
 
@@ -633,19 +633,22 @@ def test_model_runner_with_gpu_allocation():
         server.wait_for_completion()
 
 
-def test_model_runner_with_remote_model():
+@pytest.mark.parametrize(
+    "execution_mechanism", ("naive", "thread_pool", "process_pool", "dedicated_process")
+)
+def test_model_runner_with_remote_model(execution_mechanism):
     project = mlrun.new_project("remote-model-project", save=False)
     model_artifact = project.log_model(
         "my_model",
         model_url="http://localhost:8080/v2/models/mymodel/infer",
         default_config={"model_version": "4"},
     )
-    function = mlrun.new_function("tests", kind="serving")
+    function = mlrun.code_to_function("tests", kind="serving", filename=__file__)
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyRemoteModel",
-        execution_mechanism="naive",
+        execution_mechanism=execution_mechanism,
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )

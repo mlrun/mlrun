@@ -19,6 +19,8 @@ import mlrun.feature_store.steps
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
+    StreamProcessingEvent,
+    WriterEvent,
 )
 from mlrun.utils import logger
 
@@ -38,7 +40,12 @@ class ProcessBeforeTimescaleDB(mlrun.feature_store.steps.MapClass):
         event[EventKeyMetrics.CUSTOM_METRICS] = json.dumps(
             event.get(EventFieldType.METRICS, {})
         )
-        event[EventFieldType.TIME] = event.get(EventFieldType.TIMESTAMP)
+        # Map WHEN field to END_INFER_TIME for predictions data from model serving
+        if StreamProcessingEvent.WHEN in event:
+            event[WriterEvent.END_INFER_TIME] = event[StreamProcessingEvent.WHEN]
+        # For non-prediction events, use timestamp as END_INFER_TIME to maintain consistency
+        elif EventFieldType.TIMESTAMP in event:
+            event[WriterEvent.END_INFER_TIME] = event[EventFieldType.TIMESTAMP]
         event[EventFieldType.TABLE_COLUMN] = f"_{event.get(EventFieldType.ENDPOINT_ID)}"
 
         return event

@@ -97,7 +97,7 @@ class TimescaleDBStreamHandler:
                 name=name,
                 after=after,
                 url=f"ds://{self.profile.name}",
-                time_col=mm_schemas.EventFieldType.TIME,
+                time_col=mm_schemas.WriterEvent.END_INFER_TIME,
                 table=predictions_table.full_name(),
                 columns=[
                     mm_schemas.EventFieldType.LATENCY,

@@ -368,7 +368,7 @@ class TimescaleDBResultsQueries:
         if not result or not result.data:
             return {}
 
-        return {(row[0], row[1]): row[2] for row in result.data}
+        return {(row[0].lower(), row[1]): row[2] for row in result.data}
 
     def get_drift_data(
         self,

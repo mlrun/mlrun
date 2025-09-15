@@ -44,6 +44,7 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_operations import (
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_stream import (
     TimescaleDBStreamHandler,
 )
+from mlrun.utils import logger
 
 
 class TimescaleDBConnector(TSDBConnector):
@@ -222,9 +223,9 @@ class TimescaleDBConnector(TSDBConnector):
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
 
         # Access methods directly from the respective query classes
+        # Note: last_request is handled separately due to potential data synchronization issues
         metric_name_to_function = {
             "error_count": self._results_queries.get_error_count,
-            "last_request": self._predictions_queries.get_last_request,
             "avg_latency": self._predictions_queries.get_avg_latency,
             "result_status": self._results_queries.get_drift_status,
         }
@@ -255,7 +256,7 @@ class TimescaleDBConnector(TSDBConnector):
 
             return mep
 
-        return list(
+        enriched_endpoints = list(
             map(
                 lambda mep: add_metrics(
                     mep=mep,
@@ -264,6 +265,51 @@ class TimescaleDBConnector(TSDBConnector):
                 model_endpoint_objects,
             )
         )
+
+        # Handle last_request separately with special enrichment
+        if metric_list is None or "last_request" in metric_list:
+            self._enrich_mep_with_last_request(
+                model_endpoint_objects={
+                    mep.metadata.uid: mep for mep in enriched_endpoints
+                }
+            )
+
+        return enriched_endpoints
+
+    def _enrich_mep_with_last_request(
+        self,
+        model_endpoint_objects: dict[str, mlrun.common.schemas.ModelEndpoint],
+    ):
+        """
+        Enrich model endpoint objects with last_request data from predictions table.
+        This method handles the special case of last_request which may have timing issues.
+        """
+        try:
+            last_request_df = self._predictions_queries.get_last_request(
+                endpoint_ids=list(model_endpoint_objects.keys())
+            )
+
+            if not last_request_df.empty:
+                for _, row in last_request_df.iterrows():
+                    endpoint_id = row.get("endpoint_id")
+                    last_request = row.get("last_request")
+
+                    if (
+                        endpoint_id in model_endpoint_objects
+                        and last_request is not None
+                    ):
+                        if isinstance(last_request, pd.Timestamp):
+                            last_request = last_request.to_pydatetime()
+                        model_endpoint_objects[
+                            endpoint_id
+                        ].status.last_request = last_request
+        except Exception as e:
+            # Log but don't fail - last_request is not critical for basic functionality
+            logger.info(
+                "Failed to enrich model endpoints with last_request data",
+                error=str(e),
+                endpoint_count=len(model_endpoint_objects),
+            )
 
     def read_predictions(self, *args, **kwargs):
         return self._predictions_queries.read_predictions(*args, **kwargs)

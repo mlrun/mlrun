@@ -449,7 +449,9 @@ class Predictions(TimescaleDBSchema):
     def __init__(self, project: str, schema: Optional[str] = None):
         table_name = mm_schemas.TimescaleDBTables.PREDICTIONS
         columns = {
-            mm_schemas.EventFieldType.TIME: _TimescaleDBColumnType("TIMESTAMPTZ"),
+            mm_schemas.WriterEvent.END_INFER_TIME: _TimescaleDBColumnType(
+                "TIMESTAMPTZ"
+            ),
             mm_schemas.EventFieldType.LATENCY: _TimescaleDBColumnType(
                 "DOUBLE PRECISION"
             ),
@@ -467,13 +469,13 @@ class Predictions(TimescaleDBSchema):
 
         indexes = [
             mm_schemas.WriterEvent.ENDPOINT_ID,
-            mm_schemas.EventFieldType.TIME,
-            f"{mm_schemas.EventFieldType.TIME}, {mm_schemas.WriterEvent.ENDPOINT_ID}",
+            mm_schemas.WriterEvent.END_INFER_TIME,
+            f"{mm_schemas.WriterEvent.END_INFER_TIME}, {mm_schemas.WriterEvent.ENDPOINT_ID}",
         ]
         super().__init__(
             table_name=table_name,
             columns=columns,
-            time_column=mm_schemas.EventFieldType.TIME,
+            time_column=mm_schemas.WriterEvent.END_INFER_TIME,
             schema=schema,
             project=project,
             indexes=indexes,

@@ -62,7 +62,8 @@ class TestTimescaleDBCrossQueries:
                 statements=[
                     f"""
                     INSERT INTO {predictions_table.full_name()}
-                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    (end_infer_time, endpoint_id, latency, custom_metrics,
+                     estimated_prediction_count, effective_sample_count)
                     VALUES ('{test_time}', '{endpoint_id}', {latency}, '{{}}', 1.0, 1)
                     """
                 ]

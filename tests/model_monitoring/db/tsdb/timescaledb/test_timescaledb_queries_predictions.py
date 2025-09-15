@@ -52,7 +52,8 @@ class TestPredictionQueries:
             statements=[
                 f"""
                 INSERT INTO {predictions_table.full_name()}
-                (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                (end_infer_time, endpoint_id, latency, custom_metrics,
+                 estimated_prediction_count, effective_sample_count)
                 VALUES ('{test_time}', 'test_endpoint', 0.1, '{{}}', 1.0, 1)
                 """
             ]
@@ -121,7 +122,8 @@ class TestGetLastRequest:
                 statements=[
                     f"""
                     INSERT INTO {predictions_table.full_name()}
-                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    (end_infer_time, endpoint_id, latency, custom_metrics,
+                 estimated_prediction_count, effective_sample_count)
                     VALUES ('{pred_time}', '{endpoint_id}', {latency}, '{custom_metrics}', {pred_count}, {sample_count})
                     """
                 ]
@@ -183,7 +185,8 @@ class TestGetLastRequest:
                 statements=[
                     f"""
                     INSERT INTO {predictions_table.full_name()}
-                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    (end_infer_time, endpoint_id, latency, custom_metrics,
+                 estimated_prediction_count, effective_sample_count)
                     VALUES ('{pred_time}', '{endpoint_id}', {latency}, '{{}}', 1.0, 1)
                     """
                 ]

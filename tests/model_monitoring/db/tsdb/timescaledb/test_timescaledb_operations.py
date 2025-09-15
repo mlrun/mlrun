@@ -183,7 +183,8 @@ class TestTimescaleDBOperationsHandlerIntegration:
                 statements=[
                     f"""
                 INSERT INTO {predictions_table.full_name()}
-                (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                (end_infer_time, endpoint_id, latency, custom_metrics,
+                 estimated_prediction_count, effective_sample_count)
                 VALUES (NOW(), '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
                 """
                 ]
@@ -251,7 +252,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
             statements=[
                 f"""
             INSERT INTO {predictions_table.full_name()}
-            (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+            (end_infer_time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
             VALUES (NOW(), '{test_endpoint}', 0.1, '{{}}', 1.0, 1)
             """
             ]
@@ -310,7 +311,8 @@ class TestTimescaleDBOperationsHandlerIntegration:
             stmt = Statement(
                 sql=f"""
                 INSERT INTO {predictions_table.full_name()}
-                (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                (end_infer_time, endpoint_id, latency, custom_metrics,
+                 estimated_prediction_count, effective_sample_count)
                 VALUES (NOW(), %s, 0.1, '{{}}', 1.0, 1)
                 """,
                 parameters=[endpoint_id],
@@ -476,7 +478,8 @@ class TestTimescaleDBOperationsHandlerIntegration:
                 statements=[
                     f"""
                 INSERT INTO {predictions_table.full_name()}
-                (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                (end_infer_time, endpoint_id, latency, custom_metrics,
+                 estimated_prediction_count, effective_sample_count)
                 VALUES (NOW(), '{endpoint_id}', {0.1 + i * 0.001}, '{{}}', 1.0, 1)
                 """
                 ]

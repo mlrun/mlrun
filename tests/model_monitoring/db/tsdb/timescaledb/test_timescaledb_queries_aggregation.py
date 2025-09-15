@@ -51,7 +51,8 @@ class TestAggregationQueries:
                 statements=[
                     f"""
                     INSERT INTO {predictions_table.full_name()}
-                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    (end_infer_time, endpoint_id, latency, custom_metrics,
+                     estimated_prediction_count, effective_sample_count)
                     VALUES ('{test_time}', '{endpoint_id}', {latency}, '{{}}', 1.0, 1)
                     """
                 ]
@@ -132,7 +133,8 @@ class TestAggregationQueries:
                 statements=[
                     f"""
                     INSERT INTO {predictions_table.full_name()}
-                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    (end_infer_time, endpoint_id, latency, custom_metrics,
+                     estimated_prediction_count, effective_sample_count)
                     VALUES ('{test_time}', '{endpoint_id}', {latency}, '{{}}', 1.0, 1)
                     """
                 ]
@@ -371,7 +373,8 @@ class TestPreAggregateExceptionHandling:
             statements=[
                 f"""
                 INSERT INTO {predictions_table.full_name()}
-                (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                (end_infer_time, endpoint_id, latency, custom_metrics,
+                 estimated_prediction_count, effective_sample_count)
                 VALUES ('{base_time}', 'test_endpoint', 0.15, '{{}}', 1.0, 1)
                 """
             ]
@@ -595,7 +598,8 @@ class TestEndpointCounting:
                 statements=[
                     f"""
                     INSERT INTO {predictions_table.full_name()}
-                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    (end_infer_time, endpoint_id, latency, custom_metrics,
+                     estimated_prediction_count, effective_sample_count)
                     VALUES ('{test_time}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
                     """
                 ]
@@ -666,7 +670,8 @@ class TestEndpointCounting:
                 statements=[
                     f"""
                     INSERT INTO {predictions_table.full_name()}
-                    (time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
+                    (end_infer_time, endpoint_id, latency, custom_metrics,
+                     estimated_prediction_count, effective_sample_count)
                     VALUES ('{test_time}', '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
                     """
                 ]

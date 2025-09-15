@@ -648,6 +648,7 @@ default_config = {
                 "max_replicas": 1,
             },
         },
+        "writer_graph": {"max_events": 1000, "flush_after_seconds": 30},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {

@@ -67,7 +67,7 @@ class DynamicTokenProvider(TokenProvider):
         self._token = None
         self._token_endpoint = token_endpoint
         self._timeout = timeout
-        self._max_retries = 1
+        self._max_retries = 0
 
         # Since we're only issuing POST requests, which are actually a disguised GET, then it's ok to allow retries
         # on them.
@@ -299,7 +299,7 @@ class IGTokenProvider(DynamicTokenProvider):
 
     def __init__(self, token_endpoint: str, timeout=5):
         super().__init__(token_endpoint=token_endpoint, timeout=timeout)
-        self._max_retries = 3
+        self._max_retries = 2
 
     def _cleanup(self):
         self._token = None

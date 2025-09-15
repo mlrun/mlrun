@@ -54,7 +54,7 @@ from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
 )
-from mlrun.model_monitoring.writer import WriterGraphEnabler
+from mlrun.model_monitoring.writer import WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
@@ -704,7 +704,7 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        WriterGraphEnabler.apply_writer_graph(
+        WriterGraphFactory.apply_writer_graph(
             function,
             self._tsdb_connector,
         )

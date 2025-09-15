@@ -231,7 +231,7 @@ class ModelMonitoringWriter(StepToDict):
         logger.info("Model monitoring writer finished handling event")
 
 
-class WriterGraphEnabler:
+class WriterGraphFactory:
     @staticmethod
     def apply_writer_graph(
         fn: mlrun.runtimes.ServingRuntime,

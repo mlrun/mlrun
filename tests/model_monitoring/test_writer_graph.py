@@ -21,7 +21,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileTDEngine,
     DatastoreProfileV3io,
 )
-from mlrun.model_monitoring.writer import WriterGraphEnabler
+from mlrun.model_monitoring.writer import WriterGraphFactory
 
 
 @pytest.mark.parametrize(
@@ -46,7 +46,7 @@ def test_plot_writer_graph(tsdb_profile: DatastoreProfile) -> None:
         project=project_name, profile=tsdb_profile
     )
 
-    WriterGraphEnabler.apply_writer_graph(fn, tsdb_connector)
+    WriterGraphFactory.apply_writer_graph(fn, tsdb_connector)
 
     graph = fn.spec.graph.plot(rankdir="TB")
     print()

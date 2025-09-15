@@ -87,25 +87,19 @@ class DynamicTokenProvider(TokenProvider):
         self._refresh_token_if_needed()
         return self._token
 
-    def fetch_token_with_retries(self, max_retries=None):
-        if not max_retries:
-            max_retries = self._max_retries
-        for attempt in range(max_retries):
-            try:
-                self.fetch_token()
-                # Successfully fetched the token, exit the method
-                return
-            except Exception as exc:
-                logger.warning(
-                    "Token fetch attempt failed",
-                    attempt=attempt + 1,
-                    max_retries=max_retries,
-                    error=str(exc),
-                )
-                if attempt == max_retries - 1:
-                    logger.warning("Max retries reached, failed to fetch token")
-
     def fetch_token(self):
+        try:
+            mlrun.utils.helpers.run_with_retry(
+                retry_count=self._max_retries,
+                func=self._fetch_token,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Max retries reached, failed to fetch token",
+                error=str(exc),
+            )
+
+    def _fetch_token(self):
         """
         Fetch a new access token from the token endpoint.
 
@@ -162,7 +156,7 @@ class DynamicTokenProvider(TokenProvider):
         if self._token and self._is_token_valid(cleanup_if_expired=True):
             return self._token
 
-        self.fetch_token_with_retries()
+        self.fetch_token()
         self._post_fetch_hook()
         return self._token
 
@@ -378,13 +372,15 @@ class IGTokenProvider(DynamicTokenProvider):
 
     def _post_fetch_hook(self):
         # After fetching a new token, sync the local token file with the backend to ensure the latest token is stored
-        mlrun.secrets.sync_secret_tokens()
-
-        # if we get there and have a token which is not valid, but not empty,
-        # it means that refresh threshold is reached and it will soon expire
+        mlrun.utils.helpers.run_with_retry(
+            retry_count=self._max_retries,
+            func=mlrun.secrets.sync_secret_tokens,
+        )
+        # if we reach this point and the token is non-empty but invalid,
+        # it means the refresh threshold has been reached and the token will expire soon.
         if self._token and self._is_token_valid(cleanup_if_expired=True):
             logger.warning(
-                "Fetching a new token failed and the existing token is still valid, but close to expiry. "
+                "Failed to fetch a new token. Using the existing token, which remains valid but is close to expiring."
             )
 
         if not self._token:

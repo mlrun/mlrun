@@ -177,6 +177,7 @@ def test_post_fetch_hook_warns_near_expiry(monkeypatch, encoded_jwt_token):
     provider = IGTokenProvider.__new__(IGTokenProvider)
     provider._token = token
     provider._token_total_lifetime = 100
+    provider._max_retries = 3
     provider._token_expiry_time = datetime.now() + timedelta(seconds=2)
 
     monkeypatch.setattr("mlrun.secrets.sync_secret_tokens", MagicMock())
@@ -190,6 +191,7 @@ def test_post_fetch_hook_warns_near_expiry(monkeypatch, encoded_jwt_token):
 def test_post_fetch_hook_raises_if_no_token(monkeypatch):
     provider = IGTokenProvider.__new__(IGTokenProvider)
     provider._token = None
+    provider._max_retries = 3
     monkeypatch.setattr("mlrun.secrets.sync_secret_tokens", MagicMock())
     # should detect empty token and raise error
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
@@ -209,6 +211,9 @@ def test_refresh_token_fails_and_is_not_valid(
     provider._token_expiry_time = datetime.now() - timedelta(seconds=5)
 
     monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.5)
+    monkeypatch.setattr(
+        "mlrun.mlconf.auth_with_oauth_token.auth_token_file", "not-exists"
+    )
 
     # should fail during building request, because file with token doesn't exist
     # raises error because fetch failed, token expired, hence cleaned up

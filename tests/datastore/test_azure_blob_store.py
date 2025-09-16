@@ -406,7 +406,7 @@ class TestAzureBlobStore:
             mock_parse.side_effect = ValueError("Invalid connection string format")
 
             mock_storage_options = {
-                "connection_string": "DefaultEndpointsProtocol=https;AccountName=test;",  # Missing AccountKey
+                "connection_string": "DefaultEndpointsProtocol=https;...and_some_bad_data;",
                 "container": "mycontainer",
             }
             with patch.object(store, "_storage_options", mock_storage_options):

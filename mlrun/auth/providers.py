@@ -378,7 +378,7 @@ class IGTokenProvider(DynamicTokenProvider):
         )
         # if we reach this point and the token is non-empty but invalid,
         # it means the refresh threshold has been reached and the token will expire soon.
-        if self._token and self._is_token_valid(cleanup_if_expired=True):
+        if self._token and not self._is_token_valid(cleanup_if_expired=True):
             logger.warning(
                 "Failed to fetch a new token. Using the existing token, which remains valid but is close to expiring."
             )

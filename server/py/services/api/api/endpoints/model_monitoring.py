@@ -15,7 +15,6 @@
 import http
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from http import HTTPStatus
 from typing import Annotated, Literal, Optional
 
 import fastapi
@@ -523,7 +522,7 @@ async def delete_model_endpoints_metrics_values(
 
 @router.get(
     "/drift-over-time",
-    status_code=HTTPStatus.OK.value,
+    status_code=http.HTTPStatus.OK.value,
     response_model=mlrun.common.schemas.ModelEndpointDriftValues,
 )
 async def get_model_endpoint_drift_over_time(

@@ -841,6 +841,22 @@ def test_validate_v3io_consumer_group(value, expected):
             "images_registry": "",
             "expected_output": "mlrun/mlrun:1.10.0",
         },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.10.0",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-py39",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.10.0",
+            "client_python_version": "3.11.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0",
+            "images_to_enrich_registry": "",
+        },
     ],
 )
 def test_enrich_image(case):

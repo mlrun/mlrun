@@ -62,7 +62,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         self.setup_datastore_profile()
         mlrun_model_name = "sync_invoke_model"
         requirements_path = os.path.join(
-            os.path.dirname(__file__), "hf_requirements.txt"
+            os.path.dirname(__file__), "requirements_hf.txt"
         )
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
@@ -126,7 +126,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
 
         mlrun_model_name = "custom_hf_model"
         requirements_path = os.path.join(
-            os.path.dirname(__file__), "hf_requirements.txt"
+            os.path.dirname(__file__), "requirements_hf.txt"
         )
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,

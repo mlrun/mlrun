@@ -371,12 +371,6 @@ class IGTokenProvider(DynamicTokenProvider):
         )
 
     def _post_fetch_hook(self):
-        # After fetching a new token, sync the local token file with the backend to ensure the latest token is stored
-        # and all other tokens are up-to-date.
-        mlrun.utils.helpers.run_with_retry(
-            retry_count=self._max_retries,
-            func=mlrun.secrets.sync_secret_tokens,
-        )
         # if we reach this point and the token is non-empty but invalid,
         # it means the refresh threshold has been reached and the token will expire soon.
         if self._token and not self._is_token_valid(cleanup_if_expired=True):

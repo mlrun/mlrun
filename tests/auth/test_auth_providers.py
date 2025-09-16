@@ -28,22 +28,6 @@ from mlrun.config import config
 
 
 @pytest.fixture
-def ig4_auth(monkeypatch):
-    monkeypatch.setattr(
-        mlrun.mlconf.httpdb.authentication,
-        "mode",
-        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
-    )
-    yield
-
-
-@pytest.fixture
-def patch_sync_secret_tokens_none(monkeypatch):
-    monkeypatch.setattr("mlrun.secrets.sync_secret_tokens", lambda: None)
-    yield
-
-
-@pytest.fixture
 def encoded_jwt_token():
     iat = int(time.time())
     exp = iat + 1000
@@ -58,9 +42,7 @@ def encoded_jwt_token():
     return token, iat, exp
 
 
-def test_ig_token_provider_successful_flow(
-    ig4_auth, patch_sync_secret_tokens_none, encoded_jwt_token
-):
+def test_ig_token_provider_successful_flow(encoded_jwt_token):
     encoded_jwt, iat, exp = encoded_jwt_token
 
     with patch.object(
@@ -198,9 +180,7 @@ def test_post_fetch_hook_raises_if_no_token(monkeypatch):
         provider._post_fetch_hook()
 
 
-def test_refresh_token_fails_and_is_not_valid(
-    monkeypatch, ig4_auth, patch_sync_secret_tokens_none
-):
+def test_refresh_token_fails_and_is_not_valid(monkeypatch):
     provider = IGTokenProvider.__new__(IGTokenProvider)
 
     # expired token setup

@@ -7,19 +7,14 @@ The main differences between serving a gen AI model and any other model are the 
 Another common use case is to serve the model as part of an inference pipeline, where the model is used as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This is covered in the {ref}`gen AI serving graph section <genai-serving-graph>`.
 
 **In this section**
-- [Guidelines](#guidelines)
-- [Serving a local model from the function hub](#serving-a-local-model-from-the-function-hub)
+- [Serving a local model from the function hub](#serving-a-local-model-from-the-mlrun-hub)
 - [Serving using a remote model](#serving-using-a-remote-model)
 - [Implementing your own model serving function](#implementing-your-own-model-serving-function)
 
-## Guidelines
 
-Hugging Face uses Pipeline as a client: it downloads the model and loads it to the RAM.
-Due to this usage, it might require more resources than usual.
+## Serving a local model from the MLRun hub
 
-## Serving a local model from the hub
-
-The function hub has a serving class called [`hugging_face_serving`](https://www.mlrun.org/hub/functions/master/hugging_face_serving/) to run Hugging Face models. The following code shows how to import the function to your project:
+The hub has a serving class called [`hugging_face_serving`](https://www.mlrun.org/hub/functions/master/hugging_face_serving/) to run Hugging Face models. The following code shows how to import the function to your project:
 
 ```python
 hugging_face_serving = project.set_function("hub://hugging_face_serving")
@@ -51,6 +46,13 @@ print(f"Output: {result['outputs']}")
 
 ## Serving using a remote model
 
+### Hugging Face guidelines
+
+- Hugging Face use Pipeline as a client; it downloads the model and loads it to the RAM. Therefore, it might required more resources than usual.
+- By default, in LLModel usage, metrics are calculated after invocation. These token metrics are estimates and may not be fully accurate.
+- Hugging Face's Inference Provider is designed to handle OpenAI-style chat format (role/content) and therefore requires models that support `tokenizer.apply_chat_template`. If a model does not provide this functionality, you must implement a manual solution.
+
+### Serving the remote model
 The following code shows the basics of serving and deploying a remote model.
 
 ```python

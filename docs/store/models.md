@@ -147,9 +147,7 @@ You can use models stored in a remote source, for example HuggingFace. You can l
 `https://`: Use a generic remote model that is invoked through http calls.
 ### HuggingFace
 `hugging_face://<model-path>`: Use the Hugging Face pipeline as a client to download models and use them. The URL contains the vendor and name of model, for example: `huggingface://google/gemma-3-27b-it`.
-   - Hugging Face use Pipeline as a client; it downloads the model and loads it to the RAM. Therefore, it might required more resources than usual.
-   - By default, in LLModel usage, metrics are calculated after invocation. These token metrics are estimates and may not be fully accurate.
-   - Hugging Face's Inference Provider is designed to handle OpenAI-style chat format (role/content) and therefore requires models that support `tokenizer.apply_chat_template`. If a model does not provide this functionality, you must implement a manual solution.
+
 ### OpenAI
  `openai://<model-name>`: work with a model that supports the OpenAI protocol. By default, models are assumed to be models served by OpenAI. The secrets/env options are:
 - api_key / "OPENAI_API_KEY"

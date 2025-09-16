@@ -172,7 +172,7 @@ install-iguazio-sdk: ## Install iguazio package from Test PyPI only for Python 3
 		$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) \
 			--index-url https://test.pypi.org/simple/ \
 			--extra-index-url https://pypi.org/simple \
-			"iguazio~=0.0.1a9"; \
+			"iguazio~=0.0.1a10"; \
 	else \
 		echo "Skipping iguazio install (Python $(MLRUN_PYTHON_VERSION))"; \
 	fi

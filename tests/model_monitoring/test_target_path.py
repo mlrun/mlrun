@@ -19,10 +19,9 @@ from unittest import mock
 import pytest
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.config
 import mlrun.model_monitoring
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaStream,
     DatastoreProfileV3io,
     register_temporary_client_datastore_profile,
     remove_temporary_client_datastore_profile,
@@ -88,7 +87,7 @@ def test_get_v3io_stream_path() -> None:
 @pytest.fixture
 def kafka_profile_name() -> Iterator[str]:
     profile_name = "kafka-prof"
-    profile = DatastoreProfileKafkaSource(
+    profile = DatastoreProfileKafkaStream(
         name=profile_name, brokers=["some_kafka_broker:8080"], topics=[]
     )
     register_temporary_client_datastore_profile(profile)

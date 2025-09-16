@@ -97,7 +97,7 @@ mlrun_model_monitoring_stream_profile:
   # type: v3io
   # v3io_access_key: # can leave empty
   # # or:
-  # type: kafka_source
+  # type: kafka_stream
   # brokers: # <host>:<port>
   # topics: []
   # With SASL:

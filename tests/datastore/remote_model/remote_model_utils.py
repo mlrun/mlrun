@@ -15,6 +15,8 @@ import asyncio
 import time
 from typing import Any, Optional
 
+import fsspec
+
 import mlrun
 import mlrun.artifacts
 import mlrun.serving
@@ -84,23 +86,28 @@ def setup_remote_model_test(
     requirements_file=None,
     model_class: str = "LLModel",
     default_config: Optional[dict] = None,
+    include_llm_artifact=True,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
         model_url=model_url,
         default_config=default_config,
     )
-    llm_prompt_artifact = project.log_llm_prompt(
-        "my_llm_prompt",
-        prompt_template=PROMPT_TEMPLATE,
-        model_artifact=model_artifact,
-        prompt_legend={
-            "question": {"field": None, "description": None},
-            "depth_level": {"field": None, "description": None},
-            "persona": {"field": None, "description": None},
-            "tone": {"field": None, "description": None},
-        },
-    )
+    if include_llm_artifact:
+        llm_prompt_artifact = project.log_llm_prompt(
+            "my_llm_prompt",
+            prompt_template=PROMPT_TEMPLATE,
+            model_artifact=model_artifact,
+            prompt_legend={
+                "question": {"field": None, "description": None},
+                "depth_level": {"field": None, "description": None},
+                "persona": {"field": None, "description": None},
+                "tone": {"field": None, "description": None},
+            },
+        )
+    else:
+        llm_prompt_artifact = None
+
     function = mlrun.code_to_function(
         name="tests",
         kind="serving",
@@ -117,7 +124,7 @@ def setup_remote_model_test(
         model_class=model_class,
         endpoint_name="my_endpoint",
         execution_mechanism=execution_mechanism,
-        model_artifact=llm_prompt_artifact,
+        model_artifact=llm_prompt_artifact or model_artifact,
         result_path="output",
     )
     graph.to(model_runner_step).respond()
@@ -129,6 +136,26 @@ async def timed(coro):
     result = await coro
     duration = time.perf_counter() - start
     return result, duration
+
+
+class MyHuggingFaceCustom(mlrun.serving.states.Model):
+    """Custom MLRun model wrapper for Hugging Face image classification that loads an image
+    from a given path and returns predictions via HuggingFaceProvider."""
+
+    def predict(self, body: Any, **kwargs) -> Any:
+        if isinstance(self.model_provider, ModelProvider):
+            # Imported here to avoid requiring Pillow in environments where it's not needed
+            from PIL import Image
+
+            with fsspec.open(body["input"], "rb") as f:
+                image = Image.open(f)
+                image.load()  # ensure image is fully read into memory
+
+            result = self.model_provider.custom_invoke(
+                inputs=image,
+            )
+            body["result"] = result
+            return body
 
 
 class MyOpenAICustom(mlrun.serving.states.Model):

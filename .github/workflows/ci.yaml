@@ -235,13 +235,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Explicitly define combinations: KFP v1.8 with Python 3.9
-        # TODO: Enable KFP v2 with Python 3.11 when it's supported (in 1.9.0)
         include:
           - python-version: "3.9"
             pipeline-adapter: "kfp-v1-8"
-#          - python-version: "3.11"
-#            pipeline-adapter: "kfp-v2"
+          - python-version: "3.11"
+            pipeline-adapter: "kfp-v1-8"
     steps:
     - uses: actions/checkout@v5
     - name: Set up python ${{ matrix.python-version }}

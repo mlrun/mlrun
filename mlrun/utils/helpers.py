@@ -15,7 +15,6 @@
 import asyncio
 import base64
 import enum
-import functools
 import gzip
 import hashlib
 import inspect
@@ -915,12 +914,10 @@ def enrich_image_url(
     )
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version or ""
-
-    # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
-    if "mlrun-kfp" not in image_url:
-        tag += resolve_image_tag_suffix(
-            mlrun_version=mlrun_version, python_version=client_python_version
-        )
+    tag += resolve_image_tag_suffix(
+        mlrun_version=mlrun_version,
+        python_version=client_python_version,
+    )
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
@@ -1862,10 +1859,7 @@ async def run_in_threadpool(func, *args, **kwargs):
     Run a sync-function in the loop default thread pool executor pool and await its result.
     Note that this function is not suitable for CPU-bound tasks, as it will block the event loop.
     """
-    loop = asyncio.get_running_loop()
-    if kwargs:
-        func = functools.partial(func, **kwargs)
-    return await loop.run_in_executor(None, func, *args)
+    return await asyncio.to_thread(func, *args, **kwargs)
 
 
 def is_explicit_ack_supported(context):

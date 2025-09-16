@@ -340,7 +340,7 @@ class MonitoringDeployment:
         profile = self._stream_profile
         # Note: explicit_ack_mode = "explicitOnly" while working with 'async' engine
         if isinstance(
-            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream
         ):
             self._apply_and_create_kafka_source(
                 kafka_profile=profile,
@@ -378,7 +378,7 @@ class MonitoringDeployment:
     def _apply_and_create_kafka_source(
         self,
         *,
-        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
         stream_args: mlrun.config.Config,
@@ -1558,7 +1558,7 @@ class MonitoringDeployment:
                         f"Failed to delete v3io stream {stream_path}"
                     ) from exc
         elif isinstance(
-            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream
         ):
             # Delete Kafka topics
             topics = [
@@ -1672,7 +1672,7 @@ class MonitoringDeployment:
             )
         if isinstance(
             stream_profile,
-            mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+            mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
         ):
             self._validate_kafka_stream(stream_profile)
         elif isinstance(
@@ -1682,12 +1682,12 @@ class MonitoringDeployment:
         else:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring stream profile is of an unexpected type: '{type(stream_profile)}'\n"
-                "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+                "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
             )
 
     def _validate_kafka_stream(
         self,
-        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
     ) -> None:
         if kafka_profile.topics:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
@@ -1697,7 +1697,7 @@ class MonitoringDeployment:
 
     @staticmethod
     def _verify_kafka_access(
-        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
     ) -> None:
         import kafka.errors
 

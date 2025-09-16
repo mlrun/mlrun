@@ -94,7 +94,7 @@ jobs:
     name: Prepare System Tests Enterprise
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: python:3.9
+      image: gcr.io/iguazio/python:3.9
     needs: [system-test-cleanup]
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
@@ -296,7 +296,7 @@ jobs:
     needs: [prepare-system-tests-enterprise-ci]
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: python:3.9
+      image: gcr.io/iguazio/python:3.9
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
     strategy:

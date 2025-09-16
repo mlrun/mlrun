@@ -1,6 +1,7 @@
-# >=1.28.0,<1.29.0 botocore inside boto3 1.28.17 inside nuclio-jupyter 0.9.13
-urllib3>=1.26.20; python_version < "3.11"
-urllib3>=2.5.0; python_version >= "3.11"
+# Minimal version; actual urllib3 constraints are managed per Python version in separate constraint files
+urllib3>=1.26.20
+# Minimal version; actual v3io-frames> constraints are managed per Python version in separate constraint files
+v3io-frames>=0.10.15
 GitPython~=3.1, >=3.1.41
 aiohttp~=3.11
 aiohttp-retry~=2.9
@@ -24,9 +25,6 @@ v3io~=0.7.0
 # pydantic 1.10.15 introduces the v1 namespace, so we can later upgrade to pydantic 2 without breaking the code
 pydantic>=1.10.15
 mergedeep~=1.3
-# On python 3.9, we need to use ~0.10.14 to ensure pip depdency resolution works
-v3io-frames~=0.10.15; python_version < "3.11"
-v3io-frames>=0.13.0; python_version >= "3.11"
 semver~=3.0
 dependency-injector~=4.41
 # should be identical to gcs and s3fs.

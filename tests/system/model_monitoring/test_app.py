@@ -1275,7 +1275,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
 
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "artifactory.iguazeng.com:10557/davids/mlrun:1.10.0"
+    image: typing.Optional[str] = None
 
     def test_model_monitoring_crud(self) -> None:
         # Main validations:

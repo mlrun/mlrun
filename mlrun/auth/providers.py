@@ -67,6 +67,7 @@ class DynamicTokenProvider(TokenProvider):
         self._token = None
         self._token_endpoint = token_endpoint
         self._timeout = timeout
+        self._max_retries = 0
 
         # Since we're only issuing POST requests, which are actually a disguised GET, then it's ok to allow retries
         # on them.
@@ -75,7 +76,7 @@ class DynamicTokenProvider(TokenProvider):
             verbose=True,
         )
         self._cleanup()
-        self._refresh_token_if_needed(raise_on_error=True)
+        self._refresh_token_if_needed()
 
     def get_token(self):
         """
@@ -86,24 +87,28 @@ class DynamicTokenProvider(TokenProvider):
         self._refresh_token_if_needed()
         return self._token
 
-    def fetch_token(self, raise_on_error=False):
+    def fetch_token(self):
+        try:
+            mlrun.utils.helpers.run_with_retry(
+                retry_count=self._max_retries,
+                func=self._fetch_token,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Max retries reached, failed to fetch token",
+                error=str(exc),
+            )
+
+    def _fetch_token(self):
         """
         Fetch a new access token from the token endpoint.
 
         This method builds the token request, sends it to the token endpoint, and parses the response.
         If the request fails, it either raises an error or logs a warning based on the `raise_on_error` parameter.
-
-        :param raise_on_error: Whether to raise an error if token retrieval fails.
         """
-        try:
-            request_body, headers, body_type = self._build_token_request(
-                raise_on_error=True
-            )
-        except mlrun.errors.MLRunRuntimeError as err:
-            mlrun.utils.raise_or_log_error(
-                f"Failed to build token request. Error: {err}", raise_on_error
-            )
-            return
+        request_body, headers, body_type = self._build_token_request(
+            raise_on_error=True
+        )
 
         try:
             request_kwargs = {
@@ -121,11 +126,7 @@ class DynamicTokenProvider(TokenProvider):
             response = self._session.request(**request_kwargs)
         except requests.RequestException as exc:
             error = f"Retrieving token failed: {mlrun.errors.err_to_str(exc)}"
-            if raise_on_error:
-                raise mlrun.errors.MLRunRuntimeError(error) from exc
-            else:
-                logger.warning(error)
-                return
+            raise mlrun.errors.MLRunRuntimeError(error) from exc
 
         if not response.ok:
             error = "No error available"
@@ -138,28 +139,34 @@ class DynamicTokenProvider(TokenProvider):
             logger.warning(
                 "Retrieving token failed", status=response.status_code, error=error
             )
-            if raise_on_error:
-                mlrun.errors.raise_for_status(response)
-            return
+            mlrun.errors.raise_for_status(response)
 
         self._parse_response(response.json())
 
     def is_iguazio_session(self):
         return False
 
-    def _refresh_token_if_needed(self, raise_on_error=False):
+    def _refresh_token_if_needed(self):
         """
         Refresh the access token if it is expired or about to expire.
 
-        :param raise_on_error: Whether to raise an error if token refresh fails.
         :return: The refreshed access token.
         """
         # Check if there is an existing access token and if it is valid
         if self._token and self._is_token_valid(cleanup_if_expired=True):
             return self._token
 
-        self.fetch_token(raise_on_error=raise_on_error)
+        self.fetch_token()
+        self._post_fetch_hook()
         return self._token
+
+    @abstractmethod
+    def _post_fetch_hook(self):
+        """
+        A hook that is called after fetching a new token.
+        Can be used to perform additional actions, such as logging or updating state.
+        """
+        pass
 
     @abstractmethod
     def _is_token_valid(self, cleanup_if_expired=True) -> bool:
@@ -271,6 +278,13 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
             refresh=str(self.token_refresh_time),
         )
 
+    def _post_fetch_hook(self):
+        """
+        A hook that is called after fetching a new token.
+        Can be used to perform additional actions, such as logging or updating state.
+        """
+        pass
+
 
 class IGTokenProvider(DynamicTokenProvider):
     """
@@ -285,6 +299,7 @@ class IGTokenProvider(DynamicTokenProvider):
 
     def __init__(self, token_endpoint: str, timeout=5):
         super().__init__(token_endpoint=token_endpoint, timeout=timeout)
+        self._max_retries = 2
 
     def _cleanup(self):
         self._token = None
@@ -334,7 +349,7 @@ class IGTokenProvider(DynamicTokenProvider):
         request_body = {"refreshToken": offline_token}
         return request_body, headers, "json"
 
-    def _parse_response(self, response_data: dict, raise_on_error=False):
+    def _parse_response(self, response_data):
         """
         Parse the response from the token endpoint.
 
@@ -345,16 +360,28 @@ class IGTokenProvider(DynamicTokenProvider):
         access_token = spec.get("accessToken")
 
         if not access_token:
-            mlrun.utils.helpers.raise_or_log_error(
-                "Access token is missing in the response from the token endpoint",
-                raise_on_error,
+            raise mlrun.errors.MLRunRuntimeError(
+                "Access token is missing in the response from the token endpoint"
             )
-            return
 
         self._token = access_token
+
         self._token_total_lifetime, self._token_expiry_time = (
             self._get_token_lifetime_and_expiry(access_token)
         )
+
+    def _post_fetch_hook(self):
+        # if we reach this point and the token is non-empty but invalid,
+        # it means the refresh threshold has been reached and the token will expire soon.
+        if self._token and not self._is_token_valid(cleanup_if_expired=True):
+            logger.warning(
+                "Failed to fetch a new token. Using the existing token, which remains valid but is close to expiring."
+            )
+
+        if not self._token:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Failed to fetch access token, no token available after fetch"
+            )
 
     @staticmethod
     def _get_token_lifetime_and_expiry(

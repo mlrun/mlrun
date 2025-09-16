@@ -107,8 +107,6 @@ MLRUN_PYTHON_VERSION_SUFFIX := $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANA
 # expected to be in the form of 'py<major><minor>' e.g. 'py39'
 MLRUN_LINT_PYTHON_VERSION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "py"$$1$$2}')
 
-MLRUN_PIPELINES_KFP_VERSION := $(if $(filter 3.9,$(MLRUN_PYTHON_VERSION)),1-8,2)
-
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 # if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
@@ -338,7 +336,7 @@ MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_KFP_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-kfp
-mlrun-kfp: common-image-3.9 update-version-file ## Build mlrun docker image with KFP
+mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
 	$(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-kfp/Dockerfile \
@@ -346,6 +344,7 @@ mlrun-kfp: common-image-3.9 update-version-file ## Build mlrun docker image with
 		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -547,7 +546,7 @@ DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 # Python 3.11, regardless of what the rest of the matrix is doing.
 api: export MLRUN_PYTHON_VERSION = 3.11
 .PHONY: api
-api: common-image-3.11	 compile-schemas update-version-file ## Build mlrun-api docker image
+api: common-image-3.11 compile-schemas update-version-file ## Build mlrun-api docker image
 	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
@@ -584,7 +583,6 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg MLRUN_PIPELINES_KFP_VERSION=$(MLRUN_PIPELINES_KFP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
@@ -659,11 +657,10 @@ test: clean ## Run mlrun tests
 	") && \
 	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.11),$$(echo "\
 		--ignore=server/py/services/api/tests/unit/api/test_pipelines.py \
-		--ignore=tests/projects/test_kfp.py \
 		--ignore=server/py/services/api/tests/unit/crud/test_pipelines.py \
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
-		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
+		--ignore=tests/frameworks/tf_keras/test_tf_keras.py \
 		"),) && \
 	if [ "$(UNIT_TESTS_IGNORE_PATH)" != "" ]; then \
   		IGNORE_ADDITION="--ignore=$(UNIT_TESTS_IGNORE_PATH)"; \
@@ -1003,7 +1000,6 @@ upgrade-mlrun-api-deps-lock: ## Upgrade mlrun-api locked requirements file
 		extras-requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--python-version $(MLRUN_PYTHON_VERSION) \
 		--output-file dockerfiles/mlrun-api/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-mlrun-deps-lock
@@ -1031,7 +1027,6 @@ upgrade-mlrun-jupyter-deps-lock: ## Upgrade mlrun-jupyter locked requirements fi
 		extras-requirements.txt \
 		dockerfiles/jupyter/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--python-version $(MLRUN_PYTHON_VERSION) \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-test-deps-lock
@@ -1043,7 +1038,9 @@ upgrade-mlrun-test-deps-lock: ## Upgrade mlrun test locked requirements file
 		dockerfiles/test/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/test/locked-requirements.txt
+		--python-version $(MLRUN_PYTHON_VERSION) \
+		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
+		--output-file dockerfiles/test/locked-requirements_${MLRUN_PYTHON_VERSION}.txt
 
 .PHONY: upgrade-mlrun-system-test-deps-lock
 upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked requirements file
@@ -1056,23 +1053,33 @@ upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked require
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/test-system/locked-requirements.txt
 
+
+upgrade-mlrun-test-deps-lock-all: upgrade-mlrun-test-deps-lock-3.11 upgrade-mlrun-test-deps-lock-3.9
+
+upgrade-mlrun-test-deps-lock-3.11:
+	$(MAKE) upgrade-mlrun-test-deps-lock MLRUN_PYTHON_VERSION=3.11
+
+upgrade-mlrun-test-deps-lock-3.9:
+	$(MAKE) upgrade-mlrun-test-deps-lock MLRUN_PYTHON_VERSION=3.9
+
+
 upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
+		extras-requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
-		--python-version 3.9 \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
-	@$(MAKE) -j \
+	@$(MAKE)  \
 		upgrade-mlrun-mlrun-deps-lock \
 		upgrade-mlrun-api-deps-lock \
 		upgrade-mlrun-jupyter-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
 		upgrade-mlrun-kfp-deps-lock \
-		upgrade-mlrun-test-deps-lock \
+		upgrade-mlrun-test-deps-lock-all \
 		upgrade-mlrun-system-test-deps-lock
 
 

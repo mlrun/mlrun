@@ -1,0 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+transformers==4.53.2
+torch==2.7.1+cpu
+pillow~=11.3

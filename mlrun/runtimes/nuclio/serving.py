@@ -416,14 +416,14 @@ class ServingRuntime(RemoteRuntime):
         :param child_function: child function name, when the model runs in a child function
         :param creation_strategy: Strategy for creating or updating the model endpoint:
 
-                          * **overwrite**: If model endpoints with the same name exist, delete the `latest` one.
-                          Create a new model endpoint entry and set it as `latest`.
+                          * **overwrite**: If model endpoints with the same name exist, delete the `latest`
+                            one. Create a new model endpoint entry and set it as `latest`.
 
-                          * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry.
-                          Otherwise, create a new entry.
+                          * **inplace** (default): If model endpoints with the same name exist, update the
+                            `latest` entry. Otherwise, create a new entry.
 
                           * **archive**: If model endpoints with the same name exist, preserve them.
-                          Create a new model endpoint with the same name and set it to `latest`.
+                            Create a new model endpoint with the same name and set it to `latest`.
 
         :param outputs: list of the model outputs (e.g. labels), if provided will override the outputs that were
                         configured in the model artifact. Note that those outputs need to be equal to the

@@ -380,8 +380,8 @@ class BaseStep(ModelObj):
                             * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
                               create a new model endpoint entry and set it as `latest`.
 
-                            * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
-                              otherwise, create a new entry.
+                            * **inplace** (default): If model endpoints with the same name exist, update the `latest`
+                              entry; otherwise, create a new entry.
 
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
@@ -1038,8 +1038,8 @@ class RouterStep(TaskStep):
                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
                              create a new model endpoint entry and set it as `latest`.
 
-                           * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
-                             otherwise, create a new entry.
+                           * **inplace** (default): If model endpoints with the same name exist, update the `latest`
+                             entry;otherwise, create a new entry.
 
                            * **archive**: If model endpoints with the same name exist, preserve them;
                              create a new model endpoint with the same name and set it to `latest`.
@@ -1635,10 +1635,10 @@ class ModelRunnerStep(MonitoredStep):
       an error. If False, the error will appear in the output event.
 
     raise ModelRunnerError -
-                              when a model raises an error the ModelRunnerStep will handle it, collect errors and outputs
-                              from added models. If raise_exception is True will raise ModelRunnerError. Else will add
-                              the error msg as part of the event body mapped by model name if more than one model was
-                              added to the ModelRunnerStep
+                              when a model raises an error the ModelRunnerStep will handle it, collect errors and
+                              outputs from added models. If raise_exception is True will raise ModelRunnerError. Else
+                              will add the error msg as part of the event body mapped by model name if more than
+                              one model was added to the ModelRunnerStep
     """
 
     kind = "model_runner"
@@ -1821,33 +1821,37 @@ class ModelRunnerStep(MonitoredStep):
         :param model_class:         Model class name
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
-                            * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
-                              intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
-                              Lock (GIL).
+                            * **process_pool**: To run in a separate process from a process pool. This is appropriate
+                              for CPU or GPU intensive tasks as they would otherwise block the main process by holding
+                              Python's Global Interpreter Lock (GIL).
 
-                            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
-                              tasks that also require significant Runnable-specific initialization (e.g. a large model).
+                            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU
+                              or GPU intensive tasks that also require significant Runnable-specific initialization
+                              (e.g. a large model).
 
-                            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
-                              otherwise block the main event loop thread.
+                            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks,
+                              as they would otherwise block the main event loop thread.
 
-                            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
-                              event loop to continue running while waiting for a response.
+                            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use
+                              asyncio, allowing the event loop to continue running while waiting for a response.
 
-                            * **shared_executor**: Reuses an external executor (typically managed by the flow or context) to execute the
-                              runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially useful when:
+                            * **shared_executor**: Reuses an external executor (typically managed by the flow or
+                              context) to execute the runnable. Should be used only if you have multiple
+                              `ParallelExecution` in the same flow and especially useful when:
 
                               - You want to share a heavy resource like a large model loaded onto a GPU.
 
                               - You want to centralize task scheduling or coordination for multiple lightweight tasks.
 
-                              - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+                              - You aim to minimize overhead from creating new executors or processes/threads per
+                                runnable.
 
-                              The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
-                              memory and hardware accelerators.
+                                The runnable is expected to be pre-initialized and reused across events, enabling
+                                efficient use of memory and hardware accelerators.
 
-                            * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
-                              It means that the runnable will not actually be run in parallel to anything else.
+                            * **naive**: To run in the main event loop. This is appropriate only for trivial computation
+                              and/or file I/O. It means that the runnable will not actually be run in parallel to anything
+                              else.
 
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param labels:              model endpoint labels, should be list of str or mapping of str:str
@@ -1856,8 +1860,8 @@ class ModelRunnerStep(MonitoredStep):
                             * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
                               create a new model endpoint entry and set it as `latest`.
 
-                            * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
-                              otherwise, create a new entry.
+                            * **inplace** (default): If model endpoints with the same name exist, update the `latest`
+                              entry; otherwise, create a new entry.
 
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
@@ -2331,8 +2335,8 @@ class FlowStep(BaseStep):
                              * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
                               create a new model endpoint entry and set it as `latest`.
 
-                            * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
-                              otherwise, create a new entry.
+                            * **inplace** (default): If model endpoints with the same name exist, update the `latest`
+                            entry; otherwise, create a new entry.
 
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
@@ -2847,8 +2851,8 @@ class RootFlowStep(FlowStep):
                 intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
                 Lock (GIL).
 
-            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
-                tasks that also require significant Runnable-specific initialization (e.g. a large model).
+            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU
+            intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
 
             * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
                 otherwise block the main event loop thread.
@@ -2869,8 +2873,8 @@ class RootFlowStep(FlowStep):
                 The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
                 memory and hardware accelerators.
 
-            * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
-                It means that the runnable will not actually be run in parallel to anything else.
+            * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or fileß
+                I/O. It means that the runnable will not actually be run in parallel to anything else.
 
             :param model_artifact:      model artifact or mlrun model artifact uri
             :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs

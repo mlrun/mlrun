@@ -20,9 +20,6 @@ import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
-from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
-    Statement,
-)
 
 
 class TestTimescaleDBOperationsHandlerIntegration:
@@ -290,7 +287,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
             [], include_aggregates=True
         )
 
-    def test_delete_tsdb_records_special_characters(self, query_test_helper):
+    def test_delete_tsdb_records_special_characters(self, query_test_helper, statement):
         """Test deleting endpoints with special characters."""
         query_test_helper.operations_handler.create_tables()
 
@@ -308,7 +305,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         for endpoint_id in special_endpoints:
             # Create a proper Statement object with parameters
-            stmt = Statement(
+            stmt = statement(
                 sql=f"""
                 INSERT INTO {predictions_table.full_name()}
                 (end_infer_time, endpoint_id, latency, custom_metrics,

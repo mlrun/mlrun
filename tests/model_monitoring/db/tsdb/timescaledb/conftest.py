@@ -18,33 +18,12 @@ import uuid
 
 import pytest
 
-import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
-from mlrun.model_monitoring.db.tsdb.preaggregate import (
-    PreAggregateConfig,
-    PreAggregateHandler,
-)
-from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_metrics_queries import (
-    TimescaleDBMetricsQueries,
-)
-from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_predictions_queries import (
-    TimescaleDBPredictionsQueries,
-)
-from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_results_queries import (
-    TimescaleDBResultsQueries,
-)
-from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
-    TimescaleDBConnection,
-)
-from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_operations import (
-    TimescaleDBOperationsHandler,
-)
-
 # Connection string detection - used by ALL TimescaleDB tests
 CONNECTION_STRING = os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION")
 
 
 # Check if TimescaleDB is available for testing
-def _is_timescaledb_available():
+def is_timescaledb_available():
     """Check if TimescaleDB connection is available and valid."""
     if not CONNECTION_STRING:
         return False
@@ -53,14 +32,48 @@ def _is_timescaledb_available():
     return True
 
 
-# Global skip mark that ALL TimescaleDB tests can use
-timescaledb_available = pytest.mark.skipif(
-    not _is_timescaledb_available(),
-    reason="TimescaleDB connection string not available or not PostgreSQL",
-)
-
-# Apply skip mark globally to this directory
-pytestmark = timescaledb_available
+# Import TimescaleDB modules only if available
+if is_timescaledb_available():
+    import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
+    from mlrun.model_monitoring.db.tsdb.preaggregate import (
+        PreAggregateConfig,
+        PreAggregateHandler,
+    )
+    from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_metrics_queries import (
+        TimescaleDBMetricsQueries,
+    )
+    from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_predictions_queries import (
+        TimescaleDBPredictionsQueries,
+    )
+    from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_results_queries import (
+        TimescaleDBResultsQueries,
+    )
+    from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+        Statement,
+        TimescaleDBConnection,
+    )
+    from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_operations import (
+        TimescaleDBOperationsHandler,
+    )
+    from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
+        TimescaleDBQueryBuilder,
+    )
+else:
+    # Create dummy variables to avoid NameError in fixtures
+    timescaledb_schema = None
+    PreAggregateConfig = None
+    PreAggregateHandler = None
+    TimescaleDBMetricsQueries = None
+    TimescaleDBPredictionsQueries = None
+    TimescaleDBResultsQueries = None
+    TimescaleDBConnection = None
+    TimescaleDBOperationsHandler = None
+    Statement = None
+    TimescaleDBQueryBuilder = None
+    # Global skip mark for this entire test file
+    pytestmark = pytest.mark.skip(
+        reason="TimescaleDB connection string not available or not PostgreSQL"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -70,7 +83,7 @@ def connection_string():
     Used by ALL TimescaleDB tests that need database connectivity.
     Session-scoped since connection string doesn't change during test session.
     """
-    if not _is_timescaledb_available():
+    if not is_timescaledb_available():
         pytest.skip("TimescaleDB connection string not available or not PostgreSQL")
     return CONNECTION_STRING
 
@@ -245,6 +258,24 @@ def admin_connection(connection_string):
     Used by tests that need to create/drop databases or run administrative commands.
     """
     yield TimescaleDBConnection(connection_string, max_connections=1, autocommit=True)
+
+
+@pytest.fixture
+def query_builder(connection_string):
+    """TimescaleDBQueryBuilder instance for validation tests.
+
+    This fixture ensures proper skipping when TimescaleDB is not available.
+    """
+    return TimescaleDBQueryBuilder
+
+
+@pytest.fixture
+def statement(connection_string):
+    """Statement class for operations tests.
+
+    This fixture ensures proper skipping when TimescaleDB is not available.
+    """
+    return Statement
 
 
 @pytest.fixture

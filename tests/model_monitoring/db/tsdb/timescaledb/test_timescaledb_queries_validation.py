@@ -18,9 +18,6 @@ import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
-from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
-    TimescaleDBQueryBuilder,
-)
 
 
 class TestParameterValidation:
@@ -70,10 +67,10 @@ class TestParameterValidation:
             in str(exc_info.value)
         )
 
-    def test_get_endpoint_filter_invalid_type(self):
+    def test_get_endpoint_filter_invalid_type(self, query_builder):
         """Test MLRunInvalidArgumentError for invalid endpoint_id type."""
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
-            TimescaleDBQueryBuilder.build_endpoint_filter(
+            query_builder.build_endpoint_filter(
                 123
             )  # Invalid type - should be string or list
 
@@ -81,10 +78,10 @@ class TestParameterValidation:
             exc_info.value
         )
 
-    def test_get_endpoint_filter_dict_type(self):
+    def test_get_endpoint_filter_dict_type(self, query_builder):
         """Test MLRunInvalidArgumentError for dict endpoint_id type."""
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
-            TimescaleDBQueryBuilder.build_endpoint_filter(
+            query_builder.build_endpoint_filter(
                 {"endpoint": "test"}
             )  # Invalid type - should be string or list
 

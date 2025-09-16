@@ -1513,36 +1513,36 @@ class V3IOTSDBConnector(TSDBConnector):
 
     @staticmethod
     def _aggregate_raw_drift_data(
-        df: pd.DataFrame, start, end, interval: str
+        df: pd.DataFrame, start: datetime, end: datetime, interval: str
     ) -> pd.DataFrame:
-        """
-        Assumes df has a DatetimeIndex (time) and columns:
-          - result_status
-          - endpoint_id
-        """
         if df.empty:
             return df
         if not isinstance(df.index, pd.DatetimeIndex):
             raise TypeError("Expected a DatetimeIndex on the DataFrame (time index).")
-        df["endpoint_id"] = (
-            df["endpoint_id"].astype("string").str.strip()
+        df[EventFieldType.ENDPOINT_ID] = (
+            df[EventFieldType.ENDPOINT_ID].astype("string").str.strip()
         )  # remove extra data carried by the category dtype
         window = df.loc[
-            (df.index >= start) & (df.index < end), ["result_status", "endpoint_id"]
+            (df.index >= start) & (df.index < end),
+            [mm_schemas.ResultData.RESULT_STATUS, EventFieldType.ENDPOINT_ID],
         ]
         out = (
             window.groupby(
                 [
-                    "endpoint_id",
+                    EventFieldType.ENDPOINT_ID,
                     pd.Grouper(
                         freq=interval, origin=start, label="left", closed="left"
                     ),
                 ]
                 # align to start, [start, end) intervals
-            )["result_status"]
+            )[mm_schemas.ResultData.RESULT_STATUS]
             .max()
             .reset_index()
-            .rename(columns={"result_status": "max(result_status)"})
+            .rename(
+                columns={
+                    mm_schemas.ResultData.RESULT_STATUS: f"max({mm_schemas.ResultData.RESULT_STATUS})"
+                }
+            )
         )
         return out.rename(
             columns={"time": "_wstart"}

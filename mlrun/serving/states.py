@@ -1850,8 +1850,8 @@ class ModelRunnerStep(MonitoredStep):
                                 efficient use of memory and hardware accelerators.
 
                             * **naive**: To run in the main event loop. This is appropriate only for trivial computation
-                              and/or file I/O. It means that the runnable will not actually be run in parallel to anything
-                              else.
+                              and/or file I/O. It means that the runnable will not actually be run in parallel to 
+                              anything else.
 
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param labels:              model endpoint labels, should be list of str or mapping of str:str

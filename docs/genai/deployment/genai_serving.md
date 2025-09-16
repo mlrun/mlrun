@@ -2,18 +2,22 @@
 # Serving gen AI models
 
 With MLRun you can serve any model, locally hosted (including pretrained models that are downloaded from the Hugging Face model hub, as well as models that are fine-tuned with MLRun) and remote models. (See [Hugging Face model hub](https://huggingface.co/docs/hub/en/models-the-hub).)
-The main differences between serving a gen AI model and any other model are the inputs and outputs, which in gen AI are usually unstructured (text or images), and the model is usually a transformer model. 
+The main differences between serving a gen AI model and any other model are the inputs and outputs: inputs in gen AI are usually unstructured (text or images), and the model is usually a transformer model. 
 
 Another common use case is to serve the model as part of an inference pipeline, where the model is used as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This is covered in the {ref}`gen AI serving graph section <genai-serving-graph>`.
 
 **In this section**
+- [Guidelines](#guidelines)
 - [Serving a local model from the function hub](#serving-a-local-model-from-the-function-hub)
 - [Serving using a remote model](#serving-using-a-remote-model)
 - [Implementing your own model serving function](#implementing-your-own-model-serving-function)
 
-# Guidelines 
+## Guidelines
 
-## Serving a local model from the function hub
+Hugging Face uses Pipeline as a client: it downloads the model and loads it to the RAM.
+Due to this usage, it might require more resources than usual.
+
+## Serving a local model from the hub
 
 The function hub has a serving class called [`hugging_face_serving`](https://www.mlrun.org/hub/functions/master/hugging_face_serving/) to run Hugging Face models. The following code shows how to import the function to your project:
 

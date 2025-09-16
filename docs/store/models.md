@@ -169,5 +169,5 @@ You can use models stored in a remote source, for example HuggingFace. You can l
 
 ### Credentials
 
-For models not using a datadtore profile, the MLRun code attempts to retrieve credentials from the environment (using `get_secret_or_env`).
+For models not using a datastore profile, the MLRun code attempts to retrieve credentials from the environment (using `get_secret_or_env`).
 For each type of schema, a standard secret name must be provided. For example, `OPENAI_API_KEY` for OpenAI, `API_TOKEN` for HF, etc.

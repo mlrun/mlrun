@@ -1396,7 +1396,7 @@ class Config:
 
     def is_iguazio_v4_mode(self):
         return (
-            mlrun.mlconf.httpdb.authentication.mode
+            config.httpdb.authentication.mode
             == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 

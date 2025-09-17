@@ -169,7 +169,6 @@ class HTTPRunDB(RunDBInterface):
             self.token_provider = mlrun.auth.IGTokenProvider(
                 token_endpoint=config.auth_token_endpoint,
             )
-            mlrun.secrets.sync_secret_tokens()
         else:
             username, password, token = mlrun.platforms.add_or_refresh_credentials(
                 parsed_url.hostname, username, password, config.httpdb.token
@@ -635,6 +634,9 @@ class HTTPRunDB(RunDBInterface):
                 exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
+
+        if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
+            mlrun.secrets.sync_secret_tokens()
         return self
 
     def store_log(self, uid, project="", body=None, append=False):

@@ -802,12 +802,13 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     return uri if not add_store else DB_SCHEMA + "://" + uri
 
 
-def extend_hub_uri_if_needed(uri: str, asset_type: HubSourceType = HubSourceType.functions) -> tuple[str, bool]:
+def extend_hub_uri_if_needed(uri: str, asset_type: HubSourceType = HubSourceType.functions, file: str="function.yaml") -> tuple[str, bool]:
     """
-    Retrieve the full uri of the function's yaml in the hub.
+    Retrieve the full uri of an object in the hub.
 
     :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
     :param asset_type:  The type of the hub item (functions, modules, etc.)
+    :param file: The file name inside the hub item directory (default: function.yaml)
 
     :return: A tuple of:
                [0] = Extended URI of item
@@ -843,14 +844,9 @@ def extend_hub_uri_if_needed(uri: str, asset_type: HubSourceType = HubSourceType
     else:
         # Specific source is given
         indexed_source = db.get_hub_source(source_name)
-    # hub function directory name are with underscores instead of hyphens
+    # hub directories name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    if asset_type == HubSourceType.functions:
-        suffix = f"{name}/{tag}/src/function.yaml"
-    elif asset_type == HubSourceType.modules:
-        suffix = f"{name}/{tag}/src/item.yaml"
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported asset type {asset_type}")
+    suffix = f"{name}/{tag}/src/{file}"
     return indexed_source.source.get_full_uri(
         suffix, asset_type
     ), is_hub_uri

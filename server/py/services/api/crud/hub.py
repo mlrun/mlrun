@@ -199,11 +199,12 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
+        item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
         hub_sources = framework.utils.singletons.db.get_db().list_hub_sources(
             db_session
         )
-        return self.filter_hub_sources(hub_sources, item_name, tag, version)
+        return self.filter_hub_sources(hub_sources, item_name, tag, version, item_type)
 
     def filter_hub_sources(
         self,

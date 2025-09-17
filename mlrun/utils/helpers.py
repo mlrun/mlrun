@@ -833,7 +833,7 @@ def extend_hub_uri_if_needed(uri: str, asset_type: HubSourceType = HubSourceType
     name = normalize_name(name=name)
     if not source_name:
         # Searching item in all sources
-        sources = db.list_hub_sources(item_name=name, tag=tag)
+        sources = db.list_hub_sources(item_name=name, tag=tag, item_type=asset_type)
         if not sources:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Item={name}, tag={tag} not found in any hub source"

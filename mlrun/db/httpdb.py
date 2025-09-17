@@ -169,6 +169,7 @@ class HTTPRunDB(RunDBInterface):
             self.token_provider = mlrun.auth.IGTokenProvider(
                 token_endpoint=config.auth_token_endpoint,
             )
+            mlrun.secrets.sync_secret_tokens()
         else:
             username, password, token = mlrun.platforms.add_or_refresh_credentials(
                 parsed_url.hostname, username, password, config.httpdb.token

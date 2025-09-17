@@ -156,12 +156,12 @@ def kfp_client_mock(monkeypatch):
         "RunServiceApi",
         mock.Mock(return_value=mock_run_api),
     )
+    project = mlrun.get_or_create_project("test", allow_cross_project=True)
 
     # Build a real mlrun_pipelines client that will use our mocked APIs
     kfp_client = mlrun_pipelines.client.Client(
         logger=mlrun.get_or_create_ctx("test").logger,  # any valid logger works
     )
-
     # Point mlrun to a fake in-cluster KFP URL (not actually contacted due to mocks)
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
 

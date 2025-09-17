@@ -27,4 +27,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         git \
         libffi-dev \
         python3-dev \
-        unzip
+        unzip \
+    && python -m pip list --format=freeze \
+        | grep -v '^\-e' \
+        | cut -d = -f 1 \
+        | xargs python -m pip install --upgrade

@@ -66,13 +66,12 @@ def _dowlnload_module_files(url, item_yaml, secrets=None, local_path=None):
         filename = item_yaml.get("example")
         example_url, _ = extend_hub_uri_if_needed(url, HubSourceType.modules, filename)
         _download_object(example_url, filename, local_path, secrets)
-    return get_object(url, secrets)
 
 def get_hub_module(url="", secrets=None, local_path=None):
-    url, is_hub_uri = extend_hub_uri_if_needed(url, HubSourceType.modules, "item.yaml")
+    item_yaml_url, is_hub_uri = extend_hub_uri_if_needed(url, HubSourceType.modules, "item.yaml")
     if not is_hub_uri:
         raise mlrun.errors.MLRunInvalidArgumentError("Not a valid hub uri")
-    yaml_obj = get_object(url, secrets)
+    yaml_obj = get_object(item_yaml_url, secrets)
     item_yaml = yaml.safe_load(yaml_obj)
     spec = item_yaml.pop("spec", {})
     hub_module = HubModule(**item_yaml, **spec)

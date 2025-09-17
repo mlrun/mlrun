@@ -33,6 +33,7 @@ class HubModule(ModelObj):
             kind: Optional[Union[ModuleType, str]] = None,
             description: Optional[str] = "",
             requirements: Optional[list] = None,
+            **kwargs
     ):
         self.name: str = name
         self.version: str = version

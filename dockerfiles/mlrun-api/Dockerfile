@@ -61,7 +61,7 @@ RUN chmod -R a+rX /mlrun/server/py/schemas/proto
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
 # Install iguazio package from Test PyPI
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple iguazio~=0.0.1a10 --python-version ${MLRUN_PYTHON_VERSION}
+    uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple iguazio~=0.0.1a11 --python-version ${MLRUN_PYTHON_VERSION}
 
 # Remove server related files that are not needed in the base image
 # Remove ensurepip folders from both conda and system python

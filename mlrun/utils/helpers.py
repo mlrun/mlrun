@@ -61,6 +61,7 @@ import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.common.schemas import ArtifactCategories
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun_pipelines.models import PipelineRun
 
@@ -801,11 +802,12 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     return uri if not add_store else DB_SCHEMA + "://" + uri
 
 
-def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
+def extend_hub_uri_if_needed(uri: str, asset_type: HubSourceType = HubSourceType.functions) -> tuple[str, bool]:
     """
     Retrieve the full uri of the function's yaml in the hub.
 
     :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
+    :param asset_type:  The type of the hub item (functions, modules, etc.)
 
     :return: A tuple of:
                [0] = Extended URI of item
@@ -843,10 +845,14 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
         indexed_source = db.get_hub_source(source_name)
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    function_suffix = f"{name}/{tag}/src/function.yaml"
-    function_type = mlrun.common.schemas.hub.HubSourceType.functions
+    if asset_type == HubSourceType.functions:
+        suffix = f"{name}/{tag}/src/function.yaml"
+    elif asset_type == HubSourceType.modules:
+        suffix = f"{name}/{tag}/src/item.yaml"
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported asset type {asset_type}")
     return indexed_source.source.get_full_uri(
-        function_suffix, function_type
+        suffix, asset_type
     ), is_hub_uri
 
 

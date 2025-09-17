@@ -8,8 +8,6 @@ MLRun has two main components, the service and the client (SDK and UI):
 - The MLRun service can orchestrate and integrate with other open source frameworks, as shown in the following diagram. 
 - The MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
 
-This release of MLRun supports only Python 3.9 for both the server and the client. 
-
 <p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="700"/></p><br>
 
 **In this section**

@@ -636,7 +636,11 @@ class BaseRuntimeHandler(ABC):
 
                 # Check if the run should be retried, and update its status accordingly
                 run_state, message = self._evaluate_run_retry_state(run, reason)
-                logger.info("Updating run state", run_uid=run_uid, run_state=run_state)
+                logger.info(
+                    "Updating run state - non terminal recovery flow",
+                    run_uid=run_uid,
+                    run_state=run_state,
+                )
                 run_updates = {
                     "status.state": run_state,
                     "status.reason": reason,
@@ -1366,6 +1370,15 @@ class BaseRuntimeHandler(ABC):
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=True, uid=uid
         )
+
+        # If retries are configured and this pod belongs to an earlier attempt, skip it to avoid collecting
+        # duplicate/outdated state
+        retry_spec = run.get("spec", {}).get("retry", {})
+        if retry_spec and self._is_pod_from_outdated_retry(
+            runtime_resource=runtime_resource, run=run
+        ):
+            return
+
         (
             run_state,
             threshold_exceeded,
@@ -1767,7 +1780,11 @@ class BaseRuntimeHandler(ABC):
                     run, reason, message
                 )
 
-        logger.info("Updating run state", run_uid=uid, run_state=run_state)
+        logger.info(
+            "Ensuring run state",
+            run_uid=uid,
+            run_state=run_state,
+        )
         run_updates = {
             "status.state": run_state,
             "status.reason": reason or "",
@@ -1998,3 +2015,32 @@ class BaseRuntimeHandler(ABC):
         else:
             new_state = RunStates.error
         return new_state, message
+
+    @staticmethod
+    def _is_pod_from_outdated_retry(runtime_resource: dict, run: dict) -> bool:
+        """
+        Determine whether a given pod belongs to an outdated retry attempt.
+
+        Each pod is labeled with its retry attempt number (`mlrun/retry-attempt`).
+        The run object tracks the current `retry_count`.
+        A pod is considered outdated if its retry attempt label is smaller than the
+        run's current retry_count. In such cases, the pod should be ignored by the
+        monitor flow.
+
+        :param runtime_resource: The Kubernetes pod resource.
+        :param run: The run object, including status and retry_count.
+
+        :returns: True if the pod is outdated and should be ignored, False otherwise.
+        """
+        pod_retry_label = (
+            runtime_resource.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun.common.constants.MLRunInternalLabels.retry)
+        )
+        run_retry_count = run.get("status", {}).get("retry_count") or 0
+
+        if pod_retry_label is None:
+            # pods without a retry label are outdated once retries have started
+            return run_retry_count > 0
+
+        return int(pod_retry_label) < run_retry_count

@@ -53,7 +53,7 @@ jobs:
     name: System Test Cleanup
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: ubuntu:latest
+      image: gcr.io/iguazio/ubuntu:latest
     timeout-minutes: 10
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
@@ -94,7 +94,7 @@ jobs:
     name: Prepare System Tests Enterprise
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: python:3.9
+      image: gcr.io/iguazio/python:3.9
     needs: [system-test-cleanup]
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
@@ -104,7 +104,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass jq curl gnupg nodejs
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v5
       with:
         node-version: 18
     - name: Copy state branch file from remote
@@ -258,6 +258,8 @@ jobs:
           --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}" \
           --save-to-path "$GITHUB_WORKSPACE/env.yml" \
           --kubeconfig-content "${{ secrets.LATEST_SYSTEM_TEST_KUBECONFIG }}"
 
@@ -294,7 +296,7 @@ jobs:
     needs: [prepare-system-tests-enterprise-ci]
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: python:3.9
+      image: gcr.io/iguazio/python:3.9
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
     strategy:
@@ -329,7 +331,7 @@ jobs:
             gcc \
             make
 
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v5
       with:
         node-version: 18
 

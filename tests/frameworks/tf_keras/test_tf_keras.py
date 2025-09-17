@@ -17,12 +17,16 @@ import tempfile
 
 import numpy as np
 import pytest
-import tensorflow as tf
-from sklearn.model_selection import train_test_split
 
-import mlrun
-from mlrun.frameworks.tf_keras import TFKerasModelHandler, apply_mlrun
-from mlrun.frameworks.tf_keras.utils import is_keras_3
+try:
+    import tensorflow as tf
+    from sklearn.model_selection import train_test_split
+
+    import mlrun
+    from mlrun.frameworks.tf_keras import TFKerasModelHandler, apply_mlrun
+    from mlrun.frameworks.tf_keras.utils import is_keras_3
+except ImportError:
+    pass
 
 
 def preprocess_data(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

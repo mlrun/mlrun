@@ -443,9 +443,11 @@ class BaseRuntime(ModelObj):
         :param runobj: Run context object (RunObject) with run metadata and status
         :return: Dictionary with all the variables that could be parsed
         """
+        active_project = self.metadata.project or config.active_project
         runtime_env = {
-            mlrun_constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
-            or config.active_project
+            mlrun_constants.MLRUN_ACTIVE_PROJECT: active_project,
+            # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
+            "MLRUN_DEFAULT_PROJECT": active_project,
         }
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(

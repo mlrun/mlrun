@@ -30,6 +30,7 @@ import mlrun.utils.async_http
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
+from ..config import config
 from ..db.httpdb import HTTPRunDB
 from .utils import (
     _extract_input_data,
@@ -342,6 +343,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
     def _init(self):
         super()._init()
         self._client_session = None
+        self.retries = 3
 
     async def _lazy_init(self):
         connector = aiohttp.TCPConnector()
@@ -465,6 +467,7 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
 
     def __init__(self, method: str, path: str, **kwargs):
         super().__init__(**kwargs)
+        self._async_client = None
         self.token_provider = None
         self.method = method
         self.rundb: HTTPRunDB = mlrun.get_run_db()
@@ -473,18 +476,19 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
 
     def get_mlrun_configuration(self, **kw):
         if self.rundb.user:
+            print("[Roy] using user and password for auth")
             kw["auth"] = (self.rundb.user, self.rundb.password)
         elif self.rundb.token_provider:
+            print("[Roy] Getting token from token provider")
             token = self.rundb.token_provider.get_token()
             if token:
                 # Iguazio auth doesn't support passing token through bearer, so use cookie instead
                 if self.rundb.token_provider.is_iguazio_session():
-                    session_cookie = f'j:{{"sid": "{token}"}}'
-                    cookies = {
-                        "session": session_cookie,
-                    }
-                    kw["cookies"] = cookies
+                    print("[Roy] Getting token from IGUAZIO session", token)
+                    session_cookie = f'session=j:{{"sid": "{token}"}}'
+                    kw["cookies"] = session_cookie
                 else:
+                    print("[Roy] Getting token from token provider")
                     if "Authorization" not in kw.setdefault("headers", {}):
                         kw["headers"].update({"Authorization": "Bearer " + token})
 
@@ -495,6 +499,7 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
                 {
                     mlrun.common.schemas.HeaderNames.client_version: self.rundb.client_version,
                     mlrun.common.schemas.HeaderNames.python_version: self.rundb.python_version,
+                    "User-Agent": f"{requests.utils.default_user_agent()} mlrun/{config.version}",
                 }
             )
         return kw
@@ -512,8 +517,6 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
         """Perform an async REST API call.
         Similar to HTTPRunDB.api_call but async and simplified for RemoteStep use case.
 
-        :param path:
-        :param version:
         :param method: REST method (POST, GET, PUT...)
         :param error: Error message if call fails
         :param params: Query parameters as dict
@@ -532,11 +535,17 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
             )
             if value is not None
         }
-        self.get_mlrun_configuration(**kw)
+        kw = self.get_mlrun_configuration(**kw)
 
-        # Initialize async client if needed
-        if not hasattr(self, "_async_client"):
-            self._async_client = mlrun.utils.async_http.AsyncClientWithRetry(
+        try:
+            if timeout:
+                timeout_obj = aiohttp.ClientTimeout(total=timeout)
+                kw["timeout"] = timeout_obj
+
+            headers, kw = self._sanitize_kwargs(kw)
+            headers["cookie"] = kw.pop("cookies", "")
+
+            async_client = mlrun.utils.async_http.AsyncClientWithRetry(
                 max_retries=self.retries,
                 retry_backoff_factor=self.backoff_factor
                 or mlrun.mlconf.http_retry_defaults.backoff_factor,
@@ -548,13 +557,13 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
                     "PATCH",
                 ],  # Don't retry non-idempotent methods
             )
-
-        try:
-            if timeout:
-                timeout_obj = aiohttp.ClientTimeout(total=timeout)
-                kw["timeout"] = timeout_obj
-
-            response = await self._async_client.request(method, self.url, **kw)
+            response = await async_client.request(
+                method,
+                url=self.url,
+                headers=headers,
+                ssl=config.httpdb.http.verify,
+                **kw,
+            )
 
             if not response.ok:
                 if response.content:
@@ -563,7 +572,7 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
                         error_details = data.get("detail", {})
                         if error_details:
                             error = (
-                                f"{error} {error_details}"
+                                f"{error} {error_details} , url = {self.url}"
                                 if error
                                 else str(error_details)
                             )
@@ -580,6 +589,21 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
 
         return response
 
+    @staticmethod
+    def _sanitize_kwargs(kw: dict) -> tuple[dict, dict]:
+        headers = kw.get("headers", {})
+        # Clean headers (drop None, cast to str)
+        if "headers" in kw:
+            headers = {k: str(v) for k, v in kw["headers"].items() if v is not None}
+            kw.pop("headers")
+        # Convert basic auth tuple to aiohttp.BasicAuth
+        if "auth" in kw and isinstance(kw["auth"], tuple):
+            username, password = kw.pop("auth")
+            kw["auth"] = aiohttp.BasicAuth(login=username, password=password)
+        if "params" in kw:
+            kw["params"] = {k: str(v) for k, v in kw["params"].items() if v is not None}
+        return headers, kw
+
     async def _process_event(self, event):
         if not isinstance(event, dict):
             event = event.body
@@ -594,8 +618,8 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
         )
 
     async def _handle_completed(self, event, response):
-        response_body = await response.read()
-        if response.status >= 400:
+        response_body = await response.json()
+        if response.status and response.status >= 400:
             raise ValueError(
                 f"For event {event}, RemoteStep {self.name} got an unexpected response "
                 f"status {response.status}: {response_body}"

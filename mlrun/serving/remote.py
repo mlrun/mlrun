@@ -155,8 +155,8 @@ class RemoteStep(storey.SendToHttp):
     async def _process_event(self, event):
         # async implementation (with storey)
         body = self._get_event_or_body(event)
-        method, url, headers, body = self._generate_request(event, body)
-        kwargs = {}
+        method, url, headers, body, kwargs = self._generate_request(event, body)
+        kwargs = kwargs or {}
         if self.timeout:
             kwargs["timeout"] = aiohttp.ClientTimeout(total=self.timeout)
         try:
@@ -196,7 +196,7 @@ class RemoteStep(storey.SendToHttp):
             )
 
         body = _extract_input_data(self._input_path, event.body)
-        method, url, headers, body = self._generate_request(event, body)
+        method, url, headers, body, _ = self._generate_request(event, body)
         try:
             resp = self._session.request(
                 method,
@@ -245,7 +245,7 @@ class RemoteStep(storey.SendToHttp):
             body = json.dumps(body)
             headers["Content-Type"] = "application/json"
 
-        return method, url, headers, body
+        return method, url, headers, body, {}
 
     def _get_data(self, data, headers):
         if (
@@ -462,19 +462,29 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         return data
 
 
-class MLRunAPIRemoteStep(_ConcurrentJobExecution):
+class MLRunAPIRemoteStep(RemoteStep):
     """Graph step implementation for calling MLRun API endpoints"""
 
     def __init__(self, method: str, path: str, **kwargs):
-        super().__init__(**kwargs)
-        self._async_client = None
-        self.token_provider = None
-        self.method = method
         self.rundb: HTTPRunDB = mlrun.get_run_db()
-        self.url = self.rundb.get_base_api_url(path)
+        url = self.rundb.get_base_api_url(path)
+        super().__init__(url=url, method=method, **kwargs)
         self.path = path
 
-    def get_mlrun_configuration(self, **kw):
+    def _generate_request(self, event, body):
+        method = self.method or event.method or "POST"
+        kw = {
+                    key: value
+                    for key, value in (
+                        ("params", body.get("params")),
+                        ("json", body.get("json")),
+                    )
+                    if value is not None
+                }
+
+        headers = self.headers or {}
+        headers.update(body.get("headers", {}))
+
         if self.rundb.user:
             print("[Roy] using user and password for auth")
             kw["auth"] = (self.rundb.user, self.rundb.password)
@@ -486,146 +496,19 @@ class MLRunAPIRemoteStep(_ConcurrentJobExecution):
                 if self.rundb.token_provider.is_iguazio_session():
                     print("[Roy] Getting token from IGUAZIO session", token)
                     session_cookie = f'session=j:{{"sid": "{token}"}}'
-                    kw["cookies"] = session_cookie
+                    headers["cookie"] = session_cookie
                 else:
                     print("[Roy] Getting token from token provider")
                     if "Authorization" not in kw.setdefault("headers", {}):
-                        kw["headers"].update({"Authorization": "Bearer " + token})
+                        headers.update({"Authorization": "Bearer " + token})
 
-        if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
-            "headers", {}
-        ):
-            kw["headers"].update(
+        if mlrun.common.schemas.HeaderNames.client_version not in headers:
+            headers.update(
                 {
                     mlrun.common.schemas.HeaderNames.client_version: self.rundb.client_version,
                     mlrun.common.schemas.HeaderNames.python_version: self.rundb.python_version,
                     "User-Agent": f"{requests.utils.default_user_agent()} mlrun/{config.version}",
                 }
             )
-        return kw
-
-    async def async_api_call(
-        self,
-        method: str,
-        error: Optional[str] = None,
-        params: Optional[dict] = None,
-        body: Optional[str] = None,
-        json: Optional[dict] = None,
-        headers: Optional[dict] = None,
-        timeout: int = 45,
-    ) -> aiohttp.ClientResponse:
-        """Perform an async REST API call.
-        Similar to HTTPRunDB.api_call but async and simplified for RemoteStep use case.
-
-        :param method: REST method (POST, GET, PUT...)
-        :param error: Error message if call fails
-        :param params: Query parameters as dict
-        :param body: Raw request body
-        :param json: JSON body (will be encoded)
-        :param headers: Request headers dict
-        :param timeout: Request timeout in seconds
-        """
-        kw = {
-            key: value
-            for key, value in (
-                ("params", params),
-                ("data", body),
-                ("json", json),
-                ("headers", headers),
-            )
-            if value is not None
-        }
-        kw = self.get_mlrun_configuration(**kw)
-
-        try:
-            if timeout:
-                timeout_obj = aiohttp.ClientTimeout(total=timeout)
-                kw["timeout"] = timeout_obj
-
-            headers, kw = self._sanitize_kwargs(kw)
-            headers["cookie"] = kw.pop("cookies", "")
-
-            async_client = mlrun.utils.async_http.AsyncClientWithRetry(
-                max_retries=self.retries,
-                retry_backoff_factor=self.backoff_factor
-                or mlrun.mlconf.http_retry_defaults.backoff_factor,
-                retry_on_status_codes=list(range(500, 600)),  # Retry on 5xx errors
-                retry_on_exception=True,
-                raise_for_status=True,
-                blacklisted_methods=[
-                    "PUT",
-                    "PATCH",
-                ],  # Don't retry non-idempotent methods
-            )
-            response = await async_client.request(
-                method,
-                url=self.url,
-                headers=headers,
-                ssl=config.httpdb.http.verify,
-                **kw,
-            )
-
-            if not response.ok:
-                if response.content:
-                    try:
-                        data = await response.json()
-                        error_details = data.get("detail", {})
-                        if error_details:
-                            error = (
-                                f"{error} {error_details} , url = {self.url}"
-                                if error
-                                else str(error_details)
-                            )
-                    except Exception:
-                        pass
-                response.raise_for_status()
-        except Exception as exc:
-            error_message = (
-                f"MLRun API call to {self.url} failed"
-                if not error
-                else f"{error} (MLRun API call to {self.url} failed)"
-            )
-            raise RuntimeError(f"{error_message}: {err_to_str(exc)}") from exc
-
-        return response
-
-    @staticmethod
-    def _sanitize_kwargs(kw: dict) -> tuple[dict, dict]:
-        headers = kw.get("headers", {})
-        # Clean headers (drop None, cast to str)
-        if "headers" in kw:
-            headers = {k: str(v) for k, v in kw["headers"].items() if v is not None}
-            kw.pop("headers")
-        # Convert basic auth tuple to aiohttp.BasicAuth
-        if "auth" in kw and isinstance(kw["auth"], tuple):
-            username, password = kw.pop("auth")
-            kw["auth"] = aiohttp.BasicAuth(login=username, password=password)
-        if "params" in kw:
-            kw["params"] = {k: str(v) for k, v in kw["params"].items() if v is not None}
-        return headers, kw
-
-    async def _process_event(self, event):
-        if not isinstance(event, dict):
-            event = event.body
-        return await self.async_api_call(
-            method=self.method,
-            error=event.get("error"),
-            body=event.get("body"),
-            params=event.get("params"),
-            json=event.get("json"),
-            headers=event.get("headers"),
-            timeout=event.get("timeout", 45),
-        )
-
-    async def _handle_completed(self, event, response):
-        response_body = await response.json()
-        if response.status and response.status >= 400:
-            raise ValueError(
-                f"For event {event}, RemoteStep {self.name} got an unexpected response "
-                f"status {response.status}: {response_body}"
-            )
-
-        body = response_body
-
-        new_event = self._user_fn_output_to_event(event, body)
-        await self._do_downstream(new_event)
+        headers["Content-Type"] = "application/json"
+        return method ,self.url ,headers, body, kw

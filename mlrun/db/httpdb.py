@@ -5158,6 +5158,15 @@ class HTTPRunDB(RunDBInterface):
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
     @mlrun.utils.iguazio_v4_only
+    def revoke_secret_token(self, token_name: str) -> None:
+        endpoint_path = f"user-secrets/tokens/{token_name}"
+        self.api_call(
+            mlrun.common.types.HTTPMethod.DELETE,
+            endpoint_path,
+            "delete user secret token",
+        )
+
+    @mlrun.utils.iguazio_v4_only
     def _store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],

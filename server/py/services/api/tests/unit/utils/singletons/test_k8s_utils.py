@@ -22,6 +22,7 @@ import kubernetes.client as k8s_client
 import kubernetes.client.rest as k8s_client_rest
 import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
 import pytest
+import yaml
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes
@@ -454,59 +455,111 @@ def test_list_pod_events(k8s_helper):
 
 
 def test_store_user_token_secret_created(k8s_helper):
-    k8s_helper.read_secret = mock.MagicMock()
-    k8s_helper.read_secret.return_value = None
+    k8s_helper.read_secret = mock.MagicMock(return_value=None)
+
+    username = "test-user"
+    token_name = "my-token"
+    token_value = "abc123"
+    expiration = 9999
 
     result = k8s_helper.store_user_token_secret(
-        username="test-user",
-        token_name="my-token",
-        token="abc123",
-        expiration=9999,
+        username=username,
+        token_name=token_name,
+        token=token_value,
+        expiration=expiration,
         namespace="default",
     )
 
+    # Check that the secret creation was triggered
     assert result == mlrun.common.schemas.SecretEventActions.created
     k8s_helper._create_secret.assert_called_once()
     k8s_helper._update_secret.assert_not_called()
 
+    # Verify that the secrets data passed to _create_secret is properly encoded
+    secrets_data = k8s_helper._create_secret.call_args.kwargs["secrets"]
+    assert "tokensFile" in secrets_data
+    assert "tokenExpiration" in secrets_data
+
+    # Decode and verify tokensFile
+    decoded_tokens_yaml = base64.b64decode(secrets_data["tokensFile"]).decode()
+    tokens_yaml_dict = yaml.safe_load(decoded_tokens_yaml)
+    assert tokens_yaml_dict == {
+        "secretTokens": [{"name": token_name, "token": token_value}]
+    }
+
+    # Decode and verify tokenExpiration
+    decoded_expiration = int(base64.b64decode(secrets_data["tokenExpiration"]).decode())
+    assert decoded_expiration == expiration
+
 
 def test_store_user_token_secret_updated(k8s_helper):
     username = "test-user"
-    token_name = "mytoken"
+    token_name = "my-token"
+    token_value = "abc123"
+    new_expiration = 2000
     secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
-    existing_secret = _make_user_token_secret(secret_name, expiration=1000)
 
+    # Existing secret with older expiration
+    existing_secret = _make_user_token_secret(
+        secret_name, token_name=token_name, token_value=token_value, expiration=1000
+    )
     k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
 
     result = k8s_helper.store_user_token_secret(
         username=username,
         token_name=token_name,
-        token="abc123",
-        expiration=2000,
+        token=token_value,
+        expiration=new_expiration,
         namespace="default",
     )
 
+    # Check that the secret update was triggered
     assert result == mlrun.common.schemas.SecretEventActions.updated
     k8s_helper._update_secret.assert_called_once()
     k8s_helper._create_secret.assert_not_called()
 
+    # Verify that the updated secret data is properly encoded
+    secrets_data = k8s_helper._update_secret.call_args.kwargs["secrets"]
+    assert "tokensFile" in secrets_data
+    assert "tokenExpiration" in secrets_data
+
+    # Decode and verify tokensFile
+    decoded_tokens_yaml = base64.b64decode(secrets_data["tokensFile"]).decode()
+    tokens_yaml_dict = yaml.safe_load(decoded_tokens_yaml)
+    assert tokens_yaml_dict == {
+        "secretTokens": [{"name": token_name, "token": token_value}]
+    }
+
+    # Decode and verify tokenExpiration
+    decoded_expiration = int(base64.b64decode(secrets_data["tokenExpiration"]).decode())
+    assert decoded_expiration == new_expiration
+
 
 def test_store_user_token_secret_skipped(k8s_helper):
     username = "test-user"
-    token_name = "mytoken"
+    token_name = "my-token"
+    token_value = "abc123"
     secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
-    existing_secret = _make_user_token_secret(secret_name, expiration=5000)
+
+    # Existing secret with newer expiration than what we pass -> should skip update
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=token_name,
+        token_value=token_value,
+        expiration=5000,  # current expiration is newer
+    )
 
     k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
 
     result = k8s_helper.store_user_token_secret(
         username=username,
         token_name=token_name,
-        token="abc123",
+        token=token_value,
         expiration=4000,  # older expiration -> should skip
         namespace="default",
     )
 
+    # Ensure the action is skipped
     assert result == mlrun.common.schemas.SecretEventActions.skipped
     k8s_helper._update_secret.assert_not_called()
     k8s_helper._create_secret.assert_not_called()
@@ -633,15 +686,212 @@ def test_list_user_token_secrets_invalid_expiration(k8s_helper):
     assert len(result) == 0
 
 
-def _make_user_token_secret(secret_name, expiration=None, labels=None):
+def test_get_user_token_secret_value_valid(k8s_helper):
+    username = "test-user"
+    token_name = "my-token"
+    token_value = "abc123"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    # Create a Kubernetes secret with properly encoded tokensFile
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=token_name,
+        token_value=token_value,
+        expiration=9999,
+    )
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
+
+    token_value_from_k8s = k8s_helper.get_user_token_secret_value(
+        username=username,
+        token_name=token_name,
+        namespace="default",
+    )
+
+    assert token_value_from_k8s == token_value
+    k8s_helper.read_secret.assert_called_once()
+
+
+def test_get_user_token_secret_value_not_found(k8s_helper):
+    username = "test-user"
+    token_name = "my-token"
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.read_secret = mock.MagicMock(return_value=None)
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        k8s_helper.get_user_token_secret_value(
+            username, token_name, namespace="default"
+        )
+
+
+def test_get_user_token_secret_value_token_missing(k8s_helper):
+    username = "test-user"
+    token_name = "my-token"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    # Secret exists but tokensFile does not contain the requested token
+    secret = _make_user_token_secret(secret_name, token_name="other-token")
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.read_secret = mock.MagicMock(return_value=secret)
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        k8s_helper.get_user_token_secret_value(
+            username, token_name, namespace="default"
+        )
+
+
+def test_get_user_token_secret_value_invalid_base64(k8s_helper):
+    username = "test-user"
+    token_name = "my-token"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    # Create a secret with an invalid base64 tokensFile
+    bad_secret = _make_k8s_secret(secret_name)
+    bad_secret.data["tokensFile"] = "!!!invalidbase64!!!"  # invalid base64 content
+    bad_secret.data["tokenExpiration"] = base64.b64encode(b"9999").decode()
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.read_secret = mock.MagicMock(return_value=bad_secret)
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        k8s_helper.get_user_token_secret_value(
+            username=username,
+            token_name=token_name,
+            namespace="default",
+        )
+
+
+def test_get_user_token_secret_value_invalid_yaml(k8s_helper):
+    username = "test-user"
+    token_name = "my-token"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    # Base64 encoded string but invalid YAML
+    bad_yaml = base64.b64encode(b"{invalid_yaml: ]").decode()
+    bad_secret = _make_k8s_secret(secret_name)
+    bad_secret.data["tokensFile"] = bad_yaml
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.read_secret = mock.MagicMock(return_value=bad_secret)
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        k8s_helper.get_user_token_secret_value(
+            username, token_name, namespace="default"
+        )
+
+
+def test_delete_user_token_secret_success(k8s_helper):
+    username = "test-user"
+    token_name = "token1"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock()
+
+    k8s_helper.delete_user_token_secret(
+        username=username, token_name=token_name, namespace="default"
+    )
+
+    k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
+        name=secret_name,
+        namespace="default",
+    )
+
+
+def test_delete_user_token_secret_not_found(k8s_helper):
+    username = "test-user"
+    token_name = "missing"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
+        side_effect=k8s_client_rest.ApiException(status=404, reason="Not Found")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as exc:
+        k8s_helper.delete_user_token_secret(
+            username=username, token_name=token_name, namespace="default"
+        )
+
+    assert f"Secret for token '{token_name}' not found" in str(exc.value)
+
+    k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
+        name=secret_name,
+        namespace="default",
+    )
+
+
+def test_delete_user_token_secret_api_error(k8s_helper):
+    username = "test-user"
+    token_name = "badtoken"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
+        side_effect=k8s_client_rest.ApiException(status=500, reason="Internal Error")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc:
+        k8s_helper.delete_user_token_secret(
+            username=username, token_name=token_name, namespace="default"
+        )
+
+    assert "Failed to delete secret" in str(exc.value)
+
+    k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
+        name=secret_name,
+        namespace="default",
+    )
+
+
+def test_delete_user_token_secret_unexpected_error(k8s_helper):
+    username = "test-user"
+    token_name = "oops"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
+        side_effect=RuntimeError("dummy-error")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc:
+        k8s_helper.delete_user_token_secret(
+            username=username, token_name=token_name, namespace="default"
+        )
+
+    assert "Unexpected error deleting secret" in str(exc.value)
+
+    k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
+        name=secret_name,
+        namespace="default",
+    )
+
+
+def _make_user_token_secret(
+    secret_name,
+    token_name="my-token",
+    token_value="abc123",
+    expiration=None,
+    labels=None,
+):
     labels = labels or {
         mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
     }
     secret = _make_k8s_secret(secret_name, labels)
+
+    # Add tokensFile
+    token_yaml = yaml.safe_dump(
+        {"secretTokens": [{"name": token_name, "token": token_value}]}
+    )
+    secret.data["tokensFile"] = base64.b64encode(token_yaml.encode()).decode()
+
+    # Encode tokenExpiration if provided
     if expiration is not None:
         secret.data["tokenExpiration"] = base64.b64encode(
             str(expiration).encode()
         ).decode()
+
     return secret
 
 

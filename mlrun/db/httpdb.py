@@ -635,7 +635,11 @@ class HTTPRunDB(RunDBInterface):
                 traceback=traceback.format_exc(),
             )
 
-        if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
+        # we are not using mlconf in that point to avoid circular import
+        if (
+            config.httpdb.authentication.mode
+            == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+        ) and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()
         return self
 

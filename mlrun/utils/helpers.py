@@ -1262,7 +1262,7 @@ def get_kfp_list_runs_filter(
     if not final_filter_object["predicates"]:
         return ""
 
-    logger.warning(
+    logger.debug(
         "Generated KFP runs filter",
         filter_object_with_predicates=final_filter_object,
     )

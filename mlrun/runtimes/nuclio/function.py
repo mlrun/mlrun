@@ -423,6 +423,19 @@ class RemoteRuntime(KubeResource):
                 )
         """
         self.spec.build.source = source
+
+        # Warn and clear any inline code so the archive is actually used
+        code = (
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        )
+        if code:
+            logger.warning(
+                "Function already contains inline code. Removing it so the provided "
+                "source archive will be used instead. If you intended to use project "
+                "source, call `set_function(..., with_repo=True)`."
+            )
+            self.spec.build.functionSourceCode = None
+
         # update handler in function_handler if needed
         if handler:
             self.spec.function_handler = handler

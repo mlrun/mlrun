@@ -266,3 +266,25 @@ def test_with_sidecar(command: str, args: list, expected_sidecars: list):
     )
 
     assert function.spec.config["spec.sidecars"] == expected_sidecars
+
+def test_with_source_archive_removes_inline_code_and_warns(logs_stream):
+    # create a nuclio function and give it inline code
+    fn = mlrun.new_function("test-func", kind="nuclio")
+    fn.spec.build.functionSourceCode = "some-code"
+    source = "git://github.com/org/repo.git"
+
+    # call with_source_archive with a dummy source
+    fn.with_source_archive(source=source)
+
+    # assert inline code was cleared
+    assert fn.spec.build.functionSourceCode is None, "Inline code should be cleared"
+
+    # assert warning was issued
+    assert (
+        "Function already contains inline code. Removing it so the provided "
+        "source archive will be used instead" in logs_stream.getvalue()
+    )
+
+    # assert that the source was set correctly
+    assert fn.spec.build.source == source
+

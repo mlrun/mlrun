@@ -124,6 +124,7 @@ def api_config_test(service_config_test):
 
 @pytest.fixture
 def kfp_client_mock(monkeypatch):
+    mlrun.get_or_create_project("test", allow_cross_project=True)
     framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = mock.Mock(
         return_value=True
     )
@@ -156,7 +157,6 @@ def kfp_client_mock(monkeypatch):
         "RunServiceApi",
         mock.Mock(return_value=mock_run_api),
     )
-    mlrun.get_or_create_project("test", allow_cross_project=True)
 
     # Build a real mlrun_pipelines client that will use our mocked APIs
     kfp_client = mlrun_pipelines.client.Client(

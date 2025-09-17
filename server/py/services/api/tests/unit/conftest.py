@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import pathlib
 import typing
 import unittest.mock
@@ -124,7 +125,6 @@ def api_config_test(service_config_test):
 
 @pytest.fixture
 def kfp_client_mock(monkeypatch):
-    mlrun.get_or_create_project("test", allow_cross_project=True)
     framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = mock.Mock(
         return_value=True
     )
@@ -159,9 +159,7 @@ def kfp_client_mock(monkeypatch):
     )
 
     # Build a real mlrun_pipelines client that will use our mocked APIs
-    kfp_client = mlrun_pipelines.client.Client(
-        logger=mlrun.get_or_create_ctx("test").logger,  # any valid logger works
-    )
+    kfp_client = mlrun_pipelines.client.Client(logger=mock.Mock())
     # Point mlrun to a fake in-cluster KFP URL (not actually contacted due to mocks)
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
 

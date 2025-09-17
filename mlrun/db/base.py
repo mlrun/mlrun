@@ -1182,3 +1182,7 @@ class RunDBInterface(ABC):
         self,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         pass
+
+    @abstractmethod
+    def revoke_secret_token(self, token_name: str) -> None:
+        pass

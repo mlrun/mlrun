@@ -60,3 +60,20 @@ async def list_secret_tokens(
         services.api.crud.Secrets().list_secret_tokens,
         auth_info.username,
     )
+
+
+@router.delete("/tokens/{name}", status_code=HTTPStatus.OK.value)
+async def revoke_secret_token(
+    name: str,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
+):
+    # TODO: Support revoking user token with System Admin
+
+    return await run_in_threadpool(
+        services.api.crud.Secrets().revoke_secret_token,
+        name,
+        auth_info.username,
+    )

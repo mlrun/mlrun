@@ -69,6 +69,7 @@ from .run import (
 from .runtimes import mounts, new_model_server
 from .secrets import get_secret_or_env
 from .utils.version import Version
+from .hub import get_hub_module, import_module
 
 __version__ = Version().get()["version"]
 

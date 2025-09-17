@@ -11,8 +11,13 @@
   },
   {
     "image-name":"mlrun-kfp",
-    "python-version":"3.9",
+    "python-version":"3.11",
     "include-suffix":""
+  },
+  {
+    "image-name":"mlrun-kfp",
+    "python-version":"3.9",
+    "include-suffix":"true"
   },
   {
     "image-name":"api",

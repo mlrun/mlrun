@@ -1,9 +1,9 @@
 [project]
 name = "mlrun-pipelines-kfp-common"
-version = "0.5.8"
+version = "0.5.9"
 description = "MLRun Pipelines adapter package for providing KFP common functionality"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.9, <3.12"
 authors = [
   { name = "Yaron Haviv", email = "yaronh@iguazio.com" }
 ]

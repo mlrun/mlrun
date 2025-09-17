@@ -31,6 +31,9 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring
 from mlrun.utils import logger, now_date
 
+from ..common.model_monitoring.helpers import (
+    get_model_endpoints_creation_task_status,
+)
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
@@ -171,46 +174,6 @@ class BaseModelRouter(RouterToDict):
         """run tasks after processing the event"""
         return event
 
-    def _get_background_task_status(
-        self,
-    ) -> mlrun.common.schemas.BackgroundTaskState:
-        self._background_task_check_timestamp = now_date()
-        server: mlrun.serving.GraphServer = getattr(
-            self.context, "_server", None
-        ) or getattr(self.context, "server", None)
-        if not self.context.is_mock:
-            if server.model_endpoint_creation_task_name:
-                background_task = mlrun.get_run_db().get_project_background_task(
-                    server.project, server.model_endpoint_creation_task_name
-                )
-                logger.debug(
-                    "Checking model endpoint creation task status",
-                    task_name=server.model_endpoint_creation_task_name,
-                )
-                if (
-                    background_task.status.state
-                    in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-                ):
-                    logger.info(
-                        f"Model endpoint creation task completed with state {background_task.status.state}"
-                    )
-                else:  # in progress
-                    logger.info(
-                        f"Model endpoint creation task is still in progress with the current state: "
-                        f"{background_task.status.state}. Events will not be monitored for the next "
-                        f"{mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period} seconds",
-                        name=self.name,
-                        background_task_check_timestamp=self._background_task_check_timestamp.isoformat(),
-                    )
-                return background_task.status.state
-            else:
-                logger.error(
-                    "Model endpoint creation task name not provided. This function is not being monitored.",
-                )
-        elif self.context.monitoring_mock:
-            return mlrun.common.schemas.BackgroundTaskState.succeeded
-        return mlrun.common.schemas.BackgroundTaskState.failed
-
     def _update_background_task_state(self, event):
         if not self.background_task_reached_terminal_state and (
             self._background_task_check_timestamp is None
@@ -219,7 +182,26 @@ class BaseModelRouter(RouterToDict):
                 seconds=mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period
             )
         ):
-            self._background_task_current_state = self._get_background_task_status()
+            server: mlrun.serving.GraphServer = getattr(
+                self.context, "_server", None
+            ) or getattr(self.context, "server", None)
+            if not self.context.is_mock:
+                (
+                    self._background_task_current_state,
+                    self._background_task_check_timestamp,
+                    _,
+                ) = get_model_endpoints_creation_task_status(server)
+            elif self.context.monitoring_mock:
+                self._background_task_current_state = (
+                    mlrun.common.schemas.BackgroundTaskState.succeeded
+                )
+                self._background_task_check_timestamp = mlrun.utils.now_date()
+            else:
+                self._background_task_current_state = (
+                    mlrun.common.schemas.BackgroundTaskState.failed
+                )
+                self._background_task_check_timestamp = mlrun.utils.now_date()
+
         if event.body:
             event.body["background_task_state"] = (
                 self._background_task_current_state

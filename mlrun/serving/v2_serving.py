@@ -24,6 +24,9 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.model_monitoring
 from mlrun.utils import logger, now_date
 
+from ..common.model_monitoring.helpers import (
+    get_model_endpoints_creation_task_status,
+)
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
 
@@ -474,22 +477,18 @@ class V2ModelServer(StepToDict):
         ) or getattr(self.context, "server", None)
         if not self.context.is_mock or self.context.monitoring_mock:
             if server.model_endpoint_creation_task_name:
-                background_task = mlrun.get_run_db().get_project_background_task(
-                    server.project, server.model_endpoint_creation_task_name
-                )
-                logger.debug(
-                    "Checking model endpoint creation task status",
-                    task_name=server.model_endpoint_creation_task_name,
+                background_task_state, _, _ = get_model_endpoints_creation_task_status(
+                    server
                 )
                 if (
-                    background_task.status.state
+                    background_task_state
                     in mlrun.common.schemas.BackgroundTaskState.terminal_states()
                 ):
                     logger.debug(
-                        f"Model endpoint creation task completed with state {background_task.status.state}"
+                        f"Model endpoint creation task completed with state {background_task_state}"
                     )
                     if (
-                        background_task.status.state
+                        background_task_state
                         == mlrun.common.schemas.BackgroundTaskState.succeeded
                     ):
                         self._model_logger = (
@@ -504,7 +503,7 @@ class V2ModelServer(StepToDict):
                 else:  # in progress
                     logger.debug(
                         f"Model endpoint creation task is still in progress with the current state: "
-                        f"{background_task.status.state}.",
+                        f"{background_task_state}.",
                         name=self.name,
                     )
             else:

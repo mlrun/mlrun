@@ -26,6 +26,7 @@ import pandas as pd
 import mlrun
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
@@ -153,6 +154,7 @@ def results_to_iter(results, runspec, execution):
 
     iter = []
     failed = 0
+    pending_retry = 0
     running = 0
     for task in results:
         if task:
@@ -164,17 +166,26 @@ def results_to_iter(results, runspec, execution):
                 "state": state,
                 "iter": id,
             }
-            if state == "error":
+            if state == mlrun.common.runtimes.constants.RunStates.error:
                 failed += 1
                 err = get_in(task, ["status", "error"], "")
-                logger.error(f"error in task  {execution.uid}:{id} - {err_to_str(err)}")
-            elif state != "completed":
+                logger.error(f"error in task {execution.uid}:{id} - {err_to_str(err)}")
+            elif state == mlrun.common.runtimes.constants.RunStates.pending_retry:
+                pending_retry += 1
+                err = get_in(task, ["status", "error"], "")
+                retry_count = get_in(task, ["status", "retry_count"], 0)
+                logger.warning(
+                    f"pending retry in task {execution.uid}:{id} - {err_to_str(err)}. Retry count: {retry_count}"
+                )
+            elif state != mlrun.common.runtimes.constants.RunStates.completed:
                 running += 1
 
             iter.append(struct)
 
     if not iter:
-        execution.set_state("completed", commit=True)
+        execution.set_state(
+            mlrun.common.runtimes.constants.RunStates.completed, commit=True
+        )
         logger.warning("Warning!, zero iteration results")
         return
     if hasattr(pd, "json_normalize"):
@@ -204,8 +215,14 @@ def results_to_iter(results, runspec, execution):
             error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
             commit=False,
         )
+    elif pending_retry:
+        execution.set_state(
+            mlrun.common.runtimes.constants.RunStates.pending_retry, commit=False
+        )
     elif running == 0:
-        execution.set_state("completed", commit=False)
+        execution.set_state(
+            mlrun.common.runtimes.constants.RunStates.completed, commit=False
+        )
     execution.commit()
 
 

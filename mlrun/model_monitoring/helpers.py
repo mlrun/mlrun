@@ -143,7 +143,7 @@ def get_stream_path(
         return stream_uri.replace("v3io://", f"ds://{profile.name}")
 
     elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream
     ):
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=project, function_name=function_name
@@ -152,7 +152,7 @@ def get_stream_path(
     else:
         raise mlrun.errors.MLRunValueError(
             f"Received an unexpected stream profile type: {type(profile)}\n"
-            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
         )
 
 
@@ -300,7 +300,7 @@ def _get_v3io_output_stream(
 
 def _get_kafka_output_stream(
     *,
-    kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+    kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
     project: str,
     function_name: str,
     mock: bool = False,
@@ -356,7 +356,7 @@ def get_output_stream(
         )
 
     elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream
     ):
         return _get_kafka_output_stream(
             kafka_profile=profile,
@@ -368,7 +368,7 @@ def get_output_stream(
     else:
         raise mlrun.errors.MLRunValueError(
             f"Received an unexpected stream profile type: {type(profile)}\n"
-            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
         )
 
 
@@ -658,4 +658,27 @@ def get_start_end(
             "the current time is used by default"
         )
 
+    return start, end
+
+
+def validate_time_range(
+    start: Optional[datetime.datetime] = None, end: Optional[datetime.datetime] = None
+) -> tuple[datetime.datetime, datetime.datetime]:
+    """
+    validate start and end parameters and set default values if needed.
+    :param start:       Either None or datetime, None is handled as datetime.now(tz=timezone.utc) - timedelta(days=1)
+    :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
+    :return:            start datetime, end datetime
+    """
+    end = end or mlrun.utils.helpers.datetime_now()
+    start = start or (end - datetime.timedelta(days=1))
+    if start.tzinfo is None or end.tzinfo is None:
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "Custom start and end times must contain the timezone."
+        )
+    if start > end:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "The start time must be before the end time. Note that if end time is not provided, "
+            "the current time is used by default."
+        )
     return start, end

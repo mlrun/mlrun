@@ -139,7 +139,7 @@ class TestAzureBlob:
     def build_object_url(self, use_datastore_profile):
         self.object_file = f"/file_{uuid.uuid4()}.txt"
         if use_datastore_profile:
-            self._bucket_url = f"ds://{self.profile_name}/{self.bucket_name}"
+            self._bucket_url = f"ds://{self.profile_name}"
         else:
             self._bucket_url = f"az://{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_url}/{self.run_dir}"
@@ -184,7 +184,9 @@ class TestAzureBlob:
             logger.info(f"Testing auth method {auth_method}")
             if use_datastore_profile:
                 self.profile = DatastoreProfileAzureBlob(
-                    name=self.profile_name, **self.storage_options
+                    name=self.profile_name,
+                    container=self.bucket_name,
+                    **self.storage_options,
                 )
                 register_temporary_client_datastore_profile(self.profile)
         else:
@@ -442,7 +444,9 @@ class TestAzureBlob:
         pop_env()
         self.build_object_url(use_datastore_profile)
         if use_datastore_profile:
-            profile = DatastoreProfileAzureBlob(name=self.profile_name)
+            profile = DatastoreProfileAzureBlob(
+                name=self.profile_name, container=self.bucket_name
+            )
             register_temporary_client_datastore_profile(profile)
         data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises(ValueError):

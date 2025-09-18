@@ -476,7 +476,8 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         serving_func_deploy.function.invoke("/")
 
-    async def test_list_mep_through_api_step(self):
+    @pytest.mark.parametrize("async_mode", [True, False])
+    async def test_list_mep_through_api_step(self, async_mode: bool):
         code_path = str(self.assets_path / "nuclio_function.py")
 
         # Create serving function with MLRunAPIRemoteStep
@@ -489,7 +490,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         )
 
         # Set up graph with MLRunAPIRemoteStep
-        graph = function.set_topology("flow", engine="async")
+        graph = function.set_topology("flow", engine="async" if async_mode else "sync")
         endpoint_path = f"projects/{self.project_name}/model-endpoints"
         graph.to(
             MLRunAPIRemoteStep(

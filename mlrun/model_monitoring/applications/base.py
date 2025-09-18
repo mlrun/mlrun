@@ -544,15 +544,17 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         else:
                             raise mlrun.errors.MLRunValueError(
                                 "The start time for the application and endpoint precedes the last analyzed time: "
-                                f"{start_dt=}, {last_analyzed=}, {application_name=}, {endpoint_id=}. "
+                                f"start_dt='{start_dt}', last_analyzed='{last_analyzed}', {application_name=}, "
+                                f"{endpoint_id=}. "
                                 "Writing data out of order is not supported, and the start time could not be "
                                 "dynamically reset, as last_analyzed is later than the given end time or that "
-                                f"base_period was specified ({end_dt=}, {base_period=})."
+                                f"base_period was specified (end_dt='{end_dt}', {base_period=})."
                             )
                     else:
                         raise mlrun.errors.MLRunValueError(
                             "The start time for the application and endpoint precedes the last analyzed time: "
-                            f"{start_dt=}, {last_analyzed=}, {application_name=}, {endpoint_id=}. "
+                            f"start_dt='{start_dt}', last_analyzed='{last_analyzed}', {application_name=}, "
+                            f"{endpoint_id=}. "
                             "Writing data out of order is not supported. You should change the start time to "
                             f"'{last_analyzed}' or later."
                         )

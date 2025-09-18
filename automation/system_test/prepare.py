@@ -367,6 +367,7 @@ class SystemTestPreparer:
             else "mlrun[complete]"
         )
         data = {
+            "MLRUN_VENDOR_IMAGES_REGISTRY": "gcr.io/iguazio",
             "MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER": version_specifier,
             # Disable the scheduler minimum allowed interval to allow fast tests (default minimum is 10 minutes, which
             # will make our tests really long)

@@ -69,7 +69,7 @@ def my_job(context, p1=1, p2="x"):
 
 
 if __name__ == "__main__":
-    context = get_or_create_ctx("train")
+    context = get_or_create_ctx("train", project="dummy-project")
     p1 = context.get_param("p1", 1)
     p2 = context.get_param("p2", "a-string")
     my_job(context, p1, p2)

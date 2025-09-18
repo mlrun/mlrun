@@ -150,34 +150,45 @@ def test_requirement_specifiers_convention():
         # used in tests
         "aioresponses": {"~=0.7"},
         "testcontainers[k3s]": {"~=4.10.0"},
-        "scikit-learn": {"~=1.5.1"},
+        "scikit-learn": {"~=1.5.2"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
         "dask[array,dataframe,distributed]": {
-            '~=2023.12.1; python_version < "3.11"',
+            '>=2023.12.1; python_version < "3.11"',
         },
-        "dask": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
+        "dask[complete]": {
+            '>=2024.8; python_version >= "3.11"',
         },
-        "distributed": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
+        "mlrun_pipelines_kfp_v1_8[kfp]": {
+            ">=0.5.7",
+        },
+        "snowballstemmer": {"!=3.0.0"},
+        "kafka-python": {"~=2.1.0"},
+        "grpcio": {
+            '~=1.59.0; python_version <= "3.9"',
+            '~=1.74.0; python_version > "3.9"',
+        },
+        "urllib3": {
+            ">=1.26.20",
+        },
+        "v3io-frames": {
+            ">=0.10.16",
         },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',
             '~=2024.4.4; python_version >= "3.11"',
         },
-        "dask[complete]": {
-            '~=2024.12.1; python_version >= "3.11"',
+        "kfp": {
+            '==1.8.22; python_version < "3.11"',
+            '==1.8.23; python_version >= "3.11"',
         },
-        "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
-        "grpcio": {"~=1.70.0"},
-        "snowballstemmer": {"!=3.0.0"},
-        "kafka-python": {"~=2.1.0"},
-        "urllib3": {
-            '>=1.26.20; python_version < "3.11"',
-            '>=2.5.0; python_version >= "3.11"',
+        "dask": {
+            '>=2023.12.1; python_version < "3.11"',
+            '>=2024.8; python_version >= "3.11"',
+        },
+        "distributed": {
+            '>=2023.12.1; python_version < "3.11"',
+            '>=2024.8; python_version >= "3.11"',
         },
     }
 
@@ -215,25 +226,21 @@ def test_requirement_specifiers_inconsistencies():
         # on the other hand, mlrun client can have both and thus the inconsistency
         "pydantic": {">=1,<2", ">=1.10.15"},
         # packages that require specific versions per python version
-        "v3io-frames": {
-            '>=0.13.0; python_version >= "3.11"',
-            '~=0.10.15; python_version < "3.11"',
-        },
-        "dask-ml": {
-            '~=2024.4.4; python_version >= "3.11"',
-            '~=1.4,<1.9.0; python_version < "3.11"',
-        },
         "dask": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
+            '>=2023.12.1; python_version < "3.11"',
+            '>=2024.8; python_version >= "3.11"',
         },
         "distributed": {
-            '~=2024.12.1; python_version >= "3.11"',
-            '~=2023.12.1; python_version < "3.11"',
+            '>=2023.12.1; python_version < "3.11"',
+            '>=2024.8; python_version >= "3.11"',
         },
-        "urllib3": {
-            '>=1.26.20; python_version < "3.11"',
-            '>=2.5.0; python_version >= "3.11"',
+        "dask-ml": {
+            '~=1.4,<1.9.0; python_version < "3.11"',
+            '~=2024.4.4; python_version >= "3.11"',
+        },
+        "kfp": {
+            '==1.8.22; python_version < "3.11"',
+            '==1.8.23; python_version >= "3.11"',
         },
     }
 
@@ -468,7 +475,7 @@ def test_scikit_learn_requirements_are_aligned() -> None:
 
     This test makes sure all these versions are aligned by catching deviating version specifications.
     """
-    scikit_learn_version = "1.5.1"
+    scikit_learn_version = "1.5.2"
 
     escaped_version = re.escape(scikit_learn_version)
     pattern = (
@@ -479,13 +486,8 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "tests/test_requirements.py",  # this test file
         "docs/change-log/index.md",  # a historic document
         "docs/genai/development/working-with-rag.ipynb",  # includes a generated requirement
+        # below are server side / agents - do not run scikit-learn directly.
         "dockerfiles/mlrun-api/locked-requirements.txt",  # lock file
-        "dockerfiles/mlrun/locked-requirements.txt",  # lock file
-        "dockerfiles/base/locked-requirements.txt",  # lock file
-        "dockerfiles/jupyter/locked-requirements.txt",  # lock file
-        "dockerfiles/gpu/locked-requirements.txt",  # lock file
-        "dockerfiles/test/locked-requirements.txt",  # lock file
-        "dockerfiles/test-system/locked-requirements.txt",  # lock file
         "dockerfiles/mlrun-kfp/locked-requirements.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]

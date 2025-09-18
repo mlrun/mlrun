@@ -1964,8 +1964,6 @@ class SQLDB(DBInterface):
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
-
-
         # join may lose order, make sure order is applied on outer as well
         # If the updated fields are the same, we need a secondary field to sort by.
         # If tag is not specified - sort by tag ID to ensure consistent ordering when an artifact has multiple tags.

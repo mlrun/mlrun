@@ -255,7 +255,8 @@ default_config = {
             },
             "runtimes": {
                 "dask": "600",
-                "dask_cluster_start": "300",
+                # cluster start might take some time in case k8s needs to spin up new nodes
+                "dask_cluster_start": "600",
             },
             "push_notifications": "60",
         },

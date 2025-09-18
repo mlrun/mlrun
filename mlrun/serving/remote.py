@@ -31,7 +31,6 @@ from mlrun.errors import err_to_str
 from mlrun.utils import dict_to_json, logger
 
 from ..config import config
-from ..db.httpdb import HTTPRunDB
 from .utils import (
     _extract_input_data,
     _update_result_body,
@@ -196,7 +195,7 @@ class RemoteStep(storey.SendToHttp):
             )
 
         body = _extract_input_data(self._input_path, event.body)
-        method, url, headers, body, _ = self._generate_request(event, body)
+        method, url, headers, body, kwargs = self._generate_request(event, body)
         try:
             resp = self._session.request(
                 method,
@@ -205,6 +204,7 @@ class RemoteStep(storey.SendToHttp):
                 headers=headers,
                 data=body,
                 timeout=self.timeout,
+                **kwargs,
             )
         except requests.exceptions.ReadTimeout as err:
             raise requests.exceptions.ReadTimeout(
@@ -343,7 +343,6 @@ class BatchHttpRequests(_ConcurrentJobExecution):
     def _init(self):
         super()._init()
         self._client_session = None
-        self.retries = 3
 
     async def _lazy_init(self):
         connector = aiohttp.TCPConnector()
@@ -468,9 +467,16 @@ class MLRunAPIRemoteStep(RemoteStep):
     def __init__(
         self, method: str, path: str, fill_placeholders: bool = False, **kwargs
     ):
-        self.rundb: HTTPRunDB = mlrun.get_run_db()
-        url = self.rundb.get_base_api_url(path)
-        super().__init__(url=url, method=method, **kwargs)
+        """
+        Graph step implementation for calling MLRun API endpoints
+
+        @param method:  HTTP method (GET, POST, ...)
+        @param path:    API path (e.g. /api/projects)
+        @param fill_placeholders: if True, fill placeholders in the path using event fields
+        @param kwargs:  other arguments passed to RemoteStep
+        """
+        super().__init__(url="", method=method, **kwargs)
+        self.rundb = None
         self.path = path
         self.fill_placeholders = fill_placeholders
 
@@ -513,3 +519,8 @@ class MLRunAPIRemoteStep(RemoteStep):
         url = self.url.format(**body) if self.fill_placeholders else self.url
         headers["Content-Type"] = "application/json"
         return method, url, headers, dict_to_json(body), kw
+
+    def post_init(self, mode="sync", **kwargs):
+        super().post_init(mode=mode, **kwargs)
+        self.rundb = mlrun.get_run_db()
+        self.url = self.rundb.get_base_api_url(self.path)

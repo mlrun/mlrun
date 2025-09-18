@@ -1934,19 +1934,31 @@ class SQLDB(DBInterface):
                 (text(f"{tag_name_alias} = 'latest'"), 0),
                 else_=1,
             )
-            query = self._paginate_query(
-                query.order_by(
-                    ArtifactV2.updated.desc(),
-                    ArtifactV2.id.desc(),
-                    latest_first_case,
-                    # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
-                    # This is necessary because SQLAlchemy does not allow direct reference
-                    # to aliased columns (like "tag_id") in order_by() using ORM column objects.
-                    text(f"{tag_id_alias} DESC"),
-                ),
-                offset,
-                limit,
-            )
+
+            # If we filter by a specific tag, we don't need to sort by tag ID, as all results will have the same tag.
+            if tag:
+                query = self._paginate_query(
+                    query.order_by(
+                        ArtifactV2.updated.desc(),
+                        ArtifactV2.id.desc(),
+                    ),
+                    offset,
+                    limit,
+                )
+            else:
+                query = self._paginate_query(
+                    query.order_by(
+                        ArtifactV2.updated.desc(),
+                        ArtifactV2.id.desc(),
+                        latest_first_case,
+                        # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
+                        # This is necessary because SQLAlchemy does not allow direct reference
+                        # to aliased columns (like "tag_id") in order_by() using ORM column objects.
+                        text(f"{tag_id_alias} DESC"),
+                    ),
+                    offset,
+                    limit,
+                )
 
         # limit operation loads all the results before performing the actual limiting,
         # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
@@ -1966,14 +1978,20 @@ class SQLDB(DBInterface):
 
         # join may lose order, make sure order is applied on outer as well
         # If the updated fields are the same, we need a secondary field to sort by.
-        # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
-        outer_query = outer_query.order_by(
-            ArtifactV2.updated.desc(),
-            ArtifactV2.id.desc(),
-            latest_first_case,
-            # Safe ordering by tag_id alias
-            subquery.c[tag_id_alias].desc(),
-        )
+        # If tag is not specified - sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
+        if tag:
+            outer_query = outer_query.order_by(
+                ArtifactV2.updated.desc(),
+                ArtifactV2.id.desc(),
+            )
+        else:
+            outer_query = outer_query.order_by(
+                ArtifactV2.updated.desc(),
+                ArtifactV2.id.desc(),
+                latest_first_case,
+                # Safe ordering by tag_id alias
+                subquery.c[tag_id_alias].desc(),
+            )
 
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)

@@ -1641,6 +1641,9 @@ class ModelRunnerStep(MonitoredStep):
         model_runner_step.add_model(..., model_class=MyModel(name="my_model"))
         graph.to(model_runner_step)
 
+    Note when ModelRunnerStep is used in a graph, MLRun automatically imports
+    the default language model class (LLModel) during function deployment.
+
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
@@ -1829,7 +1832,9 @@ class ModelRunnerStep(MonitoredStep):
         Add a Model to this ModelRunner.
 
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
-        :param model_class:         Model class name
+        :param model_class:         Model class name. If LLModel is chosen
+                                    (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
+                                    outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
             * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
                 intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
@@ -1902,7 +1907,8 @@ class ModelRunnerStep(MonitoredStep):
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
         if type(model_class) is LLModel or (
-            isinstance(model_class, str) and model_class == LLModel.__name__
+            isinstance(model_class, str)
+            and model_class.split(".")[-1] == LLModel.__name__
         ):
             if outputs:
                 warnings.warn(
@@ -2848,7 +2854,9 @@ class RootFlowStep(FlowStep):
         """
         Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
         :param name:                Name of the shared model (should be unique in the graph)
-        :param model_class:         Model class name
+        :param model_class:         Model class name. If LLModel is chosen
+                                    (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
+                                    outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
             * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
                 intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
@@ -2892,7 +2900,8 @@ class RootFlowStep(FlowStep):
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
         if type(model_class) is LLModel or (
-            isinstance(model_class, str) and model_class == LLModel.__name__
+            isinstance(model_class, str)
+            and model_class.split(".")[-1] == LLModel.__name__
         ):
             if outputs:
                 warnings.warn(

@@ -39,10 +39,10 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     TimescaleDBConnection,
 )
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_operations import (
-    TimescaleDBOperationsHandler,
+    TimescaleDBOperationsManager,
 )
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_stream import (
-    TimescaleDBStreamHandler,
+    TimescaleDBStreamProcessor,
 )
 from mlrun.utils import logger
 
@@ -53,8 +53,8 @@ class TimescaleDBConnector(TSDBConnector):
 
     Uses composition for all specialized functionality:
     - TimescaleDBMetricsQueries, TimescaleDBPredictionsQueries, TimescaleDBResultsQueries: Direct query operations
-    - TimescaleDBOperationsHandler: Table management and write operations
-    - TimescaleDBStreamHandler: Stream processing operations
+    - TimescaleDBOperationsManager: Table management and write operations
+    - TimescaleDBStreamProcessor: Stream processing operations
     """
 
     type: str = mm_schemas.TSDBTarget.TimescaleDB
@@ -97,44 +97,24 @@ class TimescaleDBConnector(TSDBConnector):
             tables=tables,
         )
         self._results_queries = TimescaleDBResultsQueries(
-            project=project,
             connection=self._connection,
+            project=project,
             pre_aggregate_handler=pre_aggregate_handler,
             tables=tables,
         )
 
         # Create operations and stream handlers
-        self._operations = TimescaleDBOperationsHandler(
+        self._operations = TimescaleDBOperationsManager(
             project=project,
             connection=self._connection,
             pre_aggregate_config=pre_aggregate_config,
         )
 
-        self._stream = TimescaleDBStreamHandler(
+        self._stream = TimescaleDBStreamProcessor(
             project=project, profile=profile, connection=self._connection
         )
 
         self._pre_aggregate_config = pre_aggregate_config
-
-    def get_preaggregate_config(self) -> Optional[PreAggregateConfig]:
-        """Returns the pre-aggregate configuration."""
-        return self._pre_aggregate_config
-
-    @property
-    def tables(self):
-        """Returns the table schemas for backward compatibility."""
-        return self._tables
-
-    @property
-    def _queries(self):
-        """Returns a backward compatibility object with tables and connection properties."""
-
-        class QueriesCompatibility:
-            def __init__(self, tables, connection):
-                self.tables = tables
-                self._connection = connection
-
-        return QueriesCompatibility(self._tables, self._connection)
 
     # Delegate operations methods
     def create_tables(self, *args, **kwargs) -> None:
@@ -225,9 +205,9 @@ class TimescaleDBConnector(TSDBConnector):
         # Access methods directly from the respective query classes
         # Note: last_request is handled separately due to potential data synchronization issues
         metric_name_to_function = {
-            "error_count": self._results_queries.get_error_count,
-            "avg_latency": self._predictions_queries.get_avg_latency,
-            "result_status": self._results_queries.get_drift_status,
+            mm_schemas.EventFieldType.ERROR_COUNT: self._results_queries.get_error_count,
+            mm_schemas.ModelEndpointSchema.AVG_LATENCY: self._predictions_queries.get_avg_latency,
+            mm_schemas.ResultData.RESULT_STATUS: self._results_queries.get_drift_status,
         }
 
         if metric_list is not None:
@@ -247,7 +227,9 @@ class TimescaleDBConnector(TSDBConnector):
             for metric in df_dictionary:
                 df = df_dictionary.get(metric, pd.DataFrame())
                 if not df.empty:
-                    line = df[df["endpoint_id"] == mep.metadata.uid]
+                    line = df[
+                        df[mm_schemas.WriterEvent.ENDPOINT_ID] == mep.metadata.uid
+                    ]
                     if not line.empty and metric in line:
                         value = line[metric].item()
                         if isinstance(value, pd.Timestamp):
@@ -291,7 +273,7 @@ class TimescaleDBConnector(TSDBConnector):
 
             if not last_request_df.empty:
                 for _, row in last_request_df.iterrows():
-                    endpoint_id = row.get("endpoint_id")
+                    endpoint_id = row.get(mm_schemas.WriterEvent.ENDPOINT_ID)
                     last_request = row.get("last_request")
 
                     if (

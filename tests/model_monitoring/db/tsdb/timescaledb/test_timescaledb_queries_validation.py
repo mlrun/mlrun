@@ -19,6 +19,11 @@ import pytest
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
 
+# Constants for expected error messages
+AGGREGATION_PARAMS_ERROR_MSG = (
+    "both or neither of `aggregation_window` and `agg_funcs` must be provided"
+)
+
 
 class TestParameterValidation:
     """Tests for parameter validation and error handling."""
@@ -39,9 +44,9 @@ class TestParameterValidation:
                 agg_funcs=["avg"],  # agg_funcs provided but no aggregation_window
             )
 
-        assert (
-            "both or neither of `aggregation_window` and `agg_funcs` must be provided"
-            in str(exc_info.value)
+        assert str(exc_info.value) == AGGREGATION_PARAMS_ERROR_MSG, (
+            f"Expected exact error message '{AGGREGATION_PARAMS_ERROR_MSG}', "
+            f"but got: {exc_info.value}"
         )
 
     def test_read_predictions_invalid_aggregation_params_reverse(
@@ -62,9 +67,9 @@ class TestParameterValidation:
                 aggregation_window="1h",  # aggregation_window provided but no agg_funcs
             )
 
-        assert (
-            "both or neither of `aggregation_window` and `agg_funcs` must be provided"
-            in str(exc_info.value)
+        assert str(exc_info.value) == AGGREGATION_PARAMS_ERROR_MSG, (
+            f"Expected exact error message '{AGGREGATION_PARAMS_ERROR_MSG}', "
+            f"but got: {exc_info.value}"
         )
 
     def test_get_endpoint_filter_invalid_type(self, query_builder):
@@ -74,8 +79,9 @@ class TestParameterValidation:
                 123
             )  # Invalid type - should be string or list
 
-        assert "Invalid 'endpoint_ids' filter: must be a string or a list" in str(
-            exc_info.value
+        assert (
+            str(exc_info.value)
+            == "Invalid 'endpoint_ids' filter: must be a string or a list of strings"
         )
 
     def test_get_endpoint_filter_dict_type(self, query_builder):
@@ -85,8 +91,9 @@ class TestParameterValidation:
                 {"endpoint": "test"}
             )  # Invalid type - should be string or list
 
-        assert "Invalid 'endpoint_ids' filter: must be a string or a list" in str(
-            exc_info.value
+        assert (
+            str(exc_info.value)
+            == "Invalid 'endpoint_ids' filter: must be a string or a list of strings"
         )
 
 

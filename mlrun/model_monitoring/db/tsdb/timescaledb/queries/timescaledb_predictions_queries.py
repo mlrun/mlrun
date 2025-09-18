@@ -21,7 +21,12 @@ import v3io_frames.client
 import mlrun
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
+import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 import mlrun.utils
+from mlrun.common.schemas.model_monitoring.model_endpoints import _MetricPoint
+from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+    Statement,
+)
 from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_dataframe_processor import (
     TimescaleDBDataFrameProcessor,
 )
@@ -123,7 +128,7 @@ class TimescaleDBPredictionsQueries:
 
         # Set up time index based on whether we used aggregation
         if aggregation_window and can_use_pre_aggregates:
-            time_col = "time_bucket"
+            time_col = timescaledb_schema.TIME_BUCKET_COLUMN
         else:
             time_col = table_schema.time_column
 
@@ -140,7 +145,10 @@ class TimescaleDBPredictionsQueries:
 
         return mm_schemas.ModelEndpointMonitoringMetricValues(
             full_name=full_name,
-            values=list(zip(df.index, df[value_col])),
+            values=[
+                _MetricPoint(timestamp=timestamp, value=value)
+                for timestamp, value in zip(df.index, df[value_col])
+            ],
         )
 
     def get_last_request(
@@ -152,10 +160,14 @@ class TimescaleDBPredictionsQueries:
     ) -> pd.DataFrame:
         """Get last request timestamp with optional pre-aggregate optimization."""
 
-        start, end = self._pre_aggregate_handler.get_start_end(start, end)
-
-        # Align times and check if we can use pre-aggregates
-        start, end = self._pre_aggregate_handler.align_time_range(start, end, interval)
+        # Prepare time range and interval (no auto-determination since interval may be None)
+        start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
+            self._pre_aggregate_handler,
+            start,
+            end,
+            interval,
+            auto_determine_interval=False,
+        )
         use_pre_aggregates = self._pre_aggregate_handler.can_use_pre_aggregates(
             interval=interval
         )
@@ -164,52 +176,41 @@ class TimescaleDBPredictionsQueries:
         filter_query = TimescaleDBQueryBuilder.build_endpoint_filter(endpoint_ids)
 
         if use_pre_aggregates:
-            columns = [
-                mm_schemas.WriterEvent.ENDPOINT_ID,
-                table_schema.time_column,
-                mm_schemas.EventFieldType.LATENCY,
-            ]
-
-            query = table_schema._get_records_query(
+            # Calculate latest (MAX) timestamp and corresponding latency per endpoint
+            # Use subquery to get time-bucketed data, then MAX over those results
+            subquery = table_schema._get_records_query(
                 start=start,
                 end=end,
-                columns_to_filter=columns,
+                columns_to_filter=[
+                    timescaledb_schema.TIME_BUCKET_COLUMN,
+                    f"max_{table_schema.time_column}",
+                    f"max_{mm_schemas.EventFieldType.LATENCY}",
+                    mm_schemas.WriterEvent.ENDPOINT_ID,
+                ],
                 filter_query=filter_query,
                 agg_funcs=["max"],
                 interval=interval,
                 use_pre_aggregates=True,
             )
 
+            # Use helper to build endpoint aggregation query
+            query = TimescaleDBQueryBuilder.build_endpoint_aggregation_query(
+                subquery=subquery,
+                aggregation_columns={
+                    mm_schemas.EventFieldType.LAST_REQUEST: f"MAX(max_{table_schema.time_column})",
+                    "last_latency": f"MAX(max_{mm_schemas.EventFieldType.LATENCY})",
+                },
+            )
+
             result = self._connection.run(query=query)
             df = TimescaleDBDataFrameProcessor.from_query_result(result)
-
-            if not df.empty:
-                # Handle pre-aggregate column renaming using utility
-                column_patterns = {
-                    mm_schemas.EventFieldType.LAST_REQUEST: [
-                        f"max_{table_schema.time_column}",
-                        "max_timestamp",
-                        "last_request",
-                    ],
-                    "last_latency": [
-                        f"max_{mm_schemas.EventFieldType.LATENCY}",
-                        "max_latency",
-                        "last_latency",
-                    ],
-                    "endpoint_id": [mm_schemas.WriterEvent.ENDPOINT_ID, "endpoint_id"],
-                }
-
-                mapping = TimescaleDBDataFrameProcessor.build_flexible_column_mapping(
-                    df, column_patterns
-                )
-                df = TimescaleDBDataFrameProcessor.apply_column_mapping(df, mapping)
         else:
             # Use PostgreSQL DISTINCT ON for raw data - most efficient approach
             query = f"""
             SELECT DISTINCT ON ({mm_schemas.WriterEvent.ENDPOINT_ID})
-                {mm_schemas.WriterEvent.ENDPOINT_ID} as endpoint_id,
-                {table_schema.time_column} as {mm_schemas.EventFieldType.LAST_REQUEST},
-                {mm_schemas.EventFieldType.LATENCY} as last_latency
+                {mm_schemas.WriterEvent.ENDPOINT_ID} AS endpoint_id,
+                {table_schema.time_column} AS {mm_schemas.EventFieldType.LAST_REQUEST},
+                {mm_schemas.EventFieldType.LATENCY} AS last_latency
             FROM {table_schema.full_name()}
             WHERE {filter_query}
             AND {table_schema.time_column} >= '{start}'
@@ -233,10 +234,9 @@ class TimescaleDBPredictionsQueries:
         endpoint_ids: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        interval: Optional[str] = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
-        """Get average latency with optional pre-aggregate optimization."""
+        """Get average latency with automatic pre-aggregate optimization, returning single value per endpoint."""
 
         # Convert single endpoint to list for consistent handling
         if isinstance(endpoint_ids, str):
@@ -244,40 +244,54 @@ class TimescaleDBPredictionsQueries:
 
         # Set default start time and get end time
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._pre_aggregate_handler.get_start_end(start, end)
+        # Prepare time range with auto-determined interval
+        start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
+            self._pre_aggregate_handler, start, end
+        )
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
         filter_query = TimescaleDBQueryBuilder.build_endpoint_filter(endpoint_ids)
 
         def build_pre_agg_query():
-            return table_schema._get_records_query(
+            # Calculate overall average in SQL across all time buckets
+            # Use subquery to get time-bucketed data, then AVG over those results
+            subquery = table_schema._get_records_query(
                 start=start,
                 end=end,
-                columns_to_filter=None,  # Don't specify columns for pre-aggregates
+                columns_to_filter=[
+                    timescaledb_schema.TIME_BUCKET_COLUMN,
+                    mm_schemas.ModelEndpointSchema.AVG_LATENCY,
+                    mm_schemas.WriterEvent.ENDPOINT_ID,
+                ],
                 filter_query=filter_query,
                 agg_funcs=["avg"],
                 interval=interval,
                 use_pre_aggregates=True,
             )
 
+            # Use helper to build endpoint aggregation query
+            return TimescaleDBQueryBuilder.build_endpoint_aggregation_query(
+                subquery=subquery,
+                aggregation_columns={
+                    mm_schemas.ModelEndpointSchema.AVG_LATENCY: f"AVG({mm_schemas.ModelEndpointSchema.AVG_LATENCY})"
+                },
+            )
+
         def build_raw_query():
+            # Single aggregated value across entire time range
             columns = [
-                f"{mm_schemas.WriterEvent.ENDPOINT_ID} as endpoint_id",
-                f"AVG({mm_schemas.EventFieldType.LATENCY}) as avg_latency",
+                f"{mm_schemas.WriterEvent.ENDPOINT_ID} AS {mm_schemas.WriterEvent.ENDPOINT_ID}",
+                f"AVG({mm_schemas.EventFieldType.LATENCY}) AS {mm_schemas.ModelEndpointSchema.AVG_LATENCY}",
             ]
             group_by_columns = [mm_schemas.WriterEvent.ENDPOINT_ID]
 
             # Add additional filter to exclude invalid latency values
-            enhanced_filter_query = filter_query
-            if enhanced_filter_query:
-                enhanced_filter_query += (
-                    f" AND {mm_schemas.EventFieldType.LATENCY} IS NOT NULL"
-                )
+            latency_col = mm_schemas.EventFieldType.LATENCY
+            latency_filter = f"{latency_col} IS NOT NULL AND {latency_col} > 0"
+            if filter_query:
+                enhanced_filter_query = f"{filter_query} AND {latency_filter}"
             else:
-                enhanced_filter_query = (
-                    f"{mm_schemas.EventFieldType.LATENCY} IS NOT NULL"
-                )
-            enhanced_filter_query += f" AND {mm_schemas.EventFieldType.LATENCY} > 0"
+                enhanced_filter_query = latency_filter
 
             return table_schema._get_records_query(
                 start=start,
@@ -288,12 +302,17 @@ class TimescaleDBPredictionsQueries:
                 order_by=mm_schemas.WriterEvent.ENDPOINT_ID,
             )
 
-        # Column mapping rules for pre-aggregate results
+        # Column mapping rules for results (both pre-agg and raw return same structure now)
         column_mapping_rules = {
-            "avg_latency": ["avg_latency", "average_latency", "latency"],
-            "endpoint_id": ["endpoint_id", mm_schemas.WriterEvent.ENDPOINT_ID],
+            mm_schemas.ModelEndpointSchema.AVG_LATENCY: [
+                mm_schemas.ModelEndpointSchema.AVG_LATENCY,
+                "average_latency",
+                mm_schemas.EventFieldType.LATENCY,
+            ],
+            mm_schemas.WriterEvent.ENDPOINT_ID: [mm_schemas.WriterEvent.ENDPOINT_ID],
         }
 
+        # Both queries now return single value per endpoint, no post-processing needed
         return self._connection.execute_with_fallback(
             self._pre_aggregate_handler,
             build_pre_agg_query,
@@ -376,7 +395,7 @@ class TimescaleDBPredictionsQueries:
         app_placeholders = ", ".join(["%s"] * len(app_names_list))
 
         query_sql = f"""
-        SELECT COUNT(DISTINCT p.{mm_schemas.WriterEvent.ENDPOINT_ID}) as endpoint_count
+        SELECT COUNT(DISTINCT p.{mm_schemas.WriterEvent.ENDPOINT_ID}) AS endpoint_count
         FROM {predictions_table.full_name()} p
         INNER JOIN {metrics_table.full_name()} m
             ON p.{mm_schemas.WriterEvent.ENDPOINT_ID} = m.{mm_schemas.WriterEvent.ENDPOINT_ID}
@@ -390,10 +409,6 @@ class TimescaleDBPredictionsQueries:
         # Parameters: [start, end, start, end] + application_names_list
         params = [start, end, start, end] + app_names_list
 
-        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
-            Statement,
-        )
-
         stmt = Statement(query_sql, params)
         result = self._connection.run(query=stmt)
 
@@ -406,7 +421,7 @@ class TimescaleDBPredictionsQueries:
         Uses the schema's query builder for consistency and potential pre-aggregate usage.
         """
         columns = [
-            f"COUNT(DISTINCT {mm_schemas.WriterEvent.ENDPOINT_ID}) as endpoint_count"
+            f"COUNT(DISTINCT {mm_schemas.WriterEvent.ENDPOINT_ID}) AS endpoint_count"
         ]
 
         query = predictions_table._get_records_query(

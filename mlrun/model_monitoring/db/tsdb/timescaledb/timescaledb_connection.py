@@ -17,10 +17,12 @@ from typing import Callable, Optional, Union
 
 import pandas as pd
 import psycopg
+import semver
 from psycopg_pool import ConnectionPool
 
 import mlrun.errors
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateHandler
+from mlrun.utils import logger
 
 
 class QueryResult:
@@ -124,34 +126,18 @@ class TimescaleDBConnection:
             )
         return self._pool
 
-    def _parse_version(self, version_string: str) -> tuple[int, int, int]:
-        """Parse TimescaleDB version string into comparable tuple."""
+    def _parse_version(self, version_string: str) -> semver.VersionInfo:
+        """Parse TimescaleDB version string using semver."""
         try:
             # Handle versions like "2.22.0", "2.7.1-dev", etc.
-            version_parts = version_string.split("-")[0].split(".")
-            major = int(version_parts[0])
-            minor = int(version_parts[1]) if len(version_parts) > 1 else 0
-            patch = int(version_parts[2]) if len(version_parts) > 2 else 0
-            return (major, minor, patch)
-        except (ValueError, IndexError) as e:
+            # semver.VersionInfo.parse handles pre-release versions automatically
+            return semver.VersionInfo.parse(version_string)
+        except ValueError as e:
             raise mlrun.errors.MLRunRuntimeError(
                 f"Invalid TimescaleDB version format: {version_string}"
             ) from e
 
-    def _version_compare(self, version1: str, version2: str) -> int:
-        """Compare two version strings. Returns -1, 0, or 1."""
-        v1_tuple = self._parse_version(version1)
-        v2_tuple = self._parse_version(version2)
-
-        if v1_tuple < v2_tuple:
-            return -1
-        elif v1_tuple > v2_tuple:
-            return 1
-        else:
-            return 0
-
     def _check_timescaledb_version(self) -> None:
-        """Check TimescaleDB version and raise error if less than 2.7.0."""
         if self._version_checked:
             return
 
@@ -172,13 +158,11 @@ class TimescaleDBConnection:
 
                     self._timescaledb_version = result[0]
 
-                    # Check minimum version (2.7.0+)
-                    if (
-                        self._version_compare(
-                            self._timescaledb_version, self.MIN_TIMESCALEDB_VERSION
-                        )
-                        < 0
-                    ):
+                    # _timescaledb_version is guaranteed to be non-None at this point
+                    current_version = self._parse_version(self._timescaledb_version)  # type: ignore[arg-type]
+                    min_version = self._parse_version(self.MIN_TIMESCALEDB_VERSION)
+
+                    if current_version < min_version:
                         raise mlrun.errors.MLRunRuntimeError(
                             f"TimescaleDB version {self._timescaledb_version} is not supported. "
                             f"Minimum required version: {self.MIN_TIMESCALEDB_VERSION} "
@@ -261,16 +245,10 @@ class TimescaleDBConnection:
             conn.autocommit = self._autocommit
 
             with conn.cursor() as cursor:
-                try:
-                    self._execute_statements(cursor, statements)
-                    if not self._autocommit:
-                        conn.commit()
-
-                    return self._execute_query(cursor, query) if query else None
-                except Exception:
-                    if not self._autocommit:
-                        conn.rollback()
-                    raise
+                self._execute_statements(cursor, statements)
+                if not self._autocommit:
+                    conn.commit()
+                return self._execute_query(cursor, query) if query else None
 
     def _execute_statements(
         self, cursor, statements: list[Union[str, Statement]]
@@ -361,8 +339,7 @@ class TimescaleDBConnection:
                 return df
 
             except Exception as e:
-                # Log the fallback (in production, use proper logging)
-                print(
+                logger.warning(
                     f"Pre-aggregate {debug_name} query failed, falling back to raw data: {e}"
                 )
 

@@ -13,10 +13,13 @@
 # limitations under the License.
 
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class TimescaleDBQueryBuilder:
@@ -37,7 +40,7 @@ class TimescaleDBQueryBuilder:
             return f"{mm_schemas.WriterEvent.ENDPOINT_ID} IN ('{endpoint_list}')"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid 'endpoint_ids' filter: must be a string or a list."
+                "Invalid 'endpoint_ids' filter: must be a string or a list of strings"
             )
 
     @staticmethod
@@ -135,7 +138,7 @@ class TimescaleDBQueryBuilder:
         :param operator: SQL operator to use (AND/OR)
         :return: Combined filter string or None if no filters
         """
-        if valid_filters := [f for f in filters if f.strip()]:
+        if valid_filters := [f.strip() for f in filters if f.strip()]:
             return (
                 valid_filters[0]
                 if len(valid_filters) == 1
@@ -160,29 +163,199 @@ class TimescaleDBQueryBuilder:
         # Calculate the time difference to determine appropriate interval
         time_diff = end - start
 
-        if time_diff <= timedelta(hours=6):
-            # For short periods, use 1 hour intervals
-            return "1h"
-        elif time_diff <= timedelta(days=2):
-            # For medium periods, use 1 hour intervals
+        if time_diff <= timedelta(days=2):
+            # For short to medium periods, use 1 hour intervals
             return "1h"
         elif time_diff <= timedelta(days=7):
             # For week-long periods, use 6 hour intervals
             return "6h"
-        else:
-            # For longer periods, use daily intervals
+        elif time_diff <= timedelta(days=14):
+            # For bi-weekly periods, use 12 hour intervals
+            return "12h"
+        elif time_diff <= timedelta(days=30):
+            # For monthly periods, use daily intervals
             return "1d"
+        else:
+            # For longer periods, use weekly intervals
+            return "1w"
 
     @staticmethod
-    def parse_datetime_strings(start: str, end: str) -> tuple[datetime, datetime]:
+    def build_read_data_with_fallback(
+        connection,
+        pre_aggregate_handler,
+        table_schema,
+        start: "datetime",  # Use string to avoid import cycle
+        end: "datetime",
+        columns: list[str],
+        filter_query: Optional[str],
+        name_column: str,
+        value_column: str,
+        debug_name: str = "read_data",
+    ) -> "pd.DataFrame":  # Use string to avoid import cycle
         """
-        Parse ISO format datetime strings to datetime objects.
+        Build and execute read data query with pre-aggregate fallback pattern.
 
-        :param start: Start datetime in ISO format string
-        :param end: End datetime in ISO format string
-        :return: Tuple of (start_datetime, end_datetime)
+        This method deduplicates the common pattern used in both metrics and results
+        queries for reading data with pre-aggregate optimization and fallback.
+
+        :param connection: Database connection instance
+        :param pre_aggregate_handler: Pre-aggregate handler for optimization
+        :param table_schema: Table schema for query building
+        :param start: Start datetime for query
+        :param end: End datetime for query
+        :param columns: List of columns to select
+        :param filter_query: WHERE clause conditions
+        :param name_column: Name of the metric/result name column
+        :param value_column: Name of the metric/result value column
+        :param debug_name: Name for debugging purposes
+        :return: DataFrame with query results
         """
-        return datetime.fromisoformat(start), datetime.fromisoformat(end)
+
+        def build_pre_agg_query():
+            return table_schema._get_records_query(
+                start=start,
+                end=end,
+                columns_to_filter=columns,
+                filter_query=filter_query,
+                use_pre_aggregates=True,
+            )
+
+        def build_raw_query():
+            return table_schema._get_records_query(
+                start=start,
+                end=end,
+                columns_to_filter=columns,
+                filter_query=filter_query,
+            )
+
+        # Column mapping rules for pre-aggregate results
+        import mlrun.common.schemas.model_monitoring as mm_schemas
+
+        column_mapping_rules = {
+            name_column: [name_column],
+            value_column: [value_column],
+            table_schema.time_column: [table_schema.time_column],
+            mm_schemas.WriterEvent.APPLICATION_NAME: [
+                mm_schemas.WriterEvent.APPLICATION_NAME
+            ],
+        }
+
+        return connection.execute_with_fallback(
+            pre_aggregate_handler,
+            build_pre_agg_query,
+            build_raw_query,
+            interval=None,  # No specific interval for this query
+            agg_funcs=None,
+            column_mapping_rules=column_mapping_rules,
+            debug_name=debug_name,
+        )
+
+    @staticmethod
+    def prepare_time_range_and_interval(
+        pre_aggregate_handler,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        interval: Optional[str] = None,
+        auto_determine_interval: bool = True,
+    ) -> tuple[datetime, datetime, Optional[str]]:
+        """
+        Standardized time range and interval preparation for TimescaleDB queries.
+
+        This helper eliminates the common pattern of:
+        1. get_start_end()
+        2. determine_optimal_interval() (optional)
+        3. align_time_range()
+
+        :param pre_aggregate_handler: PreAggregateHandler instance
+        :param start: Start datetime (optional)
+        :param end: End datetime (optional)
+        :param interval: Time interval (optional, auto-determined if None and auto_determine_interval=True)
+        :param auto_determine_interval: Whether to auto-determine interval if not provided
+        :return: Tuple of (aligned_start, aligned_end, interval)
+        """
+        # Step 1: Get start/end times with defaults
+        start, end = pre_aggregate_handler.get_start_end(start, end)
+
+        # Step 2: Auto-determine optimal interval if requested and not provided
+        if interval is None and auto_determine_interval:
+            interval = TimescaleDBQueryBuilder.determine_optimal_interval(start, end)
+
+        # Step 3: Align times to interval boundaries
+        start, end = pre_aggregate_handler.align_time_range(start, end, interval)
+
+        return start, end, interval
+
+    @staticmethod
+    def prepare_time_range_with_validation(
+        pre_aggregate_handler,
+        start_iso: str,
+        end_iso: str,
+        interval: Optional[str] = None,
+        agg_function: Optional[str] = None,
+    ) -> tuple[datetime, datetime, Optional[str]]:
+        """
+        Specialized helper for time preparation with validation and ISO string conversion.
+
+        This helper eliminates the pattern of:
+        1. validate_interval_and_function()
+        2. datetime.fromisoformat() conversion
+        3. align_time_range()
+
+        :param pre_aggregate_handler: PreAggregateHandler instance
+        :param start_iso: Start time as ISO string
+        :param end_iso: End time as ISO string
+        :param interval: Time interval (optional)
+        :param agg_function: Aggregation function (optional)
+        :return: Tuple of (aligned_start_dt, aligned_end_dt, interval)
+        """
+        # Step 1: Validate parameters using the pre-aggregate handler
+        pre_aggregate_handler.validate_interval_and_function(interval, agg_function)
+
+        # Step 2: Convert ISO strings to datetime objects
+        start_dt, end_dt = (
+            datetime.fromisoformat(start_iso),
+            datetime.fromisoformat(end_iso),
+        )
+
+        # Step 3: Align times if interval is provided
+        start_dt, end_dt = pre_aggregate_handler.align_time_range(
+            start_dt, end_dt, interval
+        )
+
+        return start_dt, end_dt, interval
+
+    @staticmethod
+    def build_endpoint_aggregation_query(
+        subquery: str,
+        aggregation_columns: dict[str, str],
+        group_by_column: str = mm_schemas.WriterEvent.ENDPOINT_ID,
+        order_by_column: str = mm_schemas.WriterEvent.ENDPOINT_ID,
+    ) -> str:
+        """
+        Build standardized outer query for endpoint-level aggregation over time buckets.
+
+        This helper eliminates the repeated pattern of:
+        SELECT endpoint_id, AGG(column) FROM (subquery) GROUP BY endpoint_id ORDER BY endpoint_id
+
+        :param subquery: Inner query that provides time-bucketed data
+        :param aggregation_columns: Dict of {result_column: "AGG(source_column)"} mappings
+        :param group_by_column: Column to group by (default: endpoint_id)
+        :param order_by_column: Column to order by (default: endpoint_id)
+        :return: Complete SQL query string
+        """
+        # Build the SELECT columns list
+        select_columns = [group_by_column] + [
+            f"{agg_expr} AS {result_col}"
+            for result_col, agg_expr in aggregation_columns.items()
+        ]
+
+        return f"""
+        SELECT
+            {', '.join(select_columns)}
+        FROM ({subquery}) AS time_buckets
+        GROUP BY {group_by_column}
+        ORDER BY {order_by_column}
+        """
 
 
 class TimescaleDBNaming:

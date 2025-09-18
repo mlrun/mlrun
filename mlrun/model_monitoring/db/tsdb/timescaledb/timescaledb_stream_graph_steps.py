@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-from datetime import datetime
 
 import mlrun.feature_store.steps
 from mlrun.common.schemas.model_monitoring import (
@@ -22,13 +21,13 @@ from mlrun.common.schemas.model_monitoring import (
     StreamProcessingEvent,
     WriterEvent,
 )
-from mlrun.utils import logger
+from mlrun.model_monitoring.db.tsdb.stream_graph_steps import BaseErrorExtractor
 
 
 class ProcessBeforeTimescaleDB(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
         """
-        Process the data before writing to TimescaleDB. This step create the relevant keys for the TimescaleDB table,
+        Process the data before writing to TimescaleDB. This step creates the relevant keys for the TimescaleDB table,
         including project name, custom metrics, time column, and table name column.
 
         :returns: Event as a dictionary
@@ -51,32 +50,11 @@ class ProcessBeforeTimescaleDB(mlrun.feature_store.steps.MapClass):
         return event
 
 
-class TimescaleDBErrorExtractor(mlrun.feature_store.steps.MapClass):
-    def __init__(self, **kwargs):
-        """
-        Prepare the event for insertion into the TimescaleDB error table
-        """
-        super().__init__(**kwargs)
+class TimescaleDBErrorExtractor(BaseErrorExtractor):
+    """
+    TimescaleDB-specific error extractor.
 
-    def do(self, event):
-        error = str(event.get("error"))
-        if len(error) > 1000:
-            error = error[-1000:]
-            logger.warning(
-                f"Error message exceeds 1000 chars: The error message writen to TSDB will be it last "
-                f"1000 chars, Error:  {error}",
-                event=event,
-            )
-        timestamp = datetime.fromisoformat(event.get("when"))
-        endpoint_id = event[EventFieldType.ENDPOINT_ID]
-        event = {
-            EventFieldType.MODEL_ERROR: error,
-            EventFieldType.ERROR_TYPE: EventFieldType.INFER_ERROR,
-            EventFieldType.ENDPOINT_ID: endpoint_id,
-            EventFieldType.TIME: timestamp,
-            EventFieldType.PROJECT: event[EventFieldType.FUNCTION_URI].split("/")[0],
-            EventFieldType.TABLE_COLUMN: "_err_"
-            + event.get(EventFieldType.ENDPOINT_ID),
-        }
-        logger.info("Write error to errors TSDB table", event=event)
-        return event
+    Uses the shared base implementation with TimescaleDB-specific configuration.
+    """
+
+    pass

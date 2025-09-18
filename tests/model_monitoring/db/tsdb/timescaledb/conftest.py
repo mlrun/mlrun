@@ -53,7 +53,7 @@ if is_timescaledb_available():
         TimescaleDBConnection,
     )
     from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_operations import (
-        TimescaleDBOperationsHandler,
+        TimescaleDBOperationsManager,
     )
     from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
         TimescaleDBQueryBuilder,
@@ -67,7 +67,7 @@ else:
     TimescaleDBPredictionsQueries = None
     TimescaleDBResultsQueries = None
     TimescaleDBConnection = None
-    TimescaleDBOperationsHandler = None
+    TimescaleDBOperationsManager = None
     Statement = None
     TimescaleDBQueryBuilder = None
     # Global skip mark for this entire test file
@@ -124,7 +124,7 @@ def table_schemas(project_name):
 @pytest.fixture
 def operations_handler(connection, project_name):
     """Operations handler for table management in tests."""
-    handler = TimescaleDBOperationsHandler(project=project_name, connection=connection)
+    handler = TimescaleDBOperationsManager(project=project_name, connection=connection)
 
     # Create tables
     handler.create_tables()
@@ -179,8 +179,8 @@ class QueryTestHelper:
     def create_results_handler(self):
         """Create a TimescaleDBResultsQueries instance."""
         return TimescaleDBResultsQueries(
-            project=self.project_name,
             connection=self.connection,
+            project=self.project_name,
             pre_aggregate_handler=self.pre_aggregate_handler,
             tables=self.table_schemas,
         )
@@ -229,7 +229,7 @@ def query_test_helper_with_aggregates(
         },
     )
 
-    operations_handler = TimescaleDBOperationsHandler(
+    operations_handler = TimescaleDBOperationsManager(
         project=project_name,
         connection=connection,
         pre_aggregate_config=pre_aggregate_config,

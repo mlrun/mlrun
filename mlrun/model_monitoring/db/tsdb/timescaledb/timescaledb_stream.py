@@ -20,7 +20,7 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
 )
 
 
-class TimescaleDBStreamHandler:
+class TimescaleDBStreamProcessor:
     """
     Handles stream processing operations for TimescaleDB TSDB connector.
 

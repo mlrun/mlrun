@@ -23,9 +23,6 @@ import mlrun.errors
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     Statement,
 )
-from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_dataframe_processor import (
-    TimescaleDBDataFrameProcessor,
-)
 from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
     TimescaleDBQueryBuilder,
 )
@@ -75,22 +72,12 @@ class TimescaleDBMetricsQueries:
                 "Metric names must be provided"
             )
 
-        # Validate parameters using the pre-aggregate handler
-        self._pre_aggregate_handler.validate_interval_and_function(
-            interval, agg_function
+        # Prepare time range with validation and ISO conversion using helper
+        start_dt, end_dt, interval = (
+            TimescaleDBQueryBuilder.prepare_time_range_with_validation(
+                self._pre_aggregate_handler, start, end, interval, agg_function
+            )
         )
-
-        start_dt, end_dt = TimescaleDBQueryBuilder.parse_datetime_strings(start, end)
-
-        # Align times if interval is provided
-        start_dt, end_dt = self._pre_aggregate_handler.align_time_range(
-            start_dt, end_dt, interval
-        )
-
-        # Check if we can use pre-aggregates (handled by execute_with_fallback)
-        # use_pre_aggregates = self._pre_aggregate_handler.can_use_pre_aggregates(
-        #     interval=interval, agg_funcs=[agg_function] if agg_function else None
-        # )
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.METRICS]
 
@@ -192,41 +179,17 @@ class TimescaleDBMetricsQueries:
         filters = [endpoint_filter, metrics_condition]
         filter_query = TimescaleDBQueryBuilder.combine_filters(filters, operator="AND")
 
-        # Use fallback pattern for potential pre-aggregate compatibility issues
-        def build_pre_agg_query():
-            return table_schema._get_records_query(
-                start=start,
-                end=end,
-                columns_to_filter=columns,
-                filter_query=filter_query,
-                use_pre_aggregates=True,
-            )
-
-        def build_raw_query():
-            return table_schema._get_records_query(
-                start=start,
-                end=end,
-                columns_to_filter=columns,
-                filter_query=filter_query,
-            )
-
-        # Column mapping rules for pre-aggregate results (if needed)
-        column_mapping_rules = {
-            name_column: [name_column],
-            value_column: [value_column],
-            table_schema.time_column: [table_schema.time_column],
-            mm_schemas.WriterEvent.APPLICATION_NAME: [
-                mm_schemas.WriterEvent.APPLICATION_NAME
-            ],
-        }
-
-        df = self._connection.execute_with_fallback(
-            self._pre_aggregate_handler,
-            build_pre_agg_query,
-            build_raw_query,
-            interval=None,  # No specific interval for this query
-            agg_funcs=None,
-            column_mapping_rules=column_mapping_rules,
+        # Use shared utility for consistent query building with fallback
+        df = TimescaleDBQueryBuilder.build_read_data_with_fallback(
+            connection=self._connection,
+            pre_aggregate_handler=self._pre_aggregate_handler,
+            table_schema=table_schema,
+            start=start,
+            end=end,
+            columns=columns,
+            filter_query=filter_query,
+            name_column=name_column,
+            value_column=value_column,
             debug_name="read_metrics_data",
         )
 
@@ -245,8 +208,14 @@ class TimescaleDBMetricsQueries:
     ) -> pd.DataFrame:
         """Get metrics metadata with optional pre-aggregate optimization."""
 
-        start, end = self._pre_aggregate_handler.get_start_end(start, end)
-        start, end = self._pre_aggregate_handler.align_time_range(start, end, interval)
+        # Prepare time range and interval (no auto-determination since interval passed in)
+        start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
+            self._pre_aggregate_handler,
+            start,
+            end,
+            interval,
+            auto_determine_interval=False,
+        )
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.METRICS]
         filter_query = TimescaleDBQueryBuilder.build_endpoint_filter(endpoint_id)
@@ -329,34 +298,20 @@ class TimescaleDBMetricsQueries:
 
         for app_name in application_names:
             # Get latest results for this application
-            results_df = self._get_latest_results_for_application(app_name, start, end)
-            if not results_df.empty:
-                metric_objects.extend(
-                    mm_schemas.ApplicationResultRecord(
-                        time=row.get("end_infer_time"),
-                        value=row.get("result_value"),
-                        kind=mm_schemas.ResultKindApp(row.get("result_kind")),
-                        status=mm_schemas.ResultStatusApp(row.get("result_status")),
-                        result_name=row.get("result_name"),
-                    )
-                    for _, row in results_df.iterrows()
-                )
+            results_records = self._get_latest_results_for_application(
+                app_name, start, end
+            )
+            metric_objects.extend(results_records)
             # Get latest metrics for this application
-            metrics_df = self._get_latest_metrics_for_application(app_name, start, end)
-            if not metrics_df.empty:
-                metric_objects.extend(
-                    mm_schemas.ApplicationMetricRecord(
-                        time=row.get("end_infer_time"),
-                        value=row.get("metric_value"),
-                        metric_name=row.get("metric_name"),
-                    )
-                    for _, row in metrics_df.iterrows()
-                )
+            metrics_records = self._get_latest_metrics_for_application(
+                app_name, start, end
+            )
+            metric_objects.extend(metrics_records)
         return metric_objects
 
     def _get_latest_metrics_for_application(
         self, application_name: str, start: datetime, end: datetime
-    ) -> pd.DataFrame:
+    ) -> list[mm_schemas.ApplicationMetricRecord]:
         """Get the latest metrics for a specific application."""
         table_schema = self.tables[mm_schemas.TimescaleDBTables.METRICS]
 
@@ -383,11 +338,24 @@ class TimescaleDBMetricsQueries:
 
         stmt = Statement(query)
         result = self._connection.run(query=stmt)
-        return TimescaleDBDataFrameProcessor.from_query_result(result)
+
+        if not result or not result.data:
+            return []
+
+        # Work directly with raw result data instead of constructing DataFrame
+        # Fields order: end_infer_time, application_name, metric_name, metric_value
+        return [
+            mm_schemas.ApplicationMetricRecord(
+                time=row[0],  # end_infer_time
+                value=row[3],  # metric_value
+                metric_name=row[2],  # metric_name
+            )
+            for row in result.data
+        ]
 
     def _get_latest_results_for_application(
         self, application_name: str, start: datetime, end: datetime
-    ) -> pd.DataFrame:
+    ) -> list[mm_schemas.ApplicationResultRecord]:
         """Get the latest results for a specific application."""
         table_schema = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
 
@@ -416,4 +384,19 @@ class TimescaleDBMetricsQueries:
 
         stmt = Statement(query)
         result = self._connection.run(query=stmt)
-        return TimescaleDBDataFrameProcessor.from_query_result(result)
+
+        if not result or not result.data:
+            return []
+
+        # Work directly with raw result data instead of constructing DataFrame
+        # Fields order: end_infer_time, application_name, result_name, result_value, result_status, result_kind
+        return [
+            mm_schemas.ApplicationResultRecord(
+                time=row[0],  # end_infer_time
+                value=row[3],  # result_value
+                kind=mm_schemas.ResultKindApp(row[5]),  # result_kind
+                status=mm_schemas.ResultStatusApp(row[4]),  # result_status
+                result_name=row[2],  # result_name
+            )
+            for row in result.data
+        ]

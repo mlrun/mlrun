@@ -25,6 +25,14 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder 
 
 _MODEL_MONITORING_SCHEMA = "mlrun_model_monitoring"
 
+# TimescaleDB-specific constants
+TIME_BUCKET_COLUMN = "time_bucket"
+
+# Database schema constants
+MODEL_ERROR_MAX_LENGTH = 1000
+CUSTOM_METRICS_MAX_LENGTH = 1000
+RESULT_EXTRA_DATA_MAX_LENGTH = 1000
+
 
 def create_table_schemas(project: str) -> dict:
     """Create all TimescaleDB table schemas for a project.
@@ -67,18 +75,6 @@ class _TimescaleDBColumnType:
             return f"{self.data_type}({self.length})"
         else:
             return self.data_type
-
-
-class _TimescaleDBColumn:
-    """Standard TimescaleDB column types used in model monitoring."""
-
-    TIMESTAMPTZ = _TimescaleDBColumnType("TIMESTAMPTZ")
-    DOUBLE_PRECISION = _TimescaleDBColumnType("DOUBLE PRECISION")
-    INTEGER = _TimescaleDBColumnType("INTEGER")
-    VARCHAR_64 = _TimescaleDBColumnType("TEXT")
-    VARCHAR_1000 = _TimescaleDBColumnType("TEXT")
-    TEXT = _TimescaleDBColumnType("TEXT")
-    BIGINT = _TimescaleDBColumnType("BIGINT")
 
 
 @dataclass
@@ -149,7 +145,7 @@ class TimescaleDBSchema:
             )
 
             # Create aggregate table structure
-            agg_columns = ["time_bucket TIMESTAMPTZ NOT NULL"]
+            agg_columns = [f"{TIME_BUCKET_COLUMN} TIMESTAMPTZ NOT NULL"]
 
             # Add aggregated columns for numeric fields
             for col, col_type in self.columns.items():
@@ -168,7 +164,7 @@ class TimescaleDBSchema:
             # Create hypertable for aggregate table
             create_agg_hypertable = (
                 f"SELECT create_hypertable('{self.schema}.{agg_table_name}', "
-                f"'time_bucket', chunk_time_interval => INTERVAL "
+                f"'{TIME_BUCKET_COLUMN}', chunk_time_interval => INTERVAL "
                 f"'{self._get_chunk_interval_for_agg(interval)}', if_not_exists => TRUE);"
             )
 
@@ -199,7 +195,7 @@ class TimescaleDBSchema:
 
             # Build SELECT clause for continuous aggregate
             select_parts = [
-                f"time_bucket(INTERVAL '{interval}', {self.time_column}) AS time_bucket"
+                f"time_bucket(INTERVAL '{interval}', {self.time_column}) AS {TIME_BUCKET_COLUMN}"
             ]
 
             # Add aggregations for numeric columns
@@ -223,15 +219,11 @@ class TimescaleDBSchema:
                     select_parts.append(col)
 
             # Group by clause
-            group_by_cols = ["time_bucket"]
-            for col, col_type in self.columns.items():
+            group_by_cols = [TIME_BUCKET_COLUMN]
+            for col in self.columns:
                 if col == self.time_column:
                     continue
-                if col_type.data_type not in [
-                    "DOUBLE PRECISION",
-                    "INTEGER",
-                    "BIGINT",
-                ] and col in [
+                if col in [
                     mm_schemas.WriterEvent.ENDPOINT_ID,
                     mm_schemas.WriterEvent.APPLICATION_NAME,
                     mm_schemas.MetricData.METRIC_NAME,
@@ -301,28 +293,22 @@ class TimescaleDBSchema:
         if interval and agg_funcs and use_pre_aggregates:
             # Use continuous aggregate if available
             table_name = TimescaleDBNaming.get_cagg_view_name(self.table_name, interval)
-            time_col = "time_bucket"
+            time_col = TIME_BUCKET_COLUMN
 
         with StringIO() as query:
             query.write("SELECT ")
 
             if columns_to_filter:
                 if interval and agg_funcs and use_pre_aggregates:
-                    # Modify column names for pre-aggregated data
+                    # For pre-aggregates, use column names as-is since they should already be
+                    # the correct names from the continuous aggregate view
                     modified_columns = []
                     for col in columns_to_filter:
                         if col == self.time_column:
-                            modified_columns.append("time_bucket")
+                            modified_columns.append(TIME_BUCKET_COLUMN)
                         else:
-                            # Check if this is an aggregated column
-                            found_agg = False
-                            for func in agg_funcs:
-                                agg_col_name = f"{func}_{col}"
-                                modified_columns.append(agg_col_name)
-                                found_agg = True
-                                break
-                            if not found_agg:
-                                modified_columns.append(col)
+                            # Use column name as-is - caller should provide correct pre-agg column names
+                            modified_columns.append(col)
                     query.write(", ".join(modified_columns))
                 else:
                     query.write(", ".join(columns_to_filter))
@@ -378,7 +364,7 @@ class AppResultTable(TimescaleDBSchema):
             ),
             mm_schemas.ResultData.RESULT_STATUS: _TimescaleDBColumnType("INTEGER"),
             mm_schemas.ResultData.RESULT_EXTRA_DATA: _TimescaleDBColumnType(
-                "VARCHAR", 1000
+                "VARCHAR", RESULT_EXTRA_DATA_MAX_LENGTH
             ),
             mm_schemas.WriterEvent.ENDPOINT_ID: _TimescaleDBColumnType("VARCHAR", 64),
             mm_schemas.WriterEvent.APPLICATION_NAME: _TimescaleDBColumnType(
@@ -456,7 +442,7 @@ class Predictions(TimescaleDBSchema):
                 "DOUBLE PRECISION"
             ),
             mm_schemas.EventKeyMetrics.CUSTOM_METRICS: _TimescaleDBColumnType(
-                "VARCHAR", 1000
+                "VARCHAR", CUSTOM_METRICS_MAX_LENGTH
             ),
             mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT: _TimescaleDBColumnType(
                 "DOUBLE PRECISION"
@@ -491,7 +477,7 @@ class Errors(TimescaleDBSchema):
         columns = {
             mm_schemas.EventFieldType.TIME: _TimescaleDBColumnType("TIMESTAMPTZ"),
             mm_schemas.EventFieldType.MODEL_ERROR: _TimescaleDBColumnType(
-                "VARCHAR", 1000
+                "VARCHAR", MODEL_ERROR_MAX_LENGTH
             ),
             mm_schemas.WriterEvent.ENDPOINT_ID: _TimescaleDBColumnType("VARCHAR", 64),
             mm_schemas.EventFieldType.ERROR_TYPE: _TimescaleDBColumnType("VARCHAR", 64),

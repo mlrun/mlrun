@@ -96,34 +96,45 @@ class TimescaleDBDataFrameProcessor:
 
         :param df: Input DataFrame
         :param target_patterns: Dict mapping target names to lists of patterns to search for.
-                               Each target should map to only one expected column in the DataFrame.
+                            Each target should map to only one expected column in the DataFrame.
         :return: Dictionary mapping found column names to target names
         """
         if df.empty:
             return {}
 
-        mapping = {}
+        # Pre-compute all patterns once
+        exact_patterns = {}  # pattern -> target_name (case-insensitive)
+        fuzzy_patterns = []  # (target_name, pattern_words_set) for O(1) word lookups
 
         for target_name, patterns in target_patterns.items():
-            found_col = next(
-                (pattern for pattern in patterns if pattern in df.columns), None
-            )
-            # If no exact match, look for partial matches
-            if not found_col:
-                for col in df.columns:
-                    col_lower = col.lower()
-                    for pattern in patterns:
-                        pattern_lower = pattern.lower()
-                        if pattern_lower in col_lower or any(
-                            word in col_lower for word in pattern_lower.split("_")
-                        ):
-                            found_col = col
-                            break
-                    if found_col:
-                        break
+            for pattern in patterns:
+                pattern_lower = pattern.lower()
+                exact_patterns[pattern_lower] = target_name
 
-            # Add to mapping if found and different from target
-            if found_col and found_col != target_name:
-                mapping[found_col] = target_name
+                # Use set for O(1) word lookup instead of list
+                pattern_words = set(pattern_lower.split("_"))
+                fuzzy_patterns.append((target_name, pattern_words))
+
+        mapping = {}
+
+        # Process columns with early termination
+        for col in df.columns:
+            col_lower = col.lower()
+
+            # Exact match - O(1)
+            if target_name := exact_patterns.get(col_lower):
+                if col != target_name:  # Only add if different
+                    mapping[col] = target_name
+                continue
+
+            # Fuzzy match - optimized with set operations
+            col_words = set(col_lower.split("_"))
+
+            for target_name, pattern_words in fuzzy_patterns:
+                # Check if any pattern words are in column words
+                if pattern_words & col_words:  # Set intersection
+                    if col != target_name:
+                        mapping[col] = target_name
+                    break
 
         return mapping

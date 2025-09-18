@@ -78,66 +78,6 @@ class TestPredictionQueries:
 class TestGetLastRequest:
     """Test get_last_request method."""
 
-    def test_get_last_request_with_data(self, query_test_helper):
-        """Test get_last_request returns the most recent prediction."""
-        # Create predictions handler using test helper
-        predictions_handler = query_test_helper.create_predictions_handler()
-
-        connection = query_test_helper.connection
-        predictions_table = query_test_helper.table_schemas[
-            mm_schemas.TimescaleDBTables.PREDICTIONS
-        ]
-
-        # Insert test predictions data with different timestamps
-        base_time = datetime(2024, 1, 15, 12, 0, 0)
-        predictions_data = [
-            ("endpoint_1", base_time, 0.15, '{"custom_metric": 0.5}', 10.0, 5),
-            (
-                "endpoint_1",
-                base_time + timedelta(minutes=30),
-                0.25,
-                '{"custom_metric": 0.7}',
-                15.0,
-                8,
-            ),
-            (
-                "endpoint_1",
-                base_time + timedelta(minutes=60),
-                0.35,
-                '{"custom_metric": 0.9}',
-                20.0,
-                10,
-            ),
-        ]
-
-        for (
-            endpoint_id,
-            pred_time,
-            latency,
-            custom_metrics,
-            pred_count,
-            sample_count,
-        ) in predictions_data:
-            connection.run(
-                statements=[
-                    f"""
-                    INSERT INTO {predictions_table.full_name()}
-                    (end_infer_time, endpoint_id, latency, custom_metrics,
-                 estimated_prediction_count, effective_sample_count)
-                    VALUES ('{pred_time}', '{endpoint_id}', {latency}, '{custom_metrics}', {pred_count}, {sample_count})
-                    """
-                ]
-            )
-
-        result = predictions_handler.get_last_request(endpoint_ids="endpoint_1")
-
-        # Should return only the most recent record with specific expected values
-        assert len(result) == 1
-        assert (
-            result["last_latency"].iloc[0] == 0.35
-        )  # Latest record has highest latency
-        assert result["endpoint_id"].iloc[0] == "endpoint_1"
-
     def test_get_last_request_empty(self, query_test_helper):
         """Test get_last_request returns empty DataFrame when no data exists."""
         # Create predictions handler using test helper

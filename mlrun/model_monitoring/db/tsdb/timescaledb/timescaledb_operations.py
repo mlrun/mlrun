@@ -30,7 +30,7 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder 
 from mlrun.utils import datetime_from_iso, logger
 
 
-class TimescaleDBOperationsHandler:
+class TimescaleDBOperationsManager:
     """
     Handles all CRUD operations for TimescaleDB TSDB connector.
 
@@ -98,8 +98,6 @@ class TimescaleDBOperationsHandler:
         except psycopg.errors.DuplicateObject:
             # Extension already loaded - this is fine
             pass
-        except Exception:
-            raise
 
         # Create schema if it doesn't exist
         schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema

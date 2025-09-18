@@ -15,6 +15,7 @@
 import threading
 import time
 from datetime import datetime
+from typing import Optional
 
 import pytest
 
@@ -22,8 +23,109 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
 
 
-class TestTimescaleDBOperationsHandlerIntegration:
+class TestTimescaleDBOperationsManagerIntegration:
     """Integration tests using real database connections."""
+
+    @staticmethod
+    def _create_result_event_data(
+        endpoint_id: str = "test_endpoint_result",
+        application_name: str = "drift_detection",
+        result_name: str = "feature_drift",
+        result_value: float = 0.85,
+        result_status: int = 1,
+        result_kind: int = 2,
+        result_extra_data: str = '{"confidence": 0.9}',
+        end_time: Optional[datetime] = None,
+        start_time: Optional[datetime] = None,
+    ) -> dict:
+        """Factory method for creating result event data."""
+        if end_time is None:
+            end_time = datetime(2024, 1, 15, 12, 30, 45)
+        if start_time is None:
+            start_time = datetime(2024, 1, 15, 12, 30, 40)
+
+        return {
+            mm_schemas.WriterEvent.END_INFER_TIME: end_time,
+            mm_schemas.WriterEvent.START_INFER_TIME: start_time,
+            mm_schemas.WriterEvent.ENDPOINT_ID: endpoint_id,
+            mm_schemas.WriterEvent.APPLICATION_NAME: application_name,
+            mm_schemas.ResultData.RESULT_NAME: result_name,
+            mm_schemas.ResultData.RESULT_VALUE: result_value,
+            mm_schemas.ResultData.RESULT_STATUS: result_status,
+            mm_schemas.ResultData.RESULT_KIND: result_kind,
+            mm_schemas.ResultData.RESULT_EXTRA_DATA: result_extra_data,
+        }
+
+    @staticmethod
+    def _create_metric_event_data(
+        endpoint_id: str = "test_endpoint_metric",
+        application_name: str = "performance_monitoring",
+        metric_name: str = "accuracy",
+        metric_value: float = 0.95,
+        end_time: Optional[datetime] = None,
+        start_time: Optional[datetime] = None,
+    ) -> dict:
+        """Factory method for creating metric event data."""
+        if end_time is None:
+            end_time = datetime(2024, 1, 15, 12, 30, 45)
+        if start_time is None:
+            start_time = datetime(2024, 1, 15, 12, 30, 40)
+
+        return {
+            mm_schemas.WriterEvent.END_INFER_TIME: end_time,
+            mm_schemas.WriterEvent.START_INFER_TIME: start_time,
+            mm_schemas.WriterEvent.ENDPOINT_ID: endpoint_id,
+            mm_schemas.WriterEvent.APPLICATION_NAME: application_name,
+            mm_schemas.MetricData.METRIC_NAME: metric_name,
+            mm_schemas.MetricData.METRIC_VALUE: metric_value,
+        }
+
+    @staticmethod
+    def _verify_table_data(
+        connection, table, expected_count: int, where_clause: Optional[str] = None
+    ) -> list:
+        """Helper method for verifying table data."""
+        query = f"SELECT COUNT(*) FROM {table.full_name()}"
+        if where_clause:
+            query += f" WHERE {where_clause}"
+
+        result = connection.run(query=query)
+        actual_count = result.data[0][0]
+        assert (
+            actual_count == expected_count
+        ), f"Expected {expected_count} records, got {actual_count}"
+        return result.data
+
+    @staticmethod
+    def _insert_prediction_data(
+        connection, table, endpoint_id: str, latency: float = 0.1
+    ):
+        """Helper method for inserting prediction data."""
+        connection.run(
+            statements=[
+                f"""
+                INSERT INTO {table.full_name()}
+                (end_infer_time, endpoint_id, latency, custom_metrics,
+                 estimated_prediction_count, effective_sample_count)
+                VALUES (NOW(), '{endpoint_id}', {latency}, '{{}}', 1.0, 1)
+                """
+            ]
+        )
+
+    @staticmethod
+    def _insert_metric_data(
+        connection, table, endpoint_id: str, metric_value: float = 0.5
+    ):
+        """Helper method for inserting metric data."""
+        connection.run(
+            statements=[
+                f"""
+                INSERT INTO {table.full_name()}
+                (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
+                VALUES (NOW(), NOW(), '{endpoint_id}', 'test_app', 'test_metric', {metric_value})
+                """
+            ]
+        )
 
     def test_create_tables_basic(self, query_test_helper):
         """Test basic table creation without pre-aggregates."""
@@ -84,18 +186,8 @@ class TestTimescaleDBOperationsHandlerIntegration:
         # Create tables first
         query_test_helper.operations_handler.create_tables()
 
-        # Prepare event data
-        event_data = {
-            mm_schemas.WriterEvent.END_INFER_TIME: datetime(2024, 1, 15, 12, 30, 45),
-            mm_schemas.WriterEvent.START_INFER_TIME: datetime(2024, 1, 15, 12, 30, 40),
-            mm_schemas.WriterEvent.ENDPOINT_ID: "test_endpoint_result",
-            mm_schemas.WriterEvent.APPLICATION_NAME: "drift_detection",
-            mm_schemas.ResultData.RESULT_NAME: "feature_drift",
-            mm_schemas.ResultData.RESULT_VALUE: 0.85,
-            mm_schemas.ResultData.RESULT_STATUS: 1,
-            mm_schemas.ResultData.RESULT_KIND: 2,
-            mm_schemas.ResultData.RESULT_EXTRA_DATA: '{"confidence": 0.9}',
-        }
+        # Prepare event data using factory method
+        event_data = self._create_result_event_data()
 
         # Write event
         query_test_helper.operations_handler.write_application_event(
@@ -127,15 +219,8 @@ class TestTimescaleDBOperationsHandlerIntegration:
         # Create tables first
         query_test_helper.operations_handler.create_tables()
 
-        # Prepare event data
-        event_data = {
-            mm_schemas.WriterEvent.END_INFER_TIME: datetime(2024, 1, 15, 12, 30, 45),
-            mm_schemas.WriterEvent.START_INFER_TIME: datetime(2024, 1, 15, 12, 30, 40),
-            mm_schemas.WriterEvent.ENDPOINT_ID: "test_endpoint_metric",
-            mm_schemas.WriterEvent.APPLICATION_NAME: "performance_monitoring",
-            mm_schemas.MetricData.METRIC_NAME: "accuracy",
-            mm_schemas.MetricData.METRIC_VALUE: 0.95,
-        }
+        # Prepare event data using factory method
+        event_data = self._create_metric_event_data()
 
         # Write event
         query_test_helper.operations_handler.write_application_event(
@@ -171,44 +256,22 @@ class TestTimescaleDBOperationsHandlerIntegration:
         test_endpoints = ["endpoint_1", "endpoint_2", "endpoint_3"]
         connection = query_test_helper.operations_handler._connection
 
-        for endpoint_id in test_endpoints:
-            # Insert into predictions table
-            predictions_table = query_test_helper.operations_handler.tables[
-                mm_schemas.TimescaleDBTables.PREDICTIONS
-            ]
-            connection.run(
-                statements=[
-                    f"""
-                INSERT INTO {predictions_table.full_name()}
-                (end_infer_time, endpoint_id, latency, custom_metrics,
-                 estimated_prediction_count, effective_sample_count)
-                VALUES (NOW(), '{endpoint_id}', 0.1, '{{}}', 1.0, 1)
-                """
-                ]
-            )
-
-            # Insert into metrics table
-            metrics_table = query_test_helper.operations_handler.tables[
-                mm_schemas.TimescaleDBTables.METRICS
-            ]
-            connection.run(
-                statements=[
-                    f"""
-                INSERT INTO {metrics_table.full_name()}
-                (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
-                VALUES (NOW(), NOW(), '{endpoint_id}', 'test_app', 'test_metric', 0.5)
-                """
-                ]
-            )
-
-        # Verify data exists
         predictions_table = query_test_helper.operations_handler.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
-        result = connection.run(
-            query=f"SELECT COUNT(*) FROM {predictions_table.full_name()}"
-        )
-        assert result.data[0][0] == 3
+        metrics_table = query_test_helper.operations_handler.tables[
+            mm_schemas.TimescaleDBTables.METRICS
+        ]
+
+        for endpoint_id in test_endpoints:
+            self._insert_prediction_data(connection, predictions_table, endpoint_id)
+            self._insert_metric_data(connection, metrics_table, endpoint_id)
+
+        # Verify data exists using helper
+        predictions_table = query_test_helper.operations_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+        self._verify_table_data(connection, predictions_table, 3)
 
         # Delete records for specific endpoints
         query_test_helper.operations_handler.delete_tsdb_records(
@@ -241,42 +304,26 @@ class TestTimescaleDBOperationsHandlerIntegration:
         connection = query_test_helper_with_aggregates.connection
         test_endpoint = "endpoint_with_aggregates"
 
-        # Insert test data
+        # Insert test data using helper
         predictions_table = query_test_helper_with_aggregates.operations_handler.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
-        connection.run(
-            statements=[
-                f"""
-            INSERT INTO {predictions_table.full_name()}
-            (end_infer_time, endpoint_id, latency, custom_metrics, estimated_prediction_count, effective_sample_count)
-            VALUES (NOW(), '{test_endpoint}', 0.1, '{{}}', 1.0, 1)
-            """
-            ]
-        )
+        self._insert_prediction_data(connection, predictions_table, test_endpoint)
 
-        # Verify data exists
-        result = connection.run(
-            query=f"""
-            SELECT COUNT(*) FROM {predictions_table.full_name()}
-            WHERE endpoint_id = '{test_endpoint}'
-            """
+        # Verify data exists using helper
+        self._verify_table_data(
+            connection, predictions_table, 1, f"endpoint_id = '{test_endpoint}'"
         )
-        assert result.data[0][0] == 1
 
         # Delete records including aggregates
         query_test_helper_with_aggregates.operations_handler.delete_tsdb_records(
             [test_endpoint], include_aggregates=True
         )
 
-        # Verify deletion from raw table
-        result = connection.run(
-            query=f"""
-            SELECT COUNT(*) FROM {predictions_table.full_name()}
-            WHERE endpoint_id = '{test_endpoint}'
-            """
+        # Verify deletion from raw table using helper
+        self._verify_table_data(
+            connection, predictions_table, 0, f"endpoint_id = '{test_endpoint}'"
         )
-        assert result.data[0][0] == 0
 
     def test_delete_tsdb_records_empty_list(self, query_test_helper):
         """Test deleting with empty endpoint list."""
@@ -419,18 +466,16 @@ class TestTimescaleDBOperationsHandlerIntegration:
         """Test writing events with Unicode characters."""
         query_test_helper.operations_handler.create_tables()
 
-        # Event with Unicode data
-        event_data = {
-            mm_schemas.WriterEvent.END_INFER_TIME: datetime.now(),
-            mm_schemas.WriterEvent.START_INFER_TIME: datetime.now(),
-            mm_schemas.WriterEvent.ENDPOINT_ID: "测试端点",  # Chinese characters
-            mm_schemas.WriterEvent.APPLICATION_NAME: "тест_приложение",  # Cyrillic
-            mm_schemas.ResultData.RESULT_NAME: "résultat_test",  # French accents
-            mm_schemas.ResultData.RESULT_VALUE: 0.85,
-            mm_schemas.ResultData.RESULT_STATUS: 1,
-            mm_schemas.ResultData.RESULT_KIND: 1,
-            mm_schemas.ResultData.RESULT_EXTRA_DATA: '{"message": "успех"}',
-        }
+        # Event with Unicode data using factory method
+        event_data = self._create_result_event_data(
+            endpoint_id="测试端点",  # Chinese characters
+            application_name="тест_приложение",  # Cyrillic
+            result_name="résultat_test",  # French accents
+            result_kind=1,
+            result_extra_data='{"message": "успех"}',
+            end_time=datetime.now(),
+            start_time=datetime.now(),
+        )
 
         # Should not raise exception
         query_test_helper.operations_handler.write_application_event(
@@ -469,34 +514,21 @@ class TestTimescaleDBOperationsHandlerIntegration:
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
 
-        # Batch insert
+        # Batch insert using helper
         for i, endpoint_id in enumerate(endpoints):
-            connection.run(
-                statements=[
-                    f"""
-                INSERT INTO {predictions_table.full_name()}
-                (end_infer_time, endpoint_id, latency, custom_metrics,
-                 estimated_prediction_count, effective_sample_count)
-                VALUES (NOW(), '{endpoint_id}', {0.1 + i * 0.001}, '{{}}', 1.0, 1)
-                """
-                ]
+            self._insert_prediction_data(
+                connection, predictions_table, endpoint_id, 0.1 + i * 0.001
             )
 
-        # Verify all data inserted
-        result = connection.run(
-            query=f"SELECT COUNT(*) FROM {predictions_table.full_name()}"
-        )
-        assert result.data[0][0] == endpoint_count
+        # Verify all data inserted using helper
+        self._verify_table_data(connection, predictions_table, endpoint_count)
 
         # Delete first 50 endpoints
         endpoints_to_delete = endpoints[:50]
         query_test_helper.operations_handler.delete_tsdb_records(endpoints_to_delete)
 
-        # Verify deletion
-        result = connection.run(
-            query=f"SELECT COUNT(*) FROM {predictions_table.full_name()}"
-        )
-        assert result.data[0][0] == 50
+        # Verify deletion using helper
+        self._verify_table_data(connection, predictions_table, 50)
 
     def test_error_handling_invalid_event_data(self, query_test_helper):
         """Test error handling with invalid event data."""
@@ -528,14 +560,13 @@ class TestTimescaleDBOperationsHandlerIntegration:
             nonlocal connection_pool_errors
             try:
                 for i in range(3):  # Reduced from 5 to 3 operations per worker
-                    event_data = {
-                        mm_schemas.WriterEvent.END_INFER_TIME: datetime.now(),
-                        mm_schemas.WriterEvent.START_INFER_TIME: datetime.now(),
-                        mm_schemas.WriterEvent.ENDPOINT_ID: f"worker_{worker_id}_endpoint_{i}",
-                        mm_schemas.WriterEvent.APPLICATION_NAME: f"worker_{worker_id}_app",
-                        mm_schemas.MetricData.METRIC_NAME: "test_metric",
-                        mm_schemas.MetricData.METRIC_VALUE: float(worker_id + i),
-                    }
+                    event_data = self._create_metric_event_data(
+                        endpoint_id=f"worker_{worker_id}_endpoint_{i}",
+                        application_name=f"worker_{worker_id}_app",
+                        metric_value=float(worker_id + i),
+                        end_time=datetime.now(),
+                        start_time=datetime.now(),
+                    )
 
                     max_retries = 3
                     for attempt in range(max_retries):

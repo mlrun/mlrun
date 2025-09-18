@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import time
+import unittest.mock
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -23,6 +24,51 @@ import mlrun.utils
 
 class TestAggregationQueries:
     """Tests for aggregation query operations."""
+
+    @staticmethod
+    def _insert_predictions_data(connection, table_schema, data_list):
+        """Helper to insert predictions test data."""
+        for test_time, endpoint_id, latency in data_list:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {table_schema.full_name()}
+                    (end_infer_time, endpoint_id, latency, custom_metrics,
+                     estimated_prediction_count, effective_sample_count)
+                    VALUES ('{test_time}', '{endpoint_id}', {latency}, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+    @staticmethod
+    def _insert_app_results_data(connection, table_schema, data_list):
+        """Helper to insert app_results test data."""
+        for time_val, endpoint_id, status, result_value in data_list:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {table_schema.full_name()}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{time_val}', '{time_val}', '{endpoint_id}', 'drift_app', 'drift_result',
+                            {result_value}, {status}, {mm_schemas.ResultKindApp.concept_drift.value}, '{{}}')
+                    """
+                ]
+            )
+
+    @staticmethod
+    def _insert_metrics_data(connection, table_schema, data_list):
+        """Helper to insert metrics test data."""
+        for endpoint_id, app_name, test_time in data_list:
+            connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {table_schema.full_name()}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name, metric_value)
+                    VALUES ('{test_time}', '{test_time}', '{endpoint_id}', '{app_name}', 'test_metric', 0.95)
+                    """
+                ]
+            )
 
     def test_get_avg_latency_raw_query(self, query_test_helper_with_aggregates):
         """Test get_avg_latency without interval (raw query path)."""
@@ -46,17 +92,7 @@ class TestAggregationQueries:
             (base_time + timedelta(hours=1, minutes=30), "other_endpoint", 0.5),
         ]
 
-        for test_time, endpoint_id, latency in test_data:
-            connection.run(
-                statements=[
-                    f"""
-                    INSERT INTO {predictions_table.full_name()}
-                    (end_infer_time, endpoint_id, latency, custom_metrics,
-                     estimated_prediction_count, effective_sample_count)
-                    VALUES ('{test_time}', '{endpoint_id}', {latency}, '{{}}', 1.0, 1)
-                    """
-                ]
-            )
+        self._insert_predictions_data(connection, predictions_table, test_data)
 
         # Create predictions handler using test helper
         predictions_handler = (
@@ -99,100 +135,167 @@ class TestAggregationQueries:
         assert len(other_results) == 1
         assert other_results["avg_latency"].iloc[0] == 0.5
 
-    def test_get_avg_latency_with_pre_aggregate_interval(
-        self, query_test_helper_with_aggregates, admin_connection
+    def _insert_test_data_and_refresh_aggregates(
+        self,
+        connection,
+        admin_connection,
+        table_schema,
+        table_type,
+        test_data,
+        cagg_suffix="_cagg_1h",
     ):
-        """Test get_avg_latency WITH interval parameter for pre-aggregate optimization."""
-        connection = query_test_helper_with_aggregates.connection
-        predictions_table = query_test_helper_with_aggregates.table_schemas[
-            mm_schemas.TimescaleDBTables.PREDICTIONS
-        ]
+        """Helper method to insert test data and refresh continuous aggregates."""
+        if table_type == "predictions":
+            self._insert_predictions_data(connection, table_schema, test_data)
+        elif table_type == "app_results":
+            self._insert_app_results_data(connection, table_schema, test_data)
 
-        # Create predictions handler using test helper
-        predictions_handler = (
-            query_test_helper_with_aggregates.create_predictions_handler()
-        )
-
-        # Use recent timestamps for continuous aggregates to work properly
-        now = mlrun.utils.datetime_now()
-        base_time = now - timedelta(hours=2)  # 2 hours ago
-
-        # Insert data spanning multiple time intervals with known latencies
-        test_data = [
-            # Hour 1: base_time (2 hours ago) - latency 0.1
-            (base_time, "test_endpoint", 0.1),
-            # Hour 2: base_time + 1h 15min and 45min - latencies 0.2 and 0.3 (avg should be 0.25)
-            (base_time + timedelta(hours=1, minutes=15), "test_endpoint", 0.2),
-            (base_time + timedelta(hours=1, minutes=45), "test_endpoint", 0.3),
-            # Different endpoint for comparison
-            (base_time + timedelta(hours=1, minutes=30), "other_endpoint", 0.5),
-        ]
-
-        for test_time, endpoint_id, latency in test_data:
-            connection.run(
-                statements=[
-                    f"""
-                    INSERT INTO {predictions_table.full_name()}
-                    (end_infer_time, endpoint_id, latency, custom_metrics,
-                     estimated_prediction_count, effective_sample_count)
-                    VALUES ('{test_time}', '{endpoint_id}', {latency}, '{{}}', 1.0, 1)
-                    """
-                ]
-            )
-
-        # Force refresh continuous aggregates for this table and interval
-
-        # Force refresh the continuous aggregate and wait for it to process
-        cagg_name = f"{predictions_table.full_name()}_cagg_1h"
+        # Force refresh continuous aggregates
+        cagg_name = f"{table_schema.full_name()}{cagg_suffix}"
         admin_connection.run(
             statements=[
                 f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NULL);"
             ]
         )
-
-        # Wait a moment for the refresh to complete
         time.sleep(0.1)
 
-        # Verify the continuous aggregate has data by querying it directly
-        check_query = f"""
-        SELECT COUNT(*) as row_count
-        FROM {cagg_name}
-        WHERE endpoint_id = 'test_endpoint'
-        """
-        check_result = admin_connection.run(query=check_query)
-        row_count = check_result.data[0][0] if check_result and check_result.data else 0
+    def test_get_avg_latency_with_pre_aggregates(
+        self, query_test_helper_with_aggregates, admin_connection
+    ):
+        """Test get_avg_latency with pre-aggregate optimization."""
+        connection = query_test_helper_with_aggregates.connection
+        now = mlrun.utils.datetime_now()
 
-        # If no data in continuous aggregate, something is wrong with the test setup
-        assert (
-            row_count > 0
-        ), f"Continuous aggregate {cagg_name} has no data for test_endpoint after refresh"
+        # Test avg_latency with predictions data
+        table_schema = query_test_helper_with_aggregates.table_schemas[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+        base_time = now - timedelta(hours=2)
 
-        # Test pre-aggregate query WITH interval parameter
-        result = predictions_handler.get_avg_latency(
-            endpoint_ids=["test_endpoint"],
-            start=base_time - timedelta(minutes=30),  # Start slightly before our data
-            end=now,  # End at current time
-            interval="1h",  # Enable pre-aggregate optimization
+        test_data = [
+            (base_time, "test_endpoint", 0.1),
+            (base_time + timedelta(hours=1, minutes=15), "test_endpoint", 0.2),
+            (base_time + timedelta(hours=1, minutes=45), "test_endpoint", 0.3),
+            (base_time + timedelta(hours=1, minutes=30), "other_endpoint", 0.5),
+        ]
+
+        self._insert_test_data_and_refresh_aggregates(
+            connection, admin_connection, table_schema, "predictions", test_data
         )
 
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) >= 1  # Must have results (may be multiple time buckets)
+        # Verify pre-aggregates are available
+        handler = query_test_helper_with_aggregates.create_predictions_handler()
+        available_intervals = handler._pre_aggregate_handler.get_available_intervals()
+        assert "1h" in available_intervals
 
-        # Verify we have data for test_endpoint (pre-aggregates may have multiple time buckets)
-        test_endpoint_data = result[result["endpoint_id"] == "test_endpoint"]
-        assert len(test_endpoint_data) >= 1
+        from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
+            TimescaleDBQueryBuilder,
+        )
 
-        # Verify we have the expected pre-aggregate columns
-        assert "time_bucket" in result.columns  # Pre-aggregate time column
-        assert "avg_latency" in result.columns  # Aggregated latency
-        assert "endpoint_id" in result.columns  # Endpoint identifier
-
-        # Calculate overall average from all time buckets for test_endpoint
-        # Each bucket may have different averages, but overall should be around 0.2
-        overall_avg = test_endpoint_data["avg_latency"].mean()
+        optimal_interval = TimescaleDBQueryBuilder.determine_optimal_interval(
+            base_time - timedelta(minutes=30), now
+        )
+        can_use_pre_agg = handler._pre_aggregate_handler.can_use_pre_aggregates(
+            interval=optimal_interval, agg_funcs=["avg"]
+        )
         assert (
-            abs(overall_avg - 0.2) < 0.05
-        )  # Allow for pre-aggregate precision differences
+            can_use_pre_agg
+        ), f"Pre-aggregates should be available for interval {optimal_interval}"
+
+        # Test the method
+        result = handler.get_avg_latency(
+            endpoint_ids=["test_endpoint"],
+            start=base_time - timedelta(minutes=30),
+            end=now,
+        )
+
+        # Verify results
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert "avg_latency" in result.columns
+        assert "endpoint_id" in result.columns
+        assert "time_bucket" not in result.columns
+
+        test_endpoint_data = result[result["endpoint_id"] == "test_endpoint"]
+        assert len(test_endpoint_data) == 1
+        overall_avg = test_endpoint_data["avg_latency"].iloc[0]
+        assert abs(overall_avg - 0.2) < 0.05
+
+    def test_get_drift_status_with_pre_aggregates(
+        self, query_test_helper_with_aggregates, admin_connection
+    ):
+        """Test get_drift_status with pre-aggregate optimization."""
+        connection = query_test_helper_with_aggregates.connection
+        now = mlrun.utils.datetime_now()
+
+        # Test drift_status with app_results data
+        table_schema = query_test_helper_with_aggregates.table_schemas[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+        test_time = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=2)
+
+        test_data = [
+            (
+                test_time,
+                "test_endpoint",
+                mm_schemas.ResultStatusApp.detected.value,
+                0.85,
+            ),
+            (
+                test_time + timedelta(minutes=10),
+                "test_endpoint",
+                mm_schemas.ResultStatusApp.potential_detection.value,
+                0.75,
+            ),
+            (
+                test_time + timedelta(minutes=20),
+                "other_endpoint",
+                mm_schemas.ResultStatusApp.no_detection.value,
+                0.15,
+            ),
+        ]
+
+        self._insert_test_data_and_refresh_aggregates(
+            connection, admin_connection, table_schema, "app_results", test_data
+        )
+
+        # Verify continuous aggregate has data
+        cagg_name = f"{table_schema.full_name()}_cagg_1h"
+        check_result = admin_connection.run(
+            query=f"SELECT COUNT(*) FROM {cagg_name} WHERE endpoint_id = 'test_endpoint'"
+        )
+        row_count = check_result.data[0][0] if check_result and check_result.data else 0
+        assert (
+            row_count > 0
+        ), f"Continuous aggregate {cagg_name} has no data for test_endpoint"
+
+        # Test the method
+        handler = query_test_helper_with_aggregates.create_results_handler()
+        result = handler.get_drift_status(
+            endpoint_ids=["test_endpoint"],
+            start=test_time - timedelta(minutes=30),
+            end=now,
+        )
+
+        # Verify results - should behave identically to raw query (single value per endpoint)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1  # Should have exactly one row for our test endpoint
+        assert "endpoint_id" in result.columns
+        assert "result_status" in result.columns
+        assert (
+            "time_bucket" not in result.columns
+        )  # Should not have time buckets for single-value results
+
+        test_data_results = result[result["endpoint_id"] == "test_endpoint"]
+        assert len(test_data_results) == 1  # Exactly one result for test_endpoint
+        assert test_data_results["endpoint_id"].iloc[0] == "test_endpoint"
+
+        # Verify the aggregated result status (should be MAX of our test data)
+        # MAX(detected=2, potential_detection=1) should be 2 (detected)
+        status_value = test_data_results["result_status"].iloc[0]
+        assert (
+            status_value == mm_schemas.ResultStatusApp.detected.value
+        ), f"Expected detected (MAX status), got {status_value}"
 
     def test_get_drift_status_raw_query(self, query_test_helper_with_aggregates):
         """Test get_drift_status without interval (raw query path)."""
@@ -240,112 +343,6 @@ class TestAggregationQueries:
             result["result_status"].iloc[0] == mm_schemas.ResultStatusApp.detected.value
         )
 
-    def test_get_drift_status_with_pre_aggregate_interval(
-        self, query_test_helper_with_aggregates, admin_connection
-    ):
-        """Test get_drift_status WITH interval parameter for pre-aggregate optimization."""
-        connection = query_test_helper_with_aggregates.connection
-        app_results_table = query_test_helper_with_aggregates.table_schemas[
-            mm_schemas.TimescaleDBTables.APP_RESULTS
-        ]
-
-        # Use hour-aligned timestamp for 1h continuous aggregates to work properly
-        now = mlrun.utils.datetime_now()
-        # Align to hour boundary for 1h continuous aggregate window calculation
-        test_time = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=2)
-
-        # Insert multiple drift records with different statuses
-        test_data = [
-            (
-                test_time,
-                "test_endpoint",
-                mm_schemas.ResultStatusApp.detected.value,
-                0.85,
-            ),
-            (
-                test_time + timedelta(minutes=10),
-                "test_endpoint",
-                mm_schemas.ResultStatusApp.potential_detection.value,
-                0.75,
-            ),
-            (
-                test_time + timedelta(minutes=20),
-                "other_endpoint",
-                mm_schemas.ResultStatusApp.no_detection.value,
-                0.15,
-            ),
-        ]
-
-        for time_val, endpoint_id, status, result_value in test_data:
-            connection.run(
-                statements=[
-                    f"""
-                    INSERT INTO {app_results_table.full_name()}
-                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
-                     result_value, result_status, result_kind, result_extra_data)
-                    VALUES ('{time_val}', '{time_val}', '{endpoint_id}', 'drift_app', 'drift_result',
-                            {result_value}, {status}, {mm_schemas.ResultKindApp.concept_drift.value}, '{{}}')
-                    """
-                ]
-            )
-
-        # Force refresh continuous aggregates for this table and interval
-
-        # Force refresh the continuous aggregate and wait for it to process
-        cagg_name = f"{app_results_table.full_name()}_cagg_1h"
-        admin_connection.run(
-            statements=[
-                f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NULL);"
-            ]
-        )
-
-        # Wait a moment for the refresh to complete
-        time.sleep(0.1)
-
-        # Verify the continuous aggregate has data by querying it directly
-        check_query = f"""
-        SELECT COUNT(*) as row_count
-        FROM {cagg_name}
-        WHERE endpoint_id = 'test_endpoint'
-        """
-        check_result = admin_connection.run(query=check_query)
-        row_count = check_result.data[0][0] if check_result and check_result.data else 0
-
-        # If no data in continuous aggregate, something is wrong with the test setup
-        assert (
-            row_count > 0
-        ), f"Continuous aggregate {cagg_name} has no data for test_endpoint after refresh"
-
-        # Test pre-aggregate query WITH interval parameter
-        # Create results handler using test helper
-        results_handler = query_test_helper_with_aggregates.create_results_handler()
-
-        result = results_handler.get_drift_status(
-            endpoint_ids=["test_endpoint", "other_endpoint"],
-            start=test_time
-            - timedelta(hours=1),  # Start 1 hour before to include the hour bucket
-            end=now,  # End at current time
-            interval="1h",  # Enable pre-aggregate optimization
-        )
-
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) >= 1  # Must have results (may be multiple time buckets)
-
-        # Verify we have data for at least one of the requested endpoints
-        # (pre-aggregates may filter based on max/latest values per time bucket)
-        endpoint_values = set(result["endpoint_id"].values)
-        assert endpoint_values.intersection({"test_endpoint", "other_endpoint"})
-
-        # Verify we have the expected pre-aggregate columns
-        assert "time_bucket" in result.columns  # Pre-aggregate time column
-        assert "endpoint_id" in result.columns  # Endpoint identifier
-        assert "application_name" in result.columns  # Application name
-        assert "result_name" in result.columns  # Result name
-
-        # Verify we have meaningful data in the result
-        assert result["application_name"].iloc[0] == "drift_app"
-        assert result["result_name"].iloc[0] == "drift_result"
-
 
 class TestPreAggregateExceptionHandling:
     """Tests for pre-aggregate exception handling and fallback behavior."""
@@ -380,14 +377,18 @@ class TestPreAggregateExceptionHandling:
             ]
         )
 
-        # Test with interval that might not have pre-aggregates available
-        # This should trigger fallback to raw query
-        result = predictions_handler.get_avg_latency(
-            endpoint_ids=["test_endpoint"],
-            start=base_time - timedelta(minutes=10),
-            end=now,
-            interval="15m",  # Non-standard interval that may not have pre-aggregates
-        )
+        # Force fallback to raw query by mocking can_use_pre_aggregates to return False
+        with unittest.mock.patch.object(
+            predictions_handler._pre_aggregate_handler,
+            "can_use_pre_aggregates",
+            return_value=False,
+        ):
+            # Test get_avg_latency (should use raw query due to mock)
+            result = predictions_handler.get_avg_latency(
+                endpoint_ids=["test_endpoint"],
+                start=base_time - timedelta(minutes=10),
+                end=now,
+            )
 
         # Should still get valid results via fallback
         assert isinstance(result, pd.DataFrame)
@@ -430,7 +431,6 @@ class TestPreAggregateExceptionHandling:
             endpoint_ids=["test_endpoint"],
             start=test_time - timedelta(minutes=10),
             end=now,
-            interval="15m",  # Non-standard interval that may not have pre-aggregates
         )
 
         # Should still get valid results via fallback

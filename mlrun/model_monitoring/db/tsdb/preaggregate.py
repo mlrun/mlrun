@@ -20,6 +20,9 @@ from typing import Optional
 import mlrun.errors
 import mlrun.utils
 
+# Compiled regex pattern for parsing time intervals (e.g., "1h", "10m", "1d", "1M")
+_INTERVAL_PATTERN = re.compile(r"(\d+)([mhdM])")
+
 
 @dataclass
 class PreAggregateConfig:
@@ -56,7 +59,7 @@ class PreAggregateHandler:
         Initialize the pre-aggregate handler.
 
         :param pre_aggregate_config: Configuration for pre-aggregated tables and operations.
-                                   If None, all pre-aggregate operations will be disabled.
+        If None (the default), all pre-aggregate operations will be disabled.
         """
         self._pre_aggregate_config = pre_aggregate_config
 
@@ -112,7 +115,7 @@ class PreAggregateHandler:
             return dt
 
         # Parse interval (e.g., "1h", "10m", "1d")
-        match = re.match(r"(\d+)([mhd]|M)", interval)
+        match = _INTERVAL_PATTERN.match(interval)
         if not match:
             return dt
 

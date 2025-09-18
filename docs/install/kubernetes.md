@@ -29,7 +29,7 @@ For local installation on Windows or Mac, [Docker Desktop](https://www.docker.co
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
 - Helm >=3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
-- An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret. See the [Docker ID documentation](https://docs.docker.com/docker-id/) for details about creating a user with login that you will configure in the secret.
+- An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret. If using docker hub, the registry server is `https://registry.hub.docker.com/`. See the [Docker ID documentation](https://docs.docker.com/docker-id/) for details about creating a user with login that you will configure in the secret.
 - Storage: 
   - 8Gi
   - Set a default storage class for the kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
@@ -155,12 +155,6 @@ helm --namespace mlrun \
 Where:
  - `<registry-url>` is the registry URL that can be authenticated by the `<registry-credentials>` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
  - `<host-machine-address>` is the IP address of the host machine (or `$(minikube ip)` if using minikube).
-
-```{admonition} Note
-First-time MLRun users experience a relatively longer installation time since all of the required images 
-are pulled locally for the first time (usually 10-15 minutes, mostly depending on 
-your internet speed).
-```
 
 When the installation is complete, the helm command prints the URLs and ports of all the MLRun CE services.
 

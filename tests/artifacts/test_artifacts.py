@@ -341,6 +341,7 @@ def test_log_artifact(
     expectation: typing.Any,
     artifact_is_logged: bool,
     monkeypatch,
+    ensure_project,
 ):
     mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
         generate_target_path
@@ -397,7 +398,9 @@ def test_log_artifact(
         (None, None),
     ],
 )
-def test_log_artifact_with_target_path_and_upload_options(target_path, upload_options):
+def test_log_artifact_with_target_path_and_upload_options(
+    target_path, upload_options, ensure_project
+):
     artifact = mlrun.artifacts.Artifact(
         key="some-artifact", body="asdasdasdasdas", format="parquet"
     )
@@ -465,7 +468,7 @@ def test_log_artifact_with_invalid_key(artifact_key, expected):
         ("/not_exists/file.txt", True),
     ],
 )
-def test_ensure_artifact_source_file_exists(local_path, fail):
+def test_ensure_artifact_source_file_exists(local_path, fail, ensure_project):
     artifact = mlrun.artifacts.Artifact(
         "artifact-name",
     )
@@ -497,7 +500,7 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
         (MYSQL_MEDIUMBLOB_SIZE_BYTES - 1, does_not_raise()),
     ],
 )
-def test_ensure_fail_on_oversized_artifact(body_size, expectation):
+def test_ensure_fail_on_oversized_artifact(body_size, expectation, ensure_project):
     artifact = mlrun.artifacts.Artifact(
         "artifact-name",
         is_inline=True,
@@ -515,7 +518,7 @@ def test_ensure_fail_on_oversized_artifact(body_size, expectation):
         (None, True),
     ],
 )
-def test_ensure_artifact_source_file_exists_by_df(df, fail):
+def test_ensure_artifact_source_file_exists_by_df(df, fail, ensure_project):
     context = mlrun.get_or_create_ctx("test")
 
     with tempfile.TemporaryDirectory() as temp_dir:

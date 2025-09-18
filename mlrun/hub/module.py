@@ -22,7 +22,6 @@ from ..utils import extend_hub_uri_if_needed
 import mlrun.common.types
 from mlrun.run import get_object, function_to_module
 from mlrun.common.schemas.hub import HubSourceType
-from pathlib import Path
 from pydantic import DirectoryPath, TypeAdapter
 
 _DIR = TypeAdapter(DirectoryPath)
@@ -40,9 +39,10 @@ class HubModule(ModelObj):
             description: Optional[str] = None,
             categories: Optional[list] = None,
             requirements: Optional[list] = None,
-            local_path: Optional[Union[str, Path]] = None,
+            local_path: Optional[str] = None,
             filename: Optional[str] = None,
             example: Optional[str] = None,
+            url: Optional[str] = None,
             **kwargs # catch all for unused args
     ):
         self.name: str = name
@@ -54,17 +54,24 @@ class HubModule(ModelObj):
         self.local_path: str = local_path or ""
         self.filename: str = filename or name+".py"
         self.example: str = example or ""
+        self.url: str = url or ""
 
-    @property
-    def local_path(self) -> Path:
-        return self._local_path
-
-    @local_path.setter
-    def local_path(self, value) -> None:
-        if value is None:
-            self._local_path = None
-        else:
-            self._local_path = _DIR.validate_python(value) # raise error if doesn't exist
+    # @staticmethod
+    # def _validate_path(self, path_value) -> str:
+    #     if path_value is None:
+    #         return None
+    #     try:
+    #         path = _DIR.validate_python(path_value) # raise error if doesn't exist
+    #         return str(path)
+    #     except Exception as exc:
+    #         raise mlrun.errors.MLRunInvalidArgumentError(f"Invalid local_path value {path_value}, error: {exc}") from exc
+    # @property
+    # def local_path(self) -> str:
+    #     return self.local_path
+    #
+    # @local_path.setter
+    # def local_path(self, value) -> None:
+    #     self.local_path = self._validate_path(value)
 
     def module(self):
         try:
@@ -77,12 +84,12 @@ class HubModule(ModelObj):
         # TODO: implement
         pass
 
-    def download_module_files(self, url, local_path=None, secrets=None):
+    def download_module_files(self, local_path=None, secrets=None):
         self.local_path = local_path
-        source_url, _ = extend_hub_uri_if_needed(url, HubSourceType.modules, self.filename)
+        source_url, _ = extend_hub_uri_if_needed(self.url, HubSourceType.modules, self.filename)
         self._download_object(source_url, self.filename, secrets)
         if self.example:
-            example_url, _ = extend_hub_uri_if_needed(url, HubSourceType.modules, self.example)
+            example_url, _ = extend_hub_uri_if_needed(self.url, HubSourceType.modules, self.example)
             self._download_object(example_url, self.example, secrets)
 
     def _download_object(self, obj_url, target_name, secrets=None):
@@ -100,9 +107,9 @@ def get_hub_module(url="", download_files=True, secrets=None, local_path=None):
     yaml_obj = get_object(item_yaml_url, secrets)
     item_yaml = yaml.safe_load(yaml_obj)
     spec = item_yaml.pop("spec", {})
-    hub_module = HubModule(**item_yaml, **spec)
+    hub_module = HubModule(**item_yaml, **spec, url=url)
     if download_files:
-        hub_module.download_module_files(url, local_path, secrets)
+        hub_module.download_module_files(local_path, secrets)
     return hub_module
 
 def import_module(url="", secrets=None, local_path=None):

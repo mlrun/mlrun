@@ -60,7 +60,7 @@ class HubModule(ModelObj):
         return self._local_path
 
     @local_path.setter
-    def local_path(self, value: str | Path) -> None:
+    def local_path(self, value) -> None:
         if value is None:
             self._local_path = None
         else:

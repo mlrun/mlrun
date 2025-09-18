@@ -430,7 +430,7 @@ class RemoteRuntime(KubeResource):
         if code:
             # Warn and clear any inline code so the archive is actually used
             logger.warning(
-                "Function already contains inline code. Removing it so the provided "
+                "Cannot specify both code and source archive. Removing the code so the provided "
                 "source archive will be used instead."
             )
             self.spec.build.functionSourceCode = None

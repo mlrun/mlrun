@@ -61,15 +61,18 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
     def test_basic_huggingface_model_runner(self, execution_mechanism):
         self.setup_datastore_profile()
         mlrun_model_name = "sync_invoke_model"
-        requirements_path = os.path.join(
-            os.path.dirname(__file__), "requirements_hf.txt"
-        )
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
             self.model_url,
             mlrun_model_name=mlrun_model_name,
             image=self.image,
-            requirements_file=requirements_path,
+            requirements=[
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/cpu",
+                "torch==2.7.1+cpu",
+                "transformers==4.53.2",
+                "pillow~=11.3",
+            ],
             default_config={"max_new_tokens": 50},
             execution_mechanism=execution_mechanism,
         )
@@ -125,15 +128,18 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         v3io_path = artifact.get_target_path()
 
         mlrun_model_name = "custom_hf_model"
-        requirements_path = os.path.join(
-            os.path.dirname(__file__), "requirements_hf.txt"
-        )
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
             self.model_url,
             mlrun_model_name=mlrun_model_name,
             image=self.image,
-            requirements_file=requirements_path,
+            requirements=[
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/cpu",
+                "torch==2.7.1+cpu",
+                "transformers==4.53.2",
+                "pillow~=11.3",
+            ],
             default_config={"top_k": 2},
             execution_mechanism=execution_mechanism,
             model_class="MyHuggingFaceCustom",

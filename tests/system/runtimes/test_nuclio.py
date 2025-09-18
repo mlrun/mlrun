@@ -490,7 +490,6 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         # Set up graph with MLRunAPIRemoteStep
         graph = function.set_topology("flow", engine="async")
-        error_message = f"get model endpoint {self.project_name}/model-endpoints"
         endpoint_path = f"projects/{self.project_name}/model-endpoints"
         graph.to(
             MLRunAPIRemoteStep(

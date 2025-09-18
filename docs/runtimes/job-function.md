@@ -66,7 +66,7 @@ project.run_function(
 )
 ```
 
-In th UI, You can view:
+In the UI, you can view:
 - Retries status in **Jobs and Workflows > Monitor Jobs** under the Retries column.
 - Pending retries in **Jobs and Workflows > Monitor Jobs**.
 - Logs per attempt in the Logs tab by selecting an attempt from the drop-down list.

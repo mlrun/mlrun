@@ -283,7 +283,7 @@ def test_with_source_archive_removes_inline_code(logs_stream):
 
     # assert warning was issued
     assert (
-        "Function already contains inline code. Removing it so the provided "
+        "Cannot specify both code and source archive. Removing the code so the provided "
         "source archive will be used instead" in logs_stream.getvalue()
     )
 

@@ -101,6 +101,10 @@ kubectl --namespace mlrun create secret docker-registry registry-credentials \
     --docker-password <your-password> \
     --docker-email <your-email>
 ```
+```{admonition} Note
+If using docker hub, the registry server is `https://registry.hub.docker.com/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
+creating a user with login to configure in the secret.
+```
 
 Where:
 - `<your-registry-server>` is your Private Docker Registry FQDN. (https://registry.hub.docker.com/ for Docker Hub).

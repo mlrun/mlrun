@@ -5200,7 +5200,7 @@ class HTTPRunDB(RunDBInterface):
 
         :return: A ModelEndpointDriftValues object containing the drift counts over time.
         """
-        endpoint_path = f"projects/{project}/model-endpoints/drift-over-time"
+        endpoint_path = f"projects/{project}/model-monitoring/drift-over-time"
         error_message = f"Failed retrieving drift data for {project}"
         response = self.api_call(
             method="GET",

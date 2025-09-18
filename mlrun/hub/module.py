@@ -16,7 +16,7 @@ import yaml
 import os
 from typing import Optional, Union
 
-import mlrun
+import mlrun.utils
 from ..model import ModelObj
 from ..utils import extend_hub_uri_if_needed
 import mlrun.common.types
@@ -108,3 +108,6 @@ def get_hub_module(url="", download_files=True, secrets=None, local_path=None):
 def import_module(url="", secrets=None, local_path=None):
     hub_module: HubModule = get_hub_module(url, True, secrets, local_path)
     return hub_module.module()
+
+def __main__():
+    import_module("hub://v2io/mlrun/modules/monitoring-apps/kibana")

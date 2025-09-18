@@ -14,6 +14,7 @@ genai_serving
 gpu_utilization
 genai_serving_graph
 openai-model
+hf-model-image-detection
 ```
 
 **See also**

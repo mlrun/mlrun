@@ -476,7 +476,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         serving_func_deploy.function.invoke("/")
 
-    async def test_generate_event_through_api_step(self):
+    async def test_list_mep_through_api_step(self):
         code_path = str(self.assets_path / "nuclio_function.py")
 
         # Create serving function with MLRunAPIRemoteStep

@@ -28,7 +28,7 @@ import mlrun.config
 import mlrun.platforms
 import mlrun.utils.async_http
 from mlrun.errors import err_to_str
-from mlrun.utils import logger
+from mlrun.utils import dict_to_json, logger
 
 from ..config import config
 from ..db.httpdb import HTTPRunDB
@@ -465,22 +465,25 @@ class BatchHttpRequests(_ConcurrentJobExecution):
 class MLRunAPIRemoteStep(RemoteStep):
     """Graph step implementation for calling MLRun API endpoints"""
 
-    def __init__(self, method: str, path: str, **kwargs):
+    def __init__(
+        self, method: str, path: str, fill_placeholders: bool = False, **kwargs
+    ):
         self.rundb: HTTPRunDB = mlrun.get_run_db()
         url = self.rundb.get_base_api_url(path)
         super().__init__(url=url, method=method, **kwargs)
         self.path = path
+        self.fill_placeholders = fill_placeholders
 
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
         kw = {
-                    key: value
-                    for key, value in (
-                        ("params", body.get("params")),
-                        ("json", body.get("json")),
-                    )
-                    if value is not None
-                }
+            key: value
+            for key, value in (
+                ("params", body.get("params")),
+                ("json", body.get("json")),
+            )
+            if value is not None
+        }
 
         headers = self.headers or {}
         headers.update(body.get("headers", {}))
@@ -510,5 +513,7 @@ class MLRunAPIRemoteStep(RemoteStep):
                     "User-Agent": f"{requests.utils.default_user_agent()} mlrun/{config.version}",
                 }
             )
+
+        url = self.url.format(**body) if self.fill_placeholders else self.url
         headers["Content-Type"] = "application/json"
-        return method ,self.url ,headers, body, kw
+        return method, url, headers, dict_to_json(body), kw

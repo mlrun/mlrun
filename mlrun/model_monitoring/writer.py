@@ -23,6 +23,7 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
 import mlrun.model_monitoring
+from mlrun.common.schemas import Event
 from mlrun.common.schemas.model_monitoring.constants import (
     HistogramDataDriftApplicationConstants,
     MetricData,
@@ -254,8 +255,17 @@ class WriterGraphFactory:
         )
         graph.add_step(
             "AlertGenerator",
-            name="alert_generator",
+            "alert_generator",
             after="kind_choice_step",
+            project=fn.metadata.project,
+        )
+        graph.add_step(
+            "mlrun.serving.remote.MLRunAPIRemoteStep",
+            name="alert_generator_api_call",
+            after="alert_generator",
+            method="POST",
+            path=f"projects/{fn.metadata.project}/events/{{kind}}",
+            fill_placeholders=True,
         )
         graph.add_step(
             "StatsWriter",
@@ -318,11 +328,73 @@ class KindChoice(storey.Choice):
 
 
 class AlertGenerator(storey.MapClass):
-    def __init__(self):
+    def __init__(self, project: str):
+        self.project = project
         super().__init__()
 
     def do(self, event: dict) -> dict[str, Any]:
+        event_value = {
+            "app_name": event[WriterEvent.APPLICATION_NAME],
+            "model": event[WriterEvent.ENDPOINT_NAME],
+            "model_endpoint_id": event[WriterEvent.ENDPOINT_ID],
+            "result_name": event[ResultData.RESULT_NAME],
+            "result_value": event[ResultData.RESULT_VALUE],
+        }
+        data = self._generate_event_data(
+            entity_id=get_result_instance_fqn(
+                event[WriterEvent.ENDPOINT_ID],
+                event[WriterEvent.APPLICATION_NAME],
+                event[ResultData.RESULT_NAME],
+            ),
+            result_status=event[ResultData.RESULT_STATUS],
+            event_value=event_value,
+            project_name=self.project,
+            result_kind=event[ResultData.RESULT_KIND],
+        )
+        event = data.dict()
+        logger.info("Generated alert event", event=event)
         return event
+
+    @staticmethod
+    def _generate_alert_event_kind(
+        result_kind: int, result_status: int
+    ) -> alert_objects.EventKind:
+        """Generate the required Event Kind format for the alerting system"""
+        event_kind = ResultKindApp(value=result_kind).name
+
+        if result_status == ResultStatusApp.detected.value:
+            event_kind = f"{event_kind}_detected"
+        else:
+            event_kind = f"{event_kind}_suspected"
+        return alert_objects.EventKind(
+            value=mlrun.utils.helpers.normalize_name(event_kind)
+        )
+
+    def _generate_event_data(
+        self,
+        entity_id: str,
+        result_status: int,
+        event_value: dict,
+        project_name: str,
+        result_kind: int,
+    ) -> Event:
+        entity = mlrun.common.schemas.alert.EventEntities(
+            kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            project=project_name,
+            ids=[entity_id],
+        )
+
+        event_kind = self._generate_alert_event_kind(
+            result_status=result_status, result_kind=result_kind
+        )
+
+        event_data = mlrun.common.schemas.Event(
+            kind=alert_objects.EventKind(value=event_kind),
+            entity=entity,
+            value_dict=event_value,
+        )
+
+        return event_data
 
 
 class StatsWriter(storey.MapClass):

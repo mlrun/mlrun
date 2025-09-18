@@ -212,8 +212,9 @@ class TestAlerts(TestMLRunSystem):
                 model_endpoint.metadata.uid, result_name, model_endpoint.metadata.name
             )
         )
-
-        time.sleep(5)
+        # wait for the event to be processed by the writer, changed as part of adding tsdb target with flush
+        # configuration of 30 seconds
+        time.sleep(35)
         # generate alerts for the different result kind and return text from the expected notifications that will be
         # used later to validate that the notifications were sent as expected
         expected_notifications = self._generate_alerts(

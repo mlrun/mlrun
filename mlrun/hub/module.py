@@ -80,10 +80,10 @@ class HubModule(ModelObj):
     def download_module_files(self, url, local_path=None, secrets=None):
         self.local_path = local_path
         source_url, _ = extend_hub_uri_if_needed(url, HubSourceType.modules, self.filename)
-        self._download_object(source_url, self.filename, local_path, secrets)
+        self._download_object(source_url, self.filename, secrets)
         if self.example:
             example_url, _ = extend_hub_uri_if_needed(url, HubSourceType.modules, self.example)
-            self._download_object(example_url, self.example, self.local_path, secrets)
+            self._download_object(example_url, self.example, secrets)
 
     def _download_object(self, obj_url, target_name, secrets=None):
         data = get_object(obj_url, secrets=secrets)
@@ -108,6 +108,3 @@ def get_hub_module(url="", download_files=True, secrets=None, local_path=None):
 def import_module(url="", secrets=None, local_path=None):
     hub_module: HubModule = get_hub_module(url, True, secrets, local_path)
     return hub_module.module()
-
-def __main__():
-    import_module("hub://v2io/mlrun/modules/monitoring-apps/kibana")

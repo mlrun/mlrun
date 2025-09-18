@@ -66,6 +66,13 @@ project.run_function(
 )
 ```
 
+In th UI, You can view:
+- Retries status in **Jobs and Workflows > Monitor Jobs** under the Retries column.
+- Pending retries in **Jobs and Workflows > Monitor Jobs**.
+- Logs per attempt in the Logs tab by selecting an attempt from the drop-down list.
+
+If notifications are configured for the run, the final notification (success or failure) is sent after the last attempt and includes the total number of retries.
+
 **See also**
 - [Create and register functions](../runtimes/create-and-use-functions.ipynb)
 - [How to annotate notebooks (to be used as functions)](../runtimes/mlrun_code_annotations.ipynb)

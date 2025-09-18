@@ -15,11 +15,17 @@
 import yaml
 import os
 from typing import Optional, Union
+
+import mlrun
 from ..model import ModelObj
 from ..utils import extend_hub_uri_if_needed
 import mlrun.common.types
-from mlrun.run import get_object
+from mlrun.run import get_object, function_to_module
 from mlrun.common.schemas.hub import HubSourceType
+from pathlib import Path
+from pydantic import DirectoryPath, TypeAdapter
+
+_DIR = TypeAdapter(DirectoryPath)
 
 class ModuleType(mlrun.common.types.StrEnum):
     generic = "generic"
@@ -28,56 +34,77 @@ class ModuleType(mlrun.common.types.StrEnum):
 class HubModule(ModelObj):
     def __init__(
             self,
-            name: Optional[str] = "",
-            version: Optional[str] = "",
-            kind: Optional[Union[ModuleType, str]] = None,
-            description: Optional[str] = "",
+            name: str,
+            kind: Union[ModuleType, str],
+            version: Optional[str] = None,
+            description: Optional[str] = None,
+            categories: Optional[list] = None,
             requirements: Optional[list] = None,
-            **kwargs
+            local_path: Optional[Union[str, Path]] = None,
+            filename: Optional[str] = None,
+            example: Optional[str] = None,
+            **kwargs # catch all for unused args
     ):
         self.name: str = name
         self.version: str = version
         self.kind: ModuleType = kind
-        self.description: str = description
+        self.description: str = description or ""
+        self.categories: list = categories or []
         self.requirements: list = requirements or []
+        self.local_path: str = local_path or ""
+        self.filename: str = filename or name+".py"
+        self.example: str = example or ""
+
+    @property
+    def local_path(self) -> Path:
+        return self._local_path
+
+    @local_path.setter
+    def local_path(self, value: str | Path) -> None:
+        if value is None:
+            self._local_path = None
+        else:
+            self._local_path = _DIR.validate_python(value) # raise error if doesn't exist
 
     def module(self):
-        # TODO: implement
-        pass
+        try:
+            return function_to_module(self.filename, self.local_path)
+        except FileNotFoundError:
+            mlrun.utils.logger.warning(f"Module file {self.filename} not found in {self.local_path}, try calling download_module_files()")
+            return None
 
     def install_requirements(self):
         # TODO: implement
         pass
 
-def _download_object(url: str, filename: str, local_path=None, secrets=None):
-    data = get_object(url, secrets=secrets)
-    target_dir = local_path if local_path is not None else os.getcwd()
-    os.makedirs(target_dir, exist_ok=True) # create directory if missing # TODO: want this?
-    target_filepath = os.path.join(target_dir, filename)
-    with open(target_filepath, "wb") as f:
-        f.write(data)
+    def download_module_files(self, url, local_path=None, secrets=None):
+        self.local_path = local_path
+        source_url, _ = extend_hub_uri_if_needed(url, HubSourceType.modules, self.filename)
+        self._download_object(source_url, self.filename, local_path, secrets)
+        if self.example:
+            example_url, _ = extend_hub_uri_if_needed(url, HubSourceType.modules, self.example)
+            self._download_object(example_url, self.example, self.local_path, secrets)
 
-def _dowlnload_module_files(url, item_yaml, secrets=None, local_path=None):
-    name = item_yaml.get("name", "")
-    filename = f"{name}.py" # assume single file with module name
-    source_url, _ = extend_hub_uri_if_needed(url, HubSourceType.modules, filename)
-    _download_object(source_url, filename, local_path, secrets)
-    if item_yaml.get("example", ""):
-        filename = item_yaml.get("example")
-        example_url, _ = extend_hub_uri_if_needed(url, HubSourceType.modules, filename)
-        _download_object(example_url, filename, local_path, secrets)
+    def _download_object(self, obj_url, target_name, secrets=None):
+        data = get_object(obj_url, secrets=secrets)
+        target_dir = self.local_path if self.local_path is not None else os.getcwd()
+        target_filepath = os.path.join(target_dir, target_name)
+        with open(target_filepath, "wb") as f:
+            f.write(data)
 
-def get_hub_module(url="", secrets=None, local_path=None):
+
+def get_hub_module(url="", download_files=True, secrets=None, local_path=None):
     item_yaml_url, is_hub_uri = extend_hub_uri_if_needed(url, HubSourceType.modules, "item.yaml")
     if not is_hub_uri:
-        raise mlrun.errors.MLRunInvalidArgumentError("Not a valid hub uri")
+        raise mlrun.errors.MLRunInvalidArgumentError(f"Not a valid hub URL")
     yaml_obj = get_object(item_yaml_url, secrets)
     item_yaml = yaml.safe_load(yaml_obj)
     spec = item_yaml.pop("spec", {})
     hub_module = HubModule(**item_yaml, **spec)
-    _dowlnload_module_files(url, item_yaml, secrets, local_path)
+    if download_files:
+        hub_module.download_module_files(url, local_path, secrets)
     return hub_module
 
-def import_module():
-    hub_module: HubModule = get_hub_module() # also downloads the files
-    return hub_module.module() # import the mo ule and return it
+def import_module(url="", secrets=None, local_path=None):
+    hub_module: HubModule = get_hub_module(url, True, secrets, local_path)
+    return hub_module.module()

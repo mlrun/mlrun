@@ -121,9 +121,7 @@ Where:
   --set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
   --set kube-prometheus-stack.grafana.initChownData.enabled
 ```
-- A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC by one of:
-  - Change the default values in the `values.yaml` before installing
-  - Run this after importing MLRun:
+- A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC by running this after importing MLRun:
     ```
     import mlrun
     mlrun.mlconf.storage.auto_mount_type = "pvc"

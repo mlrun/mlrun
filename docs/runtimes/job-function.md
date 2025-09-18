@@ -50,8 +50,8 @@ project.run_function("train")
 ```
 
 You can configure automatic retries for failed job runs by passing a `retry` dictionary
-when running a function. This enables MLRun to handle transient errors such as runtime failures,
-OOM, or pod evictions automatically.
+when running a function. This enables MLRun to automatically handle transient errors such as runtime failures,
+OOM, or pod evictions.
 
 Example:
 ```python

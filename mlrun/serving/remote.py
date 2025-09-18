@@ -470,10 +470,10 @@ class MLRunAPIRemoteStep(RemoteStep):
         """
         Graph step implementation for calling MLRun API endpoints
 
-        @param method:  HTTP method (GET, POST, ...)
-        @param path:    API path (e.g. /api/projects)
-        @param fill_placeholders: if True, fill placeholders in the path using event fields
-        @param kwargs:  other arguments passed to RemoteStep
+        :param method:  HTTP method (GET, POST, ...)
+        :param path:    API path (e.g. /api/projects)
+        :param fill_placeholders: if True, fill placeholders in the path using event fields
+        :param kwargs:  other arguments passed to RemoteStep
         """
         super().__init__(url="", method=method, **kwargs)
         self.rundb = None

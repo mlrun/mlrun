@@ -45,6 +45,7 @@ import pytz
 import semver
 import yaml
 from dateutil import parser
+from orjson import orjson
 from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -1214,52 +1215,58 @@ def get_workflow_url(
 
 
 def get_kfp_list_runs_filter(
-    project_name: Optional[str] = None,
-    end_date: Optional[str] = None,
     start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    filter_: Optional[str] = None,
+    experiment_ids: Optional[list[str]] = None,
 ) -> str:
     """
-    Generates a filter for listing Kubeflow Pipelines (KFP) runs.
-
-    :param project_name: The name of the project. If "*", it won't filter by project.
-    :param end_date: The latest creation date for filtering runs (ISO 8601 format).
-    :param start_date: The earliest creation date for filtering runs (ISO 8601 format).
-    :return: A JSON-formatted filter string for KFP.
+    Generate a filter for KFP runs based on start and end dates, and experiment IDs.
     """
+    existing_filter_object = json.loads(filter_) if filter_ else {"predicates": []}
+    preserved_predicates = [
+        predicate
+        for predicate in existing_filter_object.get("predicates", [])
+        if predicate.get("key") != "name"
+    ]
 
-    # KFP filter operation codes
-    kfp_less_than_or_equal_op = 7  # '<='
-    kfp_greater_than_or_equal_op = 5  # '>='
-    kfp_substring_op = 9  # Substring match
-
-    filters = {"predicates": []}
-
+    new_predicates = []
     if end_date:
-        filters["predicates"].append(
+        new_predicates.append(
             {
-                "key": "created_at",
-                "op": kfp_less_than_or_equal_op,
+                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
+                "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
                 "timestamp_value": end_date,
             }
         )
 
-    if project_name and project_name != "*":
-        filters["predicates"].append(
-            {
-                "key": "name",
-                "op": kfp_substring_op,
-                "string_value": project_name,
-            }
-        )
     if start_date:
-        filters["predicates"].append(
+        new_predicates.append(
             {
-                "key": "created_at",
-                "op": kfp_greater_than_or_equal_op,
+                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
+                "op": mlrun_pipelines.models.FilterOperations.GREATER_THAN_EQUALS.value,
                 "timestamp_value": start_date,
             }
         )
-    return json.dumps(filters)
+
+    if experiment_ids and all(experiment_ids):
+        new_predicates.append(
+            {
+                "key": mlrun_pipelines.models.FilterFields.EXPERIMENT_ID,
+                "op": mlrun_pipelines.models.FilterOperations.IN.value,
+                "string_values": {"values": experiment_ids},
+            }
+        )
+
+    final_filter_object = {"predicates": preserved_predicates + new_predicates}
+    if not final_filter_object["predicates"]:
+        return ""
+
+    logger.debug(
+        "Generated KFP runs filter",
+        filter_object_with_predicates=final_filter_object,
+    )
+    return orjson.dumps(final_filter_object).decode()
 
 
 def validate_and_convert_date(date_input: str) -> str:

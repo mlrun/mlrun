@@ -431,8 +431,7 @@ class RemoteRuntime(KubeResource):
             # Warn and clear any inline code so the archive is actually used
             logger.warning(
                 "Function already contains inline code. Removing it so the provided "
-                "source archive will be used instead. If you intended to use project "
-                "source, call `set_function(..., with_repo=True)`."
+                "source archive will be used instead."
             )
             self.spec.build.functionSourceCode = None
 

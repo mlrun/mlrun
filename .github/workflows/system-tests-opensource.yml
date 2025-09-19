@@ -219,7 +219,7 @@ jobs:
     - name: Install automation scripts dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes build-essential libpq-dev curl jq make
+        sudo apt-get install --yes build-essential libpq-dev libffi-dev libssl-dev pkg-config curl jq make
         uv venv venv --seed
         source venv/bin/activate
         make install-requirements install-complete-requirements

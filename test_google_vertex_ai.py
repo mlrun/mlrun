@@ -1,0 +1,23 @@
+from google import genai
+from google.genai.types import HttpOptions
+from google.oauth2.credentials import Credentials
+
+base_url = "https://vertexai.prod.ai-gateway.quantumblack.com/f706c444-0ba2-4312-a1b3-e9bd0f0db1c3/"
+access_token = "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJhZXNKN2kxNGNidnVuTU40MTJrOU5yZ2ROeENhTlJudTNPbC1TU08ycFlJIn0.eyJleHAiOjE3NTIzNTg5MDUsImlhdCI6MTc1MjM1NzEwNiwiYXV0aF90aW1lIjoxNzUyMzU3MTA0LCJqdGkiOiIzYTkyMmI3Ni0yNzI3LTQ4ODYtOGY5Yi03MDUzMTJiNDFmNWEiLCJpc3MiOiJodHRwczovL2F1dGgubWNraW5zZXkuaWQvYXV0aC9yZWFsbXMvciIsImF1ZCI6ImJjZDIzNzI4LTNkMjctNDQ3Yy1hMGE5LWVhY2FmMzkzYTZmNSIsInN1YiI6ImE3NWEyYTc4LTYyOTctNGE4YS1hODNlLTVhYjAzNTZiY2QxMyIsInR5cCI6IklEIiwiYXpwIjoiYmNkMjM3MjgtM2QyNy00NDdjLWEwYTktZWFjYWYzOTNhNmY1Iiwic2Vzc2lvbl9zdGF0ZSI6IjIzYmY3ZjFhLWYxOWUtNDhhMC1iZjBlLTMyZmNmMDhlNzYwOCIsImF0X2hhc2giOiJRODNyV0hIa1g0WkxUUjZ0MVhDdnRRIiwibmFtZSI6IkFzc2FmIEJlbiBBbWl0YWkiLCJnaXZlbl9uYW1lIjoiQXNzYWYiLCJmYW1pbHlfbmFtZSI6IkJlbiBBbWl0YWkiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJhMTE0NDY2MTIwMTMwMmE3IiwiZW1haWwiOiJBc3NhZl9CZW5fQW1pdGFpQG1ja2luc2V5LmNvbSIsImFjciI6IjEiLCJzaWQiOiIyM2JmN2YxYS1mMTllLTQ4YTAtYmYwZS0zMmZjZjA4ZTc2MDgiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZm1ubyI6IjMzMTg1NCIsImdyb3VwcyI6WyJBbGwgRmlybSBVc2VycyIsImY3MDZjNDQ0LTBiYTItNDMxMi1hMWIzLWU5YmQwZjBkYjFjMyJdfQ.gUWNZI5heeRnHt72iglb05LLQUvrW8EtKQ-RsIRsECdSjFQXGSmkr0e9We6gGc0mRVyq7AXBANN_0K3qw6Hj9ALZ0cIh5m1RAIQemRF8scI61xsBjd3R6LMe_DA36sK18fvl1R854fhGUT1qCSC2KO3zRUNi4CkPuoBnwF5m6HOmu-vyq_WCNmHolyBTR4c2-RQHV2vKHuSH1WMu3stGN1OOhGqIW9vAvROk6p1Eemo6X31HXU4VuqvHEbea4qlMDcHa78ZTnuT-I85HcKjp68uHuc1lNDMalU81o3UU1TURymRjYnExEmg9LvQaqSJTJ_MWnhP3clXDaZ3AuJPIWQ"
+credentials = Credentials(access_token)
+
+client = genai.Client(
+    http_options=HttpOptions(
+        api_version="v1",
+        base_url=base_url,
+    ),
+    vertexai=True,
+    project="aigateway",
+    location="global",
+    credentials=credentials,
+)
+response = client.models.generate_content(
+    model="gemini-2.0-flash-lite-001",
+    contents="How does AI work?",
+)
+print(response)

@@ -226,11 +226,15 @@ jobs:
         uv pip install -r automation/requirements.txt
 
         # Pin cffi below 2.0.0 to avoid wheels without _cffi_backend on the runner
-        python -m pip install --upgrade --force-reinstall "cffi<2.0.0" cryptography bcrypt paramiko
+        python -m pip install --upgrade --force-reinstall "cffi<2.0.0" cryptography bcrypt paramiko orjson
         python - <<'PY'
         import cffi
         import _cffi_backend  # noqa: F401
+        import orjson
+
+        orjson.dumps({"probe": 1})
         print("cffi runtime ok", cffi.__version__)
+        print("orjson runtime ok", orjson.__version__)
         PY
 
         # helps to resovler missing cffi_backend but test_spark_snowflake.py still fails

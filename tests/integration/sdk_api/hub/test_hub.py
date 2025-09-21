@@ -155,5 +155,6 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         # delete the temp dir
         shutil.rmtree("temp")
 
+        # local_path doesn't exist
         with pytest.raises(ValueError):
             mlrun.import_module(hub_prefix + name, local_path="./temp")

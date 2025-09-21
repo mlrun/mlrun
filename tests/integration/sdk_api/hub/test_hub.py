@@ -157,8 +157,8 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         # get_hub_module and module
         Path.cwd().joinpath("temp").mkdir(exist_ok=True)
         hub_module = mlrun.get_hub_module(hub_prefix + name, download_files=False)
-        mod = hub_module.module()
-        assert mod is None  # didn't download files
+        with pytest.raises(FileNotFoundError):  # didn't download files first
+            hub_module.module()
         hub_module.download_module_files("./temp")
         mod = hub_module.module()
         assert isinstance(mod, types.ModuleType)

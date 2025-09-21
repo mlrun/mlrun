@@ -66,13 +66,13 @@ Support for Confluent Kafka is currently in Tech Preview status.
 ```
 
 ```python
-profile = DatastoreProfileKafkaSource(
+profile = DatastoreProfileKafkaStream(
     name="profile-name", brokers="localhost", topic="topic_name"
 )
 target = KafkaSource(path="ds://profile-name")
 ```
 
-`DatastoreProfileKafkaSource` class parameters:
+`DatastoreProfileKafkaStream` class parameters:
 - `name` &mdash; Name of the profile
 - `brokers` &mdash; This parameter can either be a single string or a list of strings representing the Kafka brokers. Brokers serve as the contact points for clients to connect to the Kafka cluster.
 - `topics` &mdash; A string or list of strings that denote the Kafka topics from which data is sourced or read.

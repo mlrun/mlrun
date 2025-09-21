@@ -23,7 +23,7 @@ import taosws
 
 import mlrun.common.schemas
 import mlrun.runtimes
-from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
 
 import services.api
 import services.api.crud.model_monitoring.deployment as mm_dep
@@ -185,7 +185,7 @@ def test_apply_and_create_kafka_source(
     """Test that the Kafka trigger is set correctly"""
     replication_factor = 3
 
-    kafka_profile = DatastoreProfileKafkaSource(
+    kafka_profile = DatastoreProfileKafkaStream(
         name="test-kafka-profile",
         brokers=["sub.confluent.cloud:9092"],
         topics=[],

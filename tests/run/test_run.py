@@ -23,7 +23,7 @@ import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.errors
 import mlrun.launcher.factory
-from mlrun import new_function, new_task
+from mlrun import code_to_function, new_function, new_task
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -74,8 +74,30 @@ def test_noparams(rundb_mock):
     assert result.status.artifacts[0]["metadata"].get("key") == "chart", "failed to run"
 
     # verify the DF artifact was created and stored
-    df = result.artifact("mydf").as_df()
-    df.shape
+    result.artifact("mydf").as_df()
+
+
+def test_ensure_remote_run(tmp_path, monkeypatch):
+    """This test ensures that function is not running locally when the API is running on k8s
+    and context is not a workflow.
+    """
+    spec = tag_test(base_spec, "test_force_run_local")
+    spec.spec.handler = "training"
+    nb_path = f"{examples_path}/mlrun_jobs.ipynb"
+    fn = code_to_function(name="mlrun-job", filename=nb_path, kind="job")
+
+    # monkeypatch is_api_running_on_k8s to return True
+    monkeypatch.setattr(mlrun.config.Config, "is_api_running_on_k8s", lambda self: True)
+
+    result = mlrun.run_function(fn, base_task=spec, workdir=str(tmp_path))
+    print(result.to_yaml())
+
+    # kind is job and not local
+    assert result.metadata.labels["kind"] == "job"
+
+    # running remotely, thus created and not completed (as it is not running locally but waiting
+    # to be scheduled)
+    verify_state(result, expected="created")
 
 
 def test_failed_schedule_not_creating_run():
@@ -305,7 +327,7 @@ def test_args_integrity():
     assert output.find("It's, a, nice, day!") != -1, "params not detected in argv"
 
 
-def test_get_or_create_ctx_run_kind():
+def test_get_or_create_ctx_run_kind(ensure_project):
     # varify the default run kind is local
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "local"
@@ -335,7 +357,7 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
 ):
     monkeypatch.setenv(
         "MLRUN_EXEC_CONFIG",
-        '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
+        '{"spec":{},"metadata":{"project":"dummy-project", "uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
     )
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "spark"

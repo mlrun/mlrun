@@ -14,7 +14,6 @@
 
 import random
 
-import deepdiff
 import pytest
 
 import mlrun
@@ -26,20 +25,8 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
     @staticmethod
     def _assert_source_lists_match(expected_response):
         response = mlrun.get_run_db().list_hub_sources()
-
-        exclude_paths = [
-            "root['source']['metadata']['updated']",
-            "root['source']['metadata']['created']",
-        ]
         for i in range(len(expected_response)):
-            assert (
-                deepdiff.DeepDiff(
-                    expected_response[i].dict(),
-                    response[i].dict(),
-                    exclude_paths=exclude_paths,
-                )
-                == {}
-            )
+            assert expected_response[i].source.diff(response[i].source) == {}
 
     def test_hub(self):
         db = mlrun.get_run_db()

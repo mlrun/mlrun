@@ -721,7 +721,9 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, dict[str, float]]:
+        if not endpoint_ids:
+            return {}
         filter_query = self._generate_filter_query(
             filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
             filter_values=endpoint_ids,

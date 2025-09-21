@@ -531,8 +531,11 @@ class TestKubejobRuntime(TestRuntimeBase):
                 ],
                 {
                     "user-node-selector": "some-value",
+                    "app.iguazio.com/lifecycle": "preemptible",
                 },
-                {},
+                create_node_affinity_with_terms(
+                    preemptible_affinity_iguazio + preemptible_affinity_cloud_provider
+                ),
             ),
             # Mode "allow" with no preemptible toleration.
             (
@@ -1440,6 +1443,27 @@ def my_func(context):
             mlconf.function.spec.state_thresholds.default.pending_scheduled
         )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
+
+    def test_generate_runtime_env_injects_deprecated_default_project(
+        self, db: Session, k8s_secrets_mock
+    ):
+        # TODO: Remove this test in 1.12.0
+        # This test ensures that even though MLRUN_DEFAULT_PROJECT is deprecated, it is still injected into the
+        # runtime environment for backward compatibility
+        runtime = self._generate_runtime()
+
+        runobj = mlrun.model.RunObject.from_dict(
+            {
+                "metadata": {"name": "job", "project": self.project},
+            }
+        )
+
+        env = runtime._generate_runtime_env(runobj)
+
+        assert env["MLRUN_ACTIVE_PROJECT"] == self.project
+
+        # validate that the default project env var is also set for backward compatibility
+        assert env["MLRUN_DEFAULT_PROJECT"] == self.project
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

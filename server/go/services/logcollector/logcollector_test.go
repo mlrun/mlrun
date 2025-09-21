@@ -261,6 +261,12 @@ func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
 	response, err := suite.logCollectorServer.StartLog(suite.ctx, request)
 	suite.Require().NoError(err, "Failed to start log")
 	suite.Require().True(response.Success, "Failed to start log")
+
+	// validate a file was created
+	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(request.ProjectName, request.RunUID)
+	exists, err := common.FileExists(logFilePath)
+	suite.Require().NoError(err, "Failed to check if log file exists")
+	suite.Require().True(exists, "Log file doesn't exist")
 }
 
 func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {

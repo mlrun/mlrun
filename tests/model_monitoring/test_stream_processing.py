@@ -18,7 +18,7 @@ import mlrun
 import mlrun.model_monitoring
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
-    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaStream,
     DatastoreProfileTDEngine,
     DatastoreProfileV3io,
 )
@@ -38,7 +38,7 @@ from mlrun.model_monitoring.stream_processing import EventStreamProcessor
     "stream_profile",
     [
         DatastoreProfileV3io(name="v3io-stream-test"),
-        DatastoreProfileKafkaSource(
+        DatastoreProfileKafkaStream(
             name="kafka-test", brokers=["localhost:9092"], topics=[]
         ),
     ],

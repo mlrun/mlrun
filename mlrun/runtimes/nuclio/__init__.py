@@ -16,6 +16,7 @@ from .serving import ServingRuntime, new_v2_model_server  # noqa
 from .nuclio import nuclio_init_hook  # noqa
 from .function import (
     min_nuclio_versions,
+    multiple_port_sidecar_is_supported,
     RemoteRuntime,
 )  # noqa
 from .api_gateway import APIGateway

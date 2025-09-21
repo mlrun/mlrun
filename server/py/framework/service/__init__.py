@@ -66,6 +66,7 @@ class Service(ABC):
 
     async def move_service_to_online(self):
         self._logger.info("Moving service to online", service_name=self.service_name)
+        await run_async_function_with_new_db_session(self._sync_system_metadata)
         await self._move_service_to_online()
 
     # https://fastapi.tiangolo.com/advanced/events/
@@ -191,10 +192,14 @@ class Service(ABC):
             # in the background, wait for chief to reach online state
             self._start_chief_clusterization_spec_sync_loop()
 
+        # below logic must be relevant for chief only
+        # as at this point the worker is not yet online (the condition below is for chief only)
+        # and this means not all data / schemas are ready yet on worker level.
+
+        # relevant for chief only. workers will not reach this point as they
+        # are waiting for chief to reach online state.
         if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:
             await self.move_service_to_online()
-
-        await run_async_function_with_new_db_session(self._sync_system_metadata)
 
     async def _setup_mounted_service(self):
         await self._custom_setup_service()

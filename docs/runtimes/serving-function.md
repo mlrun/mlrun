@@ -5,7 +5,7 @@ Deploying models in MLRun uses the function type {py:meth}`~mlrun.runtimes.Servi
 You can also import an existing serving function/template from the {ref}`load-from-hub`.
 
 **In this section**
-- [Creating a basic serving model using Scikit-learn](#creating-a-basic-serving-model using-scikit-learn)
+- [Creating a basic serving model using Scikit-learn](#creating-a-basic-serving-model-using-scikit-learn)
 - [Using Git with a serving function](#using-git-with-a-serving-function)
 
 ## Creating a basic serving model using Scikit-learn

@@ -48,7 +48,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -97,7 +97,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -163,7 +163,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -235,17 +235,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Explicitly define combinations: KFP v1.8 with Python 3.9
-        # TODO: Enable KFP v2 with Python 3.11 when it's supported (in 1.9.0)
         include:
           - python-version: "3.9"
             pipeline-adapter: "kfp-v1-8"
-#          - python-version: "3.11"
-#            pipeline-adapter: "kfp-v2"
+          - python-version: "3.11"
+            pipeline-adapter: "kfp-v1-8"
     steps:
     - uses: actions/checkout@v5
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
@@ -328,7 +326,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
@@ -351,7 +349,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip

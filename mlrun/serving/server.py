@@ -17,8 +17,10 @@ __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 import asyncio
 import base64
 import copy
+import importlib
 import json
 import os
+import pathlib
 import socket
 import traceback
 import uuid
@@ -31,9 +33,10 @@ from nuclio import Context as NuclioContext
 from nuclio.request import Logger as NuclioLogger
 
 import mlrun
-import mlrun.common.constants
 import mlrun.common.helpers
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.model_monitoring
 import mlrun.utils
 from mlrun.config import config
@@ -80,7 +83,6 @@ class _StreamContext:
         self.hostname = socket.gethostname()
         self.function_uri = function_uri
         self.output_stream = None
-        stream_uri = None
         log_stream = parameters.get(FileTargetKind.LOG_STREAM, "")
 
         if (enabled or log_stream) and function_uri:
@@ -91,20 +93,16 @@ class _StreamContext:
 
             stream_args = parameters.get("stream_args", {})
 
-            if log_stream == DUMMY_STREAM:
-                # Dummy stream used for testing, see tests/serving/test_serving.py
-                stream_uri = DUMMY_STREAM
-            elif not stream_args.get("mock"):  # if not a mock: `context.is_mock = True`
-                stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
-
             if log_stream:
-                # Update the stream path to the log stream value
-                stream_uri = log_stream.format(project=project)
-                self.output_stream = get_stream_pusher(stream_uri, **stream_args)
+                # Get the output stream from the log stream path
+                stream_path = log_stream.format(project=project)
+                self.output_stream = get_stream_pusher(stream_path, **stream_args)
             else:
                 # Get the output stream from the profile
                 self.output_stream = mlrun.model_monitoring.helpers.get_output_stream(
-                    project=project, mock=stream_args.get("mock", False)
+                    project=project,
+                    profile=parameters.get("stream_profile"),
+                    mock=stream_args.get("mock", False),
                 )
 
 
@@ -182,11 +180,12 @@ class GraphServer(ModelObj):
         self,
         context,
         namespace,
-        resource_cache: ResourceCache = None,
+        resource_cache: Optional[ResourceCache] = None,
         logger=None,
         is_mock=False,
         monitoring_mock=False,
-    ):
+        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
+    ) -> None:
         """for internal use, initialize all steps (recursively)"""
 
         if self.secret_sources:
@@ -200,6 +199,20 @@ class GraphServer(ModelObj):
         context.is_mock = is_mock
         context.monitoring_mock = monitoring_mock
         context.root = self.graph
+
+        if is_mock and monitoring_mock:
+            if stream_profile:
+                # Add the user-defined stream profile to the parameters
+                self.parameters["stream_profile"] = stream_profile
+            elif not (
+                self.parameters.get(FileTargetKind.LOG_STREAM)
+                or mlrun.get_secret_or_env(
+                    mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME
+                )
+            ):
+                # Set a dummy log stream for mocking purposes if there is no direct
+                # user-defined stream profile and no information in the environment
+                self.parameters[FileTargetKind.LOG_STREAM] = DUMMY_STREAM
 
         context.stream = _StreamContext(
             self.track_models, self.parameters, self.function_uri
@@ -404,6 +417,7 @@ def add_monitoring_general_steps(
             "mlrun.serving.system_steps.BackgroundTaskStatus",
             "background_task_status_step",
             model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+            full_event=True,
         )
     monitor_flow_step = graph.add_step(
         "storey.Filter",
@@ -572,19 +586,34 @@ async def async_execute_graph(
     nest_under_inputs: bool,
 ) -> list[Any]:
     spec = mlrun.utils.get_serving_spec()
-
-    namespace = {}
+    modname = None
     code = os.getenv("MLRUN_EXEC_CODE")
     if code:
         code = base64.b64decode(code).decode("utf-8")
-        exec(code, namespace)
+        with open("user_code.py", "w") as fp:
+            fp.write(code)
+        modname = "user_code"
     else:
         # TODO: find another way to get the local file path, or ensure that MLRUN_EXEC_CODE
         #  gets set in local flow and not just in the remote pod
-        source_filename = spec.get("filename", None)
-        if source_filename:
-            with open(source_filename) as f:
-                exec(f.read(), namespace)
+        source_file_path = spec.get("filename", None)
+        if source_file_path:
+            source_file_path_object = pathlib.Path(source_file_path).resolve()
+            current_dir_path_object = pathlib.Path(".").resolve()
+            if not source_file_path_object.is_relative_to(current_dir_path_object):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Source file path '{source_file_path}' is not under the current working directory "
+                    f"(which is required when running with local=True)"
+                )
+            relative_path_to_source_file = source_file_path_object.relative_to(
+                current_dir_path_object
+            )
+            modname = ".".join(relative_path_to_source_file.with_suffix("").parts)
+
+    namespace = {}
+    if modname:
+        mod = importlib.import_module(modname)
+        namespace = mod.__dict__
 
     server = GraphServer.from_dict(spec)
 

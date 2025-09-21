@@ -21,10 +21,13 @@ import fastapi
 import semver
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
+import mlrun.model_monitoring.helpers
+from mlrun.utils import logger
 
 import framework.api.utils
 import framework.utils.auth.verifier
@@ -515,3 +518,49 @@ async def delete_model_endpoints_metrics_values(
     await commons.get_monitoring_deployment().delete_application_records(
         application_name=application_name, endpoint_ids=endpoint_id
     )
+
+
+@router.get(
+    "/drift-over-time",
+    status_code=http.HTTPStatus.OK.value,
+    response_model=mlrun.common.schemas.ModelEndpointDriftValues,
+)
+async def get_model_endpoint_drift_over_time(
+    project: ProjectAnnotation,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        framework.api.deps.authenticate_request
+    ),
+) -> mlrun.common.schemas.ModelEndpointDriftValues:
+    """
+    Get drift counts over time for the project.
+
+    :param project:     The name of the project.
+    :param start:       Start time of the range to retrieve drift counts from.
+    :param end:         End time of the range to retrieve drift counts from.
+    :param auth_info:   The auth info of the request.
+
+    :return: A ModelEndpointDriftValues object containing the drift counts over time.
+    """
+    start, end = mlrun.model_monitoring.helpers.validate_time_range(start, end)
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    try:
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=project,
+            secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                project=project
+            ),
+        )
+    except mlrun.errors.MLRunNotFoundError as e:
+        logger.debug(
+            "Failed to retrieve model endpoint metrics-values because the TSDB datastore profile was not found. "
+            "Returning an empty list of metric-values",
+            error=mlrun.errors.err_to_str(e),
+        )
+        return mlrun.common.schemas.ModelEndpointDriftValues(values=[])
+    return await run_in_threadpool(tsdb_connector.get_drift_data, start, end)

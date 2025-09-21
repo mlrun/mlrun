@@ -14,6 +14,7 @@
 import json
 import os
 import warnings
+from base64 import b64decode
 from copy import deepcopy
 from typing import Optional, Union
 
@@ -22,6 +23,7 @@ from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas as schemas
+import mlrun.datastore.datastore_profile as ds_profile
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -677,6 +679,17 @@ class ServingRuntime(RemoteRuntime):
                         f"function {function} is used in steps and is not defined, "
                         "use the .add_child_function() to specify child function attributes"
                     )
+        if isinstance(self.spec.graph, RootFlowStep) and any(
+            isinstance(step_type, mlrun.serving.states.ModelRunnerStep)
+            for step_type in self.spec.graph.steps.values()
+        ):
+            # Add import for LLModel
+            decoded_code = b64decode(self.spec.build.functionSourceCode).decode("utf-8")
+            import_llmodel_code = "\nfrom mlrun.serving.states import LLModel\n"
+            if import_llmodel_code not in decoded_code:
+                decoded_code += import_llmodel_code
+            encoded_code = mlrun.utils.helpers.encode_user_code(decoded_code)
+            self.spec.build.functionSourceCode = encoded_code
 
         # Handle secret processing before handling child functions, since secrets are transferred to them
         if self.spec.secret_sources:
@@ -740,6 +753,7 @@ class ServingRuntime(RemoteRuntime):
         current_function="*",
         track_models=False,
         workdir=None,
+        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
         **kwargs,
     ) -> GraphServer:
         """create mock server object for local testing/emulation
@@ -748,6 +762,7 @@ class ServingRuntime(RemoteRuntime):
         :param current_function: specify if you want to simulate a child function, * for all functions
         :param track_models: allow model tracking (disabled by default in the mock server)
         :param workdir:   working directory to locate the source code (if not the current one)
+        :param stream_profile:   stream profile to use for the mock server output stream.
         """
 
         # set the namespaces/modules to look for the steps code in
@@ -787,6 +802,7 @@ class ServingRuntime(RemoteRuntime):
             logger=logger,
             is_mock=True,
             monitoring_mock=self.spec.track_models,
+            stream_profile=stream_profile,
         )
 
         server.graph = add_system_steps_to_graph(

@@ -331,6 +331,7 @@ class EndpointType(IntEnum):
 class EndpointMode(IntEnum):
     REAL_TIME = 0
     BATCH = 1
+    BATCH_LEGACY = 2  # legacy batch mode, used for endpoints created through the batch inference job
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):

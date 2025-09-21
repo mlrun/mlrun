@@ -420,8 +420,8 @@ class Projects(
         self, session: sqlalchemy.orm.Session
     ):
         projects_output = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             self.list_projects,
-            session,
             format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
         )
 
@@ -523,8 +523,8 @@ class Projects(
                 )
             )
         await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             framework.utils.singletons.db.get_db().refresh_project_summaries,
-            session,
             project_summaries,
         )
 

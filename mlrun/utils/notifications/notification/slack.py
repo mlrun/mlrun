@@ -14,14 +14,12 @@
 
 import typing
 
-import aiohttp
-
 import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.utils.helpers
 
-from .base import NotificationBase
+from .base import NotificationBase, TimedHTTPClient
 
 
 class SlackNotification(NotificationBase):
@@ -67,7 +65,7 @@ class SlackNotification(NotificationBase):
 
         data = self._generate_slack_data(message, severity, runs, alert, event_data)
 
-        async with aiohttp.ClientSession() as session:
+        async with TimedHTTPClient().session() as session:
             async with session.post(webhook, json=data) as response:
                 response.raise_for_status()
 

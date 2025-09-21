@@ -142,9 +142,6 @@ class FunctionSpec(ModelObj):
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
 
-    def enrich_function_preemption_spec(self):
-        pass
-
     def validate_service_account(self, allowed_service_accounts):
         pass
 
@@ -379,7 +376,12 @@ class BaseRuntime(ModelObj):
                              This ensures latest code changes are executed. This argument must be used in
                              conjunction with the local=True argument.
         :param output_path:    Default artifact output path.
-        :param retry:          Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
+        :param retry:          Retry configuration for the run, can be a dict or an instance of
+                               :py:class:`~mlrun.model.Retry`.
+                               The `count` field in the `Retry` object specifies the number of retry attempts.
+                               If `count=0`, the run will not be retried.
+                               The `backoff` field specifies the retry backoff strategy between retry attempts.
+                               If not provided, no backoff is applied.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         if artifact_path or out_path:
@@ -446,9 +448,11 @@ class BaseRuntime(ModelObj):
         :param runobj: Run context object (RunObject) with run metadata and status
         :return: Dictionary with all the variables that could be parsed
         """
+        active_project = self.metadata.project or config.active_project
         runtime_env = {
-            mlrun_constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
-            or config.active_project
+            mlrun_constants.MLRUN_ACTIVE_PROJECT: active_project,
+            # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
+            "MLRUN_DEFAULT_PROJECT": active_project,
         }
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(

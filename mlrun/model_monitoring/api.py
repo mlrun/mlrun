@@ -350,8 +350,8 @@ def _generate_model_endpoint(
             project=project,
             name=model_endpoint_name,
             endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP,
-            # Due to backwards compatibility, old batch model endpoint will be analyzed as real time endpoint
-            mode=mlrun.common.schemas.model_monitoring.EndpointMode.REAL_TIME,
+            # Due to backwards compatibility, this endpoint will be created as a legacy batch endpoint.
+            mode=mlrun.common.schemas.model_monitoring.EndpointMode.BATCH_LEGACY,
         ),
         spec=mlrun.common.schemas.ModelEndpointSpec(
             function_name=function_name or "function",

@@ -2,6 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
+- [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
@@ -23,6 +24,42 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Python: from 3.9 to 3.11.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+
+(#v1100)=
+## v1.10.0
+
+### Models
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9685| You can now use models stored in a remote source like HuggingFace, without saving it in your datastore. See [Remote models](../store/models.me#remote-models) and [Serving using a remote model](..genai/deployment/genai_serving.md#serving-using-a-remote-model).|
+
+
+### Runtimes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-5986|You can now retry MLRun functions of type `job`. See {ref}`job-function` and {py:class}`mlrun.projects.MlrunProject.run_function`.|
+|ML-10274|MLRun applies scheduling constraints to the run object at execution time (and does not modify the function definition). Your original scheduling constraints appear on the function, but the actual run may have different constraints applied dynamically when it executes.|
+
+
+
+### Breaking Changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9838|The default project (`project="default"`) is no longer supported. This also affects the CE. All functions must have an explicit project. You can name a project default, but it will not have any pre-ordained permissions. Existing systems can keep pre-existing default projects, but they are no longer enriched .|
+
+### Infrastructure
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-2714|MLRun supports Confluent Kafka 7.8.|
+
+
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-8601|Default spot labels node selector are no longer removed.|
+|ML-8740|Notifications are now issued when retrying pipelines.|
 
 (v192)=
 ## v1.9.2 (July 2025)

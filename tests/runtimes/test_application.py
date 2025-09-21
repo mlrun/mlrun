@@ -389,6 +389,7 @@ def test_application_runtime_resources(rundb_mock, igz_version_mock):
 
 
 def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
+    mlrun.get_or_create_project("test-deploy-reverse-proxy", allow_cross_project=True)
     mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
     assert mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
 

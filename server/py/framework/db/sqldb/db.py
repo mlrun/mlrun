@@ -1897,11 +1897,8 @@ class SQLDB(DBInterface):
         # Order the results before applying the limit to ensure that the limit is applied to the correctly
         # ordered results.
         # If the updated fields are the same, we need a secondary field to sort by.
-        order_criteria = []
-        # Always sort by updated first
-        order_criteria.append(ArtifactV2.updated.desc())
-        # Always sort by ID second
-        order_criteria.append(ArtifactV2.id.desc())
+        # Default sorting criteria is by updated first and ID second
+        order_criteria = [ArtifactV2.updated.desc(), ArtifactV2.id.desc()]
 
         # join on tags
         if tag and tag != "*":
@@ -1973,10 +1970,11 @@ class SQLDB(DBInterface):
                 (subquery.c.tag_name == "latest", 0),
                 else_=1,
             )
-            # Replace the last two order criteria (which are related to tag ordering in the subquery)
+
+            # Reset order criteria to default values
             if limit:
-                order_criteria.pop()
-                order_criteria.pop()
+                order_criteria = [ArtifactV2.updated.desc(), ArtifactV2.id.desc()]
+
             order_criteria.append(latest_first_case)
             # Safe ordering by tag_id alias
             order_criteria.append(subquery.c[tag_id_alias].desc())

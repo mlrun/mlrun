@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import typing
 import uuid
 from datetime import datetime
@@ -35,6 +36,8 @@ import mlrun.errors
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
+from mlrun.common.schemas.model_monitoring import WriterEvent
+from mlrun.datastore import ParquetTarget
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
@@ -594,12 +597,13 @@ class ModelEndpoints:
         ModelMonitoringSchedulesFileEndpoint.from_model_endpoint(
             model_endpoint=model_endpoint
         ).create()
-        ModelMonitoringCurrentStatsFile.from_model_endpoint(
-            model_endpoint=model_endpoint
-        ).create()
-        ModelMonitoringDriftMeasuresFile.from_model_endpoint(
-            model_endpoint=model_endpoint
-        ).create()
+        if mlrun.mlconf.model_endpoint_monitoring.writer_graph.version == "v1":
+            ModelMonitoringCurrentStatsFile.from_model_endpoint(
+                model_endpoint=model_endpoint
+            ).create()
+            ModelMonitoringDriftMeasuresFile.from_model_endpoint(
+                model_endpoint=model_endpoint
+            ).create()
 
     async def patch_model_endpoint(
         self,
@@ -981,9 +985,43 @@ class ModelEndpoints:
             )[0]
         if feature_analysis:
             logger.info("Adding feature analysis to the model endpoint")
-            model_endpoint_object = self._add_feature_analysis(
-                model_endpoint_objects=[model_endpoint_object]
-            )[0]
+            drift_measures, drift_measures_timestamp = (
+                self._get_mep_stats_dict_from_parquet(
+                    db_session=db_session,
+                    project=project,
+                    uid=model_endpoint_object.metadata.uid,
+                    kind=mm_constants.StatsKind.DRIFT_MEASURES,
+                )
+            )
+            current_stats, current_stats_timestamp = (
+                self._get_mep_stats_dict_from_parquet(
+                    db_session=db_session,
+                    project=project,
+                    uid=model_endpoint_object.metadata.uid,
+                    kind=mm_constants.StatsKind.CURRENT_STATS,
+                )
+            )
+            if current_stats or drift_measures:
+                logger.info(
+                    "[David] Got from parquet",
+                    current_stats=current_stats,
+                    drift_measures=drift_measures,
+                )
+                (
+                    model_endpoint_object.status.current_stats,
+                    model_endpoint_object.status.current_stats_timestamp,
+                ) = (current_stats, current_stats_timestamp)
+
+                (
+                    model_endpoint_object.status.drift_measures,
+                    model_endpoint_object.status.drift_measures_timestamp,
+                ) = (drift_measures, drift_measures_timestamp)
+            else:
+                # json option
+                model_endpoint_object = self._add_feature_analysis(
+                    model_endpoint_objects=[model_endpoint_object]
+                )[0]
+
             if model_endpoint_object.spec.model_uri:
                 model_endpoint_object, _ = self._add_feature_stats(
                     session=db_session, model_endpoint_object=model_endpoint_object
@@ -1464,6 +1502,59 @@ class ModelEndpoints:
 
         model_endpoint_object.spec.feature_stats = feature_stats
         return model_endpoint_object, model_obj
+
+    @staticmethod
+    def _get_mep_stats_dict_from_parquet(
+        db_session,
+        project,
+        uid,
+        kind,
+    ) -> tuple[dict, typing.Optional[datetime]]:
+        parquet_target = (
+            services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
+                db_session=db_session,
+                project=project,
+                kind="parquet_stats",
+            )
+        )
+
+        target = ParquetTarget(
+            path=parquet_target,
+            partition_cols=[WriterEvent.ENDPOINT_ID, mm_constants.StatsData.STATS_NAME],
+        )
+        try:
+            df = target.as_df(
+                additional_filters=[
+                    (WriterEvent.ENDPOINT_ID, "=", uid),
+                    (mm_constants.StatsData.STATS_NAME, "=", kind),
+                ]
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to read stats from parquet, you may need to check the parquet file",
+                project=project,
+                endpoint_id=uid,
+                kind=kind,
+                error=mlrun.errors.err_to_str(exc),
+            )
+            return {}, None
+        if df.empty:
+            return {}, None
+        else:
+            df.sort_values(
+                by=[mm_constants.StatsData.TIMESTAMP], ascending=False, inplace=True
+            )
+            logger.info(
+                "Got stats from parquet",
+                project=project,
+                endpoint_id=uid,
+                kind=kind,
+                stats=df.iloc[0][mm_constants.StatsData.STATS],
+                timestamp=df.iloc[0][mm_constants.StatsData.TIMESTAMP],
+            )
+            return json.loads(
+                df.iloc[0][mm_constants.StatsData.STATS]
+            ), datetime.fromisoformat(df.iloc[0][mm_constants.StatsData.TIMESTAMP])
 
 
 class ModelMonitoringResourcesDeleter:

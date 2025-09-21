@@ -308,6 +308,7 @@ class FileTargetKind:
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"
     STATS = "stats"
+    PARQUET_STATS = "parquet_stats"
     LAST_REQUEST = "last_request"
 
 

@@ -233,8 +233,18 @@ class ModelMonitoringWriter(StepToDict):
 
 
 class WriterGraphFactory:
-    @staticmethod
+    def __init__(
+        self,
+        parquet_path: str,
+        parquet_batching_max_events: int = 1000,
+        parquet_batching_timeout_secs: int = 10,
+    ):
+        self.parquet_path = parquet_path
+        self.parquet_batching_max_events = parquet_batching_max_events
+        self.parquet_batching_timeout_secs = parquet_batching_timeout_secs
+
     def apply_writer_graph(
+        self,
         fn: mlrun.runtimes.ServingRuntime,
         tsdb_connector: TSDBConnector,
     ):
@@ -267,10 +277,27 @@ class WriterGraphFactory:
             path=f"projects/{fn.metadata.project}/events/{{kind}}",
             fill_placeholders=True,
         )
+
         graph.add_step(
-            "StatsWriter",
+            "mlrun.datastore.storeytargets.ParquetStoreyTarget",
+            alternative_v3io_access_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
             name="stats_writer",
             after="kind_choice_step",
+            graph_shape="cylinder",
+            path=self.parquet_path
+            if self.parquet_path.endswith("/")
+            else self.parquet_path + "/",
+            max_events=self.parquet_batching_max_events,
+            flush_after_seconds=self.parquet_batching_timeout_secs,
+            columns=[
+                StatsData.TIMESTAMP,
+                StatsData.STATS,
+                WriterEvent.ENDPOINT_ID,
+                StatsData.STATS_NAME,
+            ],
+            key_bucketing_number=0,
+            partition_cols=[WriterEvent.ENDPOINT_ID, StatsData.STATS_NAME],
+            single_file=True,
         )
 
 
@@ -279,6 +306,7 @@ class ReconstructWriterEvent(storey.MapClass):
         super().__init__()
 
     def do(self, event: dict) -> dict[str, Any]:
+        logger.info("Reconstructing the event", event=event)
         kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)
         result_event = _AppResultEvent(json.loads(event.pop(WriterEvent.DATA, "{}")))
         result_event.update(_AppResultEvent(event))
@@ -309,17 +337,20 @@ class ReconstructWriterEvent(storey.MapClass):
             result_event[WriterEvent.END_INFER_TIME] = datetime.fromisoformat(
                 event[WriterEvent.END_INFER_TIME]
             )
+        if kind == WriterEventKind.STATS:
+            result_event[StatsData.STATS] = json.dumps(result_event[StatsData.STATS])
         return result_event
 
 
 class KindChoice(storey.Choice):
     def select_outlets(self, event):
+        logger.info("Selecting the outlet for the event", kind=event.get("kind"))
         if event.get("kind") == WriterEventKind.METRIC:
             outlets = ["tsdb_metrics"]
         elif event.get("kind") == WriterEventKind.RESULT:
             outlets = ["tsdb_app_results", "AlertGenerator"]
         elif event.get("kind") == WriterEventKind.STATS:
-            outlets = ["StatsWriter"]
+            outlets = ["stats_writer"]
         else:
             raise _WriterEventValueError(
                 f"Unknown event kind: {event.get('kind')}, expected one of: {WriterEventKind.list()}"
@@ -395,11 +426,3 @@ class AlertGenerator(storey.MapClass):
         )
 
         return event_data
-
-
-class StatsWriter(storey.MapClass):
-    def __init__(self):
-        super().__init__()
-
-    def do(self, event: dict) -> dict[str, Any]:
-        return event

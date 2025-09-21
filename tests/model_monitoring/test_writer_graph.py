@@ -46,7 +46,7 @@ def test_plot_writer_graph(tsdb_profile: DatastoreProfile) -> None:
         project=project_name, profile=tsdb_profile
     )
 
-    WriterGraphFactory.apply_writer_graph(fn, tsdb_connector)
+    WriterGraphFactory(parquet_path=None).apply_writer_graph(fn, tsdb_connector)
 
     graph = fn.spec.graph.plot(rankdir="TB")
     print()

@@ -16,6 +16,9 @@ import yaml
 import os
 from typing import Optional, Union
 from pathlib import Path
+import subprocess
+import sys
+
 
 import mlrun.utils
 from ..model import ModelObj
@@ -63,9 +66,13 @@ class HubModule(ModelObj):
             mlrun.utils.logger.warning(f"Module file {self.filename} not found in {searched_path}, try calling download_module_files() first")
             return None
 
-    def install_requirements(self):
-        # TODO: implement
-        pass
+    def install_requirements(self) -> None:
+        """
+        Install pip-style requirements (e.g., ["pandas>=2.0.0", "requests==2.31.0"]).
+        """
+        for req in self.requirements:
+            print(f"Installing {req}...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", req])
 
     def download_module_files(self, local_path=None, secrets=None):
         self.local_path = self.verify_directory(local_path)

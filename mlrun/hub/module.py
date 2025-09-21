@@ -99,12 +99,13 @@ class HubModule(ModelObj):
     @staticmethod
     def verify_directory(path) -> Path:
         """Validate that the given path is an existing directory."""
-        p = Path(path)
-        if not p.exists():
-            raise ValueError(f"Path does not exist: {p}")
-        if not p.is_dir():
-            raise ValueError(f"Path is not a directory: {p}")
-        return p
+        if path:
+            path = Path(path)
+            if not path.exists():
+                raise ValueError(f"Path does not exist: {path}")
+            if not path.is_dir():
+                raise ValueError(f"Path is not a directory: {path}")
+        return path
 
 def get_hub_module(url="", download_files=True, secrets=None, local_path=None):
     item_yaml_url, is_hub_uri = extend_hub_uri_if_needed(url, HubSourceType.modules, "item.yaml")

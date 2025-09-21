@@ -72,7 +72,10 @@ class HubModule(ModelObj):
         """
         for req in self.requirements:
             print(f"Installing {req}...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", req])
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", req],
+                stdout=sys.stdout, stderr=sys.stderr
+            )
 
     def download_module_files(self, local_path=None, secrets=None):
         self.local_path = self.verify_directory(local_path)

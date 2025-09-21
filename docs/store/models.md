@@ -142,22 +142,7 @@ run = func.run(
 ```
 
 ## Remote models
-You can use models stored in a remote source, for example HuggingFace. You can load the model from the remote source, without saving it in your datastore. A remote `ModelArtifact` instance does not have any extra data or similar facilities that the locally stored model artifact supports. Remote models are specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas, as described in the next sections.
-### HTTPS
-`https://`: Use a generic remote model that is invoked through http calls.
-### HuggingFace
-`hugging_face://<model-path>`: Use the Hugging Face pipeline as a client to download models and use them. The URL contains the vendor and name of model, for example: `huggingface://google/gemma-3-27b-it`.
-### OpenAI
- `openai://<model-name>`: work with a model that supports the OpenAI protocol. By default, models are assumed to be models served by OpenAI. The secrets/env options are:
-- api_key / "OPENAI_API_KEY"
-- organization / "OPENAI_ORG_ID"
-- project / "OPENAI_PROJECT_ID"
-- base_url / "OPENAI_BASE_URL"
-- timeout / "OPENAI_TIMEOUT"
-- max_retries / "OPENAI_MAX_RETRIES"
-- endpoint_url parameter that allows other endpoints to be used. For example: to deploy a model that supports OpenAI protocol using a Nuclio function, the URL would be `openai://<model_name>` and the endpoint URL provided would be similar to `http://my.nuclio.function.url`.
-### ds
-`ds://<profile name>/<model-name>`: Use a datastore profile for model connection parameters. The profile must contain the required connection parameters: secrets and credentials, as well as parameters that determine the routing to the model (such as the endpoint URL), but not the actual model name. Since the profile does not contain the model name, it can be used for multiple models. 
+You can use models stored in a remote source, for example HuggingFace. You can load the model from the remote source, without saving it in your datastore. A remote {py:class}`mlrun.artifacts.model.ModelArtifact` instance does not have any extra data or similar facilities that the locally stored model artifact supports. Remote models are specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas, as described in the next sections. You can specify the default configuration for client building with the `default_config` parameter.
 
 ### Guidelines for the parameter `model_url`:
 - Remote model artifacts cannot be uploaded or downloaded. Consequently, the `upload` parameter cannot be set to `True`.
@@ -167,4 +152,19 @@ You can use models stored in a remote source, for example HuggingFace. You can l
 ### Credentials
 
 For models not using a datastore profile, the MLRun code attempts to retrieve credentials from the environment (using `get_secret_or_env`).
-For each type of schema, a standard secret name must be provided. For example, `OPENAI_API_KEY` for OpenAI, `API_TOKEN` for HF, etc.
+For each type of schema, a standard secret name must be provided. For example, `OPENAI_API_KEY` for OpenAI, `HF_TOKEN` for HF, etc.
+
+### HuggingFace
+`hugging_face://<model-path>`: Use the Hugging Face pipeline as a client to download models and use them. The URL contains the vendor and name of model, for example: `huggingface://google/gemma-3-27b-it`.
+### OpenAI
+ `openai://<model-name>`: work with a model that supports the OpenAI protocol. By default, models are assumed to be models served by OpenAI. The secrets/env options are:
+- api_key / "OPENAI_API_KEY"
+- organization / "OPENAI_ORG_ID"
+- project / "OPENAI_PROJECT_ID"
+- base_url / "OPENAI_BASE_URL" parameter that allows other endpoints to be used. For example: to deploy a model that supports OpenAI protocol using a Nuclio function, the URL would be `openai://<model_name>` and the endpoint URL provided would be similar to `http://my.nuclio.function.url`.
+- timeout / "OPENAI_TIMEOUT"
+- max_retries / "OPENAI_MAX_RETRIES"
+### ds
+`ds://<profile name>/<model-name>`: Use a datastore profile for model connection parameters. The profile must contain the required connection parameters: secrets and credentials, as well as parameters that determine the routing to the model (such as the endpoint URL), but not the actual model name. Since the profile does not contain the model name, it can be used for multiple models. 
+
+

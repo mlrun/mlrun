@@ -56,28 +56,13 @@ class HubModule(ModelObj):
         self.example: str = example or ""
         self.url: str = url or ""
 
-    # @staticmethod
-    # def _validate_path(self, path_value) -> str:
-    #     if path_value is None:
-    #         return None
-    #     try:
-    #         path = _DIR.validate_python(path_value) # raise error if doesn't exist
-    #         return str(path)
-    #     except Exception as exc:
-    #         raise mlrun.errors.MLRunInvalidArgumentError(f"Invalid local_path value {path_value}, error: {exc}") from exc
-    # @property
-    # def local_path(self) -> str:
-    #     return self.local_path
-    #
-    # @local_path.setter
-    # def local_path(self, value) -> None:
-    #     self.local_path = self._validate_path(value)
 
     def module(self):
         try:
             return function_to_module(self.filename, self.local_path)
         except FileNotFoundError:
-            mlrun.utils.logger.warning(f"Module file {self.filename} not found in {self.local_path}, try calling download_module_files()")
+            searched_path = self.local_path or "./"
+            mlrun.utils.logger.warning(f"Module file {self.filename} not found in {searched_path}, try calling download_module_files() first")
             return None
 
     def install_requirements(self):

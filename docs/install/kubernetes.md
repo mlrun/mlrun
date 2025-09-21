@@ -54,7 +54,7 @@ The MLRun CE (Community Edition) includes the following components:
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
-* [KFP Pipelines](https://github.com/kubeflow/pipelines) (see [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images)).
+* [KFP Pipelines](https://github.com/kubeflow/pipelines) 
 
 <a id="installing-the-chart"></a>
 ## Installing the chart
@@ -159,7 +159,6 @@ When the installation is complete, the helm command prints the URLs and ports of
 ```{admonition} Known issue when installing the chart on Macs using Apple silicon (ARM-based architicture):
 - The current pipelines MySQL database fails to start. The workaround for now is to run this line `docker pull mysql:5.7 --platform linux/amd64` before installing the chart.
 - The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
-- An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
 ## Configuring the user Jupyter conda environment

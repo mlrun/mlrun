@@ -653,6 +653,8 @@ default_config = {
             "max_events": 1000,
             "flush_after_seconds": 30,
             "version": "v2",  # v1 is the sync version while v2 is async
+            "parquet_batching_max_events": 10,
+            "parquet_batching_timeout_secs": 30,
         },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.

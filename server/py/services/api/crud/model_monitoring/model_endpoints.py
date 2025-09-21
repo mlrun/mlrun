@@ -985,28 +985,27 @@ class ModelEndpoints:
             )[0]
         if feature_analysis:
             logger.info("Adding feature analysis to the model endpoint")
-            drift_measures, drift_measures_timestamp = (
-                self._get_mep_stats_dict_from_parquet(
-                    db_session=db_session,
-                    project=project,
-                    uid=model_endpoint_object.metadata.uid,
-                    kind=mm_constants.StatsKind.DRIFT_MEASURES,
+            if mlrun.mlconf.model_endpoint_monitoring.writer_graph.version == "v2":
+                drift_measures, drift_measures_timestamp = (
+                    self._get_mep_stats_dict_from_parquet(
+                        db_session=db_session,
+                        project=project,
+                        uid=model_endpoint_object.metadata.uid,
+                        kind=mm_constants.StatsKind.DRIFT_MEASURES,
+                    )
                 )
-            )
-            current_stats, current_stats_timestamp = (
-                self._get_mep_stats_dict_from_parquet(
-                    db_session=db_session,
-                    project=project,
-                    uid=model_endpoint_object.metadata.uid,
-                    kind=mm_constants.StatsKind.CURRENT_STATS,
+                current_stats, current_stats_timestamp = (
+                    self._get_mep_stats_dict_from_parquet(
+                        db_session=db_session,
+                        project=project,
+                        uid=model_endpoint_object.metadata.uid,
+                        kind=mm_constants.StatsKind.CURRENT_STATS,
+                    )
                 )
-            )
+            else:
+                current_stats, current_stats_timestamp = {}, None
+                drift_measures, drift_measures_timestamp = {}, None
             if current_stats or drift_measures:
-                logger.info(
-                    "[David] Got from parquet",
-                    current_stats=current_stats,
-                    drift_measures=drift_measures,
-                )
                 (
                     model_endpoint_object.status.current_stats,
                     model_endpoint_object.status.current_stats_timestamp,

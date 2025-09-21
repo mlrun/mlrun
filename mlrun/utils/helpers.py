@@ -802,7 +802,11 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     return uri if not add_store else DB_SCHEMA + "://" + uri
 
 
-def extend_hub_uri_if_needed(uri: str, asset_type: HubSourceType = HubSourceType.functions, file: str="function.yaml") -> tuple[str, bool]:
+def extend_hub_uri_if_needed(
+    uri: str,
+    asset_type: HubSourceType = HubSourceType.functions,
+    file: str = "function.yaml",
+) -> tuple[str, bool]:
     """
     Retrieve the full uri of an object in the hub.
 
@@ -847,9 +851,7 @@ def extend_hub_uri_if_needed(uri: str, asset_type: HubSourceType = HubSourceType
     # hub directories name are with underscores instead of hyphens
     name = name.replace("-", "_")
     suffix = f"{name}/{tag}/src/{file}"
-    return indexed_source.source.get_full_uri(
-        suffix, asset_type
-    ), is_hub_uri
+    return indexed_source.source.get_full_uri(suffix, asset_type), is_hub_uri
 
 
 def gen_md_table(header, rows=None):

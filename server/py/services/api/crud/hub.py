@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from collections import defaultdict
 from typing import Any, Optional
 
 import sqlalchemy.orm
@@ -25,7 +26,6 @@ import mlrun.utils.singleton
 from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun.datastore import store_manager
-from collections import defaultdict
 
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s

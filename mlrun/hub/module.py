@@ -71,11 +71,15 @@ class HubModule(ModelObj):
         Install pip-style requirements (e.g., ["pandas>=2.0.0", "requests==2.31.0"]).
         """
         for req in self.requirements:
-            print(f"Installing {req}...")
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", req],
-                stdout=sys.stdout, stderr=sys.stderr
-            )
+            print(f"[INFO] Installing {req} ...")
+            try:
+                subprocess.run(
+                    [sys.executable, "-m", "pip", "install", req],
+                    check=True, text=True
+                )
+                print(f"[SUCCESS] Installed {req}")
+            except subprocess.CalledProcessError as e:
+                print(f"[ERROR] Failed to install {req} (exit code {e.returncode})")
 
     def download_module_files(self, local_path=None, secrets=None):
         self.local_path = self.verify_directory(local_path)

@@ -376,7 +376,12 @@ class BaseRuntime(ModelObj):
                              This ensures latest code changes are executed. This argument must be used in
                              conjunction with the local=True argument.
         :param output_path:    Default artifact output path.
-        :param retry:          Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
+        :param retry:          Retry configuration for the run, can be a dict or an instance of
+                               :py:class:`~mlrun.model.Retry`.
+                               The `count` field in the `Retry` object specifies the number of retry attempts.
+                               If `count=0`, the run will not be retried.
+                               The `backoff` field specifies the retry backoff strategy between retry attempts.
+                               If not provided, no backoff is applied.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         if artifact_path or out_path:

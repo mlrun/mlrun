@@ -4104,7 +4104,12 @@ class MlrunProject(ModelObj):
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.
         :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
-        :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
+        :param retry:           Retry configuration for the run, can be a dict or an instance of
+                                :py:class:`~mlrun.model.Retry`.
+                                The `count` field in the `Retry` object specifies the number of retry attempts.
+                                If `count=0`, the run will not be retried.
+                                The `backoff` field specifies the retry backoff strategy between retry attempts.
+                                If not provided, no backoff is applied.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         if artifact_path:

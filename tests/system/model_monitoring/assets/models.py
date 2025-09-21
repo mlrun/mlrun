@@ -19,6 +19,9 @@ from cloudpickle import load
 import mlrun.artifacts
 import mlrun.serving
 
+# should be removed after
+from mlrun.serving.states import LLModel  # noqa: F401
+
 
 class OneToOne(mlrun.serving.V2ModelServer):
     """

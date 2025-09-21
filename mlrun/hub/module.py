@@ -119,6 +119,8 @@ def get_hub_module(url="", download_files=True, secrets=None, local_path=None):
         hub_module.download_module_files(local_path, secrets)
     return hub_module
 
-def import_module(url="", secrets=None, local_path=None):
+def import_module(url="", install_requirements=False, secrets=None, local_path=None):
     hub_module: HubModule = get_hub_module(url, True, secrets, local_path)
+    if install_requirements:
+        hub_module.install_requirements()
     return hub_module.module()

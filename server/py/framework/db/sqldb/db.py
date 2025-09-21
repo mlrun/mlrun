@@ -1981,9 +1981,7 @@ class SQLDB(DBInterface):
             # Safe ordering by tag_id alias
             order_criteria.append(subquery.c[tag_id_alias].desc())
 
-            outer_query = outer_query.order_by(*order_criteria)
-        else:
-            outer_query = outer_query.order_by(*order_criteria)
+        outer_query = outer_query.order_by(*order_criteria)
 
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)

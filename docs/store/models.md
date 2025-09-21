@@ -142,7 +142,7 @@ run = func.run(
 ```
 
 ## Remote models
-You can use models stored in a remote source, for example HuggingFace. You can load the model from the remote source, without saving it in your datastore. A remote {py:class}`mlrun.artifacts.model.ModelArtifact` instance does not have any extra data or similar facilities that the locally stored model artifact supports. Remote models are specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas, as described in the next sections. You can specify the default configuration for client building with the `default_config` parameter.
+You can use models stored in a remote source, for example HuggingFace. You can load the model from the remote source, without saving it in your datastore. A remote {py:class}`mlrun.artifacts.model.ModelArtifact` instance does not have any extra data or similar facilities that the locally stored model artifact supports. Remote models are specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas, as described in the next sections. You can specify the default configuration for building clients with the `default_config` parameter.
 
 ### Guidelines for the parameter `model_url`:
 - Remote model artifacts cannot be uploaded or downloaded. Consequently, the `upload` parameter cannot be set to `True`.
@@ -166,5 +166,3 @@ For each type of schema, a standard secret name must be provided. For example, `
 - max_retries / "OPENAI_MAX_RETRIES"
 ### ds
 `ds://<profile name>/<model-name>`: Use a datastore profile for model connection parameters. The profile must contain the required connection parameters: secrets and credentials, as well as parameters that determine the routing to the model (such as the endpoint URL), but not the actual model name. Since the profile does not contain the model name, it can be used for multiple models. 
-
-

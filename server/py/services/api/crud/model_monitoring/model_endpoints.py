@@ -598,7 +598,7 @@ class ModelEndpoints:
         ModelMonitoringSchedulesFileEndpoint.from_model_endpoint(
             model_endpoint=model_endpoint
         ).create()
-        if config.model_endpoint_monitoring.writer_graph.version == "v1":
+        if config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
             ModelMonitoringCurrentStatsFile.from_model_endpoint(
                 model_endpoint=model_endpoint
             ).create()
@@ -986,7 +986,7 @@ class ModelEndpoints:
             )[0]
         if feature_analysis:
             logger.info("Adding feature analysis to the model endpoint")
-            if config.model_endpoint_monitoring.writer_graph.version != "v1":
+            if config.model_endpoint_monitoring.writer_graph.writer_version != "v1":
                 drift_measures, drift_measures_timestamp = (
                     self._get_mep_stats_dict_from_parquet(
                         db_session=db_session,

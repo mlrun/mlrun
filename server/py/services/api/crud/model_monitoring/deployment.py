@@ -710,7 +710,8 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        if config.model_endpoint_monitoring.writer_graph.version == "v1":
+        if config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
+            logger.info("Using writer graph v1")
             graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
             graph.to(
                 ModelMonitoringWriter(
@@ -718,6 +719,7 @@ class MonitoringDeployment:
                 )
             )
         else:
+            logger.info("Using writer graph v2")
             parquet_target = (
                 services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
                     db_session=self.db_session,

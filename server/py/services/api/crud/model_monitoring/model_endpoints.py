@@ -37,6 +37,7 @@ import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring import WriterEvent
+from mlrun.config import config
 from mlrun.datastore import ParquetTarget
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
@@ -597,7 +598,7 @@ class ModelEndpoints:
         ModelMonitoringSchedulesFileEndpoint.from_model_endpoint(
             model_endpoint=model_endpoint
         ).create()
-        if mlrun.mlconf.model_endpoint_monitoring.writer_graph.version == "v1":
+        if config.model_endpoint_monitoring.writer_graph.version == "v1":
             ModelMonitoringCurrentStatsFile.from_model_endpoint(
                 model_endpoint=model_endpoint
             ).create()
@@ -878,7 +879,7 @@ class ModelEndpoints:
             project,
             delete_background_task,
             ModelEndpoints.delete_tsdb_records,
-            mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers,
+            config.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers,
             background_task_name,
             None,
             project,
@@ -985,7 +986,7 @@ class ModelEndpoints:
             )[0]
         if feature_analysis:
             logger.info("Adding feature analysis to the model endpoint")
-            if mlrun.mlconf.model_endpoint_monitoring.writer_graph.version == "v2":
+            if config.model_endpoint_monitoring.writer_graph.version != "v1":
                 drift_measures, drift_measures_timestamp = (
                     self._get_mep_stats_dict_from_parquet(
                         db_session=db_session,

@@ -656,8 +656,6 @@ test: clean ## Run mlrun tests
 	--ignore=server/py/services/api/migrations \
 	") && \
 	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.11),$$(echo "\
-		--ignore=server/py/services/api/tests/unit/api/test_pipelines.py \
-		--ignore=server/py/services/api/tests/unit/crud/test_pipelines.py \
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
 		--ignore=tests/frameworks/tf_keras/test_tf_keras.py \

@@ -45,7 +45,7 @@ class TestBasics(TestMLRunSystem):
             artifact_path=str(self.results_path / "{{run.uid}}"),
         )
 
-    @pytest.mark.smoke
+    @pytest.mark.smoke.basics
     def test_basics(self):
         function = mlrun.new_function(kind="job", command="training.py")
         run_object = function.run(

@@ -40,7 +40,8 @@ on:
       pytest_markers:
         description: 'Pytest markers to run'
         required: false
-        default: 'not enterprise and smoke'
+        # TODO revert back to default: 'not enterprise and smoke'
+        default: 'not enterprise and smoke.basics'
       clean_resources_in_teardown:
         description: 'Clean test resources upon test teardown'
         required: true

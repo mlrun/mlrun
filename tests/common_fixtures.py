@@ -680,7 +680,6 @@ class RunDBMock:
                 spec=mlrun.common.schemas.HubSourceSpec(
                     path=mlrun.mlconf.hub.default_source.url,
                     channel="master",
-                    object_type="functions",
                 ),
             ),
         )

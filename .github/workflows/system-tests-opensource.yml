@@ -198,7 +198,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6 # 6.6.1
+      uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # 6.7.0
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"
@@ -278,7 +278,9 @@ jobs:
         source venv/bin/activate
         python automation/system_test/prepare.py env \
           --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
 
     - name: Run system tests
       run: |

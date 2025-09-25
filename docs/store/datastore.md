@@ -332,8 +332,9 @@ feature_set.ingest(..., run_config=run_config)
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
   parameters
-* `S3_ENDPOINT_URL` &mdash; The S3 endpoint to use. If not specified, it defaults to AWS. For example, to access 
-  a storage bucket in Wasabi storage, use `S3_ENDPOINT_URL = "https://s3.wasabisys.com"`
+* `AWS_ENDPOINT_URL_S3` &mdash; The S3 endpoint to use. If not specified, it defaults to AWS. For example, to access 
+  a storage bucket in Wasabi storage, use `AWS_ENDPOINT_URL_S3 = "https://s3.wasabisys.com"`
+  **Note**: `S3_ENDPOINT_URL` is deprecated as of v1.10.0 and will be removed in v1.12.0.
 * `MLRUN_AWS_ROLE_ARN` &mdash; [IAM role to assume](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-api.html). 
   Connect to AWS using the secret key and access key, and assume the role whose ARN is provided. The 
   ARN must be of the format `arn:aws:iam::<account-of-role-to-assume>:role/<name-of-role>`
@@ -351,7 +352,7 @@ ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 
 `DatastoreProfileS3` init parameters:
 - `name` &mdash; Name of the profile
-- `endpoint_url` &mdash; A string representing the endpoint URL of the S3 service. It's typically required for non-AWS S3-compatible services. If not provided, the default is `None`. The equivalent to this parameter in environment authentication is env["S3_ENDPOINT_URL"].
+- `endpoint_url` &mdash; A string representing the endpoint URL of the S3 service. It's typically required for non-AWS S3-compatible services. If not provided, the default is `None`. The equivalent to this parameter in environment authentication is env["AWS_ENDPOINT_URL_S3"]. **Note**: The deprecated env["S3_ENDPOINT_URL"] is also supported for backward compatibility.
 - `force_non_anonymous` &mdash; A string that determines whether to force non-anonymous access to the S3 bucket. The default value is `None`, meaning the behavior is not explicitly set. The equivalent to this parameter in environment authentication is env["S3_NON_ANONYMOUS"].
 - `profile_name` &mdash; A string representing the name of the profile. This might be used to refer to specific named configurations for connecting to S3. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_PROFILE"].
 - `assume_role_arn` &mdash; A string representing the Amazon Resource Name (ARN) of the role to assume when interacting with the S3 service. This can be useful for granting temporary permissions. By default, it is set to `None`. The equivalent to this parameter in environment authentication is env["MLRUN_AWS_ROLE_ARN"]

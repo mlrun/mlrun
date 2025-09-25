@@ -26,7 +26,7 @@ import pytest
 import mlrun
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
-from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
 from mlrun.model_monitoring.applications import (
     ExistingDataHandling,
     ModelMonitoringApplicationBase,
@@ -239,7 +239,7 @@ class TestEvaluate:
                 end=end,
                 run_local=run_local,
                 write_output=write_output,
-                stream_profile=DatastoreProfileKafkaSource(
+                stream_profile=DatastoreProfileKafkaStream(
                     name="should-not-be-passed-on-remote",
                     brokers=["broker-address:9092"],
                     topics=[],
@@ -255,7 +255,7 @@ class TestEvaluate:
             end=datetime(2025, 5, 4),
             run_local=True,
             write_output=True,
-            stream_profile=DatastoreProfileKafkaSource(
+            stream_profile=DatastoreProfileKafkaStream(
                 name="should-not-be-passed-on-remote",
                 brokers=["broker-address:9092"],
                 topics=[],
@@ -309,7 +309,7 @@ class TestEvaluate:
             end=datetime(2025, 5, 4),
             run_local=True,
             write_output=True,
-            stream_profile=DatastoreProfileKafkaSource(
+            stream_profile=DatastoreProfileKafkaStream(
                 name="kafka-stream", brokers=["broker-address:9092"], topics=[]
             ),
         )

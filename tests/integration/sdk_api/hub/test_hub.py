@@ -13,12 +13,16 @@
 # limitations under the License.
 
 import random
+import shutil
+import types
+from pathlib import Path
 
 import pytest
 
 import mlrun
 import mlrun.common.schemas
 import tests.integration.sdk_api.base
+from mlrun.utils import normalize_name
 
 
 class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
@@ -99,3 +103,67 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         # not existed option
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             mlrun.import_function(hub_prefix + source_name + "-not" + "/" + name)
+
+    def test_get_hub_module(self):
+        hub_prefix = "hub://"
+        source_name = mlrun.mlconf.hub.default_source.name
+        db = mlrun.get_run_db()
+        modules_catalog = db.get_hub_catalog(
+            source_name, object_type=mlrun.common.schemas.hub.HubSourceType.modules
+        )
+        item = random.choice(modules_catalog.catalog)
+        tag = item.metadata.tag
+        name = item.metadata.name
+        # plain option
+        hub_module = mlrun.get_hub_module(hub_prefix + name, download_files=False)
+        assert normalize_name(hub_module.name) == name
+        # source option
+        hub_module = mlrun.get_hub_module(
+            hub_prefix + source_name + "/" + name, download_files=False
+        )
+        assert normalize_name(hub_module.name) == name
+        # tag option
+        hub_module = mlrun.get_hub_module(
+            hub_prefix + source_name + "/" + name + ":" + tag, download_files=False
+        )
+        assert normalize_name(hub_module.name) == name
+        if tag != "latest":
+            assert hub_module.version == tag
+        # not existed option
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            mlrun.get_hub_module(
+                hub_prefix + source_name + "-not" + "/" + name, download_files=False
+            )
+
+    def test_import_module_from_hub(self):
+        hub_prefix = "hub://"
+        source_name = mlrun.mlconf.hub.default_source.name
+        db = mlrun.get_run_db()
+        modules_catalog = db.get_hub_catalog(
+            source_name, object_type=mlrun.common.schemas.hub.HubSourceType.modules
+        )
+        item = random.choice(modules_catalog.catalog)
+        name = item.metadata.name
+
+        # import_module
+        # create temp dir in cwd
+        Path.cwd().joinpath("temp").mkdir(exist_ok=True)
+        mod = mlrun.import_module(hub_prefix + name, local_path="./temp")
+        assert isinstance(mod, types.ModuleType)
+        # delete the temp dir
+        shutil.rmtree("temp")
+
+        # get_hub_module and module
+        Path.cwd().joinpath("temp").mkdir(exist_ok=True)
+        hub_module = mlrun.get_hub_module(hub_prefix + name, download_files=False)
+        with pytest.raises(FileNotFoundError):  # didn't download files first
+            hub_module.module()
+        hub_module.download_module_files("./temp")
+        mod = hub_module.module()
+        assert isinstance(mod, types.ModuleType)
+        # delete the temp dir
+        shutil.rmtree("temp")
+
+        # local_path doesn't exist
+        with pytest.raises(ValueError):
+            mlrun.import_module(hub_prefix + name, local_path="./temp")

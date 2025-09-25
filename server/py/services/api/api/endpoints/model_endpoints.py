@@ -16,7 +16,7 @@ import asyncio
 import typing
 from collections.abc import Coroutine
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from http import HTTPStatus
 from typing import Annotated, Literal, Optional, Union
 
@@ -30,6 +30,7 @@ import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 import mlrun.utils.helpers
 from mlrun import MLRunInvalidArgumentError
+from mlrun.model_monitoring.helpers import validate_time_range
 from mlrun.utils import logger
 
 import framework.api.deps
@@ -491,50 +492,6 @@ async def get_metrics_by_multiple_endpoints(
 
 
 @router.get(
-    "/drift-over-time",
-    status_code=HTTPStatus.OK.value,
-    response_model=schemas.ModelEndpointDriftValues,
-)
-async def get_model_endpoint_drift_over_time(
-    project: ProjectAnnotation,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
-) -> schemas.ModelEndpointDriftValues:
-    """
-    Get drift counts over time for the project.
-
-    :param project:     The name of the project.
-    :param start:       Start time of the range to retrieve drift counts from.
-    :param end:         End time of the range to retrieve drift counts from.
-    :param auth_info:   The auth info of the request.
-
-    :return: A ModelEndpointDriftValues object containing the drift counts over time.
-    """
-    start, end = _validate_time_range(start, end)
-    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project_name=project,
-        action=schemas.AuthorizationAction.read,
-        auth_info=auth_info,
-    )
-    try:
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=project,
-            secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                project=project
-            ),
-        )
-    except mlrun.errors.MLRunNotFoundError as e:
-        logger.debug(
-            "Failed to retrieve model endpoint metrics-values because the TSDB datastore profile was not found. "
-            "Returning an empty list of metric-values",
-            error=mlrun.errors.err_to_str(e),
-        )
-        return schemas.ModelEndpointDriftValues(values=[])
-    return await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
-
-
-@router.get(
     "/{name}",
     status_code=HTTPStatus.OK.value,
     response_model=schemas.ModelEndpoint,
@@ -614,29 +571,6 @@ class _MetricsValuesParams:
     end: datetime
 
 
-def _validate_time_range(
-    start: Optional[datetime] = None, end: Optional[datetime] = None
-) -> tuple[datetime, datetime]:
-    """
-    validate start and end parameters and set default values if needed.
-    :param start:       Either None or datetime, None is handled as datetime.now(tz=timezone.utc) - timedelta(days=1)
-    :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
-    :return:            start datetime, end datetime
-    """
-    end = end or mlrun.utils.helpers.datetime_now()
-    start = start or (end - timedelta(days=1))
-    if start.tzinfo is None or end.tzinfo is None:
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "Custom start and end times must contain the timezone."
-        )
-    if start > end:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "The start time must be before the end time. Note that if end time is not provided, "
-            "the current time is used by default."
-        )
-    return start, end
-
-
 async def _get_metrics_values_params(
     project: ProjectAnnotation,
     endpoint_id: EndpointIDAnnotation,
@@ -663,7 +597,7 @@ async def _get_metrics_values_params(
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=endpoint_id, auth_info=auth_info
     )
-    start, end = _validate_time_range(start, end)
+    start, end = validate_time_range(start, end)
 
     metrics = []
     results = []

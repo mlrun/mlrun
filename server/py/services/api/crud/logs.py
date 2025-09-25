@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import errno
 import os
 import pathlib
 import shutil
 import typing
-import errno
 from http import HTTPStatus
 
 from fastapi.concurrency import run_in_threadpool
@@ -82,7 +82,10 @@ class Logs(
         def _ignore_missing_files(func, path, exc_info):
             # covers a race condition where some of the files were deleted by log-collector
             _, exc, _ = exc_info
-            if isinstance(exc, FileNotFoundError) or getattr(exc, "errno", None) == errno.ENOENT:
+            if (
+                isinstance(exc, FileNotFoundError)
+                or getattr(exc, "errno", None) == errno.ENOENT
+            ):
                 return
             raise exc
 

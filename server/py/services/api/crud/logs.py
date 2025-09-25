@@ -80,7 +80,7 @@ class Logs(
     @staticmethod
     def delete_project_logs_legacy(project: str):
         def _ignore_missing_files(func, path, exc_info):
-            # covers a race condition where some of the files were deleted by log-collector
+            # handles race conditions where files disappear during deletion (e.g., removed by log-collector or NFS cleanup)
             _, exc, _ = exc_info
             if (
                 isinstance(exc, FileNotFoundError)

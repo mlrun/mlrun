@@ -35,6 +35,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     WriterEvent,
     WriterEventKind,
 )
+from mlrun.config import config
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db._stats import (
     ModelMonitoringCurrentStatsFile,
@@ -236,12 +237,14 @@ class WriterGraphFactory:
     def __init__(
         self,
         parquet_path: str,
-        parquet_batching_max_events: int = 1000,
-        parquet_batching_timeout_secs: int = 10,
     ):
         self.parquet_path = parquet_path
-        self.parquet_batching_max_events = parquet_batching_max_events
-        self.parquet_batching_timeout_secs = parquet_batching_timeout_secs
+        self.parquet_batching_max_events = (
+            config.model_endpoint_monitoring.writer_graph.max_events
+        )
+        self.parquet_batching_timeout_secs = (
+            config.model_endpoint_monitoring.writer_graph.parquet_batching_timeout_secs
+        )
 
     def apply_writer_graph(
         self,
@@ -350,12 +353,13 @@ class ReconstructWriterEvent(storey.MapClass):
 
 class KindChoice(storey.Choice):
     def select_outlets(self, event):
-        logger.info("Selecting the outlet for the event", kind=event.get("kind"))
-        if event.get("kind") == WriterEventKind.METRIC:
+        kind = event.get("kind")
+        logger.info("Selecting the outlet for the event", kind=kind)
+        if kind == WriterEventKind.METRIC:
             outlets = ["tsdb_metrics"]
-        elif event.get("kind") == WriterEventKind.RESULT:
-            outlets = ["tsdb_app_results", "AlertGenerator"]
-        elif event.get("kind") == WriterEventKind.STATS:
+        elif kind == WriterEventKind.RESULT:
+            outlets = ["tsdb_app_results", "alert_generator"]
+        elif kind == WriterEventKind.STATS:
             outlets = ["stats_writer"]
         else:
             raise _WriterEventValueError(
@@ -365,9 +369,9 @@ class KindChoice(storey.Choice):
 
 
 class AlertGenerator(storey.MapClass):
-    def __init__(self, project: str):
+    def __init__(self, project: str, **kwargs):
         self.project = project
-        super().__init__()
+        super().__init__(**kwargs)
 
     def do(self, event: dict) -> Optional[dict[str, Any]]:
         kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)

@@ -729,8 +729,6 @@ class MonitoringDeployment:
             )
             writer_factory = WriterGraphFactory(
                 parquet_path=parquet_target,
-                parquet_batching_max_events=config.model_endpoint_monitoring.writer_graph.parquet_batching_max_events,
-                parquet_batching_timeout_secs=config.model_endpoint_monitoring.writer_graph.parquet_batching_timeout_secs,
             )
             writer_factory.apply_writer_graph(
                 function,

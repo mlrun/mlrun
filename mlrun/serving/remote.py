@@ -462,15 +462,14 @@ class BatchHttpRequests(_ConcurrentJobExecution):
 
 
 class MLRunAPIRemoteStep(RemoteStep):
-    """Graph step implementation for calling MLRun API endpoints"""
-
     def __init__(
-        self, method: str, path: str, fill_placeholders: bool = False, **kwargs
+        self, method: str, path: str, fill_placeholders: Optional[bool] = None, **kwargs
     ):
         """
         Graph step implementation for calling MLRun API endpoints
 
-        :param method:  HTTP method (GET, POST, ...)
+        :param method:  HTTP method (GET, POST, ...) as default defines the method of the request, if empty string or
+                        None the method will be taken from the event (default to POST)
         :param path:    API path (e.g. /api/projects)
         :param fill_placeholders: if True, fill placeholders in the path using event fields
         :param kwargs:  other arguments passed to RemoteStep
@@ -478,7 +477,7 @@ class MLRunAPIRemoteStep(RemoteStep):
         super().__init__(url="", method=method, **kwargs)
         self.rundb = None
         self.path = path
-        self.fill_placeholders = fill_placeholders
+        self.fill_placeholders = fill_placeholders or False
 
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"

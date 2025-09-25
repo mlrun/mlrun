@@ -1538,6 +1538,7 @@ class ModelEndpoints:
                 error=mlrun.errors.err_to_str(exc),
             )
             return {}, None
+
         if df.empty:
             return {}, None
         else:

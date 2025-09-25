@@ -47,6 +47,7 @@ This example converts a notebook to a serving function and adds a model to it:
 
 ```python
 import mlrun
+
 project = mlrun.get_or_create_project("myproj")
 
 fn = set_function("my-function", kind="serving")

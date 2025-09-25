@@ -181,9 +181,9 @@ model with the test data and updates the model with the metrics and results of t
 ``` python
 from pickle import load
 
-import mlrun.execution 
-import mlrun.datastore 
-import mlrun.artifacts 
+import mlrun.execution
+import mlrun.datastore
+import mlrun.artifacts
 import mlrun.mlutils
 
 

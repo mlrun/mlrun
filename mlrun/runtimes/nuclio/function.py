@@ -423,6 +423,18 @@ class RemoteRuntime(KubeResource):
                 )
         """
         self.spec.build.source = source
+
+        code = (
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        )
+        if code:
+            # Warn and clear any inline code so the archive is actually used
+            logger.warning(
+                "Cannot specify both code and source archive. Removing the code so the provided "
+                "source archive will be used instead."
+            )
+            self.spec.build.functionSourceCode = None
+
         # update handler in function_handler if needed
         if handler:
             self.spec.function_handler = handler

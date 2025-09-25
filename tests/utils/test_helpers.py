@@ -1691,6 +1691,11 @@ def test_format_datetime(dt, expected):
                 "predicates": [
                     # 'status' preserved
                     {
+                        "key": "name",
+                        "op": 9,
+                        "string_value": "test-project",
+                    },
+                    {
                         "key": "status",
                         "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
                         "string_value": "Succeeded",

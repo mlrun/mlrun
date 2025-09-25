@@ -320,7 +320,13 @@ def parse_url(url):
     parsed_url = urlparse(url)
     schema = parsed_url.scheme.lower()
     endpoint = parsed_url.hostname
-    if endpoint:
+
+    # Special handling for WASBS URLs to preserve container information
+    if schema in ["wasbs", "wasb"] and parsed_url.netloc and "@" in parsed_url.netloc:
+        # For wasbs://container@host format, preserve the full netloc as endpoint
+        # This allows the datastore to extract container later
+        endpoint = parsed_url.netloc
+    elif endpoint:
         # HACK - urlparse returns the hostname after in lower case - we want the original case:
         # the hostname is a substring of the netloc, in which it's the original case, so we find the indexes of the
         # hostname in the netloc and take it from there
@@ -331,8 +337,8 @@ def parse_url(url):
         endpoint = netloc[
             hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
         ]
-    if parsed_url.port:
-        endpoint += f":{parsed_url.port}"
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
     return schema, endpoint, parsed_url
 
 

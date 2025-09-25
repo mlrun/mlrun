@@ -160,9 +160,5 @@ For each type of schema, a standard secret name must be provided. For example, `
  `openai://<model-name>`: work with a model that supports the OpenAI protocol. By default, models are assumed to be models served by OpenAI. The secrets/env options are:
 - api_key / "OPENAI_API_KEY"
 - organization / "OPENAI_ORG_ID"
-- project / "OPENAI_PROJECT_ID"
-- base_url / "OPENAI_BASE_URL" parameter that allows other endpoints to be used. For example: to deploy a model that supports OpenAI protocol using a Nuclio function, the URL would be `openai://<model_name>` and the endpoint URL provided would be similar to `http://my.nuclio.function.url`.
-- timeout / "OPENAI_TIMEOUT"
-- max_retries / "OPENAI_MAX_RETRIES"
 ### ds
 `ds://<profile name>/<model-name>`: Use a datastore profile for model connection parameters. The profile must contain the required connection parameters: secrets and credentials, as well as parameters that determine the routing to the model (such as the endpoint URL), but not the actual model name. Since the profile does not contain the model name, it can be used for multiple models. 

@@ -16,6 +16,7 @@ import os
 import pathlib
 import shutil
 import typing
+import errno
 from http import HTTPStatus
 
 from fastapi.concurrency import run_in_threadpool
@@ -77,12 +78,17 @@ class Logs(
         await self._delete_logs(project, run_uids)
 
     @staticmethod
-    def delete_project_logs_legacy(
-        project: str,
-    ):
+    def delete_project_logs_legacy(project: str):
+        def _ignore_missing_files(func, path, exc_info):
+            # covers a race condition where some of the files were deleted by log-collector
+            _, exc, _ = exc_info
+            if isinstance(exc, FileNotFoundError) or getattr(exc, "errno", None) == errno.ENOENT:
+                return
+            raise exc
+
         logs_path = framework.api.utils.project_logs_path(project)
         if logs_path.exists():
-            shutil.rmtree(str(logs_path))
+            shutil.rmtree(str(logs_path), onerror=_ignore_missing_files)
 
     @staticmethod
     def delete_run_logs_legacy(

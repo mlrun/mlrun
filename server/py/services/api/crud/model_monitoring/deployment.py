@@ -54,7 +54,7 @@ from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
 )
-from mlrun.model_monitoring.writer import WriterGraphFactory
+from mlrun.model_monitoring.writer import ModelMonitoringWriter, WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
@@ -710,10 +710,32 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        WriterGraphFactory.apply_writer_graph(
-            function,
-            self._tsdb_connector,
-        )
+        if config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
+            logger.info("Using writer graph v1")
+            graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
+            graph.to(
+                ModelMonitoringWriter(
+                    project=self.project, secret_provider=self._secret_provider
+                )
+            )
+        else:
+            logger.info("Using writer graph v2")
+            parquet_target = (
+                services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
+                    db_session=self.db_session,
+                    project=self.project,
+                    kind="parquet_stats",
+                )
+            )
+            writer_factory = WriterGraphFactory(
+                parquet_path=parquet_target,
+                parquet_batching_max_events=config.model_endpoint_monitoring.writer_graph.parquet_batching_max_events,
+                parquet_batching_timeout_secs=config.model_endpoint_monitoring.writer_graph.parquet_batching_timeout_secs,
+            )
+            writer_factory.apply_writer_graph(
+                function,
+                self._tsdb_connector,
+            )
 
         # Set the project to the serving function
         function.metadata.project = self.project

@@ -380,6 +380,7 @@ class V3IOTSDBConnector(TSDBConnector):
             container=self.container,
             v3io_frames=self.v3io_framesd,
             infer_columns_from_data=True,
+            graph_shape="cylinder",
             index_cols=[
                 mm_schemas.WriterEvent.APPLICATION_NAME,
                 mm_schemas.WriterEvent.ENDPOINT_NAME,
@@ -400,6 +401,7 @@ class V3IOTSDBConnector(TSDBConnector):
             container=self.container,
             v3io_frames=self.v3io_framesd,
             infer_columns_from_data=True,
+            graph_shape="cylinder",
             index_cols=[
                 mm_schemas.WriterEvent.APPLICATION_NAME,
                 mm_schemas.WriterEvent.ENDPOINT_NAME,

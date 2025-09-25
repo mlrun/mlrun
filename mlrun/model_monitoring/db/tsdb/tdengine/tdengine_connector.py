@@ -295,6 +295,7 @@ class TDEngineConnector(TSDBConnector):
             table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
             time_col=mm_schemas.WriterEvent.END_INFER_TIME,
             database=self.database,
+            graph_shape="cylinder",
             columns=[
                 mm_schemas.WriterEvent.START_INFER_TIME,
                 mm_schemas.MetricData.METRIC_VALUE,
@@ -319,6 +320,7 @@ class TDEngineConnector(TSDBConnector):
             table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
             time_col=mm_schemas.WriterEvent.END_INFER_TIME,
             database=self.database,
+            graph_shape="cylinder",
             columns=[
                 mm_schemas.WriterEvent.START_INFER_TIME,
                 mm_schemas.ResultData.RESULT_VALUE,

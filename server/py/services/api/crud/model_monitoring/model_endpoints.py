@@ -987,21 +987,19 @@ class ModelEndpoints:
         if feature_analysis:
             logger.info("Adding feature analysis to the model endpoint")
             if config.model_endpoint_monitoring.writer_graph.writer_version != "v1":
-                drift_measures, drift_measures_timestamp = (
-                    self._get_mep_stats_dict_from_parquet(
-                        db_session=db_session,
-                        project=project,
-                        uid=model_endpoint_object.metadata.uid,
-                        kind=mm_constants.StatsKind.DRIFT_MEASURES,
-                    )
+                drift_measures, drift_measures_timestamp = await run_in_threadpool(
+                    self._get_mep_stats_dict_from_parquet,
+                    db_session=db_session,
+                    project=project,
+                    uid=model_endpoint_object.metadata.uid,
+                    kind=mm_constants.StatsKind.DRIFT_MEASURES,
                 )
-                current_stats, current_stats_timestamp = (
-                    self._get_mep_stats_dict_from_parquet(
-                        db_session=db_session,
-                        project=project,
-                        uid=model_endpoint_object.metadata.uid,
-                        kind=mm_constants.StatsKind.CURRENT_STATS,
-                    )
+                current_stats, current_stats_timestamp = await run_in_threadpool(
+                    self._get_mep_stats_dict_from_parquet,
+                    db_session=db_session,
+                    project=project,
+                    uid=model_endpoint_object.metadata.uid,
+                    kind=mm_constants.StatsKind.CURRENT_STATS,
                 )
             else:
                 current_stats, current_stats_timestamp = {}, None

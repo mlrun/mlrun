@@ -735,8 +735,9 @@ def print_df(df):
             "return": [{"x": "a", "y": 1, "extra": 123}],
         }
 
-    @pytest.mark.parametrize("local", [False])
-    def test_job_from_serving_runtime(self, local):
+    @pytest.mark.parametrize("local", [True, False])
+    @pytest.mark.parametrize("deploy_original", [True, False])
+    def test_job_from_serving_runtime(self, local, deploy_original):
         function = self.project.set_function(
             func=str(self.assets_path / "function_with_simple_transformation.py"),
             name="test",
@@ -750,6 +751,10 @@ def print_df(df):
             class_name="storey.ParquetTarget",
             path=f"v3io:///projects/{self.project_name}/out.parquet",
         )
+
+        if deploy_original:
+            # Make sure it works even after the function has been deployed (ML-10940)
+            function.deploy()
 
         job = function.to_job()
 

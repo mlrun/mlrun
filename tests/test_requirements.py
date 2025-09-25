@@ -172,7 +172,7 @@ def test_requirement_specifiers_convention():
             ">=1.26.20",
         },
         "v3io-frames": {
-            ">=0.10.15",
+            ">=0.10.16",
         },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',

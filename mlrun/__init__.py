@@ -37,6 +37,7 @@ from .datastore import DataItem, ModelProvider, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
+from .hub import get_hub_module, import_module
 from .model import RunObject, RunTemplate, new_task
 from .package import ArtifactType, DefaultPackager, Packager, handler
 from .projects import (

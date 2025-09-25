@@ -24,7 +24,7 @@ from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.preaggregate import (
     PreAggregateConfig,
-    PreAggregateHandler,
+    PreAggregateManager,
 )
 from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_metrics_queries import (
     TimescaleDBMetricsQueries,
@@ -80,26 +80,25 @@ class TimescaleDBConnector(TSDBConnector):
 
         # Create shared components needed by query classes
         tables = timescaledb_schema.create_table_schemas(project)
-        self._tables = tables  # Store for backward compatibility
-        pre_aggregate_handler = PreAggregateHandler(pre_aggregate_config)
+        pre_aggregate_manager = PreAggregateManager(pre_aggregate_config)
 
         # Create specialized query handlers with proper initialization
         self._metrics_queries = TimescaleDBMetricsQueries(
             project=project,
             connection=self._connection,
-            pre_aggregate_handler=pre_aggregate_handler,
+            pre_aggregate_manager=pre_aggregate_manager,
             tables=tables,
         )
         self._predictions_queries = TimescaleDBPredictionsQueries(
             project=project,
             connection=self._connection,
-            pre_aggregate_handler=pre_aggregate_handler,
+            pre_aggregate_manager=pre_aggregate_manager,
             tables=tables,
         )
         self._results_queries = TimescaleDBResultsQueries(
             connection=self._connection,
             project=project,
-            pre_aggregate_handler=pre_aggregate_handler,
+            pre_aggregate_manager=pre_aggregate_manager,
             tables=tables,
         )
 

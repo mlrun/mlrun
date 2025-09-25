@@ -201,7 +201,7 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.TimescaleDB:
-            table = cls._tsdb_storage._tables[
+            table = cls._tsdb_storage._metrics_queries.tables[
                 mm_constants.TimescaleDBTables.PREDICTIONS
             ]
             full_query = table._get_records_query(
@@ -2259,7 +2259,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
         self, ep_id_with_sample: str, ep_id_without_sample: str
     ) -> None:
         if self._tsdb_storage.type == mm_constants.TSDBTarget.TimescaleDB:
-            table = self._tsdb_storage._tables[
+            table = self._tsdb_storage._metrics_queries.tables[
                 mm_constants.TimescaleDBTables.PREDICTIONS
             ]
             full_query = table._get_records_query(

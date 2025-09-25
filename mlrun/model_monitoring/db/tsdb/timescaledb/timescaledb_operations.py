@@ -500,11 +500,11 @@ class TimescaleDBOperationsManager:
                     dropped_objects=len(drop_statements),
                 )
 
-            # Check if schema is empty and drop it if so
+            # Optional cleanup: drop schema if empty (errors are logged but don't fail the operation)
             self._drop_schema_if_empty()
 
         except Exception as e:
-            logger.warning(
+            logger.error(
                 "Failed to delete all project resources from TimescaleDB",
                 project=self.project,
                 error=mlrun.errors.err_to_str(e),
@@ -517,14 +517,20 @@ class TimescaleDBOperationsManager:
         )
 
     def _drop_schema_if_empty(self) -> None:
-        """Drop the schema if it contains no more tables using parameterized query."""
+        """
+        Drop the schema if it contains no more tables using parameterized query.
+
+        This is a best-effort cleanup operation that should not fail the main resource deletion.
+        Schema dropping may fail due to permissions, remaining objects, or concurrent operations,
+        but the primary table deletion operation has already succeeded.
+        """
         try:
             schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema
 
             # Check if schema has any tables using parameterized query
             check_stmt = Statement(
                 """
-                SELECT COUNT(*) as table_count
+                SELECT COUNT(*) AS table_count
                 FROM information_schema.tables
                 WHERE table_schema = %s
                 """,
@@ -544,8 +550,10 @@ class TimescaleDBOperationsManager:
                     schema=schema_name,
                 )
         except Exception as e:
+            # Schema dropping is optional cleanup - don't fail the main operation
+            # This may happen due to permissions, remaining objects, or concurrent operations
             logger.warning(
-                "Failed to check/drop empty schema",
+                "Failed to check/drop empty schema (non-critical cleanup operation)",
                 project=self.project,
                 error=mlrun.errors.err_to_str(e),
             )

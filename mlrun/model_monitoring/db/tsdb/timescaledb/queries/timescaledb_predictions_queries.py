@@ -47,7 +47,7 @@ class TimescaleDBPredictionsQueries:
         self,
         project: Optional[str] = None,
         connection=None,
-        pre_aggregate_handler=None,
+        pre_aggregate_manager=None,
         tables: Optional[dict] = None,
     ):
         """
@@ -55,12 +55,12 @@ class TimescaleDBPredictionsQueries:
 
         :param project: Project name
         :param connection: TimescaleDB connection instance
-        :param pre_aggregate_handler: PreAggregateHandler instance
+        :param pre_aggregate_manager: PreAggregateManager instance
         :param tables: Dictionary of table schemas
         """
         self.project = project
         self._connection = connection
-        self._pre_aggregate_handler = pre_aggregate_handler
+        self._pre_aggregate_manager = pre_aggregate_manager
         self.tables = tables
 
     def read_predictions(
@@ -87,14 +87,14 @@ class TimescaleDBPredictionsQueries:
             )
 
         # Align times if aggregation window is provided
-        start, end = self._pre_aggregate_handler.align_time_range(
+        start, end = self._pre_aggregate_manager.align_time_range(
             start, end, aggregation_window
         )
 
         # Check if we can use pre-aggregates
         can_use_pre_aggregates = (
             use_pre_aggregates
-            and self._pre_aggregate_handler.can_use_pre_aggregates(
+            and self._pre_aggregate_manager.can_use_pre_aggregates(
                 interval=aggregation_window, agg_funcs=agg_funcs
             )
         )
@@ -162,13 +162,13 @@ class TimescaleDBPredictionsQueries:
 
         # Prepare time range and interval (no auto-determination since interval may be None)
         start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
-            self._pre_aggregate_handler,
+            self._pre_aggregate_manager,
             start,
             end,
             interval,
             auto_determine_interval=False,
         )
-        use_pre_aggregates = self._pre_aggregate_handler.can_use_pre_aggregates(
+        use_pre_aggregates = self._pre_aggregate_manager.can_use_pre_aggregates(
             interval=interval
         )
 
@@ -246,7 +246,7 @@ class TimescaleDBPredictionsQueries:
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         # Prepare time range with auto-determined interval
         start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
-            self._pre_aggregate_handler, start, end
+            self._pre_aggregate_manager, start, end
         )
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
@@ -288,10 +288,11 @@ class TimescaleDBPredictionsQueries:
             # Add additional filter to exclude invalid latency values
             latency_col = mm_schemas.EventFieldType.LATENCY
             latency_filter = f"{latency_col} IS NOT NULL AND {latency_col} > 0"
-            if filter_query:
-                enhanced_filter_query = f"{filter_query} AND {latency_filter}"
-            else:
-                enhanced_filter_query = latency_filter
+            enhanced_filter_query = (
+                f"{filter_query} AND {latency_filter}"
+                if filter_query
+                else latency_filter
+            )
 
             return table_schema._get_records_query(
                 start=start,
@@ -314,7 +315,7 @@ class TimescaleDBPredictionsQueries:
 
         # Both queries now return single value per endpoint, no post-processing needed
         return self._connection.execute_with_fallback(
-            self._pre_aggregate_handler,
+            self._pre_aggregate_manager,
             build_pre_agg_query,
             build_raw_query,
             interval=interval,
@@ -339,7 +340,7 @@ class TimescaleDBPredictionsQueries:
         4. Can utilize pre-aggregates when available
         """
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._pre_aggregate_handler.get_start_end(start, end)
+        start, end = self._pre_aggregate_manager.get_start_end(start, end)
 
         predictions_table = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
 

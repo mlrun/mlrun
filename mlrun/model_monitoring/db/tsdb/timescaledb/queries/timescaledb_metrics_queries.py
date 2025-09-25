@@ -39,7 +39,7 @@ class TimescaleDBMetricsQueries:
         self,
         project: Optional[str] = None,
         connection=None,
-        pre_aggregate_handler=None,
+        pre_aggregate_manager=None,
         tables: Optional[dict] = None,
     ):
         """
@@ -47,12 +47,12 @@ class TimescaleDBMetricsQueries:
 
         :param project: Project name
         :param connection: TimescaleDB connection instance
-        :param pre_aggregate_handler: PreAggregateHandler instance
+        :param pre_aggregate_manager: PreAggregateManager instance
         :param tables: Dictionary of table schemas
         """
         self.project = project
         self._connection = connection
-        self._pre_aggregate_handler = pre_aggregate_handler
+        self._pre_aggregate_manager = pre_aggregate_manager
         self.tables = tables
 
     def get_model_endpoint_real_time_metrics(
@@ -75,7 +75,7 @@ class TimescaleDBMetricsQueries:
         # Prepare time range with validation and ISO conversion using helper
         start_dt, end_dt, interval = (
             TimescaleDBQueryBuilder.prepare_time_range_with_validation(
-                self._pre_aggregate_handler, start, end, interval, agg_function
+                self._pre_aggregate_manager, start, end, interval, agg_function
             )
         )
 
@@ -94,7 +94,7 @@ class TimescaleDBMetricsQueries:
             metrics
         )
         combined_filter = TimescaleDBQueryBuilder.combine_filters(
-            [endpoint_filter, metrics_filter], operator="AND"
+            [endpoint_filter, metrics_filter]
         )
 
         # Use fallback pattern for potential pre-aggregate compatibility issues
@@ -125,7 +125,7 @@ class TimescaleDBMetricsQueries:
         }
 
         df = self._connection.execute_with_fallback(
-            self._pre_aggregate_handler,
+            self._pre_aggregate_manager,
             build_pre_agg_query,
             build_raw_query,
             interval=interval,
@@ -177,12 +177,12 @@ class TimescaleDBMetricsQueries:
 
         # Combine filters using query builder utilities
         filters = [endpoint_filter, metrics_condition]
-        filter_query = TimescaleDBQueryBuilder.combine_filters(filters, operator="AND")
+        filter_query = TimescaleDBQueryBuilder.combine_filters(filters)
 
         # Use shared utility for consistent query building with fallback
         df = TimescaleDBQueryBuilder.build_read_data_with_fallback(
             connection=self._connection,
-            pre_aggregate_handler=self._pre_aggregate_handler,
+            pre_aggregate_manager=self._pre_aggregate_manager,
             table_schema=table_schema,
             start=start,
             end=end,
@@ -210,7 +210,7 @@ class TimescaleDBMetricsQueries:
 
         # Prepare time range and interval (no auto-determination since interval passed in)
         start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
-            self._pre_aggregate_handler,
+            self._pre_aggregate_manager,
             start,
             end,
             interval,
@@ -255,7 +255,7 @@ class TimescaleDBMetricsQueries:
         }
 
         df = self._connection.execute_with_fallback(
-            self._pre_aggregate_handler,
+            self._pre_aggregate_manager,
             build_pre_agg_query,
             build_raw_query,
             interval=interval,
@@ -292,7 +292,7 @@ class TimescaleDBMetricsQueries:
         if not application_names:
             return []
 
-        start, end = self._pre_aggregate_handler.get_start_end(start, end)
+        start, end = self._pre_aggregate_manager.get_start_end(start, end)
 
         metric_objects = []
 
@@ -321,7 +321,7 @@ class TimescaleDBMetricsQueries:
             start, end, mm_schemas.WriterEvent.END_INFER_TIME
         )
         where_clause = TimescaleDBQueryBuilder.combine_filters(
-            [app_filter, time_filter], "AND"
+            [app_filter, time_filter]
         )
 
         # DISTINCT ON is PostgreSQL-specific, keep as specialized query
@@ -365,7 +365,7 @@ class TimescaleDBMetricsQueries:
             start, end, mm_schemas.WriterEvent.END_INFER_TIME
         )
         where_clause = TimescaleDBQueryBuilder.combine_filters(
-            [app_filter, time_filter], "AND"
+            [app_filter, time_filter]
         )
 
         # DISTINCT ON is PostgreSQL-specific, keep as specialized query

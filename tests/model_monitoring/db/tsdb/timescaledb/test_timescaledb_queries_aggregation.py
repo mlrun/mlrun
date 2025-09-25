@@ -185,7 +185,7 @@ class TestAggregationQueries:
 
         # Verify pre-aggregates are available
         handler = query_test_helper_with_aggregates.create_predictions_handler()
-        available_intervals = handler._pre_aggregate_handler.get_available_intervals()
+        available_intervals = handler._pre_aggregate_manager.get_available_intervals()
         assert "1h" in available_intervals
 
         from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
@@ -195,7 +195,7 @@ class TestAggregationQueries:
         optimal_interval = TimescaleDBQueryBuilder.determine_optimal_interval(
             base_time - timedelta(minutes=30), now
         )
-        can_use_pre_agg = handler._pre_aggregate_handler.can_use_pre_aggregates(
+        can_use_pre_agg = handler._pre_aggregate_manager.can_use_pre_aggregates(
             interval=optimal_interval, agg_funcs=["avg"]
         )
         assert (
@@ -379,7 +379,7 @@ class TestPreAggregateExceptionHandling:
 
         # Force fallback to raw query by mocking can_use_pre_aggregates to return False
         with unittest.mock.patch.object(
-            predictions_handler._pre_aggregate_handler,
+            predictions_handler._pre_aggregate_manager,
             "can_use_pre_aggregates",
             return_value=False,
         ):

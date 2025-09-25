@@ -159,7 +159,9 @@ class TestTimescaleDBCrossQueries:
         """Helper to write predictions test data using direct INSERT."""
         from datetime import datetime, timedelta, timezone
 
-        predictions_table = connector._tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
+        predictions_table = connector._metrics_queries.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
         base_time = datetime.now(timezone.utc) - timedelta(hours=1)  # 1 hour ago
 
         for i, endpoint_id in enumerate(endpoint_ids):

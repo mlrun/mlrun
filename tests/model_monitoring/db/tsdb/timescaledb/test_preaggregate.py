@@ -20,7 +20,7 @@ import pytest
 import mlrun.errors
 import mlrun.utils
 from mlrun.model_monitoring.db.tsdb.preaggregate import (
-    PreAggregateHandler,
+    PreAggregateManager,
 )
 
 
@@ -32,29 +32,29 @@ class MockPreAggregateConfig:
         self.agg_functions = functions or ["sum", "avg", "min", "max", "count", "last"]
 
 
-class TestPreAggregateHandler:
-    """Test suite for PreAggregateHandler class."""
+class TestPreAggregateManager:
+    """Test suite for PreAggregateManager class."""
 
     def test_init_with_config(self):
         """Test initialization with pre-aggregate config."""
         config = MockPreAggregateConfig()
-        handler = PreAggregateHandler(config)
+        handler = PreAggregateManager(config)
         assert handler._pre_aggregate_config == config
 
     def test_init_without_config(self):
         """Test initialization without pre-aggregate config."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         assert handler._pre_aggregate_config is None
 
     def test_validate_interval_and_function_no_params(self):
         """Test validation when no interval or function provided."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         # Should not raise any exception
         handler.validate_interval_and_function(None, None)
 
     def test_validate_interval_and_function_no_config(self):
         """Test validation fails when no config but params provided."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
 
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
@@ -71,7 +71,7 @@ class TestPreAggregateHandler:
     def test_validate_interval_and_function_invalid_interval(self):
         """Test validation fails for invalid interval."""
         config = MockPreAggregateConfig(intervals=["1h", "1d"])
-        handler = PreAggregateHandler(config)
+        handler = PreAggregateManager(config)
 
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
@@ -82,7 +82,7 @@ class TestPreAggregateHandler:
     def test_validate_interval_and_function_invalid_function(self):
         """Test validation fails for invalid aggregation function."""
         config = MockPreAggregateConfig(functions=["sum", "avg"])
-        handler = PreAggregateHandler(config)
+        handler = PreAggregateManager(config)
 
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
@@ -93,7 +93,7 @@ class TestPreAggregateHandler:
     def test_validate_interval_and_function_valid_params(self):
         """Test validation passes for valid parameters."""
         config = MockPreAggregateConfig()
-        handler = PreAggregateHandler(config)
+        handler = PreAggregateManager(config)
 
         # Should not raise any exception
         handler.validate_interval_and_function("1h", "avg")
@@ -102,32 +102,32 @@ class TestPreAggregateHandler:
 
     def test_can_use_pre_aggregates_no_config(self):
         """Test can_use_pre_aggregates returns False when no config."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         assert not handler.can_use_pre_aggregates("1h", ["avg"])
 
     def test_can_use_pre_aggregates_no_interval(self):
         """Test can_use_pre_aggregates returns False when no interval."""
         config = MockPreAggregateConfig()
-        handler = PreAggregateHandler(config)
+        handler = PreAggregateManager(config)
         assert not handler.can_use_pre_aggregates(None, ["avg"])
 
     def test_can_use_pre_aggregates_invalid_interval(self):
         """Test can_use_pre_aggregates returns False for invalid interval."""
         config = MockPreAggregateConfig(intervals=["1h"])
-        handler = PreAggregateHandler(config)
+        handler = PreAggregateManager(config)
         assert not handler.can_use_pre_aggregates("5m", ["avg"])
 
     def test_can_use_pre_aggregates_invalid_functions(self):
         """Test can_use_pre_aggregates returns False for invalid functions."""
         config = MockPreAggregateConfig(functions=["sum", "avg"])
-        handler = PreAggregateHandler(config)
+        handler = PreAggregateManager(config)
         assert not handler.can_use_pre_aggregates("1h", ["median"])
         assert not handler.can_use_pre_aggregates("1h", ["avg", "median"])
 
     def test_can_use_pre_aggregates_valid_params(self):
         """Test can_use_pre_aggregates returns True for valid parameters."""
         config = MockPreAggregateConfig()
-        handler = PreAggregateHandler(config)
+        handler = PreAggregateManager(config)
 
         assert handler.can_use_pre_aggregates("1h")
         assert handler.can_use_pre_aggregates("1h", ["avg"])
@@ -135,7 +135,7 @@ class TestPreAggregateHandler:
 
     def test_align_time_to_interval_no_interval(self):
         """Test time alignment when no interval provided."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         dt = datetime(2025, 1, 15, 14, 35, 42)
 
         result = handler.align_time_to_interval(dt, None)
@@ -143,7 +143,7 @@ class TestPreAggregateHandler:
 
     def test_align_time_to_interval_invalid_format(self):
         """Test time alignment with invalid interval format."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         dt = datetime(2025, 1, 15, 14, 35, 42)
 
         result = handler.align_time_to_interval(dt, "invalid")
@@ -151,7 +151,7 @@ class TestPreAggregateHandler:
 
     def test_align_time_to_interval_minutes(self):
         """Test time alignment for minute intervals."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         dt = datetime(2025, 1, 15, 14, 37, 42)  # 37 minutes, 42 seconds
 
         # Align start (round down)
@@ -166,7 +166,7 @@ class TestPreAggregateHandler:
 
     def test_align_time_to_interval_hours(self):
         """Test time alignment for hour intervals."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         dt = datetime(2025, 1, 15, 14, 35, 42)  # 2 PM, 35 minutes
 
         # Align start (round down)
@@ -181,7 +181,7 @@ class TestPreAggregateHandler:
 
     def test_align_time_to_interval_days(self):
         """Test time alignment for day intervals."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         dt = datetime(2025, 1, 15, 14, 35, 42)
 
         # Align start (round down)
@@ -196,7 +196,7 @@ class TestPreAggregateHandler:
 
     def test_align_time_to_interval_months(self):
         """Test time alignment for month intervals."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         dt = datetime(2025, 6, 15, 14, 35, 42)  # June 15th
 
         # Align start (round down)
@@ -211,7 +211,7 @@ class TestPreAggregateHandler:
 
     def test_align_time_to_interval_months_december(self):
         """Test time alignment for months when crossing year boundary."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         dt = datetime(2025, 12, 15, 14, 35, 42)  # December 15th
 
         # Align end (round up) - should go to next year
@@ -221,7 +221,7 @@ class TestPreAggregateHandler:
 
     def test_align_time_range(self):
         """Test aligning both start and end times."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         start = datetime(2025, 1, 15, 14, 37, 42)
         end = datetime(2025, 1, 15, 16, 23, 18)
 
@@ -246,19 +246,19 @@ class TestPreAggregateHandler:
         mock_now.return_value = mock_now_time
 
         # Test with both None
-        start, end = PreAggregateHandler.get_start_end(None, None)
+        start, end = PreAggregateManager.get_start_end(None, None)
         assert start == mock_min_time
         assert end == mock_now_time
 
         # Test with start provided
         provided_start = datetime(2025, 1, 10, 10, 0, 0)
-        start, end = PreAggregateHandler.get_start_end(provided_start, None)
+        start, end = PreAggregateManager.get_start_end(provided_start, None)
         assert start == provided_start
         assert end == mock_now_time
 
         # Test with end provided
         provided_end = datetime(2025, 1, 20, 15, 0, 0)
-        start, end = PreAggregateHandler.get_start_end(None, provided_end)
+        start, end = PreAggregateManager.get_start_end(None, provided_end)
         assert start == mock_min_time
         assert end == provided_end
 
@@ -267,7 +267,7 @@ class TestPreAggregateHandler:
         start_time = datetime(2025, 1, 10, 10, 0, 0)
         end_time = datetime(2025, 1, 15, 15, 0, 0)
 
-        start, end = PreAggregateHandler.get_start_end(start_time, end_time)
+        start, end = PreAggregateManager.get_start_end(start_time, end_time)
         assert start == start_time
         assert end == end_time
 
@@ -277,17 +277,17 @@ class TestPreAggregateHandler:
             mlrun.errors.MLRunInvalidArgumentError,
             match=r"Both start and end must be datetime objects",
         ):
-            PreAggregateHandler.get_start_end("2025-01-01", None)
+            PreAggregateManager.get_start_end("2025-01-01", None)
 
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match=r"Both start and end must be datetime objects",
         ):
-            PreAggregateHandler.get_start_end(None, "2025-01-15")
+            PreAggregateManager.get_start_end(None, "2025-01-15")
 
     def test_multiple_interval_formats(self):
         """Test various interval format edge cases."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
         dt = datetime(2025, 1, 15, 14, 35, 42)
 
         # Test different minute intervals
@@ -310,7 +310,7 @@ class TestPreAggregateHandler:
         config = MockPreAggregateConfig(
             intervals=["10m", "1h"], functions=["avg", "sum"]
         )
-        handler = PreAggregateHandler(config)
+        handler = PreAggregateManager(config)
 
         # Valid scenario
         handler.validate_interval_and_function("10m", "avg")
@@ -324,7 +324,7 @@ class TestPreAggregateHandler:
 
     def test_edge_cases(self):
         """Test edge cases and boundary conditions."""
-        handler = PreAggregateHandler()
+        handler = PreAggregateManager()
 
         # Test exact alignment (no change needed)
         dt = datetime(2025, 1, 15, 14, 0, 0)  # Exactly on hour boundary

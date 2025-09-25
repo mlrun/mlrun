@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Optional, Union
 
@@ -20,6 +21,9 @@ import mlrun.errors
 
 if TYPE_CHECKING:
     import pandas as pd
+
+# TimescaleDB interval pattern for parsing intervals like "1h", "10m", "1d", "1w", "1M"
+_TIMESCALEDB_INTERVAL_PATTERN = re.compile(r"(\d+)([mhdwM])")
 
 
 class TimescaleDBQueryBuilder:
@@ -130,20 +134,53 @@ class TimescaleDBQueryBuilder:
         return f"{mm_schemas.MetricData.METRIC_NAME} IN ('{metric_list}')"
 
     @staticmethod
-    def combine_filters(filters: list[str], operator: str = "AND") -> Optional[str]:
+    def combine_filters(filters: list[str]) -> Optional[str]:
         """
-        Combine multiple filter conditions with the specified operator.
+        Combine multiple filter conditions with AND operator.
 
         :param filters: List of filter condition strings
-        :param operator: SQL operator to use (AND/OR)
         :return: Combined filter string or None if no filters
         """
         if valid_filters := [f.strip() for f in filters if f.strip()]:
             return (
                 valid_filters[0]
                 if len(valid_filters) == 1
-                else f" {operator} ".join(valid_filters)
+                else " AND ".join(valid_filters)
             )
+        else:
+            return None
+
+    @staticmethod
+    def interval_to_minutes(interval: str) -> Optional[int]:
+        """
+        Convert TimescaleDB interval string to minutes.
+
+        Uses PostgreSQL/TimescaleDB fixed duration assumptions:
+        - 1 month = 30 days = 43,200 minutes
+        - 1 year = 365.25 days = 525,960 minutes
+
+        This matches TimescaleDB's INTERVAL arithmetic behavior and is appropriate
+        for duration calculations and optimal interval selection.
+
+        :param interval: Interval string like "1h", "10m", "1d", "1w", "1M"
+        :return: Duration in minutes, or None if invalid format
+        """
+        match = _TIMESCALEDB_INTERVAL_PATTERN.match(interval)
+        if not match:
+            return None
+
+        amount, unit = int(match.group(1)), match.group(2)
+
+        if unit == "m":  # minutes
+            return amount
+        elif unit == "h":  # hours
+            return amount * 60
+        elif unit == "d":  # days
+            return amount * 1440
+        elif unit == "w":  # weeks
+            return amount * 10080
+        elif unit == "M":  # months (PostgreSQL: 30 days)
+            return amount * 43200
         else:
             return None
 
@@ -152,37 +189,106 @@ class TimescaleDBQueryBuilder:
         """
         Determine optimal interval for time-based aggregation based on time range.
 
-        This method selects appropriate intervals to balance query performance
-        and data granularity based on the total time span.
+        This method selects appropriate interval from a comprehensive list of
+        standard TimescaleDB intervals rather than simple time-based thresholds.
+        This provides better balance between query performance
+        and data granularity by targeting optimal data point counts.
 
         :param start: Start time
         :param end: End time
         :return: Optimal interval string (in Python format like "1h", "1d")
         """
+        # Comprehensive list of standard TimescaleDB intervals
+        standard_intervals = [
+            "1m",
+            "5m",
+            "10m",
+            "15m",
+            "30m",
+            "1h",
+            "2h",
+            "6h",
+            "12h",
+            "1d",
+            "3d",
+            "1w",
+            "1M",
+        ]
 
-        # Calculate the time difference to determine appropriate interval
-        time_diff = end - start
+        optimal = TimescaleDBQueryBuilder._determine_optimal_from_available(
+            start, end, standard_intervals
+        )
 
-        if time_diff <= timedelta(days=2):
-            # For short to medium periods, use 1 hour intervals
-            return "1h"
-        elif time_diff <= timedelta(days=7):
-            # For week-long periods, use 6 hour intervals
-            return "6h"
-        elif time_diff <= timedelta(days=14):
-            # For bi-weekly periods, use 12 hour intervals
-            return "12h"
-        elif time_diff <= timedelta(days=30):
-            # For monthly periods, use daily intervals
-            return "1d"
-        else:
-            # For longer periods, use weekly intervals
-            return "1w"
+        # Fallback for edge cases where algorithm doesn't find a suitable match
+        # Simple binary choice: smallest interval for short ranges, largest for long ranges
+        if optimal is None:
+            time_diff = end - start
+            return "1m" if time_diff <= timedelta(days=30) else "1M"
+        return optimal
+
+    @staticmethod
+    def _determine_optimal_from_available(
+        start: datetime, end: datetime, available_intervals: list[str]
+    ) -> Optional[str]:
+        """
+        Determine optimal interval from available pre-aggregate intervals.
+
+        Uses a formula-based approach to select intervals that provide reasonable data points
+        (~50-200 range) for optimal visualization and query performance.
+
+        :param start: Start time
+        :param end: End time
+        :param available_intervals: List of available interval strings (e.g., ["10m", "1h", "6h", "1d"])
+        :return: Optimal interval string or None if no suitable intervals available
+        """
+        if not available_intervals:
+            return None
+
+        # Convert available intervals to (name, minutes) tuples using our centralized parsing
+        available_with_minutes = []
+        for interval in available_intervals:
+            minutes = TimescaleDBQueryBuilder.interval_to_minutes(interval)
+            if minutes is not None:
+                available_with_minutes.append((interval, minutes))
+
+        if not available_with_minutes:
+            return None
+
+        # Sort by duration (ascending)
+        available_with_minutes.sort(key=lambda x: x[1])
+
+        # Calculate time range in minutes
+        time_diff_minutes = (end - start).total_seconds() / 60
+
+        # Target ~100 data points for optimal visualization balance
+        # Accept intervals that give 20-500 data points (wider reasonable range)
+        target_points = 100
+        min_acceptable_points = 20
+        max_acceptable_points = 500
+
+        optimal_interval_minutes = time_diff_minutes / target_points
+        min_interval_minutes = time_diff_minutes / max_acceptable_points
+        max_interval_minutes = time_diff_minutes / min_acceptable_points
+
+        # Find the best matching interval within acceptable range
+        best_interval = None
+        best_score = float("inf")
+
+        for interval_name, interval_minutes in available_with_minutes:
+            # Check if this interval is within acceptable range
+            if min_interval_minutes <= interval_minutes <= max_interval_minutes:
+                # Score by distance from optimal (closer to optimal = better)
+                score = abs(interval_minutes - optimal_interval_minutes)
+                if score < best_score:
+                    best_score = score
+                    best_interval = interval_name
+
+        return best_interval
 
     @staticmethod
     def build_read_data_with_fallback(
         connection,
-        pre_aggregate_handler,
+        pre_aggregate_manager,
         table_schema,
         start: "datetime",  # Use string to avoid import cycle
         end: "datetime",
@@ -199,7 +305,7 @@ class TimescaleDBQueryBuilder:
         queries for reading data with pre-aggregate optimization and fallback.
 
         :param connection: Database connection instance
-        :param pre_aggregate_handler: Pre-aggregate handler for optimization
+        :param pre_aggregate_manager: Pre-aggregate handler for optimization
         :param table_schema: Table schema for query building
         :param start: Start datetime for query
         :param end: End datetime for query
@@ -241,7 +347,7 @@ class TimescaleDBQueryBuilder:
         }
 
         return connection.execute_with_fallback(
-            pre_aggregate_handler,
+            pre_aggregate_manager,
             build_pre_agg_query,
             build_raw_query,
             interval=None,  # No specific interval for this query
@@ -252,12 +358,12 @@ class TimescaleDBQueryBuilder:
 
     @staticmethod
     def prepare_time_range_and_interval(
-        pre_aggregate_handler,
+        pre_aggregate_manager,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         interval: Optional[str] = None,
         auto_determine_interval: bool = True,
-    ) -> tuple[datetime, datetime, Optional[str]]:
+    ) -> tuple[datetime, datetime, str]:
         """
         Standardized time range and interval preparation for TimescaleDB queries.
 
@@ -266,28 +372,47 @@ class TimescaleDBQueryBuilder:
         2. determine_optimal_interval() (optional)
         3. align_time_range()
 
-        :param pre_aggregate_handler: PreAggregateHandler instance
+        :param pre_aggregate_manager: PreAggregateManager instance
         :param start: Start datetime (optional)
         :param end: End datetime (optional)
         :param interval: Time interval (optional, auto-determined if None and auto_determine_interval=True)
         :param auto_determine_interval: Whether to auto-determine interval if not provided
-        :return: Tuple of (aligned_start, aligned_end, interval)
+        :return: Tuple of (aligned_start, aligned_end, interval) - interval is guaranteed to be valid
         """
         # Step 1: Get start/end times with defaults
-        start, end = pre_aggregate_handler.get_start_end(start, end)
+        start, end = pre_aggregate_manager.get_start_end(start, end)
 
         # Step 2: Auto-determine optimal interval if requested and not provided
         if interval is None and auto_determine_interval:
-            interval = TimescaleDBQueryBuilder.determine_optimal_interval(start, end)
+            # First, try to use available pre-aggregate intervals if they exist
+            available_intervals = (
+                pre_aggregate_manager.config.aggregate_intervals
+                if pre_aggregate_manager.config
+                else None
+            )
+
+            if available_intervals:
+                if optimal_from_preaggregate := (
+                    TimescaleDBQueryBuilder._determine_optimal_from_available(
+                        start, end, available_intervals
+                    )
+                ):
+                    interval = optimal_from_preaggregate
+
+            # If no suitable pre-aggregate interval found, use formula-based approach
+            if interval is None:
+                interval = TimescaleDBQueryBuilder.determine_optimal_interval(
+                    start, end
+                )
 
         # Step 3: Align times to interval boundaries
-        start, end = pre_aggregate_handler.align_time_range(start, end, interval)
+        start, end = pre_aggregate_manager.align_time_range(start, end, interval)
 
         return start, end, interval
 
     @staticmethod
     def prepare_time_range_with_validation(
-        pre_aggregate_handler,
+        pre_aggregate_manager,
         start_iso: str,
         end_iso: str,
         interval: Optional[str] = None,
@@ -301,7 +426,7 @@ class TimescaleDBQueryBuilder:
         2. datetime.fromisoformat() conversion
         3. align_time_range()
 
-        :param pre_aggregate_handler: PreAggregateHandler instance
+        :param pre_aggregate_manager: PreAggregateManager instance
         :param start_iso: Start time as ISO string
         :param end_iso: End time as ISO string
         :param interval: Time interval (optional)
@@ -309,7 +434,7 @@ class TimescaleDBQueryBuilder:
         :return: Tuple of (aligned_start_dt, aligned_end_dt, interval)
         """
         # Step 1: Validate parameters using the pre-aggregate handler
-        pre_aggregate_handler.validate_interval_and_function(interval, agg_function)
+        pre_aggregate_manager.validate_interval_and_function(interval, agg_function)
 
         # Step 2: Convert ISO strings to datetime objects
         start_dt, end_dt = (
@@ -318,7 +443,7 @@ class TimescaleDBQueryBuilder:
         )
 
         # Step 3: Align times if interval is provided
-        start_dt, end_dt = pre_aggregate_handler.align_time_range(
+        start_dt, end_dt = pre_aggregate_manager.align_time_range(
             start_dt, end_dt, interval
         )
 

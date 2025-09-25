@@ -25,14 +25,12 @@ from mlrun.model_monitoring.db.tsdb.stream_graph_steps import BaseErrorExtractor
 
 
 class ProcessBeforeTimescaleDB(mlrun.feature_store.steps.MapClass):
-    def __init__(self, **kwargs):
-        """
-        Process the data before writing to TimescaleDB. This step creates the relevant keys for the TimescaleDB table,
-        including project name, custom metrics, time column, and table name column.
+    """
+    Process the data before writing to TimescaleDB. This step creates the relevant keys for the TimescaleDB table,
+    including project name, custom metrics, time column, and table name column.
 
-        :returns: Event as a dictionary
-        """
-        super().__init__(**kwargs)
+    :returns: Event as a dictionary
+    """
 
     def do(self, event):
         event[EventFieldType.PROJECT] = event[EventFieldType.FUNCTION_URI].split("/")[0]

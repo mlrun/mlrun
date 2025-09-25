@@ -68,8 +68,8 @@ class TimescaleDBStoreyTarget(storey.TimescaleDBTarget):
         if url.startswith("ds://"):
             datastore_profile = datastore_profile_read(url)
             if not isinstance(datastore_profile, DatastoreProfilePostgreSQL):
-                raise ValueError(
-                    f"Unexpected datastore profile type: {datastore_profile.type}. "
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Unexpected datastore profile type: {datastore_profile.type.__name__}. "
                     "Only DatastoreProfilePostgreSQL is supported"
                 )
             url = datastore_profile.dsn()

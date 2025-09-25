@@ -37,7 +37,7 @@ if is_timescaledb_available():
     import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
     from mlrun.model_monitoring.db.tsdb.preaggregate import (
         PreAggregateConfig,
-        PreAggregateHandler,
+        PreAggregateManager,
     )
     from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_metrics_queries import (
         TimescaleDBMetricsQueries,
@@ -62,7 +62,7 @@ else:
     # Create dummy variables to avoid NameError in fixtures
     timescaledb_schema = None
     PreAggregateConfig = None
-    PreAggregateHandler = None
+    PreAggregateManager = None
     TimescaleDBMetricsQueries = None
     TimescaleDBPredictionsQueries = None
     TimescaleDBResultsQueries = None
@@ -136,9 +136,9 @@ def operations_handler(connection, project_name):
 
 
 @pytest.fixture
-def real_pre_aggregate_handler(pre_aggregate_config):
-    """Real pre-aggregate handler for testing with aggregates."""
-    return PreAggregateHandler(pre_aggregate_config)
+def real_pre_aggregate_manager(pre_aggregate_config):
+    """Real pre-aggregate manager for testing with aggregates."""
+    return PreAggregateManager(pre_aggregate_config)
 
 
 class QueryTestHelper:
@@ -149,13 +149,13 @@ class QueryTestHelper:
         connection,
         project_name,
         table_schemas,
-        pre_aggregate_handler,
+        pre_aggregate_manager,
         operations_handler,
     ):
         self.connection = connection
         self.project_name = project_name
         self.table_schemas = table_schemas
-        self.pre_aggregate_handler = pre_aggregate_handler
+        self.pre_aggregate_manager = pre_aggregate_manager
         self.operations_handler = operations_handler
 
     def create_metrics_handler(self):
@@ -163,7 +163,7 @@ class QueryTestHelper:
         return TimescaleDBMetricsQueries(
             project=self.project_name,
             connection=self.connection,
-            pre_aggregate_handler=self.pre_aggregate_handler,
+            pre_aggregate_manager=self.pre_aggregate_manager,
             tables=self.table_schemas,
         )
 
@@ -172,7 +172,7 @@ class QueryTestHelper:
         return TimescaleDBPredictionsQueries(
             project=self.project_name,
             connection=self.connection,
-            pre_aggregate_handler=self.pre_aggregate_handler,
+            pre_aggregate_manager=self.pre_aggregate_manager,
             tables=self.table_schemas,
         )
 
@@ -181,7 +181,7 @@ class QueryTestHelper:
         return TimescaleDBResultsQueries(
             connection=self.connection,
             project=self.project_name,
-            pre_aggregate_handler=self.pre_aggregate_handler,
+            pre_aggregate_manager=self.pre_aggregate_manager,
             tables=self.table_schemas,
         )
 
@@ -198,21 +198,21 @@ def query_test_helper(
     operations_handler,
 ):
     """Test helper that packages all commonly needed query testing components."""
-    # Create PreAggregateHandler with no config for basic testing
-    pre_aggregate_handler = PreAggregateHandler()
+    # Create PreAggregateManager with no config for basic testing
+    pre_aggregate_manager = PreAggregateManager()
 
     return QueryTestHelper(
         connection=connection,
         project_name=project_name,
         table_schemas=table_schemas,
-        pre_aggregate_handler=pre_aggregate_handler,
+        pre_aggregate_manager=pre_aggregate_manager,
         operations_handler=operations_handler,
     )
 
 
 @pytest.fixture
 def query_test_helper_with_aggregates(
-    connection, project_name, table_schemas, real_pre_aggregate_handler
+    connection, project_name, table_schemas, real_pre_aggregate_manager
 ):
     """
     Test helper with real pre-aggregate functionality for testing aggregation features.
@@ -238,12 +238,12 @@ def query_test_helper_with_aggregates(
     # Create tables WITH pre-aggregates
     operations_handler.create_tables()
 
-    # Return the same clean helper pattern but with real pre-aggregate handler
+    # Return the same clean helper pattern but with real pre-aggregate manager
     yield QueryTestHelper(
         connection=connection,
         project_name=project_name,
         table_schemas=table_schemas,
-        pre_aggregate_handler=real_pre_aggregate_handler,
+        pre_aggregate_manager=real_pre_aggregate_manager,
         operations_handler=operations_handler,
     )
 

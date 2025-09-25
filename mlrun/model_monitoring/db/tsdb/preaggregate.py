@@ -20,8 +20,8 @@ from typing import Optional
 import mlrun.errors
 import mlrun.utils
 
-# Compiled regex pattern for parsing time intervals (e.g., "1h", "10m", "1d", "1M")
-_INTERVAL_PATTERN = re.compile(r"(\d+)([mhdM])")
+# Compiled regex pattern for parsing time intervals (e.g., "1h", "10m", "1d", "1w", "1M")
+_INTERVAL_PATTERN = re.compile(r"(\d+)([mhdwM])")
 
 
 @dataclass
@@ -51,7 +51,7 @@ class PreAggregateConfig:
             }
 
 
-class PreAggregateHandler:
+class PreAggregateManager:
     """Handles pre-aggregate validation, time alignment, and optimization decisions."""
 
     def __init__(self, pre_aggregate_config: Optional[PreAggregateConfig] = None):
@@ -59,7 +59,7 @@ class PreAggregateHandler:
         Initialize the pre-aggregate handler.
 
         :param pre_aggregate_config: Configuration for pre-aggregated tables and operations.
-        If None (the default), all pre-aggregate operations will be disabled.
+                                   If None, all pre-aggregate operations will be disabled.
         """
         self._pre_aggregate_config = pre_aggregate_config
 
@@ -121,46 +121,56 @@ class PreAggregateHandler:
 
         amount, unit = int(match.group(1)), match.group(2)
 
+        # Get the start boundary for this interval
+        aligned_start = self._get_interval_start_boundary(dt, amount, unit)
+
+        if align_start:
+            return aligned_start
+
+        # For end alignment, add the interval duration to the start
+        return self._add_interval_to_datetime(aligned_start, amount, unit)
+
+    def _get_interval_start_boundary(
+        self, dt: datetime, amount: int, unit: str
+    ) -> datetime:
+        """Get the start boundary for the given interval."""
         if unit == "m":  # minutes
-            if align_start:
-                return dt.replace(second=0, microsecond=0) - timedelta(
-                    minutes=dt.minute % amount
-                )
-            else:
-                aligned_start = dt.replace(second=0, microsecond=0) - timedelta(
-                    minutes=dt.minute % amount
-                )
-                return aligned_start + timedelta(minutes=amount)
+            return dt.replace(second=0, microsecond=0) - timedelta(
+                minutes=dt.minute % amount
+            )
         elif unit == "h":  # hours
-            if align_start:
-                return dt.replace(minute=0, second=0, microsecond=0) - timedelta(
-                    hours=dt.hour % amount
-                )
-            else:
-                aligned_start = dt.replace(
-                    minute=0, second=0, microsecond=0
-                ) - timedelta(hours=dt.hour % amount)
-                return aligned_start + timedelta(hours=amount)
+            return dt.replace(minute=0, second=0, microsecond=0) - timedelta(
+                hours=dt.hour % amount
+            )
         elif unit == "d":  # days
-            if align_start:
-                return dt.replace(hour=0, minute=0, second=0, microsecond=0)
-            else:
-                return dt.replace(
-                    hour=0, minute=0, second=0, microsecond=0
-                ) + timedelta(days=amount)
+            return dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif unit == "w":  # weeks
+            # Align to Monday (start of week)
+            days_since_monday = dt.weekday()
+            return (dt - timedelta(days=days_since_monday)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
         elif unit == "M":  # months (approximate)
-            if align_start:
-                return dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            else:
-                # Approximate month boundary
-                next_month = dt.replace(
-                    day=1, hour=0, minute=0, second=0, microsecond=0
-                )
-                if dt.month == 12:
-                    next_month = next_month.replace(year=dt.year + 1, month=1)
-                else:
-                    next_month = next_month.replace(month=dt.month + 1)
-                return next_month
+            return dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        return dt
+
+    def _add_interval_to_datetime(
+        self, dt: datetime, amount: int, unit: str
+    ) -> datetime:
+        """Add the specified interval amount to a datetime."""
+        if unit == "m":  # minutes
+            return dt + timedelta(minutes=amount)
+        elif unit == "h":  # hours
+            return dt + timedelta(hours=amount)
+        elif unit == "d":  # days
+            return dt + timedelta(days=amount)
+        elif unit == "w":  # weeks
+            return dt + timedelta(weeks=amount)
+        elif unit == "M":  # months (approximate)
+            if dt.month == 12:
+                return dt.replace(year=dt.year + 1, month=1)
+            return dt.replace(month=dt.month + 1)
 
         return dt
 

@@ -22,9 +22,6 @@ import mlrun
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 import mlrun.utils
-from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
-    Statement,
-)
 from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_dataframe_processor import (
     TimescaleDBDataFrameProcessor,
 )
@@ -44,7 +41,7 @@ class TimescaleDBResultsQueries:
         self,
         connection,  # Required parameter
         project: Optional[str] = None,
-        pre_aggregate_handler=None,
+        pre_aggregate_manager=None,
         tables: Optional[dict] = None,
     ):
         """
@@ -52,12 +49,12 @@ class TimescaleDBResultsQueries:
 
         :param connection: TimescaleDB connection instance (required)
         :param project: Project name
-        :param pre_aggregate_handler: PreAggregateHandler instance
+        :param pre_aggregate_manager: PreAggregateManager instance
         :param tables: Dictionary of table schemas
         """
         self.project = project
         self._connection = connection
-        self._pre_aggregate_handler = pre_aggregate_handler
+        self._pre_aggregate_manager = pre_aggregate_manager
         self.tables = tables
 
     def get_drift_status(
@@ -85,7 +82,7 @@ class TimescaleDBResultsQueries:
         # Set default start time and prepare time range with auto-determined interval
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
-            self._pre_aggregate_handler, start, end
+            self._pre_aggregate_manager, start, end
         )
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
@@ -132,9 +129,7 @@ class TimescaleDBResultsQueries:
                 filter_query,
                 f"{mm_schemas.ResultData.RESULT_STATUS} IS NOT NULL",
             ]
-            enhanced_filter_query = TimescaleDBQueryBuilder.combine_filters(
-                filters, operator="AND"
-            )
+            enhanced_filter_query = TimescaleDBQueryBuilder.combine_filters(filters)
 
             return table_schema._get_records_query(
                 start=start,
@@ -161,7 +156,7 @@ class TimescaleDBResultsQueries:
         }
 
         return self._connection.execute_with_fallback(
-            self._pre_aggregate_handler,
+            self._pre_aggregate_manager,
             build_pre_agg_query,
             build_raw_query,
             interval=interval,
@@ -184,7 +179,7 @@ class TimescaleDBResultsQueries:
         # Set default start time and prepare time range with auto-determined interval
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
-            self._pre_aggregate_handler, start, end
+            self._pre_aggregate_manager, start, end
         )
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.ERRORS]
@@ -221,9 +216,7 @@ class TimescaleDBResultsQueries:
                 filter_query,
                 f"{mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'",
             ]
-            enhanced_filter_query = TimescaleDBQueryBuilder.combine_filters(
-                filters, operator="AND"
-            )
+            enhanced_filter_query = TimescaleDBQueryBuilder.combine_filters(filters)
 
             columns = [
                 f"{mm_schemas.WriterEvent.ENDPOINT_ID} AS {mm_schemas.WriterEvent.ENDPOINT_ID}",
@@ -251,7 +244,7 @@ class TimescaleDBResultsQueries:
         }
 
         return self._connection.execute_with_fallback(
-            self._pre_aggregate_handler,
+            self._pre_aggregate_manager,
             build_pre_agg_query,
             build_raw_query,
             interval=interval,
@@ -269,8 +262,8 @@ class TimescaleDBResultsQueries:
     ) -> pd.DataFrame:
         """Get results metadata with optional pre-aggregate optimization."""
 
-        start, end = self._pre_aggregate_handler.get_start_end(start, end)
-        start, end = self._pre_aggregate_handler.align_time_range(start, end, interval)
+        start, end = self._pre_aggregate_manager.get_start_end(start, end)
+        start, end = self._pre_aggregate_manager.align_time_range(start, end, interval)
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
         filter_query = TimescaleDBQueryBuilder.build_endpoint_filter(endpoint_id)
@@ -366,7 +359,7 @@ class TimescaleDBResultsQueries:
                 )
             filter_conditions.append(status_filter)
 
-        filter_query = TimescaleDBQueryBuilder.combine_filters(filter_conditions, "AND")
+        filter_query = TimescaleDBQueryBuilder.combine_filters(filter_conditions)
 
         # Build the aggregation query using the enhanced _get_records_query
         columns = [
@@ -409,6 +402,7 @@ class TimescaleDBResultsQueries:
 
         This method queries the app_results table for drift-related statuses (potential_detection=1, detected=2)
         and aggregates them by time intervals, counting the maximum drift status per endpoint per interval.
+        Uses pre-aggregate optimization when available.
 
         :param start: Start time for the query
         :param end: End time for the query
@@ -418,7 +412,7 @@ class TimescaleDBResultsQueries:
         """
         # Prepare time range and interval using helper
         start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
-            self._pre_aggregate_handler, start, end, interval
+            self._pre_aggregate_manager, start, end, interval
         )
 
         # Build status filter for drift-related statuses only
@@ -427,29 +421,35 @@ class TimescaleDBResultsQueries:
 
         app_results_table = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
 
-        # Use TimescaleDB's time_bucket function for interval aggregation
-        query = f"""
-        WITH drift_intervals AS (
+        def build_raw_query():
+            # Use TimescaleDB's time_bucket function for interval aggregation
+            return f"""
+            WITH drift_intervals AS (
+                SELECT
+                    time_bucket('{interval}', {mm_schemas.WriterEvent.END_INFER_TIME}) AS bucket_start,
+                    {mm_schemas.WriterEvent.ENDPOINT_ID},
+                    MAX({mm_schemas.ResultData.RESULT_STATUS}) AS max_status
+                FROM {app_results_table.full_name()}
+                WHERE {mm_schemas.ResultData.RESULT_STATUS} IN (%s, %s)
+                AND {mm_schemas.WriterEvent.END_INFER_TIME} >= %s
+                AND {mm_schemas.WriterEvent.END_INFER_TIME} <= %s
+                GROUP BY bucket_start, {mm_schemas.WriterEvent.ENDPOINT_ID}
+            )
             SELECT
-                time_bucket('{interval}', {mm_schemas.WriterEvent.END_INFER_TIME}) AS bucket_start,
-                {mm_schemas.WriterEvent.ENDPOINT_ID},
-                MAX({mm_schemas.ResultData.RESULT_STATUS}) AS max_status
-            FROM {app_results_table.full_name()}
-            WHERE {mm_schemas.ResultData.RESULT_STATUS} IN (%s, %s)
-            AND {mm_schemas.WriterEvent.END_INFER_TIME} >= %s
-            AND {mm_schemas.WriterEvent.END_INFER_TIME} <= %s
-            GROUP BY bucket_start, {mm_schemas.WriterEvent.ENDPOINT_ID}
-        )
-        SELECT
-            bucket_start,
-            max_status,
-            COUNT(*) AS status_count
-        FROM drift_intervals
-        GROUP BY bucket_start, max_status
-        ORDER BY bucket_start, max_status
-        """
+                bucket_start,
+                max_status,
+                COUNT(*) AS status_count
+            FROM drift_intervals
+            GROUP BY bucket_start, max_status
+            ORDER BY bucket_start, max_status
+            """
 
-        stmt = Statement(query, (suspected_status, detected_status, start, end))
+        raw_query = build_raw_query()
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        stmt = Statement(raw_query, (suspected_status, detected_status, start, end))
         result = self._connection.run(query=stmt)
 
         if not result or not result.data:
@@ -551,12 +551,12 @@ class TimescaleDBResultsQueries:
 
         # Combine filters using query builder utilities
         filters = [endpoint_filter, metrics_condition]
-        filter_query = TimescaleDBQueryBuilder.combine_filters(filters, operator="AND")
+        filter_query = TimescaleDBQueryBuilder.combine_filters(filters)
 
         # Use shared utility for consistent query building with fallback
         df = TimescaleDBQueryBuilder.build_read_data_with_fallback(
             connection=self._connection,
-            pre_aggregate_handler=self._pre_aggregate_handler,
+            pre_aggregate_manager=self._pre_aggregate_manager,
             table_schema=table_schema,
             start=start,
             end=end,

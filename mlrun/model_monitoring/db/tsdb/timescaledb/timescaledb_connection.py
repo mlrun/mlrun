@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
 import time
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import pandas as pd
 import psycopg
@@ -21,7 +22,7 @@ import semver
 from psycopg_pool import ConnectionPool
 
 import mlrun.errors
-from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateHandler
+from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateManager
 from mlrun.utils import logger
 
 
@@ -92,6 +93,9 @@ class TimescaleDBConnection:
         "2.7.0"  # Minimum version with finalized continuous aggregates
     )
 
+    # Deadlock retry configuration
+    MAX_DEADLOCK_RETRIES = 3  # Maximum deadlock-specific retry attempts
+
     def __init__(
         self,
         dsn: str,
@@ -150,31 +154,31 @@ class TimescaleDBConnection:
                         ("timescaledb",),
                     )
                     result = cursor.fetchone()
-
-                    if not result:
-                        raise mlrun.errors.MLRunRuntimeError(
-                            "TimescaleDB extension is not installed"
-                        )
-
-                    self._timescaledb_version = result[0]
-
-                    # _timescaledb_version is guaranteed to be non-None at this point
-                    current_version = self._parse_version(self._timescaledb_version)  # type: ignore[arg-type]
-                    min_version = self._parse_version(self.MIN_TIMESCALEDB_VERSION)
-
-                    if current_version < min_version:
-                        raise mlrun.errors.MLRunRuntimeError(
-                            f"TimescaleDB version {self._timescaledb_version} is not supported. "
-                            f"Minimum required version: {self.MIN_TIMESCALEDB_VERSION} "
-                            f"(required for finalized continuous aggregates)"
-                        )
-
         except psycopg.Error as e:
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed to check TimescaleDB version: {e}"
             ) from e
-        finally:
-            self._version_checked = True
+
+        if not result:
+            raise mlrun.errors.MLRunRuntimeError(
+                "TimescaleDB extension is not installed"
+            )
+
+        self._timescaledb_version = result[0]
+
+        # Version processing logic outside try/catch - not a database operation
+        # _timescaledb_version is guaranteed to be non-None at this point
+        current_version = self._parse_version(self._timescaledb_version)  # type: ignore[arg-type]
+        min_version = self._parse_version(self.MIN_TIMESCALEDB_VERSION)
+
+        if current_version < min_version:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"TimescaleDB version {self._timescaledb_version} is not supported. "
+                f"Minimum required version: {self.MIN_TIMESCALEDB_VERSION} "
+                f"(required for finalized continuous aggregates)"
+            )
+
+        self._version_checked = True
 
     @property
     def timescaledb_version(self) -> Optional[str]:
@@ -189,10 +193,10 @@ class TimescaleDBConnection:
         query: Optional[Union[str, Statement]] = None,
     ) -> Optional[QueryResult]:
         """
-        Execute statements and optionally return query results with retry logic.
+        Execute statements and optionally return query results with deadlock-aware retry logic.
 
         Supports both string SQL and parameterized Statement objects.
-        Uses retry parameters configured in constructor for consistent behavior.
+        Uses deadlock-specific retry logic for optimal performance.
 
         :param statements: SQL statements to execute. Can be:
                          - str: Simple SQL string
@@ -205,27 +209,24 @@ class TimescaleDBConnection:
         if not self._version_checked:
             self._check_timescaledb_version()
 
-        statements = self._normalize_statements(statements)
+        if statements := self._normalize_statements(statements):
+            self._execute_with_retry(
+                cursor_operation_callable=lambda cursor: self._execute_statements(
+                    cursor, statements
+                ),
+                operation_name="statements",
+            )
 
-        for attempt in range(self._max_retries + 1):
-            try:
-                return self._execute_operation(statements, query)
-            except (psycopg.OperationalError, psycopg.InterfaceError) as e:
-                if attempt < self._max_retries:
-                    self._handle_retry(attempt)
-                else:
-                    raise mlrun.errors.MLRunRuntimeError(
-                        f"Database operation failed after {self._max_retries + 1} attempts: {e}"
-                    ) from e
-            except psycopg.Error as e:
-                raise mlrun.errors.MLRunRuntimeError(
-                    f"Database operation failed: {e}"
-                ) from e
+        # Execute query with deadlock-specific retry (if provided)
+        if query:
+            return self._execute_with_retry(
+                cursor_operation_callable=lambda cursor: self._execute_query(
+                    cursor, query
+                ),
+                operation_name="query",
+            )
 
-        # Fallback (should never reach here)
-        raise mlrun.errors.MLRunRuntimeError(
-            "Database operation failed for unknown reason"
-        )
+        return None
 
     def _normalize_statements(
         self, statements: Optional[Union[str, Statement, list[Union[str, Statement]]]]
@@ -283,14 +284,9 @@ class TimescaleDBConnection:
         else:
             return QueryResult([], [])
 
-    def _handle_retry(self, attempt: int) -> None:
-        """Handle retry logic with exponential backoff."""
-        wait_time = self._retry_delay * (2**attempt)
-        time.sleep(wait_time)
-
     def execute_with_fallback(
         self,
-        pre_aggregate_handler: PreAggregateHandler,
+        pre_aggregate_manager: PreAggregateManager,
         pre_agg_query_builder: Callable[[], str],
         raw_query_builder: Callable[[], str],
         interval: Optional[str] = None,
@@ -304,7 +300,7 @@ class TimescaleDBConnection:
         This method encapsulates the common pattern of trying pre-aggregate queries first,
         then falling back to raw data queries if the pre-aggregate fails.
 
-        :param pre_aggregate_handler: Handler for pre-aggregate operations
+        :param pre_aggregate_manager: Manager for pre-aggregate operations
         :param pre_agg_query_builder: Function that returns pre-aggregate query string
         :param raw_query_builder: Function that returns raw data query string
         :param interval: Time interval for aggregation
@@ -320,7 +316,7 @@ class TimescaleDBConnection:
 
         df_processor = TimescaleDBDataFrameProcessor()
 
-        if pre_aggregate_handler.can_use_pre_aggregates(
+        if pre_aggregate_manager.can_use_pre_aggregates(
             interval=interval, agg_funcs=agg_funcs
         ):
             try:
@@ -340,10 +336,89 @@ class TimescaleDBConnection:
 
             except Exception as e:
                 logger.warning(
-                    f"Pre-aggregate {debug_name} query failed, falling back to raw data: {e}"
+                    f"Pre-aggregate {debug_name} query failed, falling back to raw data: {e}",
+                    error=mlrun.errors.err_to_str(e),
                 )
 
         # Fallback to raw data query
         raw_query = raw_query_builder()
         result = self.run(query=raw_query)
         return df_processor.from_query_result(result)
+
+    def _execute_with_retry(
+        self,
+        cursor_operation_callable: Callable[
+            [psycopg.Cursor[Any]], Optional[QueryResult]
+        ],
+        operation_name: str,
+    ) -> Optional[QueryResult]:
+        """
+        Generic retry wrapper for database operations.
+
+        PostgreSQL Error Handling Strategy Matrix (Currently Implemented):
+
+        | Category                    |Retry?| Timing           | Reason                           |
+        |-----------------------------|------|------------------|----------------------------------|
+        | DeadlockDetected            |  Yes | 0.1s, 0.2s, 0.4s | Auto-rollback, fast resolution  |
+        | Other OperationalError      |  Yes | 1s, 2s, 4s       | Network/server recovery time     |
+        | InterfaceError              |  Yes | 1s, 2s, 4s       | Client connection issues         |
+        | All Other psycopg.Error     |  No  | -                | Pass through without wrapping    |
+
+        Note: PostgreSQL automatically rolls back failed transactions, so explicit
+        rollback is only needed for DeadlockDetected where we retry the operation.
+
+        Note: Unhandled errors are passed through without wrapping to preserve
+        original exception types and stack traces for proper debugging.
+
+        :param cursor_operation_callable: Function that takes a cursor and executes the operation
+        :param operation_name: Name for logging (e.g., "statements", "query")
+        :return: Result of cursor_operation_callable()
+        """
+        deadlock_attempts = 0
+        connection_attempts = 0
+
+        for _ in range(self.MAX_DEADLOCK_RETRIES + self._max_retries + 1):
+            try:
+                # Execute operation within a transaction
+                with self.pool.connection() as conn:
+                    conn.autocommit = self._autocommit
+                    with conn.cursor() as cursor:
+                        result = cursor_operation_callable(cursor)
+                        if not self._autocommit:
+                            conn.commit()
+                        return result
+            except (psycopg.OperationalError, psycopg.InterfaceError) as e:
+                # Different retry limits and timing based on error type
+                if isinstance(e, psycopg.errors.DeadlockDetected):
+                    if deadlock_attempts >= self.MAX_DEADLOCK_RETRIES:
+                        raise mlrun.errors.MLRunRuntimeError(
+                            f"Database {operation_name} failed: deadlock persisted "
+                            f"after {self.MAX_DEADLOCK_RETRIES} retries: {e}"
+                        ) from e
+                    # Fast retry for deadlocks: ~0.1s, ~0.2s, ~0.4s with jitter
+                    delay = (2**deadlock_attempts) * 0.1 + random.uniform(0, 0.05)
+                    error_type = "deadlock"
+                    deadlock_attempts += 1
+                else:
+                    if connection_attempts >= self._max_retries:
+                        raise mlrun.errors.MLRunRuntimeError(
+                            f"Database {operation_name} failed after "
+                            f"{self._max_retries} connection retries: {e}"
+                        ) from e
+                    # Slower retry for connection issues: 1s, 2s, 4s
+                    delay = self._retry_delay * (2**connection_attempts)
+                    error_type = "connection"
+                    connection_attempts += 1
+
+                logger.info(
+                    f"TimescaleDB {error_type} error in {operation_name}, retrying",
+                    attempt=deadlock_attempts
+                    if error_type == "deadlock"
+                    else connection_attempts,
+                    max_retries=self.MAX_DEADLOCK_RETRIES
+                    if error_type == "deadlock"
+                    else self._max_retries,
+                    delay=delay,
+                    error=str(e),
+                )
+                time.sleep(delay)

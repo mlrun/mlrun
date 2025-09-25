@@ -54,7 +54,7 @@ class TimescaleDBDataFrameProcessor:
         if valid_mapping := {
             old: new for old, new in mapping_config.items() if old in df.columns
         }:
-            df = df.rename(columns=valid_mapping, inplace=False)
+            df = df.rename(columns=valid_mapping)
 
         return df
 
@@ -131,8 +131,9 @@ class TimescaleDBDataFrameProcessor:
             col_words = set(col_lower.split("_"))
 
             for target_name, pattern_words in fuzzy_patterns:
-                # Check if any pattern words are in column words
-                if pattern_words & col_words:  # Set intersection
+                # Require ALL pattern words to be present (subset match)
+                # This ensures "avg_latency" pattern only matches columns containing both words
+                if pattern_words.issubset(col_words):
                     if col != target_name:
                         mapping[col] = target_name
                     break

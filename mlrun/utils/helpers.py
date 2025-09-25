@@ -1228,11 +1228,14 @@ def get_kfp_list_runs_filter(
     Generate a filter for KFP runs based on start and end dates, and experiment IDs.
     """
     existing_filter_object = json.loads(filter_) if filter_ else {"predicates": []}
-    preserved_predicates = [
-        predicate
-        for predicate in existing_filter_object.get("predicates", [])
-        if predicate.get("key") != "name"
-    ]
+    if experiment_ids:
+        preserved_predicates = [
+            predicate
+            for predicate in existing_filter_object.get("predicates", [])
+            if predicate.get("key") != "name"
+        ]
+    else:
+        preserved_predicates = existing_filter_object.get("predicates", [])
 
     new_predicates = []
     if end_date:

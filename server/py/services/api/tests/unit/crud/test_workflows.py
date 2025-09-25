@@ -256,10 +256,14 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
                 auth_info=mlrun.common.schemas.AuthInfo(),
             )
 
-            # Extract the stored scheduled task
-            scheduled_task = scheduler_mock.return_value.store_schedule.call_args[1][
-                "scheduled_object"
-            ]["task"]
+            scheduler_mock.return_value.store_schedule.assert_called_once()
+            scheduled_call_kwargs = (
+                scheduler_mock.return_value.store_schedule.call_args.kwargs
+            )
 
-            # The run_object parameters should reflect the workflow_request.source
-            assert scheduled_task["spec"]["parameters"]["url"] == custom_source
+            assert (
+                scheduled_call_kwargs["scheduled_object"]["task"]["spec"]["parameters"][
+                    "url"
+                ]
+                == custom_source
+            )

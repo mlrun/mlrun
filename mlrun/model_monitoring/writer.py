@@ -270,9 +270,15 @@ class WriterGraphFactory:
             project=fn.metadata.project,
         )
         graph.add_step(
+            "storey.Filter",
+            name="filter_none",
+            _fn="(event is not None)",
+            after="alert_generator",
+        )
+        graph.add_step(
             "mlrun.serving.remote.MLRunAPIRemoteStep",
             name="alert_generator_api_call",
-            after="alert_generator",
+            after="filter_none",
             method="POST",
             path=f"projects/{fn.metadata.project}/events/{{kind}}",
             fill_placeholders=True,
@@ -363,28 +369,39 @@ class AlertGenerator(storey.MapClass):
         self.project = project
         super().__init__()
 
-    def do(self, event: dict) -> dict[str, Any]:
-        event_value = {
-            "app_name": event[WriterEvent.APPLICATION_NAME],
-            "model": event[WriterEvent.ENDPOINT_NAME],
-            "model_endpoint_id": event[WriterEvent.ENDPOINT_ID],
-            "result_name": event[ResultData.RESULT_NAME],
-            "result_value": event[ResultData.RESULT_VALUE],
-        }
-        data = self._generate_event_data(
-            entity_id=get_result_instance_fqn(
-                event[WriterEvent.ENDPOINT_ID],
-                event[WriterEvent.APPLICATION_NAME],
-                event[ResultData.RESULT_NAME],
-            ),
-            result_status=event[ResultData.RESULT_STATUS],
-            event_value=event_value,
-            project_name=self.project,
-            result_kind=event[ResultData.RESULT_KIND],
-        )
-        event = data.dict()
-        logger.info("Generated alert event", event=event)
-        return event
+    def do(self, event: dict) -> Optional[dict[str, Any]]:
+        kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)
+        if (
+            mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled
+            and kind == WriterEventKind.RESULT
+            and (
+                event[ResultData.RESULT_STATUS] == ResultStatusApp.detected.value
+                or event[ResultData.RESULT_STATUS]
+                == ResultStatusApp.potential_detection.value
+            )
+        ):
+            event_value = {
+                "app_name": event[WriterEvent.APPLICATION_NAME],
+                "model": event[WriterEvent.ENDPOINT_NAME],
+                "model_endpoint_id": event[WriterEvent.ENDPOINT_ID],
+                "result_name": event[ResultData.RESULT_NAME],
+                "result_value": event[ResultData.RESULT_VALUE],
+            }
+            data = self._generate_event_data(
+                entity_id=get_result_instance_fqn(
+                    event[WriterEvent.ENDPOINT_ID],
+                    event[WriterEvent.APPLICATION_NAME],
+                    event[ResultData.RESULT_NAME],
+                ),
+                result_status=event[ResultData.RESULT_STATUS],
+                event_value=event_value,
+                project_name=self.project,
+                result_kind=event[ResultData.RESULT_KIND],
+            )
+            event = data.dict()
+            logger.info("Generated alert event", event=event)
+            return event
+        return None
 
     @staticmethod
     def _generate_alert_event_kind(

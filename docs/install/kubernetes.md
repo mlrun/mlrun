@@ -29,7 +29,7 @@ For local installation on Windows or Mac, [Docker Desktop](https://www.docker.co
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
 - Helm >=3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
-- An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
+- An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret. If using docker hub, the registry server is `https://registry.hub.docker.com/`. See the [Docker ID documentation](https://docs.docker.com/docker-id/) for details about creating a user with login that you will configure in the secret.
 - Storage: 
   - 8Gi
   - Set a default storage class for the kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
@@ -54,8 +54,7 @@ The MLRun CE (Community Edition) includes the following components:
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
-  
-[KFP Pipelines](https://github.com/kubeflow/pipelines) is optional. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).
+* [KFP Pipelines](https://github.com/kubeflow/pipelines) 
 
 <a id="installing-the-chart"></a>
 ## Installing the chart
@@ -102,35 +101,41 @@ kubectl --namespace mlrun create secret docker-registry registry-credentials \
     --docker-password <your-password> \
     --docker-email <your-email>
 ```
-
 ```{admonition} Note
 If using docker hub, the registry server is `https://registry.hub.docker.com/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
 creating a user with login to configure in the secret.
 ```
-Where:
 
+Where:
 - `<your-registry-server>` is your Private Docker Registry FQDN. (`index.docker.io/<your-username>` for Docker Hub).
 - `<your-username>` is your Docker username.
 - `<your-password>` is your Docker password.
 - `<your-email>` is your Docker email.
 
-```{admonition} Note
-First-time MLRun users experience a relatively longer installation time because all required images 
-are pulled locally for the first time (it takes an average of 10-15 minutes, mostly depending on 
-your internet speed).
+:::{admonition} Notes on installation
+- If you are using NFS storage in your Kubernetes cluster, add these flags to the chart deployment command:
 ```
-
-To install the chart with the release name `mlrun-ce` use the following command.
-:::{admonition} Note
-If you are using NFS storage in your Kubernetes cluster, add these flags to the chart deployment command:
+  --set kube-prometheus-stack.grafana.securityContext.runAsUser=1000 
+  --set kube-prometheus-stack.grafana.securityContext.runAsGroup=1000 
+  --set kube-prometheus-stack.grafana.securityContext.fsGroup=1000 
+  --set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
+  --set kube-prometheus-stack.grafana.initChownData.enabled
 ```
---set kube-prometheus-stack.grafana.securityContext.runAsUser=1000 
---set kube-prometheus-stack.grafana.securityContext.runAsGroup=1000 
---set kube-prometheus-stack.grafana.securityContext.fsGroup=1000 
---set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
---set kube-prometheus-stack.grafana.initChownData.enabled
-```
+- A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC by running this after importing MLRun:
+    ```
+    import mlrun
+    mlrun.mlconf.storage.auto_mount_type = "pvc"
+    pvc_params = {
+        "pvc_name": "pvc-fhakn",
+        "volume_name": "pv-zjoij",
+        "volume_mount_path": "/tmp/pv-temp/adcxm",
+    }
+    mlrun.mlconf.storage.auto_mount_params = ",".join(
+        [f"{key}={value}" for key, value in pvc_params.items()]
+    )
+    ```
 :::
+To install the chart with the release name `mlrun-ce` use the following command.  
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
 ```bash
@@ -154,7 +159,6 @@ When the installation is complete, the helm command prints the URLs and ports of
 ```{admonition} Known issue when installing the chart on Macs using Apple silicon (ARM-based architicture):
 - The current pipelines MySQL database fails to start. The workaround for now is to run this line `docker pull mysql:5.7 --platform linux/amd64` before installing the chart.
 - The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
-- An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
 ## Configuring the user Jupyter conda environment
@@ -184,18 +188,18 @@ TDengine and Kafka are part of the default CE installations. These are the defau
 ```py
 # Create and register TSDB profile
 tsdb_profile = DatastoreProfileTDEngine(
-    name="my-tdengine",
-    host="<tdengine-server-ip-address>",
-    port=6041,
-    user="username",
-    password="<tdengine-password>",
+    name=tsdb_profile_name,
+    user="root",
+    password="taosdata",
+    host=f"tdengine-tsdb.{namespace}.svc.cluster.local",
+    port="6041",
 )
 project.register_datastore_profile(tsdb_profile)
 
 # Create and register stream profile
-stream_profile = DatastoreProfileKafkaStream(
-    name="my-kafka",
-    brokers=["<kafka-broker-ip-address>:9094"],
+stream_profile = DatastoreProfileKafkaSource(
+    name=stream_profile_name,
+    brokers=f"kafka-stream.{namespace}.svc.cluster.local:9092",
     topics=[],
 )
 
@@ -266,11 +270,9 @@ Configurable values are documented in the `values.yaml`, and the `values.yaml` o
 The chart installs many components. You may not need them all in your deployment depending on your use cases.
 To opt out of some of the components, use the following helm values:
 ```bash
-...
 --set pipelines.enabled=false \
 --set kube-prometheus-stack.enabled=false \
 --set spark-operator.enabled=false \
-...
 ```
 
 ### Installing on Docker Desktop

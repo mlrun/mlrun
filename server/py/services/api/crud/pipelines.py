@@ -96,15 +96,15 @@ class Pipelines(
             )
         except MLRunBadRequestError as e:
             if "no support for filtering on unrecognized field" in str(e):
-               mlrun.utils.logger.warning(
-                   "KFP 1.8 does not support experiment filtering, retrying without it",
-               )
-               filter_json = mlrun.utils.get_kfp_list_runs_filter(
-                   filter_=filter_,
-               )
-               runs, next_page_token = self._paginate_runs(
-                   kfp_client, page_token, page_size, sort_by, filter_json
-               )
+                mlrun.utils.logger.warning(
+                    "KFP 1.8 does not support experiment filtering, retrying without it",
+                )
+                filter_json = mlrun.utils.get_kfp_list_runs_filter(
+                    filter_=filter_,
+                )
+                runs, next_page_token = self._paginate_runs(
+                    kfp_client, page_token, page_size, sort_by, filter_json
+                )
 
         if project:
             if isinstance(project, str):

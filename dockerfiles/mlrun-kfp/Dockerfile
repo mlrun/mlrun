@@ -27,7 +27,6 @@ RUN --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
   python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
-RUN chmod 777 /mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
@@ -56,4 +55,6 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 # Remove server related files that are not needed
 # Remove ensurepip folders from both conda and system python
 RUN rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip /tmp/mlrun
+
+RUN chmod 777 /mlrun
 WORKDIR /mlrun

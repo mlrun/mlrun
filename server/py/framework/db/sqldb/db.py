@@ -1894,6 +1894,12 @@ class SQLDB(DBInterface):
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
 
+        # Order the results before applying the limit to ensure that the limit is applied to the correctly
+        # ordered results.
+        # If the updated fields are the same, we need a secondary field to sort by.
+        # Default sorting criteria is by updated first and ID second
+        order_criteria = [ArtifactV2.updated.desc(), ArtifactV2.id.desc()]
+
         # join on tags
         if tag and tag != "*":
             # If a tag is given, we can just join (faster than outer join) and filter on the tag
@@ -1925,25 +1931,24 @@ class SQLDB(DBInterface):
             query = self._add_artifact_parent_query(query=query, parent_uri=parent_uri)
 
         if limit:
-            # Order the results before applying the limit to ensure that the limit is applied to the correctly
-            # ordered results.
-            # If the updated fields are the same, we need a secondary field to sort by.
-            # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
-            # Put "latest" tag first, then others by tag_id desc
-            latest_first_case = case(
-                (text(f"{tag_name_alias} = 'latest'"), 0),
-                else_=1,
-            )
+            # When specific tag is not given - we need a consistent way to sort artifacts that have multiple tags.
+            # Therefore, we add sorting by latest tag first, then by tag ID as the last criteria.
+            if tag == "*" or not tag:
+                # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
+                # Put "latest" tag first, then others by tag_id desc
+                latest_first_case = case(
+                    (text(f"{tag_name_alias} = 'latest'"), 0),
+                    else_=1,
+                )
+
+                order_criteria.append(latest_first_case)
+                # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
+                # This is necessary because SQLAlchemy does not allow direct reference
+                # to aliased columns (like "tag_id") in order_by() using ORM column objects.
+                order_criteria.append(text(f"{tag_id_alias} DESC"))
+
             query = self._paginate_query(
-                query.order_by(
-                    ArtifactV2.updated.desc(),
-                    ArtifactV2.id.desc(),
-                    latest_first_case,
-                    # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
-                    # This is necessary because SQLAlchemy does not allow direct reference
-                    # to aliased columns (like "tag_id") in order_by() using ORM column objects.
-                    text(f"{tag_id_alias} DESC"),
-                ),
+                query.order_by(*order_criteria),
                 offset,
                 limit,
             )
@@ -1958,22 +1963,25 @@ class SQLDB(DBInterface):
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
-        # Put "latest" tag first, then others by tag_id desc
-        latest_first_case = case(
-            (subquery.c.tag_name == "latest", 0),
-            else_=1,
-        )
+        # Join may lose order, make sure order is applied on outer as well
+        # When specific tag is not given - we need a consistent way to sort artifacts that have multiple tags.
+        # Therefore, we add sorting by latest tag first, then by tag ID as the last criteria.
+        if tag == "*" or not tag:
+            # Put "latest" tag first, then others by tag_id desc
+            latest_first_case = case(
+                (subquery.c.tag_name == "latest", 0),
+                else_=1,
+            )
 
-        # join may lose order, make sure order is applied on outer as well
-        # If the updated fields are the same, we need a secondary field to sort by.
-        # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
-        outer_query = outer_query.order_by(
-            ArtifactV2.updated.desc(),
-            ArtifactV2.id.desc(),
-            latest_first_case,
+            # Reset order criteria to default values
+            if limit:
+                order_criteria = [ArtifactV2.updated.desc(), ArtifactV2.id.desc()]
+
+            order_criteria.append(latest_first_case)
             # Safe ordering by tag_id alias
-            subquery.c[tag_id_alias].desc(),
-        )
+            order_criteria.append(subquery.c[tag_id_alias].desc())
+
+        outer_query = outer_query.order_by(*order_criteria)
 
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)

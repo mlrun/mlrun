@@ -62,6 +62,7 @@ import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.common.schemas import ArtifactCategories
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun_pipelines.models import PipelineRun
 
@@ -802,11 +803,17 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     return uri if not add_store else DB_SCHEMA + "://" + uri
 
 
-def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
+def extend_hub_uri_if_needed(
+    uri: str,
+    asset_type: HubSourceType = HubSourceType.functions,
+    file: str = "function.yaml",
+) -> tuple[str, bool]:
     """
-    Retrieve the full uri of the function's yaml in the hub.
+    Retrieve the full uri of an object in the hub.
 
     :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
+    :param asset_type:  The type of the hub item (functions, modules, etc.)
+    :param file: The file name inside the hub item directory (default: function.yaml)
 
     :return: A tuple of:
                [0] = Extended URI of item
@@ -832,7 +839,7 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     name = normalize_name(name=name)
     if not source_name:
         # Searching item in all sources
-        sources = db.list_hub_sources(item_name=name, tag=tag)
+        sources = db.list_hub_sources(item_name=name, tag=tag, item_type=asset_type)
         if not sources:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Item={name}, tag={tag} not found in any hub source"
@@ -842,13 +849,10 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     else:
         # Specific source is given
         indexed_source = db.get_hub_source(source_name)
-    # hub function directory name are with underscores instead of hyphens
+    # hub directories name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    function_suffix = f"{name}/{tag}/src/function.yaml"
-    function_type = mlrun.common.schemas.hub.HubSourceType.functions
-    return indexed_source.source.get_full_uri(
-        function_suffix, function_type
-    ), is_hub_uri
+    suffix = f"{name}/{tag}/src/{file}"
+    return indexed_source.source.get_full_uri(suffix, asset_type), is_hub_uri
 
 
 def gen_md_table(header, rows=None):

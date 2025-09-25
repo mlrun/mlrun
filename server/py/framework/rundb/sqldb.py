@@ -907,6 +907,7 @@ class SQLRunDB(RunDBInterface):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
+        item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         return self._transform_db_error(
             framework.db.session.run_function_with_new_db_session,
@@ -914,6 +915,7 @@ class SQLRunDB(RunDBInterface):
             item_name,
             tag,
             version,
+            item_type,
         )
 
     def get_pipeline(

@@ -166,7 +166,7 @@ def test_requirement_specifiers_convention():
         },
     }
 
-    list_of_missing_requirements = []
+    missing_requirements = []
     for (
         ignored_requirement_name,
         ignored_specifiers,
@@ -180,11 +180,11 @@ def test_requirement_specifiers_convention():
             if diff == {}:
                 del invalid_requirement_specifiers_map[ignored_requirement_name]
         else:
-            list_of_missing_requirements.append(ignored_requirement_name)
+            missing_requirements.append(ignored_requirement_name)
 
     assert (
-        list_of_missing_requirements == []
-    ), f"The following requirements are missing from the ignored_invalid_map: {list_of_missing_requirements}"
+        missing_requirements == []
+    ), f"The following requirements are missing from the ignored_invalid_map: {missing_requirements}"
 
     assert invalid_requirement_specifiers_map == {}
 

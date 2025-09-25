@@ -1036,9 +1036,7 @@ upgrade-mlrun-test-deps-lock: ## Upgrade mlrun test locked requirements file
 		dockerfiles/test/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--python-version $(MLRUN_PYTHON_VERSION) \
-		--constraint dockerfiles/constraints-py$(MLRUN_PYTHON_VERSION).txt \
-		--output-file dockerfiles/test/locked-requirements_${MLRUN_PYTHON_VERSION}.txt
+		--output-file dockerfiles/test/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-system-test-deps-lock
 upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked requirements file
@@ -1050,15 +1048,6 @@ upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked require
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/test-system/locked-requirements.txt
-
-
-upgrade-mlrun-test-deps-lock-all: upgrade-mlrun-test-deps-lock-3.11 upgrade-mlrun-test-deps-lock-3.9
-
-upgrade-mlrun-test-deps-lock-3.11:
-	$(MAKE) upgrade-mlrun-test-deps-lock MLRUN_PYTHON_VERSION=3.11
-
-upgrade-mlrun-test-deps-lock-3.9:
-	$(MAKE) upgrade-mlrun-test-deps-lock MLRUN_PYTHON_VERSION=3.9
 
 
 upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
@@ -1077,7 +1066,7 @@ upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 		upgrade-mlrun-jupyter-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
 		upgrade-mlrun-kfp-deps-lock \
-		upgrade-mlrun-test-deps-lock-all \
+		upgrade-mlrun-test-deps-lock \
 		upgrade-mlrun-system-test-deps-lock
 
 

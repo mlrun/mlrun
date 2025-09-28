@@ -26,6 +26,7 @@ from pandas import Timedelta, Timestamp
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version
+import mlrun_pipelines.client
 import mlrun_pipelines.models
 from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
@@ -1749,7 +1750,7 @@ def test_get_kfp_list_runs_filter(
     experiment_ids = []
     if input_experiment_id:
         experiment_ids.append(input_experiment_id)
-    generated_filter_json: str = mlrun.utils.helpers.get_kfp_list_runs_filter(
+    generated_filter_json: str = mlrun_pipelines.client.create_list_runs_filter(
         start_date=input_start_date,
         end_date=input_end_date,
         filter_=input_existing_filter_json,

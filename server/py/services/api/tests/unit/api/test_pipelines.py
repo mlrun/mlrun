@@ -276,7 +276,7 @@ def test_list_pipelines_name_contains(
     _mock_list_runs(
         kfp_client_mock,
         runs,
-        expected_filter=mlrun.utils.get_kfp_list_runs_filter()
+        expected_filter=mlrun_pipelines.client.create_list_runs_filter()
         if project_name != "*"
         else "",
     )

@@ -185,15 +185,15 @@ class AbstractClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_candidate_experiments_for_projects(
+    def _get_candidate_experiments_for_projects(
         self,
-        project_name: str,
+        project_names: str,
     ):
         """
         Retrieve an experiment by project name.
         This method searches for an experiment whose name matches the project name,
         allowing for a dash-prefixed match (e.g., "myproject-").
-        :param project_name: The name of the project to search for.
+        :param project_names: The name of the project or projects to search for.
         :return: An ApiExperiment object representing the found experiment.
         :raises ValueError: If no experiment is found with the specified project name.
         """

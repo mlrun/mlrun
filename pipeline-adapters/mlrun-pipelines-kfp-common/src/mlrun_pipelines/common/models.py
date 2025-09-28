@@ -130,3 +130,11 @@ class RunStatuses(StrEnum):
             RunStatuses.canceling,
             RunStatuses.terminating,
         ]
+
+    @classmethod
+    def unsuccessful_statuses(cls):
+        return [
+            status
+            for status in cls.all()
+            if status not in cls.transient_statuses() + [RunStatuses.succeeded]
+        ]

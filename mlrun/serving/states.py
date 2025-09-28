@@ -1338,7 +1338,7 @@ class LLModel(Model):
         self,
         body: Any,
         messages: Optional[list[dict]] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
         llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
@@ -1349,12 +1349,12 @@ class LLModel(Model):
                 "Invoking model provider",
                 model_name=self.name,
                 messages=messages,
-                model_configuration=model_configuration,
+                model_configuration=invocation_config,
             )
             response_with_stats = self.model_provider.invoke(
                 messages=messages,
                 invoke_response_format=InvokeResponseFormat.USAGE,
-                **(model_configuration or {}),
+                **(invocation_config or {}),
             )
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
@@ -1428,7 +1428,7 @@ class LLModel(Model):
         return self.predict(
             body,
             messages=messages,
-            model_configuration=model_configuration,
+            invocation_config=model_configuration,
             llm_prompt_artifact=llm_prompt_artifact,
         )
 

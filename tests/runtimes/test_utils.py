@@ -71,7 +71,7 @@ def test_add_code_metadata_stale_remote(repo):
 
 
 @pytest.mark.parametrize(
-    "labels, labels_to_enrich, expected_labels, env_vars_to_mock",
+    "labels, labels_to_enrich, expected_labels, env_vars_to_mock, auth_username",
     [
         (
             {},

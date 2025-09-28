@@ -448,6 +448,24 @@ def enrich_function_from_dict(function, function_dict):
     return function
 
 
+def resolve_owner(
+    labels: dict,
+    auth_username: Optional[str] = None,
+):
+    """
+    Resolve the owner label value
+    :param labels: The run labels dict
+    :param auth_username: The authenticated username
+    :return: The resolved owner label value
+    """
+    return (
+        auth_username
+        if auth_username
+        and labels.get("job-type") == mlrun.common.constants.JOB_TYPE_WORKFLOW_RUNNER
+        else os.environ.get("V3IO_USERNAME") or getpass.getuser()
+    )
+
+
 def enrich_run_labels(
     labels: dict,
     labels_to_enrich: Optional[list[mlrun_constants.MLRunInternalLabels]] = None,
@@ -457,15 +475,12 @@ def enrich_run_labels(
     Enrich the run labels with the internal labels and the labels enrichment extension
     :param labels: The run labels dict
     :param labels_to_enrich: The label keys to enrich from MLRunInternalLabels.default_run_labels_to_enrich
+    :param auth_username: The authenticated username
     :return: The enriched labels dict
     """
     # Merge the labels with the labels enrichment extension
     labels_enrichment = {
-        mlrun_constants.MLRunInternalLabels.owner: (
-            auth_username
-            if labels.get("job-type") == "workflow-runner"
-            else os.environ.get("V3IO_USERNAME") or getpass.getuser()
-        ),
+        mlrun_constants.MLRunInternalLabels.owner: resolve_owner(labels, auth_username),
     }
 
     # Resolve which label keys to enrich

@@ -165,6 +165,46 @@ def test_enrich_run_labels(
         )
 
 
+@pytest.mark.parametrize(
+    "labels, env_vars, auth_username, expected_owner",
+    [
+        # Default: no job-type, no env, no auth_username
+        (
+            {},
+            {"V3IO_USERNAME": "v3io_user", "LOGNAME": "fallback_user"},
+            None,
+            "v3io_user",
+        ),
+        # No V3IO_USERNAME, fallback to getpass.getuser()
+        (
+            {},
+            {"V3IO_USERNAME": "", "LOGNAME": "fallback_user"},
+            None,
+            "fallback_user",
+        ),
+        # job-type is workflow-runner, should use auth_username
+        (
+            {"job-type": mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER},
+            {"V3IO_USERNAME": "v3io_user", "LOGNAME": "fallback_user"},
+            "auth_user",
+            "auth_user",
+        ),
+        # job-type is workflow-runner, but no auth_username, fallback to env
+        (
+            {"job-type": mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER},
+            {"V3IO_USERNAME": "v3io_user", "LOGNAME": "fallback_user"},
+            None,
+            "v3io_user",
+        ),
+    ],
+)
+def test_resolve_owner(labels, env_vars, auth_username, expected_owner):
+    with unittest.mock.patch.dict(os.environ, env_vars, clear=True):
+        with unittest.mock.patch("getpass.getuser", return_value=env_vars["LOGNAME"]):
+            owner = mlrun.runtimes.utils.resolve_owner(labels, auth_username)
+            assert owner == expected_owner
+
+
 def test_results_to_iter_status_resolution(rundb_mock):
     """
     Test that results_to_iter correctly updates the execution state based on the results provided.

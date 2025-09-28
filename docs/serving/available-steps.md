@@ -1,17 +1,19 @@
 (available-steps)=
 # Built-in steps
 
-MlRun provides you with many built-in steps that you can use when building your graph. All steps are supported by the storey engine. Support by any other engines is included in the step description, as relevant.
+A step runs a function or class handler or a REST API call: MLRun comes with pre-built steps that include data manipulation, readers, writers and model serving.
+All steps are supported by the storey engine. Support by any other engines is included in the step description, as relevant.
 
-Click on the step names in the following sections to see the full usage.
+You can also write your own steps using standard Python functions or custom functions/classes, or a step can be an external REST API (the special `$remote` class).
 
+See also [Data transformations](../feature-store/transformations.md#data-transformation-steps).
+
+**In this section**
 - [Base Operators](#base-operators)
 - [External IO and data enrichment](#external-io-and-data-enrichment)
 - [Models](#models)
 - [Routers](#routers)
 - [Other](#other)
-
-See also [Data transformations](../feature-store/transformations.md#data-transformation-steps).
 
 ## Base Operators
 

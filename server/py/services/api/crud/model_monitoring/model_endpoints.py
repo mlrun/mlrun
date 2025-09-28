@@ -1515,18 +1515,16 @@ class ModelEndpoints:
                 kind="parquet_stats",
             )
         )
+        parquet_target = (
+            parquet_target if parquet_target.endswith("/") else parquet_target + "/",
+        )
 
         target = ParquetTarget(
-            path=parquet_target,
+            path=f"{parquet_target}endpoint_id={uid}/stats_name={kind}/target.parquet",
             partition_cols=[WriterEvent.ENDPOINT_ID, mm_constants.StatsData.STATS_NAME],
         )
         try:
-            df = target.as_df(
-                additional_filters=[
-                    (WriterEvent.ENDPOINT_ID, "=", uid),
-                    (mm_constants.StatsData.STATS_NAME, "=", kind),
-                ]
-            )
+            df = target.as_df()
         except Exception as exc:
             logger.warning(
                 "Failed to read stats from parquet, you may need to check the parquet file",
@@ -1540,9 +1538,10 @@ class ModelEndpoints:
         if df.empty:
             return {}, None
         else:
-            df.sort_values(
-                by=[mm_constants.StatsData.TIMESTAMP], ascending=False, inplace=True
-            )
+            if len(df) > 1:
+                df.sort_values(
+                    by=[mm_constants.StatsData.TIMESTAMP], ascending=False, inplace=True
+                )
             logger.info(
                 "Got stats from parquet",
                 project=project,

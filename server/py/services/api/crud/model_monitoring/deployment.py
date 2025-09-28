@@ -731,8 +731,8 @@ class MonitoringDeployment:
                 parquet_path=parquet_target,
             )
             writer_factory.apply_writer_graph(
-                function,
-                self._tsdb_connector,
+                fn=function,
+                tsdb_connector=self._tsdb_connector,
             )
 
         # Set the project to the serving function

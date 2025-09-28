@@ -36,7 +36,6 @@ import mlrun.errors
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
-from mlrun.common.schemas.model_monitoring import WriterEvent
 from mlrun.config import config
 from mlrun.datastore import ParquetTarget
 from mlrun.model_monitoring.db._schedules import (
@@ -1516,12 +1515,11 @@ class ModelEndpoints:
             )
         )
         parquet_target = (
-            parquet_target if parquet_target.endswith("/") else parquet_target + "/",
+            parquet_target if parquet_target.endswith("/") else parquet_target + "/"
         )
 
         target = ParquetTarget(
             path=f"{parquet_target}endpoint_id={uid}/stats_name={kind}/target.parquet",
-            partition_cols=[WriterEvent.ENDPOINT_ID, mm_constants.StatsData.STATS_NAME],
         )
         try:
             df = target.as_df()

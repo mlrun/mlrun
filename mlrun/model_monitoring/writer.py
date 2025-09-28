@@ -304,7 +304,6 @@ class WriterGraphFactory:
                 WriterEvent.ENDPOINT_ID,
                 StatsData.STATS_NAME,
             ],
-            key_bucketing_number=0,
             partition_cols=[WriterEvent.ENDPOINT_ID, StatsData.STATS_NAME],
             single_file=True,
         )
@@ -363,7 +362,7 @@ class KindChoice(storey.Choice):
             outlets = ["stats_writer"]
         else:
             raise _WriterEventValueError(
-                f"Unknown event kind: {event.get('kind')}, expected one of: {WriterEventKind.list()}"
+                f"Unknown event kind: {kind}, expected one of: {WriterEventKind.list()}"
             )
         return outlets
 

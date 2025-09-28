@@ -77,7 +77,9 @@ class RemoteStep(storey.SendToHttp):
 
         :param url:     http(s) url or function [project/]name to call
         :param subpath: path (which follows the url), use `$path` to use the event.path
-        :param method:  HTTP method (GET, POST, ..), default to POST
+        :param method:  The HTTP method to use for the request (e.g., "GET", "POST", "PUT", "DELETE").
+                        If not provided, the step will try to use `event.method` at runtime, and if that
+                        is also missing, it defaults to `"POST"`.
         :param headers: dictionary with http header values
         :param url_expression: an expression for getting the url from the event, e.g. "event['url']"
         :param body_expression: an expression for getting the request body from the event, e.g. "event['data']"
@@ -468,16 +470,17 @@ class MLRunAPIRemoteStep(RemoteStep):
         """
         Graph step implementation for calling MLRun API endpoints
 
-        :param method:  HTTP method (GET, POST, ...) as default defines the method of the request, if empty string or
-                        None the method will be taken from the event (default to POST)
+        :param method:  The HTTP method to use for the request (e.g., "GET", "POST", "PUT", "DELETE").
+                        If not provided, the step will try to use `event.method` at runtime, and if that
+                        is also missing, it defaults to `"POST"`.
         :param path:    API path (e.g. /api/projects)
-        :param fill_placeholders: if True, fill placeholders in the path using event fields
+        :param fill_placeholders: if True, fill placeholders in the path using event fields (default to False)
         :param kwargs:  other arguments passed to RemoteStep
         """
         super().__init__(url="", method=method, **kwargs)
         self.rundb = None
         self.path = path
-        self.fill_placeholders = fill_placeholders or False
+        self.fill_placeholders = fill_placeholders
 
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
@@ -521,5 +524,6 @@ class MLRunAPIRemoteStep(RemoteStep):
 
     def post_init(self, mode="sync", **kwargs):
         super().post_init(mode=mode, **kwargs)
+        self.fill_placeholders = self.fill_placeholders or False
         self.rundb = mlrun.get_run_db()
         self.url = self.rundb.get_base_api_url(self.path)

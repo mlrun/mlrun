@@ -235,11 +235,11 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         return run_object
 
     @staticmethod
-    def _enrich_run_labels_and_env(labels: dict, runner: mlrun.run.KubejobRuntime, auth_username: str):
+    def _enrich_run_labels_and_env(
+        labels: dict, runner: mlrun.run.KubejobRuntime, auth_username: str
+    ):
         mlrun.runtimes.utils.enrich_run_labels(
-            labels,
-            [mlrun_constants.MLRunInternalLabels.owner],
-            auth_username
+            labels, [mlrun_constants.MLRunInternalLabels.owner], auth_username
         )
         client_python_version = runner.metadata.labels.get(
             mlrun_constants.MLRunInternalLabels.client_python_version

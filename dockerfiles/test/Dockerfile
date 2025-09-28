@@ -54,7 +54,7 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    --mount=type=bind,source=dockerfiles/test/locked-requirements_${MLRUN_PYTHON_VERSION}.txt,target=locked-requirements.txt \
+    --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \
     uv pip sync  --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
 WORKDIR /mlrun

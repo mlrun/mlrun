@@ -126,53 +126,27 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "aiobotocore": {">=2.5.0,<2.16"},
         "storey": {"~=1.10.13"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "scipy": {"~=1.13.0"},
-        # These 2 are used in a tests that is purposed to test requirement without specifiers
-        "faker": {""},
-        "python-dotenv": {""},
-        # These are not semver
-        "pyhive": {" @ git+https://github.com/v3io/PyHive.git@v0.6.999"},
-        "v3io-generator": {
-            " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
-        },
-        "databricks-sdk": {"~=0.20.0"},
         "docstring_parser": {"~=0.16"},
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.6"},
         "pyopenssl": {">=23"},
-        "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
-        # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
-        "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
         "aioresponses": {"~=0.7"},
         "testcontainers[k3s]": {"~=4.10.0"},
         "scikit-learn": {"~=1.5.2"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
-        "dask[array,dataframe,distributed]": {
-            '>=2023.12.1; python_version < "3.11"',
-        },
-        "dask[complete]": {
-            '>=2024.8; python_version >= "3.11"',
-        },
         "mlrun_pipelines_kfp_v1_8[kfp]": {
             ">=0.5.7",
         },
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
-        "grpcio": {
-            '~=1.59.0; python_version <= "3.9"',
-            '~=1.74.0; python_version > "3.9"',
-        },
         "urllib3": {
             ">=1.26.20",
-        },
-        "v3io-frames": {
-            ">=0.10.16",
         },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',
@@ -192,6 +166,7 @@ def test_requirement_specifiers_convention():
         },
     }
 
+    missing_requirements = []
     for (
         ignored_requirement_name,
         ignored_specifiers,
@@ -204,6 +179,12 @@ def test_requirement_specifiers_convention():
             )
             if diff == {}:
                 del invalid_requirement_specifiers_map[ignored_requirement_name]
+        else:
+            missing_requirements.append(ignored_requirement_name)
+
+    assert (
+        missing_requirements == []
+    ), f"The following requirements are missing from the ignored_invalid_map: {missing_requirements}"
 
     assert invalid_requirement_specifiers_map == {}
 
@@ -241,6 +222,10 @@ def test_requirement_specifiers_inconsistencies():
         "kfp": {
             '==1.8.22; python_version < "3.11"',
             '==1.8.23; python_version >= "3.11"',
+        },
+        "v3io-frames": {
+            '~=0.10.16; python_version < "3.11"',
+            '~=0.13.11; python_version >= "3.11"',
         },
     }
 

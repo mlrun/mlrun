@@ -30,7 +30,6 @@ import kfp_server_api
 import kubernetes as k8s
 import orjson
 import yaml
-from orjson import orjson
 
 import mlrun_pipelines.common.client
 import mlrun_pipelines.common.models
@@ -430,8 +429,8 @@ class Client(
 
     def list_runs(
         self,
-        project: typing.Union[list[str], str] = None,
-        namespace: str = None,
+        project: typing.Union[list[str], Optional[str]] = None,
+        namespace: typing.Optional[str] = None,
         sort_by: str = "",
         page_token: str = "",
         filter_json: str = "",

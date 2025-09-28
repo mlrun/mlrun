@@ -80,18 +80,21 @@ def test_add_code_metadata_stale_remote(repo):
                 mlrun_constants.MLRunInternalLabels.owner: mlrun_constants.MLRunInternalLabels.v3io_user,
             },
             None,
+            None,
         ),
         (
             {},
             None,
             {mlrun_constants.MLRunInternalLabels.owner: "test_user"},
             {"LOGNAME": "test_user", "V3IO_USERNAME": ""},
+            None,
         ),
         (
             {},
             {},
             {},
             {"LOGNAME": "test_user", "V3IO_USERNAME": ""},
+            None,
         ),
         (
             {mlrun_constants.MLRunInternalLabels.owner: "Mahatma"},
@@ -100,6 +103,7 @@ def test_add_code_metadata_stale_remote(repo):
                 mlrun_constants.MLRunInternalLabels.owner: "Mahatma",
             },
             None,
+            None,
         ),
         (
             {
@@ -111,6 +115,7 @@ def test_add_code_metadata_stale_remote(repo):
                 mlrun_constants.MLRunInternalLabels.owner: "Mahatma",
                 mlrun_constants.MLRunInternalLabels.v3io_user: "Gandhi",
             },
+            None,
             None,
         ),
         (
@@ -122,10 +127,24 @@ def test_add_code_metadata_stale_remote(repo):
                 mlrun_constants.MLRunInternalLabels.owner: mlrun_constants.MLRunInternalLabels.v3io_user,
             },
             None,
+            None,
+        ),
+        # New test: auth_username should override owner if job-type is workflow-runner
+        (
+            {"job-type": "workflow-runner"},
+            None,
+            {
+                "job-type": "workflow-runner",
+                mlrun_constants.MLRunInternalLabels.owner: "auth_user",
+            },
+            None,
+            "auth_user",
         ),
     ],
 )
-def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_to_mock):
+def test_enrich_run_labels(
+    labels, labels_to_enrich, expected_labels, env_vars_to_mock, auth_username
+):
     env_vars_to_mock = env_vars_to_mock or {
         "V3IO_USERNAME": mlrun_constants.MLRunInternalLabels.v3io_user,
     }
@@ -134,7 +153,7 @@ def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_t
         env_vars_to_mock,
     ):
         enriched_labels = mlrun.runtimes.utils.enrich_run_labels(
-            labels, labels_to_enrich
+            labels, labels_to_enrich, auth_username=auth_username
         )
         assert (
             deepdiff.DeepDiff(

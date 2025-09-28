@@ -5089,46 +5089,41 @@ class MlrunProject(ModelObj):
         end_time_to: Optional[datetime.datetime] = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
-        """Retrieve a list of runs.
-        The default returns the runs from the last week, partitioned by name.
-        To override the default, specify any filter.
+        """Retrieve a list of completed runs for the project.
 
-        The returned result is a `` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
+        The default returns runs from the last week, partitioned by name. To override the default, specify any filter.
+
+        The returned result is a `RunList` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
         `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to
-        generate comparison table and PCP plot.
+        generate a comparison table and PCP plot.
 
         Example::
 
-            # return a list of runs matching the name and label and compare
-            runs = project.list_runs(name="download", labels="owner=admin")
+            # return a list of completed runs matching the name and label and compare
+            runs = project.list_completed_runs(name="download", labels="owner=admin")
             runs.compare()
 
             # multi-label filter can also be provided
-            runs = project.list_runs(name="download", labels=["kind=job", "owner=admin"])
+            runs = project.list_completed_runs(name="download", labels=["kind=job", "owner=admin"])
 
             # If running in Jupyter, can use the .show() function to display the results
-            project.list_runs(name="").show()
-
+            project.list_completed_runs(name="").show()
 
         :param name: Name of the run to retrieve.
-        :param uid: Unique ID of the run.
+        :param uid: Unique ID of the run (string or list of strings).
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
-
                        - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
                          or `{"label": None}` to check for key existence.
                        - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
                          or just `"label"` for key existence.
                        - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
                          the specified key-value pairs or key existence.
-
-        :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
-        :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
-            last_update_time_to)``.
+        :param last_update_time_from: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
         :param end_time_from: Filter by run end time in ``[end_time_from, end_time_to]``.
         :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.

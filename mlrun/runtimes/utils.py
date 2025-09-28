@@ -451,6 +451,7 @@ def enrich_function_from_dict(function, function_dict):
 def enrich_run_labels(
     labels: dict,
     labels_to_enrich: Optional[list[mlrun_constants.MLRunInternalLabels]] = None,
+    auth_username: Optional[str] = None,
 ):
     """
     Enrich the run labels with the internal labels and the labels enrichment extension
@@ -460,9 +461,11 @@ def enrich_run_labels(
     """
     # Merge the labels with the labels enrichment extension
     labels_enrichment = {
-        mlrun_constants.MLRunInternalLabels.owner: os.environ.get("V3IO_USERNAME")
-        or getpass.getuser(),
-    }
+            mlrun_constants.MLRunInternalLabels.owner: (
+                auth_username if labels.get("job-type") == "workflow-runner"
+                else os.environ.get("V3IO_USERNAME") or getpass.getuser()
+            ),
+        }
 
     # Resolve which label keys to enrich
     if labels_to_enrich is None:

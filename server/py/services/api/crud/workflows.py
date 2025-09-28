@@ -105,7 +105,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param rerun_request:    Workflow request containing the rerun spec.
         :return: RunObject with run metadata, results, and status.
         """
-        self._enrich_run_labels_and_env(labels, runner)
+        self._enrich_run_labels_and_env(labels, runner, auth_info.username)
 
         run_object = self._prepare_run_object(
             project=project,
@@ -235,10 +235,11 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         return run_object
 
     @staticmethod
-    def _enrich_run_labels_and_env(labels: dict, runner: mlrun.run.KubejobRuntime):
+    def _enrich_run_labels_and_env(labels: dict, runner: mlrun.run.KubejobRuntime, auth_username: str):
         mlrun.runtimes.utils.enrich_run_labels(
             labels,
             [mlrun_constants.MLRunInternalLabels.owner],
+            auth_username
         )
         client_python_version = runner.metadata.labels.get(
             mlrun_constants.MLRunInternalLabels.client_python_version
@@ -390,7 +391,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
-        self._enrich_run_labels_and_env(labels, runner)
+        self._enrich_run_labels_and_env(labels, runner, auth_info.username)
 
         # Generate unique UID
         meta_uid = uuid.uuid4().hex

@@ -23,7 +23,6 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
 import mlrun.model_monitoring
-from mlrun.common.schemas import Event
 from mlrun.common.schemas.model_monitoring.constants import (
     HistogramDataDriftApplicationConstants,
     MetricData,
@@ -428,7 +427,7 @@ class AlertGenerator(storey.MapClass):
         event_value: dict,
         project_name: str,
         result_kind: int,
-    ) -> Event:
+    ) -> mlrun.common.schemas.Event:
         entity = mlrun.common.schemas.alert.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project_name,

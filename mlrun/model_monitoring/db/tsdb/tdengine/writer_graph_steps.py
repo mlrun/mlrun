@@ -40,15 +40,12 @@ class ProcessBeforeTDEngine(mlrun.feature_store.steps.MapClass):
             event[mm_schemas.EventFieldType.TABLE_COLUMN] = (
                 f"{table_name}_{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
-            event[mm_schemas.WriterEvent.START_INFER_TIME] = datetime.fromisoformat(
-                event[mm_schemas.WriterEvent.START_INFER_TIME]
-            )
         elif kind == mm_schemas.WriterEventKind.METRIC:
             # Write a new metric
             event[mm_schemas.EventFieldType.TABLE_COLUMN] = (
                 f"{table_name}_{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
-            event[mm_schemas.WriterEvent.START_INFER_TIME] = datetime.fromisoformat(
-                event[mm_schemas.WriterEvent.START_INFER_TIME]
-            )
+        event[mm_schemas.WriterEvent.START_INFER_TIME] = datetime.fromisoformat(
+            event[mm_schemas.WriterEvent.START_INFER_TIME]
+        )
         return event

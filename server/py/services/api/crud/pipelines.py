@@ -16,9 +16,9 @@ import ast
 import concurrent.futures
 import http
 import tempfile
-import threading
 import traceback
 import typing
+from collections.abc import Iterable
 
 import kfp_server_api
 import sqlalchemy.orm
@@ -42,6 +42,7 @@ import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.common.schemas import WorkflowResponse
 from mlrun.k8s_utils import sanitize_label_value
+from mlrun_pipelines.models import PipelineRun
 
 import framework.api.utils
 import framework.utils.singletons.db
@@ -59,10 +60,10 @@ class Pipelines(
         db_session: sqlalchemy.orm.Session,
         project: typing.Optional[typing.Union[str, list[str]]] = None,
         namespace: typing.Optional[str] = None,
-        sort_by: str = "",
-        page_token: str = "",
-        filter_json: str = "",
-        name_contains: str = "",
+        sort_by: typing.Optional[str] = None,
+        page_token: typing.Optional[str] = None,
+        filter_json: typing.Optional[str] = None,
+        name_contains: typing.Optional[str] = None,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> tuple[int, typing.Optional[int], list[dict]]:
@@ -84,23 +85,28 @@ class Pipelines(
             or mlrun.common.schemas.PipelinesPagination.default_page_size,
             sort_by=sort_by,
             filter_json=filter_json,
-            name_contains=name_contains,
         ):
             if project:
                 if isinstance(project, str):
                     page_runs = [
                         run
                         for run in page_runs
-                        if self.resolve_project_from_pipeline(run) == project
+                        if self._resolve_project_from_pipeline(run) == project
                     ]
                 elif isinstance(project, list):
                     page_runs = [
                         run
                         for run in page_runs
-                        if self.resolve_project_from_pipeline(run) in project
+                        if self._resolve_project_from_pipeline(run) in project
                     ]
 
-            page_runs = self._format_concurrently(
+            if name_contains:
+                page_runs = self._filter_runs_by_name(
+                    runs=page_runs,
+                    target_name=name_contains,
+                )
+
+            page_runs = self._format_runs(
                 kfp_client=kfp_client,
                 runs=page_runs,
                 format_=format_,
@@ -234,7 +240,7 @@ class Pipelines(
             run = mlrun_pipelines.models.PipelineRun(api_run_detail)
             if run:
                 if project and project != "*":
-                    run_project = self.resolve_project_from_pipeline(run)
+                    run_project = self._resolve_project_from_pipeline(run)
                     if run_project != project:
                         raise mlrun.errors.MLRunNotFoundError(
                             f"Pipeline run with id {run_id} is not of project {project}"
@@ -673,8 +679,8 @@ class Pipelines(
         format_: mlrun.common.formatters.PipelineFormat,
         kfp_client: typing.Optional[mlrun_pipelines.client.Client] = None,
     ) -> dict:
-        run.project = self.resolve_project_from_pipeline(run)
-        if self._is_run_in_unsuccessful_status(run):
+        run.project = self._resolve_project_from_pipeline(run)
+        if self._is_run_in_unsuccessful_status(run) and kfp_client is not None:
             if err := self._get_error_from_pipeline(
                 kfp_client=kfp_client,
                 run=run,
@@ -682,49 +688,21 @@ class Pipelines(
                 run.error = err
         return mlrun.common.formatters.PipelineFormat.format_obj(run, format_)
 
-    def _format_concurrently(
+    def _format_runs(
         self,
-        kfp_client: mlrun_pipelines.client.Client,
-        format_: mlrun.common.formatters.PipelineFormat,
-        runs: list[mlrun_pipelines.models.PipelineRun],
-        *,
-        max_workers: int = 32,
-        queue_size: typing.Optional[int] = None,
+        runs: Iterable[PipelineRun],
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> list[dict]:
-        """
-        Submit formatting tasks concurrently and emit results in discovery order.
-        """
-        if queue_size is None:
-            queue_size = max_workers * 2
-
-        semaphore = threading.Semaphore(queue_size) if queue_size else None
-        run_format_futures = [None] * len(runs)
-
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=max_workers
-        ) as thread_pool:
-            for run_index, pipeline_run in enumerate(runs):
-                if semaphore:
-                    semaphore.acquire()
-                future = thread_pool.submit(
-                    self._format_run,
-                    run=pipeline_run,
+        formatted_runs = []
+        for run in runs:
+            formatted_runs.append(
+                self._format_run(
+                    run=run,
                     format_=format_,
                     kfp_client=kfp_client,
                 )
-                if semaphore:
-                    future.add_done_callback(lambda _f: semaphore.release())
-                run_format_futures[run_index] = future
-
-            formatted_runs = []
-            for future in run_format_futures:
-                try:
-                    formatted_runs.append(future.result())
-                except Exception:
-                    mlrun.utils.logger.warning(
-                        "Run formatting failed; skipping run", exc_info=True
-                    )
-
+            )
         return formatted_runs
 
     def _resolve_project_from_command(
@@ -780,13 +758,16 @@ class Pipelines(
 
         return None
 
-    def resolve_project_from_pipeline(
-        self, pipeline: mlrun_pipelines.models.PipelineRun
+    def _resolve_project_from_pipeline(
+        self,
+        pipeline: mlrun_pipelines.models.PipelineRun,
     ):
         return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
 
     def _get_error_from_pipeline(
-        self, kfp_client, run: mlrun_pipelines.models.PipelineRun
+        self,
+        kfp_client,
+        run: mlrun_pipelines.models.PipelineRun,
     ):
         pipeline = kfp_client.get_run(run.id)
         return self.resolve_error_from_pipeline(pipeline)
@@ -802,3 +783,29 @@ class Pipelines(
             **notification,
             "name": f"{notification.get('name','')} – Retry #{rerun_index}",
         }
+
+    def _filter_runs_by_name(
+        self,
+        runs: Iterable[PipelineRun],
+        target_name: str,
+    ) -> typing.Generator[PipelineRun, None, None]:
+        """Filter runs by their name while ignoring the project string on them
+        :param runs: list of runs to filter
+        :param target_name: target name to filter by
+        :return: generator of filtered runs
+        """
+
+        def _filter_by(
+            run_to_filter: PipelineRun,
+        ) -> bool:
+            project_prefix = self._resolve_project_from_pipeline(run_to_filter) + "-"
+            run_name = run_to_filter.name.removeprefix(project_prefix)
+            return target_name in run_name
+
+        if not target_name:
+            for run in runs:
+                yield run
+
+        for run in runs:
+            if _filter_by(run):
+                yield run

@@ -431,10 +431,9 @@ class Client(
         self,
         project: typing.Union[list[str], Optional[str]] = None,
         namespace: typing.Optional[str] = None,
-        sort_by: str = "",
-        page_token: str = "",
-        filter_json: str = "",
-        name_contains: str = "",
+        sort_by: typing.Optional[str] = None,
+        page_token: typing.Optional[str] = None,
+        filter_json: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
     ) -> Generator[tuple[list[PipelineRun], Optional[str]], None, None]:
         """
@@ -447,7 +446,6 @@ class Client(
         :param page_size:     Number of runs to retrieve per request.
         :param sort_by:       A string specifying how to sort the results.
         :param namespace:     An optional namespace to filter runs by.
-        :param name_contains: An optional substring to filter runs by name.
         :param filter_json:   A custom filter string (if any).
         :return: A generator yielding tuples of (list of PipelineRun, next_page_token).
         """
@@ -482,51 +480,27 @@ class Client(
         else:
             single_experiment_id = None
 
-        if next_page_token or page_size:
-            # If the user provided a page token or size, they are doing pagination manually.
+        if next_page_token:
+            # If the user provided a page token, they are doing pagination manually.
             page_runs, next_page_token = self._list_runs(
+                page_token=next_page_token,
+                page_size=page_size,
+                namespace=namespace,
+                experiment_id=single_experiment_id,
+            )
+            yield page_runs, next_page_token
+            return
+        else:
+            next_page_token = None
+            for page_runs, next_page_token in self._paginate_runs(
                 page_token=next_page_token,
                 page_size=page_size,
                 sort_by=sort_by,
                 namespace=namespace,
                 experiment_id=single_experiment_id,
                 filter_json=filter_json,
-            )
-            if name_contains:
-                page_runs = self._filter_runs_by_name(
-                    name_contains=name_contains,
-                    runs=page_runs,
-                )
-            yield page_runs, next_page_token
-            return
-        else:
-            for page_runs, next_page_token in self._paginate_runs(
-                page_token=next_page_token or "",
-                page_size=page_size,
-                sort_by=sort_by,
-                namespace=namespace,
-                experiment_id=single_experiment_id,
-                filter_json=filter_json,
             ):
-                if name_contains:
-                    page_runs = self._filter_runs_by_name(
-                        name_contains=name_contains,
-                        runs=page_runs,
-                    )
                 yield page_runs, next_page_token
-
-    def _filter_runs_by_name(
-        self,
-        name_contains: str,
-        runs: typing.Iterable[PipelineRun],
-    ) -> typing.Iterable[PipelineRun]:
-        lowered_substring = name_contains.lower()
-        runs = (
-            run
-            for run in runs
-            if (run.name or "").lower().find(lowered_substring) != -1
-        )
-        return runs
 
     def get_run(
         self,
@@ -943,9 +917,9 @@ class Client(
 
     def _list_runs(
         self,
-        page_token: str = "",
+        page_token: typing.Optional[str] = None,
         page_size: int = 10,
-        sort_by: str = "",
+        sort_by: typing.Optional[str] = None,
         experiment_id: typing.Optional[str] = None,
         namespace: typing.Optional[str] = None,
         filter_json: typing.Optional[str] = None,
@@ -953,6 +927,10 @@ class Client(
         list[mlrun_pipelines.models.PipelineRun],
         str,
     ]:
+        page_token = page_token or ""
+        filter_json = filter_json or ""
+        sort_by = sort_by or ""
+
         self.logger.debug(
             "Listing runs from KFP",
             page_token=page_token,
@@ -998,18 +976,18 @@ class Client(
 
     def _paginate_runs(
         self,
-        page_token: str = "",
+        page_token: typing.Optional[str] = None,
         page_size: int = 10,
-        sort_by: str = "",
+        sort_by: typing.Optional[str] = None,
         experiment_id: typing.Optional[str] = None,
         namespace: typing.Optional[str] = None,
         filter_json: typing.Optional[str] = None,
     ) -> Generator[tuple[list[PipelineRun], str], None, None]:
-        next_page_token = -1
+        current_page_token = page_token
         fetched_run_count = 0
         self.logger.debug(
             "Paginating runs from KFP",
-            page_token=page_token,
+            page_token=current_page_token,
             page_size=page_size,
             sort_by=sort_by,
             experiment_id=experiment_id,
@@ -1017,22 +995,31 @@ class Client(
             filter_=filter_json,
         )
 
-        while next_page_token:
+        runs, next_page_token = self._list_runs(
+            page_token=current_page_token,
+            page_size=page_size,
+            sort_by=sort_by,
+            experiment_id=experiment_id,
+            namespace=namespace,
+            filter_json=filter_json,
+        )
+        yield runs, next_page_token
+        fetched_run_count += len(runs)
+        current_page_token = next_page_token
+        while current_page_token:
             runs, next_page_token = self._list_runs(
-                page_token=page_token,
+                page_token=current_page_token,
                 page_size=page_size,
-                sort_by=sort_by,
                 experiment_id=experiment_id,
                 namespace=namespace,
-                filter_json=filter_json,
             )
             fetched_run_count += len(runs)
-            page_token = next_page_token
+            current_page_token = next_page_token
             yield runs, next_page_token
 
         self.logger.debug(
             "Finished paginating runs from KFP",
-            page_token=page_token,
+            page_token=current_page_token,
             page_size=page_size,
             sort_by=sort_by,
             filter_json=filter_json,

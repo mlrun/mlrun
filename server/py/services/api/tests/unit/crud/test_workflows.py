@@ -68,7 +68,7 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
                         )
                     ],
                 ),
-                auth_info=mlrun.common.schemas.AuthInfo(),
+                auth_info=mlrun.common.schemas.AuthInfo(username="test-user"),
             )
             assert list(k8s_secrets_mock.project_secrets_map["project-name"].keys())[
                 0

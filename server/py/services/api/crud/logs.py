@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import errno
 import os
 import pathlib
 import shutil
@@ -77,12 +78,21 @@ class Logs(
         await self._delete_logs(project, run_uids)
 
     @staticmethod
-    def delete_project_logs_legacy(
-        project: str,
-    ):
+    def delete_project_logs_legacy(project: str):
+        def _ignore_missing_files(func, path, exc_info):
+            # handles race conditions where files disappear during deletion
+            # (e.g., removed by log-collector or NFS cleanup)
+            _, exc, _ = exc_info
+            if (
+                isinstance(exc, FileNotFoundError)
+                or getattr(exc, "errno", None) == errno.ENOENT
+            ):
+                return
+            raise exc
+
         logs_path = framework.api.utils.project_logs_path(project)
         if logs_path.exists():
-            shutil.rmtree(str(logs_path))
+            shutil.rmtree(str(logs_path), onerror=_ignore_missing_files)
 
     @staticmethod
     def delete_run_logs_legacy(

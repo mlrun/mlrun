@@ -566,13 +566,15 @@ def _create_model_monitoring_function_base(
         raise mlrun.errors.MLRunValueError(
             "Model monitoring application names cannot end with `-batch`"
         )
-
+    print(f"func: {func}")
     if check_if_hub_uri(func):
+        print("func is hub-uri")
         hub_module = mlrun.get_hub_module(func) # todo: do we wanna provide local_path
         if hub_module.kind != HubModuleType.monitoring_app:
             raise mlrun.errors.MLRunInvalidArgumentError("The provided module is not a monitoring app")
         requirements = merge_requirements(requirements, hub_module.requirements) # todo: can requirement be a string of multiple reqs?
-        func = hub_module.local_path
+        func = hub_module.get_module_file_path()
+        print(f"func inside if: {func}")
     if func is None:
         func = ""
     func_obj = typing.cast(

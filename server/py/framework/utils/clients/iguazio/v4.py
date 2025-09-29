@@ -108,7 +108,9 @@ class Client(BaseClient):
         # TODO: Implement this method once it is available in the Iguazio package
         pass
 
-    def revoke_offline_token(self, token: str) -> None:
+    def revoke_offline_token(
+        self, token: str, request_headers: typing.Optional[dict[str, str]] = None
+    ) -> None:
         """
         Revoke an offline token in Iguazio.
 
@@ -117,6 +119,7 @@ class Client(BaseClient):
         used to obtain access tokens.
 
         :param token: The offline token string to revoke.
+        :param request_headers: Optional request headers to use for authenticating with the Iguazio management service.
         :raises mlrun.errors.MLRunInvalidArgumentError: If the provided token is empty.
         :raises mlrun.errors.MLRunUnauthorizedError: If the revocation request fails.
         """
@@ -128,6 +131,7 @@ class Client(BaseClient):
         try:
             # Use Iguazio client to revoke the token
             options = RevokeOfflineTokenOptionsV1(token=token)
+            self._client.set_override_auth_headers(request_headers)
             self._client.revoke_offline_token(options=options)
             self._logger.info("Successfully revoked offline token via Iguazio")
         except httpx.HTTPStatusError as exc:

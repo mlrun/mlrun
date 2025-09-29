@@ -403,7 +403,6 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             run_name=workflow_request.spec.name,
             uid=meta_uid,
             scrape_metrics=mlrun_config.config.scrape_metrics,
-            url=project.spec.source,
         )
 
         # Mask notification parameters
@@ -476,7 +475,6 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         run_name: Optional[str] = None,
         uid: Optional[str] = None,
         scrape_metrics: Optional[str] = None,
-        url: str = "",
         rerun_request: Optional[mlrun.common.schemas.RerunWorkflowRequest] = None,
     ) -> mlrun_model.RunObject:
         """
@@ -488,6 +486,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :param run_name:         Name of the run.
         :param uid:              Unique identifier for the run.
         :param scrape_metrics:   Whether to scrape metrics.
+        :param rerun_request:    Workflow request containing the rerun spec.
         :return: RunObject ready for execution.
         """
         source, save, is_context = WorkflowRunners._validate_source(
@@ -520,7 +519,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             engine=workflow_request.spec.engine,
             local=workflow_request.spec.run_local,
             subpath=project.spec.subpath,
-            url=url or source,
+            url=source,
         )
 
         run_object = self._create_run_object(
@@ -688,7 +687,6 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         run_name: Optional[str] = None,
         uid: Optional[str] = None,
         scrape_metrics: Optional[str] = None,
-        url: str = "",
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for rerunning the workflow.

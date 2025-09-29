@@ -15,6 +15,7 @@
 
 import copy
 import datetime
+import functools
 import json
 import os
 import re
@@ -146,7 +147,11 @@ class Client(
             api_client=self._api_client,
         )
 
-        self._server_major_version = self._determine_server_major_version()
+        self._server_major_version = self._get_server_major_version_once()
+
+    @functools.lru_cache(maxsize=1)
+    def _get_server_major_version_once(self) -> int:
+        return self._determine_server_major_version()
 
     def _determine_server_major_version(self) -> int:
         """
@@ -717,7 +722,7 @@ class Client(
 
     def _get_candidate_experiments_for_projects(
         self,
-        project_names: list[str],
+        project_names: typing.Union[list[str], str],
     ) -> list[kfp_server_api.ApiExperiment]:
         """
         Retrieve an experiment by project name.

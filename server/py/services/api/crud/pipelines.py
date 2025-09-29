@@ -795,7 +795,7 @@ class Pipelines(
         :return: generator of filtered runs
         """
 
-        def _filter_by(
+        def filter_by(
             run_to_filter: PipelineRun,
         ) -> bool:
             project_prefix = self._resolve_project_from_pipeline(run_to_filter) + "-"
@@ -807,5 +807,5 @@ class Pipelines(
                 yield run
 
         for run in runs:
-            if _filter_by(run):
+            if filter_by(run):
                 yield run

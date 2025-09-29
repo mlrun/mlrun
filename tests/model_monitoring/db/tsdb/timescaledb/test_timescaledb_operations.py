@@ -142,7 +142,7 @@ class TestTimescaleDBOperationsManagerIntegration:
         assert len(result.data) == 1
 
         # Check if tables exist for this specific project
-        project_id = query_test_helper.operations_handler.project
+        project_id = query_test_helper.operations_handler.project.replace("-", "_")
         result = connection.run(
             query=f"""
             SELECT table_name FROM information_schema.tables
@@ -387,7 +387,7 @@ class TestTimescaleDBOperationsManagerIntegration:
         schema_name = query_test_helper.operations_handler.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ].schema
-        project_id = query_test_helper.operations_handler.project
+        project_id = query_test_helper.operations_handler.project.replace("-", "_")
 
         # Verify tables exist for this project
         result = connection.run(
@@ -422,7 +422,11 @@ class TestTimescaleDBOperationsManagerIntegration:
         schema_name = query_test_helper_with_aggregates.operations_handler.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ].schema
-        project_id = query_test_helper_with_aggregates.operations_handler.project
+        project_id = (
+            query_test_helper_with_aggregates.operations_handler.project.replace(
+                "-", "_"
+            )
+        )
 
         # Verify continuous aggregates exist for this project
         result = connection.run(

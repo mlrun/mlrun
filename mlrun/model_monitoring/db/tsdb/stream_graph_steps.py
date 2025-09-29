@@ -23,11 +23,8 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema import (
 )
 from mlrun.utils import logger
 
-# Error truncation message template
-ERROR_TRUNCATION_MESSAGE = (
-    "Error message truncated from {original_length} to {max_length} chars. "
-    "Truncated error: {truncated_error}"
-)
+# Error truncation log message
+ERROR_TRUNCATION_MESSAGE = "Error message truncated for storage"
 
 
 class BaseErrorExtractor(mlrun.feature_store.steps.MapClass):
@@ -45,13 +42,12 @@ class BaseErrorExtractor(mlrun.feature_store.steps.MapClass):
         if len(error) > MODEL_ERROR_MAX_LENGTH:
             error = error[-MODEL_ERROR_MAX_LENGTH:]
             logger.warning(
-                ERROR_TRUNCATION_MESSAGE.format(
-                    max_length=MODEL_ERROR_MAX_LENGTH,
-                    original_length=original_error_length,
-                    truncated_error=error,
-                ),
+                ERROR_TRUNCATION_MESSAGE,
                 endpoint_id=event.get(EventFieldType.ENDPOINT_ID),
                 function_uri=event.get(EventFieldType.FUNCTION_URI),
+                original_error_length=original_error_length,
+                max_length=MODEL_ERROR_MAX_LENGTH,
+                truncated_error=error,
             )
         timestamp = datetime.fromisoformat(event.get("when"))
         endpoint_id = event[EventFieldType.ENDPOINT_ID]

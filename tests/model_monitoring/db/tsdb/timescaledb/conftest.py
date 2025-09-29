@@ -93,7 +93,7 @@ def project_name():
     """Generate a unique project name for test isolation."""
     timestamp = int(time.time())
     random_suffix = uuid.uuid4().hex[:8]
-    return f"test_project_{timestamp}_{random_suffix}"
+    return f"test-project-{timestamp}-{random_suffix}"
 
 
 @pytest.fixture

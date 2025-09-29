@@ -410,4 +410,3 @@ class IGTokenProvider(DynamicTokenProvider):
                 error=str(exc),
             )
         return 0, None
-

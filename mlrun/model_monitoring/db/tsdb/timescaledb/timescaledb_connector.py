@@ -286,9 +286,9 @@ class TimescaleDBConnector(TSDBConnector):
                         ].status.last_request = last_request
         except Exception as e:
             # Log but don't fail - last_request is not critical for basic functionality
-            logger.info(
+            logger.warning(
                 "Failed to enrich model endpoints with last_request data",
-                error=str(e),
+                error=mlrun.errors.err_to_str(e),
                 endpoint_count=len(model_endpoint_objects),
             )
 

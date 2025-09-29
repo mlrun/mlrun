@@ -178,7 +178,7 @@ class TimescaleDBOperationsManager:
                 "Failed to write application event to TimescaleDB",
                 project=self.project,
                 table=table.table_name,
-                error=str(e),
+                error=mlrun.errors.err_to_str(e),
             )
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed to write event to TimescaleDB: {e}"
@@ -223,7 +223,7 @@ class TimescaleDBOperationsManager:
                     self._get_aggregate_delete_statements(endpoint_ids)
                 )
 
-            # Execute all deletions atomically
+            # Execute all deletions in a single transaction
             self._connection.run(statements=all_deletion_statements)
 
             logger.debug(
@@ -481,11 +481,15 @@ class TimescaleDBOperationsManager:
             drop_statements = []
 
             # Drop materialized views first (they depend on tables)
-            drop_statements.extend(
-                f"DROP MATERIALIZED VIEW IF EXISTS {schema_name}.{view_name} CASCADE"
-                for view_name in discovered_views
-            )
-            # Drop tables second
+            if discovered_views:
+                view_list = ", ".join(
+                    f"{schema_name}.{view_name}" for view_name in discovered_views
+                )
+                drop_statements.append(
+                    f"DROP MATERIALIZED VIEW IF EXISTS {view_list} CASCADE"
+                )
+
+            # Drop tables second (one by one due to TimescaleDB hypertable limitations)
             drop_statements.extend(
                 f"DROP TABLE IF EXISTS {schema_name}.{table_name} CASCADE"
                 for table_name in discovered_tables
@@ -495,7 +499,7 @@ class TimescaleDBOperationsManager:
                 self._connection.run(statements=drop_statements)
 
                 logger.debug(
-                    "Successfully dropped project resources",
+                    "Successfully dropped project resources from TimescaleDB",
                     project=self.project,
                     dropped_objects=len(drop_statements),
                 )
@@ -635,7 +639,7 @@ class TimescaleDBOperationsManager:
         )
         deletion_statements.extend(aggregate_statements)
 
-        # Execute all deletions atomically
+        # Execute all deletions in a single transaction
         self._connection.run(statements=deletion_statements)
 
         logger.debug(
@@ -661,7 +665,7 @@ class TimescaleDBOperationsManager:
         statements = []
 
         try:
-            schema_name = self.project_schema
+            schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema
 
             # Discover all continuous aggregates and materialized views for this project
             discovery_stmt = Statement(

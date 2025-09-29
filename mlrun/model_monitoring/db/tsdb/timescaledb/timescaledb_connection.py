@@ -217,7 +217,7 @@ class TimescaleDBConnection:
                 operation_name="statements",
             )
 
-        # Execute query with deadlock-specific retry (if provided)
+        # Execute query with retry logic for recoverable errors
         if query:
             return self._execute_with_retry(
                 cursor_operation_callable=lambda cursor: self._execute_query(
@@ -336,7 +336,7 @@ class TimescaleDBConnection:
 
             except Exception as e:
                 logger.warning(
-                    f"Pre-aggregate {debug_name} query failed, falling back to raw data: {e}",
+                    f"Pre-aggregate {debug_name} query failed, falling back to raw data",
                     error=mlrun.errors.err_to_str(e),
                 )
 
@@ -410,7 +410,7 @@ class TimescaleDBConnection:
                     error_type = "connection"
                     connection_attempts += 1
 
-                logger.info(
+                logger.warning(
                     f"TimescaleDB {error_type} error in {operation_name}, retrying",
                     attempt=deadlock_attempts
                     if error_type == "deadlock"
@@ -419,6 +419,6 @@ class TimescaleDBConnection:
                     if error_type == "deadlock"
                     else self._max_retries,
                     delay=delay,
-                    error=str(e),
+                    error=mlrun.errors.err_to_str(e),
                 )
                 time.sleep(delay)

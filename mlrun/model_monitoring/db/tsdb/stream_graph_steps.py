@@ -25,7 +25,7 @@ from mlrun.utils import logger
 
 # Error truncation message template
 ERROR_TRUNCATION_MESSAGE = (
-    "Error message exceeds {max_length} chars (original: {original_length}, truncated to: {max_length}). "
+    "Error message truncated from {original_length} to {max_length} chars. "
     "Truncated error: {truncated_error}"
 )
 

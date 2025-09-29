@@ -215,7 +215,7 @@ class TimescaleDBQueryBuilder:
             "1M",
         ]
 
-        optimal = TimescaleDBQueryBuilder._determine_optimal_from_available(
+        optimal = TimescaleDBQueryBuilder.determine_optimal_from_available(
             start, end, standard_intervals
         )
 
@@ -227,7 +227,7 @@ class TimescaleDBQueryBuilder:
         return optimal
 
     @staticmethod
-    def _determine_optimal_from_available(
+    def determine_optimal_from_available(
         start: datetime, end: datetime, available_intervals: list[str]
     ) -> Optional[str]:
         """
@@ -393,7 +393,7 @@ class TimescaleDBQueryBuilder:
 
             if available_intervals:
                 if optimal_from_preaggregate := (
-                    TimescaleDBQueryBuilder._determine_optimal_from_available(
+                    TimescaleDBQueryBuilder.determine_optimal_from_available(
                         start, end, available_intervals
                     )
                 ):

@@ -141,17 +141,23 @@ class TestTimescaleDBOperationsManagerIntegration:
         )
         assert len(result.data) == 1
 
-        # Check if tables exist
+        # Check if tables exist for this specific project
+        project_id = query_test_helper.operations_handler.project
         result = connection.run(
-            query=f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{schema_name}'"
+            query=f"""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = '{schema_name}'
+            AND table_name LIKE '%{project_id}%'
+            """
         )
         assert len(result.data) == 4  # predictions, metrics, app_results, errors
 
-        # Verify they are hypertables
+        # Verify they are hypertables for this project
         result = connection.run(
             query=f"""
             SELECT hypertable_name FROM timescaledb_information.hypertables
             WHERE hypertable_schema = '{schema_name}'
+            AND hypertable_name LIKE '%{project_id}%'
             """
         )
         assert len(result.data) == 4
@@ -381,26 +387,29 @@ class TestTimescaleDBOperationsManagerIntegration:
         schema_name = query_test_helper.operations_handler.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ].schema
+        project_id = query_test_helper.operations_handler.project
 
-        # Verify tables exist
+        # Verify tables exist for this project
         result = connection.run(
-            query=f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{schema_name}'"
+            query=f"""
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema = '{schema_name}'
+            AND table_name LIKE '%{project_id}%'
+            """
         )
         table_count_before = result.data[0][0]
-        assert table_count_before >= 4
+        assert table_count_before == 4
 
         # Delete all resources
         query_test_helper.operations_handler.delete_tsdb_resources()
 
-        # Verify tables are gone
+        # Verify project tables are gone
         result = connection.run(
-            query=f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{schema_name}'"
-        )
-        assert result.data[0][0] == 0
-
-        # Verify schema is gone too
-        result = connection.run(
-            query=f"SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = '{schema_name}'"
+            query=f"""
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema = '{schema_name}'
+            AND table_name LIKE '%{project_id}%'
+            """
         )
         assert result.data[0][0] == 0
 
@@ -413,12 +422,14 @@ class TestTimescaleDBOperationsManagerIntegration:
         schema_name = query_test_helper_with_aggregates.operations_handler.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ].schema
+        project_id = query_test_helper_with_aggregates.operations_handler.project
 
-        # Verify continuous aggregates exist
+        # Verify continuous aggregates exist for this project
         result = connection.run(
             query=f"""
             SELECT COUNT(*) FROM timescaledb_information.continuous_aggregates
             WHERE hypertable_schema = '{schema_name}'
+            AND view_name LIKE '%{project_id}%'
             """
         )
         cagg_count_before = result.data[0][0]
@@ -427,18 +438,13 @@ class TestTimescaleDBOperationsManagerIntegration:
         # Delete all resources
         query_test_helper_with_aggregates.operations_handler.delete_tsdb_resources()
 
-        # Verify continuous aggregates are gone
+        # Verify project continuous aggregates are gone
         result = connection.run(
             query=f"""
             SELECT COUNT(*) FROM timescaledb_information.continuous_aggregates
             WHERE hypertable_schema = '{schema_name}'
+            AND view_name LIKE '%{project_id}%'
             """
-        )
-        assert result.data[0][0] == 0
-
-        # Verify schema is gone
-        result = connection.run(
-            query=f"SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = '{schema_name}'"
         )
         assert result.data[0][0] == 0
 
@@ -540,8 +546,11 @@ class TestTimescaleDBOperationsManagerIntegration:
             # Missing other required fields
         }
 
-        # Should raise an exception
-        with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        # Should raise an exception with specific error about writing to TimescaleDB
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError,
+            match=r"Failed to write event to TimescaleDB",
+        ):
             query_test_helper.operations_handler.write_application_event(
                 invalid_event, mm_schemas.WriterEventKind.RESULT
             )
@@ -619,6 +628,134 @@ class TestTimescaleDBOperationsManagerIntegration:
         assert (
             record_count >= expected_min
         ), f"Expected at least {expected_min} records, got {record_count}"
+
+    def test_aggregate_deletion_statements_generation(self, query_test_helper):
+        """Test generation of aggregate deletion statements for endpoint cleanup."""
+        operations_handler = query_test_helper.operations_handler
+        operations_handler.create_tables()
+
+        test_endpoints = ["endpoint-1", "endpoint-2", "endpoint-3"]
+
+        # Test aggregate delete statements generation
+        statements = operations_handler._get_aggregate_delete_statements(test_endpoints)
+
+        # Should return a list of statements
+        assert isinstance(statements, list), "Should return a list of statements"
+
+        # Should handle empty endpoint list gracefully
+        empty_statements = operations_handler._get_aggregate_delete_statements([])
+        assert isinstance(empty_statements, list), "Should handle empty endpoint list"
+
+        # Cleanup
+        operations_handler.delete_tsdb_resources()
+
+    def test_application_deletion_statements_generation(self, query_test_helper):
+        """Test generation of application-specific deletion statements."""
+        operations_handler = query_test_helper.operations_handler
+        operations_handler.create_tables()
+
+        test_application = "test-app-deletion"
+        test_endpoints = ["endpoint-1", "endpoint-2"]
+
+        # Test application deletion statements generation
+        statements = operations_handler._get_aggregate_delete_statements_by_application(
+            application_name=test_application, endpoint_ids=test_endpoints
+        )
+
+        # Should return a list of statements
+        assert isinstance(statements, list), "Should return a list of statements"
+
+        # Should handle empty application name gracefully
+        empty_app_statements = (
+            operations_handler._get_aggregate_delete_statements_by_application(
+                application_name="", endpoint_ids=test_endpoints
+            )
+        )
+        assert isinstance(
+            empty_app_statements, list
+        ), "Should handle empty application name"
+
+        # Should handle empty endpoint list gracefully
+        empty_endpoints_statements = (
+            operations_handler._get_aggregate_delete_statements_by_application(
+                application_name=test_application, endpoint_ids=[]
+            )
+        )
+        assert isinstance(
+            empty_endpoints_statements, list
+        ), "Should handle empty endpoint list"
+
+        # Cleanup
+        operations_handler.delete_tsdb_resources()
+
+    def test_project_resource_discovery_and_cleanup(self, query_test_helper):
+        """Test discovery and cleanup of project resources (tables and views)."""
+        operations_handler = query_test_helper.operations_handler
+
+        # Create tables to have resources to discover
+        operations_handler.create_tables()
+
+        # Get connection to verify resource creation
+        connection = operations_handler._connection
+        schema_name = operations_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ].schema
+
+        # Get the specific project identifier to filter tables
+        project_id = operations_handler.project
+
+        # Verify resources exist before cleanup - filter by project
+        table_query = f"""
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = '{schema_name}'
+        AND table_type = 'BASE TABLE'
+        AND table_name LIKE '%{project_id.replace('-', '_')}%'
+        """
+        result = connection.run(query=table_query)
+        initial_table_count = len(result.data)
+        assert (
+            initial_table_count > 0
+        ), "Should have created some tables for this project"
+
+        # Test the cleanup process
+        operations_handler.delete_tsdb_resources()
+
+        # Verify resources are cleaned up - check project-specific tables
+        result_after = connection.run(query=table_query)
+        final_table_count = len(result_after.data)
+        assert (
+            final_table_count == 0
+        ), f"All project tables should be deleted, but found {final_table_count} for project {project_id}"
+
+    def test_schema_cleanup_edge_cases(self, query_test_helper):
+        """Test edge cases in schema and resource cleanup."""
+        operations_handler = query_test_helper.operations_handler
+
+        # Test cleanup when no resources exist
+        operations_handler.delete_tsdb_resources()  # Should not fail
+
+        # Create and immediately delete resources
+        operations_handler.create_tables()
+        operations_handler.delete_tsdb_resources()
+
+        # Double deletion should be safe
+        operations_handler.delete_tsdb_resources()  # Should not fail
+
+        # Verify clean state for this project
+        connection = operations_handler._connection
+        schema_name = operations_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ].schema
+        project_id = operations_handler.project
+        table_query = f"""
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = '{schema_name}' AND table_type = 'BASE TABLE'
+        AND table_name LIKE '%{project_id.replace('-', '_')}%'
+        """
+        result = connection.run(query=table_query)
+        assert (
+            len(result.data) == 0
+        ), "Should have no tables after cleanup for this project"
 
 
 if __name__ == "__main__":

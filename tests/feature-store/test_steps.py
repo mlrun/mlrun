@@ -842,3 +842,32 @@ def test_parquet_source_with_category(rundb_mock, engine):
         source=df,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
+
+
+@pytest.mark.parametrize("field_name", ["test_route", "test_route_bad"])
+def test_choice_by_field(field_name):
+
+    fn = mlrun.new_function(
+        name="choice_by_field_example", kind="serving", image="mlrun/mlrun"
+    )
+
+    graph = fn.set_topology("flow")
+
+    graph.to("ChoiceByField", name="choose_outlets", field_name=field_name)
+
+    graph.add_step("storey.Extend", name="target1", _fn='({"tag": "something_bad"})', after="choose_outlets")
+    graph.add_step("storey.Extend", name="target2", _fn='({"tag": "something_good"})', after="choose_outlets")
+    graph.add_step("storey.Extend", name="end", _fn='({})', after=["target1", "target2"]).respond()
+
+    fn_server = fn.to_mock_server()
+
+    try:
+        result = fn_server.test(body={field_name: "target2"})
+    except Exception as e:
+        assert isinstance(e, ValueError)
+    else:
+        assert result['tag'] == "something_good"
+
+
+
+

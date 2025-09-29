@@ -5,7 +5,6 @@ import mlrun
 class ChoiceByField(storey.Choice):
     """
     Choosing downstream outlets using custom event field.
-
     :param field_name: event field name to derive outlets.
     """
     def __init__(self, field_name):

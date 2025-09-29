@@ -535,12 +535,23 @@ class Secrets(
         self,
         token_name: str,
         authenticated_username: str,
+        request_headers: typing.Optional[dict[str, str]] = None,
     ):
         """
-        Revoke a user's offline token in Iguazio and delete its Kubernetes secret.
+        Revoke a stored offline token for a user and delete its corresponding Kubernetes secret.
 
-        :param token_name: Logical name of the token to revoke.
-        :param authenticated_username: The user who owns the token.
+        This method performs two actions:
+        1. Calls the Iguazio management service to revoke the offline token.
+        2. Removes the Kubernetes secret named `mlrun-auth-<username>-<token_name>`
+           associated with the token.
+
+        :param token_name:
+            Logical name of the token to revoke (used in the Kubernetes secret name).
+        :param authenticated_username:
+            The username of the authenticated user who owns the token.
+        :param request_headers:
+            Optional request headers (e.g., containing the user's access token)
+            to authenticate with the Iguazio management service.
         """
         logger.debug(
             "Revoking secret token for user",
@@ -564,7 +575,7 @@ class Secrets(
 
         # Revoke via Iguazio
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
-        iguazio_client.revoke_offline_token(token)
+        iguazio_client.revoke_offline_token(token, request_headers)
 
         # Delete the Kubernetes secret
         try:

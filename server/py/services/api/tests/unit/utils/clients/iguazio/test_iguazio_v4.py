@@ -14,6 +14,7 @@
 #
 
 import http
+import unittest.mock
 
 import pytest
 from aioresponses import CallbackResult
@@ -27,6 +28,7 @@ from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
 )
 from tests.common_fixtures import aioresponses_mock
 
+import framework.utils.clients.iguazio.v4
 from framework.utils.asyncio import maybe_coroutine
 
 
@@ -326,3 +328,22 @@ def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=N
         ],
         "status": {"ctx": "dummy-ctx", "statusCode": http.HTTPStatus.OK.value},
     }
+
+
+def test_revoke_offline_token_success():
+    token = "valid-token"
+    request_headers = {
+        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
+    }
+
+    # prevents from creating a real Iguazio client
+    with unittest.mock.patch("framework.utils.clients.iguazio.v4.iguazio.Client"):
+        client = framework.utils.clients.iguazio.v4.Client()
+        client._client = unittest.mock.MagicMock()
+
+        client.revoke_offline_token(token, request_headers)
+
+        client._client.set_override_auth_headers.assert_called_once_with(
+            request_headers
+        )
+        client._client.revoke_offline_token.assert_called_once()

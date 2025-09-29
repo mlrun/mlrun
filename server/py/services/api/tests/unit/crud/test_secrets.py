@@ -858,6 +858,9 @@ def test_revoke_secret_token_success(mock_iguazio_client):
     username = "dummy-user"
     token_name = "my-token"
     fake_token = "jwt-token-123"
+    request_headers = {
+        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
+    }
 
     mock_secrets_provider = unittest.mock.Mock()
     services.api.crud.Secrets().secrets_provider = mock_secrets_provider
@@ -866,13 +869,17 @@ def test_revoke_secret_token_success(mock_iguazio_client):
     mock_secrets_provider.delete_user_token_secret = unittest.mock.Mock()
 
     services.api.crud.Secrets().revoke_secret_token(
-        token_name=token_name, authenticated_username=username
+        token_name=token_name,
+        authenticated_username=username,
+        request_headers=request_headers,
     )
 
     mock_secrets_provider.get_user_token_secret_value.assert_called_once_with(
         username=username, token_name=token_name
     )
-    mock_iguazio_client.revoke_offline_token.assert_called_once_with(fake_token)
+    mock_iguazio_client.revoke_offline_token.assert_called_once_with(
+        fake_token, request_headers
+    )
     mock_secrets_provider.delete_user_token_secret.assert_called_once_with(
         username=username, token_name=token_name
     )

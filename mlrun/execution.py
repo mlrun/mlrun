@@ -958,7 +958,7 @@ class MLClientCtx:
                     },
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.5, "max_tokens": 200},
+                invocation_config={"temperature": 0.5, "max_tokens": 200},
                 description="Prompt for handling customer support queries",
                 tag="support-v1",
                 labels={"domain": "support"},
@@ -975,7 +975,7 @@ class MLClientCtx:
                     }
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.7, "max_tokens": 256},
+                invocation_config={"temperature": 0.7, "max_tokens": 256},
                 description="Q&A prompt template with user-provided question",
                 tag="v2",
                 labels={"task": "qa", "stage": "experiment"},

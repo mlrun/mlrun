@@ -18,12 +18,10 @@ import datetime
 import http
 import importlib
 import json
-import typing
 import unittest.mock
 import uuid
 
 import deepdiff
-import fastapi.concurrency
 import fastapi.testclient
 import kfp_server_api.models
 import pytest
@@ -748,13 +746,13 @@ def _mock_list_runs_with_one_run_per_page(
 
     def list_runs_mock(
         *args,
-        project: typing.Union[list[str], typing.Optional[str]] = None,
-        namespace: typing.Optional[str] = None,
-        sort_by: typing.Optional[str] = None,
-        page_token: typing.Optional[typing.Union[str, int]] = None,
-        filter_json: typing.Optional[str] = None,
-        name_contains: typing.Optional[str] = None,
-        page_size: typing.Optional[int] = None,
+        project=None,
+        namespace=None,
+        sort_by=None,
+        page_token=None,
+        filter_json=None,
+        name_contains=None,
+        page_size=None,
         **kwargs,
     ) -> ApiListRunsResponse:
         normalized_page_token = page_token or None

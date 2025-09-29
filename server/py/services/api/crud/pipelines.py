@@ -692,8 +692,8 @@ class Pipelines(
     def _format_runs_concurrently(
         self,
         kfp_client: mlrun_pipelines.client.Client,
-        format_: mlrun.common.formatters.PipelineFormat,
         runs: list[mlrun_pipelines.models.PipelineRun],
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         *,
         max_workers: int = 32,
         queue_size: typing.Optional[int] = None,
@@ -705,6 +705,7 @@ class Pipelines(
             queue_size = max_workers * 2
 
         semaphore = threading.Semaphore(queue_size) if queue_size else None
+        runs = list(runs)
         futures_by_index = [None] * len(runs)
 
         with concurrent.futures.ThreadPoolExecutor(

@@ -60,6 +60,16 @@ class TSDBConnector(ABC):
         """
         pass
 
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
+        """
+        Apply TSDB steps on the provided writer graph. Throughout these steps, the graph stores metrics / results.
+        This data is being used by mlrun UI and the monitoring dashboards in grafana.
+        There are 2 different key metric dictionaries that are being generated throughout these steps:
+        - metrics (user-defined metrics) - model monitoring application metrics
+        - results (user-defined results) - model monitoring application results
+        """
+        pass
+
     @abstractmethod
     def handle_model_error(self, graph, **kwargs) -> None:
         """
@@ -783,3 +793,6 @@ class TSDBConnector(ABC):
             )
         )
         return mm_schemas.ModelEndpointDriftValues(values=values)
+
+    def add_pre_writer_steps(self, graph, after):
+        return None

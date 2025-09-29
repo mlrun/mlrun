@@ -93,7 +93,7 @@ def project_name():
     """Generate a unique project name for test isolation."""
     timestamp = int(time.time())
     random_suffix = uuid.uuid4().hex[:8]
-    return f"test-project-{timestamp}-{random_suffix}"
+    return f"test_project_{timestamp}_{random_suffix}"
 
 
 @pytest.fixture
@@ -196,7 +196,7 @@ def query_test_helper(
     project_name,
     table_schemas,
     operations_handler,
-):
+) -> QueryTestHelper:
     """Test helper that packages all commonly needed query testing components."""
     # Create PreAggregateManager with no config for basic testing
     pre_aggregate_manager = PreAggregateManager()

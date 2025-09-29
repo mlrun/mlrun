@@ -371,7 +371,7 @@ class TimescaleDBOperationsManager:
                 statements.append(stmt)
 
         except Exception as e:
-            logger.warning(
+            logger.debug(
                 "Failed to discover aggregate objects for deletion",
                 project=self.project,
                 error=mlrun.errors.err_to_str(e),
@@ -501,7 +501,6 @@ class TimescaleDBOperationsManager:
                 logger.debug(
                     "Successfully dropped project resources from TimescaleDB",
                     project=self.project,
-                    dropped_objects=len(drop_statements),
                 )
 
             # Optional cleanup: drop schema if empty (errors are logged but don't fail the operation)

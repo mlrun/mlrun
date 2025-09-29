@@ -377,7 +377,7 @@ class TimescaleDBConnection:
         deadlock_attempts = 0
         connection_attempts = 0
 
-        for _ in range(self.MAX_DEADLOCK_RETRIES + self._max_retries + 1):
+        while True:
             try:
                 # Execute operation within a transaction
                 with self.pool.connection() as conn:

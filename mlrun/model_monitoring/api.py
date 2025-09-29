@@ -30,9 +30,10 @@ from mlrun.common.schemas.model_monitoring import (
     FunctionURI,
 )
 from mlrun.data_types.infer import InferOptions, get_df_stats
-from mlrun.utils import datetime_now, logger
+from mlrun.utils import datetime_now, logger, check_if_hub_uri, merge_requirements
 
 from .helpers import update_model_endpoint_last_request
+from ..common.schemas.hub import HubModuleType
 
 # A union of all supported dataset types:
 DatasetType = typing.Union[
@@ -565,6 +566,13 @@ def _create_model_monitoring_function_base(
         raise mlrun.errors.MLRunValueError(
             "Model monitoring application names cannot end with `-batch`"
         )
+
+    if check_if_hub_uri(func):
+        hub_module = mlrun.get_hub_module(func) # todo: do we wanna provide local_path
+        if hub_module.kind != HubModuleType.monitoring_app:
+            raise mlrun.errors.MLRunInvalidArgumentError("The provided module is not a monitoring app")
+        requirements = merge_requirements(requirements, hub_module.requirements) # todo: can requirement be a string of multiple reqs?
+        func = hub_module.local_path
     if func is None:
         func = ""
     func_obj = typing.cast(

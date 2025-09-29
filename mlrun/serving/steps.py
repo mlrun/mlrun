@@ -17,10 +17,8 @@ class ChoiceByField(storey.Choice):
             raise mlrun.MLRunInvalidArgumentError(
                 f"Field name {self.field_name} is not contained in the event keys {list(event.keys())}."
             )
-
         outlets = [event[self.field_name]] if isinstance(event[self.field_name],
                                                          str) else event[self.field_name]
-
         if not outlets:
             raise mlrun.MLRunNotFoundError(
                 f"Steps not found for given field name {self.field_name}."

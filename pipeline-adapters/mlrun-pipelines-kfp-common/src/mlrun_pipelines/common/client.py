@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
@@ -187,7 +188,7 @@ class AbstractClient(ABC):
     @abstractmethod
     def _get_candidate_experiments_for_projects(
         self,
-        project_names: str,
+        project_names: typing.Union[list[str], str],
     ):
         """
         Retrieve an experiment by project name.

@@ -106,7 +106,7 @@ def test_list_pipelines_formats(
         expected_runs = [
             mlrun_pipelines.models.PipelineRun(run.to_dict()) for run in runs
         ]
-        expected_runs = services.api.crud.Pipelines()._format_runs(
+        expected_runs = services.api.crud.Pipelines()._format_runs_concurrently(
             runs=expected_runs,
             format_=format_,
             kfp_client=kfp_client_mock,
@@ -291,7 +291,7 @@ def test_list_pipelines_name_contains(
         },
     )
 
-    expected_runs = services.api.crud.Pipelines()._format_runs(
+    expected_runs = services.api.crud.Pipelines()._format_runs_concurrently(
         runs=[
             mlrun_pipelines.models.PipelineRun(run.to_dict())
             for run in runs

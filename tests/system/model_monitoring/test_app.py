@@ -866,6 +866,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         time.sleep(
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
             + self._external_stream_delay
         )
 

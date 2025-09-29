@@ -138,10 +138,10 @@ def test_llm_prompt_artifact_validator():
         match="LLMPromptArtifact model_configuration must be a dictionary or None",
     ):
         mlrun.artifacts.LLMPromptArtifact(
-            model_artifact=model_artifact, model_configuration=50
+            model_artifact=model_artifact, invocation_config=50
         )
     llm_prompt_artifact = mlrun.artifacts.LLMPromptArtifact(
-        model_artifact=model_artifact, model_configuration=None
+        model_artifact=model_artifact, invocation_config=None
     )
     assert llm_prompt_artifact.spec.model_configuration == {}
 

@@ -76,4 +76,5 @@ async def revoke_secret_token(
         services.api.crud.Secrets().revoke_secret_token,
         name,
         auth_info.username,
+        auth_info.request_headers,
     )

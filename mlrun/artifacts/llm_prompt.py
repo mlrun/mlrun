@@ -29,7 +29,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + [
         "prompt_template",
         "prompt_legend",
-        "model_configuration",
+        "invocation_config",
         "description",
     ]
     PROMPT_TEMPLATE_KEYS = ("content", "role")
@@ -70,9 +70,9 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         self.prompt_legend = prompt_legend
         if invocation_config is not None and not isinstance(invocation_config, dict):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "LLMPromptArtifact model_configuration must be a dictionary or None"
+                "LLMPromptArtifact invocation_config must be a dictionary or None"
             )
-        self.model_configuration = invocation_config or {}
+        self.invocation_config = invocation_config or {}
         self.description = description
         self._model_artifact = (
             model_artifact

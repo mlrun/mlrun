@@ -36,6 +36,7 @@ from mlrun.serving.server import (
     create_graph_server,
 )
 from mlrun.serving.states import RouterStep, TaskStep
+from mlrun.serving.steps import ChoiceByField
 from mlrun.utils import logger
 
 
@@ -923,24 +924,26 @@ def generate_field(event):
     ["outlet1", "outlet2", ["outlet1", "outlet2"], [], ["outlet3"], "outlet3"],
 )
 def test_choice_by_field(field_name, field_targets):
+    choice_step = ChoiceByField(field_name=field_name)
     fn = mlrun.new_function(
         name="choice_by_field_example", kind="serving", image="mlrun/mlrun"
     )
     graph = fn.set_topology("flow")
     graph.to(name="generate_field", handler="generate_field").to(
-        "ChoiceByField", name="choose_outlets", field_name=field_name
+        choice_step, name="pick_outlets"
     )
+
     graph.add_step(
         "storey.Extend",
         name="outlet1",
         _fn='({"field_visited": "outlet1"})',
-        after="choose_outlets",
+        after="pick_outlets",
     )
     graph.add_step(
         "storey.Extend",
         name="outlet2",
         _fn='({"field_visited": "outlet2"})',
-        after="choose_outlets",
+        after="pick_outlets",
     )
     graph.add_step(
         "storey.Extend", name="end", _fn="({})", after=["outlet1", "outlet2"]

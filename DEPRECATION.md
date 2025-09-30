@@ -73,7 +73,7 @@ if uid:
     category=FutureWarning,
 )
 def verify_base_image(self):
-    ...
+    pass
 ```
 
 ### 3. Class
@@ -86,18 +86,21 @@ def verify_base_image(self):
     category=FutureWarning,
 )
 class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
-    ...
+    pass
 ```
 
 ### 4. Endpoint
+
 ```python
-# TODO: remove /runs in 1.12.0
+# TODO: Remove in 1.12.0
 @router.get(
     "/runs",
     deprecated=True,
     description="/runs is deprecated in 1.10.0 and will be removed in 1.12.0. "
-                "Use /projects/{project}/runs/ instead",
+    "Use /projects/{project}/runs/ instead",
 )
+async def list_runs():
+    pass
 ```
 
 API changes are not documented in MLRun docs.
@@ -109,7 +112,7 @@ limit: int = Query(
     None,
     deprecated=True,
     description="'limit' query param is deprecated in 1.10.0 and will be removed in 1.12.0. "
-                "Use page and page_size instead.",
+    "Use page and page_size instead.",
 )
 ```
 API changes are not documented in mlrun docs. They are needed when the SDK may be using the endpoint. 

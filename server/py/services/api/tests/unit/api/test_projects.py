@@ -355,6 +355,34 @@ def test_delete_project_with_resources(
 
 
 @pytest.mark.asyncio
+async def test_only_iteration_zero_runs_are_counted(db: Session, client: TestClient):
+    proj = "iter-filter-project"
+    _create_project(client, proj)
+    one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
+
+    # iter==0 (counted)
+    _create_runs(client, proj, 2, mlrun.common.runtimes.constants.RunStates.running)
+    _create_runs(client, proj, 3, mlrun.common.runtimes.constants.RunStates.completed, one_hour_ago)
+    _create_runs(client, proj, 4, mlrun.common.runtimes.constants.RunStates.error, one_hour_ago)
+
+    # iter>0 (ignored)
+    _create_hyperparam_runs(client, proj, "x", [1,2,3,4,5],
+                            state=mlrun.common.runtimes.constants.RunStates.running)
+    _create_hyperparam_runs(client, proj, "x", [6,7,8,9,10,11],
+                            state=mlrun.common.runtimes.constants.RunStates.completed, start_time=one_hour_ago)
+    _create_hyperparam_runs(client, proj, "x", [12,13,14],
+                            state=mlrun.common.runtimes.constants.RunStates.aborted, start_time=one_hour_ago)
+
+    await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
+    summary = mlrun.common.schemas.ProjectSummary(**client.get(f"project-summaries/{proj}").json())
+
+    # each run created 3 instances
+    assert summary.runs_running_count== 2 * 3
+    assert summary.runs_completed_recent_count == 3 * 3
+    assert summary.runs_failed_recent_count == 4 * 3
+
+
+@pytest.mark.asyncio
 async def test_list_and_get_project_summaries(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:

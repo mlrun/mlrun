@@ -13,6 +13,7 @@
 # limitations under the License.
 import abc
 import json
+import typing
 from abc import abstractmethod
 from datetime import datetime, timezone
 from typing import cast
@@ -73,7 +74,7 @@ class ModelMonitoringStatsFile(abc.ABC):
                 path=self._item.url,
             )
 
-    def read(self) -> tuple[dict, datetime]:
+    def read(self) -> tuple[dict, typing.Optional[datetime]]:
         """
         Read the stats data and timestamp saved in file
         :return: tuple[dict, str] dictionary with stats data and timestamp saved in file
@@ -99,13 +100,13 @@ class ModelMonitoringStatsFile(abc.ABC):
             ):
                 raise
 
-            logger.exception(
+            logger.warning(
                 "The Stats file was not found. It should have been created "
                 "as a part of the model endpoint's creation",
                 path=self._path,
                 error=err,
             )
-            raise
+            return {}, None
 
     def write(self, stats: dict, timestamp: datetime) -> None:
         """

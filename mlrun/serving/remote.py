@@ -23,10 +23,14 @@ import storey
 from storey.flow import _ConcurrentJobExecution
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.config
+import mlrun.platforms
+import mlrun.utils.async_http
 from mlrun.errors import err_to_str
-from mlrun.utils import logger
+from mlrun.utils import dict_to_json, logger
 
+from ..config import config
 from .utils import (
     _extract_input_data,
     _update_result_body,
@@ -73,7 +77,9 @@ class RemoteStep(storey.SendToHttp):
 
         :param url:     http(s) url or function [project/]name to call
         :param subpath: path (which follows the url), use `$path` to use the event.path
-        :param method:  HTTP method (GET, POST, ..), default to POST
+        :param method:  The HTTP method to use for the request (e.g., "GET", "POST", "PUT", "DELETE").
+                        If not provided, the step will try to use `event.method` at runtime, and if that
+                        is also missing, it defaults to `"POST"`.
         :param headers: dictionary with http header values
         :param url_expression: an expression for getting the url from the event, e.g. "event['url']"
         :param body_expression: an expression for getting the request body from the event, e.g. "event['data']"
@@ -150,8 +156,8 @@ class RemoteStep(storey.SendToHttp):
     async def _process_event(self, event):
         # async implementation (with storey)
         body = self._get_event_or_body(event)
-        method, url, headers, body = self._generate_request(event, body)
-        kwargs = {}
+        method, url, headers, body, kwargs = self._generate_request(event, body)
+        kwargs = kwargs or {}
         if self.timeout:
             kwargs["timeout"] = aiohttp.ClientTimeout(total=self.timeout)
         try:
@@ -191,7 +197,7 @@ class RemoteStep(storey.SendToHttp):
             )
 
         body = _extract_input_data(self._input_path, event.body)
-        method, url, headers, body = self._generate_request(event, body)
+        method, url, headers, body, kwargs = self._generate_request(event, body)
         try:
             resp = self._session.request(
                 method,
@@ -200,6 +206,7 @@ class RemoteStep(storey.SendToHttp):
                 headers=headers,
                 data=body,
                 timeout=self.timeout,
+                **kwargs,
             )
         except requests.exceptions.ReadTimeout as err:
             raise requests.exceptions.ReadTimeout(
@@ -240,7 +247,7 @@ class RemoteStep(storey.SendToHttp):
             body = json.dumps(body)
             headers["Content-Type"] = "application/json"
 
-        return method, url, headers, body
+        return method, url, headers, body, {}
 
     def _get_data(self, data, headers):
         if (
@@ -454,3 +461,69 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         ) and isinstance(data, (str, bytes)):
             data = json.loads(data)
         return data
+
+
+class MLRunAPIRemoteStep(RemoteStep):
+    def __init__(
+        self, method: str, path: str, fill_placeholders: Optional[bool] = None, **kwargs
+    ):
+        """
+        Graph step implementation for calling MLRun API endpoints
+
+        :param method:  The HTTP method to use for the request (e.g., "GET", "POST", "PUT", "DELETE").
+                        If not provided, the step will try to use `event.method` at runtime, and if that
+                        is also missing, it defaults to `"POST"`.
+        :param path:    API path (e.g. /api/projects)
+        :param fill_placeholders: if True, fill placeholders in the path using event fields (default to False)
+        :param kwargs:  other arguments passed to RemoteStep
+        """
+        super().__init__(url="", method=method, **kwargs)
+        self.rundb = None
+        self.path = path
+        self.fill_placeholders = fill_placeholders
+
+    def _generate_request(self, event, body):
+        method = self.method or event.method or "POST"
+        kw = {
+            key: value
+            for key, value in (
+                ("params", body.get("params")),
+                ("json", body.get("json")),
+            )
+            if value is not None
+        }
+
+        headers = self.headers or {}
+        headers.update(body.get("headers", {}))
+
+        if self.rundb.user:
+            kw["auth"] = (self.rundb.user, self.rundb.password)
+        elif self.rundb.token_provider:
+            token = self.rundb.token_provider.get_token()
+            if token:
+                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
+                if self.rundb.token_provider.is_iguazio_session():
+                    session_cookie = f'session=j:{{"sid": "{token}"}}'
+                    headers["cookie"] = session_cookie
+                else:
+                    if "Authorization" not in kw.setdefault("headers", {}):
+                        headers.update({"Authorization": "Bearer " + token})
+
+        if mlrun.common.schemas.HeaderNames.client_version not in headers:
+            headers.update(
+                {
+                    mlrun.common.schemas.HeaderNames.client_version: self.rundb.client_version,
+                    mlrun.common.schemas.HeaderNames.python_version: self.rundb.python_version,
+                    "User-Agent": f"{requests.utils.default_user_agent()} mlrun/{config.version}",
+                }
+            )
+
+        url = self.url.format(**body) if self.fill_placeholders else self.url
+        headers["Content-Type"] = "application/json"
+        return method, url, headers, dict_to_json(body), kw
+
+    def post_init(self, mode="sync", **kwargs):
+        super().post_init(mode=mode, **kwargs)
+        self.fill_placeholders = self.fill_placeholders or False
+        self.rundb = mlrun.get_run_db()
+        self.url = self.rundb.get_base_api_url(self.path)

@@ -16,6 +16,7 @@ import asyncio
 import copy
 import json
 import typing
+import warnings
 from datetime import datetime
 from time import sleep
 
@@ -1329,8 +1330,10 @@ class RemoteRuntime(KubeResource):
         :return: returns function's url
         """
         if auth_info:
-            logger.warning(
-                "Deprecated parameter 'auth_info' was provided, but will be ignored. Will be removed in 1.12.0."
+            warnings.warn(
+                "'auth_info' is deprecated in 1.10.0 and will be removed in 1.12.0.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
             )
         return self._resolve_invocation_url("", force_external_address)
 

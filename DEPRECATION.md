@@ -91,7 +91,6 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 
 ### 4. Endpoint
 ```python
-
 # TODO: remove /runs in 1.12.0
 @router.get(
     "/runs",
@@ -100,6 +99,7 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
                 "Use /projects/{project}/runs/ instead",
 )
 ```
+
 API changes are not documented in MLRun docs.
 Deprecation is only visible in Swagger and required when the SDK uses the endpoint.
 
@@ -114,3 +114,19 @@ limit: int = Query(
 ```
 API changes are not documented in mlrun docs. They are needed when the SDK may be using the endpoint. 
 The deprecation warning is only visible in Swagger.
+
+---
+
+## Checklist
+- **Update “Deprecations and removals” Jira ticket**  
+  Link the PR in the ticket.
+
+- **Update MLRun docs**  
+  Ensure the changelog reflects the deprecation or removal.
+
+- **Update repositories affected by the deprecation/removal:**
+  - [mlrun/functions](https://github.com/mlrun/functions)
+  - [mlrun/marketplace](https://github.com/mlrun/marketplace)
+  - [mlrun/demos](https://github.com/mlrun/demos)
+  - [mlrun/test-notebooks](https://github.com/mlrun/test-notebooks)
+  - [mlrun/examples](https://github.com/mlrun/mlrun/tree/development/examples)

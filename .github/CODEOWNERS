@@ -180,6 +180,9 @@ mlrun/alerts/** @TomerShor @mlrun/platform-owners
 mlrun/utils/notifications/** @TomerShor @mlrun/platform-owners
 __main__.py @TomerShor @mlrun/platform-owners
 
+# auth are owned by moranbental
+mlrun/auth/** @moranbental @mlrun/platform-owners
+
 # artifacts are owned by moranbental
 mlrun/artifacts/** @moranbental @mlrun/platform-owners
 

@@ -1,5 +1,5 @@
 (distributed-graph-oview)=
-# Overview of distributed graphs
+# Distributed graphs
 
 Graphs can be hosted by a single function (using zero to n containers), or span multiple functions
 where each function can have its own container image and resources (replicas, GPUs/CPUs, volumes, etc.).

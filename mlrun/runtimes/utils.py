@@ -475,10 +475,10 @@ def enrich_run_labels(
     owner_to_enrich: Optional[str] = None,
 ):
     """
-    Enrich the run labels with the internal labels and the labels enrichment extension
+    Enrich the run labels with the internal labels and the labels enrichment extension.
     :param labels: The run labels dict
     :param labels_to_enrich: The label keys to enrich from MLRunInternalLabels.default_run_labels_to_enrich
-    :param owner_to_enrich: The owner to enrich the labels with, if not provided will try to resolve it
+    :param owner_to_enrich: Optional owner to enrich the labels with, if not provided will try to resolve it.
     :return: The enriched labels dict
     """
     # Merge the labels with the labels enrichment extension

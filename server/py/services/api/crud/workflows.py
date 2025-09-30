@@ -104,6 +104,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param auth_info:        Authentication information of the request.
         :param artifact_path:    Artifact path for the run.
         :param rerun_request:    Workflow request containing the rerun spec.
+        :param original_runner_owner: Owner of the original workflow runner.
         :return: RunObject with run metadata, results, and status.
         """
         self._enrich_run_labels_and_env(
@@ -247,6 +248,16 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         auth_username: Optional[str] = None,
         original_runner_owner: Optional[str] = None,
     ):
+        """
+        Enriches the run labels and environment variables for the workflow runner.
+        Adds the owner label to the run, sets the client Python version label, and
+        sets the MLRUN_PYTHON_VERSION environment variable on the runner if applicable.
+
+        :param labels: Dictionary of labels to enrich.
+        :param runner: Workflow runner function object.
+        :param auth_username: Username from authentication info.
+        :param original_runner_owner: Owner of the original workflow runner.
+        """
         owner_to_enrich = (
             original_runner_owner if original_runner_owner else auth_username
         )
@@ -669,6 +680,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :param run_uid:        UID of the original failed run to retry.
         :param rerun_request:  RerunWorkflowRequest containing any notifications and retry parameters.
         :param auth_info:      Authentication information of the request.
+        :param original_runner_owner: Owner of the original workflow runner.
         :return: RunObject for the rerun.
         """
         labels = {

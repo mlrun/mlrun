@@ -53,7 +53,6 @@ There are two types of remote models.
   - Hugging Face models might required more resources than usual.
   - By default, in LLModel usage, metrics are calculated after invocation. These token metrics are estimates and may not be fully accurate.
   - Hugging Face's Inference Provider is designed to handle OpenAI-style chat format (role/content) and therefore requires models that support `tokenizer.apply_chat_template`. If a model does not provide this functionality, you must implement a manual solution.
-    See an example in {ref}`hf-model-image-classification`.
 
 ### Serving the remote model
 The following code shows the basics of serving and deploying a remote model.

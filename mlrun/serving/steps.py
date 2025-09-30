@@ -12,33 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Union
+
 import storey
 
-import mlrun
+import mlrun.errors
 
 
 class ChoiceByField(storey.Choice):
     """
-    Choosing downstream outlets using custom event field.
-    :param field_name: event field name to derive outlets.
+    Selects downstream outlets to route each event based on a predetermined field.
+    :param field_name: event field name that contains the step name or names of the desired outlet or outlets
     """
 
-    def __init__(self, field_name):
+    def __init__(self, field_name: Union[str, list[str]], **kwargs):
         self.field_name = field_name
-        super().__init__()
+        super().__init__(**kwargs)
 
     def select_outlets(self, event):
-        if self.field_name not in event.keys():
-            raise mlrun.MLRunInvalidArgumentError(
-                f"Field name {self.field_name} is not contained in the event keys {list(event.keys())}."
+        outlet = event.get(self.field_name)
+        if outlet is None:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Field name '{self.field_name}' is not contained in the event keys {list(event.keys())}"
             )
-        outlets = (
-            [event[self.field_name]]
-            if isinstance(event[self.field_name], str)
-            else event[self.field_name]
-        )
-        if not outlets:
-            raise mlrun.MLRunNotFoundError(
-                f"Steps not found for given field name {self.field_name}."
+        if not isinstance(outlet, (str, list, tuple)):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"Field '{self.field_name}' must be a string or list of strings, but is instead of type '{type(outlet).__name__}'"
             )
+        outlets = [outlet] if isinstance(outlet, str) else outlet
         return outlets

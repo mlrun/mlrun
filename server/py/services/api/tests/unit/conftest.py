@@ -193,20 +193,24 @@ def iguazio_client(
 
     if version == "v3":
         module = framework.utils.clients.iguazio.v3
+        client_cls = module.Client if mode == "sync" else module.AsyncClient
+        client = client_cls()
     elif version == "v4":
         module = framework.utils.clients.iguazio.v4
+        client_cls = module.Client if mode == "sync" else module.AsyncClient
+
+        # PATCH iguazio.Client before instantiation
+        with unittest.mock.patch(
+            "framework.utils.clients.iguazio.v4.iguazio.Client"
+        ) as mock_iguazio_cls:
+            mock_instance = unittest.mock.MagicMock()
+            mock_iguazio_cls.return_value = mock_instance
+
+            # Now when Client.__init__ runs, self._client is assigned to mock_instance
+            client = client_cls()
     else:
         raise ValueError(f"Unsupported client version: {version}")
 
-    if mode == "async":
-        client = module.AsyncClient()
-    elif mode == "sync":
-        client = module.Client()
-    else:
-        raise ValueError(f"Unsupported client mode: {mode}")
-
-    # force running init again so the configured api url will be used
-    client.__init__()
     client._wait_for_job_completion_retry_interval = 0
 
     # inject the request param into client, so we can use it in tests

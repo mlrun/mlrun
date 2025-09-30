@@ -13,7 +13,7 @@
 - [ ] I updated the documentation (if applicable)
 - [ ] I have tested the changes in this PR
 - [ ] If I introduced a deprecation:
-  - [ ] I followed the [Deprecation Guidelines](https://iguazio.atlassian.net/wiki/spaces/MLRUN/pages/2461076/Deprecation)
+  - [ ] I followed the [Deprecation Guidelines](./DEPRECATION.md)
   - [ ] I updated the relevant Jira ticket for documentation
 
 ---

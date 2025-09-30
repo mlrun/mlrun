@@ -3,7 +3,7 @@ ModelRunnerStep
 The [ModelRunnerStep](../api/mlrun.serving/index.html#mlrun.serving.ModelRunnerStep) enables running multiple models in parallel: it's the preferred step for all serving graphs, and is particularly suited for LLMs. 
 
 
-ModelRunnerStep supports parallel execution of tasks, for example, an inference graph with different models. It supports execution in a dedicated process, via process pool, thread pool, asyncio, or naively. Different execution mechanisms can be used for different models within the same step. 
+ModelRunnerStep supports parallel execution of tasks, for example, an inference graph with different models (both {ref}`local and remote models <models>`). It supports execution in a dedicated process, via process pool, thread pool, asyncio, or naively. Different execution mechanisms can be used for different models within the same step. 
 
 ModelRunnerStep is implemented with the asynchronous [flow topology](../engines.html#flow), giving better utilization of CPU/GPU.
 

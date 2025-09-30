@@ -934,7 +934,14 @@ class TestProject(TestMLRunSystem):
         ] == str(1)
 
         # Check if the runner's owner label matches the original workflow's owner label
-        assert original_run_result.to_objects()[0].metadata.labels[mlrun_constants.MLRunInternalLabels.owner] == runner_run_result.to_objects()[0].metadata.labels[mlrun_constants.MLRunInternalLabels.owner]
+        assert (
+            original_run_result.to_objects()[0].metadata.labels[
+                mlrun_constants.MLRunInternalLabels.owner
+            ]
+            == runner_run_result.to_objects()[0].metadata.labels[
+                mlrun_constants.MLRunInternalLabels.owner
+            ]
+        )
 
         # in order to trigger the periodic monitor runs function
         time.sleep(35)

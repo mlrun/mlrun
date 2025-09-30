@@ -482,7 +482,9 @@ class Pipelines(
             run_uid=run_id,
             rerun_request=rerun_request,
             auth_info=auth_info,
-            original_runner_owner=original_runner.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+            original_runner_owner=original_runner.metadata.labels.get(
+                mlrun_constants.MLRunInternalLabels.owner
+            ),
         )
         status = mlrun_pipelines.common.models.RunStatuses.running
         runner_uid = run.uid()

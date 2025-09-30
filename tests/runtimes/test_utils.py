@@ -174,7 +174,6 @@ def test_enrich_run_labels(
         )
 
 
-
 @pytest.mark.parametrize(
     "labels, env_vars, owner_to_enrich, expected_owner",
     [

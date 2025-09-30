@@ -1939,7 +1939,7 @@ def _assert_project_summary(
     assert project_summary.runs_completed_recent_count == runs_completed_recent_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
-    # assert project_summary.pipelines_running_count == pipelines_running_count
+    assert project_summary.pipelines_running_count == pipelines_running_count
     assert (
         project_summary.real_time_model_endpoint_count == real_time_model_endpoint_count
     )

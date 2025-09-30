@@ -137,7 +137,6 @@ class Client(BaseClient):
             )
 
         except httpx.HTTPStatusError as exc:
-            self._logger.debug("Iguazio response", content=exc.response.json())
             error_message, ctx = self._extract_response_error(exc.response)
             self._logger.warning(
                 "Failed to refresh multiple access tokens from Iguazio",

@@ -121,7 +121,6 @@ class HubModule(ModelObj):
         return Path(os.getcwd())
 
     def get_module_file_path(self):
-        local_path = self.local_path if self.local_path is not None else os.getcwd()
         return str(Path(self.local_path) / self.filename)
 
 def get_hub_module(

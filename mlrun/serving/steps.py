@@ -37,7 +37,12 @@ class ChoiceByField(storey.Choice):
             )
         if not isinstance(outlet, (str, list, tuple)):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"Field '{self.field_name}' must be a string or list of strings, but is instead of type '{type(outlet).__name__}'"
+                f"Field '{self.field_name}' must be a string or list of strings"
+                f"but is instead of type '{type(outlet).__name__}'"
             )
         outlets = [outlet] if isinstance(outlet, str) else outlet
+        if not outlets:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Predetermined field value '{self.field_name}' cannot be empty"
+            )
         return outlets

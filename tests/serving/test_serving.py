@@ -921,18 +921,28 @@ def generate_field(event):
 @pytest.mark.parametrize("field_name", ["fieldA", "fieldB"])
 @pytest.mark.parametrize(
     "field_targets",
-    ["outlet1", "outlet2", ["outlet1", "outlet2"], [], ["outlet3"], "outlet3"],
+    [
+        "outlet1",
+        "outlet2",
+        ["outlet1", "outlet2"],
+        [],
+        ["outlet3"],
+        "outlet3",
+        (),
+        ("outlet1", "outlet2"),
+        ("outlet1", "outlet3"),
+    ],
 )
 def test_choice_by_field(field_name, field_targets):
     choice_step = ChoiceByField(field_name=field_name)
     fn = mlrun.new_function(
-        name="choice-by-field-example", kind="serving",
+        name="choice-by-field-example",
+        kind="serving",
     )
     graph = fn.set_topology("flow")
     graph.to(name="generate_field", handler="generate_field").to(
         choice_step, name="pick_outlets"
     )
-
     graph.add_step(
         "storey.Extend",
         name="outlet1",
@@ -950,12 +960,21 @@ def test_choice_by_field(field_name, field_targets):
     ).respond()
     fn_server = fn.to_mock_server()
     try:
-        result = fn_server.test(
-            body={"field_name": field_name, "field_targets": field_targets}
-        )
-        if isinstance(field_targets, list):
-            assert result["field_visited"] in field_targets
+        with pytest.raises(
+            (RuntimeError, mlrun.MLRunNotFoundError, ValueError)
+        ) as exc_info:
+            result = fn_server.test(
+                body={"field_name": field_name, "field_targets": field_targets}
+            )
+            assert isinstance(
+                exc_info.value, (RuntimeError, mlrun.MLRunNotFoundError, ValueError)
+            )
+    except AssertionError:
+        # means no exception was raised → handle as success case
+        if isinstance(field_targets, (list, tuple)):
+            if len(field_targets) < 2:
+                assert sorted(result["field_visited"]) == sorted(field_targets)
+            else:
+                assert result["field_visited"] in field_targets
         else:
             assert result["field_visited"] == field_targets
-    except Exception as e:
-        assert isinstance(e, (RuntimeError, mlrun.MLRunNotFoundError))

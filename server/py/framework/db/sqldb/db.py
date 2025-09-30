@@ -3902,6 +3902,7 @@ class SQLDB(DBInterface):
     ]:
         running_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     mlrun.common.runtimes.constants.RunStates.non_terminal_states()
@@ -3917,6 +3918,8 @@ class SQLDB(DBInterface):
         one_day_ago = datetime.now() - timedelta(hours=24)
         recent_failed_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.start_time >= one_day_ago)
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     [
@@ -3925,7 +3928,6 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
-            .filter(Run.start_time >= one_day_ago)
             .group_by(Run.project)
             .all()
         )
@@ -3935,6 +3937,8 @@ class SQLDB(DBInterface):
 
         recent_completed_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.start_time >= one_day_ago)
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     [
@@ -3942,7 +3946,6 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
-            .filter(Run.start_time >= one_day_ago)
             .group_by(Run.project)
             .all()
         )

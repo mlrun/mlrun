@@ -255,7 +255,8 @@ default_config = {
             },
             "runtimes": {
                 "dask": "600",
-                "dask_cluster_start": "300",
+                # cluster start might take some time in case k8s needs to spin up new nodes
+                "dask_cluster_start": "600",
             },
             "push_notifications": "60",
         },
@@ -647,6 +648,13 @@ default_config = {
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
+        },
+        "writer_graph": {
+            "max_events": 1000,
+            "flush_after_seconds": 30,
+            "writer_version": "v1",  # v1 is the sync version while v2 is async
+            "parquet_batching_max_events": 10,
+            "parquet_batching_timeout_secs": 30,
         },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.

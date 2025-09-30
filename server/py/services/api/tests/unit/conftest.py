@@ -17,6 +17,7 @@ import unittest.mock
 from collections.abc import Generator, Iterator
 from datetime import datetime
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest import mock
 
 import fastapi
@@ -25,6 +26,7 @@ import pytest
 import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
+from kfp_server_api.models.api_experiment import ApiExperiment
 
 import mlrun
 import mlrun.common.schemas
@@ -33,7 +35,6 @@ import mlrun.utils
 import mlrun.utils.singleton
 import mlrun_pipelines.client
 import mlrun_pipelines.utils
-from mlrun.utils import logger
 
 import framework.utils.clients.iguazio
 import framework.utils.projects.remotes.leader
@@ -126,30 +127,48 @@ def kfp_client_mock(monkeypatch):
     framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = mock.Mock(
         return_value=True
     )
+    monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
 
     mock_experiment_api = mock.Mock()
-    mock_experiment_api.api_client.call_api = mock.Mock()
     monkeypatch.setattr(
         kfp_server_api.api.experiment_service_api,
         "ExperimentServiceApi",
         mock.Mock(return_value=mock_experiment_api),
     )
+    mock_experiment_api.list_experiment = mock.Mock(
+        return_value=SimpleNamespace(
+            experiments=[
+                ApiExperiment(name="some-project"),
+                ApiExperiment(name="another"),
+            ]
+        )
+    )
+    mock_experiment_api.api_client = mock.Mock()
+    mock_experiment_api.api_client.call_api = mock.Mock()
 
+    # Mock the KFP Run API; tests can stub methods on this as needed
     mock_run_api = mock.Mock()
     mock_run_api.create_run = mock.Mock()
+    # It’s common that list_runs is used in pipeline listing; leave it mockable
+    mock_run_api.list_runs = mock.Mock(return_value=SimpleNamespace(runs=[]))
     monkeypatch.setattr(
         kfp_server_api.api.run_service_api,
         "RunServiceApi",
         mock.Mock(return_value=mock_run_api),
     )
-    monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
-    kfp_client = mlrun_pipelines.client.Client(
-        logger=logger,
-    )
+
+    # Build a real mlrun_pipelines client that will use our mocked APIs
+    kfp_client = mlrun_pipelines.client.Client(logger=mock.Mock())
+    # Point mlrun to a fake in-cluster KFP URL (not actually contacted due to mocks)
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
+
+    # When code calls utils.get_client(...), hand back our prepared client
     monkeypatch.setattr(
-        mlrun_pipelines.utils, "get_client", lambda *args, **get_client: kfp_client
+        mlrun_pipelines.utils,
+        "get_client",
+        lambda *unused_args, **unused_kwargs: kfp_client,
     )
+
     return kfp_client
 
 

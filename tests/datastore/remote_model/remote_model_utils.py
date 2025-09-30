@@ -83,7 +83,6 @@ def setup_remote_model_test(
     execution_mechanism="naive",
     image=None,
     requirements=None,
-    requirements_file=None,
     model_class: str = "LLModel",
     default_config: Optional[dict] = None,
     include_llm_artifact=True,
@@ -116,7 +115,6 @@ def setup_remote_model_test(
         filename=__file__,
         image=image,
         requirements=requirements,
-        requirements_file=requirements_file,
     )
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
@@ -187,22 +185,22 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
         self, body: Any, path: str, origin_name: Optional[str] = None
     ) -> Any:
         # Temporary workaround for testing purposes only, until events execution will be able to run in parallel
-        model_configuration = {}
+        invocation_config = {}
         all_messages = []
         for event in body["input"]:
-            messages, model_configuration = self.enrich_prompt(
+            messages, invocation_config = self.enrich_prompt(
                 event, origin_name, llm_prompt_artifact=self.invocation_artifact
             )
             all_messages.extend(messages)
         return await self.predict_async(
-            body, messages=all_messages, model_configuration=model_configuration
+            body, messages=all_messages, invocation_config=invocation_config
         )
 
     async def predict_async(
         self,
         body: Any,
         messages: Optional[list[dict]] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         **kwargs,
     ):
         if isinstance(
@@ -215,7 +213,7 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
                     self.model_provider.async_invoke(
                         messages=[message],
                         invoke_response_format=InvokeResponseFormat.STRING,
-                        **(model_configuration or {}),
+                        **(invocation_config or {}),
                     )
                 )
                 for message in messages

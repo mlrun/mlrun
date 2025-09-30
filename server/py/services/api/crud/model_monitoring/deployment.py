@@ -54,7 +54,7 @@ from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
 )
-from mlrun.model_monitoring.writer import ModelMonitoringWriter
+from mlrun.model_monitoring.writer import ModelMonitoringWriter, WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
@@ -153,6 +153,12 @@ class MonitoringDeployment:
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
             self.set_credentials()
+        if deployed_functions := self.get_deployed_model_monitoring_functions():
+            raise mlrun.errors.MLRunConflictError(
+                f"Model monitoring functions are already deployed: {deployed_functions}"
+                f". If you want to redeploy them, please use disable_model_monitoring first "
+                f"and enable it again."
+            )
         self.check_if_credentials_are_set()
 
         self.deploy_model_monitoring_controller(
@@ -704,12 +710,30 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
-        graph.to(
-            ModelMonitoringWriter(
-                project=self.project, secret_provider=self._secret_provider
+        if config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
+            logger.info("Using writer graph v1")
+            graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
+            graph.to(
+                ModelMonitoringWriter(
+                    project=self.project, secret_provider=self._secret_provider
+                )
             )
-        )  # writer
+        else:
+            logger.info("Using writer graph v2")
+            parquet_target = (
+                services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
+                    db_session=self.db_session,
+                    project=self.project,
+                    kind="parquet_stats",
+                )
+            )
+            writer_factory = WriterGraphFactory(
+                parquet_path=parquet_target,
+            )
+            writer_factory.apply_writer_graph(
+                fn=function,
+                tsdb_connector=self._tsdb_connector,
+            )
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -2536,6 +2560,17 @@ class MonitoringDeployment:
             application_name=application_name,
             endpoint_ids=endpoint_ids,
         )
+
+    def get_deployed_model_monitoring_functions(self) -> list[str]:
+        """
+        Check which model monitoring functions are already deployed in the project.
+        :return: list of deployed model monitoring functions.
+        """
+        deployed_functions = []
+        for function_name in mm_constants.MonitoringFunctionNames.list():
+            if not self._should_deploy_function(function_name=function_name):
+                deployed_functions.append(function_name)
+        return deployed_functions
 
 
 def get_endpoint_features(

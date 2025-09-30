@@ -134,3 +134,8 @@ class HubCatalog(BaseModel):
     kind: ObjectKind = Field(ObjectKind.hub_catalog, const=True)
     channel: str
     catalog: list[HubItem]
+
+
+class HubModuleType(mlrun.common.types.StrEnum):
+    generic = "generic"
+    monitoring_app = "monitoring-app"

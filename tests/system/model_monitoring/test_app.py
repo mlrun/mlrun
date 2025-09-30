@@ -866,6 +866,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         time.sleep(
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
             + self._external_stream_delay
         )
 
@@ -1299,6 +1300,11 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             wait_for_deployment=True,
         )
 
+        with pytest.raises(mlrun.errors.MLRunConflictError):
+            self.project.enable_model_monitoring(
+                image=self.image or "mlrun/mlrun",
+            )
+
         controller = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             ignore_cache=True,
@@ -1308,10 +1314,6 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
                 "interval"
             ]
             == "3m"
-        )
-        self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
-            wait_for_deployment=False,
         )
         # check that all the function are still deployed
         for name in all_functions:

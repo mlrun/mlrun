@@ -1326,7 +1326,7 @@ class LLModel(Model):
         self,
         body: Any,
         messages: Optional[list[dict]] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
         llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
@@ -1337,12 +1337,12 @@ class LLModel(Model):
                 "Invoking model provider",
                 model_name=self.name,
                 messages=messages,
-                model_configuration=model_configuration,
+                invocation_config=invocation_config,
             )
             response_with_stats = self.model_provider.invoke(
                 messages=messages,
                 invoke_response_format=InvokeResponseFormat.USAGE,
-                **(model_configuration or {}),
+                **(invocation_config or {}),
             )
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
@@ -1366,7 +1366,7 @@ class LLModel(Model):
         self,
         body: Any,
         messages: Optional[list[dict]] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
         llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
@@ -1377,12 +1377,12 @@ class LLModel(Model):
                 "Async invoking model provider",
                 model_name=self.name,
                 messages=messages,
-                model_configuration=model_configuration,
+                invocation_config=invocation_config,
             )
             response_with_stats = await self.model_provider.async_invoke(
                 messages=messages,
                 invoke_response_format=InvokeResponseFormat.USAGE,
-                **(model_configuration or {}),
+                **(invocation_config or {}),
             )
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
@@ -1404,7 +1404,7 @@ class LLModel(Model):
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
-        messages, model_configuration = self.enrich_prompt(
+        messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
         )
         logger.info(
@@ -1416,7 +1416,7 @@ class LLModel(Model):
         return self.predict(
             body,
             messages=messages,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             llm_prompt_artifact=llm_prompt_artifact,
         )
 
@@ -1424,7 +1424,7 @@ class LLModel(Model):
         self, body: Any, path: str, origin_name: Optional[str] = None
     ) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
-        messages, model_configuration = self.enrich_prompt(
+        messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
         )
         logger.info(
@@ -1436,7 +1436,7 @@ class LLModel(Model):
         return await self.predict_async(
             body,
             messages=messages,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             llm_prompt_artifact=llm_prompt_artifact,
         )
 
@@ -1460,11 +1460,11 @@ class LLModel(Model):
                 artifact_type=type(llm_prompt_artifact).__name__,
                 llm_prompt_artifact=llm_prompt_artifact,
             )
-            prompt_legend, prompt_template, model_configuration = {}, [], {}
+            prompt_legend, prompt_template, invocation_config = {}, [], {}
         else:
             prompt_legend = llm_prompt_artifact.spec.prompt_legend
             prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
-            model_configuration = llm_prompt_artifact.spec.model_configuration
+            invocation_config = llm_prompt_artifact.spec.invocation_config
         input_data = copy(get_data_from_path(self._input_path, body))
         if isinstance(input_data, dict) and prompt_template:
             kwargs = (
@@ -1500,7 +1500,7 @@ class LLModel(Model):
                 model_name=self.name,
                 input_data_type=type(input_data).__name__,
             )
-        return prompt_template, model_configuration
+        return prompt_template, invocation_config
 
     def _get_invocation_artifact(
         self, origin_name: Optional[str] = None
@@ -1628,6 +1628,9 @@ class ModelRunnerStep(MonitoredStep):
         model_runner_step = ModelRunnerStep(name="my_model_runner")
         model_runner_step.add_model(..., model_class=MyModel(name="my_model"))
         graph.to(model_runner_step)
+
+    Note when ModelRunnerStep is used in a graph, MLRun automatically imports
+    the default language model class (LLModel) during function deployment.
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
@@ -1818,7 +1821,9 @@ class ModelRunnerStep(MonitoredStep):
         Add a Model to this ModelRunner.
 
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
-        :param model_class:         Model class name
+        :param model_class:         Model class name. If LLModel is chosen
+                                    (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
+                                    outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
                             * **process_pool**: To run in a separate process from a process pool. This is appropriate
@@ -1904,7 +1909,8 @@ class ModelRunnerStep(MonitoredStep):
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
         if type(model_class) is LLModel or (
-            isinstance(model_class, str) and model_class == LLModel.__name__
+            isinstance(model_class, str)
+            and model_class.split(".")[-1] == LLModel.__name__
         ):
             if outputs:
                 warnings.warn(
@@ -2844,7 +2850,9 @@ class RootFlowStep(FlowStep):
         """
         Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
         :param name:                Name of the shared model (should be unique in the graph)
-        :param model_class:         Model class name
+        :param model_class:         Model class name. If LLModel is chosen
+                                    (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
+                                    outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
             * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
@@ -2898,7 +2906,8 @@ class RootFlowStep(FlowStep):
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
         if type(model_class) is LLModel or (
-            isinstance(model_class, str) and model_class == LLModel.__name__
+            isinstance(model_class, str)
+            and model_class.split(".")[-1] == LLModel.__name__
         ):
             if outputs:
                 warnings.warn(

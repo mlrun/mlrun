@@ -44,7 +44,7 @@ secrets = {"AWS_KEY": "111222333"}
 project.set_secrets(secrets=secrets, provider="kubernetes")
 
 # Create and run the MLRun job
-function = mlrun.set_function(
+function = project.set_function(
     func="<path to function>",
     name="secret_func",
     handler="test_function",
@@ -83,7 +83,7 @@ the following command passes specific project-secrets to the execution context:
 
 project = mlrun.get_or_create_project("myproj", "./")
 
-function = mlrun.set_function(
+function = project.set_function(
     func="<path to function>",
     name="secret_func",
     handler="test_function",
@@ -334,7 +334,7 @@ to an MLRun job:
 :emphasize-lines: 9-14
 project = mlrun.get_or_create_project("myproj", "./")
 
-function = mlrun.set_function(
+function = project.set_function(
     name="secret_func",
     handler="test_function",
     ...

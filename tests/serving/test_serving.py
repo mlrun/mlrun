@@ -37,7 +37,6 @@ from mlrun.serving.server import (
 )
 from mlrun.serving.states import RouterStep, TaskStep
 from mlrun.utils import logger
-from mlrun.serving.steps import ChoiceByField
 
 
 def generate_test_routes(model_class):
@@ -914,26 +913,43 @@ def test_serialize():
 
 
 def generate_field(event):
-    event[event["field_name"]] = event['field_targets']
+    event[event["field_name"]] = event["field_targets"]
     return event
 
 
 @pytest.mark.parametrize("field_name", ["fieldA", "fieldB"])
-@pytest.mark.parametrize("field_targets", ["outlet1", "outlet2", ["outlet1", "outlet2"],
-                         [], ["outlet3"], "outlet3"])
+@pytest.mark.parametrize(
+    "field_targets",
+    ["outlet1", "outlet2", ["outlet1", "outlet2"], [], ["outlet3"], "outlet3"],
+)
 def test_choice_by_field(field_name, field_targets):
     fn = mlrun.new_function(
         name="choice_by_field_example", kind="serving", image="mlrun/mlrun"
     )
     graph = fn.set_topology("flow")
     graph.to(name="generate_field", handler="generate_field").to(
-        "ChoiceByField", name="choose_outlets", field_name=field_name)
-    graph.add_step("storey.Extend", name="outlet1", _fn='({"field_visited": "outlet1"})', after="choose_outlets")
-    graph.add_step("storey.Extend", name="outlet2", _fn='({"field_visited": "outlet2"})', after="choose_outlets")
-    graph.add_step("storey.Extend", name="end", _fn='({})', after=["outlet1", "outlet2"]).respond()
+        "ChoiceByField", name="choose_outlets", field_name=field_name
+    )
+    graph.add_step(
+        "storey.Extend",
+        name="outlet1",
+        _fn='({"field_visited": "outlet1"})',
+        after="choose_outlets",
+    )
+    graph.add_step(
+        "storey.Extend",
+        name="outlet2",
+        _fn='({"field_visited": "outlet2"})',
+        after="choose_outlets",
+    )
+    graph.add_step(
+        "storey.Extend", name="end", _fn="({})", after=["outlet1", "outlet2"]
+    ).respond()
     fn_server = fn.to_mock_server()
     try:
-        result = fn_server.test(body={"field_name": field_name, "field_targets": field_targets})
+        result = fn_server.test(
+            body={"field_name": field_name, "field_targets": field_targets}
+        )
         if isinstance(field_targets, list):
             assert result["field_visited"] in field_targets
         else:

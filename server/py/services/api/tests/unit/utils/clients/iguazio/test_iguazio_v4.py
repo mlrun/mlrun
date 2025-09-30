@@ -16,6 +16,7 @@
 import http
 import unittest.mock
 
+import httpx
 import pytest
 from aioresponses import CallbackResult
 
@@ -28,7 +29,6 @@ from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
 )
 from tests.common_fixtures import aioresponses_mock
 
-import framework.utils.clients.iguazio.v4
 from framework.utils.asyncio import maybe_coroutine
 
 
@@ -330,20 +330,103 @@ def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=N
     }
 
 
-def test_revoke_offline_token_success():
+@pytest.mark.parametrize(
+    "secret_token, expected_exception",
+    [
+        (None, mlrun.errors.MLRunInvalidArgumentError),  # None token
+        (
+            mlrun.common.schemas.SecretToken(name="t1", token=""),
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),  # empty token
+        (
+            mlrun.common.schemas.SecretToken(name="t1", token="valid-token"),
+            None,
+        ),  # valid token
+    ],
+)
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_refresh_access_token_cases(iguazio_client, secret_token, expected_exception):
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            iguazio_client.refresh_access_token(secret_token)
+    else:
+        # simulate HTTP error
+        iguazio_client._client.refresh_access_token.side_effect = httpx.HTTPStatusError(
+            "Error",
+            request=None,
+            response=unittest.mock.MagicMock(
+                status_code=401,
+                json=lambda: {"status": {"errorMessage": "invalid", "ctx": "dummy"}},
+            ),
+        )
+        with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
+            iguazio_client.refresh_access_token(secret_token)
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_refresh_access_token_success(iguazio_client):
+    secret_token = mlrun.common.schemas.SecretToken(
+        name="test-token", token="valid-token"
+    )
+
+    # Should not raise
+    iguazio_client.refresh_access_token(secret_token)
+
+    iguazio_client._client.refresh_access_token.assert_called_once()
+    called_options = iguazio_client._client.refresh_access_token.call_args[1]["options"]
+    assert called_options.refresh_token == "valid-token"
+
+
+@pytest.mark.parametrize(
+    "secret_tokens, expected_exception",
+    [
+        ([], mlrun.errors.MLRunInvalidArgumentError),  # empty list
+        (
+            [mlrun.common.schemas.SecretToken(name="t1", token="")],
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),  # empty token in list
+        (
+            [
+                mlrun.common.schemas.SecretToken(name="t1", token="token1"),
+                mlrun.common.schemas.SecretToken(name="t2", token="token2"),
+            ],
+            None,
+        ),  # valid tokens
+    ],
+)
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_refresh_access_tokens_cases(iguazio_client, secret_tokens, expected_exception):
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            iguazio_client.refresh_access_tokens(secret_tokens)
+    else:
+        # simulate HTTP error
+        iguazio_client._client.refresh_access_tokens.side_effect = (
+            httpx.HTTPStatusError(
+                "Error",
+                request=None,
+                response=unittest.mock.MagicMock(
+                    status_code=401,
+                    json=lambda: {
+                        "status": {"errorMessage": "invalid", "ctx": "dummy"}
+                    },
+                ),
+            )
+        )
+        with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
+            iguazio_client.refresh_access_tokens(secret_tokens)
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_revoke_offline_token_success(iguazio_client):
     token = "valid-token"
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
     }
 
-    # prevents from creating a real Iguazio client
-    with unittest.mock.patch("framework.utils.clients.iguazio.v4.iguazio.Client"):
-        client = framework.utils.clients.iguazio.v4.Client()
-        client._client = unittest.mock.MagicMock()
+    iguazio_client.revoke_offline_token(token, request_headers)
 
-        client.revoke_offline_token(token, request_headers)
-
-        client._client.set_override_auth_headers.assert_called_once_with(
-            request_headers
-        )
-        client._client.revoke_offline_token.assert_called_once()
+    iguazio_client._client.set_override_auth_headers.assert_called_once_with(
+        request_headers
+    )
+    iguazio_client._client.revoke_offline_token.assert_called_once()

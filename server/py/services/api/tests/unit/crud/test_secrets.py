@@ -701,7 +701,7 @@ def mock_iguazio_client():
         "framework.utils.clients.iguazio.v4.Client"
     ) as mock_client_cls:
         mock_client_instance = unittest.mock.MagicMock()
-        mock_client_instance.refresh_access_token.return_value = None
+        mock_client_instance.refresh_access_tokens.return_value = None
         mock_client_instance.revoke_offline_token.return_value = None
         mock_client_cls.return_value = mock_client_instance
         yield mock_client_instance
@@ -804,7 +804,7 @@ def test_store_secret_tokens_return_values(mock_iguazio_client):
     }
 
     assert mock_secrets_provider.store_user_token_secret.call_count == 3
-    assert mock_iguazio_client.refresh_access_token.call_count == 3
+    assert mock_iguazio_client.refresh_access_tokens.call_count == 1
 
 
 def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
@@ -822,7 +822,7 @@ def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError, match="Refresh failed"):
         services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
 
-    mock_iguazio_client.refresh_access_token.assert_called_once_with(secret_tokens[0])
+    mock_iguazio_client.refresh_access_token.assert_called_once_with(secret_tokens)
 
 
 def test_list_secret_tokens_returns_tokens():

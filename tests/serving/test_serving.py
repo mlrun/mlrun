@@ -926,7 +926,7 @@ def generate_field(event):
 def test_choice_by_field(field_name, field_targets):
     choice_step = ChoiceByField(field_name=field_name)
     fn = mlrun.new_function(
-        name="choice_by_field_example", kind="serving", image="mlrun/mlrun"
+        name="choice-by-field-example", kind="serving", image="mlrun/mlrun"
     )
     graph = fn.set_topology("flow")
     graph.to(name="generate_field", handler="generate_field").to(

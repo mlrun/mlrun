@@ -20,6 +20,7 @@ import pandas as pd
 import mlrun
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
+from mlrun import config
 from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.preaggregate import (
@@ -67,6 +68,8 @@ class TimescaleDBConnector(TSDBConnector):
         **kwargs,
     ):
         super().__init__(project=project)
+
+        self.profile = profile
 
         # Create shared connection
         self._connection = TimescaleDBConnection(
@@ -329,3 +332,52 @@ class TimescaleDBConnector(TSDBConnector):
 
     def get_drift_data(self, *args, **kwargs):
         return self._results_queries.get_drift_data(*args, **kwargs)
+
+    def add_pre_writer_steps(self, graph, after):
+        return graph.add_step(
+            "mlrun.model_monitoring.db.tsdb.timescaledb.writer_graph_steps.ProcessBeforeTimescaleDBWriter",
+            name="ProcessBeforeTimescaleDBWriter",
+            after=after,
+        )
+
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
+        tables = timescaledb_schema.create_table_schemas(self.project)
+
+        graph.add_step(
+            "mlrun.datastore.storeytargets.TimescaleDBStoreyTarget",
+            name="tsdb_metrics",
+            after=after,
+            url=f"ds://{self.profile.name}",
+            table=tables[mm_schemas.TimescaleDBTables.METRICS].full_name(),
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            columns=[
+                mm_schemas.WriterEvent.START_INFER_TIME,
+                mm_schemas.MetricData.METRIC_VALUE,
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.MetricData.METRIC_NAME,
+            ],
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
+        )
+
+        graph.add_step(
+            "mlrun.datastore.storeytargets.TimescaleDBStoreyTarget",
+            name="tsdb_app_results",
+            after=after,
+            url=f"ds://{self.profile.name}",
+            table=tables[mm_schemas.TimescaleDBTables.APP_RESULTS].full_name(),
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            columns=[
+                mm_schemas.WriterEvent.START_INFER_TIME,
+                mm_schemas.ResultData.RESULT_VALUE,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_EXTRA_DATA,
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.ResultData.RESULT_NAME,
+                mm_schemas.ResultData.RESULT_KIND,
+            ],
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
+        )

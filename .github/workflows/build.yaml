@@ -57,6 +57,13 @@ on:
       - 'feature/mlrun-*'
       - 'release/*'
       - 'development'
+
+  pull_request:
+    branches:
+      - 'feature/mlrun-*'
+      - 'release/*'
+      - 'development'
+
   workflow_call:
     inputs:
       skip_images:

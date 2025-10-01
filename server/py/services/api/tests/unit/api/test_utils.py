@@ -1954,10 +1954,8 @@ def test_resolve_client_default_kfp_image(
         ),
     ],
 )
-def test_apply_enrichment_and_validation_on_task_param(
-    secret_sources, expected_exception
-):
-    task = {
+def test_validate_function_secret_sources(secret_sources, expected_exception):
+    function = {
         "metadata": {
             "iteration": 0,
             "name": "mytask",
@@ -1970,9 +1968,9 @@ def test_apply_enrichment_and_validation_on_task_param(
 
     if expected_exception:
         with pytest.raises(expected_exception):
-            framework.api.utils.apply_enrichment_and_validation_on_task(task)
+            framework.api.utils.validate_function_secret_sources(function)
     else:
-        framework.api.utils.apply_enrichment_and_validation_on_task(task)
+        framework.api.utils.validate_function_secret_sources(function)
 
 
 @pytest.mark.parametrize(
@@ -1998,35 +1996,36 @@ def test_validate_volume_mounts_param(secret_name, expect_exception):
     )
     func.metadata.project = "test-project"
     func.apply(mlrun.runtimes.mounts.mount_secret(secret_name, "./secrets/"))
-
-    if expect_exception:
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match="does not match project secret mounted",
-        ):
-            framework.api.utils.validate_volume_mounts(func)
-    else:
-        # Should not raise
-        framework.api.utils.validate_volume_mounts(func)
+    for function in [func, func.to_dict()]:
+        if expect_exception:
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+            ):
+                framework.api.utils.validate_function_volume_mounts(function)
+        else:
+            # Should not raise
+            framework.api.utils.validate_function_volume_mounts(function)
 
 
 @pytest.mark.parametrize(
-    "secret_name, expect_exception",
+    "secret_name, expect_exception, kind",
     [
         # Valid project secret
-        ("mlrun-project-secrets-test-project", False),
+        ("mlrun-project-secrets-test-project", False, "job"),
         # Invalid secret (should raise)
-        ("mlrun-project-secrets-other-project", True),
+        ("mlrun-project-secrets-other-project", True, "job"),
+        # Invalid secret (should raise)
+        ("mlrun-project-secrets-other-project", True, "serving"),
     ],
 )
-def test_setenv_from_the_project_secret(secret_name, expect_exception):
+def test_setenv_from_the_project_secret(secret_name, expect_exception, kind):
     func_name = "name_with_underscores"
 
     # create a function with a name that includes underscores
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     func = mlrun.code_to_function(
         name=func_name,
-        kind="job",
+        kind=kind,
         image="mlrun/mlrun",
         handler="myhandler",
         filename=func_path,
@@ -2034,26 +2033,17 @@ def test_setenv_from_the_project_secret(secret_name, expect_exception):
     func.metadata.project = "test-project"
     func.set_env_from_secret(name="MY_ENV", secret=secret_name)
 
-    if expect_exception:
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match="does not match project secret mounted",
-        ):
-            framework.api.utils.validate_env_vars(func)
-    else:
-        # Should not raise
-        framework.api.utils.validate_env_vars(func)
-
-    # now validate the server side object, which is formed via sending dict and then enriching from dict
-    function = mlrun.new_function(runtime=func.to_dict())
-    mlrun.runtimes.utils.enrich_function_from_dict(function, func.to_dict())
-
-    if expect_exception:
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match="does not match project secret mounted",
-        ):
-            framework.api.utils.validate_env_vars(func)
-    else:
-        # Should not raise
-        framework.api.utils.validate_env_vars(func)
+    # simulate the server side object, which is formed via sending dict and then enriching from dict
+    function_retranslated = mlrun.new_function(runtime=func.to_dict())
+    mlrun.runtimes.utils.enrich_function_from_dict(
+        function_retranslated, func.to_dict()
+    )
+    for function in [func, func.to_dict(), function_retranslated]:
+        if expect_exception:
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+            ):
+                framework.api.utils.validate_function_env_vars(function)
+        else:
+            # Should not raise
+            framework.api.utils.validate_function_env_vars(function)

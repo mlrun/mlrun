@@ -294,22 +294,25 @@ async def submit_run(
     return response
 
 
-def apply_enrichment_and_validation_on_task(task: dict):
+def apply_enrichment_and_validation_on_task(
+    task: dict, mask_notification_params_on_task: bool = True
+):
     # Conceal notification config params from the task object with secrets
-    framework.utils.notifications.mask_notification_params_on_task(
-        task, framework.constants.MaskOperations.CONCEAL
-    )
+    if mask_notification_params_on_task:
+        framework.utils.notifications.mask_notification_params_on_task(
+            task, framework.constants.MaskOperations.CONCEAL
+        )
     # validates that secrets used in the task are allowed
     # currently, this only ensures that if k8s mlrun project secrets are used,
     # they belong to the correct project (not another project’s secret)
-    validate_task_secrets(task)
+    validate_function_secret_sources(task)
 
 
-def validate_task_secrets(task: dict):
-    spec = task.get("spec", {})
-    secrets = mlrun.secrets.SecretsStore.from_list(spec.get(RunKeys.secrets))
-    project_name = task.get("metadata", {}).get("project")
+def validate_function_secret_sources(function):
+    secrets_list = get_in(function, ["spec", RunKeys.secrets], default=[])
+    secrets = mlrun.secrets.SecretsStore.from_list(secrets_list)
 
+    project_name = get_in(function, ["metadata", "project"])
     if k8s_secrets := secrets.get_k8s_secrets():
         for secret_name in k8s_secrets.keys():
             validate_secret_allowed(
@@ -364,29 +367,43 @@ def apply_enrichment_and_validation_on_function(
     if ensure_security_context:
         ensure_function_security_context(function, auth_info)
 
-    validate_volume_mounts(function)
-    validate_env_vars(function)
+    validate_function_volume_mounts(function)
+    validate_function_env_vars(function)
+    validate_function_secret_sources(function)
 
 
-def validate_volume_mounts(function):
+def validate_function_volume_mounts(
+    function: typing.Union[dict, mlrun.runtimes.KubeResource],
+):
     """
     Ensure that if a project secret is mounted to the function,
     it matches the function's project.
     """
-    if function.spec.volumes:
-        for volume in function.spec.volumes:
-            secret_name = volume.get("secret", {}).get("secretName", "")
-            if not secret_name:
-                continue
-            validate_secret_allowed(function.metadata.project, secret_name)
+    project = get_in(function, "metadata.project")
+    volumes = get_in(function, "spec.volumes")
+
+    if not project or not volumes:
+        return
+
+    for volume in volumes:
+        secret_name = volume.get("secret", {}).get("secretName", "")
+        if not secret_name:
+            continue
+        validate_secret_allowed(project, secret_name)
 
 
-def validate_env_vars(function):
+def validate_function_env_vars(function):
     """
     Ensure that if a project secret is referenced through environment variables,
     the secret belongs to the same project as the function.
     """
-    for env_var in function.spec.env or []:
+    project = get_in(function, "metadata.project")
+    env_vars = get_in(function, "spec.env")
+
+    if not env_vars or not project:
+        return
+
+    for env_var in env_vars:
         # Handle both dict and V1EnvVar
         if isinstance(env_var, dict):
             value_from = env_var.get("valueFrom")
@@ -414,7 +431,7 @@ def validate_env_vars(function):
             continue
 
         validate_secret_allowed(
-            project_name=function.metadata.project,
+            project_name=project,
             secret_name=secret_name,
         )
 
@@ -436,13 +453,9 @@ def validate_secret_allowed(
         and secret_name != project_secret_name
     ):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Function project {project_name} does not match "
-            f"project secret mounted {secret_name}"
+            f"Failed to validate secret '{secret_name}': it belongs to a different project than the"
+            f" function's project '{project_name}'"
         )
-
-
-def validate_secrets():
-    pass
 
 
 def ensure_function_auth_and_sensitive_data_is_masked(

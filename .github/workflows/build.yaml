@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,58 +12,159 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This name is referenced in the release.yaml workflow, if you're changing here - change there
+#
+# Docker Registry Configuration:
+# This workflow uses environment variables for flexible registry configuration.
+#
+# Configuration:
+# - Version: auto-calculated as {branch-name}-{commit-hash}
+# - Docker repo: hardcoded to "mlrun" 
+# - Automatically handles: PR opens, development builds, LTS builds
+# - No manual inputs required for version, repo name, or PR numbers
+#
+# Required GitHub Variables (set in repository/organization settings):
+# - AWS_ECR_URL: ECR registry URL (e.g., "123456789012.dkr.ecr.us-east-1.amazonaws.com")
+# - AWS_REGION: AWS region for ECR access (e.g., "us-east-1") - optional, defaults to us-east-1
+#
+# Required GitHub Secrets:
+# - AWS_ACCESS_KEY_ID: AWS access key for ECR authentication
+# - AWS_SECRET_ACCESS_KEY: AWS secret access key for ECR authentication
+#
+# To change registry: Update AWS_ECR_URL in GitHub repository/organization variables
+
 name: Build
 
-run-name: Building ${{ inputs.version }} ${{ github.ref_name }}
+run-name: Building ${{ github.ref_name }} - ${{ github.event_name }}
 
 permissions:
 
-  # Allow the action to upload images to ghcr
-  packages: write
+  # Allow the action to assume AWS roles for ECR access
+  id-token: write
+  contents: read
+
+env:
+  # Centralized Docker registry configuration from environment variables
+  # Set AWS_ECR_URL in your GitHub repository settings or organization variables
+  # Example: AWS_ECR_URL=123456789012.dkr.ecr.us-east-1.amazonaws.com
+  DOCKER_REGISTRY: ${{ vars.AWS_ECR_URL }}/
+  DOCKER_CACHE_REGISTRY: ${{ vars.AWS_ECR_URL }}/
+  # Extract region from ECR URL or use separate AWS_REGION variable
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 
 on:
-  push:
-    branches:
-    - development
-    - '[0-9]+.[0-9]+.x'
 
-  workflow_dispatch:
+  # FYI
+  # The event payload in the called workflow is the same event payload from the calling workflow
+  # The inputs are the inputs defined in the called workflow (by the "with")
+  workflow_call:
     inputs:
-      docker_registries:
-        description: 'Comma separated list of docker registries to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
-        required: true
-        default: 'ghcr.io/'
-      docker_repo:
-        description: 'Docker repo to push images to (default: lowercase github repository owner name)'
-        required: false
-        default: ''
-      version:
-        description: 'The version to build, without prefix v (e.g. 1.1.0), if not provided version will be <unstable-version-prefix>-<commit-hash>, where <unstable-version-prefix> is taken from automation/version/unstable_version_prefix'
-        required: false
-        default: ''
       skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,api,models,jupyter,test'
-        required: false
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,models,jupyter,test'
         default: ''
+        type: string
       build_from_cache:
         description: 'Whether to build images from cache or not. Default: true, set to false only if required because that will cause a significant increase in build time'
-        required: true
         default: 'true'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
+        type: string
+      cache_tag_suffix:
+        description: 'The suffix to add to the cache tag'
+        default: ''
+        type: string
 
 jobs:
-  build-mlrun:
-    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
-    name: Build MLRun
-    uses: ./.github/workflows/build-internal.yaml
-    with:
-      docker_registries: ${{ github.event.inputs.docker_registries }}
-      docker_repo: ${{ github.event.inputs.docker_repo }}
-      version: ${{ needs.prepare-inputs.outputs.version }}
-      skip_images: ${{ github.event.inputs.skip_images }}
-      build_from_cache: ${{ github.event.inputs.build_from_cache }}
-    secrets: inherit
+  matrix_prep:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: set-matrix
+        uses: ./.github/actions/image-matrix-prep
+        with:
+          skip_images: ${{ inputs.skip_images }}
+
+  build-images:
+    name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    needs: matrix_prep
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        # Fetch full history for proper git operations and version calculation
+        fetch-depth: 0
+
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    - name: Freeing up disk space
+      run: |
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
+    - name: Install curl and jq
+      run: sudo apt-get install curl jq
+
+    - name: Extract git hash, ref and latest version
+      id: git_info
+      run: |
+        echo "mlrun_commit_hash=$(git rev-parse --short=8 $GITHUB_SHA)"  >> $GITHUB_OUTPUT
+        echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)"  >> $GITHUB_OUTPUT
+
+    - name: Resolve docker cache tag
+      id: docker_cache
+      run: |
+        export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
+        export unstable_tag="unstable-cache${version_suffix:+-$version_suffix}${INPUT_CACHE_TAG_SUFFIX:+-$INPUT_CACHE_TAG_SUFFIX}"
+        export build_from_cache=$(if [ -z "$INPUT_BUILD_FROM_CACHE" ]; then echo "true" ; else echo "$INPUT_BUILD_FROM_CACHE";fi);
+        export no_cache=$(if [ "$build_from_cache" = "false" ]; then echo "true" ; else echo "";fi);
+        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+        echo "no_cache=$(echo $no_cache)" >> $GITHUB_OUTPUT
+      env:
+        INPUT_BUILD_FROM_CACHE: ${{ inputs.build_from_cache }}
+        INPUT_CACHE_TAG_SUFFIX: ${{ inputs.cache_tag_suffix }}
+
+    - name: Set computed versions params
+      id: computed_params
+      run: |
+        # Auto-calculate version from branch name + commit hash
+        echo "mlrun_version=${{ github.ref_name }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
+        # Docker repo is always "mlrun"
+        echo "mlrun_docker_repo=mlrun" >> $GITHUB_OUTPUT
+        echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
+
+    - name: Configure AWS credentials
+      # Only configure AWS when we need to push (not for PRs)
+      if: github.event_name != 'pull_request'
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      # Only login to ECR when we need to push (not for PRs)
+      if: github.event_name != 'pull_request'
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and conditionally push images
+      if: matrix.image-name != 'test'
+      run: |
+        # For PRs: only build. For branches: build and push
+        export MLRUN_PUSH_DOCKER_CACHE_IMAGE="true"
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          TARGET="${{ matrix.image-name }}"
+        else
+          TARGET="push-${{ matrix.image-name }}"
+        fi
+        
+        MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+        MLRUN_DOCKER_REGISTRY=${{ env.DOCKER_REGISTRY }} \
+        MLRUN_DOCKER_CACHE_FROM_REGISTRY=${{ env.DOCKER_CACHE_REGISTRY }} \
+        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+        MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
+        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+        MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
+        MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+        INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
+        make $TARGET

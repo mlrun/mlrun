@@ -52,10 +52,11 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 
 on:
-
-  # FYI
-  # The event payload in the called workflow is the same event payload from the calling workflow
-  # The inputs are the inputs defined in the called workflow (by the "with")
+  push:
+    branches:
+      - 'feature/mlrun-*'
+      - 'release/*'
+      - 'development'
   workflow_call:
     inputs:
       skip_images:

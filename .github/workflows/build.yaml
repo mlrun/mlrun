@@ -99,6 +99,8 @@ jobs:
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
+      # This takes time so only enable it when really needed
+      if: false
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 

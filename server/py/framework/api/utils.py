@@ -31,6 +31,7 @@ import semver
 import sqlalchemy.orm
 from fastapi import BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
+from kubernetes.client import V1EnvVar, V1EnvVarSource
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -43,7 +44,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import get_in, logger
+from mlrun.utils import RunKeys, get_in, logger
 
 import framework.constants
 import framework.db.session
@@ -172,7 +173,9 @@ def parse_submit_run_body(data):
     return function_dict, function_url, task
 
 
-def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
+def _generate_function_and_task_from_submit_run_body(
+    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
+):
     function_dict, function_url, task = parse_submit_run_body(data)
 
     if function_dict and not function_url:
@@ -200,6 +203,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
+    apply_enrichment_and_validation_on_function(function=function, auth_info=auth_info)
     apply_enrichment_and_validation_on_task(task)
 
     return function, task
@@ -218,7 +222,9 @@ async def submit_run(
     response = None
 
     try:
-        fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+        fn, task = _generate_function_and_task_from_submit_run_body(
+            db_session, auth_info, data
+        )
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
@@ -288,11 +294,34 @@ async def submit_run(
     return response
 
 
-def apply_enrichment_and_validation_on_task(task):
+def apply_enrichment_and_validation_on_task(task: dict):
     # Conceal notification config params from the task object with secrets
     framework.utils.notifications.mask_notification_params_on_task(
         task, framework.constants.MaskOperations.CONCEAL
     )
+    # validates that secrets used in the task are allowed
+    # currently, this only ensures that if k8s mlrun project secrets are used,
+    # they belong to the correct project (not another project’s secret)
+    validate_task_secrets(task)
+
+
+def validate_task_secrets(task: dict):
+    spec = task.get("spec", {})
+    secrets = mlrun.secrets.SecretsStore.from_list(spec.get(RunKeys.secrets))
+    project_name = task.get("metadata", {}).get("project")
+
+    if k8s_secrets := secrets.get_k8s_secrets():
+        for secret_name in k8s_secrets.keys():
+            validate_secret_allowed(
+                project_name=project_name,
+                secret_name=secret_name,
+            )
+
+    if azure_k8s_secrets := secrets.get_azure_vault_k8s_secret():
+        validate_secret_allowed(
+            project_name=project_name,
+            secret_name=azure_k8s_secrets,
+        )
 
 
 # TODO: split enrichment and validation to separate functions should be in the launcher
@@ -334,6 +363,86 @@ def apply_enrichment_and_validation_on_function(
 
     if ensure_security_context:
         ensure_function_security_context(function, auth_info)
+
+    validate_volume_mounts(function)
+    validate_env_vars(function)
+
+
+def validate_volume_mounts(function):
+    """
+    Ensure that if a project secret is mounted to the function,
+    it matches the function's project.
+    """
+    if function.spec.volumes:
+        for volume in function.spec.volumes:
+            secret_name = volume.get("secret", {}).get("secretName", "")
+            if not secret_name:
+                continue
+            validate_secret_allowed(function.metadata.project, secret_name)
+
+
+def validate_env_vars(function):
+    """
+    Ensure that if a project secret is referenced through environment variables,
+    the secret belongs to the same project as the function.
+    """
+    for env_var in function.spec.env or []:
+        # Handle both dict and V1EnvVar
+        if isinstance(env_var, dict):
+            value_from = env_var.get("valueFrom")
+        elif isinstance(env_var, V1EnvVar):
+            value_from = env_var.value_from
+        else:
+            continue
+
+        if not value_from:
+            continue
+
+        # Handle both dict and V1EnvVarSource
+        if isinstance(value_from, dict):
+            secret_ref = value_from.get("secretKeyRef")
+            if secret_ref and "name" in secret_ref:
+                secret_name = secret_ref["name"]
+            else:
+                continue
+        elif isinstance(value_from, V1EnvVarSource) and value_from.secret_key_ref:
+            secret_name = value_from.secret_key_ref.name
+        else:
+            continue
+
+        if not secret_name:
+            continue
+
+        validate_secret_allowed(
+            project_name=function.metadata.project,
+            secret_name=secret_name,
+        )
+
+
+def validate_secret_allowed(
+    project_name: str,
+    secret_name: str,
+):
+    project_secret_name = (
+        framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+            project_name
+        )
+    )
+    project_secret_prefix = (
+        framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_name("")
+    )
+    if (
+        secret_name.startswith(project_secret_prefix)
+        and secret_name != project_secret_name
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Function project {project_name} does not match "
+            f"project secret mounted {secret_name}"
+        )
+
+
+def validate_secrets():
+    pass
 
 
 def ensure_function_auth_and_sensitive_data_is_masked(
@@ -897,7 +1006,9 @@ def submit_run_from_body(
     auth_info: mlrun.common.schemas.AuthInfo,
     data,
 ):
-    fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+    fn, task = _generate_function_and_task_from_submit_run_body(
+        db_session, auth_info, data
+    )
     run_db = get_run_db_instance(db_session)
     fn.set_db_connection(run_db)
     return submit_run_sync(db_session, auth_info, fn, task, data)

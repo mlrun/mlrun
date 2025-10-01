@@ -52,12 +52,14 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 
 on:
+   # TODO remember to remove the feature/mlrun-* branches when done testing 
   push:
     branches:
       - 'feature/mlrun-*'
       - 'release/*'
       - 'development'
 
+   # TODO remember to remove the feature/mlrun-* branches when done testing
   pull_request:
     branches:
       - 'feature/mlrun-*'

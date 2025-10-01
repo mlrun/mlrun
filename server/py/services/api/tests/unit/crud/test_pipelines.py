@@ -13,16 +13,14 @@
 # limitations under the License.
 
 import json
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 import mlrun_pipelines
 import mlrun_pipelines.common.helpers
 
 import services.api.crud
-
-from unittest.mock import MagicMock, patch
-import pytest
-from services.api.crud.pipelines import Pipelines
-import mlrun.common.formatters
 
 
 def test_resolve_pipeline_project():
@@ -265,10 +263,13 @@ def test_resolve_pipeline_project():
         assert project == case["expected_project"]
 
 
-@pytest.mark.parametrize("project,expected_ids", [
-    ("project-a", ["run1"]),
-    ("*", ["run1", "run2"]),
-])
+@pytest.mark.parametrize(
+    "project,expected_ids",
+    [
+        ("project-a", ["run1"]),
+        ("*", ["run1", "run2"]),
+    ],
+)
 def test_list_pipelines_project_filtering(project, expected_ids):
     pipelines = services.api.crud.pipelines.Pipelines()
     db_session = MagicMock()
@@ -280,14 +281,24 @@ def test_list_pipelines_project_filtering(project, expected_ids):
     mock_kfp_client = MagicMock()
     mock_kfp_client.list_runs.return_value = [(all_runs, None)]
 
-    with patch.object(
-        services.api.crud.pipelines.Pipelines, "_initialize_kfp_client", return_value=mock_kfp_client
-    ), patch.object(
-        services.api.crud.pipelines.Pipelines, "_resolve_project_from_pipeline",
-        side_effect=lambda run: "project-a" if run.id == "run1" else "project-b"
-    ), patch.object(
-        services.api.crud.pipelines.Pipelines, "_format_runs",
-        side_effect=lambda kfp_client, runs, format_: [{"id": r.id, "name": r.name} for r in runs]
+    with (
+        patch.object(
+            services.api.crud.pipelines.Pipelines,
+            "_initialize_kfp_client",
+            return_value=mock_kfp_client,
+        ),
+        patch.object(
+            services.api.crud.pipelines.Pipelines,
+            "_resolve_project_from_pipeline",
+            side_effect=lambda run: "project-a" if run.id == "run1" else "project-b",
+        ),
+        patch.object(
+            services.api.crud.pipelines.Pipelines,
+            "_format_runs",
+            side_effect=lambda kfp_client, runs, format_: [
+                {"id": r.id, "name": r.name} for r in runs
+            ],
+        ),
     ):
         total_size, next_page_token, runs = pipelines.list_pipelines(
             db_session=db_session,

@@ -88,9 +88,11 @@ jobs:
       if: false
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-
-    - name: Install curl and jq
-      run: sudo apt-get install curl jq
+    - name: Install dependencies
+      run: |
+        sudo apt-get install curl jq
+        python -m pip install --upgrade pip
+        pip install bumpversion==0.6.0
 
     - name: Extract git hash, ref and latest version
       id: git_info

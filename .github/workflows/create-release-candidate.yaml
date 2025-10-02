@@ -54,7 +54,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Use inputs if available (manual trigger), otherwise use defaults (push trigger)
-          SOURCE_BRANCH: ${{ inputs.source_branch || 'development' }}
+          SOURCE_BRANCH: ${{ inputs.source_branch || 'feature/mlrun-release-procedure' }}
           RELEASE_TYPE: ${{ inputs.release_type || 'patch' }}
         run: |
           echo "🎯 Trigger: ${{ github.event_name }}"

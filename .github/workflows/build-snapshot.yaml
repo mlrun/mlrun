@@ -29,6 +29,8 @@ jobs:
   build-snapshot:
     runs-on: ubuntu-latest
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
 
     - name: Get Version
       uses: ./.github/actions/get-version

@@ -85,21 +85,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y curl jq shellcheck gawk sed coreutils
 
-
-    - name: Extract git hash, ref and latest version
-      id: git_info
-      run: |
-        # Get the actual commit SHA - PR head if available, otherwise regular SHA
-        ACTUAL_COMMIT_ID="${{ github.event.pull_request.head.sha || github.sha }}"
-        SHORT_COMMIT_ID=$(echo "${ACTUAL_COMMIT_ID}" | cut -c1-8)
-        
-        echo "🎯 ACTUAL COMMIT: ${ACTUAL_COMMIT_ID}"
-        echo "📝 Short commit: ${SHORT_COMMIT_ID}"
-        echo "⚡ Event: ${{ github.event_name }}"
-        
-        echo "mlrun_commit_hash_full=${ACTUAL_COMMIT_ID}" >> $GITHUB_OUTPUT
-        echo "mlrun_commit_hash=${SHORT_COMMIT_ID}" >> $GITHUB_OUTPUT
-
     - name: Resolve docker cache tag
       id: docker_cache
       run: |
@@ -142,7 +127,6 @@ jobs:
           TARGET="push-${{ matrix.image-name }}"
         fi
         
-        docker --version
         echo "Make target: $TARGET"
         MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
         MLRUN_DOCKER_REGISTRY=${{ env.DOCKER_REGISTRY }} \

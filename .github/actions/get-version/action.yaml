@@ -18,6 +18,12 @@ outputs:
   mlrun_version:
     description: 'The current mlrun version'
     value: ${{ steps.get-version.outputs.mlrun_version }}
+  mlrun_commit_hash:
+    description: 'The short commit hash of the current mlrun version'
+    value: ${{ steps.git_info.outputs.mlrun_commit_hash }}
+  mlrun_commit_hash_full:
+    description: 'The full commit hash of the current mlrun version'
+    value: ${{ steps.git_info.outputs.mlrun_commit_hash_full }}
 runs:
   using: "composite"
   steps:
@@ -39,3 +45,19 @@ runs:
       shell: bash
       env:
         INPUT_SKIP_IMAGES: ${{ inputs.skip_images }}
+      
+    - name: Extract git hash, ref and latest version
+      shell: bash
+      id: git_info
+      run: |
+        # Get the actual commit SHA - PR head if available, otherwise regular SHA
+        ACTUAL_COMMIT_ID="${{ github.event.pull_request.head.sha || github.sha }}"
+        SHORT_COMMIT_ID=$(echo "${ACTUAL_COMMIT_ID}" | cut -c1-8)
+        
+        echo "🎯 ACTUAL COMMIT: ${ACTUAL_COMMIT_ID}"
+        echo "📝 Short commit: ${SHORT_COMMIT_ID}"
+        echo "⚡ Event: ${{ github.event_name }}"
+        
+        echo "mlrun_commit_hash_full=${ACTUAL_COMMIT_ID}" >> $GITHUB_OUTPUT
+        echo "mlrun_commit_hash=${SHORT_COMMIT_ID}" >> $GITHUB_OUTPUT
+

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - development
+      - feature/mlrun-release-procedure
   pull_request:
     branches:
       - development

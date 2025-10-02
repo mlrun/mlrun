@@ -81,7 +81,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get install curl jq
+        sudo apt-get install curl jq make
 
     - name: Extract git hash, ref and latest version
       id: git_info
@@ -129,7 +129,6 @@ jobs:
 
     - name: Build and conditionally push images
       if: matrix.image-name != 'test'
-      shell: bash
       run: |
         # For PRs: only build. For branches: build and push
         echo "Building Docker image for ${{ matrix.image-name }}"

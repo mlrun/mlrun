@@ -3,7 +3,7 @@ name: Build Release Candidate
 on:
   push:
     branches:
-      - 'release/*'
+      - release/*
   workflow_dispatch:
     inputs:
       skip_images:
@@ -15,18 +15,29 @@ on:
         default: 'true'
         type: string
 
+permissions:
+    id-token: write
+    contents: read
+    packages: write
+
 jobs:
-  build-release-candidate:
+  prepare-context:
+    outputs:
+      mlrun_version: ${{ steps.get-version.outputs.mlrun_version }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+    - name: Checkout code
+      uses: actions/checkout@v5
 
-      - name: Get Version
-        uses: ./.github/actions/get-version
-        id: get-version
+    - name: Get Version
+    
+      uses: ./.github/actions/get-version
+      id: get-version
 
-      - name: Build Snapshot Images
-        uses: ./.github/workflows/build.yaml
-        with:
-            tag: rc-v$current_version-${{ github.run_id }}-${{ steps.get-version.outputs.mlrun_version }} 
+  build-mlrun:
+    name: Build MLRun
+    needs: prepare-context
+    uses: ./.github/workflows/build.yaml
+    with:
+        tag: rc-v$current_version-${{ github.run_id }}-${{ needs.prepare-context.outputs.mlrun_version }} 
+    secrets: inherit

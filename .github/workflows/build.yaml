@@ -12,25 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#
-# Docker Registry Configuration:
-# This workflow uses environment variables for flexible registry configuration.
-#
-# Configuration:
-# - Version: auto-calculated as {branch-name}-{commit-hash}
-# - Docker repo: hardcoded to "mlrun" 
-# - Automatically handles: PR opens, development builds, LTS builds
-# - No manual inputs required for version, repo name, or PR numbers
-#
-# Required GitHub Variables (set in repository/organization settings):
-# - AWS_ECR_URL: ECR registry URL (e.g., "123456789012.dkr.ecr.us-east-1.amazonaws.com")
-# - AWS_REGION: AWS region for ECR access (e.g., "us-east-1") - optional, defaults to us-east-1
-#
-# Required GitHub Secrets:
-# - AWS_ACCESS_KEY_ID: AWS access key for ECR authentication
-# - AWS_SECRET_ACCESS_KEY: AWS secret access key for ECR authentication
-#
-# To change registry: Update AWS_ECR_URL in GitHub repository/organization variables
+# 
 
 name: Build
 run-name: Building commit ${{ github.event.pull_request.head.sha || github.sha }} on ${{ github.ref_name }} (${{ github.event_name }})
@@ -40,14 +22,10 @@ permissions:
   # Allow the action to assume AWS roles for ECR access
   id-token: write
   contents: read
+  packages: write
 
 env:
-  # Centralized Docker registry configuration from environment variables
-  # Set AWS_ECR_URL in your GitHub repository settings or organization variables
-  # Example: AWS_ECR_URL=123456789012.dkr.ecr.us-east-1.amazonaws.com
   DOCKER_REGISTRY: ${{ vars.REGISTRY_URL || 'ghcr.io/' }}
-  # Extract region from ECR URL or use separate AWS_REGION variable
-  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 
 on:
    # TODO remember to remove the feature/mlrun-* branches when done testing 
@@ -145,25 +123,17 @@ jobs:
       id: computed_params
       run: |
         # Auto-calculate version from branch name + commit hash
-        echo "mlrun_version=${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
+        echo "mlrun_version=snap-${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
         # Docker repo is always "mlrun"
         echo "mlrun_docker_repo=mlrun" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
 
-    - name: Configure AWS credentials
-      # Only configure AWS when we need to push (not for PRs)
-      if: github.event_name != 'pull_request'
-      uses: aws-actions/configure-aws-credentials@v4
+    - name: Docker login (ghcr)
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Login to Amazon ECR
-      # Only login to ECR when we need to push (not for PRs)
-      if: github.event_name != 'pull_request'
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and conditionally push images
       if: matrix.image-name != 'test'

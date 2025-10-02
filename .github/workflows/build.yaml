@@ -44,7 +44,7 @@ on:
         type: string
       tag:
         description: 'The tag of the build, if empty it will be derived from the branch name'
-        default: ''
+        required: true
         type: string
 
 jobs:
@@ -114,16 +114,10 @@ jobs:
 
     - name: Set computed versions params
       id: computed_params
-      run: |
-        if tag input is specified use it, otherwise compute it
-        if [ -n "${{ inputs.tag }}" ]; then
-          echo "Using provided tag: ${{ inputs.tag }}"
-          echo "mlrun_version=${{ inputs.tag }}" >> $GITHUB_OUTPUT
-        else
-          echo "Computing tag based on branch name"
-          current_version=${{ steps.get-version.outputs.mlrun_version }}
-          echo "mlrun_version=v$current_version-${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
-        fi
+      run: |      
+        # if tag input is specified use it, otherwise compute it
+        echo "Using provided tag: ${{ inputs.tag }}"
+        echo "mlrun_version=${{ inputs.tag }}" >> $GITHUB_OUTPUT
         # Docker repo is always "mlrun"
         echo "mlrun_docker_repo=mlrun" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT

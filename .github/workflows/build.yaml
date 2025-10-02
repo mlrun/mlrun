@@ -34,7 +34,7 @@
 
 name: Build
 
-run-name: Building ${{ github.ref_name }} - ${{ github.event_name }}
+run-name: Building ${{ github.sha }}-${{ github.ref_name }} - ${{ github.event_name }}
 
 permissions:
 

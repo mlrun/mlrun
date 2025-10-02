@@ -29,6 +29,7 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.runtimes.mounts
 import mlrun.utils
 import mlrun.utils.logger
 import mlrun_pipelines.common.models
@@ -70,6 +71,7 @@ def pipe_test():
 @pytest.mark.enterprise
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
+    image: str = "mlrun/mlrun"
     _logger_redirected = False
 
     def custom_setup(self):
@@ -579,16 +581,10 @@ class TestProject(TestMLRunSystem):
         self.custom_project_names_to_delete.append(project_name)
         project = mlrun.new_project(project_name, context=str(self.assets_path))
 
-        code_path = str(self.assets_path / "sleep.py")
         workflow_path = str(self.assets_path / "pipeline_with_resource_param.py")
+        function_name = "func-1"
+        function = self._get_sleep_job(function_name=function_name)
 
-        project.set_function(
-            name="func-1",
-            func=code_path,
-            kind="job",
-            image="mlrun/mlrun",
-            handler="handler",
-        )
         # set and run a two-step workflow in the project
         project.set_workflow("paramflow", workflow_path)
 
@@ -599,7 +595,7 @@ class TestProject(TestMLRunSystem):
         assert pipeline_status.workflow.args == arguments
 
         # get the function from the db
-        function = project.get_function("func-1", ignore_cache=True)
+        function = project.get_function(function_name, ignore_cache=True)
         assert function.spec.resources["requests"]["memory"] == arguments["memory"]
 
     def test_remote_pipeline_with_workflow_runner_node_selector(self):
@@ -1966,6 +1962,78 @@ class TestProject(TestMLRunSystem):
         assert (
             len(notifications) == 2
         ), f"Expected 2 notifications, got {len(notifications)}"
+
+    @pytest.mark.parametrize("kind", ["nuclio", "job", "mpijob"])
+    def test_deploy_function_with_mounted_project_secret(self, kind):
+        # create a secret in another project
+        project_with_secret_name = "project-with-secret"
+        self.custom_project_names_to_delete.append(project_with_secret_name)
+
+        project_with_secret = mlrun.get_or_create_project(
+            project_with_secret_name, context="./project-with-secret"
+        )
+        # define a secret in this project
+        project_with_secret.set_secrets({"key": "secret-1"})
+        secret_name = f"mlrun-project-secrets-{project_with_secret_name}"
+        # mount the secret of the other project
+        fn = self._get_simple_function(kind=kind)
+        fn.apply(mlrun.runtimes.mounts.mount_secret(secret_name, "./secrets/"))
+        with pytest.raises(OSError, match="it belongs to a different project"):
+            if kind == "nuclio":
+                fn.deploy()
+            else:
+                fn.run()
+
+        # set env from the secret of the other project
+        fn = self._get_simple_function(kind=kind)
+        fn.set_env_from_secret(name="key", secret=secret_name)
+        with pytest.raises(OSError, match="it belongs to a different project"):
+            if kind == "nuclio":
+                fn.deploy()
+            else:
+                fn.run()
+
+    def _get_simple_function(self, kind="job"):
+        if kind == "job":
+            return self._get_sleep_job()
+        if kind == "nuclio":
+            return self._get_new_nuclio_function_object()
+        if kind == "mpijob":
+            return self._get_new_mpijob_function()
+        else:
+            raise ValueError(f"Unsupported function kind: {kind}")
+
+    def _get_new_nuclio_function_object(self, function_name="nuclio-func"):
+        return mlrun.code_to_function(
+            filename=str(self.assets_path / "nuclio_handler.py"),
+            name=function_name,
+            kind="nuclio",
+            image=self.image,
+            project=self.project_name,
+        )
+
+    def _get_sleep_job(self, function_name="sleep-job"):
+        code_path = str(self.assets_path / "sleep.py")
+
+        function = self.project.set_function(
+            name=function_name,
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        return function
+
+    def _get_new_mpijob_function(self, function_name="mpijob-func"):
+        code_path = str(self.assets_path / "mpijob_function.py")
+        return mlrun.code_to_function(
+            name=function_name,
+            kind="mpijob",
+            handler="handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
 
     @staticmethod
     def _generate_pipeline_notifications(

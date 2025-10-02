@@ -81,7 +81,10 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get install curl jq
+        # Install basic tools required by Makefile shell commands
+        sudo apt-get update
+        sudo apt-get install -y curl jq shellcheck gawk sed coreutils
+
 
     - name: Extract git hash, ref and latest version
       id: git_info

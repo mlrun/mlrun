@@ -58,7 +58,7 @@ jobs:
           bumpversion {{inputs.release_type}}
           current_version=$(bumpversion --dry-run --list patch | grep current_version | sed 's/current_version=//')
           echo "New current version: $current_version"
-          branch_name=release/$current_version
+          branch_name=release-test/v$current_version
           git checkout -b $branch_name
           git push origin $branch_name
           # TODO add changelog generation here as needed

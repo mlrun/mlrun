@@ -17,29 +17,45 @@ name: Create Release Candidate
 run-name: Create Release Candidate 
 
 permissions:
-  id-token: write
-  contents: read
+  contents: write
 
 on:
   workflow_dispatch:
     inputs:
-      prerelease:
-        description: 'Whether to mark the release as a prerelease'
+      release_type:
+        description: 'The type of release to create (major, minor, patch, or none)'
         required: false
-        default: 'true'
-      dry_run:
-        description: 'Whether to run semantic-release in dry-run mode'
+        default: 'patch'
+      source_branch:
+        description: 'The source branch to create the release candidate from'
         required: false
-        default: 'false'
+        default: 'development'
 jobs:
   build-mlrun:
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    name: Build MLRun
-    uses: ./.github/workflows/build.yaml
-    secrets: inherit
-  npm install -g semantic-release@24.2.9
+      - name: Checkout code
+        uses: actions/checkout@v3
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install bumpversion==0.6.0
+
+      - name: Create Release Candidate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git checkout {{ inputs.source_branch }}
+          bumpversion {{inputs.release_type}}
+          current_version=$(bumpversion --dry-run --list patch | grep current_version | sed 's/current_version=//')
+          echo "New current version: $current_version"
+          git checkout -b release/${{ github.run_id }}
+          git push origin release-candidate-${{ github.run_id }}
+          # TODO add changelog generation here as needed
+          gh release create "rc-v$current_version" --repo mlrun/mlrun --title "Release Candidate $current_version" --notes "Automated release candidate created by GitHub Actions" --prerelease

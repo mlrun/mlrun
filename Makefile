@@ -231,10 +231,6 @@ endif
 	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
 	find ./docs/install/*.yaml -type f -print0 | xargs -0 sed -i '' -e 's/{TAG:-.*}/{TAG:-$(MLRUN_NEW_VERSION)}/g'
 
-.PHONY: update-version-file
-update-version-file: ## Update the version file
-	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
-
 .PHONY: generate-dockerignore
 generate-dockerignore: ## Copies the root .dockerignore and removes test exclusions for test-system
 	$(eval TARGET := dockerfiles/${DEST}/Dockerfile.dockerignore)
@@ -301,7 +297,7 @@ MLRUN_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(ML
 DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun
-mlrun: common-image update-version-file ## Build mlrun docker image
+mlrun: common-image  ## Build mlrun docker image
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
@@ -334,7 +330,7 @@ MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_KFP_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-kfp
-mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
+mlrun-kfp: common-image  ## Build mlrun docker image with KFP
 	docker build \
 		--file dockerfiles/mlrun-kfp/Dockerfile \
 		--build-arg MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
@@ -376,7 +372,7 @@ MLRUN_GPU_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_GPU_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-gpu
-mlrun-gpu: update-version-file ## Build mlrun gpu docker image
+mlrun-gpu:  ## Build mlrun gpu docker image
 	docker build \
 		--file dockerfiles/gpu/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -424,7 +420,7 @@ MLRUN_JUPYTER_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_T
 DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: jupyter
-jupyter: update-version-file ## Build mlrun jupyter docker image
+jupyter:  ## Build mlrun jupyter docker image
 	docker build \
 		--file dockerfiles/jupyter/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
@@ -447,7 +443,7 @@ pull-jupyter: ## Pull mlrun jupyter docker image
 	docker pull $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: log-collector
-log-collector: update-version-file
+log-collector: 
 	@MLRUN_VERSION=$(MLRUN_VERSION) \
 		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
@@ -544,7 +540,7 @@ DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 # Python 3.11, regardless of what the rest of the matrix is doing.
 api: export MLRUN_PYTHON_VERSION = 3.11
 .PHONY: api
-api: common-image-3.11 compile-schemas update-version-file ## Build mlrun-api docker image
+api: common-image-3.11 compile-schemas  ## Build mlrun-api docker image
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -572,7 +568,7 @@ MLRUN_TEST_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG)
 MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
 .PHONY: build-test
-build-test: common-image compile-schemas update-version-file ## Build test docker image
+build-test: common-image compile-schemas  ## Build test docker image
 	$(MAKE) generate-dockerignore DEST=test
 	docker build \
 		--file dockerfiles/test/Dockerfile \
@@ -593,7 +589,7 @@ push-test: build-test ## Push test docker image
 MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
 
 .PHONY: build-test-system
-build-test-system: common-image compile-schemas update-version-file ## Build system tests docker image
+build-test-system: common-image compile-schemas  ## Build system tests docker image
 	$(MAKE) generate-dockerignore DEST=test-system
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
@@ -607,7 +603,7 @@ build-test-system: common-image compile-schemas update-version-file ## Build sys
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 
 .PHONY: package-wheel
-package-wheel: clean update-version-file ## Build python package wheel
+package-wheel: clean  ## Build python package wheel
 	uv build
 
 .PHONY: publish-package
@@ -767,7 +763,7 @@ test-system: ## Run mlrun system tests
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-system-open-source
-test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration
+test-system-open-source:  ## Run mlrun system tests with opensource configuration
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \

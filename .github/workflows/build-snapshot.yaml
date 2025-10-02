@@ -33,6 +33,7 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Get Version
+    
       uses: ./.github/actions/get-version
       id: get-version
 

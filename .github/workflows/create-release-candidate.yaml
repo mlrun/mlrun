@@ -76,7 +76,7 @@ jobs:
           branch_name=release/v$next_version
           echo "🌿 Creating branch: $branch_name"
           git checkout -b $branch_name
-          git push origin $branch_name
+          git push --set-upstream origin $branch_name
 
           # Bump version
           bumpversion $RELEASE_TYPE

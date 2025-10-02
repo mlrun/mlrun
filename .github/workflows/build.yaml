@@ -33,7 +33,7 @@
 # To change registry: Update AWS_ECR_URL in GitHub repository/organization variables
 
 name: Build
-run-name: Building ${{ github.event.head_commit.id || github.sha }}-${{ github.ref_name }} - ${{ github.event_name }}
+run-name: Building ${{ github.sha }}-${{ github.ref_name }} - ${{ github.event_name }}
 
 permissions:
 
@@ -42,7 +42,6 @@ permissions:
   contents: read
 
 env:
-  COMMIT_ID: ${{ github.event.head_commit.id || github.sha }}
   # Centralized Docker registry configuration from environment variables
   # Set AWS_ECR_URL in your GitHub repository settings or organization variables
   # Example: AWS_ECR_URL=123456789012.dkr.ecr.us-east-1.amazonaws.com
@@ -115,6 +114,12 @@ jobs:
     - name: Install curl and jq
       run: sudo apt-get install curl jq
 
+    - name: Extract git hash, ref and latest version
+      id: git_info
+      run: |
+        echo "mlrun_commit_hash=$(git rev-parse --short=8 $GITHUB_SHA)"  >> $GITHUB_OUTPUT
+        echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)"  >> $GITHUB_OUTPUT
+
 
     - name: Resolve docker cache tag
       id: docker_cache
@@ -133,7 +138,7 @@ jobs:
       id: computed_params
       run: |
         # Auto-calculate version from branch name + commit hash
-        echo "mlrun_version=${{ github.run_id }}-${{ github.event.head_commit.id || github.sha }}" >> $GITHUB_OUTPUT
+        echo "mlrun_version=${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
         # Docker repo is always "mlrun"
         echo "mlrun_docker_repo=mlrun" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT

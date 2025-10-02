@@ -54,8 +54,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git checkout {{ inputs.source_branch }}
-          bumpversion {{inputs.release_type}}
+          git checkout ${{ inputs.source_branch }}
+          bumpversion ${{ inputs.release_type }}
           current_version=$(bumpversion --dry-run --list patch | grep current_version | sed 's/current_version=//')
           echo "New current version: $current_version"
           branch_name=release-test/v$current_version

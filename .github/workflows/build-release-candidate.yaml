@@ -2,6 +2,7 @@ name: Build Release Candidate
 run-name: Building commit ${{ github.sha }} on ${{ github.ref_name }} (${{ github.event_name }})
 
 on:
+  
   push:
     branches:
       - release/*

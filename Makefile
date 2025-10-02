@@ -13,6 +13,9 @@
 # limitations under the License.
 
 # THIS BLOCK IS FOR VARIABLES USER MAY OVERRIDE
+# Define comma for use in Make function arguments to avoid parsing issues
+comma := ,
+
 DOCKER_DEFAULT_PLATFORM ?= linux/amd64
 MLRUN_VERSION ?= unstable
 # pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
@@ -294,7 +297,7 @@ MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun
 MLRUN_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun
 MLRUN_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha,scope=mlrun --cache-to type=gha,mode=max,scope=mlrun)
+MLRUN_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=mlrun --cache-to type=gha$(comma)mode=max$(comma)scope=mlrun)
 MLRUN_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
 MLRUN_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_IMAGE_NAME_TAGGED) $(MLRUN_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_CACHE_IMAGE_NAME_TAGGED),)
 DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME_TAGGED)
@@ -328,7 +331,7 @@ MLRUN_KFP_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-kfp
 MLRUN_KFP_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-kfp
 MLRUN_KFP_IMAGE_NAME_TAGGED := $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_KFP_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_KFP_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha,scope=mlrun-kfp --cache-to type=gha,mode=max,scope=mlrun-kfp)
+MLRUN_KFP_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=mlrun-kfp --cache-to type=gha$(comma)mode=max$(comma)scope=mlrun-kfp)
 MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
 MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_KFP_IMAGE_NAME_TAGGED) $(MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED),)
 
@@ -373,7 +376,7 @@ MLRUN_GPU_BASE_IMAGE ?= $(shell \
   fi \
 )
 MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_GPU_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_GPU_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha,scope=mlrun-gpu --cache-to type=gha,mode=max,scope=mlrun-gpu)
+MLRUN_GPU_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=mlrun-gpu --cache-to type=gha$(comma)mode=max$(comma)scope=mlrun-gpu)
 MLRUN_GPU_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
 MLRUN_GPU_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) $(MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED),)
 DEFAULT_IMAGES += $(MLRUN_GPU_IMAGE_NAME_TAGGED)
@@ -410,8 +413,8 @@ prebake-mlrun-gpu: ## Build prebake mlrun GPU based docker image
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		--cache-from type=gha,scope=prebake-mlrun-gpu \
-		--cache-to type=gha,mode=max,scope=prebake-mlrun-gpu \
+		--cache-from type=gha$(comma)scope=prebake-mlrun-gpu \
+		--cache-to type=gha$(comma)mode=max$(comma)scope=prebake-mlrun-gpu \
 		--tag $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
 		.
 
@@ -423,7 +426,7 @@ MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter
 MLRUN_JUPYTER_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/jupyter
 MLRUN_JUPYTER_IMAGE_NAME_TAGGED := $(MLRUN_JUPYTER_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_JUPYTER_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha,scope=jupyter --cache-to type=gha,mode=max,scope=jupyter)
+MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=jupyter --cache-to type=gha$(comma)mode=max$(comma)scope=jupyter)
 MLRUN_JUPYTER_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED) $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED),)
 MLRUN_JUPYTER_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED) || true,)
 DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
@@ -512,8 +515,8 @@ $(COMMON_STAMP): $(COMMON_DOCKERFILE)
 	--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 	--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 	--platform $(DOCKER_DEFAULT_PLATFORM) \
-	--cache-from type=gha,scope=common-image \
-	--cache-to type=gha,mode=max,scope=common-image \
+	--cache-from type=gha$(comma)scope=common-image \
+	--cache-to type=gha$(comma)mode=max$(comma)scope=common-image \
 	-f $(COMMON_DOCKERFILE) \
 	-t $(COMMON_IMAGE_NAME) . \
 	 && mkdir -p $(dir $@) && touch $@
@@ -525,8 +528,8 @@ common-image:
  	  --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
  	  --build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 	  --platform $(DOCKER_DEFAULT_PLATFORM) \
-	  --cache-from type=gha,scope=common-image \
-	  --cache-to type=gha,mode=max,scope=common-image \
+	  --cache-from type=gha$(comma)scope=common-image \
+	  --cache-to type=gha$(comma)mode=max$(comma)scope=common-image \
  	  -f $(COMMON_DOCKERFILE) \
 	  -t $(COMMON_IMAGE_NAME) .
 endif
@@ -541,7 +544,7 @@ MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_API_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_API_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_API_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha,scope=mlrun-api --cache-to type=gha,mode=max,scope=mlrun-api)
+MLRUN_API_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=mlrun-api --cache-to type=gha$(comma)mode=max$(comma)scope=mlrun-api)
 MLRUN_API_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED) || true,)
 MLRUN_API_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_API_IMAGE_NAME_TAGGED) $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED),)
 DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
@@ -576,7 +579,7 @@ MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_IMAGE_NAME_TAGGED := $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_TEST_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_TEST_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha,scope=test --cache-to type=gha,mode=max,scope=test)
+MLRUN_TEST_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=test --cache-to type=gha$(comma)mode=max$(comma)scope=test)
 MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) || true,)
 MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
@@ -611,8 +614,8 @@ build-test-system: common-image compile-schemas update-version-file ## Build sys
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		--cache-from type=gha,scope=test-system \
-		--cache-to type=gha,mode=max,scope=test-system \
+		--cache-from type=gha$(comma)scope=test-system \
+		--cache-to type=gha$(comma)mode=max$(comma)scope=test-system \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 

@@ -39,13 +39,6 @@ runs:
         pip install bumpversion==0.6.0
       shell: bash
 
-    - id: get-version
-      run: |
-        echo "mlrun_version=v$current_version-${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT      shell: bash
-      shell: bash
-      env:
-        INPUT_SKIP_IMAGES: ${{ inputs.skip_images }}
-      
     - name: Extract git hash, ref and latest version
       shell: bash
       id: git_info
@@ -60,4 +53,11 @@ runs:
         
         echo "mlrun_commit_hash_full=${ACTUAL_COMMIT_ID}" >> $GITHUB_OUTPUT
         echo "mlrun_commit_hash=${SHORT_COMMIT_ID}" >> $GITHUB_OUTPUT
+
+    - id: get-version
+      shell: bash
+      run: |
+        # Get current version using bumpversion
+        current_version=$(bumpversion --dry-run --list patch | grep current_version | sed 's/current_version=//')
+        echo "mlrun_version=${current_version}" >> $GITHUB_OUTPUT
 

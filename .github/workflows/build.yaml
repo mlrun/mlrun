@@ -28,20 +28,6 @@ env:
   DOCKER_REGISTRY: ${{ vars.REGISTRY_URL || 'ghcr.io/' }}
 
 on:
-   # TODO remember to remove the feature/mlrun-* branches when done testing 
-  push:
-    branches:
-      - 'feature/mlrun-*'
-      - 'release/*'
-      - 'development'
-
-   # TODO remember to remove the feature/mlrun-* branches when done testing
-  pull_request:
-    branches:
-      - 'feature/mlrun-*'
-      - 'release/*'
-      - 'development'
-
   workflow_call:
     inputs:
       skip_images:
@@ -54,6 +40,10 @@ on:
         type: string
       cache_tag_suffix:
         description: 'The suffix to add to the cache tag'
+        default: ''
+        type: string
+      tag:
+        description: 'The tag of the build, if empty it will be derived from the branch name'
         default: ''
         type: string
 
@@ -91,8 +81,9 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get install curl jq
-        python -m pip install --upgrade pip
-        pip install bumpversion==0.6.0
+    - name: Get Version
+      uses: ./.github/actions/get-version
+      id: get-version        
 
     - name: Extract git hash, ref and latest version
       id: git_info
@@ -124,8 +115,15 @@ jobs:
     - name: Set computed versions params
       id: computed_params
       run: |
-        current_version=$(bumpversion --dry-run --list patch | grep current_version | sed 's/current_version=//')
-        echo "mlrun_version=v$current_version-${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
+        if tag input is specified use it, otherwise compute it
+        if [ -n "${{ inputs.tag }}" ]; then
+          echo "Using provided tag: ${{ inputs.tag }}"
+          echo "mlrun_version=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "Computing tag based on branch name"
+          current_version=${{ steps.get-version.outputs.mlrun_version }}
+          echo "mlrun_version=v$current_version-${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
+        fi
         # Docker repo is always "mlrun"
         echo "mlrun_docker_repo=mlrun" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT

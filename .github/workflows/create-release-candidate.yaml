@@ -58,4 +58,4 @@ jobs:
           git checkout -b release/${{ github.run_id }}
           git push origin release-candidate-${{ github.run_id }}
           # TODO add changelog generation here as needed
-          gh release create "rc-v$current_version" --repo mlrun/mlrun --title "Release Candidate $current_version" --notes "Automated release candidate created by GitHub Actions" --prerelease
+          # gh release create "rc-v$current_version" --repo mlrun/mlrun --title "Release Candidate $current_version" --notes "Automated release candidate created by GitHub Actions" --prerelease

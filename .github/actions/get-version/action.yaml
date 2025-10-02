@@ -1,0 +1,41 @@
+# Copyright 2025 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Get current version
+description: Get the current version
+outputs:
+  mlrun_version:
+    description: 'The current mlrun version'
+    value: ${{ steps.get-version.outputs.mlrun_version }}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bumpversion==0.6.0
+      shell: bash
+
+    - id: get-version
+      run: |
+        echo "mlrun_version=v$current_version-${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT      shell: bash
+      shell: bash
+      env:
+        INPUT_SKIP_IMAGES: ${{ inputs.skip_images }}

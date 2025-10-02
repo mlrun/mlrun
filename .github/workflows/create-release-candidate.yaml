@@ -34,7 +34,7 @@ on:
         required: false
         default: 'development'
 jobs:
-  build-mlrun:
+  Create-Release-Candidate  :
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -53,13 +53,32 @@ jobs:
       - name: Create Release Candidate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use inputs if available (manual trigger), otherwise use defaults (push trigger)
+          SOURCE_BRANCH: ${{ inputs.source_branch || 'development' }}
+          RELEASE_TYPE: ${{ inputs.release_type || 'patch' }}
         run: |
-          git checkout ${{ inputs.source_branch }}
-          bumpversion ${{ inputs.release_type }}
+          echo "🎯 Trigger: ${{ github.event_name }}"
+          echo "📂 Source branch: $SOURCE_BRANCH"
+          echo "🏷️ Release type: $RELEASE_TYPE"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Switch to source branch
+          git checkout $SOURCE_BRANCH
+          
+          # Bump version
+          bumpversion $RELEASE_TYPE
           current_version=$(bumpversion --dry-run --list patch | grep current_version | sed 's/current_version=//')
-          echo "New current version: $current_version"
-          branch_name=release-test/v$current_version
+          echo "📦 New current version: $current_version"
+          
+          # Create release branch
+          branch_name=release/v$current_version
+          echo "🌿 Creating branch: $branch_name"
           git checkout -b $branch_name
           git push origin $branch_name
+          
+          echo "✅ Release candidate branch created successfully!"
           # TODO add changelog generation here as needed
           # gh release create "rc-v$current_version" --repo mlrun/mlrun --title "Release Candidate $current_version" --notes "Automated release candidate created by GitHub Actions" --prerelease

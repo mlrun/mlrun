@@ -24,9 +24,7 @@ permissions:
 jobs:
   prepare-context:
     outputs:
-      mlrun_version: ${{ steps.get-version.outputs.mlrun_version }}
-      mlrun_commit_hash: ${{ steps.get-version.outputs.mlrun_commit_hash }}
-      mlrun_commit_hash_full: ${{ steps.get-version.outputs.mlrun_commit_hash_full }}
+      mlrun_version: ${{ steps.build-tag.outputs.mlrun_version }}
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -37,10 +35,16 @@ jobs:
       uses: ./.github/actions/get-version
       id: get-version
 
+    - id: build-tag
+      run: |
+        echo "mlrun_version=v${{ steps.get-version.outputs.mlrun_version }}-${{ github.run_id }}-${{ steps.get-version.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
+      shell: bash
+
+
   build-mlrun:
     name: Build MLRun
     needs: prepare-context
     uses: ./.github/workflows/build.yaml
     with:
-        tag: rc-v${{ needs.prepare-context.outputs.mlrun_version }}-${{ github.run_id }}-${{ needs.prepare-context.outputs.mlrun_commit_hash }}
+        tag: ${{ needs.prepare-context.outputs.mlrun_version }}
     secrets: inherit

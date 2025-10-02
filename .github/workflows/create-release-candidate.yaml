@@ -68,7 +68,8 @@ jobs:
           # Switch to source branch
           git pull
           git checkout $SOURCE_BRANCH
-                    
+
+          current_version=$(bumpversion --dry-run --list patch | grep current_version | sed 's/current_version=//')
           # Create release branch
           branch_name=release/v$current_version
           echo "🌿 Creating branch: $branch_name"
@@ -77,7 +78,6 @@ jobs:
           
           # Bump version
           bumpversion $RELEASE_TYPE
-          current_version=$(bumpversion --dry-run --list patch | grep current_version | sed 's/current_version=//')
           echo "📦 New current version: $current_version"
 
           echo "✅ Release candidate branch created successfully!"

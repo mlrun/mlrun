@@ -1,4 +1,5 @@
 name: Build Snapshot
+run-name: Building commit ${{ github.event.pull_request.head.sha || github.sha }} on ${{ github.ref_name }} (${{ github.event_name }})
 
 on:
   push:

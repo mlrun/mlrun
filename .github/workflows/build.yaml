@@ -117,9 +117,7 @@ jobs:
     - name: Extract git hash, ref and latest version
       id: git_info
       run: |
-        echo "mlrun_commit_hash=$(git rev-parse --short=8 $GITHUB_SHA)"  >> $GITHUB_OUTPUT
-        echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)"  >> $GITHUB_OUTPUT
-
+        echo "mlrun_commit_hash=$(git log -1 --format=%H | cut -c1-8)"  >> $GITHUB_OUTPUT
 
     - name: Resolve docker cache tag
       id: docker_cache

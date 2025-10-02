@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -66,6 +66,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
           # Switch to source branch
+          git pull
           git checkout $SOURCE_BRANCH
           
           # Bump version

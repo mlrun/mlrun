@@ -78,12 +78,10 @@ jobs:
       if: false
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
     - name: Install dependencies
       run: |
         sudo apt-get install curl jq
-    - name: Get Version
-      uses: ./.github/actions/get-version
-      id: get-version        
 
     - name: Extract git hash, ref and latest version
       id: git_info
@@ -131,8 +129,10 @@ jobs:
 
     - name: Build and conditionally push images
       if: matrix.image-name != 'test'
+      shell: bash
       run: |
         # For PRs: only build. For branches: build and push
+        echo "Building Docker image for ${{ matrix.image-name }}"
         export MLRUN_PUSH_DOCKER_CACHE_IMAGE="true"
         if [ "${{ github.event_name }}" == "pull_request" ]; then
           TARGET="${{ matrix.image-name }}"
@@ -140,6 +140,7 @@ jobs:
           TARGET="push-${{ matrix.image-name }}"
         fi
         
+        echo "Make target: $TARGET"
         MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
         MLRUN_DOCKER_REGISTRY=${{ env.DOCKER_REGISTRY }} \
         MLRUN_DOCKER_CACHE_FROM_REGISTRY=${{ env.DOCKER_REGISTRY }} \

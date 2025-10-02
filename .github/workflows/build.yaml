@@ -33,7 +33,7 @@
 # To change registry: Update AWS_ECR_URL in GitHub repository/organization variables
 
 name: Build
-run-name: Building commit ${{ github.sha }} on ${{ github.ref_name }} (${{ github.event_name }})
+run-name: Building commit ${{ github.event.pull_request.head.sha || github.sha }} on ${{ github.ref_name }} (${{ github.event_name }})
 
 permissions:
 
@@ -117,31 +117,16 @@ jobs:
     - name: Extract git hash, ref and latest version
       id: git_info
       run: |
-        # Get the full commit ID (40 characters) that triggered this workflow
-        FULL_COMMIT_ID=$(git log -1 --format=%H)
-        SHORT_COMMIT_ID=$(git log -1 --format=%H | cut -c1-8)
+        # Get the actual commit SHA - PR head if available, otherwise regular SHA
+        ACTUAL_COMMIT_ID="${{ github.event.pull_request.head.sha || github.sha }}"
+        SHORT_COMMIT_ID=$(echo "${ACTUAL_COMMIT_ID}" | cut -c1-8)
         
-        echo "🔥 COMMIT TRIGGERING THIS WORKFLOW: ${FULL_COMMIT_ID}"
-        echo "📝 Short commit ID: ${SHORT_COMMIT_ID}"
-        echo "🌿 Branch: ${{ github.ref_name }}"
+        echo "🎯 ACTUAL COMMIT: ${ACTUAL_COMMIT_ID}"
+        echo "📝 Short commit: ${SHORT_COMMIT_ID}"
         echo "⚡ Event: ${{ github.event_name }}"
         
-        echo "mlrun_commit_hash_full=${FULL_COMMIT_ID}" >> $GITHUB_OUTPUT
+        echo "mlrun_commit_hash_full=${ACTUAL_COMMIT_ID}" >> $GITHUB_OUTPUT
         echo "mlrun_commit_hash=${SHORT_COMMIT_ID}" >> $GITHUB_OUTPUT
-
-    - name: Show workflow context
-      run: |
-        echo "=================================================="
-        echo "🚀 WORKFLOW INFORMATION"
-        echo "=================================================="
-        echo "Full Commit ID: ${{ steps.git_info.outputs.mlrun_commit_hash_full }}"
-        echo "Short Commit ID: ${{ steps.git_info.outputs.mlrun_commit_hash }}"
-        echo "GitHub SHA: ${{ github.sha }}"
-        echo "Branch: ${{ github.ref_name }}"
-        echo "Event: ${{ github.event_name }}"
-        echo "Run ID: ${{ github.run_id }}"
-        echo "Run Number: ${{ github.run_number }}"
-        echo "=================================================="
 
     - name: Resolve docker cache tag
       id: docker_cache

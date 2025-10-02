@@ -81,7 +81,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get install curl jq make
+        sudo apt-get install curl jq
 
     - name: Extract git hash, ref and latest version
       id: git_info
@@ -139,7 +139,7 @@ jobs:
           TARGET="push-${{ matrix.image-name }}"
         fi
         
-        make all
+        docker --version
         echo "Make target: $TARGET"
         MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
         MLRUN_DOCKER_REGISTRY=${{ env.DOCKER_REGISTRY }} \

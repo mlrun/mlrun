@@ -122,8 +122,8 @@ jobs:
     - name: Set computed versions params
       id: computed_params
       run: |
-        # Auto-calculate version from branch name + commit hash
-        echo "mlrun_version=${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
+        # Use "unstable" to skip feature branch logic, then append build info
+        echo "mlrun_version=unstable-${{ github.run_id }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
         # Docker repo is always "mlrun"
         echo "mlrun_docker_repo=mlrun" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT

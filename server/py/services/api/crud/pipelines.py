@@ -86,7 +86,7 @@ class Pipelines(
             sort_by=sort_by,
             filter_json=filter_json,
         ):
-            if project:
+            if project and project != "*":
                 if isinstance(project, str):
                     page_runs = [
                         run

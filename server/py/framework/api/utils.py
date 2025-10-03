@@ -313,12 +313,6 @@ def validate_function_secret_sources(function):
     secrets = mlrun.secrets.SecretsStore.from_list(secrets_list)
 
     project_name = get_in(function, ["metadata", "project"])
-    if k8s_secrets := secrets.get_k8s_secrets():
-        for secret_name in k8s_secrets.keys():
-            validate_secret_allowed(
-                project_name=project_name,
-                secret_name=secret_name,
-            )
 
     if azure_k8s_secrets := secrets.get_azure_vault_k8s_secret():
         validate_secret_allowed(

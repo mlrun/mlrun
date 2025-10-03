@@ -1932,26 +1932,21 @@ def test_resolve_client_default_kfp_image(
             ],
             mlrun.errors.MLRunInvalidArgumentError,
         ),
-        # Kubernetes secret with incorrect project secret (should raise)
         (
-            [
-                {
-                    "kind": "kubernetes",
-                    "source": ["mlrun-project-secrets-wrong"],
-                }
-            ],
-            mlrun.errors.MLRunInvalidArgumentError,
+                [
+                    {"kind": "inline", "source": {}},
+                    {
+                        "kind": "azure_vault",
+                        "source": {
+                            "k8s_secret": "mlrun-project-secrets-project-1",
+                            "name": "my-vault-name",
+                            "secrets": [],
+                        },
+                    },
+                ],
+                None,
         ),
-        # Kubernetes secret with allowed project secret (should pass)
-        (
-            [
-                {
-                    "kind": "kubernetes",
-                    "source": ["mlrun-project-secrets-project-1"],
-                }
-            ],
-            None,
-        ),
+
     ],
 )
 def test_validate_function_secret_sources(secret_sources, expected_exception):

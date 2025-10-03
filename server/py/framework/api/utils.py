@@ -336,7 +336,7 @@ def apply_enrichment_and_validation_on_function(
     validate_service_account: bool = True,
     mask_sensitive_data: bool = True,
     ensure_security_context: bool = True,
-        allow_empty_access_key: bool = False,
+    allow_empty_access_key: bool = False,
 ):
     """
     This function should be used only on server side.

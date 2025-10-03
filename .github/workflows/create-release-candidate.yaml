@@ -86,8 +86,6 @@ jobs:
           # create tag and push it
           git tag -a "rc-v$next_version" -m "Release Candidate v$next_version"
           git push origin "rc-v$next_version"
-          git tag -a "rc-v$next_version" -m "Release Candidate v$next_version"
-          git push origin "rc-v$next_version"
           echo "✅ Release candidate branch created successfully!"
           # TODO add changelog generation here as needed
           # gh release create "rc-v$current_version" --repo mlrun/mlrun --title "Release Candidate $current_version" --notes "Automated release candidate created by GitHub Actions" --prerelease

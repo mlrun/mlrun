@@ -18,6 +18,7 @@ run-name: Create Release Candidate
 
 permissions:
   contents: write
+  actions: write
 
 on:
   push:

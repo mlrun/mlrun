@@ -37,7 +37,7 @@ jobs:
 
     - id: build-tag
       run: |
-        echo "mlrun_version=v${{ steps.get-version.outputs.mlrun_version }}-${{ github.run_id }}-${{ steps.get-version.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
+        echo "mlrun_version=rc-v${{ steps.get-version.outputs.mlrun_version }}-${{ github.run_id }}-${{ steps.get-version.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
       shell: bash
 
 

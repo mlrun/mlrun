@@ -45,7 +45,6 @@ import pytz
 import semver
 import yaml
 from dateutil import parser
-from orjson import orjson
 from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -1216,61 +1215,6 @@ def get_workflow_url(
     if id:
         url += f"/{id}"
     return url
-
-
-def get_kfp_list_runs_filter(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    filter_: Optional[str] = None,
-    experiment_ids: Optional[list[str]] = None,
-) -> str:
-    """
-    Generate a filter for KFP runs based on start and end dates, and experiment IDs.
-    """
-    existing_filter_object = json.loads(filter_) if filter_ else {"predicates": []}
-    preserved_predicates = [
-        predicate
-        for predicate in existing_filter_object.get("predicates", [])
-        if predicate.get("key") != "name"
-    ]
-
-    new_predicates = []
-    if end_date:
-        new_predicates.append(
-            {
-                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
-                "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
-                "timestamp_value": end_date,
-            }
-        )
-
-    if start_date:
-        new_predicates.append(
-            {
-                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
-                "op": mlrun_pipelines.models.FilterOperations.GREATER_THAN_EQUALS.value,
-                "timestamp_value": start_date,
-            }
-        )
-
-    if experiment_ids and all(experiment_ids):
-        new_predicates.append(
-            {
-                "key": mlrun_pipelines.models.FilterFields.EXPERIMENT_ID,
-                "op": mlrun_pipelines.models.FilterOperations.IN.value,
-                "string_values": {"values": experiment_ids},
-            }
-        )
-
-    final_filter_object = {"predicates": preserved_predicates + new_predicates}
-    if not final_filter_object["predicates"]:
-        return ""
-
-    logger.debug(
-        "Generated KFP runs filter",
-        filter_object_with_predicates=final_filter_object,
-    )
-    return orjson.dumps(final_filter_object).decode()
 
 
 def validate_and_convert_date(date_input: str) -> str:

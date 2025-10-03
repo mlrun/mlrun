@@ -912,6 +912,12 @@ class TestProject(TestMLRunSystem):
         assert (
             res["run"]["status"] == mlrun_pipelines.common.models.RunStatuses.succeeded
         )
+        original_run_result = project.list_runs(
+            labels=[
+                f"{mlrun_constants.MLRunInternalLabels.workflow_id}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER}",
+            ]
+        )
         runner_run_result = project.list_runs(
             labels=[
                 f"{mlrun_constants.MLRunInternalLabels.original_workflow_id}={run_id.run_id}",
@@ -926,6 +932,17 @@ class TestProject(TestMLRunSystem):
         assert runner_run_result.to_objects()[0].metadata.labels[
             mlrun_constants.MLRunInternalLabels.rerun_index
         ] == str(1)
+
+        # Check if the runner's owner label matches the original workflow's owner label
+        assert (
+            original_run_result.to_objects()[0].metadata.labels[
+                mlrun_constants.MLRunInternalLabels.owner
+            ]
+            == runner_run_result.to_objects()[0].metadata.labels[
+                mlrun_constants.MLRunInternalLabels.owner
+            ]
+        )
+
         # in order to trigger the periodic monitor runs function
         time.sleep(35)
 

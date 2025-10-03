@@ -3913,6 +3913,7 @@ class MlrunProject(ModelObj):
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileTDEngine`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL`
 
                                           You need to register one of them, and pass the profile's name.
         :param stream_profile_name:       The datastore profile name of the stream to be used in model monitoring.

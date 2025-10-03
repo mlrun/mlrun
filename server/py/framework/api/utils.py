@@ -336,6 +336,7 @@ def apply_enrichment_and_validation_on_function(
     validate_service_account: bool = True,
     mask_sensitive_data: bool = True,
     ensure_security_context: bool = True,
+        allow_empty_access_key: bool = False,
 ):
     """
     This function should be used only on server side.
@@ -350,7 +351,11 @@ def apply_enrichment_and_validation_on_function(
     # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
     # be able to communicate with the api
     if ensure_auth:
-        ensure_function_has_auth_set(function, auth_info)
+        ensure_function_has_auth_set(
+            function,
+            auth_info,
+            allow_empty_access_key=allow_empty_access_key,
+        )
 
     # if this was triggered by the UI, we will need to attempt auto-mount based on auto-mount config and params passed
     # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
@@ -456,15 +461,6 @@ def validate_secret_allowed(
             f"Failed to validate secret '{secret_name}': it belongs to a different project than the"
             f" function's project '{project_name}'"
         )
-
-
-def ensure_function_auth_and_sensitive_data_is_masked(
-    function,
-    auth_info: mlrun.common.schemas.AuthInfo,
-    allow_empty_access_key: bool = False,
-):
-    ensure_function_has_auth_set(function, auth_info, allow_empty_access_key)
-    mask_function_sensitive_data(function, auth_info)
 
 
 def mask_function_sensitive_data(function, auth_info: mlrun.common.schemas.AuthInfo):

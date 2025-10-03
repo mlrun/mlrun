@@ -1933,20 +1933,19 @@ def test_resolve_client_default_kfp_image(
             mlrun.errors.MLRunInvalidArgumentError,
         ),
         (
-                [
-                    {"kind": "inline", "source": {}},
-                    {
-                        "kind": "azure_vault",
-                        "source": {
-                            "k8s_secret": "mlrun-project-secrets-project-1",
-                            "name": "my-vault-name",
-                            "secrets": [],
-                        },
+            [
+                {"kind": "inline", "source": {}},
+                {
+                    "kind": "azure_vault",
+                    "source": {
+                        "k8s_secret": "mlrun-project-secrets-project-1",
+                        "name": "my-vault-name",
+                        "secrets": [],
                     },
-                ],
-                None,
+                },
+            ],
+            None,
         ),
-
     ],
 )
 def test_validate_function_secret_sources(secret_sources, expected_exception):

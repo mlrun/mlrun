@@ -3,10 +3,8 @@ run-name: Building commit ${{ github.sha }} on ${{ github.ref_name }} (${{ githu
 
 on:
   push:
-    tags:
-      - 'v*'
-      - 'rc-v*'
-
+    branches:
+      - 'release/*'
   workflow_dispatch:
     inputs:
       skip_images:

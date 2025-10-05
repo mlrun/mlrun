@@ -2388,6 +2388,7 @@ class MlrunProject(ModelObj):
         tag: Optional[str] = None,
         requirements: Optional[list[str]] = None,
         requirements_file: str = "",
+        local_path: Optional[str] = None,
         **application_kwargs,
     ) -> mlrun.runtimes.RemoteRuntime:
         """
@@ -2417,6 +2418,8 @@ class MlrunProject(ModelObj):
         :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
+        :param local_path:              Path to a local directory to save the downloaded monitoring-app code files in,
+                                        in case func is a hub URL.
         :returns:                       The model monitoring remote function object.
         """
         (
@@ -2433,6 +2436,7 @@ class MlrunProject(ModelObj):
             tag,
             requirements,
             requirements_file,
+            local_path,
             **application_kwargs,
         )
         # save to project spec
@@ -2513,6 +2517,7 @@ class MlrunProject(ModelObj):
         tag: typing.Optional[str] = None,
         requirements: typing.Union[list[str], None] = None,
         requirements_file: str = "",
+        local_path: typing.Optional[str] = None,
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.RemoteRuntime, dict]:
         import mlrun.model_monitoring.api
@@ -2529,6 +2534,7 @@ class MlrunProject(ModelObj):
                 tag=tag,
                 requirements=requirements,
                 requirements_file=requirements_file,
+                local_path=local_path,
                 **application_kwargs,
             )
         elif isinstance(func, str) and isinstance(handler, str):

@@ -551,6 +551,7 @@ def _create_model_monitoring_function_base(
     tag: typing.Optional[str] = None,
     requirements: typing.Union[list[str], None] = None,
     requirements_file: str = "",
+    local_path: typing.Optional[str] = None,
     **application_kwargs,
 ) -> mlrun.runtimes.ServingRuntime:
     """
@@ -568,8 +569,7 @@ def _create_model_monitoring_function_base(
         )
     print(f"func: {func}")
     if check_if_hub_uri(func):
-        print("func is hub-uri")
-        hub_module = mlrun.get_hub_module(func) # todo: do we wanna provide local_path
+        hub_module = mlrun.get_hub_module(url=func, local_path=local_path)
         if hub_module.kind != HubModuleType.monitoring_app:
             raise mlrun.errors.MLRunInvalidArgumentError("The provided module is not a monitoring app")
         requirements = merge_requirements(requirements, hub_module.requirements) # todo: can requirement be a string of multiple reqs?

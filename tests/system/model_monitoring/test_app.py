@@ -18,6 +18,7 @@ import pickle
 import time
 import typing
 import uuid
+import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1035,6 +1036,7 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
     """
     Demonstrates running a serving job with model monitoring enabled.  In this test, we deploy a simple serving model
     and then validate the newly created batch model endpoint along with its application results.
+    Also tests the deployment of a monitoring-application from the MLRun hub (count-events)
     """
 
     project_name = "test-mm-serving-job"
@@ -1062,11 +1064,12 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         cls._train()
 
         # model monitoring app
-        cls.app_data = _AppData(
-            class_=NoCheckDemoMonitoringApp,
-            rel_path="assets/application.py",
-            results={"data_drift_test", "model_perf"},
-        )
+        cls.app_data = {
+            "url": "hub://count_events",
+            "class_name": "CountApp",
+            "app_name": "count",
+            "result_name": "count"
+        }
 
         # model monitoring infra
         cls.app_interval: int = 1  # every 1 minute
@@ -1121,15 +1124,18 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
     def _deploy_monitoring_app(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+        # create temp dir in cwd
+        Path.cwd().joinpath("temp").mkdir(exist_ok=True)
         fn = self.project.set_model_monitoring_function(
-            func=self.app_data.abs_path,
-            application_class=self.app_data.class_.__name__,
-            name=self.app_data.class_.NAME,
-            requirements=self.app_data.requirements,
+            func=self.app_data["url"],
+            application_class=self.app_data["class_name"],
+            name=self.app_data["app_name"],
             image="mlrun/mlrun" if self.image is None else self.image,
-            **self.app_data.kwargs,
+            local_path="./temp",
         )
         self.project.deploy_function(fn)
+        # delete the temp dir
+        shutil.rmtree("temp")
         return fn
 
     def _deploy_monitoring_infra(self) -> None:
@@ -1194,11 +1200,12 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         monitoring_results = run_db.get_model_endpoint_monitoring_metrics(
             project=self.project_name,
             endpoint_id=model_endpoint.metadata.uid,
-            type="results",
+            type="metrics",
         )
 
         assert len(monitoring_results) == 2
-        result_names = [result.full_name for result in monitoring_results]
+        result_name = self.app_data["result_name"]
+        result_names = [result.full_name for result in monitoring_results if result_name in result.full_name]
 
         self._test_result_values(
             ep_id=model_endpoint.metadata.uid,

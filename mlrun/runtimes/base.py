@@ -381,7 +381,7 @@ class BaseRuntime(ModelObj):
                                The `count` field in the `Retry` object specifies the number of retry attempts.
                                If `count=0`, the run will not be retried.
                                The `backoff` field specifies the retry backoff strategy between retry attempts.
-                               If not provided, no backoff is applied.
+                               If not provided, the default backoff delay is 30 seconds.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         if artifact_path or out_path:

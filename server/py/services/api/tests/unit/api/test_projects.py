@@ -376,25 +376,25 @@ async def test_only_iteration_zero_runs_are_counted(db: Session, client: TestCli
 
     # iter>0 (ignored)
     _create_hyperparam_runs(
-        client,
-        proj,
-        "x",
-        [1, 2, 3, 4, 5],
+        client=client,
+        project_name=proj,
+        param_name="x",
+        values=[1, 2, 3, 4, 5],
         state=mlrun.common.runtimes.constants.RunStates.running,
     )
     _create_hyperparam_runs(
-        client,
-        proj,
-        "x",
-        [6, 7, 8, 9, 10, 11],
+        client=client,
+        project_name=proj,
+        param_name="x",
+        values=[6, 7, 8, 9, 10, 11],
         state=mlrun.common.runtimes.constants.RunStates.completed,
         start_time=one_hour_ago,
     )
     _create_hyperparam_runs(
-        client,
-        proj,
-        "x",
-        [12, 13, 14],
+        client=client,
+        project_name=proj,
+        param_name="x",
+        values=[12, 13, 14],
         state=mlrun.common.runtimes.constants.RunStates.aborted,
         start_time=one_hour_ago,
     )
@@ -2106,30 +2106,64 @@ def _create_running_and_failed_model_monitoring_functions(
     )
 
 
+def _create_run(
+    client: TestClient,
+    project_name: str,
+    run_uid: str,
+    run_name: str,
+    kind: str,
+    state: typing.Optional[str] = None,
+    start_time: typing.Optional[datetime.datetime] = None,
+    parameters: typing.Optional[dict] = None,
+    iteration: typing.Optional[int] = None,
+):
+    """Helper function to create a single run."""
+    run = {
+        "kind": kind,
+        "metadata": {
+            "name": run_name,
+            "uid": run_uid,
+            "project": project_name,
+        },
+    }
+
+    if parameters:
+        run["spec"] = {"parameters": parameters}
+
+    if state or start_time:
+        run["status"] = {}
+        if state:
+            run["status"]["state"] = state
+        if start_time:
+            run["status"]["start_time"] = start_time.isoformat()
+
+    url = f"projects/{project_name}/runs/{run_uid}"
+    if iteration:
+        url += f"?iter={iteration}"
+
+    response = client.post(url, json=run)
+    assert response.status_code == HTTPStatus.OK.value, response.json()
+
+
 def _create_runs(
     client: TestClient, project_name, runs_count, state=None, start_time=None
 ):
+    """Create multiple runs with the same name (3 instances each)."""
     for index in range(runs_count):
         run_name = f"run-name-{str(uuid4())}"
         # create several runs of the same name to verify we're counting all instances
         for _ in range(3):
             run_uid = str(uuid4())
-            run = {
-                "kind": mlrun.artifacts.model.ModelArtifact.kind,
-                "metadata": {
-                    "name": run_name,
-                    "uid": run_uid,
-                    "project": project_name,
-                },
-            }
-            if state:
-                run["status"] = {
-                    "state": state,
-                }
-            if start_time:
-                run.setdefault("status", {})["start_time"] = start_time.isoformat()
-            response = client.post(f"projects/{project_name}/runs/{run_uid}", json=run)
-            assert response.status_code == HTTPStatus.OK.value, response.json()
+            _create_run(
+                client=client,
+                project_name=project_name,
+                run_uid=run_uid,
+                run_name=run_name,
+                kind=mlrun.artifacts.model.ModelArtifact.kind,
+                state=state,
+                start_time=start_time,
+            )
+    # Total runs created: runs_count * 3
 
 
 def _create_hyperparam_runs(
@@ -2141,30 +2175,22 @@ def _create_hyperparam_runs(
     start_time: typing.Optional[datetime.datetime] = None,
     iteration_start: int = 1,
 ):
+    """Create hyperparameter runs with different parameter values."""
     for i, val in enumerate(values, start=iteration_start):
         run_uid = str(uuid4())
-        run = {
-            "kind": "job",
-            "metadata": {
-                "name": f"hp-{param_name}-{val}",
-                "uid": run_uid,
-                "project": project_name,
-            },
-            "spec": {
-                "parameters": {param_name: val},
-            },
-            "status": {
-                "state": state,
-                "start_time": start_time.isoformat() if start_time else None,
-            },
-        }
+        run_name = f"hp-{param_name}-{val}"
 
-        # 💡 Note: passing the iter parameter via query string
-        resp = client.post(
-            f"/projects/{project_name}/runs/{run_uid}?iter={i}",
-            json=run,
+        _create_run(
+            client=client,
+            project_name=project_name,
+            run_uid=run_uid,
+            run_name=run_name,
+            kind="job",
+            state=state,
+            start_time=start_time,
+            parameters={param_name: val},
+            iteration=i,
         )
-        assert resp.status_code == HTTPStatus.OK, resp.text
 
 
 def _create_schedule(

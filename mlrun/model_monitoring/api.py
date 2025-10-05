@@ -549,7 +549,7 @@ def _create_model_monitoring_function_base(
     name: typing.Optional[str] = None,
     image: typing.Optional[str] = None,
     tag: typing.Optional[str] = None,
-    requirements: typing.Union[str, list[str], None] = None,
+    requirements: typing.Union[list[str], None] = None,
     requirements_file: str = "",
     **application_kwargs,
 ) -> mlrun.runtimes.ServingRuntime:

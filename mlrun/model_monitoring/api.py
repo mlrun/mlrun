@@ -570,8 +570,9 @@ def _create_model_monitoring_function_base(
     if check_if_hub_uri(func):
         hub_module = mlrun.get_hub_module(url=func, local_path=local_path)
         if hub_module.kind != HubModuleType.monitoring_app:
-            raise mlrun.errors.MLRunInvalidArgumentError("The provided module is not a monitoring app")
-        requirements = merge_requirements(requirements, hub_module.requirements) # todo: can requirement be a string of multiple reqs?
+            raise mlrun.errors.MLRunInvalidArgumentError("The provided module is not a monitoring application")
+        requirements = mlrun.model.ImageBuilder._resolve_requirements(requirements, requirements_file)
+        requirements = merge_requirements(requirements, hub_module.requirements)
         func = hub_module.get_module_file_path()
     if func is None:
         func = ""

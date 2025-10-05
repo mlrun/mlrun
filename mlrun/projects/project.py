@@ -5102,7 +5102,7 @@ class MlrunProject(ModelObj):
         `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to
         generate a comparison table and PCP plot.
 
-        Example::
+       Example::
 
             # return a list of completed runs matching the name and label and compare
             runs = project.list_completed_runs(name="download", labels="owner=admin")

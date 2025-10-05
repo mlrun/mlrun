@@ -210,7 +210,7 @@ def _migrate_existing_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 9
+latest_data_version = 10
 
 
 def update_default_configuration_data():
@@ -303,6 +303,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_8_data_migrations(db, db_session)
             if current_data_version < 9:
                 _perform_version_9_data_migrations(db, db_session)
+            if current_data_version < 10:
+                _perform_version_10_data_migrations(db, db_session)
 
             db.create_data_version(db_session, str(latest_data_version))
 
@@ -605,6 +607,49 @@ def _migrate_artifact_labels(
     return labels
 
 
+def _migrate_monitoring_functions_labels(db: framework.db.sqldb.db.SQLDB, db_session):
+    """
+    Update labels for model monitoring infra functions.
+    """
+    mm_infra_function_names = (
+        mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.list()
+    )
+
+    def filter_infra_func():
+        return framework.db.sqldb.models.Function.name.in_(mm_infra_function_names)
+
+    def add_infra_label(record):
+        function_dict = record.struct
+        function_metadata_labels_dict = function_dict.get("metadata", {}).get(
+            "labels", {}
+        )
+        # Add a new label to the function metadata
+        function_metadata_labels_dict[
+            mlrun.common.schemas.ModelMonitoringInfraLabel.KEY
+        ] = mlrun.common.schemas.ModelMonitoringInfraLabel.VAL
+        function_dict["metadata"]["labels"] = function_metadata_labels_dict
+
+        record.struct = function_dict
+
+        # Generate a new label object
+        new_label = framework.db.sqldb.models.Function.Label(
+            name=mlrun.common.schemas.ModelMonitoringInfraLabel.KEY,
+            value=mlrun.common.schemas.ModelMonitoringInfraLabel.VAL,
+            parent=record.id,
+        )
+
+        return record, new_label
+
+    return _migrate_data(
+        db=db,
+        db_session=db_session,
+        model=framework.db.sqldb.models.Function,
+        filter_func=filter_infra_func,
+        handle_field_record_func=add_infra_label,
+        max_iterations=1,
+    )
+
+
 def _migrate_artifact_tags(
     db_session: sqlalchemy.orm.Session,
     old_id_to_artifact: dict[typing.Any, framework.db.sqldb.models.ArtifactV2],
@@ -782,6 +827,12 @@ def _perform_version_9_data_migrations(
     _ensure_latest_tag_for_artifacts(db_session)
 
 
+def _perform_version_10_data_migrations(
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _migrate_monitoring_functions_labels(db, db_session)
+
+
 def _ensure_function_kind_and_state(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
@@ -847,7 +898,9 @@ def _migrate_data(
     filter_func,
     handle_field_record_func,
     chunk_size: int = 500,
+    max_iterations: typing.Optional[int] = None,
 ):
+    iteration = 0
     # Query for records that need migration
     records = db._query(db_session, model).filter(filter_func).limit(chunk_size).all()
 
@@ -860,7 +913,13 @@ def _migrate_data(
     )
 
     while records:
-        to_commit = [handle_field_record_func(record) for record in records]
+        to_commit = []
+        for record in records:
+            result = handle_field_record_func(record)
+            if isinstance(result, (list, tuple, set)):
+                to_commit.extend(result)
+            elif result is not None:
+                to_commit.append(result)
 
         # Commit if there are records to migrate
         if to_commit:
@@ -871,6 +930,11 @@ def _migrate_data(
             )
             db_session.add_all(to_commit)
             db._commit(db_session, to_commit)
+
+        iteration += 1
+        if max_iterations is not None and iteration >= max_iterations:
+            mlrun.utils.logger.info("Reached max iterations", {model.__name__})
+            break
 
         # Fetch next batch of records to migrate (if any)
         records = (

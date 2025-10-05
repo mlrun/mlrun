@@ -384,8 +384,7 @@ try to avoid logging large objects which are hard to decipher.
 
 1. When converting an error object to a string representation, instead of using: `str(error)` use: `mlrun.errors.err_to_str(error)`
 2. Use `mlrun.mlconf` Instead of `mlrun.config.config`.
-3. When deprecating a parameter, method, class, endpoint, or query parameter — **do not duplicate rules here**.  
-   See the dedicated [Deprecation Guidelines](./DEPRECATION.md) document for the full process, examples, and checklist.
+3. See the dedicated [Deprecation Guidelines](./DEPRECATION.md) document for the full process, examples, and checklist.
 4. Minimize imports and avoid unnecessary dependencies in client code.
 5. Scale performance: be cautious when executing large queries in order to prevent overloading the database.
 

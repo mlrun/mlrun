@@ -20,19 +20,32 @@ Use the checklist at the end to verify all relevant updates are applied.
 ## Process
 
 ### 1. Planning phase
-- Product team prepares a list of items to be deprecated in the upcoming version.
+- Prepare a list of items to deprecate in the upcoming version (tracked in Jira or Confluence).
 
 ### 2. Development kickoff
-- Developers remove all deprecations from **2 minor versions ago** at the start of the release cycle.
+- Remove all deprecations from **2 minor versions ago** at the start of the release cycle.
 - Track removals using:
   - Code comments (`# TODO: Remove in x.y.z`)
   - Matching Jira ticket
-  - Docs changelog
-- Communicate removals to the **Customer Success** team (via Jira).
+  - Changelog entry
 
 ### 3. During development cycle
-- Developers coordinate new deprecations with the Jira ticket.
-- Update the ticket for **every** change.
+- Coordinate new deprecations through the relevant Jira ticket.
+- Update the ticket for **every** new or removed item.
+
+---
+
+## Visibility of Deprecations
+
+Not all deprecations are directly visible to end-users.  
+- **API-side deprecations** (e.g., in FastAPI endpoints or query parameters) only appear in **Swagger**, not in the MLRun SDK or logs.  
+- **Code-level deprecations** (parameters, classes, or methods) trigger Python `FutureWarning`s and are visible when running user code.
+
+Developers should **not attempt to propagate deprecation warnings** from the API to SDK users unless:
+- The SDK directly calls the deprecated API, or
+- The change may affect user workflows or cause behavior changes.
+
+If visibility is limited to Swagger or internal logs, documenting the deprecation is sufficient.
 
 ---
 
@@ -40,18 +53,19 @@ Use the checklist at the end to verify all relevant updates are applied.
 
 ### 1. Removing without warning
 Accepted only if:
-- Backward compatibility break is agreed upon and approved with Customer Success.
-- Documented in the Jira ticket under a dedicated section with explanation.
+- Backward compatibility break is approved.
+- Documented in the Jira ticket with explanation.
 
 ### 2. Breaking upgrade from old versions
-Sometimes legacy code is required for migrations (e.g. migrating artifacts).  
+Sometimes legacy code is required for migrations (e.g., migrating artifacts).  
 Removing such code requires:
 - Agreement on breaking upgrade compatibility.
-- Documentation in the Jira ticket under a dedicated section with explanation.
+- Documentation in the Jira ticket under a dedicated section.
 
 ---
 
 ## How to Deprecate
+Please find below examples for deprecations of various types.
 
 ### 1. Parameter
 ```python
@@ -89,7 +103,7 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
     pass
 ```
 
-### 4. Endpoint
+### 4. FastAPI Endpoint
 
 ```python
 # TODO: Remove in 1.12.0
@@ -106,7 +120,7 @@ async def list_runs():
 API changes are not documented in MLRun docs.
 Deprecation is only visible in Swagger and required when the SDK uses the endpoint.
 
-### 5. Query Parameter
+### 5. FastAPI Query Parameter
 ```python
 limit: int = Query(
     None,
@@ -126,10 +140,3 @@ The deprecation warning is only visible in Swagger.
 
 - **Update MLRun docs**  
   Ensure the changelog reflects the deprecation or removal.
-
-- **Update repositories affected by the deprecation/removal:**
-  - [mlrun/functions](https://github.com/mlrun/functions)
-  - [mlrun/marketplace](https://github.com/mlrun/marketplace)
-  - [mlrun/demos](https://github.com/mlrun/demos)
-  - [mlrun/test-notebooks](https://github.com/mlrun/test-notebooks)
-  - [mlrun/examples](https://github.com/mlrun/mlrun/tree/development/examples)

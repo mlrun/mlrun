@@ -45,9 +45,6 @@ import pytz
 import semver
 import yaml
 from dateutil import parser
-from orjson import orjson
-from packaging.requirements import Requirement
-from packaging.utils import canonicalize_name
 from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -505,9 +502,14 @@ def get_in(obj, keys, default=None):
     if isinstance(keys, str):
         keys = keys.split(".")
     for key in keys:
-        if not obj or key not in obj:
+        if obj is None:
             return default
-        obj = obj[key]
+        if isinstance(obj, dict):
+            if key not in obj:
+                return default
+            obj = obj[key]
+        else:
+            obj = getattr(obj, key, default)
     return obj
 
 
@@ -805,10 +807,6 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     return uri if not add_store else DB_SCHEMA + "://" + uri
 
 
-def check_if_hub_uri(uri: str) -> bool:
-    return uri.startswith(hub_prefix)
-
-
 def extend_hub_uri_if_needed(
     uri: str,
     asset_type: HubSourceType = HubSourceType.functions,
@@ -825,7 +823,7 @@ def extend_hub_uri_if_needed(
                [0] = Extended URI of item
                [1] =  Is hub item (bool)
     """
-    is_hub_uri = check_if_hub_uri(uri)
+    is_hub_uri = uri.startswith(hub_prefix)
     if not is_hub_uri:
         return uri, is_hub_uri
 
@@ -1222,61 +1220,6 @@ def get_workflow_url(
     if id:
         url += f"/{id}"
     return url
-
-
-def get_kfp_list_runs_filter(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    filter_: Optional[str] = None,
-    experiment_ids: Optional[list[str]] = None,
-) -> str:
-    """
-    Generate a filter for KFP runs based on start and end dates, and experiment IDs.
-    """
-    existing_filter_object = json.loads(filter_) if filter_ else {"predicates": []}
-    preserved_predicates = [
-        predicate
-        for predicate in existing_filter_object.get("predicates", [])
-        if predicate.get("key") != "name"
-    ]
-
-    new_predicates = []
-    if end_date:
-        new_predicates.append(
-            {
-                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
-                "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
-                "timestamp_value": end_date,
-            }
-        )
-
-    if start_date:
-        new_predicates.append(
-            {
-                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
-                "op": mlrun_pipelines.models.FilterOperations.GREATER_THAN_EQUALS.value,
-                "timestamp_value": start_date,
-            }
-        )
-
-    if experiment_ids and all(experiment_ids):
-        new_predicates.append(
-            {
-                "key": mlrun_pipelines.models.FilterFields.EXPERIMENT_ID,
-                "op": mlrun_pipelines.models.FilterOperations.IN.value,
-                "string_values": {"values": experiment_ids},
-            }
-        )
-
-    final_filter_object = {"predicates": preserved_predicates + new_predicates}
-    if not final_filter_object["predicates"]:
-        return ""
-
-    logger.debug(
-        "Generated KFP runs filter",
-        filter_object_with_predicates=final_filter_object,
-    )
-    return orjson.dumps(final_filter_object).decode()
 
 
 def validate_and_convert_date(date_input: str) -> str:
@@ -2465,41 +2408,3 @@ def set_data_by_path(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected path to be of type str or list of str"
         )
-
-
-def _normalize_requirements(reqs: typing.Union[str, list[str], None]) -> list[str]:
-    if reqs is None:
-        return []
-    if isinstance(reqs, str):
-        s = reqs.strip()
-        return [s] if s else []
-    return [s.strip() for s in reqs if s and s.strip()]
-
-
-def merge_requirements(
-    reqs1: typing.Union[str, list[str], None], reqs2: typing.Union[str, list[str], None]
-) -> list[str]:
-    """
-    Merge two requirement collections into a union. If the same package
-    appears in both, the specifier from reqs1 wins.
-
-    Args:
-        reqs1: str | list[str] | None  (priority input)
-        reqs2: str | list[str] | None
-
-    Returns:
-        list[str]: pip-style requirements.
-    """
-    merged: dict[str, Requirement] = {}
-
-    for r in _normalize_requirements(reqs1):
-        req = Requirement(r)
-        merged[canonicalize_name(req.name)] = req
-
-    for r in _normalize_requirements(reqs2):
-        req = Requirement(r)
-        key = canonicalize_name(req.name)
-        if key not in merged:
-            merged[key] = req
-
-    return [str(req) for req in merged.values()]

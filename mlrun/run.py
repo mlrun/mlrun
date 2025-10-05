@@ -413,21 +413,29 @@ def import_function_to_dict(
             with open(code_file, "wb") as fp:
                 fp.write(code)
         elif cmd:
-            if not path.isfile(code_file):
-                slash_index = url.rfind("/")
-                if slash_index < 0:
-                    raise ValueError(f"no file in exec path (spec.command={code_file})")
-                base_dir = os.path.normpath(url[: slash_index + 1])
-                candidate_path = _ensure_path_confined_to_base_dir(
-                    base_directory=base_dir,
-                    relative_path=code_file,
-                    error_message_on_escape=f"exec file spec.command={code_file} is outside of allowed directory",
-                )
-                if path.isfile(candidate_path):
-                    raise ValueError(
-                        f"exec file spec.command={code_file} is relative, change working dir"
-                    )
+            slash_index = url.rfind("/")
+            if slash_index < 0:
                 raise ValueError(f"no file in exec path (spec.command={code_file})")
+            base_dir = os.path.normpath(url[: slash_index + 1])
+            candidate_path = _ensure_path_confined_to_base_dir(
+                base_directory=base_dir,
+                relative_path=code_file,
+                error_message_on_escape=f"exec file spec.command={code_file} is outside of allowed directory",
+            )
+            # Resolve to absolute path and verify it’s still inside the base directory
+            abs_candidate = os.path.abspath(candidate_path)
+            if not abs_candidate.startswith(base_dir):
+                raise ValueError(
+                    f"exec file spec.command={code_file} resolves outside allowed directory"
+                )
+            # Check if the target file actually exists
+            if not os.path.isfile(abs_candidate):
+                raise ValueError(f"no file in exec path (spec.command={code_file})")
+            # Prevent relative (non-absolute) commands explicitly
+            if not os.path.isabs(code_file):
+                raise ValueError(
+                    f"exec file spec.command={code_file} is relative, it must be absolute. Change working dir"
+                )
         else:
             raise ValueError("command or code not specified in function spec")
 

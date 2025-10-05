@@ -96,7 +96,7 @@ import mlrun
 
 project = mlrun.get_or_create_project("myproj")
 
-function = mlrun.set_function(
+function = project.set_function(
     "advanced",
     func="<path to demo.py>",
     kind="serving",
@@ -167,7 +167,7 @@ See the [full notebook example](./distributed-graph.ipynb).
 # define a new real-time serving function (from code) with an async graph
 project = mlrun.get_or_create_project("myproj")
 
-fn = mlrun.set_function(
+fn = project.set_function(
     "multi-func", func="<path to data_prep.py>", kind="serving", image="mlrun/mlrun"
 )
 graph = fn.set_topology("flow", engine="async")

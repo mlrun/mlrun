@@ -34,7 +34,7 @@ import mlrun.execution
 import mlrun.mlutils
 
 
-def train_iris(context: MLClientCtx):
+def train_iris(context: mlrun.execution.MLClientCtx):
 
     # Basic scikit-learn iris SVM model
     X, y = datasets.load_iris(return_X_y=True)

@@ -127,8 +127,10 @@ def kfp_client_mock(monkeypatch):
     framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = mock.Mock(
         return_value=True
     )
-    monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
+    client_klass = mlrun_pipelines.client.Client
 
+    monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
+    monkeypatch.setattr(client_klass, "_determine_server_major_version", lambda self: 2)
     mock_experiment_api = mock.Mock()
     monkeypatch.setattr(
         kfp_server_api.api.experiment_service_api,

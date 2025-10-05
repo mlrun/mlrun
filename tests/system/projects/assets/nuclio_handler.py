@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
-import pydantic.v1
-
-
-class PipelinesPagination(str):
-    default_page_size = 200
-    # https://github.com/kubeflow/pipelines/blob/master/backend/src/apiserver/list/list.go#L363
-    max_page_size = 200
-
-
-class PipelinesOutput(pydantic.v1.BaseModel):
-    # use the format query param to control what is returned
-    runs: list[typing.Union[dict, str]]
-    total_size: int
-    next_page_token: typing.Optional[str]
+def handler(context, event):
+    return "hello"

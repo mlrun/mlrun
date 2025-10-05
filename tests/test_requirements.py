@@ -157,12 +157,12 @@ def test_requirement_specifiers_convention():
             '==1.8.23; python_version >= "3.11"',
         },
         "dask": {
-            '>=2023.12.1; python_version < "3.11"',
-            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '==2024.8; python_version >= "3.11"',
         },
         "distributed": {
-            '>=2023.12.1; python_version < "3.11"',
-            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '==2024.8; python_version >= "3.11"',
         },
     }
 
@@ -208,12 +208,12 @@ def test_requirement_specifiers_inconsistencies():
         "pydantic": {">=1,<2", ">=1.10.15"},
         # packages that require specific versions per python version
         "dask": {
-            '>=2023.12.1; python_version < "3.11"',
-            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '==2024.8; python_version >= "3.11"',
         },
         "distributed": {
-            '>=2023.12.1; python_version < "3.11"',
-            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '==2024.8; python_version >= "3.11"',
         },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',

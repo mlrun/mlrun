@@ -92,6 +92,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: mlrun.common.schemas.AuthInfo = None,
         rerun_request: Optional[mlrun.common.schemas.RerunWorkflowRequest] = None,
         artifact_path: str = "",
+        original_runner_owner: Optional[str] = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the run object and execute the runner.
@@ -103,9 +104,15 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param auth_info:        Authentication information of the request.
         :param artifact_path:    Artifact path for the run.
         :param rerun_request:    Workflow request containing the rerun spec.
+        :param original_runner_owner: Owner of the original workflow runner.
         :return: RunObject with run metadata, results, and status.
         """
-        self._enrich_run_labels_and_env(labels, runner)
+        self._enrich_run_labels_and_env(
+            labels=labels,
+            runner=runner,
+            auth_username=auth_info.username,
+            original_runner_owner=original_runner_owner,
+        )
 
         run_object = self._prepare_run_object(
             project=project,
@@ -235,10 +242,27 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         return run_object
 
     @staticmethod
-    def _enrich_run_labels_and_env(labels: dict, runner: mlrun.run.KubejobRuntime):
+    def _enrich_run_labels_and_env(
+        labels: dict,
+        runner: mlrun.run.KubejobRuntime,
+        auth_username: Optional[str] = None,
+        original_runner_owner: Optional[str] = None,
+    ):
+        """
+        Enriches the run labels and environment variables for the workflow runner.
+        Adds the owner label to the run, sets the client Python version label, and
+        sets the MLRUN_PYTHON_VERSION environment variable on the runner if applicable.
+
+        :param labels: Dictionary of labels to enrich.
+        :param runner: Workflow runner function object.
+        :param auth_username: Username from authentication info.
+        :param original_runner_owner: Owner of the original workflow runner.
+        """
+        owner_to_enrich = (
+            original_runner_owner if original_runner_owner else auth_username
+        )
         mlrun.runtimes.utils.enrich_run_labels(
-            labels,
-            [mlrun_constants.MLRunInternalLabels.owner],
+            labels, [mlrun_constants.MLRunInternalLabels.owner], owner_to_enrich
         )
         client_python_version = runner.metadata.labels.get(
             mlrun_constants.MLRunInternalLabels.client_python_version
@@ -390,7 +414,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
-        self._enrich_run_labels_and_env(labels, runner)
+        self._enrich_run_labels_and_env(labels, runner, auth_info.username)
 
         # Generate unique UID
         meta_uid = uuid.uuid4().hex
@@ -646,6 +670,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         run_uid: str,
         rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
         auth_info: mlrun.common.schemas.AuthInfo = None,
+        original_runner_owner: Optional[str] = None,
     ) -> mlrun_model.RunObject:
         """
         Run a rerun workflow runner.
@@ -655,9 +680,9 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :param run_uid:        UID of the original failed run to retry.
         :param rerun_request:  RerunWorkflowRequest containing any notifications and retry parameters.
         :param auth_info:      Authentication information of the request.
+        :param original_runner_owner: Owner of the original workflow runner.
         :return: RunObject for the rerun.
         """
-
         labels = {
             mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
             mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER,
@@ -675,6 +700,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             auth_info=auth_info,
             artifact_path=mlrun_config.config.artifact_path,
             rerun_request=rerun_request,
+            original_runner_owner=original_runner_owner,
         )
 
     def _prepare_run_object(

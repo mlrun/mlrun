@@ -66,6 +66,16 @@ def build_function(
             runtime=fn, full=is_nuclio_deploy, client_version=client_version
         )
 
+        # only validate
+        framework.api.utils.apply_enrichment_and_validation_on_function(
+            function=fn,
+            auth_info=auth_info,
+            ensure_auth=False,
+            perform_auto_mount=False,
+            mask_sensitive_data=False,
+            ensure_security_context=False,
+        )
+
         if is_nuclio_deploy:
             fn: mlrun.runtimes.RemoteRuntime
             # before saving function to DB, we need to mask some nuclio-specific fields

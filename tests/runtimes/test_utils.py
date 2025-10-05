@@ -71,7 +71,7 @@ def test_add_code_metadata_stale_remote(repo):
 
 
 @pytest.mark.parametrize(
-    "labels, labels_to_enrich, expected_labels, env_vars_to_mock",
+    "labels, labels_to_enrich, expected_labels, env_vars_to_mock, owner_to_enrich",
     [
         (
             {},
@@ -80,18 +80,21 @@ def test_add_code_metadata_stale_remote(repo):
                 mlrun_constants.MLRunInternalLabels.owner: mlrun_constants.MLRunInternalLabels.v3io_user,
             },
             None,
+            None,
         ),
         (
             {},
             None,
             {mlrun_constants.MLRunInternalLabels.owner: "test_user"},
             {"LOGNAME": "test_user", "V3IO_USERNAME": ""},
+            None,
         ),
         (
             {},
             {},
             {},
             {"LOGNAME": "test_user", "V3IO_USERNAME": ""},
+            None,
         ),
         (
             {mlrun_constants.MLRunInternalLabels.owner: "Mahatma"},
@@ -100,6 +103,7 @@ def test_add_code_metadata_stale_remote(repo):
                 mlrun_constants.MLRunInternalLabels.owner: "Mahatma",
             },
             None,
+            None,
         ),
         (
             {
@@ -111,6 +115,7 @@ def test_add_code_metadata_stale_remote(repo):
                 mlrun_constants.MLRunInternalLabels.owner: "Mahatma",
                 mlrun_constants.MLRunInternalLabels.v3io_user: "Gandhi",
             },
+            None,
             None,
         ),
         (
@@ -122,10 +127,33 @@ def test_add_code_metadata_stale_remote(repo):
                 mlrun_constants.MLRunInternalLabels.owner: mlrun_constants.MLRunInternalLabels.v3io_user,
             },
             None,
+            None,
+        ),
+        (
+            {"job-type": "workflow-runner"},
+            None,
+            {
+                "job-type": "workflow-runner",
+                mlrun_constants.MLRunInternalLabels.owner: "owner_user",
+            },
+            None,
+            "owner_user",
+        ),
+        (
+            {"job-type": "rerun-workflow-runner"},
+            None,
+            {
+                "job-type": "rerun-workflow-runner",
+                mlrun_constants.MLRunInternalLabels.owner: "owner_user",
+            },
+            None,
+            "owner_user",
         ),
     ],
 )
-def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_to_mock):
+def test_enrich_run_labels(
+    labels, labels_to_enrich, expected_labels, env_vars_to_mock, owner_to_enrich
+):
     env_vars_to_mock = env_vars_to_mock or {
         "V3IO_USERNAME": mlrun_constants.MLRunInternalLabels.v3io_user,
     }
@@ -134,7 +162,7 @@ def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_t
         env_vars_to_mock,
     ):
         enriched_labels = mlrun.runtimes.utils.enrich_run_labels(
-            labels, labels_to_enrich
+            labels, labels_to_enrich, owner_to_enrich=owner_to_enrich
         )
         assert (
             deepdiff.DeepDiff(
@@ -144,6 +172,53 @@ def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_t
             )
             == {}
         )
+
+
+@pytest.mark.parametrize(
+    "labels, env_vars, owner_to_enrich, expected_owner",
+    [
+        # No job-type, no owner_to_enrich, should use V3IO_USERNAME
+        (
+            {},
+            {"V3IO_USERNAME": "v3io_user", "LOGNAME": "fallback_user"},
+            None,
+            "v3io_user",
+        ),
+        # No job-type, V3IO_USERNAME empty, fallback to getpass.getuser()
+        (
+            {},
+            {"V3IO_USERNAME": "", "LOGNAME": "fallback_user"},
+            None,
+            "fallback_user",
+        ),
+        # job-type is workflow-runner, should use owner_to_enrich
+        (
+            {"job-type": mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER},
+            {"V3IO_USERNAME": "v3io_user", "LOGNAME": "fallback_user"},
+            "owner_user",
+            "owner_user",
+        ),
+        # job-type is rerun-workflow-runner, should use owner_to_enrich
+        (
+            {"job-type": mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER},
+            {"V3IO_USERNAME": "v3io_user", "LOGNAME": "fallback_user"},
+            "owner_user",
+            "owner_user",
+        ),
+        # job-type is workflow-runner, but no owner_to_enrich, fallback to env
+        (
+            {"job-type": mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER},
+            {"V3IO_USERNAME": "v3io_user", "LOGNAME": "fallback_user"},
+            None,
+            "v3io_user",
+        ),
+    ],
+)
+def test_resolve_owner(labels, env_vars, owner_to_enrich, expected_owner):
+    with unittest.mock.patch.dict(os.environ, env_vars, clear=True):
+        with unittest.mock.patch("getpass.getuser", return_value=env_vars["LOGNAME"]):
+            owner = mlrun.runtimes.utils.resolve_owner(labels, owner_to_enrich)
+            assert owner == expected_owner
 
 
 def test_results_to_iter_status_resolution(rundb_mock):

@@ -65,7 +65,7 @@ def delete_project_old_pipelines(
     )
     experiment_ids = [experiment.id for experiment in experiments]
     # Generate filter and query runs
-    query_filter = mlrun.utils.get_kfp_list_runs_filter(
+    query_filter = mlrun_pipelines.client.create_list_runs_filter(
         experiment_ids=experiment_ids,
         end_date=end_date,
         start_date=start_date,

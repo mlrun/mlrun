@@ -30,19 +30,33 @@ class ChoiceByField(storey.Choice):
         super().__init__(**kwargs)
 
     def select_outlets(self, event):
-        outlet = event.get(self.field_name)
-        if outlet is None:
+        # Case 1: Missing field
+        if self.field_name not in event:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Field name '{self.field_name}' is not contained in the event keys {list(event.keys())}"
+                f"Field '{self.field_name}' is not contained in the event keys {list(event.keys())}."
             )
+
+        outlet = event[self.field_name]
+
+        # Case 2: Field exists but is None
+        if outlet is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Field '{self.field_name}' exists but its value is None."
+            )
+
+        # Case 3: Invalid type
         if not isinstance(outlet, (str, list, tuple)):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"Field '{self.field_name}' must be a string or list of strings"
-                f"but is instead of type '{type(outlet).__name__}'"
+                f"Field '{self.field_name}' must be a string or list of strings "
+                f"but is instead of type '{type(outlet).__name__}'."
             )
+
         outlets = [outlet] if isinstance(outlet, str) else outlet
+
+        # Case 4: Empty list or tuple
         if not outlets:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Predetermined field value '{self.field_name}' cannot be empty"
+                f"The value of the key '{self.field_name}' cannot be an empty {type(outlets).__name__}."
             )
+
         return outlets

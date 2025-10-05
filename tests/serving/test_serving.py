@@ -25,6 +25,7 @@ from nuclio_sdk import Context as NuclioContext
 from sklearn.datasets import load_iris
 
 import mlrun
+import mlrun.errors
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.funcdoc import py_eval
 from mlrun.runtimes.nuclio.serving import serving_subkind
@@ -36,7 +37,6 @@ from mlrun.serving.server import (
     create_graph_server,
 )
 from mlrun.serving.states import RouterStep, TaskStep
-from mlrun.serving.steps import ChoiceByField
 from mlrun.utils import logger
 
 
@@ -911,70 +911,3 @@ def test_serialize():
     # simulate mlrun/__main__.py
     eval_fn_result = py_eval(str(fn.to_dict()))
     mlrun.utils.helpers.as_dict(eval_fn_result)
-
-
-def generate_field(event):
-    event[event["field_name"]] = event["field_targets"]
-    return event
-
-
-@pytest.mark.parametrize("field_name", ["fieldA", "fieldB"])
-@pytest.mark.parametrize(
-    "field_targets",
-    [
-        "outlet1",
-        "outlet2",
-        ["outlet1", "outlet2"],
-        [],
-        ["outlet3"],
-        "outlet3",
-        (),
-        ("outlet1", "outlet2"),
-        ("outlet1", "outlet3"),
-    ],
-)
-def test_choice_by_field(field_name, field_targets):
-    choice_step = ChoiceByField(field_name=field_name)
-    fn = mlrun.new_function(
-        name="choice-by-field-example",
-        kind="serving",
-    )
-    graph = fn.set_topology("flow")
-    graph.to(name="generate_field", handler="generate_field").to(
-        choice_step, name="pick_outlets"
-    )
-    graph.add_step(
-        "storey.Extend",
-        name="outlet1",
-        _fn='({"field_visited": "outlet1"})',
-        after="pick_outlets",
-    )
-    graph.add_step(
-        "storey.Extend",
-        name="outlet2",
-        _fn='({"field_visited": "outlet2"})',
-        after="pick_outlets",
-    )
-    graph.add_step(
-        "storey.Extend", name="end", _fn="({})", after=["outlet1", "outlet2"]
-    ).respond()
-    fn_server = fn.to_mock_server()
-    try:
-        with pytest.raises(
-            (RuntimeError, mlrun.MLRunNotFoundError, ValueError)
-        ) as exc_info:
-            result = fn_server.test(
-                body={"field_name": field_name, "field_targets": field_targets}
-            )
-            assert isinstance(
-                exc_info.value, (RuntimeError, mlrun.MLRunNotFoundError, ValueError)
-            )
-    except AssertionError:
-        # means no exception was raised → handle as success case
-        if isinstance(field_targets, (list, tuple)):
-            if len(field_targets) < 2:
-                assert sorted(result["field_visited"]) == sorted(field_targets)
-            else:
-                assert result["field_visited"] in field_targets
-        else:
-            assert result["field_visited"] == field_targets

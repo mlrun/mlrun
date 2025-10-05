@@ -38,7 +38,7 @@ For example, this Python training function is expecting a parameter called `data
 import mlrun
 
 
-def train(context: mlrun.MLClientCtx, dataset: mlrun.DataItem):
+def train(context: mlrun.execution.MLClientCtx, dataset: mlrun.DataItem):
     df = dataset.as_df()
 ```
 Notice how this maps to the parameter `datasets` that you passed into your `inputs`.
@@ -55,7 +55,7 @@ from sklearn import ensemble
 import cloudpickle
 
 
-def train(context: mlrun.MLClientCtx, dataset: mlrun.DataItem):
+def train(context: mlrun.execution.MLClientCtx, dataset: mlrun.DataItem):
     # Prep data using df
     df = dataset.as_df()
     X_train, X_test, y_train, y_test = ...

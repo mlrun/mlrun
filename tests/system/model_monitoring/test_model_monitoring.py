@@ -311,6 +311,11 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         ).endpoints
         assert len(batch_eps) == number_of_batch_eps
 
+
+        real_time_and_batch = self.project.list_model_endpoints(
+            modes=[EndpointMode.REAL_TIME.value, EndpointMode.BATCH.value]).endpoints
+        assert len(real_time_and_batch) == number_of_real_time_eps + number_of_batch_eps
+
     def test_labels(self):
         db = mlrun.get_run_db()
         endpoint_name = "testing-endpoint"

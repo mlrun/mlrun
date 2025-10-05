@@ -4310,6 +4310,7 @@ class HTTPRunDB(RunDBInterface):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
+        item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.hub.IndexedHubSource]:
         """
         List hub sources in the MLRun DB.
@@ -4317,6 +4318,7 @@ class HTTPRunDB(RunDBInterface):
         :param item_name:   Sources contain this item will be returned, If not provided all sources will be returned.
         :param tag:         Item tag to filter by, supported only if item name is provided.
         :param version:     Item version to filter by, supported only if item name is provided and tag is not.
+        :param item_type:   Item type to filter by, supported only if item name is provided.
 
         :returns: List of indexed hub sources.
         """
@@ -4324,6 +4326,7 @@ class HTTPRunDB(RunDBInterface):
         params = {}
         if item_name:
             params["item-name"] = normalize_name(item_name)
+            params["item-type"] = item_type
         if tag:
             params["tag"] = tag
         if version:

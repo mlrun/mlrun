@@ -22,6 +22,7 @@ import taosws
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.types
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
+from mlrun.config import config
 from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
@@ -275,6 +276,65 @@ class TDEngineConnector(TSDBConnector):
         apply_tdengine_target(
             name="TDEngineTarget",
             after="ProcessBeforeTDEngine",
+        )
+
+    def add_pre_writer_steps(self, graph, after):
+        return graph.add_step(
+            "mlrun.model_monitoring.db.tsdb.tdengine.writer_graph_steps.ProcessBeforeTDEngine",
+            name="ProcessBeforeTDEngine",
+            after=after,
+        )
+
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
+        graph.add_step(
+            "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
+            name="tsdb_metrics",
+            after=after,
+            url=f"ds://{self._tdengine_connection_profile.name}",
+            supertable=self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table,
+            table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            database=self.database,
+            graph_shape="cylinder",
+            columns=[
+                mm_schemas.WriterEvent.START_INFER_TIME,
+                mm_schemas.MetricData.METRIC_VALUE,
+            ],
+            tag_cols=[
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.MetricData.METRIC_NAME,
+            ],
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
+        )
+
+        graph.add_step(
+            "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
+            name="tsdb_app_results",
+            after=after,
+            url=f"ds://{self._tdengine_connection_profile.name}",
+            supertable=self.tables[
+                mm_schemas.TDEngineSuperTables.APP_RESULTS
+            ].super_table,
+            table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            database=self.database,
+            graph_shape="cylinder",
+            columns=[
+                mm_schemas.WriterEvent.START_INFER_TIME,
+                mm_schemas.ResultData.RESULT_VALUE,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_EXTRA_DATA,
+            ],
+            tag_cols=[
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.ResultData.RESULT_NAME,
+                mm_schemas.ResultData.RESULT_KIND,
+            ],
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
         )
 
     def handle_model_error(

@@ -698,6 +698,12 @@ class ApplicationRuntime(RemoteRuntime):
         """
         # create a function that includes only the reverse proxy, without the application
 
+        if not mlrun.get_current_project(silent=True):
+            raise mlrun.errors.MLRunMissingProjectError(
+                "An active project is required to run deploy_reverse_proxy_image(). "
+                "Use `mlrun.get_or_create_project()` or set an active project first."
+            )
+
         reverse_proxy_func = mlrun.run.new_function(
             name="reverse-proxy-temp", kind="remote"
         )

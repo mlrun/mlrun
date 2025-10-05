@@ -83,7 +83,6 @@ def setup_remote_model_test(
     execution_mechanism="naive",
     image=None,
     requirements=None,
-    requirements_file=None,
     model_class: str = "LLModel",
     default_config: Optional[dict] = None,
     include_llm_artifact=True,
@@ -116,7 +115,6 @@ def setup_remote_model_test(
         filename=__file__,
         image=image,
         requirements=requirements,
-        requirements_file=requirements_file,
     )
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")

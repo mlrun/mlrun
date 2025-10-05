@@ -2,9 +2,7 @@
 # Install MLRun CE on AWS
 
 
-These instructions install the community edition (CE) on your Amazon EKS cluster. No pre-installation or pre-configuration is required. This procedure 
-installs an EKS cluster, an EBS volume, an S3 bucket, load balancing, etc. When you complete this procedure, you'll have 
-the Community Edition of MLRun running on your EKS cluster.
+These instructions install the community edition (CE) on your Amazon EKS cluster. No pre-installation or pre-configuration is required. 
 
 **In this section**
 - [Prerequisites](#prerequisites)
@@ -223,9 +221,11 @@ The MLRun CE (Community Edition) includes the following services:
   - MLRun DB (MySQL)
 - Nuclio - https://github.com/nuclio/nuclio
 - Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
+- Kafka
 - Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
+- TDengine  
 
 ## Installation
 1. [Optional] Create or import a certificate to AWS Certificate Manager for the relevant domain including wildcards **\*.SYSTEM_NAME.example.com** by one of:

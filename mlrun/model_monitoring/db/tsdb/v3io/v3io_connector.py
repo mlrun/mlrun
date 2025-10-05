@@ -25,6 +25,7 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas import EventFieldType
+from mlrun.config import config
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn, get_start_end
 from mlrun.utils import logger
@@ -368,6 +369,49 @@ class V3IOTSDBConnector(TSDBConnector):
 
         apply_storey_filter()
         apply_tsdb_target(name="tsdb3", after="FilterNotNone")
+
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
+        graph.add_step(
+            "storey.TSDBTarget",
+            name="tsdb_metrics",
+            after=after,
+            path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.METRICS]}",
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            container=self.container,
+            v3io_frames=self.v3io_framesd,
+            infer_columns_from_data=True,
+            graph_shape="cylinder",
+            index_cols=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.WriterEvent.ENDPOINT_NAME,
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.MetricData.METRIC_NAME,
+            ],
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
+            key=mm_schemas.EventFieldType.ENDPOINT_ID,
+        )
+
+        graph.add_step(
+            "storey.TSDBTarget",
+            name="tsdb_app_results",
+            after=after,
+            path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]}",
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            container=self.container,
+            v3io_frames=self.v3io_framesd,
+            infer_columns_from_data=True,
+            graph_shape="cylinder",
+            index_cols=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.WriterEvent.ENDPOINT_NAME,
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.ResultData.RESULT_NAME,
+            ],
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
+            key=mm_schemas.EventFieldType.ENDPOINT_ID,
+        )
 
     def handle_model_error(
         self,

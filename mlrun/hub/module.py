@@ -26,6 +26,7 @@ from mlrun.common.schemas.hub import HubModuleType, HubSourceType
 from mlrun.run import function_to_module, get_object
 from mlrun.utils import logger
 
+from ..errors import MLRunBadRequestError
 from ..model import ModelObj
 from ..utils import extend_hub_uri_if_needed
 
@@ -121,6 +122,10 @@ class HubModule(ModelObj):
         return Path(os.getcwd())
 
     def get_module_file_path(self):
+        if not self.local_path:
+            raise MLRunBadRequestError(
+                "module files haven't been downloaded yet, try calling download_module_files() first"
+            )
         return str(Path(self.local_path) / self.filename)
 
 

@@ -51,8 +51,12 @@ class Functions(
             # intermediate steps or temporary objects which might not be executed at any phase and therefore we don't
             # want to enrich if user didn't requested.
             # (The way user will request to generate is by passing $generate in the metadata.credentials.access_key)
-            framework.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
-                function_obj, auth_info, allow_empty_access_key=True
+            framework.api.utils.apply_enrichment_and_validation_on_function(
+                function=function_obj,
+                auth_info=auth_info,
+                allow_empty_access_key=True,
+                perform_auto_mount=False,
+                ensure_security_context=False,
             )
             function = function_obj.to_dict()
 

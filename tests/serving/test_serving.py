@@ -25,7 +25,6 @@ from nuclio_sdk import Context as NuclioContext
 from sklearn.datasets import load_iris
 
 import mlrun
-import mlrun.errors
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.funcdoc import py_eval
 from mlrun.runtimes.nuclio.serving import serving_subkind

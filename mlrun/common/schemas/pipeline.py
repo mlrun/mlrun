@@ -18,7 +18,7 @@ import pydantic.v1
 
 
 class PipelinesPagination(str):
-    default_page_size = 20
+    default_page_size = 200
     # https://github.com/kubeflow/pipelines/blob/master/backend/src/apiserver/list/list.go#L363
     max_page_size = 200
 

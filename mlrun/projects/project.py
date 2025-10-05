@@ -1932,7 +1932,7 @@ class MlrunProject(ModelObj):
                     },
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.5, "max_tokens": 200},
+                invocation_config={"temperature": 0.5, "max_tokens": 200},
                 description="Prompt for handling customer support queries",
                 tag="support-v1",
                 labels={"domain": "support"},
@@ -1949,7 +1949,7 @@ class MlrunProject(ModelObj):
                     }
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.7, "max_tokens": 256},
+                invocation_config={"temperature": 0.7, "max_tokens": 256},
                 description="Q&A prompt template with user-provided question",
                 tag="v2",
                 labels={"task": "qa", "stage": "experiment"},
@@ -4109,7 +4109,7 @@ class MlrunProject(ModelObj):
                                 The `count` field in the `Retry` object specifies the number of retry attempts.
                                 If `count=0`, the run will not be retried.
                                 The `backoff` field specifies the retry backoff strategy between retry attempts.
-                                If not provided, no backoff is applied.
+                                If not provided, the default backoff delay is 30 seconds.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         if artifact_path:

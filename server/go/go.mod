@@ -12,7 +12,6 @@ require (
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.17.0
 	google.golang.org/grpc v1.75.1
-	google.golang.org/protobuf v1.36.9
 	k8s.io/api v0.32.9
 	k8s.io/apimachinery v0.32.9
 	k8s.io/client-go v0.32.9
@@ -50,6 +49,7 @@ require (
 	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.13.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
+	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

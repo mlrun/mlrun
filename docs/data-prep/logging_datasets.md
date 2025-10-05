@@ -26,7 +26,9 @@ import mlrun.datastore
 
 
 # Ingest a data set into the platform
-def get_data(context: mlrun.execution.MLClientCtx, source_url: DataItem, format: str = "csv"):
+def get_data(
+    context: mlrun.execution.MLClientCtx, source_url: DataItem, format: str = "csv"
+):
 
     iris_dataset = source_url.as_df()
 

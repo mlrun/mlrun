@@ -20,7 +20,7 @@ import pandas as pd
 import mlrun
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
-from mlrun import config
+from mlrun.config import config
 from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.preaggregate import (

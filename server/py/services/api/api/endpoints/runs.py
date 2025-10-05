@@ -291,7 +291,9 @@ async def list_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    allowed_project_names = await _get_allowed_project_names(project, auth_info, db_session)
+    allowed_project_names = await _get_allowed_project_names(
+        project, auth_info, db_session
+    )
 
     paginator = framework.utils.pagination.Paginator()
 

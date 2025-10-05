@@ -5109,7 +5109,9 @@ class MlrunProject(ModelObj):
             runs.compare()
 
             # multi-label filter can also be provided
-            runs = project.list_completed_runs(name="download", labels=["kind=job", "owner=admin"])
+            runs = project.list_completed_runs(
+                name="download", labels=["kind=job", "owner=admin"]
+            )
 
             # If running in Jupyter, can use the .show() function to display the results
             project.list_completed_runs(name="").show()
@@ -5128,7 +5130,8 @@ class MlrunProject(ModelObj):
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
-        :param last_update_time_from: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
+            last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
         :param end_time_from: Filter by run end time in ``[end_time_from, end_time_to]``.
         :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.

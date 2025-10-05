@@ -26,6 +26,7 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+import mlrun_pipelines.client
 from mlrun.utils import logger, retry_until_successful
 
 import framework.db.session
@@ -536,7 +537,11 @@ class Projects(
         filter_: str = "",
     ):
         return services.api.crud.Pipelines().list_pipelines(
-            session, "*", format_=format_, page_token=page_token, filter_=filter_
+            session,
+            "*",
+            format_=format_,
+            page_token=page_token,
+            filter_json=filter_,
         )
 
     async def _calculate_pipelines_counters(
@@ -579,7 +584,9 @@ class Projects(
                     framework.db.session.run_function_with_new_db_session,
                     self._list_pipelines,
                     page_token=next_page_token,
-                    filter_=mlrun.utils.get_kfp_list_runs_filter(start_date=start_date),
+                    filter_=mlrun_pipelines.client.create_list_runs_filter(
+                        start_date=start_date
+                    ),
                 )
 
                 for pipeline in pipelines:

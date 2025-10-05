@@ -180,7 +180,7 @@ class ModelProvider(BaseRemoteClient):
         raise NotImplementedError("custom_invoke method is not implemented")
 
     async def async_custom_invoke(
-        self, operation: Optional[Callable[..., Awaitable[Any]]], **invoke_kwargs
+        self, operation: Optional[Callable[..., Awaitable[Any]]] = None, **invoke_kwargs
     ) -> Any:
         """
         Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)

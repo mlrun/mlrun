@@ -1888,7 +1888,7 @@ class MlrunProject(ModelObj):
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         description: Optional[str] = None,
         target_path: Optional[str] = None,
         artifact_path: Optional[str] = None,
@@ -1932,7 +1932,7 @@ class MlrunProject(ModelObj):
                     },
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.5, "max_tokens": 200},
+                invocation_config={"temperature": 0.5, "max_tokens": 200},
                 description="Prompt for handling customer support queries",
                 tag="support-v1",
                 labels={"domain": "support"},
@@ -1949,7 +1949,7 @@ class MlrunProject(ModelObj):
                     }
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.7, "max_tokens": 256},
+                invocation_config={"temperature": 0.7, "max_tokens": 256},
                 description="Q&A prompt template with user-provided question",
                 tag="v2",
                 labels={"task": "qa", "stage": "experiment"},
@@ -1971,7 +1971,7 @@ class MlrunProject(ModelObj):
                with the place-holder name. "description" will point to explanation of what that placeholder represents.
                Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
-        :param model_configuration: Configuration dictionary for model generation parameters
+        :param invocation_config: Configuration dictionary for model generation parameters
                (e.g., temperature, max tokens).
         :param description:   Optional description of the prompt.
         :param target_path:   Absolute target path (instead of using artifact_path + local_path)
@@ -1998,7 +1998,7 @@ class MlrunProject(ModelObj):
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             model_artifact=model_artifact,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             target_path=target_path,
             description=description,
             **kwargs,
@@ -3816,7 +3816,7 @@ class MlrunProject(ModelObj):
 
             import mlrun
             from mlrun.datastore.datastore_profile import (
-                DatastoreProfileKafkaSource,
+                DatastoreProfileKafkaStream,
                 DatastoreProfileTDEngine,
             )
 
@@ -3833,7 +3833,7 @@ class MlrunProject(ModelObj):
             project.register_datastore_profile(tsdb_profile)
 
             # Create and register stream profile
-            stream_profile = DatastoreProfileKafkaSource(
+            stream_profile = DatastoreProfileKafkaStream(
                 name="my-kafka",
                 brokers=["<kafka-broker-ip-address>:9094"],
                 topics=[],  # Keep the topics list empty
@@ -3875,9 +3875,9 @@ class MlrunProject(ModelObj):
 
         .. code-block:: python
 
-            from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+            from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
 
-            stream_profile = DatastoreProfileKafkaSource(
+            stream_profile = DatastoreProfileKafkaStream(
                 name="confluent-kafka",
                 brokers=["<server-domain-start>.confluent.cloud:9092"],
                 topics=[],
@@ -3906,7 +3906,7 @@ class MlrunProject(ModelObj):
                                           The supported profiles are:
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
-                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream`
 
                                           You need to register one of them, and pass the profile's name.
         :param replace_creds:             If ``True`` - override the existing credentials.
@@ -4104,7 +4104,12 @@ class MlrunProject(ModelObj):
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.
         :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
-        :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
+        :param retry:           Retry configuration for the run, can be a dict or an instance of
+                                :py:class:`~mlrun.model.Retry`.
+                                The `count` field in the `Retry` object specifies the number of retry attempts.
+                                If `count=0`, the run will not be retried.
+                                The `backoff` field specifies the retry backoff strategy between retry attempts.
+                                If not provided, the default backoff delay is 30 seconds.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         if artifact_path:

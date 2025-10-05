@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from collections import defaultdict
 from typing import Any, Optional
 
 import sqlalchemy.orm
@@ -37,7 +38,7 @@ secret_name_separator = "-__-"
 class Hub(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
         self._internal_project_name = config.hub.k8s_secrets_project_name
-        self._catalogs = {}
+        self._catalogs = defaultdict(dict)
 
     def add_source(self, source: mlrun.common.schemas.hub.HubSource):
         source_name = source.metadata.name
@@ -85,7 +86,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         :return: catalog object
         """
         source_name = source.metadata.name
-        if not self._catalogs.get(source_name) or force_refresh:
+        if not self._catalogs.get(source_name, {}).get(object_type) or force_refresh:
             url = source.get_catalog_uri(object_type)
             credentials = self._get_source_credentials(source_name)
             catalog_data = mlrun.run.get_object(url=url, secrets=credentials)
@@ -93,9 +94,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             catalog = self._transform_catalog_dict_to_schema(
                 source, catalog_dict, object_type
             )
-            self._catalogs[source_name] = catalog
+            self._catalogs[source_name][object_type] = catalog
         else:
-            catalog = self._catalogs[source_name]
+            catalog = self._catalogs[source_name][object_type]
 
         result_catalog = mlrun.common.schemas.hub.HubCatalog(
             catalog=[], channel=source.spec.channel
@@ -199,11 +200,12 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
+        item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
         hub_sources = framework.utils.singletons.db.get_db().list_hub_sources(
             db_session
         )
-        return self.filter_hub_sources(hub_sources, item_name, tag, version)
+        return self.filter_hub_sources(hub_sources, item_name, tag, version, item_type)
 
     def filter_hub_sources(
         self,

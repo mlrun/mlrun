@@ -43,7 +43,7 @@ import storey
 
 import mlrun.datastore.wasbfs
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaStream,
     DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
 )
@@ -123,7 +123,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
         )
         if isinstance(
             datastore_profile,
-            (DatastoreProfileKafkaSource, DatastoreProfileKafkaTarget),
+            (DatastoreProfileKafkaStream, DatastoreProfileKafkaTarget),
         ):
             attributes = datastore_profile.attributes()
             brokers = attributes.pop("brokers", None)

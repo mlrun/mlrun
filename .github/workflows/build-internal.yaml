@@ -135,7 +135,7 @@ jobs:
         INPUT_DOCKER_REGISTRIES: ${{ inputs.docker_registries }}
 
     - name: Docker login (ghcr)
-      uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # 3.5.0
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
@@ -144,7 +144,7 @@ jobs:
     - name: Docker login (quay.io)
       continue-on-error: true
       if: github.event.inputs.pr_number == ''
-      uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # 3.5.0
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
@@ -153,7 +153,7 @@ jobs:
     - name: Docker login (docker.com)
       if: github.event.inputs.pr_number == ''
       continue-on-error: true
-      uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # 3.5.0
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
         registry: registry.hub.docker.com
         username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}

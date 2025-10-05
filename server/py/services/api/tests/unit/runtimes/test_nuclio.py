@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
@@ -1789,9 +1790,11 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self.execute_function(function)
         args, _ = nuclio.deploy.deploy_config.call_args
-
-        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
-            function.invoke("/")
+        with unittest.mock.patch.object(
+            function, "_get_state", return_value=("ready", "", None)
+        ):
+            with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+                function.invoke("/")
 
     def test_error_on_multiple_stream_triggers_old_nuclio_explicit_ack(self):
         mlconf.nuclio_version = "1.13.11"
@@ -1856,6 +1859,116 @@ class TestNuclioRuntime(TestRuntimeBase):
             raw_config.get("spec.triggers.stream").get("attributes", {}).get("password")
             == raw_password
         )
+
+    @pytest.mark.parametrize(
+        "inside_k8s,force_external,internal_urls,external_urls,address,expected_url,expected_exception,disable_default_http_trigger",
+        [
+            # Prefer internal when inside k8s and not forcing external
+            (
+                True,
+                False,
+                ["internal-url:1234"],
+                ["external-url:5678"],
+                "legacy-address:4321",
+                "internal-url:1234",
+                None,
+                False,
+            ),
+            # Use external when forcing external
+            (
+                True,
+                True,
+                ["internal-url:1234"],
+                ["external-url:5678"],
+                "legacy-address:4321",
+                "external-url:5678",
+                None,
+                False,
+            ),
+            # Use external when not inside k8s
+            (
+                False,
+                False,
+                ["internal-url:1234"],
+                ["external-url:5678"],
+                "legacy-address:4321",
+                "external-url:5678",
+                None,
+                False,
+            ),
+            # Fallback to address if no invocation urls
+            (
+                True,
+                False,
+                [],
+                [],
+                "legacy-address:4321",
+                "legacy-address:4321",
+                None,
+                False,
+            ),
+            # Error if no address and no triggers, default http trigger disabled
+            (
+                True,
+                False,
+                [],
+                [],
+                "",
+                None,
+                mlrun.errors.MLRunPreconditionFailedError,
+                True,
+            ),
+            # Error if no address and no triggers, default http trigger enabled
+            (True, False, [], [], "", None, ValueError, False),
+            (False, True, [], [], "", None, ValueError, False),
+        ],
+    )
+    def test_get_url(
+        self,
+        inside_k8s,
+        force_external,
+        internal_urls,
+        external_urls,
+        address,
+        expected_url,
+        expected_exception,
+        disable_default_http_trigger,
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        ingress_host = "something.com"
+        function = function.with_http(host=ingress_host, paths=["/"], port=30030)
+
+        function.status.internal_invocation_urls = internal_urls
+        function.status.external_invocation_urls = external_urls
+        function.status.address = address
+        function.spec.disable_default_http_trigger = disable_default_http_trigger
+
+        for state in ["ready", "error", "building"]:
+            with unittest.mock.patch.object(
+                function, "_get_state", return_value=(state, "", None)
+            ):
+                with unittest.mock.patch.object(
+                    mlrun.k8s_utils,
+                    "is_running_inside_kubernetes_cluster",
+                    return_value=inside_k8s,
+                ):
+                    if expected_exception:
+                        function.spec.config = (
+                            {}
+                            if expected_exception
+                            == mlrun.errors.MLRunPreconditionFailedError
+                            else function.spec.config
+                        )
+                        with pytest.raises(expected_exception):
+                            function.get_url(force_external_address=force_external)
+                    else:
+                        url = function.get_url(force_external_address=force_external)
+                        assert isinstance(url, str)
+                        assert (
+                            expected_url in url
+                            if expected_url
+                            else url.startswith("http")
+                        )
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

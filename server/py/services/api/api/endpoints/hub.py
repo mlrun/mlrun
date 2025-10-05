@@ -73,6 +73,7 @@ async def list_sources(
     item_name: Optional[str] = Query(None, alias="item-name"),
     tag: Optional[str] = Query(None),
     version: Optional[str] = Query(None),
+    item_type: HubSourceType = Query(HubSourceType.functions, alias="item-type"),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         framework.api.deps.authenticate_request
@@ -92,6 +93,7 @@ async def list_sources(
         item_name,
         tag,
         version,
+        item_type,
     )
 
 

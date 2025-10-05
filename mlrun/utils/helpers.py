@@ -35,8 +35,6 @@ from os import path
 from types import ModuleType
 from typing import Any, Optional
 from urllib.parse import urlparse
-from packaging.requirements import Requirement
-from packaging.utils import canonicalize_name
 
 import git
 import inflection
@@ -48,6 +46,8 @@ import semver
 import yaml
 from dateutil import parser
 from orjson import orjson
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -804,8 +804,10 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     uri = re.sub(r"(#[^:@\s]*)?:[^@^:\s]+(?=(@|\^|$))", lambda m: m.group(1) or "", uri)
     return uri if not add_store else DB_SCHEMA + "://" + uri
 
+
 def check_if_hub_uri(uri: str) -> bool:
     return uri.startswith(hub_prefix)
+
 
 def extend_hub_uri_if_needed(
     uri: str,
@@ -2473,7 +2475,10 @@ def _normalize_requirements(reqs: typing.Union[str, list[str], None]) -> list[st
         return [s] if s else []
     return [s.strip() for s in reqs if s and s.strip()]
 
-def merge_requirements(reqs1: typing.Union[str, list[str], None], reqs2: typing.Union[str, list[str], None]) -> list[str]:
+
+def merge_requirements(
+    reqs1: typing.Union[str, list[str], None], reqs2: typing.Union[str, list[str], None]
+) -> list[str]:
     """
     Merge two requirement collections into a union. If the same package
     appears in both, the specifier from reqs1 wins.

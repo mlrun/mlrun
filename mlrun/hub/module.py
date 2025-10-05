@@ -123,6 +123,7 @@ class HubModule(ModelObj):
     def get_module_file_path(self):
         return str(Path(self.local_path) / self.filename)
 
+
 def get_hub_module(
     url="", download_files=True, secrets=None, local_path=None
 ) -> HubModule:

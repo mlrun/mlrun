@@ -1068,7 +1068,7 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
             "url": "hub://count_events",
             "class_name": "CountApp",
             "app_name": "count",
-            "result_name": "count"
+            "result_name": "count",
         }
 
         # model monitoring infra
@@ -1205,7 +1205,11 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
         assert len(monitoring_results) == 2
         result_name = self.app_data["result_name"]
-        result_names = [result.full_name for result in monitoring_results if result_name in result.full_name]
+        result_names = [
+            result.full_name
+            for result in monitoring_results
+            if result_name in result.full_name
+        ]
 
         self._test_result_values(
             ep_id=model_endpoint.metadata.uid,

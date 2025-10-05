@@ -502,9 +502,14 @@ def get_in(obj, keys, default=None):
     if isinstance(keys, str):
         keys = keys.split(".")
     for key in keys:
-        if not obj or key not in obj:
+        if obj is None:
             return default
-        obj = obj[key]
+        if isinstance(obj, dict):
+            if key not in obj:
+                return default
+            obj = obj[key]
+        else:
+            obj = getattr(obj, key, default)
     return obj
 
 

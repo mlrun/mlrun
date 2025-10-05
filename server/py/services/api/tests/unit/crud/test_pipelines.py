@@ -13,6 +13,9 @@
 # limitations under the License.
 
 import json
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 import mlrun_pipelines
 import mlrun_pipelines.common.helpers
@@ -258,3 +261,50 @@ def test_resolve_pipeline_project():
             mlrun_pipelines.models.PipelineRun(pipeline)
         )
         assert project == case["expected_project"]
+
+
+@pytest.mark.parametrize(
+    "project,expected_ids",
+    [
+        ("project-a", ["run1"]),
+        ("*", ["run1", "run2"]),
+    ],
+)
+def test_list_pipelines_project_filtering(project, expected_ids):
+    pipelines = services.api.crud.pipelines.Pipelines()
+    db_session = MagicMock()
+
+    # Mock runs and KFP client
+    run1 = MagicMock(id="run1", name="pipeline1", status="Succeeded")
+    run2 = MagicMock(id="run2", name="pipeline2", status="Failed")
+    all_runs = [run1, run2]
+    mock_kfp_client = MagicMock()
+    mock_kfp_client.list_runs.return_value = [(all_runs, None)]
+
+    with (
+        patch.object(
+            services.api.crud.pipelines.Pipelines,
+            "_initialize_kfp_client",
+            return_value=mock_kfp_client,
+        ),
+        patch.object(
+            services.api.crud.pipelines.Pipelines,
+            "_resolve_project_from_pipeline",
+            side_effect=lambda run: "project-a" if run.id == "run1" else "project-b",
+        ),
+        patch.object(
+            services.api.crud.pipelines.Pipelines,
+            "_format_runs",
+            side_effect=lambda kfp_client, runs, format_: [
+                {"id": r.id, "name": r.name} for r in runs
+            ],
+        ),
+    ):
+        total_size, next_page_token, runs = pipelines.list_pipelines(
+            db_session=db_session,
+            project=project,
+        )
+
+    assert total_size == len(expected_ids)
+    assert next_page_token is None
+    assert [r["id"] for r in runs] == expected_ids

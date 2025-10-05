@@ -15,6 +15,8 @@
 
 import copy
 import datetime
+import functools
+import json
 import os
 import re
 import tarfile
@@ -22,6 +24,8 @@ import tempfile
 import time
 import typing
 import zipfile
+from collections.abc import Generator
+from typing import Optional
 
 import kfp_server_api
 import kubernetes as k8s
@@ -31,9 +35,7 @@ import yaml
 import mlrun_pipelines.common.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.models
-
-if typing.TYPE_CHECKING:
-    import mlrun.utils
+from mlrun_pipelines.models import PipelineRun
 
 IN_CLUSTER_DNS_NAME = "ml-pipeline.{}.svc.cluster.local:8888"
 KUBE_PROXY_PATH = "api/v1/namespaces/{}/services/ml-pipeline:http/proxy/"
@@ -110,7 +112,7 @@ class Client(
 ):
     def __init__(
         self,
-        logger: "mlrun.utils.logger.Logger",
+        logger,
         host: typing.Optional[str] = None,
         namespace: str = "mlrun",
     ):
@@ -144,6 +146,39 @@ class Client(
         self._healthz_api = kfp_server_api.api.healthz_service_api.HealthzServiceApi(
             api_client=self._api_client,
         )
+
+        self._server_major_version = self._get_server_major_version_once()
+
+    @functools.lru_cache(maxsize=1)
+    def _get_server_major_version_once(self) -> int:
+        return self._determine_server_major_version()
+
+    def _determine_server_major_version(self) -> int:
+        """
+        Determine the major version of the KFP server.
+
+        :return: The major version as an integer.
+        :raises ValueError: If the version string is not in the expected format.
+        """
+        try:
+            _, status, __ = self._api_client.call_api(
+                resource_path="/apis/v2beta1/healthz",
+                method="GET",
+            )
+            if status == 200:
+                return 2
+            else:
+                raise ValueError(
+                    f"Unexpected status code from healthz endpoint: {status}"
+                )
+
+        except kfp_server_api.ApiException as api_error:
+            if api_error.status == 404:
+                return 1
+            else:
+                raise ValueError(
+                    f"Unexpected status code from healthz endpoint: {api_error.status}"
+                )
 
     def _get_config_with_default_credentials(
         self,
@@ -399,57 +434,78 @@ class Client(
 
     def list_runs(
         self,
-        page_token: str = "",
-        page_size: int = 10,
-        sort_by: str = "",
-        experiment_id: typing.Optional[str] = None,
+        project: typing.Union[list[str], Optional[str]] = None,
         namespace: typing.Optional[str] = None,
-        filter: typing.Optional[str] = None,
-    ) -> kfp_server_api.ApiListRunsResponse:
+        sort_by: typing.Optional[str] = None,
+        page_token: typing.Optional[str] = None,
+        filter_json: typing.Optional[str] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> Generator[tuple[list[PipelineRun], Optional[str]], None, None]:
         """
         List pipeline runs with optional filters.
 
         This method retrieves runs, optionally filtering by experiment ID, namespace, or custom filters.
         Pagination and sorting are also supported.
-
+        :param project:       The project name or a list of project names to filter runs by.
         :param page_token:    A token for pagination.
         :param page_size:     Number of runs to retrieve per request.
         :param sort_by:       A string specifying how to sort the results.
-        :param experiment_id: An optional experiment ID to filter runs by.
         :param namespace:     An optional namespace to filter runs by.
-        :param filter:       A custom filter string (if any).
-        :return: An ApiListRunsResponse object containing the runs.
+        :param filter_json:   A custom filter string (if any).
+        :return: A generator yielding tuples of (list of PipelineRun, next_page_token).
         """
-        if experiment_id is not None:
-            response = self._run_api.list_runs(
-                page_token=page_token,
-                page_size=page_size,
-                sort_by=sort_by,
-                resource_reference_key_type=(
-                    kfp_server_api.models.api_resource_type.ApiResourceType.EXPERIMENT
-                ),
-                resource_reference_key_id=experiment_id,
-                filter=filter,
+        page_size = page_size or 50
+        next_page_token = page_token or None
+        project_names = None
+
+        if isinstance(project, str) and project != "*":
+            project_names = [project]
+        elif isinstance(project, list):
+            project_names = project
+        candidate_experiment_ids = []
+
+        if self._server_major_version == 2 and project_names:
+            self.logger.debug(
+                "Resolving experiments by project-based substring match",
+                project=project,
             )
-        elif namespace:
-            response = self._run_api.list_runs(
-                page_token=page_token,
-                page_size=page_size,
-                sort_by=sort_by,
-                resource_reference_key_type=(
-                    kfp_server_api.models.api_resource_type.ApiResourceType.NAMESPACE
-                ),
-                resource_reference_key_id=namespace,
-                filter=filter,
+            candidate_experiments = self._get_candidate_experiments_for_projects(
+                project_names=project_names,
             )
+            candidate_experiment_ids = [
+                experiment.id for experiment in candidate_experiments
+            ]
+
+        filter_json = create_list_runs_filter(
+            filter_=filter_json,
+            experiment_ids=candidate_experiment_ids,
+        )
+        if candidate_experiment_ids and len(candidate_experiment_ids) == 1:
+            single_experiment_id = candidate_experiment_ids[0]
         else:
-            response = self._run_api.list_runs(
-                page_token=page_token,
+            single_experiment_id = None
+
+        if next_page_token:
+            # If the user provided a page token, they are doing pagination manually.
+            page_runs, next_page_token = self._list_runs(
+                page_token=next_page_token,
+                page_size=page_size,
+                namespace=namespace,
+                experiment_id=single_experiment_id,
+            )
+            yield page_runs, next_page_token
+            return
+        else:
+            next_page_token = None
+            for page_runs, next_page_token in self._paginate_runs(
+                page_token=next_page_token,
                 page_size=page_size,
                 sort_by=sort_by,
-                filter=filter,
-            )
-        return response
+                namespace=namespace,
+                experiment_id=single_experiment_id,
+                filter_json=filter_json,
+            ):
+                yield page_runs, next_page_token
 
     def get_run(
         self,
@@ -664,9 +720,9 @@ class Client(
             )
             raise error
 
-    def get_candidate_experiments_for_projects(
+    def _get_candidate_experiments_for_projects(
         self,
-        project_names: list[str],
+        project_names: typing.Union[list[str], str],
     ) -> list[kfp_server_api.ApiExperiment]:
         """
         Retrieve an experiment by project name.
@@ -863,3 +919,167 @@ class Client(
                 template["metadata"]["labels"][
                     "pipelines.kubeflow.org/enable_caching"
                 ] = str(enable_caching).lower()
+
+    def _list_runs(
+        self,
+        page_token: typing.Optional[str] = None,
+        page_size: int = 10,
+        sort_by: typing.Optional[str] = None,
+        experiment_id: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
+        filter_json: typing.Optional[str] = None,
+    ) -> tuple[
+        list[mlrun_pipelines.models.PipelineRun],
+        str,
+    ]:
+        page_token = page_token or ""
+        filter_json = filter_json or ""
+        sort_by = sort_by or ""
+
+        self.logger.debug(
+            "Listing runs from KFP",
+            page_token=page_token,
+            page_size=page_size,
+            sort_by=sort_by,
+            experiment_id=experiment_id,
+            namespace=namespace,
+            filter_json=filter_json,
+        )
+
+        if experiment_id is not None:
+            response = self._run_api.list_runs(
+                page_token=page_token,
+                page_size=page_size,
+                sort_by=sort_by,
+                resource_reference_key_type=(
+                    kfp_server_api.models.api_resource_type.ApiResourceType.EXPERIMENT
+                ),
+                resource_reference_key_id=experiment_id,
+                filter=filter_json,
+            )
+        elif namespace:
+            response = self._run_api.list_runs(
+                page_token=page_token,
+                page_size=page_size,
+                sort_by=sort_by,
+                resource_reference_key_type=(
+                    kfp_server_api.models.api_resource_type.ApiResourceType.NAMESPACE
+                ),
+                resource_reference_key_id=namespace,
+                filter=filter_json,
+            )
+        else:
+            response = self._run_api.list_runs(
+                page_token=page_token,
+                page_size=page_size,
+                sort_by=sort_by,
+                filter=filter_json,
+            )
+        return [
+            mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []
+        ], response.next_page_token
+
+    def _paginate_runs(
+        self,
+        page_token: typing.Optional[str] = None,
+        page_size: int = 10,
+        sort_by: typing.Optional[str] = None,
+        experiment_id: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
+        filter_json: typing.Optional[str] = None,
+    ) -> Generator[tuple[list[PipelineRun], str], None, None]:
+        current_page_token = page_token
+        fetched_run_count = 0
+        self.logger.debug(
+            "Paginating runs from KFP",
+            page_token=current_page_token,
+            page_size=page_size,
+            sort_by=sort_by,
+            experiment_id=experiment_id,
+            namespace=namespace,
+            filter_=filter_json,
+        )
+
+        runs, next_page_token = self._list_runs(
+            page_token=current_page_token,
+            page_size=page_size,
+            sort_by=sort_by,
+            experiment_id=experiment_id,
+            namespace=namespace,
+            filter_json=filter_json,
+        )
+        yield runs, next_page_token
+        fetched_run_count += len(runs)
+        current_page_token = next_page_token
+        while current_page_token:
+            runs, next_page_token = self._list_runs(
+                page_token=current_page_token,
+                page_size=page_size,
+                experiment_id=experiment_id,
+                namespace=namespace,
+            )
+            fetched_run_count += len(runs)
+            current_page_token = next_page_token
+            yield runs, next_page_token
+
+        self.logger.debug(
+            "Finished paginating runs from KFP",
+            page_token=current_page_token,
+            page_size=page_size,
+            sort_by=sort_by,
+            filter_json=filter_json,
+            fetched_run_count=fetched_run_count,
+        )
+
+
+def create_list_runs_filter(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    filter_: Optional[str] = None,
+    experiment_ids: Optional[list[str]] = None,
+) -> str:
+    """
+    Generate a filter for KFP runs based on start and end dates, and experiment IDs.
+    """
+    existing_filter_object = json.loads(filter_) if filter_ else {"predicates": []}
+    if experiment_ids:
+        preserved_predicates = [
+            predicate
+            for predicate in existing_filter_object.get("predicates", [])
+            if predicate.get("key") != "name"
+        ]
+    else:
+        preserved_predicates = existing_filter_object.get("predicates", [])
+
+    new_predicates = []
+    if end_date:
+        new_predicates.append(
+            {
+                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
+                "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
+                "timestamp_value": end_date,
+            }
+        )
+
+    if start_date:
+        new_predicates.append(
+            {
+                "key": mlrun_pipelines.models.FilterFields.CREATED_AT,
+                "op": mlrun_pipelines.models.FilterOperations.GREATER_THAN_EQUALS.value,
+                "timestamp_value": start_date,
+            }
+        )
+
+    if experiment_ids and all(experiment_ids):
+        new_predicates.append(
+            {
+                "key": mlrun_pipelines.models.FilterFields.EXPERIMENT_ID,
+                "op": mlrun_pipelines.models.FilterOperations.IN.value,
+                "string_values": {"values": experiment_ids},
+            }
+        )
+
+    final_filter_object = {"predicates": preserved_predicates + new_predicates}
+    if not final_filter_object["predicates"]:
+        return ""
+    return orjson.dumps(final_filter_object).decode()

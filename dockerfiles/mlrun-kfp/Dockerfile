@@ -55,3 +55,6 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 # Remove server related files that are not needed
 # Remove ensurepip folders from both conda and system python
 RUN rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip /tmp/mlrun
+
+RUN chmod 777 /mlrun
+WORKDIR /mlrun

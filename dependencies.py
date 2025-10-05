@@ -65,12 +65,16 @@ def extra_requirements() -> dict[str, list[str]]:
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
         "sqlalchemy": ["sqlalchemy~=2.0"],
         "dask": [
-            # dask 2023 does not work on python 3.11
-            # dask 2024 requires dependencies that current mlrun with 3.9 cannot support
-            'dask>=2023.12.1; python_version < "3.11"',
-            'dask>=2024.8; python_version >= "3.11"',
-            'distributed>=2023.12.1; python_version < "3.11"',
-            'distributed>=2024.8; python_version >= "3.11"',
+            # Use ~= instead of >= to avoid installing newer versions of dask and distributed,
+            # which can cause incompatibilities between the client and the Dask scheduler/worker.
+            # (both must be the same version)
+            # Reference: https://blog.dask.org/2023/04/14/scheduler-environment-requirements
+            # Note: dask 2023 does not work on Python 3.11, and dask 2024 requires dependencies
+            # that MLRun with Python 3.9 cannot support.
+            'dask~=2023.12.1; python_version < "3.11"',
+            'dask==2024.8; python_version >= "3.11"',
+            'distributed~=2023.12.1; python_version < "3.11"',
+            'distributed==2024.8; python_version >= "3.11"',
         ],
         "alibaba-oss": ["ossfs==2025.5.0", "oss2==2.18.4"],
         "tdengine": ["taos-ws-py==0.3.2"],

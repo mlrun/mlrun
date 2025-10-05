@@ -12,13 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.serving import LLModel
 
-
-class MyLLM(LLModel):
-    def predict(self, body, **kwargs):
-        body["url"] = self.model_artifact.model_url
-        body["default_config"] = self.model_artifact.default_config
-        body["invocation_config"] = kwargs.get("invocation_config")
-        body["prompt"] = kwargs.get("messages")
-        return body
+def handler(context, event):
+    return "hello"

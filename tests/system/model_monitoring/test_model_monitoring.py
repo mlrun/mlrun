@@ -301,13 +301,13 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert len(eps) == number_of_real_time_eps + number_of_batch_eps
 
         real_time_eps = self.project.list_model_endpoints(
-            modes=EndpointMode.REAL_TIME
+            modes=EndpointMode.REAL_TIME.value
         ).endpoints
 
         assert len(real_time_eps) == number_of_real_time_eps
 
         batch_eps = self.project.list_model_endpoints(
-            modes=EndpointMode.BATCH
+            modes=EndpointMode.BATCH.value
         ).endpoints
         assert len(batch_eps) == number_of_batch_eps
 

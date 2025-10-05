@@ -3947,7 +3947,12 @@ class MlrunProject(ModelObj):
         end: Optional[datetime.datetime] = None,
         top_level: bool = False,
         modes: Optional[
-            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+            Union[
+                int,
+                list[int],
+                mm_constants.EndpointMode,
+                list[mm_constants.EndpointMode],
+            ]
         ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,

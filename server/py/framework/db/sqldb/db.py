@@ -3900,6 +3900,17 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
+        """
+        Calculate run counts per project for:
+        - Recently completed runs (last 24h)
+        - Recently failed runs (last 24h)
+        - Currently running runs
+
+        Only counts top-level runs (iteration == 0), ignoring child runs of hyperparameter jobs,
+        since all iterations of a hyperparam job share the same pod and shouldn't be double-counted.
+
+        :param session: The active DB session used to query runs.
+        """
         running_runs_count_per_project = (
             session.query(Run.project, func.count())
             .filter(Run.iteration == 0)
@@ -3911,6 +3922,7 @@ class SQLDB(DBInterface):
             .group_by(Run.project)
             .all()
         )
+
         project_to_running_runs_count = {
             result[0]: result[1] for result in running_runs_count_per_project
         }

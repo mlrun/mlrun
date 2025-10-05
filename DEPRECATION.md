@@ -41,8 +41,8 @@ Not all deprecations are directly visible to end-users.
 - **API-side deprecations** (e.g., in FastAPI endpoints or query parameters) only appear in **Swagger**, not in the MLRun SDK or logs.  
 - **Code-level deprecations** (parameters, classes, or methods) trigger Python `FutureWarning`s and are visible when running user code.
 
-Developers should **not attempt to propagate deprecation warnings** from the API to SDK users unless:
-- The SDK directly calls the deprecated API, or
+Developers should **not attempt to propagate deprecation warnings** from the mlrun-api to the SDK except if either of these cases holds:
+- The SDK directly calls the deprecated API
 - The change may affect user workflows or cause behavior changes.
 
 If visibility is limited to Swagger or internal logs, documenting the deprecation is sufficient.
@@ -117,9 +117,6 @@ async def list_runs():
     pass
 ```
 
-API changes are not documented in MLRun docs.
-Deprecation is only visible in Swagger and required when the SDK uses the endpoint.
-
 ### 5. FastAPI Query Parameter
 ```python
 limit: int = Query(
@@ -129,8 +126,6 @@ limit: int = Query(
     "Use page and page_size instead.",
 )
 ```
-API changes are not documented in mlrun docs. They are needed when the SDK may be using the endpoint. 
-The deprecation warning is only visible in Swagger.
 
 ---
 

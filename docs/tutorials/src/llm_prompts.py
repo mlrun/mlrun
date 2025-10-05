@@ -12,7 +12,7 @@ finance_prompt_template = [
             "⚠️ Important: If the user asks about anything not related to "
             "finance, politely decline to answer and remind them that you only "
             "handle finance-related queries."
-        )
+        ),
     },
     {
         "role": "user",
@@ -21,8 +21,8 @@ finance_prompt_template = [
             "Tone: {tone}\n"
             "Depth Level: {depth_level}\n\n"
             "Question: {question}"
-        )
-    }
+        ),
+    },
 ]
 
 sport_prompt_template = [
@@ -38,7 +38,7 @@ sport_prompt_template = [
             "⚠️ Important: If the user asks about anything not related to "
             "sports or fitness, politely decline to answer and remind them "
             "that you only handle sports-related queries."
-        )
+        ),
     },
     {
         "role": "user",
@@ -47,6 +47,6 @@ sport_prompt_template = [
             "Tone: {tone}\n"
             "Depth Level: {depth_level}\n\n"
             "Question: {question}"
-        )
-    }
+        ),
+    },
 ]

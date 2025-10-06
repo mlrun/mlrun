@@ -234,7 +234,18 @@ class AzureBlobStore(DataStore):
         #  if called without passing dataitem - like in fset.purge_targets,
         #  key will include schema.
         if not schema:
-            key = Path(self.endpoint, key).as_posix()
+            # For wasbs/wasb, the filesystem is scoped to the container, so we need to use
+            # the container name as the base path, not the hostname endpoint.
+            # For az://, endpoint already contains the container name.
+            if self.kind in ["wasbs", "wasb"]:
+                container = self.storage_options.get("container")
+                if container:
+                    key = Path(container, key).as_posix()
+                else:
+                    # If no container found, use endpoint (might be hostname, but better than nothing)
+                    key = Path(self.endpoint, key).as_posix()
+            else:
+                key = Path(self.endpoint, key).as_posix()
         return key
 
     def upload(self, key, src_path):

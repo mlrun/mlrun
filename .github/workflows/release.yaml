@@ -39,6 +39,38 @@ on:
         type: string
 jobs:
 
+  Extract-Version:
+    name: Extract Release Version
+    runs-on: ubuntu-latest
+    outputs:
+      release_version: ${{ steps.extract.outputs.release_version }}
+      rc_tag: ${{ steps.extract.outputs.rc_tag }}
+    steps:
+      - name: Extract version from RC tag
+        id: extract
+        env:
+          RELEASE_CANDIDATE_INPUT: ${{ inputs.release_candidate_promotion || 'rc-v1.13.205-18222610666-7a5dabe5' }}
+        run: |
+          echo "🎯 Trigger: ${{ github.event_name }}"
+          echo "🏷️ Release candidate to promote: $RELEASE_CANDIDATE_INPUT"
+          
+          # Extract version from RC tag (e.g., rc-v1.13.205-18222610666-7a5dabe5 → v1.13.205)
+          RC_TAG=$RELEASE_CANDIDATE_INPUT
+          RELEASE_VERSION=$(echo "$RC_TAG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+')
+          
+          echo "📦 Extracted version: $RELEASE_VERSION"
+          echo "🏷️ Original RC tag: $RC_TAG"
+          
+          # Validate version format
+          if [[ ! $RELEASE_VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format: $RELEASE_VERSION"
+            exit 1
+          fi
+          
+          echo "✅ Version validation passed!"
+          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "rc_tag=$RC_TAG" >> $GITHUB_OUTPUT
+
   Matrix-Prep:
     runs-on: ubuntu-latest
     outputs:
@@ -52,7 +84,7 @@ jobs:
 
   Create-Release:
     runs-on: ubuntu-latest
-    needs: Matrix-Prep
+    needs: [Extract-Version, Matrix-Prep]
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.Matrix-Prep.outputs.matrix) }}    
@@ -72,26 +104,15 @@ jobs:
         if: matrix.image-name != 'test'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_CANDIDATE_INPUT: ${{ inputs.release_candidate_promotion || 'rc-v1.13.205-18222610666-7a5dabe5' }}
+          RELEASE_VERSION: ${{ needs.Extract-Version.outputs.release_version }}
+          RC_TAG: ${{ needs.Extract-Version.outputs.rc_tag }}
         run: |
-          echo "🎯 Trigger: ${{ github.event_name }}"
-          echo "🏷️ Release candidate to promote: $RELEASE_CANDIDATE_INPUT"
-          
-          # Extract version from RC tag (e.g., rc-v1.13.205-18222610666-7a5dabe5 → v1.13.205)
-          RC_TAG=$RELEASE_CANDIDATE_INPUT
-          RELEASE_VERSION=$(echo "$RC_TAG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+')
-          
-          echo "📦 Extracted version: $RELEASE_VERSION"
-          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
-          
-          # Validate version format
-          if [[ ! $RELEASE_VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "❌ Invalid version format: $RELEASE_VERSION"
-            exit 1
-          fi
+          echo "🎯 Processing image: ${{ matrix.image-name }}"
+          echo "🏷️ RC tag: $RC_TAG"
+          echo "📦 Release version: $RELEASE_VERSION"
           
           # Re-tag images from RC to release (keeps both tags)
-          echo "�️ Creating new tag $RELEASE_VERSION for image ${{ matrix.image-name }}"
+          echo "🏷️ Creating new tag $RELEASE_VERSION for image ${{ matrix.image-name }}"
           echo "📋 Original RC tag: $RC_TAG (will remain unchanged)"
           echo "📋 New release tag: $RELEASE_VERSION"
           

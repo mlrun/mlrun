@@ -13,6 +13,9 @@
 # limitations under the License.
 
 # THIS BLOCK IS FOR VARIABLES USER MAY OVERRIDE
+# Define comma for use in Make function arguments to avoid parsing issues
+comma := ,
+
 DOCKER_DEFAULT_PLATFORM ?= linux/amd64
 MLRUN_VERSION ?= unstable
 # pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
@@ -40,9 +43,8 @@ MLRUN_UV_VERSION ?= 0.7.14
 MLRUN_UV_IMAGE ?= ghcr.io/astral-sh/uv:$(MLRUN_UV_VERSION)
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
-# 1. docker pull the same image with the given tag (cache image) before the build
-# 2. add the --cache-from flag to the docker build
-# 3. docker tag and push (also) the (updated) cache image
+# 1. add the --cache-from and --cache-to flags to the docker build using GHA cache type
+# 2. docker tag and push (also) the (updated) cache image
 MLRUN_DOCKER_CACHE_FROM_TAG ?=
 MLRUN_DOCKER_CACHE_FROM_REGISTRY ?= $(MLRUN_DOCKER_REGISTRY)
 MLRUN_PUSH_DOCKER_CACHE_IMAGE ?=
@@ -161,6 +163,8 @@ install-requirements: ## Install all requirements needed for development
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt
+	pre-commit install
+	pre-commit install-hooks
 
 .PHONY: install-dev-requirements
 install-dev-requirements: ## Install dev-requirements relevant for pytest and coverage.
@@ -172,6 +176,9 @@ install-dev-requirements: ## Install dev-requirements relevant for pytest and co
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r dev-requirements.txt
+	pre-commit install
+	pre-commit install-hooks
+	pre-commit install --hook-type commit-msg --hook-type pre-push
 
 .PHONY: install-docs-requirements
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
@@ -228,10 +235,6 @@ endif
 	find . \( ! -regex '.*/\..*' \) -a \( -iname \*.md -o -iname \*.txt -o -iname \*.yaml -o -iname \*.yml \)  \
 	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
 	find ./docs/install/*.yaml -type f -print0 | xargs -0 sed -i '' -e 's/{TAG:-.*}/{TAG:-$(MLRUN_NEW_VERSION)}/g'
-
-.PHONY: update-version-file
-update-version-file: ## Update the version file
-	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: generate-dockerignore
 generate-dockerignore: ## Copies the root .dockerignore and removes test exclusions for test-system
@@ -290,19 +293,16 @@ print-docker-images: ## Print all docker images
 	done
 	@make -C server/go print-docker-images
 
-
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun
 MLRUN_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun
 MLRUN_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=mlrun --cache-to type=gha$(comma)mode=max$(comma)scope=mlrun)
 MLRUN_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_IMAGE_NAME_TAGGED) $(MLRUN_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_CACHE_IMAGE_NAME_TAGGED),)
 DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun
-mlrun: common-image update-version-file ## Build mlrun docker image
-	$(MLRUN_CACHE_IMAGE_PULL_COMMAND)
+mlrun: common-image  ## Build mlrun docker image
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
@@ -311,7 +311,7 @@ mlrun: common-image update-version-file ## Build mlrun docker image
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_IMAGE_DOCKER_CACHE_FLAGS) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
 
@@ -329,15 +329,13 @@ MLRUN_KFP_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-kfp
 MLRUN_KFP_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-kfp
 MLRUN_KFP_IMAGE_NAME_TAGGED := $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_KFP_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_KFP_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=mlrun-kfp --cache-to type=gha$(comma)mode=max$(comma)scope=mlrun-kfp)
 MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_KFP_IMAGE_NAME_TAGGED) $(MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED),)
 
 DEFAULT_IMAGES += $(MLRUN_KFP_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-kfp
-mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
-	$(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
+mlrun-kfp: common-image  ## Build mlrun docker image with KFP
 	docker build \
 		--file dockerfiles/mlrun-kfp/Dockerfile \
 		--build-arg MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
@@ -346,7 +344,7 @@ mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FLAGS) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) .
 
@@ -357,7 +355,7 @@ push-mlrun-kfp: mlrun-kfp ## Push mlrun docker image
 
 .PHONY: pull-mlrun-kfp
 pull-mlrun-kfp: ## Pull mlrun docker image
-	docker pull $(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
+	docker pull $(MLRUN_KFP_IMAGE_NAME_TAGGED)
 
 MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:$(MLRUN_GPU_CUDA_VERSION)
 MLRUN_GPU_PREBAKED_PY39_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:11.8.0-cudnn8-devel-ubuntu22.04
@@ -374,14 +372,12 @@ MLRUN_GPU_BASE_IMAGE ?= $(shell \
   fi \
 )
 MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_GPU_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_GPU_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_GPU_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=mlrun-gpu --cache-to type=gha$(comma)mode=max$(comma)scope=mlrun-gpu)
 MLRUN_GPU_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) $(MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED),)
 DEFAULT_IMAGES += $(MLRUN_GPU_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-gpu
-mlrun-gpu: update-version-file ## Build mlrun gpu docker image
-	$(MLRUN_CACHE_IMAGE_PULL_COMMAND)
+mlrun-gpu:  ## Build mlrun gpu docker image
 	docker build \
 		--file dockerfiles/gpu/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -389,7 +385,7 @@ mlrun-gpu: update-version-file ## Build mlrun gpu docker image
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		$(MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_GPU_IMAGE_DOCKER_CACHE_FLAGS) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) \
 		.
@@ -411,6 +407,8 @@ prebake-mlrun-gpu: ## Build prebake mlrun GPU based docker image
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
+		--cache-from type=gha$(comma)scope=prebake-mlrun-gpu \
+		--cache-to type=gha$(comma)mode=max$(comma)scope=prebake-mlrun-gpu \
 		--tag $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
 		.
 
@@ -422,14 +420,12 @@ MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter
 MLRUN_JUPYTER_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/jupyter
 MLRUN_JUPYTER_IMAGE_NAME_TAGGED := $(MLRUN_JUPYTER_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_JUPYTER_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED)),)
+MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=jupyter --cache-to type=gha$(comma)mode=max$(comma)scope=jupyter)
 MLRUN_JUPYTER_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED) $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED),)
-MLRUN_JUPYTER_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED) || true,)
 DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: jupyter
-jupyter: update-version-file ## Build mlrun jupyter docker image
-	$(MLRUN_JUPYTER_CACHE_IMAGE_PULL_COMMAND)
+jupyter:  ## Build mlrun jupyter docker image
 	docker build \
 		--file dockerfiles/jupyter/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
@@ -437,7 +433,7 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		$(MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FLAGS) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED) \
 		.
@@ -452,7 +448,7 @@ pull-jupyter: ## Pull mlrun jupyter docker image
 	docker pull $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: log-collector
-log-collector: update-version-file
+log-collector:
 	@MLRUN_VERSION=$(MLRUN_VERSION) \
 		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
@@ -511,6 +507,8 @@ $(COMMON_STAMP): $(COMMON_DOCKERFILE)
 	--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 	--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 	--platform $(DOCKER_DEFAULT_PLATFORM) \
+	--cache-from type=gha$(comma)scope=common-image \
+	--cache-to type=gha$(comma)mode=max$(comma)scope=common-image \
 	-f $(COMMON_DOCKERFILE) \
 	-t $(COMMON_IMAGE_NAME) . \
 	 && mkdir -p $(dir $@) && touch $@
@@ -522,6 +520,8 @@ common-image:
  	  --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
  	  --build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 	  --platform $(DOCKER_DEFAULT_PLATFORM) \
+	  --cache-from type=gha$(comma)scope=common-image \
+	  --cache-to type=gha$(comma)mode=max$(comma)scope=common-image \
  	  -f $(COMMON_DOCKERFILE) \
 	  -t $(COMMON_IMAGE_NAME) .
 endif
@@ -536,8 +536,7 @@ MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_API_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_API_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_API_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_API_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=mlrun-api --cache-to type=gha$(comma)mode=max$(comma)scope=mlrun-api)
 MLRUN_API_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_API_IMAGE_NAME_TAGGED) $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED),)
 DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 
@@ -546,15 +545,14 @@ DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 # Python 3.11, regardless of what the rest of the matrix is doing.
 api: export MLRUN_PYTHON_VERSION = 3.11
 .PHONY: api
-api: common-image-3.11 compile-schemas update-version-file ## Build mlrun-api docker image
-	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
+api: common-image-3.11 compile-schemas  ## Build mlrun-api docker image
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_API_IMAGE_DOCKER_CACHE_FLAGS) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
 
@@ -571,14 +569,12 @@ MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_IMAGE_NAME_TAGGED := $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_TEST_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_TEST_IMAGE_DOCKER_CACHE_FLAGS := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from type=gha$(comma)scope=test --cache-to type=gha$(comma)mode=max$(comma)scope=test)
 MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
 .PHONY: build-test
-build-test: common-image compile-schemas update-version-file ## Build test docker image
+build-test: common-image compile-schemas  ## Build test docker image
 	$(MAKE) generate-dockerignore DEST=test
-	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -586,7 +582,7 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
-		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FLAGS) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) .
 
@@ -598,7 +594,7 @@ push-test: build-test ## Push test docker image
 MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
 
 .PHONY: build-test-system
-build-test-system: common-image compile-schemas update-version-file ## Build system tests docker image
+build-test-system: common-image compile-schemas  ## Build system tests docker image
 	$(MAKE) generate-dockerignore DEST=test-system
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
@@ -606,11 +602,13 @@ build-test-system: common-image compile-schemas update-version-file ## Build sys
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
+		--cache-from type=gha$(comma)scope=test-system \
+		--cache-to type=gha$(comma)mode=max$(comma)scope=test-system \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 
 .PHONY: package-wheel
-package-wheel: clean update-version-file ## Build python package wheel
+package-wheel: clean  ## Build python package wheel
 	uv build
 
 .PHONY: publish-package
@@ -770,7 +768,7 @@ test-system: ## Run mlrun system tests
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-system-open-source
-test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration
+test-system-open-source:  ## Run mlrun system tests with opensource configuration
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
@@ -980,15 +978,7 @@ endif
 		--skip-clone $(MLRUN_SKIP_CLONE)
 
 
-.PHONY: pull-cache
-pull-cache: ## Pull images to be used as cache for build
-ifdef MLRUN_DOCKER_CACHE_FROM_TAG
-	targets="$(subst push-,,$(MAKECMDGOALS))" ; \
-	for image_name in $$targets; do \
-		tag=$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) ; \
-		docker pull $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$$image_name:$$tag || true ; \
-	done;
-endif
+
 
 
 .PHONY: upgrade-mlrun-api-deps-lock

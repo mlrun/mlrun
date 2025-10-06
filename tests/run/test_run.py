@@ -13,17 +13,21 @@
 # limitations under the License.
 import contextlib
 import io
+import os
 import pathlib
 import sys
+import tempfile
 from unittest.mock import MagicMock, Mock
 
 import pytest
+import yaml
 
 import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.errors
 import mlrun.launcher.factory
 from mlrun import code_to_function, new_function, new_task
+from mlrun.run import import_function_to_dict
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -443,3 +447,60 @@ def test_run_status_retry_updates(rundb_mock):
         result["status"]["state"]
         == mlrun.common.runtimes.constants.RunStates.pending_retry
     ), "Expected run state to be pending_retry"
+
+
+def test_import_function_to_dict_value_errors():
+    """
+    Test import_function_to_dict for various error cases:
+    missing command/code, path traversal, relative path, and nonexistent file.
+    """
+    # 1. Missing command and code
+    with tempfile.NamedTemporaryFile(
+        suffix=".yaml", mode="w", delete=False
+    ) as temp_file:
+        yaml.dump({"kind": "local", "spec": {}}, temp_file)
+        temp_file_path = temp_file.name
+    with pytest.raises(
+        ValueError, match="command or code not specified in function spec"
+    ):
+        import_function_to_dict(temp_file_path)
+    os.remove(temp_file_path)
+
+    # 2. Path traversal in spec.command
+    with tempfile.NamedTemporaryFile(
+        suffix=".yaml", mode="w", delete=False
+    ) as temp_file:
+        yaml.dump({"kind": "local", "spec": {"command": "../escape.py"}}, temp_file)
+        temp_file_path = temp_file.name
+    with pytest.raises(
+        ValueError,
+        match="exec file spec.command=../escape.py is outside of allowed directory",
+    ):
+        import_function_to_dict(temp_file_path)
+    os.remove(temp_file_path)
+
+    # 3. Absolute path required but relative given
+    with tempfile.NamedTemporaryFile(
+        suffix=".yaml", mode="w", delete=False
+    ) as temp_file:
+        yaml.dump({"kind": "local", "spec": {"command": "relative.py"}}, temp_file)
+        temp_file_path = temp_file.name
+        relative_py_path = os.path.join(os.path.dirname(temp_file_path), "relative.py")
+        open(relative_py_path, "w").close()
+    with pytest.raises(
+        ValueError,
+        match="exec file spec.command=relative.py is relative, it must be absolute. Change working dir",
+    ):
+        import_function_to_dict(temp_file_path)
+    os.remove(temp_file_path)
+    os.remove(relative_py_path)
+
+    # 4. File does not exist
+    with tempfile.NamedTemporaryFile(
+        suffix=".yaml", mode="w", delete=False
+    ) as temp_file:
+        yaml.dump({"kind": "local", "spec": {"command": "nonexistent.py"}}, temp_file)
+        temp_file_path = temp_file.name
+    with pytest.raises(ValueError, match="no file in exec path"):
+        import_function_to_dict(temp_file_path)
+    os.remove(temp_file_path)

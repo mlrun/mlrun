@@ -417,21 +417,21 @@ def import_function_to_dict(
             if slash_index < 0:
                 raise ValueError(f"no file in exec path (spec.command={code_file})")
             base_dir = os.path.normpath(url[: slash_index + 1])
+
+            # Validate and resolve the candidate path before checking existence
             candidate_path = _ensure_path_confined_to_base_dir(
                 base_directory=base_dir,
                 relative_path=code_file,
-                error_message_on_escape=f"exec file spec.command={code_file} is outside of allowed directory",
+                error_message_on_escape=(
+                    f"exec file spec.command={code_file} is outside of allowed directory"
+                ),
             )
-            # Resolve to absolute path and verify it’s still inside the base directory
-            abs_candidate = os.path.abspath(candidate_path)
-            if not abs_candidate.startswith(base_dir):
-                raise ValueError(
-                    f"exec file spec.command={code_file} resolves outside allowed directory"
-                )
-            # Check if the target file actually exists
-            if not os.path.isfile(abs_candidate):
+
+            # Only now it's safe to check file existence
+            if not path.isfile(candidate_path):
                 raise ValueError(f"no file in exec path (spec.command={code_file})")
-            # Prevent relative (non-absolute) commands explicitly
+
+            # Optionally enforce absolute path requirement
             if not os.path.isabs(code_file):
                 raise ValueError(
                     f"exec file spec.command={code_file} is relative, it must be absolute. Change working dir"

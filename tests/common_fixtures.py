@@ -762,7 +762,11 @@ class RunDBMock:
                         name=name, project=project, uid=f"{name}-uid"
                     ),
                     spec=mlrun.common.schemas.ModelEndpointSpec(),
-                    status=mlrun.common.schemas.ModelEndpointStatus(),
+                    status=mlrun.common.schemas.ModelEndpointStatus(
+                        first_request=datetime(2024, 1, 1)
+                        if name != "model-ep-no-first-request"
+                        else None,
+                    ),
                 )
             )
 

@@ -26,6 +26,7 @@ import pandas as pd
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
+import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.types
 import mlrun.datastore.datastore_profile as ds_profile
@@ -369,7 +370,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 return result
 
             if endpoints is not None:
-                resolved_endpoints = self._handle_endpoints_type_evaluate(
+                resolved_endpoints = self._validate_endpoints(
                     project=project, endpoints=endpoints
                 )
                 if (
@@ -421,7 +422,25 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 return self._flatten_data_result(call_do_tracking())
 
     @staticmethod
-    def _handle_endpoints_type_evaluate(
+    def _check_endpoints_first_request(
+        endpoints: list[mlrun.common.schemas.ModelEndpoint],
+    ) -> None:
+        """Make sure that all the endpoints have had at least one request"""
+        endpoints_no_requests = [
+            (endpoint.metadata.name, endpoint.metadata.uid)
+            for endpoint in endpoints
+            if not endpoint.status.first_request
+        ]
+        if endpoints_no_requests:
+            raise mlrun.errors.MLRunValueError(
+                "The following model endpoints have not had any requests yet and "
+                "have no data, cannot run the model monitoring application on them: "
+                f"{endpoints_no_requests}"
+            )
+
+    @classmethod
+    def _validate_endpoints(
+        cls,
         project: "mlrun.MlrunProject",
         endpoints: Union[
             list[tuple[str, str]], list[list[str]], list[str], Literal["all"]
@@ -457,6 +476,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         endpoints_list = project.list_model_endpoints(
             names=endpoint_names, latest_only=True
         ).endpoints
+
+        cls._check_endpoints_first_request(endpoints_list)
+
         if endpoints_list:
             list_endpoints_result = [
                 (endpoint.metadata.name, endpoint.metadata.uid)

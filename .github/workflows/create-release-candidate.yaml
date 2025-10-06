@@ -1,0 +1,102 @@
+# Copyright 2025 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# 
+
+name: Create Release Candidate
+run-name: Create Release Candidate 
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  # TODO this will be totally manual, remove the on push which is just for testing now
+  push:
+    branches:
+      - feature/mlrun-release-procedure
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'The type of release to create (major, minor, patch, or none)'
+        required: false
+        default: 'patch'
+      source_branch:
+        description: 'The source branch to create the release candidate from'
+        required: false
+        default: 'development'
+jobs:
+  Create-Release-Candidate  :
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install bumpversion==0.6.0
+
+      - name: Create Release Candidate
+        id: create-release-candidate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use inputs if available (manual trigger), otherwise use defaults (push trigger)
+          SOURCE_BRANCH: ${{ inputs.source_branch || 'feature/mlrun-release-procedure' }}
+          RELEASE_TYPE: ${{ inputs.release_type || 'patch' }}
+        run: |
+          echo "🎯 Trigger: ${{ github.event_name }}"
+          echo "📂 Source branch: $SOURCE_BRANCH"
+          echo "🏷️ Release type: $RELEASE_TYPE"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Switch to source branch
+          git pull
+          git checkout $SOURCE_BRANCH
+
+          next_version=$(bumpversion --dry-run --list $RELEASE_TYPE | grep new_version | sed 's/new_version=//')
+          echo "📦 New version: $next_version"
+
+          # Create release branch
+          branch_name=release/v$next_version
+          echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+          echo "🌿 Creating branch: $branch_name"
+          git checkout -b $branch_name
+          git push --set-upstream origin $branch_name
+
+          # Bump version
+          bumpversion $RELEASE_TYPE
+          git push
+          # create tag and push it
+          git tag -a "rc-v$next_version" -m "Release Candidate v$next_version"
+          git push origin "rc-v$next_version"
+          echo "✅ Release candidate branch created successfully!"
+          # TODO add changelog generation here as needed
+          # gh release create "rc-v$current_version" --repo mlrun/mlrun --title "Release Candidate $current_version" --notes "Automated release candidate created by GitHub Actions" --prerelease
+
+      - name: Trigger build-release-candidate workflow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH_NAME: ${{ steps.create-release-candidate.outputs.branch_name }}
+        run: |
+          gh workflow run build-release-candidate.yaml \
+          --repo "${{ github.repository }}" \
+          --ref "$BRANCH_NAME"

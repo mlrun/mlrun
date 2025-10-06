@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,280 +11,111 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# 
 
-name: Release
-
-run-name: Releasing ${{ inputs.version }} (${{ github.ref_name }})
+name: Create Release
+run-name: Create Release
 
 permissions:
-
-  # Create release and upload artifact to releases
   contents: write
-
-  # Allow the action to upload images to ghcr
+  actions: write
   packages: write
 
 on:
+  # TODO this will be totally manual, remove the on push which is just for testing now
+  push:
+    branches:
+      - feature/mlrun-release-procedure
   workflow_dispatch:
     inputs:
-      version:
-        description: 'The version to release, without prefix v (e.g. 1.1.0-rc10). if not provided, will be calculated from the current version and bump_version_mode'
+      release_candidate_promotion:
+        description: 'The tag to promote to a full release, must be an existing release candidate tag'
+        required: true
+        default: 'rc-v1.13.205-18222610666-7a5dabe5'
+        type: string
+      skip_images:
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,models,jupyter,test'
         default: ''
         type: string
-      bump_version_mode:
-        description: 'The version bump mode. Whether to bump rc version or set stable version'
-        default: 'bump-rc'
-        type: choice
-        options: [ 'bump-rc', 'stable' ]
-      skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,ui,api,jupyter,test'
-        required: false
-        default: ''
-      skip_publish_pypi:
-        description: 'Whether to skip publishing the python package to Pypi (Auto skip for feature branch)'
-        required: false
-        default: 'false'
-        type: choice
-        options: ['true', 'false']
-      skip_create_tag_release:
-        description: 'Whether to skip creating tag & release in Github (Auto skip for feature branch)'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
-      ui_ref:
-        description: 'The UI reference (branch / tag name) to use for the UI image, (development, 1.3.3, etc)'
-        required: false
-        default: ''
-
 jobs:
-  prepare-inputs:
-    name: Prepare inputs
+
+  Matrix-Prep:
     runs-on: ubuntu-latest
     outputs:
-      is_stable_version: ${{ steps.resolve.outputs.is_stable_version }}
-      is_feature_branch: ${{ steps.resolve.outputs.is_feature_branch }}
-      version: ${{ steps.resolve.outputs.version }}
-      previous_version: ${{ steps.resolve.outputs.previous_version }}
-      ui_ref: ${{ steps.resolve.outputs.ui_ref }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v5
+      - id: set-matrix
+        uses: ./.github/actions/image-matrix-prep
         with:
+          skip_images: ${{ inputs.skip_images }}
 
-          # Fetch all history for all tags and branches
-          fetch-depth: 0
-      - name: Resolve inputs
-        id: resolve
+  Create-Release:
+    runs-on: ubuntu-latest
+    needs: Matrix-Prep
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.Matrix-Prep.outputs.matrix) }}    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Docker login (ghcr)
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        id: create-release
+        if: matrix.image-name != 'test'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_CANDIDATE_INPUT: ${{ inputs.release_candidate_promotion || 'rc-v1.13.205-18222610666-7a5dabe5' }}
         run: |
-
-          # map the input to the actual mode
-          declare -A bump_version_mode=(["bump-rc"]="rc" ["stable"]="rc-grad")
-          NEXT_VERSION_MODE=${bump_version_mode[$BUMP_VERSION_MODE_INPUT]}
-          version=$(python ./automation/version/version_file.py next-version --mode $NEXT_VERSION_MODE)
-          echo "Calculated version: $version"
-          if [[ -n "$VERSION_INPUT" ]]; then \
-            version=$VERSION_INPUT; \
-            echo "Using version from input: $version"; \
+          echo "🎯 Trigger: ${{ github.event_name }}"
+          echo "🏷️ Release candidate to promote: $RELEASE_CANDIDATE_INPUT"
+          
+          # Extract version from RC tag (e.g., rc-v1.13.205-18222610666-7a5dabe5 → v1.13.205)
+          RC_TAG=$RELEASE_CANDIDATE_INPUT
+          RELEASE_VERSION=$(echo "$RC_TAG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+')
+          
+          echo "📦 Extracted version: $RELEASE_VERSION"
+          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          
+          # Validate version format
+          if [[ ! $RELEASE_VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format: $RELEASE_VERSION"
+            exit 1
           fi
-
-          echo "is_stable_version=$(python ./automation/version/version_file.py is-stable $version)" >> $GITHUB_OUTPUT
-          echo "is_feature_branch=$(python ./automation/version/version_file.py is-feature-branch)" >> $GITHUB_OUTPUT
-          echo "version=$version" >> $GITHUB_OUTPUT
-          echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
-          echo "ui_ref=${UI_REF_INPUT:-`echo ${{ github.ref_name }}`}" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
-        env:
-          UI_REF_INPUT: ${{ github.event.inputs.ui_ref }}
-          BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
-          VERSION_INPUT: ${{ github.event.inputs.version }}
-
-  trigger-and-wait-for-mlrun-image-building:
-    name: Trigger build workflow in mlrun/mlrun and wait to finish
-    needs: prepare-inputs
-    uses: ./.github/workflows/build-internal.yaml
-    with:
-      docker_registries: "ghcr.io/,quay.io/,registry.hub.docker.com/"
-      version: ${{ needs.prepare-inputs.outputs.version }}
-      skip_images: ${{ github.event.inputs.skip_images }}
-    secrets: inherit
-
-  # TODO: Move to reuseable-workflow too.
-  # Requires cross-repo validation for passing github token as secret
-  trigger-and-wait-for-ui-image-building:
-    name: Trigger build workflow in mlrun/ui and wait to finish
-    runs-on: ubuntu-latest
-    needs: prepare-inputs
-    steps:
-      - uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
-
-        # since some steps relay on the ui image, we need to wait for it to finish building
-        # the condition is here and not on job because some other jobs "needs" this job to be done (and not skipped)
-        if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
-        with:
-          owner: ${{ github.repository_owner }}
-          repo: ui
-          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          workflow_file_name: build.yaml
-          ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
-          wait_interval: 60
-          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ needs.prepare-inputs.outputs.version }}"}'
-
-  publish-to-pypi:
-    name: Publish package to PyPI
-    runs-on: ubuntu-latest
-
-    # skip releasing to pypi for feature branches. installing mlrun can be done by:
-    # pip install 'mlrun[complete] @ git+https://github.com/mlrun/mlrun@feature/branch'
-    # pypi do not allow local version identifier (https://peps.python.org/pep-0440/#local-version-identifiers)
-    if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
-
-    # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
-    needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
-    steps:
-      - uses: actions/checkout@v5
-      - name: Set up uv
-        uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # 6.7.0
-      - name: Build & push to PyPI
-        if: github.event.inputs.skip_publish_pypi != 'true'
-        env:
-          MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
-          UV_PUBLISH_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-        run: uv run --no-project --with packaging~=25.0 make publish-package
-
-  create-releases:
-    name: Create release & tag v${{ needs.prepare-inputs.outputs.version }}
-    runs-on: ubuntu-latest
-    if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
-    needs: [ prepare-inputs, publish-to-pypi ]
-    steps:
-      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
-        if: github.event.inputs.skip_create_tag_release != 'true'
-        with:
-          tag: v${{ needs.prepare-inputs.outputs.version }}
-          commit: ${{ github.ref_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
-      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
-        if: github.event.inputs.skip_create_tag_release != 'true'
-        with:
-          repo: ui
-          tag: v${{ needs.prepare-inputs.outputs.version }}
-          commit: ${{ github.ref_name }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          # experienced 500 errors when trying to create release notes for ui repo with `prerelease flag`
-          # prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
-
-  create-tag:
-    name: Create tag v${{ needs.prepare-inputs.outputs.version }}
-    runs-on: ubuntu-latest
-
-    # run this specific job for feature branch only as we wont have a github release for it
-    # the tag would be useful to track feature branch released versions
-    if: needs.prepare-inputs.outputs.is_feature_branch == 'true'
-    needs: [ prepare-inputs, trigger-and-wait-for-mlrun-image-building ]
-    steps:
-      - name: Create feature branch tag
-        uses: actions/github-script@v8
-        with:
-          script: |
-            github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: 'refs/tags/v${{ needs.prepare-inputs.outputs.version }}',
-              sha: context.sha
-            })
-
-  update-tutorials:
-    name: Bundle tutorials
-    needs: [ prepare-inputs, create-releases ]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Create tutorials tar
-        run: |
-          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
-          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/README.md -P docs
-          tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb
-          rm -rf docs/welcome.ipynb docs/README.md
-      - name: Add tutorials tar to release
-        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
-        with:
-          allowUpdates: true
-          tag: v${{ needs.prepare-inputs.outputs.version }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          artifacts: mlrun-tutorials.tar
-          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
-
-  update-demos:
-    name: Bundle demos
-    needs: [ prepare-inputs, create-releases ]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install Python venv
-        run: |
-          venv="$HOME/.local/share/venv"
-          python3 -m venv "$venv"
-          echo "$venv/bin" >> $GITHUB_PATH
-      - name: Install prerequisites
-        run: |
-          pip install gitpython requests
-      - name: Create mlrun demos tar
-        run: |
-          python automation/scripts/bundle_demos.py
-      - name: Add mlrun-demos tar to release
-        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
-        with:
-          allowUpdates: true
-          tag: v${{ needs.prepare-inputs.outputs.version }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          artifacts: mlrun-demos.tar
-          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
-
-  update-release-notes:
-    name: Update release notes
-    runs-on: ubuntu-latest
-    if: github.event.inputs.skip_create_tag_release != 'true'
-    # runs lastly to avoid conflicts with other release-related jobs
-    needs: [ prepare-inputs, update-tutorials, update-demos ]
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v6
-        with:
-          python-version: 3.9
-          cache: pip
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r automation/requirements.txt
-      - name: Generate release notes
-        id: release-notes
-        run: |
-          make release-notes
-        env:
-          MLRUN_SKIP_CLONE: true
-          MLRUN_RELEASE_BRANCH: ${{ github.ref_name }}
-          MLRUN_RELEASE_NOTES_OUTPUT_FILE: release_notes.md
-          MLRUN_RAISE_ON_ERROR: false
-          MLRUN_OLD_VERSION: "v${{ needs.prepare-inputs.outputs.previous_version }}"
-          MLRUN_VERSION: "v${{ needs.prepare-inputs.outputs.version }}"
-
-      - name: resolve release notes
-        id: resolve-release-notes
-        run: |
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat release_notes.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
-        with:
-          tag: v${{ needs.prepare-inputs.outputs.version }}
-          body: ${{ steps.resolve-release-notes.outputs.body }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
+          
+          # Re-tag images from RC to release (keeps both tags)
+          echo "�️ Creating new tag $RELEASE_VERSION for image ${{ matrix.image-name }}"
+          echo "📋 Original RC tag: $RC_TAG (will remain unchanged)"
+          echo "📋 New release tag: $RELEASE_VERSION"
+          
+          # Pull the RC image first
+          echo "📥 Pulling RC image..."
+          if [ "${{ matrix.image-name }}" = "api" ]; then
+            image_name="mlrun-api"
+          else
+            image_name="${{ matrix.image-name }}"
+          fi
+          docker pull ghcr.io/mlrun/$image_name:$RC_TAG
+          
+          # Create new tag (original tag remains)
+          echo "🏷️ Creating release tag..."
+          docker tag ghcr.io/mlrun/$image_name:$RC_TAG ghcr.io/mlrun/$image_name:$RELEASE_VERSION
+          
+          # Push the new release tag
+          echo "📤 Pushing release tag..."
+          docker push ghcr.io/mlrun/$image_name:$RELEASE_VERSION
+          
+          echo "✅ Both tags now exist:"
+          echo "   - RC: ghcr.io/mlrun/$image_name:$RC_TAG"
+          echo "   - Release: ghcr.io/mlrun/$image_name:$RELEASE_VERSION"
+          
+          # TODO add changelog generation here as needed
+          #gh release create "$RELEASE_VERSION" --repo mlrun/mlrun --title "Release $RELEASE_VERSION" --notes "Automated release created by GitHub Actions"
+          echo "✅ Release created successfully!"

@@ -34,7 +34,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: thehanimo/pr-title-checker@7fbfe05602bdd86f926d3fb3bccb6f3aed43bc70 # 1.4.3
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          configuration_path: .github/pr-title-validation-config.json
+          python-version: '3.11'
+
+      - name: Install dev requirements
+        run: |
+          pip install -r ci-requirements.txt
+
+      - name: Check PR title with committizen
+        run: |
+          # This is to avoid that a PR got squashed and the commit message doesn't follow conventional commits
+          cz check -m "${{ github.event.pull_request.title }}"

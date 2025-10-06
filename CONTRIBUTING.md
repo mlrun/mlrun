@@ -2,7 +2,7 @@
 
 ## Creating a development environment
 
-> Configure your project `PYTHONPATH=<project-root>:<project-root>/server/py` to direct python to the server side packages as well.  
+> Configure your project `PYTHONPATH=<project-root>:<project-root>/server/py` to direct python to the server side packages as well.
 > Some IDEs can manage this for you, for example on PyCharm - right click on `server/py`  folder ➜ mark directory as ➜ source root.
 
 If you are working with an ARM64 machine, please see  [Developing with ARM64 machines](#developing-with-arm64-machines).
@@ -55,8 +55,8 @@ pip install -e '.[complete]'
 
 ## Developing with ARM64 machines
 
-Some MLRun dependencies are not yet available for ARM64 machines via pypi, 
-so we need to work with conda to get the packages compiled for ARM64 platform.   
+Some MLRun dependencies are not yet available for ARM64 machines via pypi,
+so we need to work with conda to get the packages compiled for ARM64 platform.
 
 Fork, clone and cd into the MLRun repository directory
 ```shell script
@@ -112,6 +112,56 @@ Format your code prior opening PR by running:
 make fmt
 ```
 
+## Conventional Commits
+
+This repository uses [Conventional Commits](https://www.conventionalcommits.org/) for all commit messages. Conventional commits provide a standardized format for commit messages that enables automated tooling for changelog generation and release notes.
+
+### Why Conventional Commits?
+
+- **Automated CHANGELOG.md generation**: Our release process automatically generates changelog entries based on commit messages
+- **Release notes automation**: Release notes are created automatically from conventional commit messages
+- **Clear commit history**: Standardized format makes it easier to understand what each commit does
+- **Semantic versioning**: Commit types help determine appropriate version bumps
+
+### Commit Message Format
+
+Commit messages must follow this format:
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types:**
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation only changes
+- `style`: Changes that do not affect the meaning of the code (white-space, formatting, etc)
+- `refactor`: A code change that neither fixes a bug nor adds a feature
+- `perf`: A code change that improves performance
+- `test`: Adding missing tests or correcting existing tests
+- `chore`: Changes to the build process or auxiliary tools and libraries
+
+**Examples:**
+```
+feat(api): add endpoint to list model endpoints
+fix(ui): resolve artifact display issue in dashboard
+docs: update installation guide for ARM64 machines
+chore: update dependencies to latest versions
+```
+
+### Pre-commit Hooks
+
+This repository has pre-commit hooks configured to enforce conventional commit messages:
+
+- **Local enforcement**: Pre-commit hooks are installed automatically when you run `make install-requirements`, which installs dev requirements and runs `pre-commit install`
+- **CI/CD enforcement**: Pull request checks validate that all commits in the PR follow conventional commit format
+- **Automatic validation**: The commitizen hook will block commits that don't follow the conventional format
+
+If your commit is rejected, make sure your commit message follows the conventional commits specification. You can also use the `cz commit` command (from commitizen) to interactively create properly formatted commit messages.
+
 ## Testing
 
 * Lint
@@ -149,9 +199,9 @@ please put effort in writing good description
 
 ## System Tests
 
-As we support additional enterprise features while running MLRun in an Iguazio system, some system tests can only run 
+As we support additional enterprise features while running MLRun in an Iguazio system, some system tests can only run
 on an Iguazio system. To support this, we have two types of system tests.
-Using `@pytest.mark.enterprise` markers, we can distinguish between tests that can run on a MLRun Community Edition 
+Using `@pytest.mark.enterprise` markers, we can distinguish between tests that can run on a MLRun Community Edition
 instance and tests that requires and can only run on a full Iguazio system.
 Any system test which isn't marked with the `@pytest.mark.enterprise` marker can run on MLRun Community Edition which
 incidentally can also be installed locally on a developer machine.
@@ -162,9 +212,9 @@ In the `tests/system/` directory exist test suites to run against a running syst
 
 ### Setting Up an MLRun Community Edition Instance for System Tests
 
-You can follow the [Install MLRun on Kubernetes](https://docs.mlrun.org/en/latest/install/kubernetes.html) guide to 
-install an instance of MLRun Community Edition on your local machine. Notice the mentioned prerequisites and make sure 
-you have some kubernetes cluster running locally. 
+You can follow the [Install MLRun on Kubernetes](https://docs.mlrun.org/en/latest/install/kubernetes.html) guide to
+install an instance of MLRun Community Edition on your local machine. Notice the mentioned prerequisites and make sure
+you have some kubernetes cluster running locally.
 You can use [minikube](https://minikube.sigs.k8s.io/docs/start/) for this purpose (however this will require an extra step, see below).
 
 ### Setting up Test Environment
@@ -187,7 +237,7 @@ You're up and running !
 Happy MLOPSing !!! :]
 ```
 
-Notice the "MLRun API is exposed externally at: http://127.0.0.1:30070" line. This is the url you need to set in the 
+Notice the "MLRun API is exposed externally at: http://127.0.0.1:30070" line. This is the url you need to set in the
 `env.yml` file, as the `MLRUN_DBPATH` value..
 
 If running via minikube, you will first need to run
@@ -220,10 +270,10 @@ pip install pytest-mock-resources[postgres]
 ### Adding System Tests
 
 To add new system tests, all that is required is to create a test suite class which inherits the `TestMLRunSystem`
-class from `tests.system.base`. In addition, a special `skip` annotation must be added to the suite, so it won't run 
-if the `env.yml` isn't filled. If the test can only run on a full Iguazio system and not on an [MLRun CE](https://github.com/mlrun/ce) 
+class from `tests.system.base`. In addition, a special `skip` annotation must be added to the suite, so it won't run
+if the `env.yml` isn't filled. If the test can only run on a full Iguazio system and not on an [MLRun CE](https://github.com/mlrun/ce)
 instance, add the `enterprise` marker under the `skip` annotation or on the test method itself.
-If the `enterprise` marker is added to a specific test method, the `skip` annotation must be added above it in addition to the annotation 
+If the `enterprise` marker is added to a specific test method, the `skip` annotation must be added above it in addition to the annotation
 over the test suite.
 This is because enterprise tests and open source tests require different env vars to be set in the `env.yml`.
 
@@ -280,7 +330,7 @@ any other pytest test.
 
 ### You're Done!
 
-All that's left now is to run whichever open source system tests you want to run. You can run them all by running the 
+All that's left now is to run whichever open source system tests you want to run. You can run them all by running the
 command
 ```shell
 make test-system-open-source
@@ -290,14 +340,14 @@ make test-system-open-source
 
 Currently, this can only be done by one of the maintainers, the process is:
 1. Push your changes to a branch in the upstream repo
-2. Go to the [build action](https://github.com/mlrun/mlrun/actions?query=workflow%3ABuild) and trigger it for the branch 
+2. Go to the [build action](https://github.com/mlrun/mlrun/actions?query=workflow%3ABuild) and trigger it for the branch
 (leave all options default)
-3. Go to the [system test action](https://github.com/mlrun/mlrun/actions?query=workflow%3A%22System+Tests%22) and trigger 
-it for the branch, change "Take tested code from action REF" to `true`   
+3. Go to the [system test action](https://github.com/mlrun/mlrun/actions?query=workflow%3A%22System+Tests%22) and trigger
+it for the branch, change "Take tested code from action REF" to `true`
 
 ## Migrating to Python 3.9
 
-MLRun moved to Python 3.9 from 1.3.0.  
+MLRun moved to Python 3.9 from 1.3.0.
 If you are working on MLRun 1.2.x or earlier, you will need to switch between python 3.9 and python 3.7 interpreters.
 To work with multiple python interpreters, we recommend using _pyenv_ (see [Creating a development environment](#creating-a-development-environment)).
 Once you have pyenv installed, create multiple `venv` for each Python version, so when you switch between them, you will
@@ -349,7 +399,7 @@ def function_name(parameter1, parameter2):
 	# Function implementation
 ```
 
-Bulleted lists in docstrings do not throw an error if they are incorrectly formatted. Build the doc locally to 
+Bulleted lists in docstrings do not throw an error if they are incorrectly formatted. Build the doc locally to
 check the formatting. The basic rules are:
 - Add a blank line before and after bulleted lines
 - Nested bulleted lists also need a blank line before and after
@@ -359,12 +409,12 @@ Example:
         :param creation_strategy: Strategy for creating or updating the model endpoint:
 
                            - **overwrite**:
-                           
+
                            1. If model endpoints with the same name exist, delete the `latest` one.
                            2. Create a new model endpoint entry and set it as `latest`.
 
                            - **inplace** (default):
-                           
+
                            1. If model endpoints with the same name exist, update the `latest` entry.
                            2. Otherwise, create a new entry.
 
@@ -372,8 +422,8 @@ Example:
 
                        - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
                          or `{"label": None}` to check for key existence.
-                         
-        :param since: Not in use in :py:class:`HTTPRunDB`.					
+
+        :param since: Not in use in :py:class:`HTTPRunDB`.
 ```
 15. When calling functions with multiple parameters, prefer using keyword arguments to improve readability and clarity.
 16. Logging: use structured variable instead of f-strings, for example: `logger.debug("Message", var1=var1, ...)`, and
@@ -433,21 +483,21 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 
 ### Table partitioning
 
-Table partitioning is a database optimization technique that divides a large table into smaller, more manageable segments called partitions, based on a specified column. 
+Table partitioning is a database optimization technique that divides a large table into smaller, more manageable segments called partitions, based on a specified column.
 This can improve query performance by allowing the database to access only relevant partitions instead of scanning the entire table.
 
 Key considerations:
 
-1. Unique and Primary index 
+1. Unique and Primary index
 Every unique key (with the primary key also being a unique key) in the table must include every column used in the table’s partitioning expression.
 For more information, refer to the [documentation](https://dev.mysql.com/doc/refman/8.0/en/partitioning-limitations-partitioning-keys-unique-keys.html).
 
 2. Auto-incremental columns
-If you need a column to be auto-incremented, it must be part of the primary key and positioned as the first column in the primary key definition. 
+If you need a column to be auto-incremented, it must be part of the primary key and positioned as the first column in the primary key definition.
 This is essential because otherwise, auto-increment functionality will not work.
 
 3. Influence on MLRun unit tests
-In MLRun, unit tests are run on an SQLite database, not MySQL. SQLite does not support auto-increment on composite primary keys. 
+In MLRun, unit tests are run on an SQLite database, not MySQL. SQLite does not support auto-increment on composite primary keys.
 To support both MySQL deployments and unit tests, make sure that this table isn't created for SQLite tests by adding it to the `get_partitioned_table_names()`.
 
 ## Updating the Python Lock Files

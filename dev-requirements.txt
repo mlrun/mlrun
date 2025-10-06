@@ -51,3 +51,5 @@ tf-keras~=2.18; python_version <= "3.9"
 #tf-keras~=2.19; python_version > "3.9"
 # TODO: once tf-keras upgrades their dependencies to support a newer version protobuf, we can uncomment this line
 pillow~=11.3
+pre-commit~=4.3.0
+commitizen~=4.9.1

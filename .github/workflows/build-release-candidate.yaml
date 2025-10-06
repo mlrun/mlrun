@@ -1,0 +1,47 @@
+name: Build Release Candidate
+run-name: Building commit ${{ github.sha }} on ${{ github.ref_name }} (${{ github.event_name }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_images:
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,models,jupyter,test'
+        default: ''
+        type: string
+      build_from_cache:
+        description: 'Whether to build images from cache or not. Default: true'
+        default: 'true'
+        type: string
+
+permissions:
+    id-token: write
+    contents: read
+    packages: write
+
+jobs:
+  prepare-context:
+    outputs:
+      mlrun_version: ${{ steps.build-tag.outputs.mlrun_version }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Get Version
+
+      uses: ./.github/actions/get-version
+      id: get-version
+
+    - id: build-tag
+      run: |
+        echo "mlrun_version=rc-v${{ steps.get-version.outputs.mlrun_version }}-${{ github.run_id }}-${{ steps.get-version.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
+      shell: bash
+
+
+  build-mlrun:
+    name: Build MLRun
+    needs: prepare-context
+    uses: ./.github/workflows/build.yaml
+    with:
+        tag: ${{ needs.prepare-context.outputs.mlrun_version }}
+    secrets: inherit

@@ -55,7 +55,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip~=25.0
-        pip install -r dev-requirements.txt
+        pip install -r ci-requirements.txt
     - name: Lint
       run: make lint
 
@@ -370,7 +370,7 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
-          
+
           path: tests/coverage_reports/
 
       - name: Download migration coverage report

@@ -71,6 +71,41 @@ jobs:
           echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
           echo "rc_tag=$RC_TAG" >> $GITHUB_OUTPUT
 
+  Create-Git-Tag: 
+    name: Create Git Tag
+    runs-on: ubuntu-latest
+    needs: Extract-Version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Fetch all history for all branches and tags
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dev requirements
+        run: |
+          pip install -r ci-requirements.txt
+
+      - name: Bump RC to Release and Push Tag
+        id: create-git-tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.Extract-Version.outputs.release_version }}
+        run: |
+          echo "🏷️ Release version to tag: $RELEASE_VERSION"
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cz bump
+          git push
+          git push --tags
+
+          echo "✅ Tag $RELEASE_VERSION created and pushed successfully!"
+
   Matrix-Prep:
     runs-on: ubuntu-latest
     outputs:

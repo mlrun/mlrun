@@ -3,7 +3,6 @@ repos:
     rev: v6.0.0
     hooks:
     -   id: check-yaml
-    -   id: end-of-file-fixer
     -   id: trailing-whitespace
 - repo: https://github.com/commitizen-tools/commitizen
   rev: v4.9.1  # latest stable version

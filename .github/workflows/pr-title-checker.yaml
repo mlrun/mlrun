@@ -46,6 +46,8 @@ jobs:
           pip install -r ci-requirements.txt
 
       - name: Check PR title with committizen
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
         run: |
           # This is to avoid that a PR got squashed and the commit message doesn't follow conventional commits
-          cz check -m "${{ github.event.pull_request.title }}"
+          cz check -m "$TITLE"

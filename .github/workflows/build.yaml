@@ -85,12 +85,6 @@ jobs:
           echo "Available remote branches: $(git branch -r)"
           echo "Default remote HEAD: $(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo 'Not set')"
 
-          # Try to set up the default branch reference if missing
-          if ! git symbolic-ref refs/remotes/origin/HEAD >/dev/null 2>&1; then
-            echo "Setting up default remote HEAD..."
-            git remote set-head origin -a
-          fi
-
           # For PRs, be explicit about what to check
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "=== PR Context ==="
@@ -102,10 +96,10 @@ jobs:
             # Check commits in PR range
             echo "Checking commits in PR range....."
             cz check --rev-range "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+            # Only run conventional commit check on PRs
           else
             echo "=== Branch Push Context ==="
-            echo "Checking commits using default range..."
-            cz check --use-default-range
+            echo "Skipping conventional commit check (only runs on PRs)"
           fi
 
   build-images:

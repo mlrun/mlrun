@@ -11,12 +11,12 @@ This document describes the comprehensive release procedure for MLRun, including
 ### Step 1: Developer PR Workflow
 **Triggers**: Developer opens/updates Pull Request
 
-- **PR Open**: 
+- **PR Open**:
   - ✅ Builds snapshot images for testing
   - ❌ **No push** to registry (validation only)
   - 📊 Provides quick feedback to developers
   - 🔮 **TODO**: Unit tests execution for code validation
-  
+
 - **PR Merge to `development`**:
   - ✅ Builds and **pushes** snapshot images
   - 🏷️ Tagged as: `unstable-{run_id}-{commit_hash}`
@@ -25,6 +25,8 @@ This document describes the comprehensive release procedure for MLRun, including
 **Workflow**: `.github/workflows/build-snapshot.yaml`
 
 ### Step 2: Image Artifact Management
+**Trigger**: Automatic when merging on default branch.
+
 **Outcome**: Snapshot images available for testing
 
 - **Registry**: `ghcr.io/mlrun/*`
@@ -37,15 +39,17 @@ This document describes the comprehensive release procedure for MLRun, including
   - `jupyter` (Python 3.11)
 
 ### Step 3: Release Candidate Creation
-**Triggers**: Manual execution by Release Manager
+**Triggers**: Manual trigger by Release Manager
 
 #### 3.1 Version Management with Bumpversion
-- **Tool**: `bumpversion` - Semantic versioning automation
-- **Configuration**: `.bumpversion.cfg`
+- **Tool**: `commitizen` - Semantic versioning automation
+- **Configuration**: `cz.json`
 - **Release Types**:
   - `patch`: `1.2.3` → `1.2.4` (bug fixes)
   - `minor`: `1.2.3` → `1.3.0` (new features)
   - `major`: `1.2.3` → `2.0.0` (breaking changes)
+
+**NB:** The bump release type is automatically calculated based on the commit types, the commits must adhere to the [conventional commit standard](https://www.conventionalcommits.org/en/v1.0.0/) ( this is enforced locally with pre-commit and remotely with PR checks).
 
 #### 3.2 Branch Creation Process
 ```bash
@@ -57,7 +61,7 @@ Result:  New branch release/v1.2.4
 
 #### 3.3 Release Candidate Build
 - **Workflow**: `.github/workflows/create-release-candidate.yaml`
-- **Triggers**: 
+- **Triggers**:
   - Manual dispatch (with release type selection)
   - Automatic on `release/*` branch creation
 - **Output**: RC artifacts with tags like `rc-v1.2.4-{run_id}-{commit_hash}`
@@ -85,19 +89,20 @@ Result:  New branch release/v1.2.4
 
 #### 4.2 QA Decision Points
 - **✅ Approve**: Proceed to Step 5 (Release Creation)
-- **❌ Reject**: 
+- **❌ Reject**:
   - Log issues in tracking system
   - Return to development for fixes
   - Create new RC after fixes
 
 ### Step 5: Release Creation (Artifact Promotion)
-**Triggers**: Manual execution after QA approval
+**Triggers**: Manual trigger after QA approval
 
 #### 5.1 Key Principle: No Rebuild
 - **🚫 No compilation**: Uses existing, tested RC artifacts
-- **🏷️ Re-tagging only**: Promotes RC tags to release tags
+- **🏷️ Re-tagging only**: Promotes RC tags to release tags ( for both git tags and container images tags)
 - **⚡ Fast process**: Metadata operation, not image rebuild
 - **🔒 Immutable**: Same bits that QA tested
+- **⚡ Merge back**: We want to ensure that the branch where the release started, got a PR back so that versions are in sync. The PR is automatically created but will require a review ( step 6 ). Note: If we think is the case we could automate the merge back without a PR, but for now better to avoid that in an early stage.
 
 #### 5.2 Promotion Process
 **Workflow**: `.github/workflows/release.yaml`
@@ -115,6 +120,9 @@ Target: ghcr.io/mlrun/mlrun-api:v1.2.4
 - **GitHub Release**: Created with changelog and release notes
 - **Git Tag**: `v1.2.4` tagged on release branch
 - **Traceability**: RC tags remain for audit trail
+
+### Step 6: Merge back
+Every release procedure ( step 5 ) will open a PR that should be reviewed and merged so that version bumping is effective also on development branch.
 
 ## 🔄 Workflow Integration
 
@@ -151,18 +159,6 @@ development (main dev branch)
 5. **📈 Semantic Versioning**: Automated version management
 6. **🔄 Rollback Ready**: Previous versions always available
 
-## 🚨 Emergency Procedures
-
-### Hotfix Process
-1. Create hotfix branch from release tag
-2. Apply minimal fix
-3. Follow abbreviated RC process
-4. Fast-track QA for critical fixes
-
-### Rollback Process
-1. Previous release tags remain available
-2. Re-tag previous version as `latest`
-3. Update documentation and notifications
 
 ## 📚 Additional Resources
 

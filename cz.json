@@ -3,7 +3,7 @@
     "name": "cz_conventional_commits",
     "tag_format": "v$version",
     "version_scheme": "semver2",
-    "version": "1.13.401-rc.1",
+    "version": "1.13.400",
     "update_changelog_on_bump": true,
     "changelog_incremental": false
   }

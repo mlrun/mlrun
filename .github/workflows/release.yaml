@@ -23,6 +23,9 @@ permissions:
   packages: write
 
 on:
+  push:
+    branches:
+      - release/v1.13.401
   workflow_dispatch:
     inputs:
       release_candidate_promotion:

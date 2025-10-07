@@ -8,6 +8,7 @@
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)](https://github.com/mlrun/mlrun/releases)
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 
+small change for PR
 <div>
   <span>
     <picture>
@@ -22,10 +23,10 @@
   <br clear="all"/>
 </div>
 
-# Using MLRun 
+# Using MLRun
 
-MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. 
-MLRun significantly reduces engineering efforts, time to production, and computation resources. 
+MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications.
+MLRun significantly reduces engineering efforts, time to production, and computation resources.
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
 Get started with the MLRun [**Tutorials and Examples**](https://docs.mlrun.org/en/stable/tutorials/index.html) and the [**Installation and setup guide**](https://docs.mlrun.org/en/stable/install.html), or read about the [**MLRun Architecture**](https://docs.mlrun.org/en/stable/architecture.html).
@@ -38,13 +39,13 @@ See the supported data stores, development tools, services, platforms, etc., sup
 
 <p align="center"><img src="./docs/_static/images/ai-tasks.png" alt="ai-tasks" width="800"/></p><br>
 
-Use MLRun to develop, scale, deploy, and monitor your AI model across your enterprise. The [**gen AI development workflow**](https://docs.mlrun.org/en/stable/genai/genai-flow.html) 
+Use MLRun to develop, scale, deploy, and monitor your AI model across your enterprise. The [**gen AI development workflow**](https://docs.mlrun.org/en/stable/genai/genai-flow.html)
 section describes the different tasks and stages in detail.
 
 ### Data management
 
 
-MLRun supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
+MLRun supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more.
 Removing inappropriate data at an early stage saves resources that would otherwise be required later on.
 
 
@@ -58,7 +59,7 @@ Removing inappropriate data at an early stage saves resources that would otherwi
 [Call center](https://youtu.be/YycMbxRgLBA)
 
 ### Development
-Use MLRun to build an automated ML pipeline to: collect data, 
+Use MLRun to build an automated ML pipeline to: collect data,
 preprocess (prepare) the data, run the training pipeline, and evaluate the model.
 
 **Docs:**
@@ -70,9 +71,9 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 
 
 ### Deployment
-MLRun serving can productize the newly trained LLM as a serverless function using real-time auto-scaling Nuclio serverless functions. 
-The application pipeline includes all the steps from accepting events or data, contextualizing it with a state  preparing the required model features, 
-inferring results using one or more models, and driving actions. 
+MLRun serving can productize the newly trained LLM as a serverless function using real-time auto-scaling Nuclio serverless functions.
+The application pipeline includes all the steps from accepting events or data, contextualizing it with a state  preparing the required model features,
+inferring results using one or more models, and driving actions.
 
 
 **Docs:**
@@ -109,8 +110,8 @@ MLRun can be used to automate and orchestrate all the different tasks or just sp
 ### Project management and CI/CD automation
 
 In MLRun the assets, metadata, and services (data, functions, jobs, artifacts, models, secrets, etc.) are organized into projects.
-Projects can be imported/exported as a whole, mapped to git repositories or IDE projects (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and CI/CD. 
-Project access can be restricted to a set of users and roles. 
+Projects can be imported/exported as a whole, mapped to git repositories or IDE projects (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and CI/CD.
+Project access can be restricted to a set of users and roles.
 
 **Docs:** [Projects and Automation](https://docs.mlrun.org/en/stable/projects/project.html), [CI/CD Integration](https://docs.mlrun.org/en/stable/projects/ci-integration.html)
 **Tutorials:** [Quick start](https://docs.mlrun.org/en/stable/tutorials/01-mlrun-basics.html), [Automated ML Pipeline](https://docs.mlrun.org/en/stable/tutorials/04-pipeline.html)
@@ -118,8 +119,8 @@ Project access can be restricted to a set of users and roles.
 
 ### Ingest and process data
 
-MLRun provides abstract interfaces to various offline and online [**data sources**](https://docs.mlrun.org/en/stable/store/datastore.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
-In addition, the MLRun [**Feature Store**](https://docs.mlrun.org/en/stable/feature-store/feature-store.html) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing. 
+MLRun provides abstract interfaces to various offline and online [**data sources**](https://docs.mlrun.org/en/stable/store/datastore.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more.
+In addition, the MLRun [**Feature Store**](https://docs.mlrun.org/en/stable/feature-store/feature-store.html) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing.
 
 See: **Docs:** [Ingest and process data](https://docs.mlrun.org/en/stable/data-prep/index.html), [Feature Store](https://docs.mlrun.org/en/stable/feature-store/feature-store.html), [Data & Artifacts](https://docs.mlrun.org/en/stable/concepts/data.html)
 **Tutorials:** [Quick start](https://docs.mlrun.org/en/stable/tutorials/01-mlrun-basics.html), [Feature Store](https://docs.mlrun.org/en/stable/feature-store/basic-demo.html).
@@ -156,7 +157,7 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 MLRun includes the following major components:
 
-[**Project Management:**](https://docs.mlrun.org/en/stable/projects/project.html) A service (API, SDK, DB, UI) that manages the different project assets (data, functions, jobs, workflows, secrets, etc.) and provides central control and metadata layer.  
+[**Project Management:**](https://docs.mlrun.org/en/stable/projects/project.html) A service (API, SDK, DB, UI) that manages the different project assets (data, functions, jobs, workflows, secrets, etc.) and provides central control and metadata layer.
 
 [**Functions:**](https://docs.mlrun.org/en/stable/runtimes/functions.html) automatically deployed software package with one or more methods and runtime-specific attributes (such as image, libraries, command, arguments, resources, etc.).
 

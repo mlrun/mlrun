@@ -21,18 +21,27 @@ permissions:
   contents: write
   actions: write
   packages: write
+  pull-requests: write
 
 on:
+  push:
+    branches:
+      - feature/mlrun-release-procedure
   workflow_dispatch:
     inputs:
       release_candidate_promotion:
         description: 'The tag to promote to a full release, must be an existing release candidate tag'
         required: true
-        default: 'rc-v1.13.205-18222610666-7a5dabe5'
+        default: 'rc-v1.13.401-rc.0-18338833633-5b5abde7'
         type: string
       skip_images:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,models,jupyter,test'
         default: ''
+        type: string
+      source_branch:
+        description: 'The source branch to merge back after release'
+        required: true
+        default: 'feature/mlrun-release-procedure'
         type: string
 jobs:
 
@@ -46,12 +55,12 @@ jobs:
       - name: Extract version from RC tag
         id: extract
         env:
-          RELEASE_CANDIDATE_INPUT: ${{ inputs.release_candidate_promotion || 'rc-v1.13.205-18222610666-7a5dabe5' }}
+          RELEASE_CANDIDATE_INPUT: ${{ inputs.release_candidate_promotion || 'rc-v1.13.401-rc.0-18338833633-5b5abde7' }}
         run: |
           echo "🎯 Trigger: ${{ github.event_name }}"
           echo "🏷️ Release candidate to promote: $RELEASE_CANDIDATE_INPUT"
 
-          # Extract version from RC tag (e.g., rc-v1.13.205-18222610666-7a5dabe5 → v1.13.205)
+          # Extract version from RC tag (e.g., rc-v1.13.401-rc.0-18338833633-5b5abde7 → v1.13.205)
           RC_TAG=$RELEASE_CANDIDATE_INPUT
           RELEASE_VERSION=$(echo "$RC_TAG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+')
 
@@ -67,6 +76,57 @@ jobs:
           echo "✅ Version validation passed!"
           echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
           echo "rc_tag=$RC_TAG" >> $GITHUB_OUTPUT
+
+  Create-Tag-And-Merge-Back:
+    name: Create Git Tag and Merge Back
+    runs-on: ubuntu-latest
+    needs: Extract-Version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Fetch all history for all branches and tags
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dev requirements
+        run: |
+          pip install -r ci-requirements.txt
+
+      - name: Bump RC to Release and Push Tag
+        id: create-git-tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.Extract-Version.outputs.release_version }}
+        run: |
+          echo "🏷️ Release version to tag: $RELEASE_VERSION"
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cz bump
+          git push
+          git push --tags
+          echo "✅ Tag $RELEASE_VERSION created and pushed successfully!"
+
+      - name: Merge back to source branch
+        id: merge-back-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.Extract-Version.outputs.release_version }}
+          SOURCE_BRANCH: ${{ inputs.source_branch || 'feature/mlrun-release-procedure'}}
+        run: |
+          echo "🏷️ Opening a PR back to source branch: $SOURCE_BRANCH"
+          branch_name=release/$RELEASE_VERSION
+          # Create a PR from branch name -> source branch
+          gh pr create \
+            --base $SOURCE_BRANCH \
+            --head $branch_name \
+            --title "chore: DO NOT MERGE IS A TEST merge back after release $RELEASE_VERSION" \
+            --body "chore: merge back after release $RELEASE_VERSION"
+          echo "✅ Source branch $SOURCE_BRANCH updated successfully!"
 
   Matrix-Prep:
     runs-on: ubuntu-latest

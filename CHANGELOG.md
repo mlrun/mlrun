@@ -1,3 +1,10 @@
+## v1.13.401 (2025-10-07)
+
+### Fix
+
+- **ci**: test release procedure
+- **ci**: test release
+
 ## v1.13.401-rc.0 (2025-10-07)
 
 ### Fix

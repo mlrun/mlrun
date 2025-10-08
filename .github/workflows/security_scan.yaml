@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload scan results
         if: github.event.inputs.publish_results != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
           category: ${{ matrix.image-name }}-${{ matrix.python-version }})
@@ -160,7 +160,7 @@ jobs:
 
       - name: Upload scan results
         if: github.event.inputs.publish_results != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
           category: "repository"

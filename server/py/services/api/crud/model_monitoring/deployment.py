@@ -1644,8 +1644,7 @@ class MonitoringDeployment:
 
         raise mlrun.errors.MLRunBadRequestError(
             "Model monitoring credentials are not set. "
-            "Please set them using the set_model_monitoring_credentials API/SDK "
-            "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
+            "Please set them using the set_model_monitoring_credentials API/SDK."
         )
 
     def _validate_and_get_tsdb_profile(

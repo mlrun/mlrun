@@ -20,6 +20,7 @@ import sys
 import time
 from sys import executable
 
+import git.exc
 import igz_mgmt
 import pandas as pd
 import pytest
@@ -1862,14 +1863,16 @@ class TestProject(TestMLRunSystem):
     def test_load_project_remotely_with_secrets_failed(self):
         name = "failed-to-load"
         self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
         db = self._run_db
-        state = db.load_project(
-            name=name,
-            url="git://github.com/some/wrong/uri.git",
-            secrets={"secret1": "1234"},
-            save_secrets=False,
-        )
-        assert state == "error"
+        with pytest.raises(git.exc.GitCommandError):
+            mlrun.load_project(
+                project_dir,
+                name=name,
+                url="git://github.com/some/wrong/uri.git",
+                secrets={"secret1": "1234"},
+                allow_cross_project=True,
+            )
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             db.get_project(name)
 

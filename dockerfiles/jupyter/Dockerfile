@@ -103,7 +103,7 @@ ARG MLRUN_CACHE_DATE
 
 # Use 1.7.x version from mlrun/demos to update the demos(do not update version).
 RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \
-    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup
+    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup --mlrun-ver=1.9.0
 
 ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \

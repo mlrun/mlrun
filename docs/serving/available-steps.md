@@ -63,4 +63,5 @@ See also [Data transformations](../feature-store/transformations.md#data-transfo
 | Class name                                                 | Description                                                                                                   |   
 |------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
 | {py:class}`~mlrun.feature_store.steps.FeaturesetValidator` | Validate feature values according to the feature set validation policy. Supported also by the Pandas engines. | 
+| {py:class}`~mlrun.serving.steps.ChoiceByField`             | Routes events to downstream steps based on an event field that contains the step name or names. | 
 | ReduceToDataFrame                                          | Builds a pandas DataFrame from events and returns that DataFrame on flow termination.                         |

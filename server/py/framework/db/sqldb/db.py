@@ -3900,8 +3900,22 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
+        """
+        Calculate per-project run counters for recent activity and current status.
+
+        This method counts only top-level runs (``iteration == 0``), excluding child runs
+        from hyperparameter tuning, which are not considered separate jobs.
+
+        :param session: The active DB session used to query the runs.
+
+        :return: A tuple containing:
+            - A dictionary of recently completed runs (last 24h) per project.
+            - A dictionary of recently failed or aborted runs (last 24h) per project.
+            - A dictionary of currently running runs (non-terminal states) per project.
+        """
         running_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     mlrun.common.runtimes.constants.RunStates.non_terminal_states()
@@ -3910,6 +3924,7 @@ class SQLDB(DBInterface):
             .group_by(Run.project)
             .all()
         )
+
         project_to_running_runs_count = {
             result[0]: result[1] for result in running_runs_count_per_project
         }
@@ -3917,6 +3932,8 @@ class SQLDB(DBInterface):
         one_day_ago = datetime.now() - timedelta(hours=24)
         recent_failed_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.start_time >= one_day_ago)
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     [
@@ -3925,7 +3942,6 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
-            .filter(Run.start_time >= one_day_ago)
             .group_by(Run.project)
             .all()
         )
@@ -3935,6 +3951,8 @@ class SQLDB(DBInterface):
 
         recent_completed_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.start_time >= one_day_ago)
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     [
@@ -3942,7 +3960,6 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
-            .filter(Run.start_time >= one_day_ago)
             .group_by(Run.project)
             .all()
         )

@@ -80,6 +80,7 @@ class Pipelines(
         runs = []
         next_page_token = page_token or None
         for page_runs, next_page_token in kfp_client.list_runs(
+            project=project,
             page_token=next_page_token,
             page_size=page_size
             or mlrun.common.schemas.PipelinesPagination.default_page_size,

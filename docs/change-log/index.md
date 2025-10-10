@@ -278,7 +278,7 @@ To upgrade the MLRun server:
 ### Serving graph
 | ID    | Description                                                                                                                                                                                                                                                        |
 |-------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-6015| Storey/Nuclio serving graph: supports [concurrent processing](../serving/model-serving-get-started.ipynb#concurrent-processing), typically used for serving of deep-learning models, where preparation steps and inference can be CPU/GPU heavy, or involving I/O. |
+|ML-6015| Storey/Nuclio serving graph: supports [concurrent processing](../serving/concurrent-processing.ipynb), typically used for serving of deep-learning models, where preparation steps and inference can be CPU/GPU heavy, or involving I/O. |
 
 ### Data store
 | ID      | Description                                                                             |
@@ -857,8 +857,9 @@ conda activate python39
 
 | ID      | Description                                                                                                                                                                                                                                      |
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Graph that splits and rejoins](../serving/model-serving-get-started.ipynb#graph-that-splits-and-rejoins). |
-| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See [Queue (streaming)](../serving/model-serving-get-started.ipynb#queue-streaming).                                                                                 |
+| ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Branching and merging steps](../serving/branch-merge.md). |
+| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See 
+[Queue (streaming)](../serving/remote-execution.ipynb#queue-streaming).                                                                   |
 
 #### Storey 
 

@@ -1,3 +1,3 @@
 kfp==1.8.22; python_version < "3.11"
 kfp==1.8.23; python_version >= "3.11"
-mlrun-pipelines-kfp-v1-8[kfp]~=0.5.7
+mlrun-pipelines-kfp-v1-8[kfp]~=0.5.8

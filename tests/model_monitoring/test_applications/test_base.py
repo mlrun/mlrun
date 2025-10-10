@@ -588,30 +588,33 @@ def project(tmpdir: Path) -> mlrun.MlrunProject:
     "endpoints", ["all", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
 )
 @pytest.mark.usefixtures("rundb_mock")
-def test_handle_endpoints_type_evaluate(
+def test_validate_endpoints(
     project: mlrun.MlrunProject, endpoints: Union[str, list[str], list[tuple[str, str]]]
 ) -> None:
-    endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+    endpoints_output = ModelMonitoringApplicationBase._validate_endpoints(
         project, endpoints
     )
     assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]
 
 
+@pytest.mark.usefixtures("rundb_mock")
 @pytest.mark.parametrize(
     ("endpoints", "err_msg"),
     [
         ("*", 'A string input for `endpoints` can only be "all"'),
         ([], "The endpoints list cannot be empty"),
         ([1], r"Could not resolve endpoints as list of \[\(name, uid\)\]"),
+        (
+            ["model-ep-no-first-request"],
+            "have no data, cannot run the model monitoring application on them",
+        ),
     ],
 )
-def test_handle_endpoints_type_evaluate_error(
+def test_validate_endpoints_error(
     project: mlrun.MlrunProject, endpoints: Union[str, list[str]], err_msg: str
 ) -> None:
     with pytest.raises(mlrun.errors.MLRunValueError, match=err_msg):
-        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
-            project, endpoints
-        )
+        ModelMonitoringApplicationBase._validate_endpoints(project, endpoints)
 
 
 @pytest.mark.parametrize(

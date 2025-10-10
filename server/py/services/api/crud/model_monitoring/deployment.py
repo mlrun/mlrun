@@ -54,7 +54,7 @@ from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
 )
-from mlrun.model_monitoring.writer import ModelMonitoringWriter
+from mlrun.model_monitoring.writer import ModelMonitoringWriter, WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
@@ -710,12 +710,30 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
-        graph.to(
-            ModelMonitoringWriter(
-                project=self.project, secret_provider=self._secret_provider
+        if config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
+            logger.info("Using writer graph v1")
+            graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
+            graph.to(
+                ModelMonitoringWriter(
+                    project=self.project, secret_provider=self._secret_provider
+                )
             )
-        )  # writer
+        else:
+            logger.info("Using writer graph v2")
+            parquet_target = (
+                services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
+                    db_session=self.db_session,
+                    project=self.project,
+                    kind="parquet_stats",
+                )
+            )
+            writer_factory = WriterGraphFactory(
+                parquet_path=parquet_target,
+            )
+            writer_factory.apply_writer_graph(
+                fn=function,
+                tsdb_connector=self._tsdb_connector,
+            )
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -1626,8 +1644,7 @@ class MonitoringDeployment:
 
         raise mlrun.errors.MLRunBadRequestError(
             "Model monitoring credentials are not set. "
-            "Please set them using the set_model_monitoring_credentials API/SDK "
-            "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
+            "Please set them using the set_model_monitoring_credentials API/SDK."
         )
 
     def _validate_and_get_tsdb_profile(

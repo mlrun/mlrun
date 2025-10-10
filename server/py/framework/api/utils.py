@@ -31,6 +31,7 @@ import semver
 import sqlalchemy.orm
 from fastapi import BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
+from kubernetes.client import V1EnvVar, V1EnvVarSource
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -43,7 +44,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import get_in, logger
+from mlrun.utils import RunKeys, get_in, logger
 
 import framework.constants
 import framework.db.session
@@ -172,7 +173,9 @@ def parse_submit_run_body(data):
     return function_dict, function_url, task
 
 
-def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
+def _generate_function_and_task_from_submit_run_body(
+    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
+):
     function_dict, function_url, task = parse_submit_run_body(data)
 
     if function_dict and not function_url:
@@ -200,6 +203,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
+    apply_enrichment_and_validation_on_function(function=function, auth_info=auth_info)
     apply_enrichment_and_validation_on_task(task)
 
     return function, task
@@ -218,7 +222,9 @@ async def submit_run(
     response = None
 
     try:
-        fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+        fn, task = _generate_function_and_task_from_submit_run_body(
+            db_session, auth_info, data
+        )
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
@@ -288,11 +294,31 @@ async def submit_run(
     return response
 
 
-def apply_enrichment_and_validation_on_task(task):
+def apply_enrichment_and_validation_on_task(
+    task: dict, mask_notification_params_on_task: bool = True
+):
     # Conceal notification config params from the task object with secrets
-    framework.utils.notifications.mask_notification_params_on_task(
-        task, framework.constants.MaskOperations.CONCEAL
-    )
+    if mask_notification_params_on_task:
+        framework.utils.notifications.mask_notification_params_on_task(
+            task, framework.constants.MaskOperations.CONCEAL
+        )
+    # validates that secrets used in the task are allowed
+    # currently, this only ensures that if k8s mlrun project secrets are used,
+    # they belong to the correct project (not another project’s secret)
+    validate_function_secret_sources(task)
+
+
+def validate_function_secret_sources(function):
+    secrets_list = get_in(function, ["spec", RunKeys.secrets], default=[])
+    secrets = mlrun.secrets.SecretsStore.from_list(secrets_list)
+
+    project_name = get_in(function, ["metadata", "project"])
+
+    if azure_k8s_secrets := secrets.get_azure_vault_k8s_secret():
+        validate_secret_allowed(
+            project_name=project_name,
+            secret_name=azure_k8s_secrets,
+        )
 
 
 # TODO: split enrichment and validation to separate functions should be in the launcher
@@ -304,6 +330,7 @@ def apply_enrichment_and_validation_on_function(
     validate_service_account: bool = True,
     mask_sensitive_data: bool = True,
     ensure_security_context: bool = True,
+    allow_empty_access_key: bool = False,
 ):
     """
     This function should be used only on server side.
@@ -318,7 +345,11 @@ def apply_enrichment_and_validation_on_function(
     # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
     # be able to communicate with the api
     if ensure_auth:
-        ensure_function_has_auth_set(function, auth_info)
+        ensure_function_has_auth_set(
+            function,
+            auth_info,
+            allow_empty_access_key=allow_empty_access_key,
+        )
 
     # if this was triggered by the UI, we will need to attempt auto-mount based on auto-mount config and params passed
     # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
@@ -335,14 +366,95 @@ def apply_enrichment_and_validation_on_function(
     if ensure_security_context:
         ensure_function_security_context(function, auth_info)
 
+    validate_function_volume_mounts(function)
+    validate_function_env_vars(function)
+    validate_function_secret_sources(function)
 
-def ensure_function_auth_and_sensitive_data_is_masked(
-    function,
-    auth_info: mlrun.common.schemas.AuthInfo,
-    allow_empty_access_key: bool = False,
+
+def validate_function_volume_mounts(
+    function: typing.Union[dict, mlrun.runtimes.KubeResource],
 ):
-    ensure_function_has_auth_set(function, auth_info, allow_empty_access_key)
-    mask_function_sensitive_data(function, auth_info)
+    """
+    Ensure that if a project secret is mounted to the function,
+    it matches the function's project.
+    """
+    project = get_in(function, "metadata.project")
+    volumes = get_in(function, "spec.volumes")
+
+    if not project or not volumes:
+        return
+
+    for volume in volumes:
+        secret_name = volume.get("secret", {}).get("secretName", "")
+        if not secret_name:
+            continue
+        validate_secret_allowed(project, secret_name)
+
+
+def validate_function_env_vars(function):
+    """
+    Ensure that if a project secret is referenced through environment variables,
+    the secret belongs to the same project as the function.
+    """
+    project = get_in(function, "metadata.project")
+    env_vars = get_in(function, "spec.env")
+
+    if not env_vars or not project:
+        return
+
+    for env_var in env_vars:
+        # Handle both dict and V1EnvVar
+        if isinstance(env_var, dict):
+            value_from = env_var.get("valueFrom")
+        elif isinstance(env_var, V1EnvVar):
+            value_from = env_var.value_from
+        else:
+            continue
+
+        if not value_from:
+            continue
+
+        # Handle both dict and V1EnvVarSource
+        if isinstance(value_from, dict):
+            secret_ref = value_from.get("secretKeyRef")
+            if secret_ref and "name" in secret_ref:
+                secret_name = secret_ref["name"]
+            else:
+                continue
+        elif isinstance(value_from, V1EnvVarSource) and value_from.secret_key_ref:
+            secret_name = value_from.secret_key_ref.name
+        else:
+            continue
+
+        if not secret_name:
+            continue
+
+        validate_secret_allowed(
+            project_name=project,
+            secret_name=secret_name,
+        )
+
+
+def validate_secret_allowed(
+    project_name: str,
+    secret_name: str,
+):
+    project_secret_name = (
+        framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+            project_name
+        )
+    )
+    project_secret_prefix = (
+        framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_name("")
+    )
+    if (
+        secret_name.startswith(project_secret_prefix)
+        and secret_name != project_secret_name
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Failed to validate secret '{secret_name}': it belongs to a different project than the"
+            f" function's project '{project_name}'"
+        )
 
 
 def mask_function_sensitive_data(function, auth_info: mlrun.common.schemas.AuthInfo):
@@ -897,7 +1009,9 @@ def submit_run_from_body(
     auth_info: mlrun.common.schemas.AuthInfo,
     data,
 ):
-    fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+    fn, task = _generate_function_and_task_from_submit_run_body(
+        db_session, auth_info, data
+    )
     run_db = get_run_db_instance(db_session)
     fn.set_db_connection(run_db)
     return submit_run_sync(db_session, auth_info, fn, task, data)

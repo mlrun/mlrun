@@ -16,6 +16,7 @@ import asyncio
 import copy
 import json
 import typing
+import warnings
 from datetime import datetime
 from time import sleep
 
@@ -423,6 +424,18 @@ class RemoteRuntime(KubeResource):
                 )
         """
         self.spec.build.source = source
+
+        code = (
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        )
+        if code:
+            # Warn and clear any inline code so the archive is actually used
+            logger.warning(
+                "Cannot specify both code and source archive. Removing the code so the provided "
+                "source archive will be used instead."
+            )
+            self.spec.build.functionSourceCode = None
+
         # update handler in function_handler if needed
         if handler:
             self.spec.function_handler = handler
@@ -1317,8 +1330,10 @@ class RemoteRuntime(KubeResource):
         :return: returns function's url
         """
         if auth_info:
-            logger.warning(
-                "Deprecated parameter 'auth_info' was provided, but will be ignored. Will be removed in 1.12.0."
+            warnings.warn(
+                "'auth_info' is deprecated in 1.10.0 and will be removed in 1.12.0.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
             )
         return self._resolve_invocation_url("", force_external_address)
 

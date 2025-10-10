@@ -146,7 +146,13 @@ async def enable_model_monitoring(
             "then send a PUT request to the same endpoint with the updated image."
         ),
     ),
-    fetch_credentials_from_sys_config: bool = False,
+    fetch_credentials_from_sys_config: bool = Query(
+        False,
+        deprecated=True,
+        description=(
+            "`fetch_credentials_from_sys_config` is deprecated as of 1.10.0 and will be removed in 1.12.0."
+        ),
+    ),
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -165,7 +171,7 @@ async def enable_model_monitoring(
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
     :param rebuild_images:                    Deprecated. If true, force rebuild of model monitoring infrastructure
                                               images (controller, writer & stream).
-    :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+    :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
 
     """
     commons.get_monitoring_deployment().deploy_monitoring_functions(

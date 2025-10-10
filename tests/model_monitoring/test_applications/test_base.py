@@ -321,6 +321,18 @@ class TestEvaluate:
         ), "The error message is different than expected or was not captured"
 
 
+@pytest.fixture
+def non_empty_sample_df_context_mock() -> Iterator[MonitoringApplicationContext]:
+    mock = Mock(pd.DataFrame)
+    mock.empty = False
+    with patch.object(
+        MonitoringApplicationContext,
+        "sample_df",
+        property(lambda _: mock),
+    ):
+        yield mock
+
+
 @pytest.mark.parametrize(
     ("start", "end", "base_period", "expectation"),
     [
@@ -351,6 +363,7 @@ class TestEvaluate:
         ),
     ],
 )
+@pytest.mark.usefixtures("non_empty_sample_df_context_mock")
 def test_window_generator_validation(
     start: Optional[str],
     end: Optional[str],
@@ -364,9 +377,13 @@ def test_window_generator_validation(
                 end=end,
                 base_period=base_period,
                 application_schedules=None,
+                endpoint_name="",
                 endpoint_id="",
                 application_name="",
                 existing_data_handling=ExistingDataHandling.fail_on_overlap,
+                context=mlrun.MLClientCtx.from_dict({}),
+                project=mlrun.projects.MlrunProject(),
+                sample_data=None,
             )
         )
 
@@ -425,25 +442,31 @@ def test_window_generator_validation(
         ),
     ],
 )
+@pytest.mark.usefixtures("non_empty_sample_df_context_mock")
 def test_windows(
     start: datetime,
     end: datetime,
     base_period: Optional[int],
     expected_windows: list[tuple[datetime, datetime]],
 ) -> None:
-    assert (
-        list(
-            ModelMonitoringApplicationBase._window_generator(
-                start=start.isoformat(),
-                end=end.isoformat(),
-                base_period=base_period,
-                application_schedules=None,
-                endpoint_id="",
-                application_name="",
-                existing_data_handling=ExistingDataHandling.fail_on_overlap,
-            )
+    windows = [
+        (ctx.start_infer_time, ctx.end_infer_time)
+        for ctx in ModelMonitoringApplicationBase._window_generator(
+            start=start.isoformat(),
+            end=end.isoformat(),
+            base_period=base_period,
+            application_schedules=None,
+            endpoint_name="",
+            endpoint_id="",
+            application_name="",
+            existing_data_handling=ExistingDataHandling.fail_on_overlap,
+            project=mlrun.projects.MlrunProject(),
+            context=mlrun.MLClientCtx.from_dict({}),
+            sample_data=None,
         )
-        == expected_windows
+    ]
+    assert (
+        windows == expected_windows
     ), "The generated windows are different than expected"
 
 

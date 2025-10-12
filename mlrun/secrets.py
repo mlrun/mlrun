@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from ast import literal_eval
 from os import environ, getenv
 from typing import Callable, Optional, Union
 
 from .utils import AzureVaultStore, list2dict
+
+SECRET_FILES_BASE_PATH = (
+    "a/b/c"  # base path for secret files to avoid path traversal attacks
+)
 
 
 class SecretsStore:
@@ -38,7 +43,7 @@ class SecretsStore:
     def to_dict(self, struct):
         pass
 
-    def add_source(self, kind, source="", prefix=""):
+    def add_source(self, kind, source="", prefix="", allow_path_traversal=False):
         if kind == "inline":
             if isinstance(source, str):
                 source = literal_eval(source)
@@ -48,6 +53,19 @@ class SecretsStore:
                 self._secrets[prefix + k] = str(v)
 
         elif kind == "file":
+            # Check for path traversal
+            if not allow_path_traversal:
+                normalized_path = os.path.normpath(
+                    os.path.join(SECRET_FILES_BASE_PATH, source)
+                )
+                # Ensure normalized path starts with designated base directory
+                if not normalized_path.startswith(
+                    os.path.abspath(SECRET_FILES_BASE_PATH)
+                ):
+                    raise ValueError(
+                        "Invalid secret file path: potential path traversal detected. Operation aborted. "
+                        "Please use an absolute path within the allowed base directory."
+                    )
             with open(source) as fp:
                 lines = fp.read().splitlines()
                 secrets_dict = list2dict(lines)

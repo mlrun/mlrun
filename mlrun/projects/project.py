@@ -3443,7 +3443,7 @@ class MlrunProject(ModelObj):
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.name, "secrets": source}
 
-        self._secrets.add_source(kind, source, prefix)
+        self._secrets.add_source(kind, source, prefix, allow_path_traversal=True)
         return self
 
     def get_secret(self, key: str):

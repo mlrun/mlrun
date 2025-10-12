@@ -454,53 +454,55 @@ def test_import_function_to_dict_value_errors():
     Test import_function_to_dict for various error cases:
     missing command/code, path traversal, relative path, and nonexistent file.
     """
-    # 1. Missing command and code
-    with tempfile.NamedTemporaryFile(
-        suffix=".yaml", mode="w", delete=False
-    ) as temp_file:
-        yaml.dump({"kind": "local", "spec": {}}, temp_file)
-        temp_file_path = temp_file.name
-    with pytest.raises(
-        ValueError, match="command or code not specified in function spec"
-    ):
-        import_function_to_dict(temp_file_path)
-    os.remove(temp_file_path)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # 1. Missing command and code
+        temp_file_path = os.path.join(temp_dir, "missing.yaml")
+        with open(temp_file_path, "w") as temp_file:
+            yaml.dump({"kind": "local", "spec": {}}, temp_file)
+        with pytest.raises(
+            ValueError, match="command or code not specified in function spec"
+        ):
+            import_function_to_dict(temp_file_path)
 
-    # 2. Path traversal in spec.command
-    with tempfile.NamedTemporaryFile(
-        suffix=".yaml", mode="w", delete=False
-    ) as temp_file:
-        yaml.dump({"kind": "local", "spec": {"command": "../escape.py"}}, temp_file)
-        temp_file_path = temp_file.name
-    with pytest.raises(
-        ValueError,
-        match="exec file spec.command=../escape.py is outside of allowed directory",
-    ):
-        import_function_to_dict(temp_file_path)
-    os.remove(temp_file_path)
+        # 2. Path traversal in spec.command
+        temp_file_path = os.path.join(temp_dir, "traversal.yaml")
+        with open(temp_file_path, "w") as temp_file:
+            yaml.dump({"kind": "local", "spec": {"command": "../escape.py"}}, temp_file)
+        with pytest.raises(
+            ValueError,
+            match="exec file spec.command=../escape.py is outside of allowed directory",
+        ):
+            import_function_to_dict(temp_file_path)
 
-    # 3. Absolute path required but relative given
-    with tempfile.NamedTemporaryFile(
-        suffix=".yaml", mode="w", delete=False
-    ) as temp_file:
-        yaml.dump({"kind": "local", "spec": {"command": "relative.py"}}, temp_file)
-        temp_file_path = temp_file.name
-        relative_py_path = os.path.join(os.path.dirname(temp_file_path), "relative.py")
+        # 3. Absolute path required but relative given
+        temp_file_path = os.path.join(temp_dir, "relative.yaml")
+        relative_py_path = os.path.join(temp_dir, "relative.py")
+        with open(temp_file_path, "w") as temp_file:
+            yaml.dump({"kind": "local", "spec": {"command": "relative.py"}}, temp_file)
         open(relative_py_path, "w").close()
-    with pytest.raises(
-        ValueError,
-        match="exec file spec.command=relative.py is relative, it must be absolute. Change working dir",
-    ):
-        import_function_to_dict(temp_file_path)
-    os.remove(temp_file_path)
-    os.remove(relative_py_path)
+        with pytest.raises(
+            ValueError,
+            match="exec file spec.command=relative.py is relative, it must be absolute. Change working dir",
+        ):
+            import_function_to_dict(temp_file_path)
 
-    # 4. File does not exist
-    with tempfile.NamedTemporaryFile(
-        suffix=".yaml", mode="w", delete=False
-    ) as temp_file:
-        yaml.dump({"kind": "local", "spec": {"command": "nonexistent.py"}}, temp_file)
-        temp_file_path = temp_file.name
-    with pytest.raises(ValueError, match="no file in exec path"):
-        import_function_to_dict(temp_file_path)
-    os.remove(temp_file_path)
+        # 4. File does not exist
+        temp_file_path = os.path.join(temp_dir, "nonexistent.yaml")
+        with open(temp_file_path, "w") as temp_file:
+            yaml.dump(
+                {"kind": "local", "spec": {"command": "nonexistent.py"}}, temp_file
+            )
+        with pytest.raises(ValueError, match="no file in exec path"):
+            import_function_to_dict(temp_file_path)
+
+        # 5. File exists and is valid
+        success_py_path = os.path.join(temp_dir, "success.py")
+        with open(success_py_path, "w") as f:
+            f.write("# dummy python file")
+        temp_file_path = os.path.join(temp_dir, "success.yaml")
+        with open(temp_file_path, "w") as temp_file:
+            yaml.dump(
+                {"kind": "local", "spec": {"command": success_py_path}}, temp_file
+            )
+        result = import_function_to_dict(temp_file_path)
+        assert result["spec"]["command"] == success_py_path

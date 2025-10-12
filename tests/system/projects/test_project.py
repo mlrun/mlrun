@@ -1845,13 +1845,15 @@ class TestProject(TestMLRunSystem):
         self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         db = self._run_db
-        mlrun.load_project(
+        project = mlrun.load_project(
             project_dir,
             name=name,
             url="git://github.com/mlrun/project-demo.git",
-            secrets={"secret1": "1234"},
             allow_cross_project=True,
         )
+
+        if save_secrets:
+            project.set_secrets({"secret1": "1234"})
 
         secrets = db.list_project_secret_keys(name)
 

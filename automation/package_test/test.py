@@ -242,7 +242,9 @@ class PackageTester:
             extra=extra,
         )
         self._run_command(
-            "pip install pipdeptree",
+            # pin pipdeptree below 2.29.0 until mlflow upgrade:
+            # pipdeptree ver 2.29 requires packaging >= 25.0 while mlflow-skinny (mlflow dep) requires packaging < 25.0
+            "pip install 'pipdeptree<2.29.0'",
             run_in_venv=True,
         )
         self._run_command(

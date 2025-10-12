@@ -431,7 +431,7 @@ def import_function_to_dict(
             if not path.isfile(candidate_path):
                 raise ValueError(f"no file in exec path (spec.command={code_file})")
 
-            # Optionally enforce absolute path requirement
+            # Check that the path is absolute
             if not os.path.isabs(code_file):
                 raise ValueError(
                     f"exec file spec.command={code_file} is relative, it must be absolute. Change working dir"

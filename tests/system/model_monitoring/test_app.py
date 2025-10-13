@@ -1820,6 +1820,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         ):
             self.project.enable_model_monitoring(
                 image=self.image or "mlrun/mlrun",
+                wait_for_deployment=True,
             )
         # check that all the function are still deployed
         all_functions = mm_constants.MonitoringFunctionNames.list() + [

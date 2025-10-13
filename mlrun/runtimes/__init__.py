@@ -30,8 +30,6 @@ __all__ = [
 
 import typing
 
-from mlrun.runtimes.utils import resolve_spark_operator_version
-
 from ..common.runtimes.constants import MPIJobCRDVersions
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .daskjob import DaskCluster  # noqa
@@ -50,6 +48,7 @@ from .nuclio.application import ApplicationRuntime
 from .nuclio.serving import serving_subkind
 from .remotesparkjob import RemoteSparkRuntime
 from .sparkjob import Spark3Runtime
+from .utils import resolve_spark_operator_version
 
 # for legacy imports (MLModelServer moved from here to /serving)
 from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip

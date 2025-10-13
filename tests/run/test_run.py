@@ -13,7 +13,6 @@
 # limitations under the License.
 import contextlib
 import io
-import os
 import pathlib
 import sys
 import tempfile
@@ -449,60 +448,78 @@ def test_run_status_retry_updates(rundb_mock):
     ), "Expected run state to be pending_retry"
 
 
-def test_import_function_to_dict_value_errors():
+@pytest.mark.parametrize(
+    "function_yaml, file, expected_exception, match",
+    [
+        # 1. Missing spec
+        (
+            {"kind": "local", "spec": {}},
+            None,
+            ValueError,
+            "command or code not specified in function spec",
+        ),
+        # 2. Path traversal in spec.command
+        (
+            {"kind": "local", "spec": {"command": "../escape.py"}},
+            None,
+            ValueError,
+            "exec file spec.command=../escape.py is outside of allowed directory",
+        ),
+        # 3. Absolute path required but relative given
+        (
+            {"kind": "local", "spec": {"command": "relative.py"}},
+            "relative.py",
+            ValueError,
+            "exec file spec.command=relative.py is relative, it must be absolute. Change working dir",
+        ),
+        # 4. File does not exist
+        (
+            {"kind": "local", "spec": {"command": "nonexistent.py"}},
+            None,
+            ValueError,
+            "no file in exec path",
+        ),
+        # 5. File exists and is valid - no exception expected
+        (
+            {"kind": "local", "spec": {"command": "success.py"}},
+            "success.py",
+            None,
+            None,
+        ),
+    ],
+)
+def test_import_function_to_dict(function_yaml, file, expected_exception, match):
     """
-    Test import_function_to_dict for various error cases:
-    missing command/code, path traversal, relative path, and nonexistent file.
+    Test the `import_function_to_dict` utility for various edge cases and valid scenarios.
+
+    This test covers:
+    - Missing command the function spec
+    - Path traversal attempts in the command field
+    - Relative path usage
+    - Nonexistent file specified in the function spec
+    - Successful import when the file exists and is valid.
+
     """
     with tempfile.TemporaryDirectory() as temp_dir:
-        # 1. Missing command and code
-        temp_file_path = os.path.join(temp_dir, "missing.yaml")
-        with open(temp_file_path, "w") as temp_file:
-            yaml.dump({"kind": "local", "spec": {}}, temp_file)
-        with pytest.raises(
-            ValueError, match="command or code not specified in function spec"
-        ):
-            import_function_to_dict(temp_file_path)
+        temp_dir_path = pathlib.Path(temp_dir)
+        yaml_path = temp_dir_path / "test.yaml"
 
-        # 2. Path traversal in spec.command
-        temp_file_path = os.path.join(temp_dir, "traversal.yaml")
-        with open(temp_file_path, "w") as temp_file:
-            yaml.dump({"kind": "local", "spec": {"command": "../escape.py"}}, temp_file)
-        with pytest.raises(
-            ValueError,
-            match="exec file spec.command=../escape.py is outside of allowed directory",
-        ):
-            import_function_to_dict(temp_file_path)
+        # Create file if needed
+        if file:
+            (temp_dir_path / file).write_text("# dummy python file")
 
-        # 3. Absolute path required but relative given
-        temp_file_path = os.path.join(temp_dir, "relative.yaml")
-        relative_py_path = os.path.join(temp_dir, "relative.py")
-        with open(temp_file_path, "w") as temp_file:
-            yaml.dump({"kind": "local", "spec": {"command": "relative.py"}}, temp_file)
-        open(relative_py_path, "w").close()
-        with pytest.raises(
-            ValueError,
-            match="exec file spec.command=relative.py is relative, it must be absolute. Change working dir",
-        ):
-            import_function_to_dict(temp_file_path)
-
-        # 4. File does not exist
-        temp_file_path = os.path.join(temp_dir, "nonexistent.yaml")
-        with open(temp_file_path, "w") as temp_file:
-            yaml.dump(
-                {"kind": "local", "spec": {"command": "nonexistent.py"}}, temp_file
+        # For valid file, set absolute path
+        if function_yaml.get("spec", {}).get("command") in ["success.py"]:
+            function_yaml["spec"]["command"] = str(
+                temp_dir_path / function_yaml["spec"]["command"]
             )
-        with pytest.raises(ValueError, match="no file in exec path"):
-            import_function_to_dict(temp_file_path)
 
-        # 5. File exists and is valid
-        success_py_path = os.path.join(temp_dir, "success.py")
-        with open(success_py_path, "w") as f:
-            f.write("# dummy python file")
-        temp_file_path = os.path.join(temp_dir, "success.yaml")
-        with open(temp_file_path, "w") as temp_file:
-            yaml.dump(
-                {"kind": "local", "spec": {"command": success_py_path}}, temp_file
-            )
-        result = import_function_to_dict(temp_file_path)
-        assert result["spec"]["command"] == success_py_path
+        with open(yaml_path, "w") as temp_file:
+            yaml.dump(function_yaml, temp_file)
+
+        if expected_exception:
+            with pytest.raises(expected_exception, match=match):
+                import_function_to_dict(str(yaml_path))
+        else:
+            result = import_function_to_dict(str(yaml_path))
+            assert result["spec"]["command"] == str(temp_dir_path / "success.py")

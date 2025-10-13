@@ -107,6 +107,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             if (tag is None or item.metadata.tag == tag) and (
                 version is None or item.metadata.version == version
             ):
+                self._normalize_categories(item)
                 result_catalog.catalog.append(item)
 
         return result_catalog
@@ -396,3 +397,14 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         """
         normalized_name = mlrun.utils.helpers.normalize_name(item_name)
         return [item for item in catalog if item.metadata.name == normalized_name]
+
+    @staticmethod
+    def _normalize_categories(item: mlrun.common.schemas.hub.HubItem):
+        categories = getattr(item.metadata, "categories", [])
+        normalized_categories = [
+            s.replace("-", " ").title().strip()
+            for s in categories
+            if isinstance(s, str)
+        ]
+        # todo: or any other mapping we'd like to do
+        setattr(item.metadata, "categories", normalized_categories)

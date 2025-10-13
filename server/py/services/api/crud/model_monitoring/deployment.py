@@ -155,9 +155,9 @@ class MonitoringDeployment:
             self.set_credentials()
         if deployed_functions := self.get_deployed_model_monitoring_functions():
             raise mlrun.errors.MLRunConflictError(
-                f"Model monitoring functions are already deployed: {deployed_functions}"
-                f". If you want to redeploy them, please use disable_model_monitoring first "
-                f"and enable it again."
+                f"The following model-montioring infra functions are already deployed, aborting : {deployed_functions}\n"
+                f"If you want to redeploy model-monitoring infra, issue disable_model_monitoring"
+                f"before calling enable_model_monitoring again."
             )
         self.check_if_credentials_are_set()
 

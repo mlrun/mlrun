@@ -1814,9 +1814,13 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             image=self.image or "mlrun/mlrun",
             wait_for_deployment=True,
         )
-        self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
-        )
+        with pytest.raises(
+            mlrun.errors.MLRunConflictError,
+            match="The following model-montioring infra functions are already deployed, aborting",
+        ):
+            self.project.enable_model_monitoring(
+                image=self.image or "mlrun/mlrun",
+            )
         # check that all the function are still deployed
         all_functions = mm_constants.MonitoringFunctionNames.list() + [
             mm_constants.HistogramDataDriftApplicationConstants.NAME

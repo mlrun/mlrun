@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import asyncio
 import base64
 import enum
+import functools
 import gzip
 import hashlib
 import inspect
@@ -2423,6 +2423,7 @@ def get_module_name_from_path(source_file_path: str) -> str:
         current_dir_path_object
     )
     return ".".join(relative_path_to_source_file.with_suffix("").parts)
+
 
 def iguazio_v4_only(function):
     @functools.wraps(function)

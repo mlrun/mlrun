@@ -30,7 +30,7 @@ __all__ = [
 
 import typing
 
-import mlrun.runtimes.utils
+from mlrun.runtimes.utils import resolve_spark_operator_version
 
 from ..common.runtimes.constants import MPIJobCRDVersions
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa

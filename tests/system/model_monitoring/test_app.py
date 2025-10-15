@@ -1816,7 +1816,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
         with pytest.raises(
             mlrun.errors.MLRunConflictError,
-            match="The following model-montioring infra functions are already deployed, aborting",
+            match="The following model-montioring infrastructure functions are already deployed, aborting: ",
         ):
             self.project.enable_model_monitoring(
                 image=self.image or "mlrun/mlrun",

@@ -21,17 +21,15 @@ from mlrun.utils import logger
 
 
 class ProcessBeforeTimescaleDBWriter(mlrun.feature_store.steps.MapClass):
-    def __init__(self, **kwargs):
-        """
-        Process the data before writing to TimescaleDB via the new async writer.
+    """
+    Process the data before writing to TimescaleDB via the new async writer.
 
-        This step combines functionality from both the existing stream processor
-        and the TDEngine writer pattern to create appropriate table names and
-        format data for TimescaleDB writer targets.
+    This step combines functionality from both the existing stream processor
+    and the TDEngine writer pattern to create appropriate table names and
+    format data for TimescaleDB writer targets.
 
-        :returns: Event as a dictionary which will be written into the TimescaleDB Metrics/App Results tables.
-        """
-        super().__init__(**kwargs)
+    :returns: Event as a dictionary which will be written into the TimescaleDB Metrics/App Results tables.
+    """
 
     def do(self, event):
         logger.info("Process event before writing to TimescaleDB writer", event=event)

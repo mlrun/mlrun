@@ -44,7 +44,7 @@ import mlrun.runtimes.mounts
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
-from mlrun.common.schemas import EndpointType
+from mlrun.common.schemas import EndpointMode, EndpointType
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpoint,
     ModelEndpointList,
@@ -67,6 +67,7 @@ def mock_random_endpoint(
     model_path: Optional[str] = None,
     add_labels=True,
     endpoint_type: EndpointType = EndpointType.NODE_EP,
+    mode: Optional[EndpointMode] = None,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
@@ -77,6 +78,7 @@ def mock_random_endpoint(
             project=project_name,
             labels=random_labels() if add_labels else {},
             endpoint_type=endpoint_type,
+            mode=mode,
         ),
         spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
             function_name=function_name,
@@ -276,13 +278,18 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         number_of_real_time_eps = 2
         number_of_batch_eps = 3
         real_time_eps = [
-            mock_random_endpoint(self.project_name, f"real-time-{i}")
+            mock_random_endpoint(
+                self.project_name, f"real-time-{i}", mode=EndpointMode.REAL_TIME
+            )
             for i in range(number_of_real_time_eps)
         ]
 
         batch_eps = [
             mock_random_endpoint(
-                self.project_name, f"batch-{i}", endpoint_type=EndpointType.BATCH_EP
+                self.project_name,
+                f"batch-{i}",
+                endpoint_type=EndpointType.BATCH_EP,
+                mode=EndpointMode.BATCH,
             )
             for i in range(number_of_batch_eps)
         ]
@@ -294,12 +301,13 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert len(eps) == number_of_real_time_eps + number_of_batch_eps
 
         real_time_eps = self.project.list_model_endpoints(
-            mode=mm_constants.EndpointMode.REAL_TIME
+            modes=EndpointMode.REAL_TIME
         ).endpoints
+
         assert len(real_time_eps) == number_of_real_time_eps
 
         batch_eps = self.project.list_model_endpoints(
-            mode=mm_constants.EndpointMode.BATCH
+            modes=EndpointMode.BATCH
         ).endpoints
         assert len(batch_eps) == number_of_batch_eps
 

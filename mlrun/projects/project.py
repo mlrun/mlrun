@@ -1932,7 +1932,7 @@ class MlrunProject(ModelObj):
                     },
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.5, "max_tokens": 200},
+                invocation_config={"temperature": 0.5, "max_tokens": 200},
                 description="Prompt for handling customer support queries",
                 tag="support-v1",
                 labels={"domain": "support"},
@@ -1949,7 +1949,7 @@ class MlrunProject(ModelObj):
                     }
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.7, "max_tokens": 256},
+                invocation_config={"temperature": 0.7, "max_tokens": 256},
                 description="Q&A prompt template with user-provided question",
                 tag="v2",
                 labels={"task": "qa", "stage": "experiment"},
@@ -2574,7 +2574,7 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
-        fetch_credentials_from_sys_config: bool = False,
+        fetch_credentials_from_sys_config: bool = False,  # deprecated
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2609,14 +2609,20 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
                                                   Otherwise, deploy the model monitoring infrastructure on the
                                                   background, including the histogram data drift app if selected.
-        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
+                                                  configuration.
         """
+        if fetch_credentials_from_sys_config:
+            warnings.warn(
+                "`fetch_credentials_from_sys_config` is deprecated in 1.10.0 and will be removed in 1.12.0.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
         if base_period < 10:
             logger.warn(
                 "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
                 project=self.name,
             )
-
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,
@@ -4109,7 +4115,7 @@ class MlrunProject(ModelObj):
                                 The `count` field in the `Retry` object specifies the number of retry attempts.
                                 If `count=0`, the run will not be retried.
                                 The `backoff` field specifies the retry backoff strategy between retry attempts.
-                                If not provided, no backoff is applied.
+                                If not provided, the default backoff delay is 30 seconds.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         if artifact_path:

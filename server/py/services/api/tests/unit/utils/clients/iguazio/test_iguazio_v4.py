@@ -20,6 +20,10 @@ import unittest.mock
 import pytest
 from aioresponses import CallbackResult
 
+# Skip the entire test module if running under Python < 3.11
+if sys.version_info < (3, 11):
+    pytest.skip("Requires Python 3.11+", allow_module_level=True)
+
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
@@ -331,7 +335,6 @@ def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=N
     }
 
 
-@pytest.mark.skipif(sys.version_info < (3, 11), reason="Requires Python 3.11+")
 def test_revoke_offline_token_success():
     token = "valid-token"
     request_headers = {

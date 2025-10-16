@@ -856,7 +856,11 @@ class ServingRuntime(RemoteRuntime):
         self._mock_server = self.to_mock_server()
 
     def to_job(self) -> KubejobRuntime:
-        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job."""
+        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
+
+        The job will automatically be renamed by appending a suffix to prevent database collision with the
+        serving function. The original serving function remains unchanged and can still be invoked.
+        """
         if self.spec.function_refs:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
@@ -890,8 +894,21 @@ class ServingRuntime(RemoteRuntime):
             parameters=self.spec.parameters,
             graph=self.spec.graph,
         )
+
+        job_metadata = deepcopy(self.metadata)
+
+        original_name = job_metadata.name
+        job_metadata.name, was_renamed, _ = mlrun.utils.helpers.ensure_batch_job_suffix(
+            job_metadata.name
+        )
+        if was_renamed:
+            logger.info(
+                f"Converting serving function to job: renamed from '{original_name}' to '{job_metadata.name}' "
+                "to prevent database collision. The original serving function remains deployable."
+            )
+
         job = KubejobRuntime(
             spec=spec,
-            metadata=self.metadata,
+            metadata=job_metadata,
         )
         return job

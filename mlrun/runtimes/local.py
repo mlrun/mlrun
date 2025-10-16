@@ -34,7 +34,6 @@ from nuclio import Event
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
-import mlrun.common.runtimes.constants
 from mlrun.lists import RunList
 
 from ..errors import err_to_str
@@ -202,8 +201,32 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     _is_remote = False
 
     def to_job(self, image=""):
+        """Convert this LocalRuntime to a KubejobRuntime.
+
+        The job will automatically be renamed by appending a suffix to prevent database collision with the
+        local function. The original local function remains unchanged.
+
+        """
+        from copy import deepcopy
+
+        # Deep copy to prevent reference sharing
         struct = self.to_dict()
         obj = KubejobRuntime.from_dict(struct)
+
+        # Deep copy metadata to prevent reference sharing
+        obj.metadata = deepcopy(obj.metadata)
+
+        # Auto-rename to prevent database collision between local function and job
+        original_name = obj.metadata.name
+        obj.metadata.name, was_renamed, _ = mlrun.utils.helpers.ensure_batch_job_suffix(
+            obj.metadata.name
+        )
+        if was_renamed:
+            logger.info(
+                f"Converting local function to job: renamed from '{original_name}' to '{obj.metadata.name}' "
+                "to prevent database collision. The original local function remains available."
+            )
+
         if image:
             obj.spec.image = image
         return obj

@@ -243,7 +243,35 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
 
         # if the handler has module prefix force "local" (vs "handler") runtime
         kind = "local" if isinstance(handler, str) and "." in handler else ""
-        fn = mlrun.new_function(meta.name, command=command, args=args, kind=kind)
+
+        # Strip batch job suffix if present - local execution doesn't need collision prevention
+        # since it's a temporary runtime wrapper, not a stored function
+        #   ServingRuntime.to_job("my-function")
+        #     ↓
+        #   Creates KubejobRuntime named "my-function-batch"
+        #     ↓
+        #   job.run(local=True)
+        #     ↓
+        #   Launcher creates temporary local function:
+        #     - new_function("my-function")  ← stripped for validation
+        #     - fn.metadata = meta("my-function-batch")  ← original name restored
+        #     ↓
+        #   _store_function(runtime, run)
+        #     ↓
+        #   db.store_function(struct, "my-function-batch", ...)  ← stored with original name
+
+        local_function_name, was_stripped, _ = (
+            mlrun.utils.helpers.strip_batch_job_suffix(meta.name)
+        )
+        if was_stripped:
+            mlrun.utils.logger.debug(
+                f"Stripped batch job suffix from function name for local execution: "
+                f"'{meta.name}' -> '{local_function_name}'"
+            )
+
+        fn = mlrun.new_function(
+            local_function_name, command=command, args=args, kind=kind
+        )
         fn.metadata = meta
         setattr(fn, "_is_run_local", True)
         if workdir:

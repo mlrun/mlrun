@@ -94,6 +94,11 @@ def test_perform_data_migrations_from_initial_supported_version():
     )
     services.api.initial_data._perform_version_9_data_migrations = unittest.mock.Mock()
 
+    original_perform_version_10_data_migrations = (
+        services.api.initial_data._perform_version_10_data_migrations
+    )
+    services.api.initial_data._perform_version_10_data_migrations = unittest.mock.Mock()
+
     # perform migrations
     services.api.initial_data._perform_data_migrations(db_session)
 
@@ -104,6 +109,7 @@ def test_perform_data_migrations_from_initial_supported_version():
     services.api.initial_data._perform_version_7_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_8_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_9_data_migrations.assert_called_once()
+    services.api.initial_data._perform_version_10_data_migrations.assert_called_once()
 
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         services.api.initial_data.latest_data_version
@@ -121,6 +127,9 @@ def test_perform_data_migrations_from_initial_supported_version():
     )
     services.api.initial_data._perform_version_9_data_migrations = (
         original_perform_version_9_data_migrations
+    )
+    services.api.initial_data._perform_version_10_data_migrations = (
+        original_perform_version_10_data_migrations
     )
 
 
@@ -694,6 +703,37 @@ def test_ensure_latest_tag_for_artifacts():
     assert artifact.tags[0].project == project1
     assert artifact.tags[0].obj_name == key1
     assert artifact.tags[0].obj_id == artifact_2_id
+
+
+def test_migrate_monitoring_functions_labels():
+    project = "some-project"
+    db, db_session = _initialize_db_without_migrations()
+    mm_infra_function_names = (
+        mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.list()
+    )
+    key = mlrun.common.schemas.ModelMonitoringInfraLabel.KEY
+    value = mlrun.common.schemas.ModelMonitoringInfraLabel.VAL
+
+    for name in mm_infra_function_names:
+        _insert_function(db, db_session, name, project)
+
+    # sanity check that a random function does not get the label
+    _insert_function(db, db_session, "some-name", project)
+
+    services.api.initial_data._migrate_monitoring_functions_labels(
+        db, db_session, chunk_size=1
+    )
+
+    migrated_mm_functions = db.list_functions(session=db_session, project=project)
+
+    for func in migrated_mm_functions:
+        func_name = func.get("metadata", {}).get("name")
+        func_labels = func.get("metadata", {}).get("labels", {})
+        if func_name in mm_infra_function_names:
+            assert key in func_labels, f"{func_name} does not have the expected label"
+            assert func_labels[key] == value
+        else:
+            assert key not in func_labels, f"{func_name} has an unexpected label"
 
 
 def _initialize_db_without_schema() -> (

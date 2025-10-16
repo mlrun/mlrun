@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 from ast import literal_eval
 from os import environ, getenv
 from typing import Callable, Optional, Union
-from server.py.framework.utils.helpers import is_running_in_api
+
+from mlrun.utils.helpers import is_running_in_api
+
 from .utils import AzureVaultStore, list2dict
 
 
@@ -50,7 +51,9 @@ class SecretsStore:
         elif kind == "file":
             # Ensure files cannot be open from inside the API
             if is_running_in_api():
-                raise RuntimeError("add_source of kind 'file' is not allowed from the API")
+                raise RuntimeError(
+                    "add_source of kind 'file' is not allowed from the API"
+                )
             with open(source) as fp:
                 lines = fp.read().splitlines()
                 secrets_dict = list2dict(lines)

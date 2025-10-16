@@ -713,9 +713,13 @@ def test_migrate_monitoring_functions_labels():
     )
     key = mlrun.common.schemas.ModelMonitoringInfraLabel.KEY
     value = mlrun.common.schemas.ModelMonitoringInfraLabel.VAL
+    labels = {key: value}
 
-    for name in mm_infra_function_names:
+    for name in mm_infra_function_names[1:]:
         _insert_function(db, db_session, name, project)
+
+    # first mm function already has the label
+    _insert_function(db, db_session, mm_infra_function_names[0], project, labels=labels)
 
     # sanity check that a random function does not get the label
     _insert_function(db, db_session, "some-name", project)
@@ -770,6 +774,7 @@ def _insert_function(
     project: str,
     function_kind: typing.Optional[str] = "remote",
     function_state: typing.Optional[str] = "ready",
+    labels: typing.Optional[dict] = None,
 ):
     function_body = {
         "metadata": {"name": fn_name},
@@ -777,6 +782,9 @@ def _insert_function(
         "status": {"state": function_state},
         "spec": {"description": "some_description"},
     }
+
+    if labels:
+        function_body["metadata"]["labels"] = labels
 
     # Insert function via db
     db.store_function(db_session, function=function_body, name=fn_name, project=project)

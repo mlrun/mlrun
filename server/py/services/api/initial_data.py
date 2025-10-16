@@ -916,7 +916,6 @@ def _migrate_data(
     handle_field_record_func,
     chunk_size: int = 500,
 ):
-    iteration = 0
     # Query for records that need migration
     records = db._query(db_session, model).filter(filter_func).limit(chunk_size).all()
 

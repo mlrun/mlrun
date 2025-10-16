@@ -15,6 +15,7 @@
 import asyncio
 import datetime
 import functools
+import os
 import re
 import time
 from typing import Callable, Optional, Union
@@ -270,3 +271,10 @@ def validate_client_version(client_version: str, *min_versions: str):
     return mlrun.utils.helpers.validate_component_version_compatibility(
         "mlrun-client", *min_versions, mlrun_client_version=client_version
     )
+
+
+def is_running_on_api():
+    """Check if the current code is running within the mlrun API service."""
+    if os.getenv("MLRUN_SERVICES__SERVICE_NAME") == "api":
+        return True
+    return False

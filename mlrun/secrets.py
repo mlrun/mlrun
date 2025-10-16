@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 from ast import literal_eval
 from os import environ, getenv
 from typing import Callable, Optional, Union
-
+from server.py.framework.utils.helpers import is_running_on_api
 from .utils import AzureVaultStore, list2dict
 
 
@@ -47,7 +47,8 @@ class SecretsStore:
             for k, v in source.items():
                 self._secrets[prefix + k] = str(v)
 
-        elif kind == "file":
+        # Ensure we don't open files when running inside the API
+        elif kind == "file" and not is_running_on_api():
             with open(source) as fp:
                 lines = fp.read().splitlines()
                 secrets_dict = list2dict(lines)

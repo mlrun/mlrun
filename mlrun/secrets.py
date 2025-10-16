@@ -47,8 +47,10 @@ class SecretsStore:
             for k, v in source.items():
                 self._secrets[prefix + k] = str(v)
 
-        # Ensure we don't open files when running inside the API
-        elif kind == "file" and not is_running_on_api():
+        elif kind == "file":
+            # Ensure files cannot be open from inside the API
+            if is_running_on_api():
+                raise RuntimeError("add_source of kind 'file' is not allowed from the API")
             with open(source) as fp:
                 lines = fp.read().splitlines()
                 secrets_dict = list2dict(lines)

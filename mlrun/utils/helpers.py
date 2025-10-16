@@ -2453,8 +2453,8 @@ def merge_requirements(
             merged[key] = req
 
     return [str(req) for req in merged.values()]
-  
-  
+
+
 def get_module_name_from_path(source_file_path: str) -> str:
     source_file_path_object = pathlib.Path(source_file_path).resolve()
     current_dir_path_object = pathlib.Path(".").resolve()

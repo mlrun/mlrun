@@ -15,7 +15,7 @@ import os
 from ast import literal_eval
 from os import environ, getenv
 from typing import Callable, Optional, Union
-from server.py.framework.utils.helpers import is_running_on_api
+from server.py.framework.utils.helpers import is_running_in_api
 from .utils import AzureVaultStore, list2dict
 
 
@@ -49,7 +49,7 @@ class SecretsStore:
 
         elif kind == "file":
             # Ensure files cannot be open from inside the API
-            if is_running_on_api():
+            if is_running_in_api():
                 raise RuntimeError("add_source of kind 'file' is not allowed from the API")
             with open(source) as fp:
                 lines = fp.read().splitlines()

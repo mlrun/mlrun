@@ -915,7 +915,6 @@ def _migrate_data(
     filter_func,
     handle_field_record_func,
     chunk_size: int = 500,
-    max_iterations: typing.Optional[int] = None,
 ):
     iteration = 0
     # Query for records that need migration
@@ -947,11 +946,6 @@ def _migrate_data(
             )
             db_session.add_all(to_commit)
             db._commit(db_session, to_commit)
-
-        iteration += 1
-        if max_iterations is not None and iteration >= max_iterations:
-            mlrun.utils.logger.info("Reached max iterations", {model.__name__})
-            break
 
         # Fetch next batch of records to migrate (if any)
         records = (

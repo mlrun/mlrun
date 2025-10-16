@@ -860,6 +860,23 @@ def test_validate_v3io_consumer_group(value, expected):
             "expected_output": "mlrun/mlrun-kfp:1.10.0",
             "images_to_enrich_registry": "",
         },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.10.0-rc1",
+            "client_python_version": "3.11.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-rc1",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.9.0",
+            "client_python_version": "3.9.10",
+            "images_tag": None,
+            # no -py suffix as 1.9 has no dual python support
+            "expected_output": "mlrun/mlrun-kfp:1.9.0",
+            "images_to_enrich_registry": "",
+        },
     ],
 )
 def test_enrich_image(case):

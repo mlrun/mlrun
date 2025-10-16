@@ -614,3 +614,81 @@ class TestAzureBlobStore:
             assert (
                 parsed_url.netloc == case["expected_netloc"]
             ), f"Netloc mismatch for {case['url']}"
+
+    def test_convert_key_to_remote_path_wasbs(self):
+        """Test _convert_key_to_remote_path for WASBS URLs uses container, not hostname"""
+        # For WASBS URLs, the endpoint after constructor is the hostname
+        # but _convert_key_to_remote_path should use the container from storage_options
+        connection_string = (
+            "DefaultEndpointsProtocol=https;AccountName=testdata;"
+            "AccountKey=xxx;EndpointSuffix=core.windows.net"
+        )
+        store = self._create_store(
+            schema="wasbs",
+            endpoint="testdata.blob.core.windows.net",  # hostname after container extraction
+            secrets={"connection_string": connection_string},
+        )
+        store._container_from_endpoint = "testcbs"
+
+        # Mock storage_options to include the container
+        mock_storage_options = {
+            "container": "testcbs",
+            "account_name": "testdata",
+        }
+        with patch.object(store, "_storage_options", mock_storage_options):
+            # Test path conversion - should NOT include hostname
+            result = store._convert_key_to_remote_path(
+                "vmdev213.lab.iguazeng.com/cmtayiymak/1759222142345_752"
+            )
+            expected = "testcbs/vmdev213.lab.iguazeng.com/cmtayiymak/1759222142345_752"
+            assert result == expected, f"Expected {expected}, got {result}"
+
+            # Verify it does NOT include hostname
+            assert "testdata.blob.core.windows.net" not in result
+
+    def test_convert_key_to_remote_path_az(self):
+        """Test _convert_key_to_remote_path for az:// URLs uses endpoint as container"""
+        # For az:// URLs, endpoint IS the container name
+        store = self._create_store(
+            schema="az", endpoint="mycontainer", secrets={"account_name": "teststorage"}
+        )
+
+        result = store._convert_key_to_remote_path("path/to/file.txt")
+        expected = "mycontainer/path/to/file.txt"
+        assert result == expected
+
+    def test_convert_key_to_remote_path_with_schema(self):
+        """Test _convert_key_to_remote_path when key already has schema"""
+        store = self._create_store(
+            schema="wasbs",
+            endpoint="testdata.blob.core.windows.net",
+        )
+
+        # When key has a schema, it should be returned as-is (stripped of leading /)
+        result = store._convert_key_to_remote_path(
+            "wasbs://container@host/path/to/file"
+        )
+        expected = "wasbs://container@host/path/to/file"
+        assert result == expected
+
+    def test_convert_key_to_remote_path_wasbs_no_container_fallback(self):
+        """Test _convert_key_to_remote_path falls back to endpoint when container is missing for wasbs"""
+        # Edge case: wasbs without container (invalid config, but should not crash)
+        store = self._create_store(
+            schema="wasbs",
+            endpoint="testdata.blob.core.windows.net",
+            secrets={"account_name": "testdata", "account_key": "xxx"},
+        )
+
+        # Mock storage_options WITHOUT container
+        mock_storage_options = {
+            "account_name": "testdata",
+            "account_key": "xxx",
+            # No container!
+        }
+        with patch.object(store, "_storage_options", mock_storage_options):
+            # Should fall back to using endpoint (even though it's hostname)
+            result = store._convert_key_to_remote_path("path/to/file.txt")
+            # Falls back to endpoint (hostname) - not ideal but maintains backward compatibility
+            expected = "testdata.blob.core.windows.net/path/to/file.txt"
+            assert result == expected

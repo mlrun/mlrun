@@ -1241,11 +1241,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             return mlrun.common.schemas.SecretEventActions.updated
 
-        logger.debug(
-            "Secret exists and is up-to-date, skipping update",
-            secret_name=secret_name,
-            expiration=expiration,
-        )
         return mlrun.common.schemas.SecretEventActions.skipped
 
     def _resolve_user_token_secret_name(self, username: str, token: str) -> str:

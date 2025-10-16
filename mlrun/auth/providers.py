@@ -87,6 +87,9 @@ class DynamicTokenProvider(TokenProvider):
         self._refresh_token_if_needed()
         return self._token
 
+    def is_iguazio_session(self):
+        return False
+
     def fetch_token(self):
         try:
             mlrun.utils.helpers.run_with_retry(
@@ -142,9 +145,6 @@ class DynamicTokenProvider(TokenProvider):
             mlrun.errors.raise_for_status(response)
 
         self._parse_response(response.json())
-
-    def is_iguazio_session(self):
-        return False
 
     def _refresh_token_if_needed(self):
         """

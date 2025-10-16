@@ -31,6 +31,7 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 genai-01-basic-tutorial
 genai-02-model-monitor-llm
 genai-03-vector-db
+genai-04-llm-prompt-artifact
 ml-index
 demos
 /cheat-sheet

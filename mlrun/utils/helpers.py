@@ -21,6 +21,7 @@ import inspect
 import itertools
 import json
 import os
+import pathlib
 import re
 import string
 import sys
@@ -2408,3 +2409,17 @@ def set_data_by_path(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected path to be of type str or list of str"
         )
+
+
+def get_module_name_from_path(source_file_path: str) -> str:
+    source_file_path_object = pathlib.Path(source_file_path).resolve()
+    current_dir_path_object = pathlib.Path(".").resolve()
+    if not source_file_path_object.is_relative_to(current_dir_path_object):
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Source file path '{source_file_path}' is not under the current working directory "
+            f"(which is required when running with local=True)"
+        )
+    relative_path_to_source_file = source_file_path_object.relative_to(
+        current_dir_path_object
+    )
+    return ".".join(relative_path_to_source_file.with_suffix("").parts)

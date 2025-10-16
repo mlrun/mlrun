@@ -14,6 +14,7 @@
 #
 
 import http
+import sys
 import unittest.mock
 
 import pytest
@@ -330,6 +331,7 @@ def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=N
     }
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Requires Python 3.11+")
 def test_revoke_offline_token_success():
     token = "valid-token"
     request_headers = {

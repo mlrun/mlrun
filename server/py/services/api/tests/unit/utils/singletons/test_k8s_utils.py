@@ -582,7 +582,6 @@ def test_list_secrets_with_labels(k8s_helper):
     fake_secret_list = mock.MagicMock()
     fake_secret_list.items = [secret1, secret2]
 
-    # k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.v1api.list_namespaced_secret = mock.MagicMock(
         return_value=fake_secret_list
     )

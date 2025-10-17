@@ -930,6 +930,7 @@ def enrich_image_url(
     enrich_kfp_python_version = (
         "mlrun-kfp" in image_url
         and mlrun_version
+        and semver.VersionInfo.is_valid(mlrun_version)
         and semver.VersionInfo.parse(mlrun_version)
         >= semver.VersionInfo.parse("1.10.0-rc0")
     )

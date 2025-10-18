@@ -2423,10 +2423,3 @@ def get_module_name_from_path(source_file_path: str) -> str:
         current_dir_path_object
     )
     return ".".join(relative_path_to_source_file.with_suffix("").parts)
-
-
-def is_running_in_api():
-    """Check if the current code is running within the mlrun API service."""
-    if os.getenv("MLRUN_SERVICES__SERVICE_NAME") == "api":
-        return True
-    return False

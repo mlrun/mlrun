@@ -936,7 +936,8 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         iter=0,
         run_format: mlrun.common.formatters.RunFormat = None,
     ):
-        def _normalize_datetime_fields(artifact):
+        def normalize_datetime_fields(artifact):
+            "Normalize 'created' and 'updated' datetime fields in artifact metadata to a standard format."
             for field in ["created", "updated"]:
                 value = artifact.get("metadata", {}).get(field)
                 if value:
@@ -972,8 +973,8 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         enriched_artifacts.sort(key=sort_by_key)
         artifacts.sort(key=sort_by_key)
         for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):
-            _normalize_datetime_fields(artifact)
-            _normalize_datetime_fields(enriched_artifact)
+            normalize_datetime_fields(artifact)
+            normalize_datetime_fields(enriched_artifact)
             assert (
                 deepdiff.DeepDiff(
                     artifact,

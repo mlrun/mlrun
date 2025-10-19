@@ -131,9 +131,9 @@ class HubModule(ModelObj):
 
 def get_hub_module(
     url: str = "",
-    download_files: bool = True,
-    secrets: dict = None,
-    local_path: str = None,
+    download_files: Optional[bool] = True,
+    secrets: Optional[dict] = None,
+    local_path: Optional[str] = None,
 ) -> HubModule:
     """
     Get a hub-module object containing metadata of the requested module.

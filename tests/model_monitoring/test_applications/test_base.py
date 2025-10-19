@@ -321,6 +321,18 @@ class TestEvaluate:
         ), "The error message is different than expected or was not captured"
 
 
+@pytest.fixture
+def non_empty_sample_df_context_mock() -> Iterator[MonitoringApplicationContext]:
+    mock = Mock(pd.DataFrame)
+    mock.empty = False
+    with patch.object(
+        MonitoringApplicationContext,
+        "sample_df",
+        property(lambda _: mock),
+    ):
+        yield mock
+
+
 @pytest.mark.parametrize(
     ("start", "end", "base_period", "expectation"),
     [
@@ -351,6 +363,7 @@ class TestEvaluate:
         ),
     ],
 )
+@pytest.mark.usefixtures("non_empty_sample_df_context_mock")
 def test_window_generator_validation(
     start: Optional[str],
     end: Optional[str],
@@ -364,9 +377,13 @@ def test_window_generator_validation(
                 end=end,
                 base_period=base_period,
                 application_schedules=None,
+                endpoint_name="",
                 endpoint_id="",
                 application_name="",
                 existing_data_handling=ExistingDataHandling.fail_on_overlap,
+                context=mlrun.MLClientCtx.from_dict({}),
+                project=mlrun.projects.MlrunProject(),
+                sample_data=None,
             )
         )
 
@@ -425,25 +442,31 @@ def test_window_generator_validation(
         ),
     ],
 )
+@pytest.mark.usefixtures("non_empty_sample_df_context_mock")
 def test_windows(
     start: datetime,
     end: datetime,
     base_period: Optional[int],
     expected_windows: list[tuple[datetime, datetime]],
 ) -> None:
-    assert (
-        list(
-            ModelMonitoringApplicationBase._window_generator(
-                start=start.isoformat(),
-                end=end.isoformat(),
-                base_period=base_period,
-                application_schedules=None,
-                endpoint_id="",
-                application_name="",
-                existing_data_handling=ExistingDataHandling.fail_on_overlap,
-            )
+    windows = [
+        (ctx.start_infer_time, ctx.end_infer_time)
+        for ctx in ModelMonitoringApplicationBase._window_generator(
+            start=start.isoformat(),
+            end=end.isoformat(),
+            base_period=base_period,
+            application_schedules=None,
+            endpoint_name="",
+            endpoint_id="",
+            application_name="",
+            existing_data_handling=ExistingDataHandling.fail_on_overlap,
+            project=mlrun.projects.MlrunProject(),
+            context=mlrun.MLClientCtx.from_dict({}),
+            sample_data=None,
         )
-        == expected_windows
+    ]
+    assert (
+        windows == expected_windows
     ), "The generated windows are different than expected"
 
 
@@ -588,30 +611,33 @@ def project(tmpdir: Path) -> mlrun.MlrunProject:
     "endpoints", ["all", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
 )
 @pytest.mark.usefixtures("rundb_mock")
-def test_handle_endpoints_type_evaluate(
+def test_validate_endpoints(
     project: mlrun.MlrunProject, endpoints: Union[str, list[str], list[tuple[str, str]]]
 ) -> None:
-    endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+    endpoints_output = ModelMonitoringApplicationBase._validate_endpoints(
         project, endpoints
     )
     assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]
 
 
+@pytest.mark.usefixtures("rundb_mock")
 @pytest.mark.parametrize(
     ("endpoints", "err_msg"),
     [
         ("*", 'A string input for `endpoints` can only be "all"'),
         ([], "The endpoints list cannot be empty"),
         ([1], r"Could not resolve endpoints as list of \[\(name, uid\)\]"),
+        (
+            ["model-ep-no-first-request"],
+            "have no data, cannot run the model monitoring application on them",
+        ),
     ],
 )
-def test_handle_endpoints_type_evaluate_error(
+def test_validate_endpoints_error(
     project: mlrun.MlrunProject, endpoints: Union[str, list[str]], err_msg: str
 ) -> None:
     with pytest.raises(mlrun.errors.MLRunValueError, match=err_msg):
-        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
-            project, endpoints
-        )
+        ModelMonitoringApplicationBase._validate_endpoints(project, endpoints)
 
 
 @pytest.mark.parametrize(

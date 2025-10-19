@@ -568,6 +568,12 @@ class ApplicationRuntime(RemoteRuntime):
                 "Authentication credentials not provided"
             )
 
+        if direct_port_access and port:
+            logger.warning(
+                "Ignoring 'port' because 'direct_port_access' is enabled. "
+                "The 'port' setting is only applicable when 'direct_port_access' is disabled."
+            )
+
         ports = (
             port or self.spec.internal_application_port if direct_port_access else []
         )

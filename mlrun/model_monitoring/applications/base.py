@@ -26,7 +26,6 @@ import pandas as pd
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
-import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.types
 import mlrun.datastore.datastore_profile as ds_profile
@@ -333,35 +332,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             project=project,
         ) as (endpoints_output, application_schedules):
 
-            def call_do_tracking(event: Optional[dict] = None):
+            def call_do_tracking(
+                monitoring_context: mm_context.MonitoringApplicationContext,
+            ):
                 nonlocal endpoints_output
-
-                if event is None:
-                    event = {}
-                monitoring_context = (
-                    mm_context.MonitoringApplicationContext._from_ml_ctx(
-                        event=event,
-                        application_name=application_name,
-                        context=context,
-                        project=project,
-                        sample_df=sample_data,
-                        feature_stats=feature_stats,
-                    )
-                )
-
-                if (
-                    monitoring_context.endpoint_id
-                    and monitoring_context.sample_df.empty
-                ):
-                    # The current sample is empty
-                    context.logger.warning(
-                        "No sample data available for tracking",
-                        application_name=application_name,
-                        endpoint_id=monitoring_context.endpoint_id,
-                        start_time=monitoring_context.start_infer_time,
-                        end_time=monitoring_context.end_infer_time,
-                    )
-                    return
 
                 result = self.do_tracking(monitoring_context)
                 endpoints_output[monitoring_context.endpoint_id].append(
@@ -392,26 +366,24 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         application_schedules=application_schedules,
                     )
                 for endpoint_name, endpoint_id in resolved_endpoints:
-                    for window_start, window_end in self._window_generator(
+                    for monitoring_ctx in self._window_generator(
                         start=start,
                         end=end,
                         base_period=base_period,
                         application_schedules=application_schedules,
                         endpoint_id=endpoint_id,
+                        endpoint_name=endpoint_name,
                         application_name=application_name,
                         existing_data_handling=existing_data_handling,
+                        sample_data=sample_data,
+                        context=context,
+                        project=project,
                     ):
-                        result = call_do_tracking(
-                            event={
-                                mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
-                                mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
-                                mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
-                                mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
-                            }
-                        )
+                        result = call_do_tracking(monitoring_ctx)
                         result_key = (
-                            f"{endpoint_name}-{endpoint_id}_{window_start.isoformat()}_{window_end.isoformat()}"
-                            if window_start and window_end
+                            f"{endpoint_name}-{endpoint_id}_{monitoring_ctx.start_infer_time.isoformat()}_{monitoring_ctx.end_infer_time.isoformat()}"
+                            if monitoring_ctx.start_infer_time
+                            and monitoring_ctx.end_infer_time
                             else f"{endpoint_name}-{endpoint_id}"
                         )
 
@@ -419,7 +391,17 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                             result_key, self._flatten_data_result(result)
                         )
             else:
-                return self._flatten_data_result(call_do_tracking())
+                result = call_do_tracking(
+                    mm_context.MonitoringApplicationContext._from_ml_ctx(
+                        context=context,
+                        project=project,
+                        application_name=application_name,
+                        event={},
+                        sample_df=sample_data,
+                        feature_stats=feature_stats,
+                    )
+                )
+                return self._flatten_data_result(result)
 
     @staticmethod
     def _check_endpoints_first_request(
@@ -618,13 +600,51 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         application_schedules: Optional[
             mm_schedules.ModelMonitoringSchedulesFileApplication
         ],
+        endpoint_name: str,
         endpoint_id: str,
         application_name: str,
         existing_data_handling: ExistingDataHandling,
-    ) -> Iterator[tuple[Optional[datetime], Optional[datetime]]]:
+        context: "mlrun.MLClientCtx",
+        project: "mlrun.MlrunProject",
+        sample_data: Optional[pd.DataFrame],
+    ) -> Iterator[mm_context.MonitoringApplicationContext]:
+        def yield_monitoring_ctx(
+            window_start: Optional[datetime], window_end: Optional[datetime]
+        ) -> Iterator[mm_context.MonitoringApplicationContext]:
+            ctx = mm_context.MonitoringApplicationContext._from_ml_ctx(
+                event={
+                    mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+                    mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
+                    mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
+                    mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
+                },
+                application_name=application_name,
+                context=context,
+                project=project,
+                sample_df=sample_data,
+            )
+
+            if ctx.sample_df.empty:
+                # The current sample is empty
+                context.logger.debug(
+                    "No sample data available for tracking",
+                    application_name=application_name,
+                    endpoint_id=ctx.endpoint_id,
+                    start_time=ctx.start_infer_time,
+                    end_time=ctx.end_infer_time,
+                )
+                return
+
+            yield ctx
+
+            if application_schedules and window_end:
+                application_schedules.update_endpoint_last_analyzed(
+                    endpoint_uid=endpoint_id, last_analyzed=window_end
+                )
+
         if start is None or end is None:
             # A single window based on the `sample_data` input - see `_handler`.
-            yield None, None
+            yield from yield_monitoring_ctx(None, None)
             return
 
         start_dt = datetime.fromisoformat(start)
@@ -652,11 +672,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
 
         if base_period is None:
-            yield start_dt, end_dt
-            if application_schedules:
-                application_schedules.update_endpoint_last_analyzed(
-                    endpoint_uid=endpoint_id, last_analyzed=end_dt
-                )
+            yield from yield_monitoring_ctx(start_dt, end_dt)
             return
 
         window_length = cls._validate_and_get_window_length(
@@ -666,11 +682,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         current_start_time = start_dt
         while current_start_time < end_dt:
             current_end_time = min(current_start_time + window_length, end_dt)
-            yield current_start_time, current_end_time
-            if application_schedules:
-                application_schedules.update_endpoint_last_analyzed(
-                    endpoint_uid=endpoint_id, last_analyzed=current_end_time
-                )
+            yield from yield_monitoring_ctx(current_start_time, current_end_time)
             current_start_time = current_end_time
 
     @classmethod

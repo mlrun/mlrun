@@ -21,6 +21,7 @@ import inspect
 import itertools
 import json
 import os
+import pathlib
 import re
 import string
 import sys
@@ -923,10 +924,22 @@ def enrich_image_url(
     )
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version or ""
-    tag += resolve_image_tag_suffix(
-        mlrun_version=mlrun_version,
-        python_version=client_python_version,
+
+    # starting mlrun 1.10.0-rc0 we want to enrich the kfp image with the python version
+    # e.g for 1.9 we have a single mlrun-kfp image that supports only python 3.9
+    enrich_kfp_python_version = (
+        "mlrun-kfp" in image_url
+        and mlrun_version
+        and semver.VersionInfo.is_valid(mlrun_version)
+        and semver.VersionInfo.parse(mlrun_version)
+        >= semver.VersionInfo.parse("1.10.0-rc0")
     )
+
+    if "mlrun-kfp" not in image_url or enrich_kfp_python_version:
+        tag += resolve_image_tag_suffix(
+            mlrun_version=mlrun_version,
+            python_version=client_python_version,
+        )
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
@@ -2408,3 +2421,17 @@ def set_data_by_path(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected path to be of type str or list of str"
         )
+
+
+def get_module_name_from_path(source_file_path: str) -> str:
+    source_file_path_object = pathlib.Path(source_file_path).resolve()
+    current_dir_path_object = pathlib.Path(".").resolve()
+    if not source_file_path_object.is_relative_to(current_dir_path_object):
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Source file path '{source_file_path}' is not under the current working directory "
+            f"(which is required when running with local=True)"
+        )
+    relative_path_to_source_file = source_file_path_object.relative_to(
+        current_dir_path_object
+    )
+    return ".".join(relative_path_to_source_file.with_suffix("").parts)

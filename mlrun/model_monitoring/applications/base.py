@@ -434,33 +434,37 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 'use `endpoints="all"`.'
             )
 
+        endpoint_uids = None
+        endpoint_names = None
+
         if isinstance(endpoints, list) and isinstance(endpoints[0], (tuple, list)):
-            return endpoints
+            endpoint_uids = [endpoint[1] for endpoint in endpoints]
 
-        if not (isinstance(endpoints, list) and isinstance(endpoints[0], str)):
-            if isinstance(endpoints, str):
-                if endpoints != "all":
-                    raise mlrun.errors.MLRunValueError(
-                        'A string input for `endpoints` can only be "all" for all the model endpoints in '
-                        "the project. If you want to select a single model endpoint with the given name, "
-                        f'use a list: `endpoints=["{endpoints}"]`.'
-                    )
-            else:
-                raise mlrun.errors.MLRunValueError(
-                    f"Could not resolve endpoints as list of [(name, uid)], {endpoints=}"
-                )
-
-        if endpoints == "all":
-            endpoint_names = None
         else:
-            endpoint_names = endpoints
+            if not (isinstance(endpoints, list) and isinstance(endpoints[0], str)):
+                if isinstance(endpoints, str):
+                    if endpoints != "all":
+                        raise mlrun.errors.MLRunValueError(
+                            'A string input for `endpoints` can only be "all" for all the model endpoints in '
+                            "the project. If you want to select a single model endpoint with the given name, "
+                            f'use a list: `endpoints=["{endpoints}"]`.'
+                        )
+                else:
+                    raise mlrun.errors.MLRunValueError(
+                        f"Could not resolve endpoints as list of [(name, uid)], {endpoints=}"
+                    )
+
+            if endpoints != "all":
+                endpoint_names = endpoints
 
         endpoints_list = project.list_model_endpoints(
-            names=endpoint_names, latest_only=True
+            uids=endpoint_uids, names=endpoint_names, latest_only=True
         ).endpoints
 
         cls._check_endpoints_first_request(endpoints_list)
 
+        if endpoint_uids:
+            return endpoints
         if endpoints_list:
             list_endpoints_result = [
                 (endpoint.metadata.name, endpoint.metadata.uid)

@@ -765,6 +765,7 @@ class RunDBMock:
                     status=mlrun.common.schemas.ModelEndpointStatus(
                         first_request=datetime(2024, 1, 1)
                         if name != "model-ep-no-first-request"
+                        and uids != ["model-ep-no-first-request-uid"]
                         else None,
                     ),
                 )

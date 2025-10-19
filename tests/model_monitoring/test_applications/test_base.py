@@ -631,6 +631,10 @@ def test_validate_endpoints(
             ["model-ep-no-first-request"],
             "have no data, cannot run the model monitoring application on them",
         ),
+        (
+            [("model-ep-no-first-request", "model-ep-no-first-request-uid")],
+            "have no data, cannot run the model monitoring application on them",
+        ),
     ],
 )
 def test_validate_endpoints_error(

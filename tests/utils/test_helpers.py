@@ -1899,6 +1899,7 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
     [
         (None, None, []),
         ([], ["requests"], ["requests"]),
+        (["requests"],[],["requests"]),
         (
             ["requests>=1.0", "pydantic==1.0"],
             ["requests==2.0", "pandas"],
@@ -1908,4 +1909,4 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
 )
 def test_merge_requirements(priority_reqs, reqs, expected_result):
     result = merge_requirements(reqs_priority=priority_reqs, reqs_secondary=reqs)
-    assert result == expected_result
+    assert set(result) == set(expected_result)

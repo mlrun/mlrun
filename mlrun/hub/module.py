@@ -110,8 +110,11 @@ class HubModule(ModelObj):
             f.write(data)
 
     @staticmethod
-    def verify_directory(path: str) -> Path:
-        """Validate that the given path is an existing directory."""
+    def verify_directory(path: Optional[str] = None) -> Path:
+        """
+        Validate that the given path is an existing directory.
+        If no path has been provided, returns current working directory.
+        """
         if path:
             path = Path(path)
             if not path.exists():

@@ -2444,7 +2444,7 @@ def merge_requirements(
 ) -> list[str]:
     """
     Merge two requirement collections into a union. If the same package
-    appears in both, the specifier from reqs_secondary wins.
+    appears in both, the specifier from reqs_priority wins.
 
     Args:
         reqs_priority: str | list[str] | None  (priority input)
@@ -2455,15 +2455,9 @@ def merge_requirements(
     """
     merged: dict[str, Requirement] = {}
 
-    for r in _normalize_requirements(reqs_priority):
+    for r in _normalize_requirements(reqs_secondary) + _normalize_requirements(reqs_priority):
         req = Requirement(r)
         merged[canonicalize_name(req.name)] = req
-
-    for r in _normalize_requirements(reqs_secondary):
-        req = Requirement(r)
-        key = canonicalize_name(req.name)
-        if key not in merged:
-            merged[key] = req
 
     return [str(req) for req in merged.values()]
 

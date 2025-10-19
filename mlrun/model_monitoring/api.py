@@ -575,7 +575,7 @@ def _create_model_monitoring_function_base(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The provided module is not a monitoring application"
             )
-        requirements = mlrun.model.ImageBuilder._resolve_requirements(
+        requirements = mlrun.model.ImageBuilder.resolve_requirements(
             requirements, requirements_file
         )
         requirements = merge_requirements(

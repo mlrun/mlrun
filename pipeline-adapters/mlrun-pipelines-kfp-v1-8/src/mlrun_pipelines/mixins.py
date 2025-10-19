@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
+
+from orjson import orjson
 
 import mlrun
 from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
@@ -73,7 +74,7 @@ class PipelineProviderMixin:
     def resolve_error_from_pipeline(pipeline):
         if pipeline.run.status in [RunStatuses.error, RunStatuses.failed]:
             # status might not be available just yet
-            workflow_status = json.loads(
+            workflow_status = orjson.loads(
                 pipeline.pipeline_runtime.workflow_manifest
             ).get("status", {})
             for node in workflow_status.get("nodes", {}).values():
@@ -81,3 +82,4 @@ class PipelineProviderMixin:
                 if node["type"] not in ["DAG", "Skipped"]:
                     if message := node.get("message"):
                         return message
+        return None

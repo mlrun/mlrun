@@ -26,6 +26,7 @@ from pandas import Timedelta, Timestamp
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version
+import mlrun_pipelines.client
 import mlrun_pipelines.models
 from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
@@ -857,6 +858,23 @@ def test_validate_v3io_consumer_group(value, expected):
             "client_python_version": "3.11.13",
             "images_tag": None,
             "expected_output": "mlrun/mlrun-kfp:1.10.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.10.0-rc1",
+            "client_python_version": "3.11.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-rc1",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.9.0",
+            "client_python_version": "3.9.10",
+            "images_tag": None,
+            # no -py suffix as 1.9 has no dual python support
+            "expected_output": "mlrun/mlrun-kfp:1.9.0",
             "images_to_enrich_registry": "",
         },
     ],
@@ -1691,6 +1709,11 @@ def test_format_datetime(dt, expected):
                 "predicates": [
                     # 'status' preserved
                     {
+                        "key": "name",
+                        "op": 9,
+                        "string_value": "test-project",
+                    },
+                    {
                         "key": "status",
                         "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
                         "string_value": "Succeeded",
@@ -1744,7 +1767,7 @@ def test_get_kfp_list_runs_filter(
     experiment_ids = []
     if input_experiment_id:
         experiment_ids.append(input_experiment_id)
-    generated_filter_json: str = mlrun.utils.helpers.get_kfp_list_runs_filter(
+    generated_filter_json: str = mlrun_pipelines.client.create_list_runs_filter(
         start_date=input_start_date,
         end_date=input_end_date,
         filter_=input_existing_filter_json,

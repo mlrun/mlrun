@@ -140,9 +140,6 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.5.2"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
-        "mlrun_pipelines_kfp_v1_8[kfp]": {
-            ">=0.5.7",
-        },
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
         "urllib3": {
@@ -157,12 +154,12 @@ def test_requirement_specifiers_convention():
             '==1.8.23; python_version >= "3.11"',
         },
         "dask": {
-            '>=2023.12.1; python_version < "3.11"',
-            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '==2024.8; python_version >= "3.11"',
         },
         "distributed": {
-            '>=2023.12.1; python_version < "3.11"',
-            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '==2024.8; python_version >= "3.11"',
         },
     }
 
@@ -184,7 +181,7 @@ def test_requirement_specifiers_convention():
 
     assert (
         missing_requirements == []
-    ), f"The following requirements are missing from the ignored_invalid_map: {missing_requirements}"
+    ), f"The following requirements are needlessly ignored: {missing_requirements}"
 
     assert invalid_requirement_specifiers_map == {}
 
@@ -208,12 +205,12 @@ def test_requirement_specifiers_inconsistencies():
         "pydantic": {">=1,<2", ">=1.10.15"},
         # packages that require specific versions per python version
         "dask": {
-            '>=2023.12.1; python_version < "3.11"',
-            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '==2024.8; python_version >= "3.11"',
         },
         "distributed": {
-            '>=2023.12.1; python_version < "3.11"',
-            '>=2024.8; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+            '==2024.8; python_version >= "3.11"',
         },
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',

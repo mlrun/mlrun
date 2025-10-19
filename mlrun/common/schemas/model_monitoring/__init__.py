@@ -30,6 +30,7 @@ from .constants import (
     ModelEndpointMonitoringMetricType,
     ModelEndpointSchema,
     ModelMonitoringAppLabel,
+    ModelMonitoringInfraLabel,
     ModelMonitoringMode,
     MonitoringFunctionNames,
     PredictionsQueryConstants,

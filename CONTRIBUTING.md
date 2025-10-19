@@ -384,50 +384,9 @@ try to avoid logging large objects which are hard to decipher.
 
 1. When converting an error object to a string representation, instead of using: `str(error)` use: `mlrun.errors.err_to_str(error)`
 2. Use `mlrun.mlconf` Instead of `mlrun.config.config`.
-3. When deprecating a parameter/method/class we keep backwards compatibility for 2 minor versions.
-For example if we deprecated a parameter in 1.6.0, it will be removed in 1.8.0.
-Always specify what should be used instead. If there is nothing to be used instead, specify why.
-
-* Deprecating a parameter:
-Check if the parameter is given and output a FutureWarning and add a TODO with when this should be removed to
-help developers keep track.
-for example:
-
-```
-if uid:
-	warnings.warn(
-		"'uid' is deprecated in 1.6.0 and will be removed in 1.8.0, use 'tree' instead.",
-		# TODO: Remove this in 1.8.0
-		FutureWarning,
-	)
-```
-
-* Deprecating a method:
-Use 'deprecated'
-
-```
-# TODO: remove in 1.6.0
-@deprecated(
-	version="1.4.0",
-	reason="'verify_base_image' will be removed in 1.6.0, use 'prepare_image_for_deploy' instead",
-	category=FutureWarning,
-)
-def verify_base_image(self):
-```
-
-* Deprecating a class:
-
-```
-# TODO: Remove in 1.7.0
-@deprecated(
-	version="1.5.0",
-	reason="v1alpha1 mpi will be removed in 1.7.0, use v1 instead",
-	category=FutureWarning,
-)
-class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
-```
+3. See the dedicated [Deprecation Guidelines](./DEPRECATION.md) document for the full process, examples, and checklist.
 4. Minimize imports and avoid unnecessary dependencies in client code.
-5. Scale performance: be caution when executing large queries in order to prevent overloading the database.
+5. Scale performance: be cautious when executing large queries in order to prevent overloading the database.
 
 ## MySQL changes
 

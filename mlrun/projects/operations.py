@@ -182,7 +182,7 @@ def run_function(
                             The `count` field in the `Retry` object specifies the number of retry attempts.
                             If `count=0`, the run will not be retried.
                             The `backoff` field specifies the retry backoff strategy between retry attempts.
-                            If not provided, no backoff is applied.
+                            If not provided, the default backoff delay is 30 seconds.
     :return: MLRun RunObject or PipelineNodeWrapper
     """
     if artifact_path:

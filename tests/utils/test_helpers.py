@@ -1899,7 +1899,7 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
     [
         (None, None, []),
         ([], ["requests"], ["requests"]),
-        (["requests"],[],["requests"]),
+        (["requests"], [], ["requests"]),
         (
             ["requests>=1.0", "pydantic==1.0"],
             ["requests==2.0", "pandas"],

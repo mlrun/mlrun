@@ -2455,7 +2455,9 @@ def merge_requirements(
     """
     merged: dict[str, Requirement] = {}
 
-    for r in _normalize_requirements(reqs_secondary) + _normalize_requirements(reqs_priority):
+    for r in _normalize_requirements(reqs_secondary) + _normalize_requirements(
+        reqs_priority
+    ):
         req = Requirement(r)
         merged[canonicalize_name(req.name)] = req
 

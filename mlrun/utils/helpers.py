@@ -2439,26 +2439,27 @@ def _normalize_requirements(reqs: typing.Union[str, list[str], None]) -> list[st
 
 
 def merge_requirements(
-    reqs1: typing.Union[str, list[str], None], reqs2: typing.Union[str, list[str], None]
+    reqs_priority: typing.Union[str, list[str], None],
+    reqs_secondary: typing.Union[str, list[str], None],
 ) -> list[str]:
     """
     Merge two requirement collections into a union. If the same package
-    appears in both, the specifier from reqs1 wins.
+    appears in both, the specifier from reqs_secondary wins.
 
     Args:
-        reqs1: str | list[str] | None  (priority input)
-        reqs2: str | list[str] | None
+        reqs_priority: str | list[str] | None  (priority input)
+        reqs_secondary: str | list[str] | None
 
     Returns:
         list[str]: pip-style requirements.
     """
     merged: dict[str, Requirement] = {}
 
-    for r in _normalize_requirements(reqs1):
+    for r in _normalize_requirements(reqs_priority):
         req = Requirement(r)
         merged[canonicalize_name(req.name)] = req
 
-    for r in _normalize_requirements(reqs2):
+    for r in _normalize_requirements(reqs_secondary):
         req = Requirement(r)
         key = canonicalize_name(req.name)
         if key not in merged:

@@ -130,7 +130,10 @@ class HubModule(ModelObj):
 
 
 def get_hub_module(
-    url="", download_files=True, secrets=None, local_path=None
+    url: str = "",
+    download_files: bool = True,
+    secrets: dict = None,
+    local_path: str = None,
 ) -> HubModule:
     """
     Get a hub-module object containing metadata of the requested module.

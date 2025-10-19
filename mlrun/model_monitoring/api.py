@@ -567,6 +567,8 @@ def _create_model_monitoring_function_base(
         raise mlrun.errors.MLRunValueError(
             "Model monitoring application names cannot end with `-batch`"
         )
+    if func is None:
+        func = ""
     if check_if_hub_uri(func):
         hub_module = mlrun.get_hub_module(url=func, local_path=local_path)
         if hub_module.kind != HubModuleType.monitoring_app:
@@ -576,10 +578,10 @@ def _create_model_monitoring_function_base(
         requirements = mlrun.model.ImageBuilder._resolve_requirements(
             requirements, requirements_file
         )
-        requirements = merge_requirements(requirements, hub_module.requirements)
+        requirements = merge_requirements(
+            reqs_priority=requirements, reqs_secondary=hub_module.requirements
+        )
         func = hub_module.get_module_file_path()
-    if func is None:
-        func = ""
     func_obj = typing.cast(
         mlrun.runtimes.ServingRuntime,
         mlrun.code_to_function(

@@ -924,10 +924,22 @@ def enrich_image_url(
     )
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version or ""
-    tag += resolve_image_tag_suffix(
-        mlrun_version=mlrun_version,
-        python_version=client_python_version,
+
+    # starting mlrun 1.10.0-rc0 we want to enrich the kfp image with the python version
+    # e.g for 1.9 we have a single mlrun-kfp image that supports only python 3.9
+    enrich_kfp_python_version = (
+        "mlrun-kfp" in image_url
+        and mlrun_version
+        and semver.VersionInfo.is_valid(mlrun_version)
+        and semver.VersionInfo.parse(mlrun_version)
+        >= semver.VersionInfo.parse("1.10.0-rc0")
     )
+
+    if "mlrun-kfp" not in image_url or enrich_kfp_python_version:
+        tag += resolve_image_tag_suffix(
+            mlrun_version=mlrun_version,
+            python_version=client_python_version,
+        )
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url

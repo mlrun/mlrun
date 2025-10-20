@@ -140,9 +140,6 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.5.2"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
-        "mlrun_pipelines_kfp_v1_8[kfp]": {
-            ">=0.5.7",
-        },
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
         "urllib3": {
@@ -184,7 +181,7 @@ def test_requirement_specifiers_convention():
 
     assert (
         missing_requirements == []
-    ), f"The following requirements are missing from the ignored_invalid_map: {missing_requirements}"
+    ), f"The following requirements are needlessly ignored: {missing_requirements}"
 
     assert invalid_requirement_specifiers_map == {}
 

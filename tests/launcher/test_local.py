@@ -20,9 +20,6 @@ import pytest
 
 import mlrun.launcher.local
 from mlrun import MLRunInvalidArgumentError
-from mlrun.execution import MLClientCtx
-from mlrun.model import RunObject
-from mlrun.runtimes.local import get_func_arg
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
@@ -318,30 +315,3 @@ def test_validate_run_retries_invalid_runtime():
         launcher._validate_run(runtime, run)
 
     assert "Retry is not supported for dask runtime" in str(excinfo.value)
-
-
-def test_dataitem_parameter_passed_via_params_raises_error():
-    """Test that passing a DataItem parameter via params instead of inputs raises a clear error"""
-
-    # Define a handler with DataItem type hint
-    def handler_with_dataitem(_context, data: mlrun.DataItem):
-        df = data.as_df()
-        return len(df)
-
-    # Create a run object with data passed via params (wrong)
-    runobj = RunObject()
-    runobj.spec.parameters = {"data": "some_value"}  # Wrong: should use inputs
-    runobj.spec.inputs = {}
-
-    # Create a mock context
-    context = MLClientCtx.from_dict(
-        {"metadata": {"name": "test"}, "spec": {}},
-        autocommit=False,
-    )
-
-    # Try to call get_func_arg - should raise validation error
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match=r".*data.*DataItem.*inputs.*params.*",
-    ):
-        get_func_arg(handler_with_dataitem, runobj, context)

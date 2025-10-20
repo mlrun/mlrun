@@ -35,7 +35,6 @@ from nuclio import Event
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
-from mlrun.datastore import DataItem
 from mlrun.lists import RunList
 
 from ..errors import err_to_str
@@ -565,22 +564,6 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         elif is_nuclio and key == "event":
             kwargs[key] = Event(runobj.to_dict())
         elif key in params:
-            # Validate that DataItem parameters are not passed via params
-            param_annotation = args[key].annotation
-            if (
-                param_annotation is not inspect.Parameter.empty
-                and mlrun.package.utils.type_hint_utils.TypeHintUtils.is_matching(
-                    object_type=DataItem, type_hint=param_annotation
-                )
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Parameter '{key}' has type hint '{param_annotation}' but was passed via 'params'. "
-                    f"Data files and artifacts must be passed via the 'inputs' parameter, not 'params'. "
-                    f"The 'params' parameter is for simple configuration values (strings, numbers, booleans), "
-                    f"while 'inputs' is for data files that need to be loaded. "
-                    f"Example: run_function(..., inputs={{'{key}': 'path/to/data.csv'}},"
-                    f" params={{other_config: value}})"
-                )
             kwargs[key] = copy(params[key])
         elif key in inputs:
             kwargs[key] = _get_input_value(key)

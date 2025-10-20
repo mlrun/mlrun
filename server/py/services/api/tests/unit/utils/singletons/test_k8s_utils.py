@@ -559,8 +559,8 @@ def test_store_user_token_secret_skipped(k8s_helper):
         namespace="default",
     )
 
-    # Ensure the action is skipped
-    assert result == mlrun.common.schemas.SecretEventActions.skipped
+    # Ensure the action is None
+    assert result is None
     k8s_helper._update_secret.assert_not_called()
     k8s_helper._create_secret.assert_not_called()
 

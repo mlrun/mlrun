@@ -63,7 +63,7 @@ class SecretProviderInterface(ABC):
         token: str,
         expiration: int,
         namespace: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.SecretEventActions:
+    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         pass
 
     @abstractmethod
@@ -175,7 +175,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         token: str,
         expiration: int,
         namespace: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.SecretEventActions:
+    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         raise NotImplementedError()
 
     def get_user_token_secret_value(

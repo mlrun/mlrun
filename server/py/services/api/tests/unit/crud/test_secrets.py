@@ -790,7 +790,7 @@ def test_store_secret_tokens_return_values(mock_iguazio_client):
     mock_secrets_provider.store_user_token_secret.side_effect = [
         mlrun.common.schemas.SecretEventActions.created,
         mlrun.common.schemas.SecretEventActions.updated,
-        mlrun.common.schemas.SecretEventActions.skipped,
+        None,
     ]
 
     result = services.api.crud.Secrets().store_secret_tokens(
@@ -800,7 +800,6 @@ def test_store_secret_tokens_return_values(mock_iguazio_client):
     assert result == {
         "created_tokens": ["token1"],
         "updated_tokens": ["token2"],
-        "skipped_tokens": ["token3"],
     }
 
     assert mock_secrets_provider.store_user_token_secret.call_count == 3

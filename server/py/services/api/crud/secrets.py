@@ -475,7 +475,8 @@ class Secrets(
                 token=token,
                 expiration=expiration,
             )
-            token_actions[action].append(token_name)
+            if action is not None:
+                token_actions[action].append(token_name)
 
         logger.debug(
             "Finished storing tokens",
@@ -485,9 +486,6 @@ class Secrets(
             updated_tokens=token_actions[
                 mlrun.common.schemas.SecretEventActions.updated
             ],
-            skipped_tokens=token_actions[
-                mlrun.common.schemas.SecretEventActions.skipped
-            ],
         )
 
         return mlrun.common.schemas.StoreSecretTokensResponse(
@@ -496,9 +494,6 @@ class Secrets(
             ],
             updated_tokens=token_actions[
                 mlrun.common.schemas.SecretEventActions.updated
-            ],
-            skipped_tokens=token_actions[
-                mlrun.common.schemas.SecretEventActions.skipped
             ],
         )
 

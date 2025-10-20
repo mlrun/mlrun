@@ -1178,7 +1178,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token: str,
         expiration: int,
         namespace: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.SecretEventActions:
+    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         """
         Creates or updates a Kubernetes secret for a user's offline token.
 
@@ -1241,7 +1241,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             return mlrun.common.schemas.SecretEventActions.updated
 
-        return mlrun.common.schemas.SecretEventActions.skipped
+        return None
 
     def _resolve_user_token_secret_name(self, username: str, token: str) -> str:
         return mlrun.mlconf.secret_stores.kubernetes.user_token_secret_name.format(

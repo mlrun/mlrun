@@ -533,7 +533,7 @@ class NuclioRemoteStep(RemoteStep):
     """
     Graph step implementation for invoking Nuclio functions remotely.
     :param fn: Either an mlrun.runtimes.RemoteRuntime object or
-    a string URI in the form 'project/function'.
+               a string URI in the form 'project/function'.
     """
 
     def __init__(

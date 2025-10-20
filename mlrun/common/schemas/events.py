@@ -29,7 +29,6 @@ class SecretEventActions(mlrun.common.types.StrEnum):
     created = "created"
     updated = "updated"
     deleted = "deleted"
-    skipped = "skipped"
 
 
 class AuthSecretEventActions(mlrun.common.types.StrEnum):

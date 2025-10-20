@@ -1241,8 +1241,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             return mlrun.common.schemas.SecretEventActions.updated
 
-        return None
-
     def _resolve_user_token_secret_name(self, username: str, token: str) -> str:
         return mlrun.mlconf.secret_stores.kubernetes.user_token_secret_name.format(
             username=username, token_name=token

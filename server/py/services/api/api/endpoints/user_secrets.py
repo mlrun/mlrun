@@ -54,7 +54,7 @@ async def list_secret_tokens(
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
-    # TODO: Support listing user tokens with System Admin
+    # TODO: Support listing user tokens with System Admin (ML-10775)
 
     return await run_in_threadpool(
         services.api.crud.Secrets().list_secret_tokens,

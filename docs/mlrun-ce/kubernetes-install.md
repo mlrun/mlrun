@@ -9,18 +9,12 @@ These instructions install the community edition, which currently includes MLRun
 
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Community Edition flavors](#community-edition-flavors)
 - [Installing the chart](#installing-the-chart)
-- [Configuring TDengine and Kafka for model monitoring](#configuring-tdengine-and-kafka-for-model-monitoring)
-- [Configuring the online features store](#configuring-the-online-feature-store)
 - [Usage](#usage)
 - [Start working](#start-working)
 - [Configuring the remote environment](#configuring-the-remote-environment)
-- [Advanced chart configuration](#advanced-chart-configuration)
-- [Storage resources](#storage-resources)
 - [Uninstalling the chart](#uninstalling-the-chart)
 - [Upgrading the chart](#upgrading-the-chart)
-- [Storing artifacts in AWS S3 storage](#storing-artifacts-in-aws-s3-storage)
 
 ## Prerequisites
 
@@ -34,27 +28,11 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
   - 8Gi
   - Set a default storage class for the kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
 - RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
+- Please review the [installation notes](./installation-notes.md) for any additional installation steps you may need to consider.
 
 ``` {admonition} Note
 The MLRun Community Edition resources are configured initially with the default cluster/namespace resource limits. You can modify the resources from outside if needed.
 ```
-
-## Community Edition flavors
-
-The MLRun CE (Community Edition) includes the following components:
-* MLRun - https://github.com/mlrun/mlrun
-  - MLRun API
-  - MLRun UI
-  - MLRun DB (MySQL)
-* Nuclio - https://github.com/nuclio/nuclio
-* Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
-* MPI Operator - https://github.com/kubeflow/mpi-operator
-* MinIO - https://github.com/minio/minio/tree/master/helm/minio
-* Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
-* Prometheus stack - https://github.com/prometheus-community/helm-charts
-  - Prometheus
-  - Grafana
-* [KFP Pipelines](https://github.com/kubeflow/pipelines) 
 
 <a id="installing-the-chart"></a>
 ## Installing the chart
@@ -112,29 +90,6 @@ Where:
 - `<your-password>` is your Docker password.
 - `<your-email>` is your Docker email.
 
-:::{admonition} Notes on installation
-- If you are using NFS storage in your Kubernetes cluster, add these flags to the chart deployment command:
-```
-  --set kube-prometheus-stack.grafana.securityContext.runAsUser=1000 
-  --set kube-prometheus-stack.grafana.securityContext.runAsGroup=1000 
-  --set kube-prometheus-stack.grafana.securityContext.fsGroup=1000 
-  --set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
-  --set kube-prometheus-stack.grafana.initChownData.enabled
-```
-- A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC by running this after importing MLRun:
-    ```
-    import mlrun
-    mlrun.mlconf.storage.auto_mount_type = "pvc"
-    pvc_params = {
-        "pvc_name": "pvc-fhakn",
-        "volume_name": "pv-zjoij",
-        "volume_mount_path": "/tmp/pv-temp/adcxm",
-    }
-    mlrun.mlconf.storage.auto_mount_params = ",".join(
-        [f"{key}={value}" for key, value in pvc_params.items()]
-    )
-    ```
-:::
 To install the chart with the release name `mlrun-ce` use the following command.  
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
@@ -161,66 +116,6 @@ When the installation is complete, the helm command prints the URLs and ports of
 - The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
 ```
 
-## Configuring the user Jupyter conda environment
-
-The default Jupyter comes with a conda env named `mlrun`. This conda is not persistent.
-If you install any packages on this conda env, and then the Jupyter pod gets restarted or deleted, those packages will be deleted.
-
-To create a new, persistent, environment, run this in your Jupyter terminal, where `myenv` is the name of your environment:
-
-```bash
-# Create the virtual environment
-conda create -n <myenv> python=<3.9 or 3.11> -y
-
-# Activate the virtual environment
-conda activate <myenv>
-
-# Make sure that ipykernel is installed
-pip install --user ipykernel
-
-# Add the new virtual environment to Jupyter
-python -m ipykernel install --user --name <myenv> --display-name "Python (<myenv>)"
-```
-
-## Configuring TDengine and Kafka for model monitoring
-TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values. It's recommended to change the user/password.
-
-```py
-# Create and register TSDB profile
-tsdb_profile = DatastoreProfileTDEngine(
-    name=tsdb_profile_name,
-    user="root",
-    password="taosdata",
-    host=f"tdengine-tsdb.{namespace}.svc.cluster.local",
-    port="6041",
-)
-project.register_datastore_profile(tsdb_profile)
-
-# Create and register stream profile
-stream_profile = DatastoreProfileKafkaSource(
-    name=stream_profile_name,
-    brokers=f"kafka-stream.{namespace}.svc.cluster.local:9092",
-    topics=[],
-)
-
-# Set model monitoring credentials and enable the infrastructure
-project.set_model_monitoring_credentials(
-    tsdb_profile_name=tsdb_profile.name,
-    stream_profile_name=stream_profile.name,
-)
-```
-
-See more details, including additional configuration options, in {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-
-## Configuring the online feature store
-The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
-To deploy a Redis service, refer to the [Redis documentation](https://redis.io/learn/howtos/quick-start).
-
-When you have a Redis service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
-```bash
---set mlrun.api.extraEnvKeyValue.MLRUN_REDIS__URL=<redis-address>
-```
-
 ## Usage
 
 Your applications are now available in your local browser:
@@ -245,10 +140,6 @@ You can change the ports by providing values to the helm install command.
 You can add and configure a Kubernetes ingress-controller for better security and control over external access.
 ```
 
-
-## Optional additional packages
-To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
-
 ## Start working
     
 Open the Jupyter notebook on [**jupyter-notebook UI**](http://localhost:30040) and run the code in the 
@@ -260,20 +151,7 @@ Make sure to save your changes in the `data` folder within the Jupyter Lab. The 
 
 ## Configuring the remote environment
 
-You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your environment](https://docs.mlrun.org/en/latest/install/remote.html) for more information.
-
-## Advanced chart configuration
-
-Configurable values are documented in the `values.yaml`, and the `values.yaml` of all sub charts. Override those [in the normal methods](https://helm.sh/docs/chart_template_guide/values_files/).
-
-### Opt out of components
-The chart installs many components. You may not need them all in your deployment depending on your use cases.
-To opt out of some of the components, use the following helm values:
-```bash
---set pipelines.enabled=false \
---set kube-prometheus-stack.enabled=false \
---set spark-operator.enabled=false \
-```
+You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your environment](https://docs.mlrun.org/en/latest//development-guide/remote.md.html) for more information.
 
 ### Installing on Docker Desktop
 
@@ -303,15 +181,6 @@ To learn about the various UI options and their usage, see:
 
 - [Docker Desktop for Mac user manual](https://docs.docker.com/desktop/setup/install/mac-install/)
 - [Docker Desktop for Windows user manual](https://docs.docker.com/desktop/setup/install/windows-install/)
-
-## Storage resources
-
-When installing the MLRun Community Edition, several storage resources are created:
-
-- **PVs via default configured storage class**: Holds the file system of the stacks pods, including the MySQL database of MLRun, MinIO for artifacts and Pipelines Storage and more. 
-These are not deleted when the stack is uninstalled, which allows upgrading without losing data.
-- **Container Images in the configured docker-registry**: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are 
-stored in the given configured docker registry. These images persist in the docker registry and are not deleted.
 
 ## Uninstalling the chart
 
@@ -393,69 +262,3 @@ helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlru
 If your values have fixed mlrun service versions (e.g.: mlrun:1.3.0) then you might want to remove it from the values file to allow newer chart defaults to kick in.
 ```
 
-## Storing artifacts in AWS S3 storage
-
-MLRun CE uses a MinIO service as shared storage for artifacts, and accesses it using S3 protocol. This means that
-any path that begins with `s3://` is automatically directed by MLRun to the MinIO service. The default artifact
-path is also configured as `s3://mlrun/projects/{{run.project}}/artifacts` which is a path on the `mlrun` bucket in the
-MinIO service.
-
-To store artifacts in AWS S3 buckets instead of the local MinIO service, these configurations need to be overridden to 
-make `s3://` paths lead to AWS buckets instead.
-
-```{admonition} Note
-These configurations are only required for AWS S3 storage, due to the usage of the same S3 protocol in MinIO. For other
-storage options (such as GCS, Azure blobs etc.) only the artifact path needs to be modified, and credentials need to
-be provided.
-```
-
-### Setting up S3 credentials and endpoint
-
-Set up the following project-secrets (refer to [**Data stores**](../store/datastore.md) and [**Project secrets**](../secrets.md#mlrun-managed-secrets)) 
-for any project used:
-
-* `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; S3 credentials
-* `AWS_ENDPOINT_URL_S3` &mdash; the AWS S3 endpoint to use, depending on the region. For example: 
-    ``` console
-    AWS_ENDPOINT_URL_S3 = https://s3.us-east-2.amazonaws.com/
-    ```
-    **Note**: `S3_ENDPOINT_URL` is deprecated as of v1.10.0 and will be removed in v1.12.0. Use `AWS_ENDPOINT_URL_S3` instead.
-
-### Disabling auto-mount
-
-Before running any MLRun job that writes to S3 bucket, make sure auto-mount is disabled for it, since by default
-auto-mount adds S3 configurations that point at the MinIO service (refer to 
-[**Function storage**](../runtimes/function-storage.md) for more details on auto-mount). This can be done in one
-of following ways:
-
-* Set the client-side MLRun configuration to disable auto-mount. This disables auto-mount for any function run
-  after this command:
-    ```python
-    from mlrun.config import config as mlconf
-
-    mlconf.storage.auto_mount_type = "none"
-    ```
-* If running MLRun from an IDE, the configuration can be overridden using an environment variable. Set the following
-  environment variable for your IDE environment:
-    ```python
-    MLRUN_STORAGE__AUTO_MOUNT_TYPE = "none"
-    ```
-* Disable auto-mount for a specific function. This must be done before running the function for the first time:
-    ```python
-    function.spec.disable_auto_mount = True
-    ```
-
-### Changing the artifact path
-
-The artifact path needs to be modified since the bucket name is set to `mlrun` by default. It is recommended to keep 
-the same path structure as the default, while modifying the bucket name. For example:
-```text
-s3://<bucket name>/projects/{{run.project}}/artifacts
-```
-
-The artifact path can be set in several ways, refer to [**Artifact path**](../store/artifacts.md#artifact-path) 
-for more details.
-
-```{admonition} Note
-If your values have fixed mlrun service versions (e.g.: mlrun:1.5.0) then you might want to remove it from the values file to allow newer chart defaults to kick in.
-```

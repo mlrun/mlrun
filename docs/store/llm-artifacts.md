@@ -1,10 +1,14 @@
-(prompt-artifacts)=
-# Prompt artifacts for LLMs
+(???)=
+# Using Prompt artifacts for LLMs
 
 Prompt artifacts are defined by their LLM, prompt template, and the model generation configuration.
+You can use multiple LLMs in a workflow, 
 
-Prompt templates use variables to define the format of the prompt. This example of a finance_prompt_template is structured to
-guide the LLM in generating responses based on user queries. The template includes a system message that sets the context for the LLM, and a user message that includes the user's ID, tone, depth level, and question.
+First, define a **Prompt template**. Prompt templates use variables to define the format of the prompt. This example
+`finance_prompt_template` is structured to guide the LLM in generating responses based on user queries. The template includes
+a system message that sets the context for the LLM, and a user message that includes the user's ID, tone, depth level, and question.
+The name of the template is important, since you will use if subsequently in filters and searches.
+
 ```
 finance_prompt_template = [
     {
@@ -35,5 +39,6 @@ finance_prompt_template = [
 
 
 
-You can use multiple LLMs in a workflow, 
 
+
+Now, define the llm prompt artifact, specifying the model and its URL, the prompt template, 

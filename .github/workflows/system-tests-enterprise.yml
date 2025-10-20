@@ -104,7 +104,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass jq curl gnupg nodejs
-    - uses: actions/setup-node@v5
+    - uses: actions/setup-node@v6
       with:
         node-version: 18
     - name: Copy state branch file from remote
@@ -331,7 +331,7 @@ jobs:
             gcc \
             make
 
-    - uses: actions/setup-node@v5
+    - uses: actions/setup-node@v6
       with:
         node-version: 18
 

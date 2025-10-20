@@ -438,9 +438,6 @@ def test_nuclio_remote_step(rundb_mock, httpserver, engine):
     fn.metadata.project = project
     fn.status.state = "ready"
     fn.status.address = nuclio_url
-    fn.status.external_invocation_urls = [nuclio_url]
-
-    fn.status.internal_invocation_urls = ["nuclio-internal-url:8080"]
 
     rundb_mock.get_function = MagicMock(return_value=fn)
     mlrun.get_run_db = MagicMock(return_value=rundb_mock)

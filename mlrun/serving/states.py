@@ -3499,6 +3499,7 @@ class ChoiceByField(storey.Choice):
 
     :param field_name: event field name to derive outlets.
     """
+
     def __init__(self, field_name):
         self.field_name = field_name
         super().__init__()
@@ -3508,5 +3509,8 @@ class ChoiceByField(storey.Choice):
             raise mlrun.MLRunInvalidArgumentError(
                 f"Field name {self.field_name} is not contained in the event keys {list(event.keys())}."
             )
-        return [event[self.field_name]] if isinstance(event[self.field_name],
-                                                      str) else event[self.field_name]
+        return (
+            [event[self.field_name]]
+            if isinstance(event[self.field_name], str)
+            else event[self.field_name]
+        )

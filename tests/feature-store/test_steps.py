@@ -852,9 +852,21 @@ def test_choice_by_field(field_name):
 
     graph = fn.set_topology("flow")
     graph.to("ChoiceByField", name="choose_outlets", field_name=field_name)
-    graph.add_step("storey.Extend", name="target1", _fn='({"tag": "something_bad"})', after="choose_outlets")
-    graph.add_step("storey.Extend", name="target2", _fn='({"tag": "something_good"})', after="choose_outlets")
-    graph.add_step("storey.Extend", name="end", _fn='({})', after=["target1", "target2"]).respond()
+    graph.add_step(
+        "storey.Extend",
+        name="target1",
+        _fn='({"tag": "something_bad"})',
+        after="choose_outlets",
+    )
+    graph.add_step(
+        "storey.Extend",
+        name="target2",
+        _fn='({"tag": "something_good"})',
+        after="choose_outlets",
+    )
+    graph.add_step(
+        "storey.Extend", name="end", _fn="({})", after=["target1", "target2"]
+    ).respond()
 
     fn_server = fn.to_mock_server()
     try:
@@ -862,4 +874,4 @@ def test_choice_by_field(field_name):
     except Exception as e:
         assert isinstance(e, ValueError)
     else:
-        assert result['tag'] == "something_good"
+        assert result["tag"] == "something_good"

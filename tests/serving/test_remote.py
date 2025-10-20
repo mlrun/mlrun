@@ -14,11 +14,13 @@
 
 import re
 import time
+from unittest.mock import MagicMock
 
 import pytest
 from werkzeug.wrappers import Request, Response
 
 import mlrun
+from mlrun.serving.remote import NuclioRemoteStep
 from mlrun.serving.utils import event_id_key, event_path_key
 
 
@@ -420,3 +422,42 @@ def test_parallel_remote_retry(httpserver):
         "/1": retries + 1,
         "/0": retries + 1,
     }, "didnt retry properly"
+
+
+@pytest.mark.parametrize("engine", ["sync", "async"])
+def test_nuclio_remote_step(rundb_mock, httpserver, engine):
+    httpserver.expect_request("/cat", method="POST").respond_with_json({"cat": "ok"})
+    nuclio_url = httpserver.url_for("/cat")
+
+    function_name = "nuclio-fn-test"
+    project = "test-proj"
+
+    fn = mlrun.new_function(
+        function_name, project=project, kind="nuclio", image="mlrun/mlrun"
+    )
+    fn.metadata.project = project
+    fn.status.state = "ready"
+    fn.status.address = nuclio_url
+    fn.status.external_invocation_urls = [nuclio_url]
+
+    fn.status.internal_invocation_urls = ["nuclio-internal-url:8080"]
+
+    rundb_mock.get_function = MagicMock(return_value=fn)
+    mlrun.get_run_db = MagicMock(return_value=rundb_mock)
+
+    uri = f"{project}/{function_name}"
+    step = NuclioRemoteStep(uri)
+
+    function = mlrun.new_function(name="test-nuclio-remote-step", kind="serving")
+    flow = function.set_topology("flow", engine=engine)
+    flow.to(name="s1", handler="echo").to(step).to(name="s3", handler="echo").respond()
+
+    server = function.to_mock_server()
+
+    try:
+        resp = server.test()
+    except Exception as e:
+        raise e
+    finally:
+        server.wait_for_completion()
+    assert resp == {"cat": "ok"}

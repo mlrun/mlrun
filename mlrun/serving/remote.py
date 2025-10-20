@@ -15,7 +15,7 @@
 import asyncio
 import json
 from copy import copy
-from typing import Optional
+from typing import Optional, Union
 
 import aiohttp
 import requests
@@ -527,3 +527,59 @@ class MLRunAPIRemoteStep(RemoteStep):
         self.fill_placeholders = self.fill_placeholders or False
         self.rundb = mlrun.get_run_db()
         self.url = self.rundb.get_base_api_url(self.path)
+
+
+class NuclioRemoteStep(RemoteStep):
+    """
+    Graph step implementation for invoking Nuclio functions remotely.
+    :param fn: Either an mlrun.runtimes.RemoteRuntime object or
+    a string URI in the form 'project/function'.
+    """
+
+    def __init__(
+        self,
+        fn: Union[mlrun.runtimes.RemoteRuntime, str, None] = None,
+        method: str = "POST",
+        **kwargs,
+    ):
+        super().__init__(url="", method=method, **kwargs)
+        self.rundb = None
+        self.fn = fn
+
+    def post_init(self, mode="sync", **kwargs):
+        self.rundb = mlrun.get_run_db()
+        if not self.fn:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Cannot find function '{self.fn}' in the MLRun DB. "
+                "Please verify that the function URI is correct and that it is stored properly."
+            )
+        if not isinstance(self.fn, (mlrun.runtimes.RemoteRuntime, str)):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                "Parameter 'fn' must be of type mlrun.runtimes.RemoteRuntime or str."
+            )
+
+        if isinstance(self.fn, str):
+            self.fn = self.rundb.get_function(
+                self.fn.split("/")[0], self.fn.split("/")[1]
+            )
+            if not self.fn:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Cannot find function '{self.fn}' in the MLRun DB. "
+                    "Please verify that the function URI is correct and that the function is stored properly."
+                )
+        # Derive Nuclio function URL
+        url = (
+            getattr(self.fn.status, "address", None)
+            or next(iter(self.fn.status.external_invocation_urls or []), None)
+            or next(iter(self.fn.status.internal_invocation_urls or []), None)
+        )
+        if not url:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Could not determine the Nuclio function URL for '{self.fn.metadata.name}'. "
+                "Make sure the function is deployed and reachable."
+            )
+        if not url.startswith("http"):
+            url = f"http://{url}"
+
+        self.url = url
+        super().post_init(mode=mode, **kwargs)

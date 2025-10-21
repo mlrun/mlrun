@@ -99,9 +99,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
             AuthorizationResourceTypes.datastore_profile: "/projects/{project_name}/datastore_profiles",
             # Hub sources are not project-scoped, and auth is globally on the sources endpoint.
-            # TODO - this was reverted to /marketplace since MLRun needs to be able to run with old igz versions. Once
-            #  we only have support for igz versions that support /hub (>=3.5.4), change this to "/hub/sources".
-            AuthorizationResourceTypes.hub_source: "/marketplace/sources",
+            AuthorizationResourceTypes.hub_source: "/hub/sources",
             # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
             AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
             AuthorizationResourceTypes.api_gateway: "/projects/{project_name}/api-gateways/{resource_name}",

@@ -396,7 +396,7 @@ default_config = {
             "allow_local_run": False,
         },
         "authentication": {
-            "mode": "none",  # one of none, basic, bearer, iguazio, iguazio-v4
+            "mode": "iguazio-v4",  # one of none, basic, bearer, iguazio, iguazio-v4
             "basic": {"username": "", "password": ""},
             "bearer": {"token": ""},
             "iguazio": {
@@ -455,6 +455,7 @@ default_config = {
         },
         "authorization": {
             "mode": "none",  # one of none, opa
+            "resource_prefix": "resources",
             "opa": {
                 "address": "",
                 "request_timeout": 10,

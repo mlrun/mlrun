@@ -32,6 +32,7 @@ import framework.utils.clients.iguazio.v4
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self) -> None:
         super().__init__()
+        self._resource_prefix = mlrun.mlconf.httpdb.authorization.resource_prefix
         if mlrun.mlconf.httpdb.authorization.mode == "none":
             self._auth_provider = framework.utils.auth.providers.nop.Provider()
         elif mlrun.mlconf.httpdb.authorization.mode == "opa":
@@ -273,16 +274,15 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     def is_jobs_auth_required(self):
         return self._iguazio_auth_configured()
 
-    @staticmethod
-    def _generate_resource_string_from_project_name(project_name: str):
-        return (
+    def _generate_resource_string_from_project_name(self, project_name: str):
+        return self._attach_resource_prefix(
             mlrun.common.schemas.AuthorizationResourceTypes.project.to_resource_string(
                 project_name, ""
             )
         )
 
-    @staticmethod
     def _generate_resource_string_from_project_resource(
+        self,
         resource_type: mlrun.common.schemas.AuthorizationResourceTypes,
         project_name: str,
         resource_name: str,
@@ -291,7 +291,12 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             project_name = "*"
         if not resource_name:
             resource_name = "*"
-        return resource_type.to_resource_string(project_name, resource_name)
+        return self._attach_resource_prefix(resource_type.to_resource_string(project_name, resource_name))
+
+    def _attach_resource_prefix(self, resource: str) -> str:
+        if self._resource_prefix:
+            return f"/{self._resource_prefix}/{resource}"
+        return resource
 
     @staticmethod
     def _basic_auth_configured():

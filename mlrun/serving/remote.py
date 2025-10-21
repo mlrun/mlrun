@@ -551,7 +551,7 @@ class NuclioRemoteStep(RemoteStep):
         if not self.fn:
             raise mlrun.errors.MLRunRuntimeError(
                 f"Cannot find function '{self.fn}' in the MLRun DB. "
-                "Please verify that the function URI is correct and that it is stored properly."
+                "Verify that the function URI is correct and that it is stored properly."
             )
         if not isinstance(self.fn, (mlrun.runtimes.RemoteRuntime, str)):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
@@ -565,13 +565,13 @@ class NuclioRemoteStep(RemoteStep):
             if not self.fn:
                 raise mlrun.errors.MLRunRuntimeError(
                     f"Cannot find function '{self.fn}' in the MLRun DB. "
-                    "Please verify that the function URI is correct and that the function is stored properly."
+                    "Verify that the function URI is correct and that the function is stored properly."
                 )
         # Derive Nuclio function URL
         url = (
-            getattr(self.fn.status, "address", None)
+            next(iter(self.fn.status.internal_invocation_urls or []), None)
             or next(iter(self.fn.status.external_invocation_urls or []), None)
-            or next(iter(self.fn.status.internal_invocation_urls or []), None)
+            or getattr(self.fn.status, "address", None)
         )
         if not url:
             raise mlrun.errors.MLRunRuntimeError(

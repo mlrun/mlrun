@@ -15,6 +15,7 @@
 import concurrent.futures
 import json
 import pickle
+import tempfile
 import time
 import typing
 import uuid
@@ -1035,7 +1036,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
 class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     """
     Demonstrates running a serving job with model monitoring enabled.  In this test, we deploy a simple serving model
-    and then validate the newly created batch model endpoint along with its application results.
+    and then validate the newly created batch model endpoint along with its application metrics.
+    Also tests the deployment of a monitoring-application from the MLRun hub (count-events)
     """
 
     project_name = "test-mm-serving-job"
@@ -1063,11 +1065,12 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         cls._train()
 
         # model monitoring app
-        cls.app_data = _AppData(
-            class_=NoCheckDemoMonitoringApp,
-            rel_path="assets/application.py",
-            results={"data_drift_test", "model_perf"},
-        )
+        cls.app_data = {
+            "url": "hub://count_events",
+            "class_name": "CountApp",
+            "app_name": "count",
+            "metric_name": "count",
+        }
 
         # model monitoring infra
         cls.app_interval: int = 1  # every 1 minute
@@ -1122,16 +1125,17 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
     def _deploy_monitoring_app(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        fn = self.project.set_model_monitoring_function(
-            func=self.app_data.abs_path,
-            application_class=self.app_data.class_.__name__,
-            name=self.app_data.class_.NAME,
-            requirements=self.app_data.requirements,
-            image="mlrun/mlrun" if self.image is None else self.image,
-            **self.app_data.kwargs,
-        )
-        self.project.deploy_function(fn)
-        return fn
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = str(Path(temp_dir))
+            fn = self.project.set_model_monitoring_function(
+                func=self.app_data["url"],
+                application_class=self.app_data["class_name"],
+                name=self.app_data["app_name"],
+                image="mlrun/mlrun" if self.image is None else self.image,
+                local_path=temp_path,
+            )
+            self.project.deploy_function(fn)
+            return fn
 
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
@@ -1169,7 +1173,7 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         self.project.run_function(job, inputs=inputs, params=params)
         return function
 
-    def _test_batch_ep_results(
+    def _test_batch_ep_metrics(
         self, function_name: str, input_df: pd.DataFrame
     ) -> None:
         model_endpoint = mlrun.get_run_db().get_model_endpoint(
@@ -1192,32 +1196,37 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
         run_db = mlrun.get_run_db()
 
-        monitoring_results = run_db.get_model_endpoint_monitoring_metrics(
+        monitoring_metrics = run_db.get_model_endpoint_monitoring_metrics(
             project=self.project_name,
             endpoint_id=model_endpoint.metadata.uid,
-            type="results",
+            type="metrics",
         )
 
-        assert len(monitoring_results) == 2
-        result_names = [result.full_name for result in monitoring_results]
+        assert len(monitoring_metrics) == 2
+        metric_name = self.app_data["metric_name"]
+        metric_names = [
+            metric.full_name
+            for metric in monitoring_metrics
+            if metric_name in metric.full_name
+        ]
 
-        self._test_result_values(
+        self._test_metric_values(
             ep_id=model_endpoint.metadata.uid,
-            results_full_names=result_names,
+            metrics_full_names=metric_names,
             run_db=run_db,
             start=0,
             end=datetime.now().timestamp() * 1000,
         )
 
-    def _test_result_values(
+    def _test_metric_values(
         self,
         ep_id: str,
-        results_full_names: list[str],
+        metrics_full_names: list[str],
         run_db: mlrun.db.httpdb.HTTPRunDB,
         start: typing.Optional[float],
         end: typing.Optional[float],
     ) -> None:
-        base_query = f"?name={'&name='.join(results_full_names)}"
+        base_query = f"?name={'&name='.join(metrics_full_names)}"
         query = f"{base_query}&start={start}&end={end}"
 
         response = run_db.api_call(
@@ -1225,17 +1234,17 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
             path=f"projects/{self.project_name}/model-endpoints/{ep_id}/metrics-values{query}",
         )
         response_content = json.loads(response.content.decode())
-        for result_values in response_content:
-            assert result_values[
+        for metric_values in response_content:
+            assert metric_values[
                 "data"
-            ], f"No data for result {result_values['full_name']}"
-            assert result_values[
+            ], f"No data for metric {metric_values['full_name']}"
+            assert metric_values[
                 "values"
-            ], f"The values list is empty for result {result_values['full_name']}"
-            assert len(result_values["values"]) == 3
+            ], f"The values list is empty for metric {metric_values['full_name']}"
+            assert len(metric_values["values"]) == 3
 
-        first_result = response_content[0]
-        assert first_result["full_name"] in results_full_names
+        first_metric = response_content[0]
+        assert first_metric["full_name"] in metrics_full_names
 
     def test_serving_as_a_job(self) -> None:
         self._log_model()
@@ -1253,7 +1262,7 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
 
-        self._test_batch_ep_results(
+        self._test_batch_ep_metrics(
             function_name=function.metadata.name, input_df=input_df
         )
 

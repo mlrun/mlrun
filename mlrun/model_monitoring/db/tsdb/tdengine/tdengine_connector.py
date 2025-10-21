@@ -55,7 +55,6 @@ class TDEngineConnector(TSDBConnector):
     """
 
     type: str = mm_schemas.TSDBTarget.TDEngine
-    database = f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
 
     def __init__(
         self,
@@ -70,6 +69,11 @@ class TDEngineConnector(TSDBConnector):
 
         self._timestamp_precision: Final = (  # cannot be changed after initialization
             timestamp_precision
+        )
+
+        self.database = kwargs.get(
+            "database",
+            f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}",
         )
 
         self._init_super_tables()

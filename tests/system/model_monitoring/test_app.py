@@ -1592,6 +1592,27 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             label_column=label_column,
         )
 
+    def _log_iris_model(self) -> tuple[set[str], set[str]]:
+        dataset = load_iris()
+        train_set = pd.DataFrame(
+            dataset.data,
+            columns=dataset.feature_names,
+        )
+        inputs = {
+            mlrun.feature_store.api.norm_column_name(feature)
+            for feature in dataset.feature_names
+        }
+
+        self.project.log_model(
+            "classification",
+            model_dir=str((Path(__file__).parent / "assets").absolute()),
+            model_file="model.pkl",
+            training_set=train_set,
+        )
+        outputs = {"p0"}
+
+        return inputs, outputs
+
     def _deploy_model_router(
         self,
         name: str,
@@ -1842,6 +1863,60 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             )
             func._get_db().get_nuclio_deploy_status(func, verbose=False)
             assert func.status.state == "ready"
+
+    def test_monitored_model_runner_with_labels(self):
+        self.function_name = "model-runner-function"
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            base_period=1,
+            deploy_histogram_data_drift_app=True,
+        )
+        self._log_iris_model()
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "models.py"),
+            name=self.function_name,
+            kind="serving",
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
+
+        model_runner_step.add_model(
+            endpoint_name="my_model",
+            model_class="MyModel",
+            execution_mechanism="naive",
+            model_artifact=f"store://models/{self.project_name}/classification:latest",
+            input_path="inputs",
+            result_path="outputs",
+        )
+        graph.to(model_runner_step)
+        function.set_tracking()
+        function.deploy()
+        serving_fn = self.project.get_function(self.function_name)
+        serving_fn.invoke("/", body=json.dumps({"inputs": [[0, 0, 0, 0]]}))
+        time.sleep(1)
+        serving_fn.invoke(
+            "/", body=json.dumps({"inputs": [[1, 1, 1, 1]], "labels": {"user": "test"}})
+        )
+        time.sleep(
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 60
+        )
+        endpoints_list = (
+            mlrun.db.get_run_db()
+            .list_model_endpoints(project=self.project_name, tsdb_metrics=True)
+            .endpoints
+        )
+        feature_set_uri = endpoints_list[0].spec.monitoring_feature_set_uri
+        offline_response_df = ParquetTarget(
+            name="temp",
+            path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
+        ).as_df()
+        assert len(offline_response_df) == 2, "Not all the events were saved"
+        assert offline_response_df["labels"].iloc[1] == {
+            "user": "test"
+        }, "Labels were not saved correctly"
 
 
 class TestAppJob(TestMLRunSystem):

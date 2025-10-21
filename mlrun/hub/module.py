@@ -26,6 +26,7 @@ from mlrun.common.schemas.hub import HubModuleType, HubSourceType
 from mlrun.run import function_to_module, get_object
 from mlrun.utils import logger
 
+from ..errors import MLRunBadRequestError
 from ..model import ModelObj
 from ..utils import extend_hub_uri_if_needed
 
@@ -109,19 +110,33 @@ class HubModule(ModelObj):
             f.write(data)
 
     @staticmethod
-    def verify_directory(path: str) -> Path:
-        """Validate that the given path is an existing directory."""
+    def verify_directory(path: Optional[str] = None) -> Path:
+        """
+        Validate that the given path is an existing directory.
+        If no path has been provided, returns current working directory.
+        """
         if path:
             path = Path(path)
             if not path.exists():
                 raise ValueError(f"Path does not exist: {path}")
             if not path.is_dir():
                 raise ValueError(f"Path is not a directory: {path}")
-        return path
+            return path
+        return Path(os.getcwd())
+
+    def get_module_file_path(self):
+        if not self.local_path:
+            raise MLRunBadRequestError(
+                "module files haven't been downloaded yet, try calling download_module_files() first"
+            )
+        return str(Path(self.local_path) / self.filename)
 
 
 def get_hub_module(
-    url="", download_files=True, secrets=None, local_path=None
+    url: str = "",
+    download_files: Optional[bool] = True,
+    secrets: Optional[dict] = None,
+    local_path: Optional[str] = None,
 ) -> HubModule:
     """
     Get a hub-module object containing metadata of the requested module.

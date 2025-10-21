@@ -584,7 +584,7 @@ class TestProject(TestMLRunSystem):
 
         workflow_path = str(self.assets_path / "pipeline_with_resource_param.py")
         function_name = "func-1"
-        function = self._get_sleep_job(function_name=function_name)
+        self._get_sleep_job(project=project, function_name=function_name)
 
         # set and run a two-step workflow in the project
         project.set_workflow("paramflow", workflow_path)
@@ -2017,10 +2017,12 @@ class TestProject(TestMLRunSystem):
             project=self.project_name,
         )
 
-    def _get_sleep_job(self, function_name="sleep-job"):
+    def _get_sleep_job(self, project=None, function_name="sleep-job"):
+        if project is None:
+            project = self.project
         code_path = str(self.assets_path / "sleep.py")
 
-        function = self.project.set_function(
+        function = project.set_function(
             name=function_name,
             func=code_path,
             kind="job",

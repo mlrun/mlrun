@@ -523,6 +523,18 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         assert "endpoints" in resp
         assert isinstance(resp["endpoints"], list)
 
+    def test_set_function_without_py(self):
+        function = self.project.set_function(
+            name="serving-without-py",
+            image=self.image,
+            kind="serving",
+        )
+        graph = function.set_topology("flow")
+        model_runner = ModelRunnerStep(name="model-runner")
+        model_runner.add_model("my_llm", "LLModel", "naive")
+        graph.to(model_runner).respond()
+        function.deploy()
+
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise

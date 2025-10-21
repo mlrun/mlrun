@@ -2920,6 +2920,14 @@ class MlrunProject(ModelObj):
                 func = nuclio.utils.notebook_file_name(kernel)
                 if func.startswith(path.abspath(self.spec.context)):
                     func = path.relpath(func, self.spec.context)
+            else:
+                import tempfile
+
+                # saving a file in temp dir since no function file was provided
+                empty_file = path.join(tempfile.gettempdir(), "mlrun_empty.py")
+                with open(empty_file, "w") as f:
+                    f.write("def handler(context):\n    pass\n")
+                func = empty_file
 
         func = func or ""
 

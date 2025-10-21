@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import os
-import time
 
-import mlrun_pipelines.utils
 import pytest
 from kfp import dsl
 
@@ -181,7 +179,8 @@ class TestKFP(tests.system.base.TestMLRunSystem):
     # TODO - uncomment when system tests is bumped to kfp 2.0+ (IGZ 3.7+)
     # def test_kfp_terminate_pipeline(self):
     #     code_path = str(self.assets_path / "sleep.py")
-    #     self.project.set_function(func=code_path, name="sleep-func", kind="job", image="mlrun/mlrun",handler="handler")
+    #     self.project.set_function(func=code_path, name="sleep-func", kind="job",
+    #     image="mlrun/mlrun",handler="handler")
     #
     #     # 1. define a pipeline that sleeps for a few seconds
     #     @dsl.pipeline(name="terminate-test", description="pipeline to test termination")

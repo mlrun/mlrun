@@ -454,18 +454,14 @@ class Secrets(
         # TODO: move init iguazio_client (ML-11077)
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
 
-        # TODO: Enable this once it is implemented in the Iguazio client (ML-10776)
-        # iguazio_client.refresh_access_tokens(secret_tokens)
+        # We validate the offline tokens by sending it to Iguazio for verification.
+        iguazio_client.refresh_access_tokens(secret_tokens)
 
         token_actions = defaultdict(list)
 
         for secret_token in secret_tokens:
             token_name = secret_token.name
             token = secret_token.token
-
-            # TODO remove this and use refresh_access_tokens once it is implemented in Iguazio client (ML-10776)
-            # We validate the offline token by sending it to Iguazio for verification.
-            iguazio_client.refresh_access_token(secret_token)
 
             expiration = self._extract_and_validate_expiration(token_name, token)
 

@@ -146,37 +146,6 @@ class SecretsStore:
         return None
 
 
-def _find_value_in_json_env_lists(
-    secret_name: str,
-) -> Optional[str]:
-    """
-    Scan all environment variables. If any env var contains a JSON-encoded list
-    of dicts shaped like {'name': str, 'value': str|None, 'value_from': ...},
-    return the 'value' for the entry whose 'name' matches secret_name.
-    """
-    for environment_variable_value in environ.values():
-        if not environment_variable_value or not isinstance(
-            environment_variable_value, str
-        ):
-            continue
-        # Fast precheck to skip obvious non-JSON strings
-        first_char = environment_variable_value.lstrip()[:1]
-        if first_char not in ("[", "{"):
-            continue
-        try:
-            parsed_value = json.loads(environment_variable_value)
-        except ValueError:
-            continue
-        if isinstance(parsed_value, list):
-            for entry in parsed_value:
-                if isinstance(entry, dict) and entry.get("name") == secret_name:
-                    value_in_entry = entry.get("value")
-                    # Match original semantics: empty string is treated as "not found"
-                    if value_in_entry:
-                        return value_in_entry
-    return None
-
-
 def get_secret_or_env(
     key: str,
     secret_provider: Union[dict, SecretsStore, Callable, None] = None,
@@ -243,3 +212,34 @@ def get_secret_or_env(
         return mlrun_env_value
 
     return default
+
+
+def _find_value_in_json_env_lists(
+    secret_name: str,
+) -> Optional[str]:
+    """
+    Scan all environment variables. If any env var contains a JSON-encoded list
+    of dicts shaped like {'name': str, 'value': str|None, 'value_from': ...},
+    return the 'value' for the entry whose 'name' matches secret_name.
+    """
+    for environment_variable_value in environ.values():
+        if not environment_variable_value or not isinstance(
+            environment_variable_value, str
+        ):
+            continue
+        # Fast precheck to skip obvious non-JSON strings
+        first_char = environment_variable_value.lstrip()[:1]
+        if first_char not in ("[", "{"):
+            continue
+        try:
+            parsed_value = json.loads(environment_variable_value)
+        except ValueError:
+            continue
+        if isinstance(parsed_value, list):
+            for entry in parsed_value:
+                if isinstance(entry, dict) and entry.get("name") == secret_name:
+                    value_in_entry = entry.get("value")
+                    # Match original semantics: empty string is treated as "not found"
+                    if value_in_entry:
+                        return value_in_entry
+    return None

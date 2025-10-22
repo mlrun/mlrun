@@ -207,7 +207,6 @@ def test_write_application_event(
         connector.read_metrics_data(**read_data_kwargs)
 
 
-@pytest.mark.skipif(not is_tdengine_defined(), reason="TDEngine is not defined")
 def test_database_name_with_system_id() -> None:
     """
     Test that the database name is correctly constructed using system_id from mlrun.mlconf.
@@ -224,18 +223,12 @@ def test_database_name_with_system_id() -> None:
         profile_name="test-profile", dsn=dummy_dsn
     )
 
-    # Test 1: Default database name should use system_id from mlrun.mlconf (at instance creation time)
     conn = TDEngineConnector(project, profile=profile)
     expected_db = f"{schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
+
+    assert mlrun.mlconf.system_id, "system_id should be populated in mlrun.mlconf"
 
     # Verify database name is constructed with current system_id
     assert (
         conn.database == expected_db
     ), f"Expected database to be '{expected_db}', got '{conn.database}'"
-
-    # Test 2: Explicit database name (should override default)
-    custom_db = "test_custom_database"
-    conn_custom = TDEngineConnector(project, profile=profile, database=custom_db)
-    assert (
-        conn_custom.database == custom_db
-    ), f"Expected database to be '{custom_db}', got '{conn_custom.database}'"

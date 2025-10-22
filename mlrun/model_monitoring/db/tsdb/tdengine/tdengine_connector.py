@@ -71,9 +71,8 @@ class TDEngineConnector(TSDBConnector):
             timestamp_precision
         )
 
-        self.database = kwargs.get(
-            "database",
-            f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}",
+        self.database = (
+            f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
         )
 
         self._init_super_tables()

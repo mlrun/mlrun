@@ -1,37 +1,28 @@
 (load-from-hub)=
 # MLRun hub <!-- omit in toc -->
 
-This section demonstrates how to import a function from the hub into your project, and provides some basic instructions on how to run the function and view the results.
+## MLRun hub
 
+The [MLRun hub](https://www.mlrun.org/hub/) has a wide range of functions, modules, and apps that you can incorporate into your projects, for a variety of use cases.
+You can search and filter the categories and kinds to find an item that meets your needs.
+Reusing built-in code can significicantly speed up your development cycle. 
+
+![Hub](../_static/images/marketplace-ui.png)
 **In this section**
-- [MLRun hub](#mlrun-hub)
+
 - [Custom hub](#custom-hub)
 - [Setting the project configuration](#setting-the-project-configuration)
 - [Loading functions from the MLRun hub](#loading-functions-from-the-mlrun-hub)
 - [View the function params](#view-the-function-params)
 - [Running the function](#running-the-function)
 
-## MLRun hub
-
-The MLRun hub has a wide range of functions and modules that can be used for a variety of use cases.
-There are functions for ETL, data preparation, training (ML & Deep learning), serving, alerts and notifications and more.
-There are modules for application runtime and monitoring applications. 
-Each function has a docstring that explains how to use it. The functions and modules are categorized and their associated versions are listed, so you can easily find a suitable function/module for your needs.
-
-Functions can be easily imported into your project and therefore help you to speed up your development cycle by reusing built-in code.
-
-The MLRun hub is located [here](https://www.mlrun.org/hub/). <br>
-You can search and filter the categories and kinds to find a function that meets your needs.
-
-![Hub](../_static/images/marketplace-ui.png)
-
 ## Custom hub
-You can create your own hub, and connect it to MLRun. Then you can import functions (with their tags) from your custom hub.
+Alternatively, you can create your own hub, and connect it to MLRun. Then you can import functions (with their tags) from your custom hub.
 
 ### Create a custom hub
 
 You can either fork the [MLRun hub repo](https://github.com/mlrun/functions) and add to it your Git repo, or create a hub from scratch.
-Read [CONTRIBUTING.md](https://github.com/mlrun/functions) to learn how to create a function.
+
 ```{Note}
 Make sure your hub source is accessible via GitHub (private is also possible).
 ```
@@ -90,36 +81,17 @@ db.create_hub_source(private_source)
 ```
 
 
-## Setting the project configuration
 
-The first step for each project is to set the project name and path:
+## Functions
 
-```python
-from os import path, getenv
-from mlrun import new_project
+There are functions for ETL, data preparation, training (ML & Deep learning), serving, alerts and notifications and more.
+There are modules for application runtime and monitoring applications. 
+Each function has a docstring that explains how to use it. The functions and modules are categorized and their associated versions are listed, so you can easily find a suitable function/module for your needs.
 
-project_name = "load-func"
-project_path = path.abspath("conf")
-project = new_project(project_name, project_path, init_git=True)
+### Loading functions from the MLRun hub
 
-print(f"Project path: {project_path}\nProject name: {project_name}")
-```
-
-### Set the artifacts path  <!-- omit in toc -->
-
-The artifact path is the default path for saving all the artifacts that the functions generate:
-
-```python
-from mlrun import mlconf
-
-# Target location for storing pipeline artifacts
-artifact_path = path.abspath("jobs")
-
-print(f"Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}")
-```
-
-## Loading functions from the MLRun hub
-
+This section demonstrates how to import a function from the hub into your project, and provides some basic instructions on how to run the function and view the results.
+Learn about [artifact paths](/store/artifacts.html#artifact-path)
 Run `project.set_function` to add or update a function object to the project.
 
 `set_function(func, name='', kind='', image=None, with_repo=None)`

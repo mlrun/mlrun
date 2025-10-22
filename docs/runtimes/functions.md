@@ -78,6 +78,5 @@ mlrun_code_annotations
 function-storage
 images
 image-build
-load-from-hub
 git-repo-as-hub
 ```

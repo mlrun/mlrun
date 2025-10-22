@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import time
 
 import pytest
 from kfp import dsl
@@ -180,8 +181,13 @@ class TestKFP(tests.system.base.TestMLRunSystem):
     @pytest.mark.skip(reason="Not supported in kfp<2.0")
     def test_kfp_terminate_pipeline(self):
         code_path = str(self.assets_path / "sleep.py")
-        self.project.set_function(func=code_path, name="sleep-func", kind="job",
-        image="mlrun/mlrun",handler="handler")
+        self.project.set_function(
+            func=code_path,
+            name="sleep-func",
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
 
         # 1. define a pipeline that sleeps for a few seconds
         @dsl.pipeline(name="terminate-test", description="pipeline to test termination")
@@ -194,8 +200,8 @@ class TestKFP(tests.system.base.TestMLRunSystem):
             engine="kfp",
             arguments={"time_to_sleep": 60},
             name="terminate-exp",
-            watch=False)
-
+            watch=False,
+        )
 
         # 3. Wait for it to start
         while True:

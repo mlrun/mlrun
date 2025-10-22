@@ -30,8 +30,9 @@ from mlrun.common.schemas.model_monitoring import (
     FunctionURI,
 )
 from mlrun.data_types.infer import InferOptions, get_df_stats
-from mlrun.utils import datetime_now, logger
+from mlrun.utils import check_if_hub_uri, datetime_now, logger, merge_requirements
 
+from ..common.schemas.hub import HubModuleType
 from .helpers import update_model_endpoint_last_request
 
 # A union of all supported dataset types:
@@ -548,8 +549,9 @@ def _create_model_monitoring_function_base(
     name: typing.Optional[str] = None,
     image: typing.Optional[str] = None,
     tag: typing.Optional[str] = None,
-    requirements: typing.Union[str, list[str], None] = None,
+    requirements: typing.Union[list[str], None] = None,
     requirements_file: str = "",
+    local_path: typing.Optional[str] = None,
     **application_kwargs,
 ) -> mlrun.runtimes.ServingRuntime:
     """
@@ -567,6 +569,19 @@ def _create_model_monitoring_function_base(
         )
     if func is None:
         func = ""
+    if check_if_hub_uri(func):
+        hub_module = mlrun.get_hub_module(url=func, local_path=local_path)
+        if hub_module.kind != HubModuleType.monitoring_app:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The provided module is not a monitoring application"
+            )
+        requirements = mlrun.model.ImageBuilder.resolve_requirements(
+            requirements, requirements_file
+        )
+        requirements = merge_requirements(
+            reqs_priority=requirements, reqs_secondary=hub_module.requirements
+        )
+        func = hub_module.get_module_file_path()
     func_obj = typing.cast(
         mlrun.runtimes.ServingRuntime,
         mlrun.code_to_function(

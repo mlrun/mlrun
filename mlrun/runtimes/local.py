@@ -29,6 +29,7 @@ from os import environ, remove
 from pathlib import Path
 from subprocess import PIPE, Popen
 from sys import executable
+from typing import Optional
 
 from nuclio import Event
 
@@ -200,12 +201,20 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
 
-    def to_job(self, image=""):
+    def to_job(self, image="", func_name: Optional[str] = None):
         """Convert this LocalRuntime to a KubejobRuntime.
 
-        The job will automatically be renamed by appending a suffix to prevent database collision with the
-        local function. The original local function remains unchanged.
+        Args:
+            image: Optional Docker image to use for the job.
+            func_name: Optional custom name for the job function. If not provided, automatically
+                      appends '-batch' suffix to the local function name to prevent database collision.
 
+        Returns:
+            KubejobRuntime configured to execute the local function as a batch job.
+
+        Note:
+            The job will have a different name than the local function to prevent database collision.
+            The original local function remains unchanged.
         """
         from copy import deepcopy
 
@@ -215,17 +224,27 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
         # Deep copy metadata to prevent reference sharing
         obj.metadata = deepcopy(obj.metadata)
-
-        # Auto-rename to prevent database collision between local function and job
         original_name = obj.metadata.name
-        obj.metadata.name, was_renamed, _ = mlrun.utils.helpers.ensure_batch_job_suffix(
-            obj.metadata.name
-        )
-        if was_renamed:
+
+        if func_name:
+            # User provided explicit job name
+            obj.metadata.name = func_name
             logger.info(
-                f"Converting local function to job: renamed from '{original_name}' to '{obj.metadata.name}' "
-                "to prevent database collision. The original local function remains available."
+                f"Creating job '{func_name}' from local function '{original_name}'"
             )
+        else:
+            obj.metadata.name, was_renamed, suffix = (
+                mlrun.utils.helpers.ensure_batch_job_suffix(obj.metadata.name)
+            )
+            if was_renamed:
+                logger.info(
+                    f"Creating job '{obj.metadata.name}' from local function '{original_name}' "
+                    f"(auto-appended '{suffix}' to prevent database collision)"
+                )
+            else:
+                logger.info(
+                    f"Creating job '{obj.metadata.name}' from local function '{original_name}'"
+                )
 
         if image:
             obj.spec.image = image

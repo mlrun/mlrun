@@ -837,6 +837,56 @@ def print_df(df):
         finally:
             v3io_client.close()
 
+    def test_to_job_with_custom_func_name(self):
+        """Test that to_job() accepts custom func_name parameter."""
+        # Test with serving function
+        serving_fn = self.project.set_function(
+            func=str(self.assets_path / "function_with_simple_transformation.py"),
+            name="test-serving",
+            kind="serving",
+            image=self.image,
+        )
+        graph = serving_fn.set_topology("flow", engine="async")
+        graph.to(name="transformation", handler="transform")
+
+        # Test 1: Auto-generated name (default behavior)
+        job1 = serving_fn.to_job()
+        assert (
+            job1.metadata.name == "test-serving-batch"
+        ), f"Auto-generated job name should be 'test-serving-batch', got '{job1.metadata.name}'"
+        assert (
+            serving_fn.metadata.name == "test-serving"
+        ), "Original serving function name should remain unchanged"
+
+        # Test 2: Custom func_name
+        job2 = serving_fn.to_job(func_name="my-custom-batch-job")
+        assert (
+            job2.metadata.name == "my-custom-batch-job"
+        ), f"Custom job name should be 'my-custom-batch-job', got '{job2.metadata.name}'"
+        assert (
+            serving_fn.metadata.name == "test-serving"
+        ), "Original serving function name should remain unchanged after second to_job()"
+
+        # Test 3: Custom func_name with -batch suffix (should be allowed for jobs)
+        job3 = serving_fn.to_job(func_name="another-job-batch")
+        assert (
+            job3.metadata.name == "another-job-batch"
+        ), f"Custom job name with -batch suffix should be allowed, got '{job3.metadata.name}'"
+
+        # Test with local function
+        local_fn = self.project.set_function(
+            func=str(self.assets_path / "handler.py"),
+            name="test-local",
+            kind="local",
+            image=self.image,
+        )
+
+        # Test 4: Local function with auto-generated name
+        job4 = local_fn.to_job()
+        assert (
+            job4.metadata.name == "test-local-batch"
+        ), f"Auto-generated job name for local should be 'test-local-batch', got '{job4.metadata.name}'"
+
     def test_retry_job_exhausted(self):
         code_path = str(self.assets_path / "raise_func.py")
 

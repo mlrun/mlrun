@@ -855,11 +855,19 @@ class ServingRuntime(RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(self) -> KubejobRuntime:
+    def to_job(self, func_name: Optional[str] = None) -> KubejobRuntime:
         """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
 
-        The job will automatically be renamed by appending a suffix to prevent database collision with the
-        serving function. The original serving function remains unchanged and can still be invoked.
+        Args:
+            func_name: Optional custom name for the job function. If not provided, automatically
+                      appends '-batch' suffix to the serving function name to prevent database collision.
+
+        Returns:
+            KubejobRuntime configured to execute the serving graph as a batch job.
+
+        Note:
+            The job will have a different name than the serving function to prevent database collision.
+            The original serving function remains unchanged and can still be invoked after running the job.
         """
         if self.spec.function_refs:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -896,16 +904,27 @@ class ServingRuntime(RemoteRuntime):
         )
 
         job_metadata = deepcopy(self.metadata)
-
         original_name = job_metadata.name
-        job_metadata.name, was_renamed, _ = mlrun.utils.helpers.ensure_batch_job_suffix(
-            job_metadata.name
-        )
-        if was_renamed:
+
+        if func_name:
+            # User provided explicit job name
+            job_metadata.name = func_name
             logger.info(
-                f"Converting serving function to job: renamed from '{original_name}' to '{job_metadata.name}' "
-                "to prevent database collision. The original serving function remains deployable."
+                f"Creating job '{func_name}' from serving function '{original_name}'"
             )
+        else:
+            job_metadata.name, was_renamed, suffix = (
+                mlrun.utils.helpers.ensure_batch_job_suffix(job_metadata.name)
+            )
+            if was_renamed:
+                logger.info(
+                    f"Creating job '{job_metadata.name}' from serving function '{original_name}' "
+                    f"(auto-appended '{suffix}' to prevent database collision)"
+                )
+            else:
+                logger.info(
+                    f"Creating job '{job_metadata.name}' from serving function '{original_name}'"
+                )
 
         job = KubejobRuntime(
             spec=spec,

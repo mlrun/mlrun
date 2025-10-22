@@ -96,6 +96,7 @@ class TestApplicationRuntime(TestRuntimeBase):
         )
         runtime.spec.config.pop("spec.triggers.application-http")
         runtime._ensure_reverse_proxy_configurations()
+        # ensure default application-http is not added as part of enrichment
         assert runtime.spec.config.get("spec.triggers.application-http") is None
 
     def _execute_run(self, runtime, **kwargs):

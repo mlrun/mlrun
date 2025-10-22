@@ -802,6 +802,7 @@ class ApplicationRuntime(RemoteRuntime):
                 if isinstance(value, dict):
                     if value.get("kind") == "http":
                         skip_http_trigger_creation = True
+                        break
         if not skip_http_trigger_creation:
             self.with_http(
                 workers=mlrun.mlconf.function.application.default_worker_number,

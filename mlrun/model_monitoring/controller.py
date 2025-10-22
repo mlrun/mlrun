@@ -658,6 +658,8 @@ class MonitoringApplicationController:
                                 self.feature_sets.popitem(last=True)
                             m_fs = self.feature_sets.get(endpoint_id)
                             print(f"m_fs: {m_fs}")
+                            print(f"start_infer_time: {start_infer_time}, end_infer_time:{end_infer_time}")
+                            print(f"self.storage_option: {self.storage_options}")
                             df = m_fs.to_dataframe(
                                 start_time=start_infer_time,
                                 end_time=end_infer_time,

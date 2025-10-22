@@ -99,10 +99,10 @@ class SecretsStore:
 
     def get(self, key, default=None):
         return (
-                self._secrets.get(key)
-                or self._hidden_secrets.get(key)
-                or environ.get(self.k8s_env_variable_name_for_secret(key))
-                or default
+            self._secrets.get(key)
+            or self._hidden_secrets.get(key)
+            or environ.get(self.k8s_env_variable_name_for_secret(key))
+            or default
         )
 
     def items(self):
@@ -147,7 +147,7 @@ class SecretsStore:
 
 
 def _find_value_in_json_env_lists(
-        secret_name: str,
+    secret_name: str,
 ) -> Optional[str]:
     """
     Scan all environment variables. If any env var contains a JSON-encoded list
@@ -156,7 +156,7 @@ def _find_value_in_json_env_lists(
     """
     for environment_variable_value in environ.values():
         if not environment_variable_value or not isinstance(
-                environment_variable_value, str
+            environment_variable_value, str
         ):
             continue
         # Fast precheck to skip obvious non-JSON strings
@@ -178,10 +178,10 @@ def _find_value_in_json_env_lists(
 
 
 def get_secret_or_env(
-        key: str,
-        secret_provider: Union[dict, SecretsStore, Callable, None] = None,
-        default: Optional[str] = None,
-        prefix: Optional[str] = None,
+    key: str,
+    secret_provider: Union[dict, SecretsStore, Callable, None] = None,
+    default: Optional[str] = None,
+    prefix: Optional[str] = None,
 ) -> Optional[str]:
     """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
     The function will retrieve a secret value, attempting to find it according to the following order:

@@ -82,22 +82,24 @@ def test_get_secret_from_env(reset_config):
 
     # Verify that default is used if nothing else is found
     assert (
-            mlrun.get_secret_or_env(
-                "SOME_GIBBERISH",
-                secret_provider=store,
-                default="not gibberish",
-            )
-            == "not gibberish"
+        mlrun.get_secret_or_env(
+            "SOME_GIBBERISH",
+            secret_provider=store,
+            default="not gibberish",
+        )
+        == "not gibberish"
     )
 
 
 def test_json_list_used_when_no_direct_env(monkeypatch):
     monkeypatch.setenv(
         "SECRETS_JSON",
-        json.dumps([
-            {"name": "OTHER_KEY", "value": "IGNORED"},
-            {"name": "MY_KEY", "value": "FROM_JSON"},
-        ]),
+        json.dumps(
+            [
+                {"name": "OTHER_KEY", "value": "IGNORED"},
+                {"name": "MY_KEY", "value": "FROM_JSON"},
+            ]
+        ),
     )
     assert mlrun.get_secret_or_env("MY_KEY") == "FROM_JSON"
 

@@ -26,16 +26,15 @@ from mlrun.common.schemas.model_monitoring import (
     ModelEndpointMonitoringMetricType,
 )
 from mlrun.datastore.datastore_profile import DatastoreProfileTDEngine
-from mlrun.model_monitoring.db.tsdb.tdengine import TDEngineConnector, schemas
+from mlrun.model_monitoring.db.tsdb.tdengine import TDEngineConnector
 from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import TDEngineError
 
 project = "test-tdengine-connector"
 connection_string = os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION")
-database = "test_tdengine_connector_" + uuid.uuid4().hex
 
 
-def drop_database(connection: taosws.Connection) -> None:
-    connection.execute(f"DROP DATABASE IF EXISTS {database}")
+def drop_database(connection: taosws.Connection, name: str) -> None:
+    connection.execute(f"DROP DATABASE IF EXISTS {name}")
 
 
 def is_tdengine_defined() -> bool:
@@ -43,17 +42,20 @@ def is_tdengine_defined() -> bool:
 
 
 @pytest.fixture
-def connector() -> Iterator[TDEngineConnector]:
-    connection = taosws.connect(connection_string)
-    drop_database(connection)
+def connector(monkeypatch: pytest.MonkeyPatch) -> Iterator[TDEngineConnector]:
     profile = DatastoreProfileTDEngine.from_dsn(
         profile_name="mm-profile", dsn=connection_string
     )
-    conn = TDEngineConnector(project, profile=profile, database=database)
+
+    monkeypatch.setattr(mlrun.mlconf, "system_id", uuid.uuid4().hex)
+
+    conn = TDEngineConnector(project, profile=profile)
+    connection = taosws.connect(connection_string)
+    drop_database(connection, conn.database)
     try:
         yield conn
     finally:
-        drop_database(connection)
+        drop_database(connection, conn.database)
 
 
 @pytest.mark.parametrize(("with_result_extra_data"), [False, True])
@@ -207,28 +209,32 @@ def test_write_application_event(
         connector.read_metrics_data(**read_data_kwargs)
 
 
-def test_database_name_with_system_id() -> None:
+def test_tdengine_connector_requires_system_id() -> None:
     """
-    Test that the database name is correctly constructed using system_id from mlrun.mlconf.
+    Test that TDEngineConnector raises an error when system_id is not set.
 
-    This test verifies the fix for the import-time initialization issue where system_id
-    was being captured at class definition time before mlrun.mlconf was loaded.
-
-    Note: This test doesn't require an actual TDEngine connection, just verifies the
-    database attribute initialization logic.
+    This test verifies that the constructor validates system_id before attempting
+    to construct the database name.
     """
-    # Use a dummy DSN - we're not actually connecting to TDEngine
-    dummy_dsn = "taosws://testuser:testpass@localhost:888"
-    profile = DatastoreProfileTDEngine.from_dsn(
-        profile_name="test-profile", dsn=dummy_dsn
-    )
+    # Save the original system_id to restore later
+    original_system_id = mlrun.mlconf.system_id
 
-    conn = TDEngineConnector(project, profile=profile)
-    expected_db = f"{schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
+    try:
+        # Clear system_id
+        mlrun.mlconf.system_id = ""
 
-    assert mlrun.mlconf.system_id, "system_id should be populated in mlrun.mlconf"
+        # Use a dummy DSN - we're not actually connecting to TDEngine
+        dummy_dsn = "taosws://testuser:testpass@localhost:6041"
+        profile = DatastoreProfileTDEngine.from_dsn(
+            profile_name="test-profile", dsn=dummy_dsn
+        )
 
-    # Verify database name is constructed with current system_id
-    assert (
-        conn.database == expected_db
-    ), f"Expected database to be '{expected_db}', got '{conn.database}'"
+        # Attempt to create TDEngineConnector without system_id should raise error
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="system_id.*not set"
+        ):
+            TDEngineConnector(project, profile=profile)
+
+    finally:
+        # Restore original system_id
+        mlrun.mlconf.system_id = original_system_id

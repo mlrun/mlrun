@@ -642,25 +642,31 @@ class MonitoringApplicationController:
                                 # TODO: Remove this in 1.12.0
                                 FutureWarning,
                             )
-
+                            print(f"endpoint_id: {endpoint_id}")
                             if endpoint_id not in self.feature_sets:
+                                print("in endpoint_id not in self.feature_sets")
                                 self.feature_sets[endpoint_id] = fstore.get_feature_set(
                                     event[ControllerEvent.FEATURE_SET_URI]
                                 )
+                                print(f"self.feature_sets[endpoint_id]: {self.feature_sets[endpoint_id]}")
                             self.feature_sets.move_to_end(endpoint_id, last=False)
                             if (
                                 len(self.feature_sets)
                                 > self._MAX_FEATURE_SET_PER_WORKER
                             ):
+                                print("pop item")
                                 self.feature_sets.popitem(last=True)
                             m_fs = self.feature_sets.get(endpoint_id)
-
+                            print(f"m_fs: {m_fs}")
                             df = m_fs.to_dataframe(
                                 start_time=start_infer_time,
                                 end_time=end_infer_time,
                                 time_column=mm_constants.EventFieldType.TIMESTAMP,
                                 storage_options=self.storage_options,
                             )
+                            print(f"len(df): {len(df)}")
+                            print(f"df.empty: {df.empty}")
+                            print(f"df columns: {df.columns.to_list()}")
                             if len(df) > 0:
                                 data_in_window = True
 

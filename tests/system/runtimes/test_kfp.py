@@ -177,45 +177,46 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         assert run["run"].get("error") == "Error (exit code 1)"
 
     # TODO - uncomment when system tests is bumped to kfp 2.0+ (IGZ 3.7+)
-    # def test_kfp_terminate_pipeline(self):
-    #     code_path = str(self.assets_path / "sleep.py")
-    #     self.project.set_function(func=code_path, name="sleep-func", kind="job",
-    #     image="mlrun/mlrun",handler="handler")
-    #
-    #     # 1. define a pipeline that sleeps for a few seconds
-    #     @dsl.pipeline(name="terminate-test", description="pipeline to test termination")
-    #     def terminate_pipeline(time_to_sleep: int = 10):
-    #         mlrun.run_function("sleep-func", params={"time_to_sleep": time_to_sleep})
-    #
-    #     # 2. Start the pipeline run
-    #     run_id = self.project.run(
-    #         workflow_handler=terminate_pipeline,
-    #         engine="kfp",
-    #         arguments={"time_to_sleep": 60},
-    #         name="terminate-exp",
-    #         watch=False)
-    #
-    #
-    #     # 3. Wait for it to start
-    #     while True:
-    #         db = mlrun.get_run_db()
-    #         record = db.get_pipeline(run_id, project=self.project_name)
-    #         if record["run"].get("status") == RunStatuses.running:
-    #             break
-    #         time.sleep(1)
-    #
-    #     # 4. issue a termination request
-    #     mlrun.terminate_pipeline(run_id, project=self.project_name)
-    #
-    #     # 5. wait for it to finish, expecting failed status
-    #     mlrun.wait_for_pipeline_completion(
-    #         run_id,
-    #         project=self.project_name,
-    #         expected_statuses=[RunStatuses.failed],
-    #     )
-    #
-    #     # 6. verify the run record shows a termination error
-    #     db = mlrun.get_run_db()
-    #     record = db.get_pipeline(run_id, project=self.project_name)
-    #     err = record["run"].get("status", "")
-    #     assert "failed" in err.lower(), f"expected failed error, got: {err}"
+    @pytest.mark.skip(reason="Not supported in kfp<2.0")
+    def test_kfp_terminate_pipeline(self):
+        code_path = str(self.assets_path / "sleep.py")
+        self.project.set_function(func=code_path, name="sleep-func", kind="job",
+        image="mlrun/mlrun",handler="handler")
+
+        # 1. define a pipeline that sleeps for a few seconds
+        @dsl.pipeline(name="terminate-test", description="pipeline to test termination")
+        def terminate_pipeline(time_to_sleep: int = 10):
+            mlrun.run_function("sleep-func", params={"time_to_sleep": time_to_sleep})
+
+        # 2. Start the pipeline run
+        run_id = self.project.run(
+            workflow_handler=terminate_pipeline,
+            engine="kfp",
+            arguments={"time_to_sleep": 60},
+            name="terminate-exp",
+            watch=False)
+
+
+        # 3. Wait for it to start
+        while True:
+            db = mlrun.get_run_db()
+            record = db.get_pipeline(run_id, project=self.project_name)
+            if record["run"].get("status") == RunStatuses.running:
+                break
+            time.sleep(1)
+
+        # 4. issue a termination request
+        mlrun.terminate_pipeline(run_id, project=self.project_name)
+
+        # 5. wait for it to finish, expecting failed status
+        mlrun.wait_for_pipeline_completion(
+            run_id,
+            project=self.project_name,
+            expected_statuses=[RunStatuses.failed],
+        )
+
+        # 6. verify the run record shows a termination error
+        db = mlrun.get_run_db()
+        record = db.get_pipeline(run_id, project=self.project_name)
+        err = record["run"].get("status", "")
+        assert "failed" in err.lower(), f"expected failed error, got: {err}"

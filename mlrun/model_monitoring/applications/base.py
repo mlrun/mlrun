@@ -463,7 +463,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
             elif all(isinstance(endpoint, str) for endpoint in endpoints):
                 # A list of [name, ...] strings
-                endpoint_names = endpoints
+                endpoint_names = cast(list[str], endpoints)
                 endpoints_list = project.list_model_endpoints(
                     names=endpoint_names, latest_only=True
                 ).endpoints

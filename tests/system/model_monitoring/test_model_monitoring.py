@@ -98,7 +98,7 @@ def mock_random_endpoint(
 class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
-    project_name = "mm-app-project-v5"
+    project_name = "mm-app-project"
     image = "mlrun/mlrun"
 
     def setup_method(self, method):

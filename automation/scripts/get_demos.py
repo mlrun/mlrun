@@ -17,11 +17,11 @@ import json
 import os
 import re
 import shutil
+import sys
 import tarfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from time import sleep
-import sys
 
 import requests
 from packaging.version import InvalidVersion, Version

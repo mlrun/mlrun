@@ -1601,7 +1601,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
         )
 
         # Wait for the controller, app and writer to complete
-        sleep(240)
+        sleep(300)
 
         model_endpoint_batch = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,

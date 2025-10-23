@@ -1,3 +1,9 @@
 {
-  "demos": ["demo-fraud", "demo-mask-detection", "demo-call-center", "demo-monitoring-and-feedback-loop", "demo-sagemaker"]
+  "demos": [
+    "demo-fraud",
+    "demo-mask-detection",
+    "demo-monitoring-and-feedback-loop",
+    "demo-call-center",
+    "demo-sagemaker"
+  ]
 }

@@ -3804,8 +3804,8 @@ class HTTPRunDB(RunDBInterface):
         labels = self._parse_labels(labels)
         if names and isinstance(names, str):
             names = [names]
-        # convert modes into int representation for the API
         if modes:
+            # Ensure backward compatibility with Python 3.9 clients by converting IntEnum modes to integer values
             modes = (
                 [modes.value]
                 if isinstance(modes, mm_constants.EndpointMode)

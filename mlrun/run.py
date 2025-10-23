@@ -609,7 +609,7 @@ def code_to_function(
     code_output: Optional[str] = "",
     embed_code: bool = True,
     description: Optional[str] = "",
-    requirements: Optional[Union[str, list[str]]] = None,
+    requirements: Optional[list[str]] = None,
     categories: Optional[list[str]] = None,
     labels: Optional[dict[str, str]] = None,
     with_doc: Optional[bool] = True,

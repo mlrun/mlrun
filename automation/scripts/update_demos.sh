@@ -275,17 +275,7 @@ download_tar_gz_to_temp_dir() {
 # backup old demos.
 # --------------------------------------------------------------------------------------------------------------------------------
 
-mkdir -p "${demos_dir}"
-# Backup demos if needed and deleting demos directory
-if [ -z "${no_backup}" ]; then
-    backup_old_demos "$dest_dir" "$demos_dir"
-else
-    # if --dry-run flag isn't set, remove current demos
-    if [ -z "${dry_run}" ]; then
-        rm -rf "${demos_dir}"
-        mkdir -p "${demos_dir}"
-    fi
-fi
+# Defer backup/removal until after successful download and extraction
 
 # --------------------------------------------------------------------------------------------------------------------------------
 # If --mlrun-ver isn't set, use installed mlrun version.
@@ -346,6 +336,19 @@ else
     verify_update_demos "${temp_dir}" "${branch}"
 fi
 if [ -z "${dry_run}" ]; then
+    # Ensure we actually have content before touching the existing demos directory
+    if [ -z "$(ls -A "${temp_dir}")" ]; then
+        error_exit "No files extracted to temporary directory; aborting without changing '${demos_dir}'."
+    fi
+
+    # Backup existing demos (or remove if --no-backup), only after a successful download/extract
+    if [ -z "${no_backup}" ]; then
+        backup_old_demos "$dest_dir" "$demos_dir"
+    else
+        rm -rf "${demos_dir}"
+        mkdir -p "${demos_dir}"
+    fi
+
     echo "copy files from ${temp_dir} to ${demos_dir}"
     cp -rf "$temp_dir/." "$demos_dir"
 else

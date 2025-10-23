@@ -21,6 +21,7 @@ import tarfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from time import sleep
+import sys
 
 import requests
 from packaging.version import InvalidVersion, Version
@@ -291,3 +292,10 @@ if __name__ == "__main__":
     DEST_DIR = args.dest
 
     get_demos(args.mlrun_version)
+
+    try:
+        get_demos(args.mlrun_version)
+        sys.exit(0)  # Explicit success
+    except Exception as e:
+        print(f"\n❌ Error: {e}", file=sys.stderr)
+        sys.exit(1)  # Explicit failure for CI/CD

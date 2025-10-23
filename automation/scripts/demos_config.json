@@ -1,0 +1,3 @@
+{
+  "demos": ["demo-fraud", "demo-mask-detection", "demo-call-center", "demo-monitoring-and-feedback-loop", "demo-sagemaker"]
+}

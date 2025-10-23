@@ -346,6 +346,7 @@ def test_create_pipeline(
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ) -> None:
     project = "getting-started-tutorial-iguazio"
+    experiment_name = "my-experiment"
     pipeline_file_path = (
         services.api.tests.unit.conftest.tests_root_directory
         / "api"
@@ -355,7 +356,7 @@ def test_create_pipeline(
     with open(str(pipeline_file_path)) as file:
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
-    params = {"experiment": "my-experiment"}
+    params = {"experiment": experiment_name}
     response = client.post(
         f"projects/{project}/pipelines",
         data=contents,
@@ -365,7 +366,7 @@ def test_create_pipeline(
     )
     response_body = response.json()
     assert response_body["id"] == "some-run-id"
-    assert response_body["name"].startswith(project)
+    assert response_body["name"] == f"{project}-{experiment_name}"
     assert k8s_secrets_mock.auth_secrets_map[
         "secret-ref-V3IO_ACCESS_KEY-some-session"
     ] == {

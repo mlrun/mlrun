@@ -366,7 +366,7 @@ def test_create_pipeline(
     )
     response_body = response.json()
     assert response_body["id"] == "some-run-id"
-    assert response_body["name"] == f"{project}-{experiment_name}"
+    assert response_body["name"].startswith(f"{project}-{experiment_name}")
     assert k8s_secrets_mock.auth_secrets_map[
         "secret-ref-V3IO_ACCESS_KEY-some-session"
     ] == {

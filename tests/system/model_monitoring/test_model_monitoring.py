@@ -1551,10 +1551,11 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
                 "p0": [0, 0],
             }
         )
+        # Add 20 seconds because the batch window is determined using datetime.now later in _generate_model_endpoint
+        # ML-11276
         infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            mlrun.utils.datetime_now()
+            mlrun.utils.datetime_now() + timedelta(seconds=20)
         )
-
         model_path = project.get_artifact_uri(
             key=model_name, category="model", tag="latest"
         )
@@ -1599,7 +1600,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
         )
 
         # Wait for the controller, app and writer to complete
-        sleep(180)
+        sleep(240)
 
         model_endpoint_batch = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,

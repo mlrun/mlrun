@@ -48,7 +48,7 @@ print(f"Output: {result['outputs']}")
 
 There are two types of remote models. 
 
-- When using OpenAI models, for example, you use OpenAI's data management tools to upload your dataset, and then continue to fine tune and evaluate the model with the using the OpenAI API. See an example in {ref}`deploy-openai-model`.
+- When using OpenAI models, you can send requests through the OpenAI API to perform different tasks such as text generation, embeddings, and more. For text generation usage, see the example in {ref}`deploy-openai-model`.
 - Hugging Face use Pipeline as a client; it downloads the model and loads it to the RAM.
   - Hugging Face models might required more resources than usual.
   - By default, in LLModel usage, metrics are calculated after invocation. These token metrics are estimates and may not be fully accurate.

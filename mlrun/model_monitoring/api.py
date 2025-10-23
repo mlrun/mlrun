@@ -563,8 +563,8 @@ def _create_model_monitoring_function_base(
             "An application cannot have the following names: "
             f"{mm_constants._RESERVED_FUNCTION_NAMES}"
         )
-    _, was_changed, suffix = mlrun.utils.helpers.ensure_batch_job_suffix(name)
-    if name and not was_changed:
+    _, has_valid_suffix, suffix = mlrun.utils.helpers.ensure_batch_job_suffix(name)
+    if name and not has_valid_suffix:
         raise mlrun.errors.MLRunValueError(
             f"Model monitoring application names cannot end with `{suffix}`"
         )

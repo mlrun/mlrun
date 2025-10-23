@@ -536,9 +536,36 @@ def strip_batch_job_suffix(
         return function_name, False, suffix
 
     if function_name.endswith(suffix):
-        return function_name[: -len(suffix)], True, suffix
+        return function_name.removesuffix(suffix), True, suffix
 
     return function_name, False, suffix
+
+
+def validate_function_name_for_batch_suffix(name: str, kind: str) -> None:
+    """Validate that serving and local function names don't end with reserved batch suffix.
+
+    This validation prevents users from manually creating functions with the reserved "-batch" suffix,
+    which is automatically appended by to_job() methods. Allowing manual use of this suffix would
+    defeat the purpose of automatic collision prevention.
+
+    :param name: Function name to validate
+    :param kind: Function kind ("serving", "serving_v2", "local", etc.)
+
+    :raises MLRunValueError: If the function name ends with the reserved batch suffix
+    """
+    import mlrun.errors
+
+    # Only validate for kinds that have to_job() methods that add the suffix
+    if kind not in ["serving", "serving_v2", "local"]:
+        return
+
+    _, was_changed, suffix = ensure_batch_job_suffix(name)
+    if name and not was_changed:
+        # Name already ends with the suffix - this is not allowed
+        function_type = "Serving" if kind in ["serving", "serving_v2"] else "Local"
+        raise mlrun.errors.MLRunValueError(
+            f"{function_type} function names cannot end with `{suffix}`"
+        )
 
 
 class LogBatchWriter:

@@ -909,7 +909,7 @@ class ServingRuntime(RemoteRuntime):
         if func_name:
             # User provided explicit job name
             job_metadata.name = func_name
-            logger.info(
+            logger.debug(
                 f"Creating job '{func_name}' from serving function '{original_name}'"
             )
         else:

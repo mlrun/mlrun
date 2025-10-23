@@ -216,20 +216,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             The job will have a different name than the local function to prevent database collision.
             The original local function remains unchanged.
         """
-        from copy import deepcopy
-
-        # Deep copy to prevent reference sharing
+        # Convert to dict and back creates independent objects (no reference sharing)
         struct = self.to_dict()
         obj = KubejobRuntime.from_dict(struct)
-
-        # Deep copy metadata to prevent reference sharing
-        obj.metadata = deepcopy(obj.metadata)
         original_name = obj.metadata.name
 
         if func_name:
             # User provided explicit job name
             obj.metadata.name = func_name
-            logger.info(
+            logger.debug(
                 f"Creating job '{func_name}' from local function '{original_name}'"
             )
         else:

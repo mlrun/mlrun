@@ -2927,8 +2927,6 @@ class MlrunProject(ModelObj):
                 func = nuclio.utils.notebook_file_name(kernel)
                 if func.startswith(path.abspath(self.spec.context)):
                     func = path.relpath(func, self.spec.context)
-            else:
-                func = ""
 
         func = func or ""
 

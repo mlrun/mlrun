@@ -355,10 +355,11 @@ def test_create_pipeline(
     with open(str(pipeline_file_path)) as file:
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
-
+    params = {"experiment": "my-experiment"}
     response = client.post(
         f"projects/{project}/pipelines",
         data=contents,
+        params=params,
         headers={"content-type": "application/yaml"},
         auth=BasicAuth(username="admin", password="mock_token"),
     )

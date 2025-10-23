@@ -344,7 +344,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 return result
 
             if endpoints is not None:
-                resolved_endpoints = self._validate_endpoints(
+                resolved_endpoints = self._normalize_and_validate_endpoints(
                     project=project, endpoints=endpoints
                 )
                 if (
@@ -421,68 +421,96 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
 
     @classmethod
-    def _validate_endpoints(
+    def _normalize_and_validate_endpoints(
         cls,
         project: "mlrun.MlrunProject",
         endpoints: Union[
             list[tuple[str, str]], list[list[str]], list[str], Literal["all"]
         ],
-    ) -> Union[list[tuple[str, str]], list[list[str]]]:
-        if not endpoints:
-            raise mlrun.errors.MLRunValueError(
-                "The endpoints list cannot be empty. If you want to run on all the endpoints, "
-                'use `endpoints="all"`.'
-            )
+    ) -> list[tuple[str, str]]:
+        if isinstance(endpoints, list):
+            if all(
+                isinstance(endpoint, (tuple, list)) and len(endpoint) == 2
+                for endpoint in endpoints
+            ):
+                # A list of [(name, uid), ...] / [[name, uid], ...] tuples/lists
+                endpoint_uids_to_names = {
+                    endpoint[1]: endpoint[0] for endpoint in endpoints
+                }
+                endpoints_list = project.list_model_endpoints(
+                    uids=list(endpoint_uids_to_names.keys()), latest_only=True
+                ).endpoints
 
-        if isinstance(endpoints, list) and isinstance(endpoints[0], (tuple, list)):
-            return endpoints
-
-        if not (isinstance(endpoints, list) and isinstance(endpoints[0], str)):
-            if isinstance(endpoints, str):
-                if endpoints != "all":
-                    raise mlrun.errors.MLRunValueError(
-                        'A string input for `endpoints` can only be "all" for all the model endpoints in '
-                        "the project. If you want to select a single model endpoint with the given name, "
-                        f'use a list: `endpoints=["{endpoints}"]`.'
+                # Check for missing endpoint uids or name/uid mismatches
+                for endpoint in endpoints_list:
+                    if (
+                        endpoint_uids_to_names[cast(str, endpoint.metadata.uid)]
+                        != endpoint.metadata.name
+                    ):
+                        raise mlrun.errors.MLRunNotFoundError(
+                            "Could not find model endpoint with name "
+                            f"'{endpoint_uids_to_names[cast(str, endpoint.metadata.uid)]}' "
+                            f"and uid '{endpoint.metadata.uid}'"
+                        )
+                missing = set(endpoint_uids_to_names.keys()) - {
+                    cast(str, endpoint.metadata.uid) for endpoint in endpoints_list
+                }
+                if missing:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        "Could not find model endpoints with the following uids: "
+                        f"{missing}"
                     )
-            else:
-                raise mlrun.errors.MLRunValueError(
-                    f"Could not resolve endpoints as list of [(name, uid)], {endpoints=}"
-                )
 
-        if endpoints == "all":
-            endpoint_names = None
-        else:
-            endpoint_names = endpoints
+            elif all(isinstance(endpoint, str) for endpoint in endpoints):
+                # A list of [name, ...] strings
+                endpoint_names = cast(list[str], endpoints)
+                endpoints_list = project.list_model_endpoints(
+                    names=endpoint_names, latest_only=True
+                ).endpoints
 
-        endpoints_list = project.list_model_endpoints(
-            names=endpoint_names, latest_only=True
-        ).endpoints
-
-        cls._check_endpoints_first_request(endpoints_list)
-
-        if endpoints_list:
-            list_endpoints_result = [
-                (endpoint.metadata.name, endpoint.metadata.uid)
-                for endpoint in endpoints_list
-            ]
-            if endpoints != "all":
+                # Check for missing endpoint names
                 missing = set(endpoints) - {
-                    endpoint[0] for endpoint in list_endpoints_result
+                    endpoint.metadata.name for endpoint in endpoints_list
                 }
                 if missing:
                     logger.warning(
                         "Could not list all the required endpoints",
-                        missing_endpoint=missing,
-                        endpoints=list_endpoints_result,
+                        missing_endpoints=missing,
+                        endpoints_list=endpoints_list,
                     )
-            return list_endpoints_result
-        else:
-            if endpoints != "all":
-                err_msg_suffix = f" named '{endpoints}'"
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Did not find any model endpoints {err_msg_suffix}"
+            else:
+                raise mlrun.errors.MLRunValueError(
+                    "Could not resolve the following list as a list of endpoints:\n"
+                    f"{endpoints}\n"
+                    "The list must be either a list of (name, uid) tuples/lists or a list of names."
+                )
+        elif endpoints == "all":
+            endpoints_list = project.list_model_endpoints(latest_only=True).endpoints
+        elif isinstance(endpoints, str):
+            raise mlrun.errors.MLRunValueError(
+                'A string input for `endpoints` can only be "all" for all the model endpoints in '
+                "the project. If you want to select a single model endpoint with the given name, "
+                f'use a list: `endpoints=["{endpoints}"]`.'
             )
+        else:
+            raise mlrun.errors.MLRunValueError(
+                "Could not resolve the `endpoints` parameter. The parameter must be either:\n"
+                "- a list of (name, uid) tuples/lists\n"
+                "- a list of names\n"
+                '- the string "all" for all the model endpoints in the project.'
+            )
+
+        if not endpoints_list:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Did not find any model endpoints {endpoints=}"
+            )
+
+        cls._check_endpoints_first_request(endpoints_list)
+
+        return [
+            (endpoint.metadata.name, cast(str, endpoint.metadata.uid))
+            for endpoint in endpoints_list
+        ]
 
     @staticmethod
     def _validate_and_get_window_length(

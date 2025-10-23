@@ -667,7 +667,7 @@ class ImageBuilder(ModelObj):
         """
         requirements = requirements or []
         self._verify_list(requirements, "requirements")
-        resolved_requirements = self._resolve_requirements(
+        resolved_requirements = self.resolve_requirements(
             requirements, requirements_file
         )
         requirements = self.requirements or [] if not overwrite else []
@@ -680,7 +680,7 @@ class ImageBuilder(ModelObj):
         self.requirements = requirements
 
     @staticmethod
-    def _resolve_requirements(requirements: list, requirements_file: str = "") -> list:
+    def resolve_requirements(requirements: list, requirements_file: str = "") -> list:
         requirements = requirements or []
         requirements_to_resolve = []
 

@@ -24,11 +24,11 @@ These instructions install the community edition, which currently includes MLRun
 
 ## Prerequisites
 
-- Access to a Kubernetes cluster. To install MLRun on your cluster, you must have administrator permissions. 
+- Access to a Kubernetes cluster, version >=1.31. To install MLRun on your cluster, you must have administrator permissions. 
 For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. 
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-- Helm >=3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+- Helm version >=3.16 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret. If using docker hub, the registry server is `https://registry.hub.docker.com/`. See the [Docker ID documentation](https://docs.docker.com/docker-id/) for details about creating a user with login that you will configure in the secret.
 - Storage: 
   - 8Gi
@@ -399,6 +399,12 @@ MLRun CE uses a MinIO service as shared storage for artifacts, and accesses it u
 any path that begins with `s3://` is automatically directed by MLRun to the MinIO service. The default artifact
 path is also configured as `s3://mlrun/projects/{{run.project}}/artifacts` which is a path on the `mlrun` bucket in the
 MinIO service.
+
+For storing data in S3 when using MinIO and Spark, use:
+```
+sj.spec.spark_conf[f"spark.hadoop.fs.s3a.bucket.naipi-artifacts.endpoint"] = 'http://minio.mlrun.svc.cluster.local:9000'
+sj.spec.spark_conf[f"spark.hadoop.fs.s3a.bucket.naipi-artifacts.path.style.access"] = 'true'
+```
 
 To store artifacts in AWS S3 buckets instead of the local MinIO service, these configurations need to be overridden to 
 make `s3://` paths lead to AWS buckets instead.

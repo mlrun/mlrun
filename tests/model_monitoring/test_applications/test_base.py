@@ -608,36 +608,93 @@ def project(tmpdir: Path) -> mlrun.MlrunProject:
 
 
 @pytest.mark.parametrize(
-    "endpoints", ["all", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
+    ("endpoints", "normalized_endpoints"),
+    [
+        ("all", [("model-ep-1", "model-ep-1-uid")]),
+        (["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]),
+        (
+            [("withfirstrequest-ep-1", "withfirstrequest-ep-1-uid")],
+            [("withfirstrequest-ep-1", "withfirstrequest-ep-1-uid")],
+        ),
+    ],
 )
 @pytest.mark.usefixtures("rundb_mock")
-def test_validate_endpoints(
-    project: mlrun.MlrunProject, endpoints: Union[str, list[str], list[tuple[str, str]]]
+def test_normalize_and_validate_endpoints(
+    project: mlrun.MlrunProject,
+    endpoints: Union[str, list[str], list[tuple[str, str]]],
+    normalized_endpoints: list[tuple[str, str]],
 ) -> None:
-    endpoints_output = ModelMonitoringApplicationBase._validate_endpoints(
+    endpoints_output = ModelMonitoringApplicationBase._normalize_and_validate_endpoints(
         project, endpoints
     )
-    assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]
+    assert endpoints_output == normalized_endpoints
 
 
 @pytest.mark.usefixtures("rundb_mock")
 @pytest.mark.parametrize(
-    ("endpoints", "err_msg"),
+    ("endpoints", "err_msg", "err_type"),
     [
-        ("*", 'A string input for `endpoints` can only be "all"'),
-        ([], "The endpoints list cannot be empty"),
-        ([1], r"Could not resolve endpoints as list of \[\(name, uid\)\]"),
+        (
+            "*",
+            'A string input for `endpoints` can only be "all"',
+            mlrun.errors.MLRunValueError,
+        ),
+        (
+            [("name", "name-uid"), "name2"],
+            "Could not resolve the following list as a list of endpoints",
+            mlrun.errors.MLRunValueError,
+        ),
+        (
+            [1],
+            "Could not resolve the following list as a list of endpoints",
+            mlrun.errors.MLRunValueError,
+        ),
         (
             ["model-ep-no-first-request"],
             "have no data, cannot run the model monitoring application on them",
+            mlrun.errors.MLRunValueError,
+        ),
+        (
+            [("model-ep-no-first-request", "model-ep-uid-not-found")],
+            "Could not find model endpoints with the following uids: {'model-ep-uid-not-found'}",
+            mlrun.errors.MLRunNotFoundError,
+        ),
+        (
+            [("model-ep-1", "model-ep-uid")],
+            "Could not find model endpoint with name 'model-ep-1' and uid 'model-ep-uid'",
+            mlrun.errors.MLRunNotFoundError,
+        ),
+        (
+            [("model-ep-no-first-request", "model-ep-no-first-request-uid")],
+            (
+                "have no data, cannot run the model monitoring application on them: "
+                r"\[\('model-ep-no-first-request', 'model-ep-no-first-request-uid'\)\]"
+            ),
+            mlrun.errors.MLRunValueError,
+        ),
+        (
+            [
+                ("model-ep-no-first-request", "model-ep-no-first-request-uid"),
+                ("withfirstrequest", "withfirstrequest-uid"),
+            ],
+            (
+                "have no data, cannot run the model monitoring application on them: "
+                r"\[\('model-ep-no-first-request', 'model-ep-no-first-request-uid'\)\]$"
+            ),
+            mlrun.errors.MLRunValueError,
         ),
     ],
 )
-def test_validate_endpoints_error(
-    project: mlrun.MlrunProject, endpoints: Union[str, list[str]], err_msg: str
+def test_normalize_and_validate_endpoints_error(
+    project: mlrun.MlrunProject,
+    endpoints: Union[str, list[str]],
+    err_msg: str,
+    err_type: type[mlrun.errors.MLRunBaseError],
 ) -> None:
-    with pytest.raises(mlrun.errors.MLRunValueError, match=err_msg):
-        ModelMonitoringApplicationBase._validate_endpoints(project, endpoints)
+    with pytest.raises(err_type, match=err_msg):
+        ModelMonitoringApplicationBase._normalize_and_validate_endpoints(
+            project, endpoints
+        )
 
 
 @pytest.mark.parametrize(

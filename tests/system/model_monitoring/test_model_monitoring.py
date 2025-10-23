@@ -311,6 +311,11 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         ).endpoints
         assert len(batch_eps) == number_of_batch_eps
 
+        real_time_and_batch = self.project.list_model_endpoints(
+            modes=[EndpointMode.REAL_TIME, EndpointMode.BATCH]
+        ).endpoints
+        assert len(real_time_and_batch) == number_of_real_time_eps + number_of_batch_eps
+
     def test_labels(self):
         db = mlrun.get_run_db()
         endpoint_name = "testing-endpoint"
@@ -1551,8 +1556,10 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
                 "p0": [0, 0],
             }
         )
+        # Add 20 seconds because the batch window is determined using datetime.now later in _generate_model_endpoint
+        # ML-11276
         infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            mlrun.utils.datetime_now()
+            mlrun.utils.datetime_now() + timedelta(seconds=20)
         )
 
         model_path = project.get_artifact_uri(
@@ -1599,7 +1606,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
         )
 
         # Wait for the controller, app and writer to complete
-        sleep(180)
+        sleep(300)
 
         model_endpoint_batch = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,

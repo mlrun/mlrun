@@ -98,7 +98,7 @@ def mock_random_endpoint(
 class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
-    project_name = "mm-app-project"
+    project_name = "mm-app-project-v5"
     image = "mlrun/mlrun"
 
     def setup_method(self, method):
@@ -301,18 +301,18 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert len(eps) == number_of_real_time_eps + number_of_batch_eps
 
         real_time_eps = self.project.list_model_endpoints(
-            modes=EndpointMode.REAL_TIME.value
+            modes=EndpointMode.REAL_TIME
         ).endpoints
 
         assert len(real_time_eps) == number_of_real_time_eps
 
         batch_eps = self.project.list_model_endpoints(
-            modes=EndpointMode.BATCH.value
+            modes=EndpointMode.BATCH
         ).endpoints
         assert len(batch_eps) == number_of_batch_eps
 
         real_time_and_batch = self.project.list_model_endpoints(
-            modes=[EndpointMode.REAL_TIME.value, EndpointMode.BATCH.value]
+            modes=[EndpointMode.REAL_TIME, EndpointMode.BATCH]
         ).endpoints
         assert len(real_time_and_batch) == number_of_real_time_eps + number_of_batch_eps
 

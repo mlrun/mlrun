@@ -3772,12 +3772,7 @@ class HTTPRunDB(RunDBInterface):
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         modes: Optional[
-            Union[
-                int,
-                list[int],
-                mm_constants.EndpointMode,
-                list[mm_constants.EndpointMode],
-            ]
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
         ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -3809,8 +3804,13 @@ class HTTPRunDB(RunDBInterface):
         labels = self._parse_labels(labels)
         if names and isinstance(names, str):
             names = [names]
-        if isinstance(modes, mm_constants.EndpointMode) or isinstance(modes, int):
-            modes = [modes]
+        # convert modes into int representation for the API
+        if modes:
+            modes = (
+                [modes.value]
+                if isinstance(modes, mm_constants.EndpointMode)
+                else [mode.value for mode in modes]
+            )
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,

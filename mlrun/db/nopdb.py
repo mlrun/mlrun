@@ -627,12 +627,7 @@ class NopDB(RunDBInterface):
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         modes: Optional[
-            Union[
-                int,
-                list[int],
-                mm_constants.EndpointMode,
-                list[mm_constants.EndpointMode],
-            ]
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
         ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,

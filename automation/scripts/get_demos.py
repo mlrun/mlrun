@@ -178,7 +178,7 @@ def download_demo(demo_repo, mlrun_version):
     # Finding all releases for demo that starts with the mlrun version
     matching_demo_releases = [r for r in sorted_versions if r.startswith(mlrun_version)]
     if matching_demo_releases:
-        # Download latest for that mlrun version
+        # Download the release or the latest rc for that mlrun version
         return download_release(demo_repo, mlrun_version) or download_release(
             demo_repo, max(matching_demo_releases)
         )

@@ -584,6 +584,16 @@ async def async_execute_graph(
     read_as_lists: bool,
     nest_under_inputs: bool,
 ) -> list[Any]:
+    # Validate that data parameter is a DataItem and not passed via params
+    if not isinstance(data, DataItem):
+        raise MLRunInvalidArgumentError(
+            f"Parameter 'data' has type hint 'DataItem' but got {type(data).__name__} instead. "
+            f"Data files and artifacts must be passed via the 'inputs' parameter, not 'params'. "
+            f"The 'params' parameter is for simple configuration values (strings, numbers, booleans), "
+            f"while 'inputs' is for data files that need to be loaded. "
+            f"Example: run_function(..., inputs={{'data': 'path/to/data.csv'}}, params={{other_config: value}})"
+        )
+
     spec = mlrun.utils.get_serving_spec()
     modname = None
     code = os.getenv("MLRUN_EXEC_CODE")

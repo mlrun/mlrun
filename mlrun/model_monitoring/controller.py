@@ -642,6 +642,7 @@ class MonitoringApplicationController:
                                 # TODO: Remove this in 1.12.0
                                 FutureWarning,
                             )
+
                             if endpoint_id not in self.feature_sets:
                                 self.feature_sets[endpoint_id] = fstore.get_feature_set(
                                     event[ControllerEvent.FEATURE_SET_URI]
@@ -653,6 +654,7 @@ class MonitoringApplicationController:
                             ):
                                 self.feature_sets.popitem(last=True)
                             m_fs = self.feature_sets.get(endpoint_id)
+
                             df = m_fs.to_dataframe(
                                 start_time=start_infer_time,
                                 end_time=end_infer_time,

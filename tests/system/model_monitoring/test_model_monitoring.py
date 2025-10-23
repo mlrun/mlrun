@@ -1556,6 +1556,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
         infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
             mlrun.utils.datetime_now() + timedelta(seconds=20)
         )
+
         model_path = project.get_artifact_uri(
             key=model_name, category="model", tag="latest"
         )

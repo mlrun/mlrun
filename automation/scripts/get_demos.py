@@ -39,7 +39,7 @@ def download_with_retry(url, max_retries=3):
             return response
         except requests.RequestException:
             if attempt == max_retries - 1:
-                raise
+                raise requests.RequestException
             sleep(2**attempt)  # Exponential backoff
 
 

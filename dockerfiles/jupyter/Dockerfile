@@ -69,7 +69,8 @@ COPY --chown=$NB_UID:$NB_GID ./automation/scripts/demos_config.json $HOME
 ENV UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 # removing unsupported files
-RUN rm -rf $HOME/tutorials/genai-02-model-monitor-llm.ipynb $HOME/tutorials/genai_01_basic_tutorial.ipynb
+RUN rm -rf $HOME/tutorials/genai-01-basic-tutorial.ipynb $HOME/tutorials/genai-02-model-monitor-llm.ipynb \
+    $HOME/tutorials/genai-03-vector-db.ipynb
 
 # no-deps to ignore existing dependencies, just add the locked requirements
 # mainly because of how the jupyter image is built with conda

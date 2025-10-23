@@ -2386,8 +2386,9 @@ class MlrunProject(ModelObj):
         handler: Optional[str] = None,
         with_repo: Optional[bool] = None,
         tag: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
+        requirements: Optional[list[str]] = None,
         requirements_file: str = "",
+        local_path: Optional[str] = None,
         **application_kwargs,
     ) -> mlrun.runtimes.RemoteRuntime:
         """
@@ -2402,7 +2403,8 @@ class MlrunProject(ModelObj):
             )
 
         :param func:                    Remote function object or spec/code URL. :code:`None` refers to the current
-                                        notebook.
+                                        notebook. May also be a hub URL of a module of kind model-monitoring-app in the
+                                        format: hub://[{source}/]{name}[:{tag}].
         :param name:                    Name of the function (under the project), can be specified with a tag to support
                                         versions (e.g. myfunc:v1).
         :param image:                   Docker image to be used, can also be specified in
@@ -2417,6 +2419,8 @@ class MlrunProject(ModelObj):
         :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
+        :param local_path:              Path to a local directory to save the downloaded monitoring-app code files in,
+                                        in case 'func' is a hub URL (defaults to current working directory).
         :returns:                       The model monitoring remote function object.
         """
         (
@@ -2433,6 +2437,7 @@ class MlrunProject(ModelObj):
             tag,
             requirements,
             requirements_file,
+            local_path,
             **application_kwargs,
         )
         # save to project spec
@@ -2511,8 +2516,9 @@ class MlrunProject(ModelObj):
         handler: typing.Optional[str] = None,
         with_repo: typing.Optional[bool] = None,
         tag: typing.Optional[str] = None,
-        requirements: typing.Union[str, list[str], None] = None,
+        requirements: typing.Union[list[str], None] = None,
         requirements_file: str = "",
+        local_path: typing.Optional[str] = None,
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.RemoteRuntime, dict]:
         import mlrun.model_monitoring.api
@@ -2529,6 +2535,7 @@ class MlrunProject(ModelObj):
                 tag=tag,
                 requirements=requirements,
                 requirements_file=requirements_file,
+                local_path=local_path,
                 **application_kwargs,
             )
         elif isinstance(func, str) and isinstance(handler, str):
@@ -2574,7 +2581,7 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
-        fetch_credentials_from_sys_config: bool = False,
+        fetch_credentials_from_sys_config: bool = False,  # deprecated
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2609,14 +2616,20 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
                                                   Otherwise, deploy the model monitoring infrastructure on the
                                                   background, including the histogram data drift app if selected.
-        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
+                                                  configuration.
         """
+        if fetch_credentials_from_sys_config:
+            warnings.warn(
+                "`fetch_credentials_from_sys_config` is deprecated in 1.10.0 and will be removed in 1.12.0.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
         if base_period < 10:
             logger.warn(
                 "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
                 project=self.name,
             )
-
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,

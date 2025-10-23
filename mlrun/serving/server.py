@@ -20,7 +20,6 @@ import copy
 import importlib
 import json
 import os
-import pathlib
 import socket
 import traceback
 import uuid
@@ -51,7 +50,7 @@ from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..execution import MLClientCtx
 from ..model import ModelObj
-from ..utils import get_caller_globals
+from ..utils import get_caller_globals, get_module_name_from_path
 from .states import (
     FlowStep,
     MonitoredStep,
@@ -585,6 +584,16 @@ async def async_execute_graph(
     read_as_lists: bool,
     nest_under_inputs: bool,
 ) -> list[Any]:
+    # Validate that data parameter is a DataItem and not passed via params
+    if not isinstance(data, DataItem):
+        raise MLRunInvalidArgumentError(
+            f"Parameter 'data' has type hint 'DataItem' but got {type(data).__name__} instead. "
+            f"Data files and artifacts must be passed via the 'inputs' parameter, not 'params'. "
+            f"The 'params' parameter is for simple configuration values (strings, numbers, booleans), "
+            f"while 'inputs' is for data files that need to be loaded. "
+            f"Example: run_function(..., inputs={{'data': 'path/to/data.csv'}}, params={{other_config: value}})"
+        )
+
     spec = mlrun.utils.get_serving_spec()
     modname = None
     code = os.getenv("MLRUN_EXEC_CODE")
@@ -598,17 +607,7 @@ async def async_execute_graph(
         #  gets set in local flow and not just in the remote pod
         source_file_path = spec.get("filename", None)
         if source_file_path:
-            source_file_path_object = pathlib.Path(source_file_path).resolve()
-            current_dir_path_object = pathlib.Path(".").resolve()
-            if not source_file_path_object.is_relative_to(current_dir_path_object):
-                raise mlrun.errors.MLRunRuntimeError(
-                    f"Source file path '{source_file_path}' is not under the current working directory "
-                    f"(which is required when running with local=True)"
-                )
-            relative_path_to_source_file = source_file_path_object.relative_to(
-                current_dir_path_object
-            )
-            modname = ".".join(relative_path_to_source_file.with_suffix("").parts)
+            modname = get_module_name_from_path(source_file_path)
 
     namespace = {}
     if modname:

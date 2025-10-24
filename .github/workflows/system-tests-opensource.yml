@@ -32,7 +32,7 @@ on:
         description: 'Pytest markers to run'
         required: false
         # TODO revert back to default: 'not enterprise and smoke'
-        default: 'not enterprise and smoke.basics'
+        default: 'not enterprise and smoke'
       clean_resources_in_teardown:
         description: 'Clean test resources upon test teardown'
         required: true
@@ -64,7 +64,7 @@ env:
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
   MLRUN_PYTHON_VERSION: 3.11
   # Default values for inputs (used when running on PR)
-  DEFAULT_PYTEST_MARKERS: 'not enterprise and smoke.basics'
+  DEFAULT_PYTEST_MARKERS: 'not enterprise and smoke'
   DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN: 'true'
   DEFAULT_DEBUG_ENABLED: 'false'
   DEFAULT_ON_FAILURE_DUMP_K8_LOGS: 'false'

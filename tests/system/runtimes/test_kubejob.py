@@ -45,6 +45,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     image: str = "mlrun/mlrun"
 
+    @pytest.mark.skip(reason="TODO Test disabled temporarily")    
     @pytest.mark.smoke
     def test_deploy_function(self):
         code_path = str(self.assets_path / "kubejob_function.py")

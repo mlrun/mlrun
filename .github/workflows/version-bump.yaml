@@ -1,0 +1,89 @@
+name: Version Bump and Track
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor 
+          - major
+          - rc
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    outputs:
+      previous_version: ${{ steps.bump.outputs.previous_version }}
+      new_version: ${{ steps.bump.outputs.new_version }}
+    
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Need full history
+          
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          
+      - name: Install bumpversion
+        run: pip install bumpversion
+        
+      - name: Capture and bump version
+        id: bump
+        run: |
+          # Capture current version before bumping
+          PREVIOUS_VERSION=$(grep "current_version" .bumpversion.cfg | cut -d'=' -f2 | xargs)
+          echo "📋 Previous version: $PREVIOUS_VERSION"
+          
+          # Perform version bump
+          bumpversion ${{ inputs.bump_type }}
+          
+          # Get new version
+          NEW_VERSION=$(grep "current_version" .bumpversion.cfg | cut -d'=' -f2 | xargs)
+          echo "🎯 New version: $NEW_VERSION"
+          
+          # Set outputs
+          echo "previous_version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          
+          # Create version tracking file
+          cat > version_change.json << EOF
+          {
+            "previous_version": "$PREVIOUS_VERSION",
+            "new_version": "$NEW_VERSION", 
+            "bump_type": "${{ inputs.bump_type }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit_sha": "${{ github.sha }}",
+            "actor": "${{ github.actor }}"
+          }
+          EOF
+          
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add the version tracking file
+          git add version_change.json
+          git add .bumpversion.cfg
+          git add VERSION_INFO.txt
+          
+          # Commit with detailed message
+          git commit -m "Bump version: ${{ steps.bump.outputs.previous_version }} → ${{ steps.bump.outputs.new_version }}" -m "Previous: ${{ steps.bump.outputs.previous_version }}" -m "Current: ${{ steps.bump.outputs.new_version }}" -m "Type: ${{ inputs.bump_type }}"
+          
+          git push
+          
+      - name: Upload version artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-tracking-${{ steps.bump.outputs.new_version }}
+          path: |
+            version_change.json
+            .bumpversion.cfg
+            VERSION_INFO.txt

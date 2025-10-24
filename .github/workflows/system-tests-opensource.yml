@@ -230,32 +230,60 @@ jobs:
         # uv pip -vvv install --upgrade --force-reinstall cffi
         # uv pip install cryptography bcrypt paramiko
 
-    - name: Force cleanup any previous K3S installation
+    - name: Check and cleanup any previous K3S installation
       run: |
-        echo "=== Cleaning up any previous K3S installation ==="
+        echo "=== Checking for previous K3S installation ==="
         
-        # Stop and remove any existing K3S processes
-        sudo pkill -f k3s || true
-        sudo systemctl stop k3s || true
-        sudo systemctl stop k3s-agent || true
-        sudo /usr/local/bin/k3s-uninstall.sh
-        sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s
-        sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s
+        # Check if K3S is installed or running
+        K3S_INSTALLED=false
         
-        # Force uninstall K3S if present
-        if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
-          echo "Found existing K3S installation, uninstalling..."
-          sudo /usr/local/bin/k3s-uninstall.sh || true
+        if [ -f /usr/local/bin/k3s ] || [ -f /usr/local/bin/k3s-uninstall.sh ] || pgrep -f k3s >/dev/null 2>&1; then
+          K3S_INSTALLED=true
+          echo "Found existing K3S installation, cleaning up..."
+        else
+          echo "No existing K3S installation found, skipping cleanup"
         fi
         
-        # Clean up any remaining K3S files
-        sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s || true
-        sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s* || true
-        
-        # Clean up any remaining containers/images
-        docker system prune -af || true
-        
-        echo "=== Cleanup completed ==="
+        if [ "$K3S_INSTALLED" = true ]; then
+          echo "=== Cleaning up previous K3S installation ==="
+          
+          # Stop K3S services if they exist
+          if systemctl is-active --quiet k3s 2>/dev/null; then
+            echo "Stopping K3S service..."
+            sudo systemctl stop k3s || true
+          fi
+          
+          if systemctl is-active --quiet k3s-agent 2>/dev/null; then
+            echo "Stopping K3S agent service..."
+            sudo systemctl stop k3s-agent || true
+          fi
+          
+          # Kill any running K3S processes
+          if pgrep -f k3s >/dev/null 2>&1; then
+            echo "Killing K3S processes..."
+            sudo pkill -f k3s || true
+            sleep 2
+          fi
+          
+          # Uninstall K3S if uninstaller exists
+          if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
+            echo "Running K3S uninstaller..."
+            sudo /usr/local/bin/k3s-uninstall.sh || true
+          fi
+          
+          # Clean up remaining files only if they exist
+          echo "Cleaning up remaining K3S files..."
+          sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s 2>/dev/null || true
+          sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s* 2>/dev/null || true
+          
+          # Clean up containers/images only if Docker is running
+          if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+            echo "Cleaning up Docker containers and images..."
+            docker system prune -af || true
+          fi
+          
+          echo "=== Cleanup completed ==="
+        fi
 
     - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
       name: "Start a local k8s cluster"
@@ -395,26 +423,56 @@ jobs:
         
         echo "=== Cleanup completed ==="
 
-    - name: Force cleanup K3S installation
+    - name: Final K3S cleanup
       if: always()
       run: |
         echo "=== Final K3S cleanup ==="
         
-        # Stop K3S services
-        sudo systemctl stop k3s || true
-        sudo systemctl stop k3s-agent || true
-        sudo pkill -f k3s || true
-        
-        # Uninstall K3S
-        if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
-          sudo /usr/local/bin/k3s-uninstall.sh || true
+        # Check if K3S exists before trying to clean it up
+        if [ -f /usr/local/bin/k3s ] || [ -f /usr/local/bin/k3s-uninstall.sh ] || pgrep -f k3s >/dev/null 2>&1; then
+          echo "K3S installation found, cleaning up..."
+          
+          # Stop K3S services only if they exist
+          if systemctl is-active --quiet k3s 2>/dev/null; then
+            echo "Stopping K3S service..."
+            sudo systemctl stop k3s || true
+          fi
+          
+          if systemctl is-active --quiet k3s-agent 2>/dev/null; then
+            echo "Stopping K3S agent service..."
+            sudo systemctl stop k3s-agent || true
+          fi
+          
+          # Kill processes if running
+          if pgrep -f k3s >/dev/null 2>&1; then
+            echo "Killing K3S processes..."
+            sudo pkill -f k3s || true
+          fi
+          
+          # Uninstall if uninstaller exists
+          if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
+            echo "Running K3S uninstaller..."
+            sudo /usr/local/bin/k3s-uninstall.sh || true
+          fi
+          
+          # Clean up files
+          echo "Cleaning up K3S files..."
+          sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s 2>/dev/null || true
+          sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s* 2>/dev/null || true
+          
+          echo "K3S cleanup completed"
+        else
+          echo "No K3S installation found, skipping cleanup"
         fi
         
-        # Clean up remaining files
-        sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s || true
-        sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s* || true
-        
-        # Clean up containers and images
-        docker system prune -af || true
+        # Clean up Docker only if it's running and has content
+        if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+          if [ "$(docker ps -aq | wc -l)" -gt 0 ] || [ "$(docker images -q | wc -l)" -gt 0 ]; then
+            echo "Cleaning up Docker containers and images..."
+            docker system prune -af || true
+          else
+            echo "No Docker containers or images to clean up"
+          fi
+        fi
         
         echo "=== Final cleanup completed ==="

@@ -325,6 +325,15 @@ jobs:
         # restart coredns to apply the changes
         kubectl -n kube-system rollout restart deployment coredns
 
+    - name: Prepare system tests env
+      run: |
+        source venv/bin/activate
+        python automation/system_test/prepare.py env \
+          --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
+
     - name: Install MLRun CE helm chart
       run: |
         # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
@@ -350,15 +359,6 @@ jobs:
         sudo /usr/local/bin/k3s-uninstall.sh
         sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s
         sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s
-
-    - name: Prepare system tests env
-      run: |
-        source venv/bin/activate
-        python automation/system_test/prepare.py env \
-          --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
-          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
 
     - name: Run system tests
       run: |

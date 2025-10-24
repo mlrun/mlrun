@@ -230,6 +230,33 @@ jobs:
         # uv pip -vvv install --upgrade --force-reinstall cffi
         # uv pip install cryptography bcrypt paramiko
 
+    - name: Force cleanup any previous K3S installation
+      run: |
+        echo "=== Cleaning up any previous K3S installation ==="
+        
+        # Stop and remove any existing K3S processes
+        sudo pkill -f k3s || true
+        sudo systemctl stop k3s || true
+        sudo systemctl stop k3s-agent || true
+        sudo /usr/local/bin/k3s-uninstall.sh
+        sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s
+        sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s
+        
+        # Force uninstall K3S if present
+        if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
+          echo "Found existing K3S installation, uninstalling..."
+          sudo /usr/local/bin/k3s-uninstall.sh || true
+        fi
+        
+        # Clean up any remaining K3S files
+        sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s || true
+        sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s* || true
+        
+        # Clean up any remaining containers/images
+        docker system prune -af || true
+        
+        echo "=== Cleanup completed ==="
+
     - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
       name: "Start a local k8s cluster"
       with:
@@ -337,11 +364,57 @@ jobs:
       run: |
         source venv/bin/activate
 
+        echo "=== Starting cleanup ==="
+        
+        # First, try the standard cleanup
         python automation/deployment/ce.py delete \
           --namespace=${NAMESPACE} \
           --cleanup-volumes \
-          --skip-cleanup-registry-secret
+          --skip-cleanup-registry-secret || echo "Standard cleanup failed, continuing with force cleanup"
 
         python automation/deployment/ce.py delete \
           --namespace=${NAMESPACE} \
-          --cleanup-namespace
+          --cleanup-namespace || echo "Namespace cleanup failed, trying force delete"
+        
+        # Force delete the namespace if it still exists
+        if kubectl get namespace ${NAMESPACE} 2>/dev/null; then
+          echo "Namespace still exists, forcing deletion..."
+          kubectl patch namespace ${NAMESPACE} -p '{"metadata":{"finalizers":[]}}' --type=merge || true
+          kubectl delete namespace ${NAMESPACE} --force --grace-period=0 || true
+          
+          # Wait and check if namespace is really gone
+          for i in {1..30}; do
+            if ! kubectl get namespace ${NAMESPACE} 2>/dev/null; then
+              echo "Namespace successfully deleted"
+              break
+            fi
+            echo "Waiting for namespace deletion... ($i/30)"
+            sleep 2
+          done
+        fi
+        
+        echo "=== Cleanup completed ==="
+
+    - name: Force cleanup K3S installation
+      if: always()
+      run: |
+        echo "=== Final K3S cleanup ==="
+        
+        # Stop K3S services
+        sudo systemctl stop k3s || true
+        sudo systemctl stop k3s-agent || true
+        sudo pkill -f k3s || true
+        
+        # Uninstall K3S
+        if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
+          sudo /usr/local/bin/k3s-uninstall.sh || true
+        fi
+        
+        # Clean up remaining files
+        sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s || true
+        sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s* || true
+        
+        # Clean up containers and images
+        docker system prune -af || true
+        
+        echo "=== Final cleanup completed ==="

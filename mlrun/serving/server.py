@@ -779,16 +779,13 @@ async def async_execute_graph(
         for sample in responses:
             for model_name, features in sample.items():
                 grouped[model_name].append(features)
-        grouped = dict(grouped)
         # create a dataframe per model endpoint and log it
         for model_name, features in grouped.items():
             context.log_dataset(
                 f"prediction_{model_name}",
                 df=pd.DataFrame(features),
             )
-
     context.log_result("num_rows", run_call_count)
-    return None
 
 
 def _is_inside_asyncio_loop():

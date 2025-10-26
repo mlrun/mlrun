@@ -198,7 +198,7 @@ def func_b():
     ["batching", "batch_size"], [(False, None), (True, None), (True, 10), (True, 77)]
 )
 @pytest.mark.parametrize("code_to_function", (False, True))
-def test_run_local_serving_job(batching, batch_size, code_to_function):
+def test_run_local_serving_job(batching, batch_size, code_to_function, tmp_path):
     project = mlrun.new_project("some-project")
 
     if code_to_function:
@@ -218,15 +218,11 @@ def test_run_local_serving_job(batching, batch_size, code_to_function):
     inputs = {"data": str(input_csv_path)}
     params = {"batching": batching, "batch_size": batch_size}
 
-    from pathlib import Path
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = str(Path(temp_dir))
-        project.run_function(
-            job, inputs=inputs, params=params, output_path=temp_path, local=True
-        )
-        file_path = Path(temp_path) / "test-execute-graph/0/prediction.parquet"
-        responses = pd.read_parquet(file_path)
+    project.run_function(
+        job, inputs=inputs, params=params, output_path=str(tmp_path), local=True
+    )
+    file_path = tmp_path / "test-execute-graph/0/prediction.parquet"
+    responses = pd.read_parquet(file_path)
 
     num_input_rows = 150  # number of rows in input file
     if batching:

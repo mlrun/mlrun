@@ -280,7 +280,8 @@ except Exception:
     if [ -n "$mlrun_version" ]; then
         echo "Detected MLRun version: ${mlrun_version}"
     else
-        error_exit "MLRun version not found. Please pass --mlrun-ver X.Y.Z (or X.Y.Z-rcN)."
+        mlrun_version="1.9.2"
+        echo "MLRun version not found. Using fallback version: ${mlrun_version}"
     fi
 fi
 

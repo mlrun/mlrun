@@ -787,9 +787,7 @@ async def async_execute_graph(
                 df=pd.DataFrame(features),
             )
 
-    context.log_result(
-        "num_rows", run_call_count
-    )
+    context.log_result("num_rows", run_call_count)
     return None
 
 

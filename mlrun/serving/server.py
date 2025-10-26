@@ -771,7 +771,7 @@ async def async_execute_graph(
 
     # log the results as artifacts
     num_of_meps_in_the_graph = len(server.graph.model_endpoints_names)
-    if num_of_meps_in_the_graph == 1:
+    if num_of_meps_in_the_graph <= 1:
         context.log_dataset("prediction", df=pd.DataFrame(responses))
     else:
         # turn this list of samples into a dict of lists, one per model endpoint

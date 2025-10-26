@@ -685,6 +685,31 @@ def test_model_runner_with_remote_model(execution_mechanism):
         server.wait_for_completion()
 
 
+def test_mock_server_with_notebook():
+    project = mlrun.new_project("mock-server-project", save=False)
+    notebook_path = str(
+        pathlib.Path(__file__).parent / "assets" / "mock_server_notebook.ipynb"
+    )
+    model_pkl_path = str(pathlib.Path(__file__).parent / "assets" / "model.pkl")
+    function = mlrun.code_to_function(
+        "my_function", kind="serving", filename=notebook_path
+    )
+    graph = function.set_topology("flow", engine="async")
+    model = project.log_model("my_model", model_file=model_pkl_path)
+    router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", **{})
+    for route, cls_name in {
+        "pre": "PreClassifierModel",
+        "post": "PostClassifierModel",
+        "classifier": "ClassifierModel",
+    }.items():
+        router.add_route(route, class_name=cls_name, model_path=model.uri)
+    router.respond()
+    server = function.to_mock_server()
+    resp = server.test("/v2/models/classifier/infer", body={"inputs": [1, 2, 3, 4]})
+    print(resp)  # TODO change to assert
+    server.wait_for_completion()
+
+
 def test_model_runner_with_remote_shared_model():
     project = mlrun.new_project("remote-model-project", save=False)
     model_artifact = project.log_model(

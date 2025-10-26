@@ -257,9 +257,10 @@ class MonitoringPreProcessor(storey.MapClass):
                             ].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
                             ),
-                            mm_schemas.StreamProcessingEvent.LABELS: monitoring_data[
+                            mm_schemas.StreamProcessingEvent.LABELS: event.body[
                                 model
-                            ].get(mlrun.common.schemas.MonitoringData.OUTPUTS),
+                            ].get("labels")
+                            or {},
                             mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
                             if self.server
                             else None,
@@ -301,19 +302,16 @@ class MonitoringPreProcessor(storey.MapClass):
                     mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                         model
                     ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
-                    mm_schemas.StreamProcessingEvent.LABELS: monitoring_data[model].get(
-                        mlrun.common.schemas.MonitoringData.OUTPUTS
-                    ),
+                    mm_schemas.StreamProcessingEvent.LABELS: event.body.get("labels")
+                    or {},
                     mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
                     if self.server
                     else None,
                     mm_schemas.StreamProcessingEvent.REQUEST: request,
                     mm_schemas.StreamProcessingEvent.RESPONSE: resp,
-                    mm_schemas.StreamProcessingEvent.ERROR: event.body[
+                    mm_schemas.StreamProcessingEvent.ERROR: event.body.get(
                         mm_schemas.StreamProcessingEvent.ERROR
-                    ]
-                    if mm_schemas.StreamProcessingEvent.ERROR in event.body
-                    else None,
+                    ),
                     mm_schemas.StreamProcessingEvent.METRICS: event.body[
                         mm_schemas.StreamProcessingEvent.METRICS
                     ]

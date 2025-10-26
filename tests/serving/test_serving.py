@@ -910,3 +910,23 @@ def test_serialize():
     # simulate mlrun/__main__.py
     eval_fn_result = py_eval(str(fn.to_dict()))
     mlrun.utils.helpers.as_dict(eval_fn_result)
+
+
+def test_execute_graph_dataitem_parameter_validation():
+    """Test that passing a DataItem parameter via params instead of inputs raises a clear error"""
+    from mlrun.execution import MLClientCtx
+    from mlrun.serving.server import execute_graph
+
+    # Create a mock context
+    context = MLClientCtx.from_dict(
+        {"metadata": {"name": "test"}, "spec": {}},
+        autocommit=False,
+    )
+
+    # Try to call execute_graph with int instead of DataItem (wrong: data passed via params)
+    # Should raise validation error
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r".*data.*DataItem.*inputs.*params.*",
+    ):
+        execute_graph(context, data=123, batching=False)

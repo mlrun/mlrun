@@ -60,9 +60,9 @@ See also [Data transformations](../feature-store/transformations.md#data-transfo
 | {py:class}`~mlrun.serving.routers.VotingEnsemble`           | An ensemble machine learning model that combines the prediction of several models.                                                                                                                                                                                            |       
 
 ## Other
-| Class name                                                 | Description                                                                                                   |   
-|------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| Class name                                                 | Description                                                                                                  |   
+|------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
 | {py:class}`~mlrun.feature_store.steps.FeaturesetValidator` | Validate feature values according to the feature set validation policy. Supported also by the Pandas engines. | 
 | {py:class}`~mlrun.serving.steps.ChoiceByField`             | Routes events to downstream steps based on an event field that contains the step name or names. | 
-| {py:class}`~mlrun.serving.remote.NuclioRemoteStep`         | Class for calling remote nuclio functions.                                                                    | 
-| ReduceToDataFrame                                          | Builds a pandas DataFrame from events and returns that DataFrame on flow termination.                         |
+| {py:class}`~mlrun.serving.remote.RemoteFunctionStep`       | Class for calling remote functions.                                                                    | 
+| ReduceToDataFrame                                          | Builds a pandas DataFrame from events and returns that DataFrame on flow termination.                        |

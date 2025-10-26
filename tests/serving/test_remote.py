@@ -425,7 +425,7 @@ def test_parallel_remote_retry(httpserver):
 
 @pytest.mark.parametrize("engine", ["sync", "async"])
 def test_nuclio_remote_step(rundb_mock, httpserver, engine):
-    from mlrun.serving.remote import NuclioRemoteStep
+    from mlrun.serving.remote import RemoteFunctionStep
 
     httpserver.expect_request("/cat", method="POST").respond_with_json({"cat": "ok"})
     nuclio_url = httpserver.url_for("/cat")
@@ -443,8 +443,7 @@ def test_nuclio_remote_step(rundb_mock, httpserver, engine):
     rundb_mock.get_function = MagicMock(return_value=fn)
     mlrun.get_run_db = MagicMock(return_value=rundb_mock)
 
-    uri = f"{project}/{function_name}"
-    step = NuclioRemoteStep(uri)
+    step = RemoteFunctionStep(fn=function_name, project_name=project)
 
     function = mlrun.new_function(name="test-nuclio-remote-step", kind="serving")
     flow = function.set_topology("flow", engine=engine)

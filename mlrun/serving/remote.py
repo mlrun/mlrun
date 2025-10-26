@@ -529,45 +529,71 @@ class MLRunAPIRemoteStep(RemoteStep):
         self.url = self.rundb.get_base_api_url(self.path)
 
 
-class NuclioRemoteStep(RemoteStep):
+class RemoteFunctionStep(RemoteStep):
     """
-    Graph step implementation for invoking Nuclio functions remotely.
+    Graph step implementation for invoking functions remotely.
     :param fn: Either an mlrun.runtimes.RemoteRuntime object or
-    a string URI in the form 'project/function'.
+    a string URI in the form 'function_name' or 'project_name/function_name'
+    :param project_name: Project containing the function.
     """
 
     def __init__(
         self,
         fn: Union[mlrun.runtimes.RemoteRuntime, str, None] = None,
+        project_name: str = "",
         method: str = "POST",
         **kwargs,
     ):
         super().__init__(url="", method=method, **kwargs)
         self.rundb = None
         self.fn = fn
+        self.project_name = project_name
 
     def post_init(self, mode="sync", **kwargs):
         self.rundb = mlrun.get_run_db()
-        if not self.fn:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Cannot find function '{self.fn}' in the MLRun DB. "
-                "Verify that the function URI is correct and that it is stored properly."
-            )
         if not isinstance(self.fn, (mlrun.runtimes.RemoteRuntime, str)):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 "Parameter 'fn' must be of type mlrun.runtimes.RemoteRuntime or str."
             )
 
-        if isinstance(self.fn, str):
-            self.fn = self.rundb.get_function(
-                self.fn.split("/")[0], self.fn.split("/")[1]
+        if not self.fn:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Parameter 'fn' can not be an empty string.\n"
             )
-            if not self.fn:
-                raise mlrun.errors.MLRunRuntimeError(
-                    f"Cannot find function '{self.fn}' in the MLRun DB. "
+
+        self.project_name = self.project_name or mlrun.mlconf.active_project
+        if isinstance(self.fn, str):
+            try:
+                fn_split = self.fn.split("/")
+                if len(fn_split) == 1 and self.project_name:
+                    self.fn = self.rundb.get_function(
+                        name=self.fn, project=self.project_name
+                    )
+                else:
+                    self.fn = self.rundb.get_function(name=self.fn)
+
+            except mlrun.MLRunNotFoundError:
+                raise mlrun.MLRunNotFoundError(
+                    f"Cannot find function '{self.fn}' in the MLRun DB.\n"
                     "Verify that the function URI is correct and that the function is stored properly."
                 )
-        # Derive Nuclio function URL
+
+        if not (
+            isinstance(self.fn, dict)
+            or isinstance(self.fn, mlrun.runtimes.RemoteRuntime)
+        ):
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed reading function '{self.fn}' from DB\n"
+                "Verify that the function URI is correct and that the function is stored properly."
+            )
+
+        if not hasattr(self.fn, "status"):
+            raise mlrun.errors.MLRunRuntimeError(
+                "Function object has no 'status' attribute.\n"
+                "Make sure that the function is deployed and stored properly."
+            )
+
+        # Derive function URL
         url = (
             next(iter(self.fn.status.internal_invocation_urls or []), None)
             or next(iter(self.fn.status.external_invocation_urls or []), None)
@@ -575,9 +601,10 @@ class NuclioRemoteStep(RemoteStep):
         )
         if not url:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Could not determine the Nuclio function URL for '{self.fn.metadata.name}'. "
+                f"Could not determine the function URL for '{self.fn.metadata.name}'. \n"
                 "Make sure the function is deployed and reachable."
             )
+
         if not url.startswith("http"):
             url = f"http://{url}"
 

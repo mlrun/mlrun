@@ -21,6 +21,7 @@ import pytest
 import mlrun.common.schemas
 import mlrun.errors
 
+import framework.db.sqldb.models
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 from framework.utils.background_tasks import background_task_exceeded_timeout
 
@@ -327,3 +328,66 @@ class TestBackgroundTasks(TestDatabaseBase):
         assert recent in remaining_names
         assert old not in remaining_names
         assert len(remaining_names) == 1
+
+    def test_background_task_label_unique_constraint(self):
+        """
+        Test the unique constraint behavior for BackgroundTaskLabel.
+
+        This test ensures:
+        1. A label can be added to a task.
+        2. Adding the same label again does not create a duplicate row.
+        3. A different label for the same task can be added.
+        4. The same label name/value can be added to a different project.
+        """
+
+        project = "test-project"
+        project_2 = "test-project2"
+        task_name = "task"
+        label_name = "test-label"
+        label_value = "test-value"
+        label_value_2 = "test-value2"
+
+        # Create a background task first
+        self._db.store_background_task(
+            self._db_session, name=task_name, project=project
+        )
+        task = self._db.get_background_task(
+            self._db_session,
+            name=task_name,
+            project=project,
+            background_task_exceeded_timeout_func=background_task_exceeded_timeout,
+        )
+
+        # Add a new label
+        self._add_label_and_assert(task.metadata.id, label_name, label_value, project)
+
+        # Adding the same label again should not create a new row
+        self._add_label_and_assert(task.metadata.id, label_name, label_value, project)
+
+        # Adding a different label succeeds
+        self._add_label_and_assert(task.metadata.id, label_name, label_value_2, project)
+
+        # Adding the same label name and value to a different project succeeds
+        self._add_label_and_assert(task.metadata.id, label_name, label_value, project_2)
+
+    def _get_labels(self, project, name, value):
+        """
+        Helper function to query BackgroundTaskLabel by project, name, and value.
+        Returns a list of matching labels.
+        """
+        return (
+            self._db_session.query(framework.db.sqldb.models.BackgroundTaskLabel)
+            .filter_by(project=project, name=name, value=value)
+            .all()
+        )
+
+    def _add_label_and_assert(self, task_id, name, value, project, expect_count=1):
+        """
+        Helper function to add a BackgroundTaskLabel to the database and assert the number of stored labels.
+        """
+        label = framework.db.sqldb.models.BackgroundTaskLabel(
+            name=name, value=value, project=project, task_id=task_id
+        )
+        self._db._upsert(self._db_session, [label])
+        stored_labels = self._get_labels(project, name, value)
+        assert len(stored_labels) == expect_count

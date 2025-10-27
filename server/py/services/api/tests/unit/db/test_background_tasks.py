@@ -342,33 +342,29 @@ class TestBackgroundTasks(TestDatabaseBase):
 
         project = "test-project"
         project_2 = "test-project2"
-        task_name = "task"
+        task = "task"
+        task_2 = "task-2"
         label_name = "test-label"
         label_value = "test-value"
-        label_value_2 = "test-value2"
 
         # Create a background task first
-        self._db.store_background_task(
-            self._db_session, name=task_name, project=project
+        self._store_task_and_assert_label(task, project, label_name, label_value)
+
+        # Adding the same label again should not create a duplicate
+        self._store_task_and_assert_label(task, project, label_name, label_value)
+
+        # Add the same label to a different project
+        self._store_task_and_assert_label(task, project_2, label_name, label_value)
+
+        # Add the same label to a second task in the same project, expect unique constraint failure
+        # (triggered through the retry mechanism and surfaced as MLRunRetryExhaustedError)
+        self._store_task_and_assert_label(
+            task_2,
+            project,
+            label_name,
+            label_value,
+            expect_error=mlrun.errors.MLRunRetryExhaustedError,
         )
-        task = self._db.get_background_task(
-            self._db_session,
-            name=task_name,
-            project=project,
-            background_task_exceeded_timeout_func=background_task_exceeded_timeout,
-        )
-
-        # Add a new label
-        self._add_label_and_assert(task.metadata.id, label_name, label_value, project)
-
-        # Adding the same label again should not create a new row
-        self._add_label_and_assert(task.metadata.id, label_name, label_value, project)
-
-        # Adding a different label succeeds
-        self._add_label_and_assert(task.metadata.id, label_name, label_value_2, project)
-
-        # Adding the same label name and value to a different project succeeds
-        self._add_label_and_assert(task.metadata.id, label_name, label_value, project_2)
 
     def _get_labels(self, project, name, value):
         """
@@ -381,13 +377,38 @@ class TestBackgroundTasks(TestDatabaseBase):
             .all()
         )
 
-    def _add_label_and_assert(self, task_id, name, value, project, expect_count=1):
+    def _store_task_and_assert_label(
+        self,
+        task_name,
+        project,
+        label_name,
+        label_value,
+        expected_count=1,
+        expect_error=None,
+    ):
         """
-        Helper function to add a BackgroundTaskLabel to the database and assert the number of stored labels.
+        Helper function to store a background task with a specific label and validate DB behavior.
+
+        - If `expect_error` is None: ensures the label is stored successfully and the total count
+          of matching BackgroundTaskLabel entries equals `expected_count`.
+        - If `expect_error` is provided: expects the operation to raise that exception and asserts that
+          the raised error message includes 'UNIQUE constraint failed'.
         """
-        label = framework.db.sqldb.models.BackgroundTaskLabel(
-            name=name, value=value, project=project, task_id=task_id
-        )
-        self._db._upsert(self._db_session, [label])
-        stored_labels = self._get_labels(project, name, value)
-        assert len(stored_labels) == expect_count
+        if expect_error:
+            with pytest.raises(expect_error) as excinfo:
+                self._db.store_background_task(
+                    self._db_session,
+                    name=task_name,
+                    project=project,
+                    labels={label_name: label_value},
+                )
+            assert "UNIQUE constraint failed" in mlrun.errors.err_to_str(excinfo.value)
+        else:
+            self._db.store_background_task(
+                self._db_session,
+                name=task_name,
+                project=project,
+                labels={label_name: label_value},
+            )
+            stored_labels = self._get_labels(project, label_name, label_value)
+            assert len(stored_labels) == expected_count

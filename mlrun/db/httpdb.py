@@ -5236,6 +5236,7 @@ class HTTPRunDB(RunDBInterface):
     def store_secret_token(
         self,
         secret_token: mlrun.common.schemas.SecretToken,
+        force: bool = False,
         log_warning: bool = True,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
@@ -5249,6 +5250,7 @@ class HTTPRunDB(RunDBInterface):
             db.store_secret_token(secret)
 
         :param secret_token: A SecretToken object with name and token fields.
+        :param force: Whether to force update the token if it already exists. Defaults to False.
         :param log_warning: Whether to log a warning about local config sync. Defaults to True.
         :return: A structured response indicating which tokens were created, updated, or skipped.
         """
@@ -5257,6 +5259,7 @@ class HTTPRunDB(RunDBInterface):
 
         response = self._store_secret_tokens(
             secret_tokens=[secret_token],
+            force=force,
             error=f"store user secret token {secret_token.name}",
         )
 
@@ -5278,6 +5281,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
         log_warning: bool = True,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
         Store or update multiple secret tokens in the MLRun backend.
@@ -5293,6 +5297,7 @@ class HTTPRunDB(RunDBInterface):
             db.store_secret_tokens(tokens)
 
         :param secret_tokens: List of SecretToken objects with 'name' and 'token' fields.
+        :param force: Whether to force update tokens if they already exist. Defaults to False.
         :param log_warning: Whether to log a warning about local config file sync. Defaults to True.
         :return: StoreSecretTokensResponse object indicating which tokens were created, updated, or skipped.
         """
@@ -5301,6 +5306,7 @@ class HTTPRunDB(RunDBInterface):
 
         response = self._store_secret_tokens(
             secret_tokens=secret_tokens,
+            force=force,
             error="store multiple user secret tokens",
         )
 
@@ -5345,15 +5351,18 @@ class HTTPRunDB(RunDBInterface):
     def _store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
+        force: bool,
         error: str,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         body = [token.dict() for token in secret_tokens]
+        params = {"force": str(force).lower()}  # send as query param
         endpoint_path = "user-secrets/tokens"
 
         response = self.api_call(
             mlrun.common.types.HTTPMethod.PUT,
             endpoint_path,
             error,
+            params=params,
             body=dict_to_json(body),
         )
 

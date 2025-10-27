@@ -1411,6 +1411,7 @@ class SQLRunDB(RunDBInterface):
         self,
         secret_token: mlrun.common.schemas.SecretToken,
         log_warning: bool = True,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         raise NotImplementedError
 
@@ -1418,6 +1419,7 @@ class SQLRunDB(RunDBInterface):
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
         log_warning: bool = True,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         raise NotImplementedError
 

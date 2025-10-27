@@ -11,7 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import pathlib
+import shutil
+import tempfile
 import unittest.mock
 from copy import deepcopy
 from types import SimpleNamespace
@@ -693,6 +696,58 @@ def test_model_runner_with_remote_model(execution_mechanism, notebook_usage):
         assert resp["async_triggered"] == "Async predict was triggered."
     finally:
         server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    "execution_mechanism", ("naive", "thread_pool", "process_pool", "dedicated_process")
+)
+def test_mock_server_invalid_source_path(execution_mechanism):
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    current_temp_dir = tempfile.gettempdir()
+    parent_dir = os.path.dirname(current_temp_dir)
+    new_temp_dir = os.path.join(parent_dir, "my_custom_mlrun_temp")
+    os.makedirs(new_temp_dir, exist_ok=True)
+    try:
+        file_path = os.path.join(new_temp_dir, "test_script.py")
+        with open(file_path, "w") as f:
+            f.write('print("Hello from custom temp dir!")\n')
+
+        function = mlrun.code_to_function("tests", kind="serving", filename=file_path)
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+        model_runner_step.add_model(
+            model_class="MyRemoteModel",
+            execution_mechanism=execution_mechanism,
+            endpoint_name="my_endpoint",
+            model_artifact=model_artifact,
+        )
+        async_model_runner_step = ModelRunnerStep(name="my_async_model_runner")
+        async_model_runner_step.add_model(
+            model_class="MyRemoteModel",
+            execution_mechanism="asyncio",
+            endpoint_name="my_async_endpoint",
+            model_artifact=model_artifact,
+        )
+
+        graph.to(model_runner_step).to(async_model_runner_step).respond()
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunRuntimeError,
+                match="it must be located either under the current working .* or the system temporary directory",
+            ):
+                server = function.to_mock_server()
+        except AssertionError:
+            # error was not raised, server was created
+            server.wait_for_completion()
+    finally:
+        # Clean up the custom temp directory
+        if os.path.exists(new_temp_dir):
+            shutil.rmtree(new_temp_dir)
 
 
 def test_model_runner_with_remote_shared_model():

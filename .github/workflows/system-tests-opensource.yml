@@ -325,16 +325,6 @@ jobs:
         # restart coredns to apply the changes
         kubectl -n kube-system rollout restart deployment coredns
 
-    - name: Prepare system tests env
-      run: |
-        source venv/bin/activate
-        MINIKUBE_IP=$(minikube ip)
-        echo "Minikube ip is : $MINIKUBE_IP"
-        python automation/system_test/prepare.py env \
-          --mlrun-dbpath "http://${MINIKUBE_IP}:${MLRUN_API_NODE_PORT}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
-          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
 
     - name: Install MLRun CE helm chart
       run: |
@@ -355,6 +345,26 @@ jobs:
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
 
+    - name: Prepare system tests env
+      run: |
+        # Define get_host_ip function
+        get_host_ip() {
+            case "$(uname -s)" in
+                "Darwin") ipconfig getifaddr en0 2>/dev/null ;;
+                "Linux") hostname -I 2>/dev/null | awk '{print $1}' ;;
+                *) echo "localhost" ;;  # fallback
+            esac
+        }
+        
+        # Get the host IP
+        HOST_IP=$(get_host_ip)
+        echo "Detected host IP: $HOST_IP"
+        source venv/bin/activate
+        python automation/system_test/prepare.py env \
+          --mlrun-dbpath "http://${HOST_IP}:${MLRUN_API_NODE_PORT}" \
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"            
     - name: On helm install failure delete k3s
       if: failure()
       run: |

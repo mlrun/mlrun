@@ -324,7 +324,35 @@ jobs:
 
         # restart coredns to apply the changes
         kubectl -n kube-system rollout restart deployment coredns
-                echo "Listing all Helm releases before cleanup:"
+
+    - name: Setup K3S storage and check cluster health
+      run: |
+        echo "=== Checking K3S storage configuration ==="
+        
+        # Check if default storage class exists
+        kubectl get storageclass
+        
+        # If no default storage class, create one using local-path (K3S default)
+        if ! kubectl get storageclass local-path >/dev/null 2>&1; then
+          echo "Creating local-path storage class..."
+          kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.24/deploy/local-path-storage.yaml
+          sleep 5
+        fi
+        
+        # Set local-path as default storage class if no default exists
+        if ! kubectl get storageclass | grep "(default)" >/dev/null 2>&1; then
+          echo "Setting local-path as default storage class..."
+          kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+        fi
+        
+        echo "=== Storage classes after setup ==="
+        kubectl get storageclass
+        
+        echo "=== Checking cluster nodes and resources ==="
+        kubectl get nodes -o wide
+        kubectl get pods -A
+        
+        echo "=== Listing all Helm releases before cleanup ==="
         helm list --all-namespaces
 
         echo "Deleting all Helm releases in all namespaces:"
@@ -363,6 +391,9 @@ jobs:
       run: |
         # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
         source venv/bin/activate
+        # Set longer Helm timeout for PVC binding
+        export HELM_TIMEOUT=25m
+        
         python automation/deployment/ce.py deploy \
             --verbose \
             --registry-url="registry.localhost" \
@@ -374,11 +405,58 @@ jobs:
             --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
+            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
+            --set grafana.persistence.size="500Mi" \
+            --set grafana.persistence.storageClassName="local-path" \
+            --set mysql.persistence.size="1Gi" \
+            --set mysql.persistence.storageClassName="local-path" \
+            --set mlrun.api.persistence.size="1Gi" \
+            --set mlrun.api.persistence.storageClassName="local-path" \
+            --set grafana.resources.requests.memory="64Mi" \
+            --set grafana.resources.requests.cpu="50m" \
+            --set grafana.resources.limits.memory="256Mi" \
+            --set grafana.resources.limits.cpu="200m"
 
-          
+    - name: Monitor MLRun deployment progress
+      run: |
+        echo "=== Checking MLRun deployment status ==="
+        
+        # Wait a bit for resources to be created
+        sleep 30
+        
+        echo "=== PVC Status ==="
+        kubectl get pvc -n ${NAMESPACE} -o wide
+        
+        echo "=== Pod Status ==="
+        kubectl get pods -n ${NAMESPACE} -o wide
+        
+        echo "=== Events in mlrun namespace ==="
+        kubectl get events -n ${NAMESPACE} --sort-by='.lastTimestamp' | tail -20
+        
+        echo "=== Storage Class Details ==="
+        kubectl describe storageclass local-path
+        
+        # Wait for PVCs to bind (with timeout)
+        echo "=== Waiting for PVCs to bind ==="
+        for i in {1..60}; do
+          unbound_pvcs=$(kubectl get pvc -n ${NAMESPACE} --no-headers | grep -v Bound | wc -l)
+          if [ "$unbound_pvcs" -eq 0 ]; then
+            echo "All PVCs are bound!"
+            break
+          else
+            echo "Attempt $i/60: $unbound_pvcs PVCs still unbound, waiting..."
+            kubectl get pvc -n ${NAMESPACE} --no-headers | grep -v Bound || true
+            sleep 10
+          fi
+        done
+        
+        echo "=== Final PVC Status ==="
+        kubectl get pvc -n ${NAMESPACE}
+        
+        echo "=== Final Pod Status ==="
+        kubectl get pods -n ${NAMESPACE}
+
     - name: On helm install failure delete k3s
       if: failure()
       run: |

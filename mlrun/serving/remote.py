@@ -591,6 +591,11 @@ class RemoteFunctionStep(RemoteStep):
                 "Verify that the function URI is correct and that the function is stored properly."
             )
 
+        if not hasattr(self.fn, "status"):
+            raise mlrun.errors.MLRunRuntimeError(
+                "Function object has no 'status' attribute.\n"
+                "Make sure that the function is deployed and stored properly."
+            )
         # Derive function URL
         url = (
             next(iter(self.fn.status.internal_invocation_urls or []), None)

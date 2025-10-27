@@ -1,7 +1,9 @@
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 from cloudpickle import load
-from typing import Optional
+
 from mlrun.serving import Model
 
 

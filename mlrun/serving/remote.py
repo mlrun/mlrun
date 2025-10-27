@@ -27,6 +27,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.platforms
 import mlrun.utils.async_http
+from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.errors import err_to_str
 from mlrun.utils import dict_to_json, logger
 
@@ -561,17 +562,20 @@ class RemoteFunctionStep(RemoteStep):
                 "Parameter 'fn' can not be an empty string.\n"
             )
 
-        self.project_name = self.project_name or mlrun.mlconf.active_project
         if isinstance(self.fn, str):
-            try:
-                fn_split = self.fn.split("/")
-                if len(fn_split) == 1 and self.project_name:
-                    self.fn = self.rundb.get_function(
-                        name=self.fn, project=self.project_name
-                    )
-                else:
-                    self.fn = self.rundb.get_function(name=self.fn)
+            project, uri, tag, hash_key = parse_versioned_object_uri(self.fn)
 
+            if self.project_name and project:
+                raise mlrun.errors.MLRunRuntimeError(
+                    "Project name can only be set once: either in 'project_name' or in the function URI."
+                )
+
+            project = project or self.project_name or mlrun.mlconf.active_project
+
+            try:
+                self.fn = self.rundb.get_function(
+                    name=uri, project=project, tag=tag, hash_key=hash_key
+                )
             except mlrun.MLRunNotFoundError:
                 raise mlrun.MLRunNotFoundError(
                     f"Cannot find function '{self.fn}' in the MLRun DB.\n"
@@ -587,18 +591,13 @@ class RemoteFunctionStep(RemoteStep):
                 "Verify that the function URI is correct and that the function is stored properly."
             )
 
-        if not hasattr(self.fn, "status"):
-            raise mlrun.errors.MLRunRuntimeError(
-                "Function object has no 'status' attribute.\n"
-                "Make sure that the function is deployed and stored properly."
-            )
-
         # Derive function URL
         url = (
             next(iter(self.fn.status.internal_invocation_urls or []), None)
             or next(iter(self.fn.status.external_invocation_urls or []), None)
             or getattr(self.fn.status, "address", None)
         )
+
         if not url:
             raise mlrun.errors.MLRunRuntimeError(
                 f"Could not determine the function URL for '{self.fn.metadata.name}'. \n"

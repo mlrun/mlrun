@@ -218,6 +218,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         """
         # Convert to dict and back creates independent objects (no reference sharing)
         struct = self.to_dict()
+        # Change kind from "local" to "job" before creating KubejobRuntime
+        struct["kind"] = "job"
         obj = KubejobRuntime.from_dict(struct)
         original_name = obj.metadata.name
 
@@ -225,7 +227,10 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             # User provided explicit job name
             obj.metadata.name = func_name
             logger.debug(
-                f"Creating job '{func_name}' from local function '{original_name}'"
+                "Creating job from local function with custom name",
+                original_name=original_name,
+                new_name=func_name,
+                was_renamed=False,
             )
         else:
             obj.metadata.name, was_renamed, suffix = (
@@ -233,12 +238,19 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             )
             if was_renamed:
                 logger.info(
-                    f"Creating job '{obj.metadata.name}' from local function '{original_name}' "
-                    f"(auto-appended '{suffix}' to prevent database collision)"
+                    "Creating job from local function (auto-appended suffix to prevent collision)",
+                    original_name=original_name,
+                    new_name=obj.metadata.name,
+                    suffix=suffix,
+                    was_renamed=True,
                 )
             else:
-                logger.info(
-                    f"Creating job '{obj.metadata.name}' from local function '{original_name}'"
+                logger.debug(
+                    "Creating job from local function (name already has suffix)",
+                    original_name=original_name,
+                    new_name=obj.metadata.name,
+                    suffix=suffix,
+                    was_renamed=False,
                 )
 
         if image:

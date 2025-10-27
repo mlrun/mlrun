@@ -659,6 +659,9 @@ class ServingRuntime(RemoteRuntime):
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
+        # Validate function name before deploying to k8s
+        mlrun.k8s_utils.validate_function_name(self.metadata.name)
+
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
             raise ValueError(f"illegal model loading mode {load_mode}")
@@ -910,7 +913,10 @@ class ServingRuntime(RemoteRuntime):
             # User provided explicit job name
             job_metadata.name = func_name
             logger.debug(
-                f"Creating job '{func_name}' from serving function '{original_name}'"
+                "Creating job from serving function with custom name",
+                original_name=original_name,
+                new_name=func_name,
+                was_renamed=False,
             )
         else:
             job_metadata.name, was_renamed, suffix = (
@@ -918,12 +924,19 @@ class ServingRuntime(RemoteRuntime):
             )
             if was_renamed:
                 logger.info(
-                    f"Creating job '{job_metadata.name}' from serving function '{original_name}' "
-                    f"(auto-appended '{suffix}' to prevent database collision)"
+                    "Creating job from serving function (auto-appended suffix to prevent collision)",
+                    original_name=original_name,
+                    new_name=job_metadata.name,
+                    suffix=suffix,
+                    was_renamed=True,
                 )
             else:
-                logger.info(
-                    f"Creating job '{job_metadata.name}' from serving function '{original_name}'"
+                logger.debug(
+                    "Creating job from serving function (name already has suffix)",
+                    original_name=original_name,
+                    new_name=job_metadata.name,
+                    suffix=suffix,
+                    was_renamed=False,
                 )
 
         job = KubejobRuntime(

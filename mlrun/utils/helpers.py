@@ -478,7 +478,7 @@ def normalize_name(name: str):
 
 def ensure_batch_job_suffix(
     function_name: typing.Optional[str],
-) -> tuple[str, bool, str]:
+) -> tuple[typing.Optional[str], bool, str]:
     """
     Ensure that a function name has the batch job suffix appended to prevent database collision.
 
@@ -491,7 +491,7 @@ def ensure_batch_job_suffix(
     :return: A tuple of (modified_name, was_renamed, suffix) where:
         - modified_name: The function name with the batch suffix (if not already present),
           or empty string if input was empty
-        - was_renamed: True if the suffix was added, False if it was already present or if name was empty
+        - was_renamed: True if the suffix was added, False if it was already present or if name was empty/None
         - suffix: The suffix value that was used (or would have been used)
 
     """
@@ -512,7 +512,7 @@ def ensure_batch_job_suffix(
 
 def strip_batch_job_suffix(
     function_name: typing.Optional[str],
-) -> tuple[str, bool, str]:
+) -> tuple[typing.Optional[str], bool, str]:
     """
     Remove the batch job suffix if present.
 
@@ -551,20 +551,36 @@ def validate_function_name_for_batch_suffix(name: str, kind: str) -> None:
     :param name: Function name to validate
     :param kind: Function kind ("serving", "serving_v2", "local", etc.)
 
-    :raises MLRunValueError: If the function name ends with the reserved batch suffix
+    :raises MLRunValueError: If the function name ends with the reserved batch suffix or would exceed
+                            the Kubernetes name length limit after appending the suffix
     """
-    import mlrun.errors
+    # Use dynamic import to avoid circular dependency detected by import linter
+    import importlib
 
-    # Only validate for kinds that have to_job() methods that add the suffix
-    if kind not in ["serving", "serving_v2", "local"]:
+    runtimes_module = importlib.import_module("mlrun.runtimes")
+    if kind not in runtimes_module.RuntimeKinds.runtimes_with_to_job():
         return
 
-    _, was_changed, suffix = ensure_batch_job_suffix(name)
+    modified_name, was_changed, suffix = ensure_batch_job_suffix(name)
+
     if name and not was_changed:
         # Name already ends with the suffix - this is not allowed
-        function_type = "Serving" if kind in ["serving", "serving_v2"] else "Local"
         raise mlrun.errors.MLRunValueError(
-            f"{function_type} function names cannot end with `{suffix}`"
+            f"{kind} function names cannot end with `{suffix}`"
+        )
+
+    # Check if the name with batch suffix would exceed Kubernetes length limit
+    if (
+        modified_name
+        and len(modified_name) > mlrun_constants.K8S_DNS_1123_LABEL_MAX_LENGTH
+    ):
+        max_allowed_length = mlrun_constants.K8S_DNS_1123_LABEL_MAX_LENGTH - len(suffix)
+        raise mlrun.errors.MLRunValueError(
+            f"{kind} function name '{name}' is too long. "
+            f"When converted to a job via to_job(), it will have '{suffix}' appended, "
+            f"resulting in '{modified_name}' ({len(modified_name)} characters). "
+            f"Kubernetes names must be at most {mlrun_constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters. "
+            f"Please use a name with at most {max_allowed_length} characters."
         )
 
 

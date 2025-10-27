@@ -35,6 +35,7 @@ from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
+    ensure_batch_job_suffix,
     extend_hub_uri_if_needed,
     get_data_from_path,
     get_parsed_docker_registry,
@@ -47,9 +48,11 @@ from mlrun.utils.helpers import (
     set_data_by_path,
     split_path,
     str_to_timestamp,
+    strip_batch_job_suffix,
     template_artifact_path,
     update_in,
     validate_artifact_key_name,
+    validate_function_name_for_batch_suffix,
     validate_tag_name,
     validate_v3io_stream_consumer_group,
     verify_field_regex,
@@ -1910,3 +1913,80 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
 def test_merge_requirements(priority_reqs, reqs, expected_result):
     result = merge_requirements(reqs_priority=priority_reqs, reqs_secondary=reqs)
     assert set(result) == set(expected_result)
+
+
+# Test ensure_batch_job_suffix
+@pytest.mark.parametrize(
+    "function_name,expected_name,expected_renamed",
+    [
+        # Normal case - suffix should be added
+        ("my-function", "my-function-batch", True),
+        # Already has suffix - should not be renamed
+        ("my-function-batch", "my-function-batch", False),
+        # Edge cases
+        (None, None, False),
+        ("", "", False),
+        # Name contains "batch" but doesn't end with "-batch"
+        ("batch-processor", "batch-processor-batch", True),
+    ],
+)
+def test_ensure_batch_job_suffix(function_name, expected_name, expected_renamed):
+    """Test that ensure_batch_job_suffix correctly adds suffix when needed."""
+    modified_name, was_renamed, suffix = ensure_batch_job_suffix(function_name)
+
+    assert modified_name == expected_name
+    assert was_renamed == expected_renamed
+    assert suffix == "-batch"
+
+
+# Test strip_batch_job_suffix
+@pytest.mark.parametrize(
+    "function_name,expected_name,expected_stripped",
+    [
+        # Normal case - suffix should be stripped
+        ("my-function-batch", "my-function", True),
+        # No suffix - should return unchanged
+        ("my-function", "my-function", False),
+        # Double suffix (should only strip one)
+        ("func-batch-batch", "func-batch", True),
+    ],
+)
+def test_strip_batch_job_suffix(function_name, expected_name, expected_stripped):
+    """Test that strip_batch_job_suffix correctly removes suffix when present."""
+    stripped_name, was_stripped, suffix = strip_batch_job_suffix(function_name)
+
+    assert stripped_name == expected_name
+    assert was_stripped == expected_stripped
+    assert suffix == "-batch"
+
+
+# Test validate_function_name_for_batch_suffix
+@pytest.mark.parametrize(
+    "function_name,kind,expected",
+    [
+        # Valid case
+        ("my-function", "serving", does_not_raise()),
+        # At length limit (57 + 6 = 63)
+        ("a" * 57, "serving", does_not_raise()),
+        # Non-serving/local runtimes - should skip validation
+        ("my-function-batch", "job", does_not_raise()),
+        # Invalid - name already ends with -batch
+        (
+            "my-function-batch",
+            "serving",
+            pytest.raises(
+                mlrun.errors.MLRunValueError, match="cannot end with `-batch`"
+            ),
+        ),
+        # Invalid - name too long (58 + 6 = 64 > 63)
+        (
+            "a" * 58,
+            "serving",
+            pytest.raises(mlrun.errors.MLRunValueError, match="too long"),
+        ),
+    ],
+)
+def test_validate_function_name_for_batch_suffix(function_name, kind, expected):
+    """Test that validate_function_name_for_batch_suffix enforces batch suffix rules."""
+    with expected:
+        validate_function_name_for_batch_suffix(function_name, kind)

@@ -27,6 +27,9 @@ DASK_LABEL_PREFIX = "dask.org/"
 NUCLIO_LABEL_PREFIX = "nuclio.io/"
 RESERVED_TAG_NAME_LATEST = "latest"
 
+# Kubernetes DNS-1123 label name length limit
+K8S_DNS_1123_LABEL_MAX_LENGTH = 63
+
 
 RESERVED_BATCH_JOB_SUFFIX = "-batch"
 

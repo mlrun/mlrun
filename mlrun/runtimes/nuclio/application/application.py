@@ -400,6 +400,9 @@ class ApplicationRuntime(RemoteRuntime):
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
+        # Validate function name before deploying to k8s
+        mlrun.k8s_utils.validate_function_name(self.metadata.name)
+
         if (self.requires_build() and not self.spec.image) or force_build:
             self._fill_credentials()
             self._build_application_image(

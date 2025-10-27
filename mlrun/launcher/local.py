@@ -246,7 +246,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
 
         # Strip batch job suffix if present - local execution doesn't need collision prevention
         # since it's a temporary runtime wrapper, not a stored function
-        #   ServingRuntime.to_job("my-function")
+        #   LocalRuntime.to_job("my-function")
         #     ↓
         #   Creates KubejobRuntime named "my-function-batch"
         #     ↓

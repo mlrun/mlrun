@@ -236,6 +236,43 @@ def validate_node_selectors(
     return True
 
 
+def validate_function_name(name: str) -> None:
+    """
+    Validate that a function name conforms to Kubernetes DNS-1123 label requirements.
+
+    Function names for Kubernetes resources must:
+    - Be lowercase alphanumeric characters or '-'
+    - Start and end with an alphanumeric character
+    - Be at most 63 characters long
+
+    This validation should be called AFTER normalize_name() has been applied.
+
+    Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
+
+    :param name: The function name to validate (after normalization)
+    :raises MLRunInvalidArgumentError: If the function name is invalid for Kubernetes
+    """
+    # Import here to avoid circular dependency (helpers imports k8s_utils)
+    import mlrun.utils.helpers
+
+    if not name:
+        raise mlrun.errors.MLRunInvalidArgumentError("Function name cannot be empty.")
+
+    mlrun.utils.helpers.verify_field_regex(
+        "function.metadata.name",
+        name,
+        mlrun.utils.regex.dns_1123_label,
+        raise_on_failure=True,
+        log_message=(
+            f"Function name '{name}' is invalid. "
+            "Kubernetes function names must be DNS-1123 labels: "
+            "lowercase alphanumeric characters or '-', "
+            "starting and ending with an alphanumeric character, "
+            "and at most 63 characters long."
+        ),
+    )
+
+
 def sanitize_k8s_objects(
     k8s_objects: typing.Union[None, K8sObjList, SanitizedK8sObj, K8sObj],
 ) -> typing.Union[list[SanitizedK8sObj], SanitizedK8sObj]:

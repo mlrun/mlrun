@@ -636,14 +636,24 @@ def test_model_runner_with_gpu_allocation():
 @pytest.mark.parametrize(
     "execution_mechanism", ("naive", "thread_pool", "process_pool", "dedicated_process")
 )
-def test_model_runner_with_remote_model(execution_mechanism):
+@pytest.mark.parametrize("notebook_usage", (False, True))
+def test_model_runner_with_remote_model(execution_mechanism, notebook_usage):
     project = mlrun.new_project("remote-model-project", save=False)
     model_artifact = project.log_model(
         "my_model",
         model_url="http://localhost:8080/v2/models/mymodel/infer",
         default_config={"model_version": "4"},
     )
-    function = mlrun.code_to_function("tests", kind="serving", filename=__file__)
+
+    if notebook_usage:
+        if execution_mechanism in ["process_pool", "dedicated_process"]:
+            pytest.skip(
+                "ModelRunnerStep with notebook and process_pool / dedicated process is not supported - ML-11340"
+            )
+        filename = str(pathlib.Path(__file__).parent / "assets" / "remote_model.ipynb")
+    else:
+        filename = __file__
+    function = mlrun.code_to_function("tests", kind="serving", filename=filename)
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(

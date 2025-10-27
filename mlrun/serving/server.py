@@ -50,7 +50,7 @@ from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..execution import MLClientCtx
 from ..model import ModelObj
-from ..utils import get_caller_globals, get_module_name_from_path
+from ..utils import get_caller_globals, get_relative_module_name_from_path
 from .states import (
     FlowStep,
     MonitoredStep,
@@ -607,7 +607,17 @@ async def async_execute_graph(
         #  gets set in local flow and not just in the remote pod
         source_file_path = spec.get("filename", None)
         if source_file_path:
-            modname = get_module_name_from_path(source_file_path)
+            source_file_path_object, current_dir_path_object = (
+                mlrun.utils.helpers.get_source_and_current_paths(source_file_path)
+            )
+            if not source_file_path_object.is_relative_to(current_dir_path_object):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Source file path '{source_file_path}' is not under the current working directory "
+                    f"(which is required when running with local=True)"
+                )
+            modname = get_relative_module_name_from_path(
+                source_file_path_object, current_dir_path_object
+            )
 
     namespace = {}
     if modname:

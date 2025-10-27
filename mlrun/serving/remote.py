@@ -533,19 +533,23 @@ class MLRunAPIRemoteStep(RemoteStep):
 class RemoteFunctionStep(RemoteStep):
     """
     Graph step implementation for invoking functions remotely.
-    :param fn: Either an mlrun.runtimes.RemoteRuntime object or
-    a string URI in the form 'function_name' or 'project_name/function_name'
-    :param project_name: Project containing the function.
+
+    :param fn: Either an `mlrun.runtimes.RemoteRuntime` object or
+        a string URI in the form `function_name` or `project_name/function_name`.
+    :param project_name: Optional project name containing the function. If not provided,
+        the project name will be derived automatically according to the following order:
+            1. Extracted from the function URI (if specified as 'project_name/function_name')
+            2. Taken from the `project_name` parameter
+            3. Inferred from the current runtime or graph execution context
     """
 
     def __init__(
         self,
         fn: Union[mlrun.runtimes.RemoteRuntime, str, None] = None,
         project_name: str = "",
-        method: str = "POST",
         **kwargs,
     ):
-        super().__init__(url="", method=method, **kwargs)
+        super().__init__(url="", **kwargs)
         self.rundb = None
         self.fn = fn
         self.project_name = project_name
@@ -576,32 +580,22 @@ class RemoteFunctionStep(RemoteStep):
                 self.fn = self.rundb.get_function(
                     name=uri, project=project, tag=tag, hash_key=hash_key
                 )
+                if isinstance(self.fn, dict):
+                    self.fn = mlrun.runtimes.RemoteRuntime.from_dict(self.fn)
+
             except mlrun.MLRunNotFoundError:
                 raise mlrun.MLRunNotFoundError(
                     f"Cannot find function '{self.fn}' in the MLRun DB.\n"
                     "Verify that the function URI is correct and that the function is stored properly."
                 )
 
-        if not (
-            isinstance(self.fn, dict)
-            or isinstance(self.fn, mlrun.runtimes.RemoteRuntime)
-        ):
+        if not isinstance(self.fn, mlrun.runtimes.RemoteRuntime):
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed reading function '{self.fn}' from DB\n"
                 "Verify that the function URI is correct and that the function is stored properly."
             )
 
-        if not hasattr(self.fn, "status"):
-            raise mlrun.errors.MLRunRuntimeError(
-                "Function object has no 'status' attribute.\n"
-                "Make sure that the function is deployed and stored properly."
-            )
-        # Derive function URL
-        url = (
-            next(iter(self.fn.status.internal_invocation_urls or []), None)
-            or next(iter(self.fn.status.external_invocation_urls or []), None)
-            or getattr(self.fn.status, "address", None)
-        )
+        url = self.fn.get_url()
 
         if not url:
             raise mlrun.errors.MLRunRuntimeError(

@@ -15,6 +15,7 @@
 import re
 import time
 from unittest.mock import MagicMock
+from urllib.parse import urlparse
 
 import pytest
 from werkzeug.wrappers import Request, Response
@@ -427,8 +428,9 @@ def test_parallel_remote_retry(httpserver):
 def test_remote_function_step(rundb_mock, httpserver, engine):
     from mlrun.serving.remote import RemoteFunctionStep
 
-    httpserver.expect_request("/cat", method="POST").respond_with_json({"cat": "ok"})
+    httpserver.expect_request("/cat", method="GET").respond_with_json({"cat": "ok"})
     nuclio_url = httpserver.url_for("/cat")
+    nuclio_url = urlparse(nuclio_url).netloc + urlparse(nuclio_url).path
 
     function_name = "nuclio-fn-test"
     project = "test-proj"
@@ -440,11 +442,10 @@ def test_remote_function_step(rundb_mock, httpserver, engine):
     fn.status.state = "ready"
     fn.status.address = nuclio_url
 
-    rundb_mock.get_function = MagicMock(return_value=fn)
+    rundb_mock.get_function = MagicMock(return_value=fn.to_dict())
     mlrun.get_run_db = MagicMock(return_value=rundb_mock)
 
-    # step = RemoteFunctionStep(fn=function_name, project_name=project)
-    step = RemoteFunctionStep(fn=fn)
+    step = RemoteFunctionStep(fn=function_name, project_name=project)
 
     function = mlrun.new_function(name="test-nuclio-remote-step", kind="serving")
     flow = function.set_topology("flow", engine=engine)

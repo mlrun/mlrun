@@ -256,7 +256,7 @@ def validate_function_name(name: str) -> None:
     import mlrun.utils.helpers
 
     if not name:
-        raise mlrun.errors.MLRunInvalidArgumentError("Function name cannot be empty.")
+        return
 
     mlrun.utils.helpers.verify_field_regex(
         "function.metadata.name",
@@ -271,6 +271,55 @@ def validate_function_name(name: str) -> None:
             "and at most 63 characters long."
         ),
     )
+
+
+def validate_function_name_for_batch_suffix(name: str, kind: str) -> None:
+    """
+    Validate that serving and local function names don't end with reserved batch suffix.
+
+    This validation prevents users from manually creating functions with the reserved "-batch" suffix,
+    which is automatically appended by to_job() methods. Allowing manual use of this suffix would
+    defeat the purpose of automatic collision prevention.
+
+    This is a Kubernetes-specific validation because:
+    - The batch suffix is added to prevent database collisions for K8s-stored functions
+    - The validation checks K8s name length limits (63 characters including suffix)
+
+    :param name: Function name to validate
+    :param kind: Function kind ("serving", "local", "job", etc.)
+
+    :raises MLRunValueError: If the function name ends with the reserved batch suffix or would exceed
+                            the Kubernetes name length limit after appending the suffix
+    """
+
+    if kind not in mlrun.runtimes.RuntimeKinds.runtimes_with_to_job():
+        return
+
+    modified_name, was_changed, suffix = mlrun.utils.helpers.ensure_batch_job_suffix(
+        name
+    )
+
+    if name and not was_changed:
+        # Name already ends with the suffix - this is not allowed
+        raise mlrun.errors.MLRunValueError(
+            f"{kind} function names cannot end with `{suffix}`"
+        )
+
+    # Check if the name with batch suffix would exceed Kubernetes length limit
+    if (
+        modified_name
+        and len(modified_name) > mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH
+    ):
+        max_allowed_length = mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH - len(
+            suffix
+        )
+        raise mlrun.errors.MLRunValueError(
+            f"{kind} function name '{name}' is too long. "
+            f"When converted to a job via to_job(), it will have '{suffix}' appended, "
+            f"resulting in '{modified_name}' ({len(modified_name)} characters). "
+            f"Kubernetes names must be at most {mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters. "
+            f"Please use a name with at most {max_allowed_length} characters."
+        )
 
 
 def sanitize_k8s_objects(

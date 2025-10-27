@@ -564,11 +564,10 @@ def test_batch_suffix_validation(function_creator, kind, function_name, should_f
             "cannot end with" in error_msg.lower()
         ), f"Error message should explain the restriction: {error_msg}"
 
-        # Verify function type is mentioned
-        expected_type = "Serving" if kind == "serving" else "Local"
+        # Verify function type is mentioned (uses lowercase kind value)
         assert (
-            expected_type in error_msg
-        ), f"Error message should mention {expected_type} function type: {error_msg}"
+            kind in error_msg
+        ), f"Error message should mention {kind} function type: {error_msg}"
     else:
         # Should succeed without raising an exception
         fn = function_creator(**kwargs)

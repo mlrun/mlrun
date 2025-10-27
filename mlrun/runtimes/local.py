@@ -201,7 +201,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
 
-    def to_job(self, image="", func_name: Optional[str] = None):
+    def to_job(
+        self, image: str = "", func_name: Optional[str] = None
+    ) -> KubejobRuntime:
         """Convert this LocalRuntime to a KubejobRuntime.
 
         Args:

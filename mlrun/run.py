@@ -581,7 +581,7 @@ def new_function(
     runner.prepare_image_for_deploy()
 
     # Validate serving and local function names don't end with reserved batch suffix
-    mlrun.utils.helpers.validate_function_name_for_batch_suffix(name, kind)
+    mlrun.k8s_utils.validate_function_name_for_batch_suffix(name, kind)
 
     return runner
 
@@ -845,7 +845,7 @@ def code_to_function(
         update_common(runtime, spec)
 
         # Validate serving function names don't end with reserved batch suffix
-        mlrun.utils.helpers.validate_function_name_for_batch_suffix(name, kind)
+        mlrun.k8s_utils.validate_function_name_for_batch_suffix(name, kind)
 
         return runtime
 
@@ -882,7 +882,7 @@ def code_to_function(
     runtime.prepare_image_for_deploy()
 
     # Validate local function names don't end with reserved batch suffix
-    mlrun.utils.helpers.validate_function_name_for_batch_suffix(name, kind)
+    mlrun.k8s_utils.validate_function_name_for_batch_suffix(name, kind)
 
     if with_doc:
         update_function_entry_points(runtime, code)

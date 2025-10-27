@@ -187,7 +187,7 @@ class RuntimeKinds:
         ]
 
     @staticmethod
-    def runtimes_with_to_job():
+    def runtimes_with_to_job() -> list[str]:
         """Runtimes that support conversion to batch jobs via to_job() method.
 
         These runtimes auto-append -batch suffix to prevent database collision
@@ -234,7 +234,7 @@ class RuntimeKinds:
         return False
 
     @staticmethod
-    def requires_k8s_name_validation(kind):
+    def requires_k8s_name_validation(kind: str) -> bool:
         """
         Returns True if the runtime kind creates Kubernetes resources that use the function name.
 

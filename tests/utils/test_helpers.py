@@ -52,7 +52,6 @@ from mlrun.utils.helpers import (
     template_artifact_path,
     update_in,
     validate_artifact_key_name,
-    validate_function_name_for_batch_suffix,
     validate_tag_name,
     validate_v3io_stream_consumer_group,
     verify_field_regex,
@@ -1958,35 +1957,3 @@ def test_strip_batch_job_suffix(function_name, expected_name, expected_stripped)
     assert stripped_name == expected_name
     assert was_stripped == expected_stripped
     assert suffix == "-batch"
-
-
-# Test validate_function_name_for_batch_suffix
-@pytest.mark.parametrize(
-    "function_name,kind,expected",
-    [
-        # Valid case
-        ("my-function", "serving", does_not_raise()),
-        # At length limit (57 + 6 = 63)
-        ("a" * 57, "serving", does_not_raise()),
-        # Non-serving/local runtimes - should skip validation
-        ("my-function-batch", "job", does_not_raise()),
-        # Invalid - name already ends with -batch
-        (
-            "my-function-batch",
-            "serving",
-            pytest.raises(
-                mlrun.errors.MLRunValueError, match="cannot end with `-batch`"
-            ),
-        ),
-        # Invalid - name too long (58 + 6 = 64 > 63)
-        (
-            "a" * 58,
-            "serving",
-            pytest.raises(mlrun.errors.MLRunValueError, match="too long"),
-        ),
-    ],
-)
-def test_validate_function_name_for_batch_suffix(function_name, kind, expected):
-    """Test that validate_function_name_for_batch_suffix enforces batch suffix rules."""
-    with expected:
-        validate_function_name_for_batch_suffix(function_name, kind)

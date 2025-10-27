@@ -541,49 +541,6 @@ def strip_batch_job_suffix(
     return function_name, False, suffix
 
 
-def validate_function_name_for_batch_suffix(name: str, kind: str) -> None:
-    """Validate that serving and local function names don't end with reserved batch suffix.
-
-    This validation prevents users from manually creating functions with the reserved "-batch" suffix,
-    which is automatically appended by to_job() methods. Allowing manual use of this suffix would
-    defeat the purpose of automatic collision prevention.
-
-    :param name: Function name to validate
-    :param kind: Function kind ("serving", "serving_v2", "local", etc.)
-
-    :raises MLRunValueError: If the function name ends with the reserved batch suffix or would exceed
-                            the Kubernetes name length limit after appending the suffix
-    """
-    # Use dynamic import to avoid circular dependency detected by import linter
-    import importlib
-
-    runtimes_module = importlib.import_module("mlrun.runtimes")
-    if kind not in runtimes_module.RuntimeKinds.runtimes_with_to_job():
-        return
-
-    modified_name, was_changed, suffix = ensure_batch_job_suffix(name)
-
-    if name and not was_changed:
-        # Name already ends with the suffix - this is not allowed
-        raise mlrun.errors.MLRunValueError(
-            f"{kind} function names cannot end with `{suffix}`"
-        )
-
-    # Check if the name with batch suffix would exceed Kubernetes length limit
-    if (
-        modified_name
-        and len(modified_name) > mlrun_constants.K8S_DNS_1123_LABEL_MAX_LENGTH
-    ):
-        max_allowed_length = mlrun_constants.K8S_DNS_1123_LABEL_MAX_LENGTH - len(suffix)
-        raise mlrun.errors.MLRunValueError(
-            f"{kind} function name '{name}' is too long. "
-            f"When converted to a job via to_job(), it will have '{suffix}' appended, "
-            f"resulting in '{modified_name}' ({len(modified_name)} characters). "
-            f"Kubernetes names must be at most {mlrun_constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters. "
-            f"Please use a name with at most {max_allowed_length} characters."
-        )
-
-
 class LogBatchWriter:
     def __init__(self, func, batch=16, maxtime=5):
         self.batch = batch

@@ -328,8 +328,10 @@ jobs:
     - name: Prepare system tests env
       run: |
         source venv/bin/activate
+        MINIKUBE_IP=$(minikube ip)
+        echo "Minikube ip is : $MINIKUBE_IP"
         python automation/system_test/prepare.py env \
-          --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
+          --mlrun-dbpath "http://${MINIKUBE_IP}:${MLRUN_API_NODE_PORT}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
           --openai-api-key "${{ secrets.OPENAI_API_KEY }}"

@@ -336,8 +336,8 @@ class TestBackgroundTasks(TestDatabaseBase):
         This test ensures:
         1. A label can be added to a task.
         2. Adding the same label again does not create a duplicate row.
-        3. A different label for the same task can be added.
-        4. The same label name/value can be added to a different project.
+        3. The same label name/value can be added to a different project.
+        4. Attempting to add the same label to a second task in the same project fails due to the unique constraint.
         """
 
         project = "test-project"
@@ -364,17 +364,6 @@ class TestBackgroundTasks(TestDatabaseBase):
             label_name,
             label_value,
             expect_error=mlrun.errors.MLRunRetryExhaustedError,
-        )
-
-    def _get_labels(self, project, name, value):
-        """
-        Helper function to query BackgroundTaskLabel by project, name, and value.
-        Returns a list of matching labels.
-        """
-        return (
-            self._db_session.query(framework.db.sqldb.models.BackgroundTaskLabel)
-            .filter_by(project=project, name=name, value=value)
-            .all()
         )
 
     def _store_task_and_assert_label(
@@ -412,3 +401,14 @@ class TestBackgroundTasks(TestDatabaseBase):
             )
             stored_labels = self._get_labels(project, label_name, label_value)
             assert len(stored_labels) == expected_count
+
+    def _get_labels(self, project, name, value):
+        """
+        Helper function to query BackgroundTaskLabel by project, name, and value.
+        Returns a list of matching labels.
+        """
+        return (
+            self._db_session.query(framework.db.sqldb.models.BackgroundTaskLabel)
+            .filter_by(project=project, name=name, value=value)
+            .all()
+        )

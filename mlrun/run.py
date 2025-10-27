@@ -119,12 +119,12 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
 
     command = os.path.join(workdir or "", command)
 
-    source_file_path_object, current_dir_path_object = (
-        mlrun.utils.helpers.get_source_and_current_paths(command)
+    source_file_path_object, working_dir_path_object = (
+        mlrun.utils.helpers.get_source_and_working_dir_paths(command)
     )
-    if source_file_path_object.is_relative_to(current_dir_path_object):
+    if source_file_path_object.is_relative_to(working_dir_path_object):
         mod_name = mlrun.utils.helpers.get_relative_module_name_from_path(
-            source_file_path_object, current_dir_path_object
+            source_file_path_object, working_dir_path_object
         )
     elif source_file_path_object.is_relative_to(
         pathlib.Path(tempfile.gettempdir()).resolve()
@@ -133,7 +133,7 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
     else:
         raise mlrun.errors.MLRunRuntimeError(
             f"Cannot run source file '{command}': it must be located either under the current working "
-            f"directory ('{current_dir_path_object}') or the system temporary directory ('{tempfile.gettempdir()}'). "
+            f"directory ('{working_dir_path_object}') or the system temporary directory ('{tempfile.gettempdir()}'). "
             f"This is required when running with local=True."
         )
 

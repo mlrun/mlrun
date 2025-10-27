@@ -2464,16 +2464,16 @@ def merge_requirements(
     return [str(req) for req in merged.values()]
 
 
-def get_source_and_current_paths(source_file_path) -> (pathlib.Path, pathlib.Path):
+def get_source_and_working_dir_paths(source_file_path) -> (pathlib.Path, pathlib.Path):
     source_file_path_object = pathlib.Path(source_file_path).resolve()
-    current_dir_path_object = pathlib.Path(".").resolve()
-    return source_file_path_object, current_dir_path_object
+    working_dir_path_object = pathlib.Path(".").resolve()
+    return source_file_path_object, working_dir_path_object
 
 
 def get_relative_module_name_from_path(
-    source_file_path_object, current_dir_path_object
+    source_file_path_object, working_dir_path_object
 ) -> str:
     relative_path_to_source_file = source_file_path_object.relative_to(
-        current_dir_path_object
+        working_dir_path_object
     )
     return ".".join(relative_path_to_source_file.with_suffix("").parts)

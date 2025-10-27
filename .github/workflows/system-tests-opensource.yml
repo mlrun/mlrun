@@ -358,7 +358,7 @@ jobs:
         
         # Get the host IP
         HOST_IP=$(get_host_ip)
-        echo "Detected host IP: $HOST_IP"
+        echo "Detected host IP:  $HOST_IP"
         source venv/bin/activate
         python automation/system_test/prepare.py env \
           --mlrun-dbpath "http://${HOST_IP}:${MLRUN_API_NODE_PORT}" \

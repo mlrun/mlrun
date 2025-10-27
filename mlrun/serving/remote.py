@@ -603,8 +603,5 @@ class RemoteFunctionStep(RemoteStep):
                 "Make sure the function is deployed and reachable."
             )
 
-        if not url.startswith("http"):
-            url = f"http://{url}"
-
         self.url = url
         super().post_init(mode=mode, **kwargs)

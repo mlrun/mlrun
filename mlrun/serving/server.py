@@ -771,9 +771,9 @@ async def async_execute_graph(
 
     # log the results as artifacts
     num_of_meps_in_the_graph = len(server.graph.model_endpoints_names)
-    artifact_path = mlrun.mlconf.artifact_path
-    if artifact_path and ("/{{run.uid}}" not in artifact_path):
-        artifact_path = artifact_path.rstrip("/") + "/{{run.uid}}"
+    artifact_path = None
+    if "/{{run.uid}}" not in context.artifact_path:
+        artifact_path = "+/{{run.uid}}" # will be concatenated to the context's path in extend_artifact_path
     if num_of_meps_in_the_graph <= 1:
         context.log_dataset(
             "prediction", df=pd.DataFrame(responses), artifact_path=artifact_path

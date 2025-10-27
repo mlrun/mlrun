@@ -218,10 +218,10 @@ def test_run_local_serving_job(batching, batch_size, code_to_function, tmp_path)
     inputs = {"data": str(input_csv_path)}
     params = {"batching": batching, "batch_size": batch_size}
 
-    project.run_function(
+    run_obj = project.run_function(
         job, inputs=inputs, params=params, output_path=str(tmp_path), local=True
     )
-    file_path = tmp_path / "test-execute-graph/0/prediction.parquet"
+    file_path = tmp_path / f"{run_obj.metadata.uid}/test-execute-graph/0/prediction.parquet"
     responses = pd.read_parquet(file_path)
 
     num_input_rows = 150  # number of rows in input file

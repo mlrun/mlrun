@@ -5236,8 +5236,8 @@ class HTTPRunDB(RunDBInterface):
     def store_secret_token(
         self,
         secret_token: mlrun.common.schemas.SecretToken,
-        force: bool = False,
         log_warning: bool = True,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
         Store or update a single secret token in the MLRun backend.

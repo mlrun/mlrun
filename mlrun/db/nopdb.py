@@ -1000,8 +1000,8 @@ class NopDB(RunDBInterface):
     def store_secret_token(
         self,
         secret_token: mlrun.common.schemas.SecretToken,
-        force: bool = False,
         log_warning: bool = True,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
 

@@ -427,7 +427,7 @@ class Secrets(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
         authenticated_username: str,
-        force: bool,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
         Validate and store offline tokens as Kubernetes secrets.

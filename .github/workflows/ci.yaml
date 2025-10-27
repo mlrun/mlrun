@@ -139,7 +139,7 @@ jobs:
         make test-dockerized
     - name: Upload coverage report
       if: env.RUN_COVERAGE == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
         path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
@@ -198,7 +198,7 @@ jobs:
       timeout-minutes: 90
 
     - name: Upload coverage report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       if: env.RUN_COVERAGE == 'true'
       with:
          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
@@ -224,7 +224,7 @@ jobs:
       - name: Run Dockerized DB Migration tests
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized RUN_COVERAGE=true
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
           path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
@@ -278,7 +278,7 @@ jobs:
       - name: Generate HTML docs
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
       - name: Upload generated docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: docs
           path: docs/_build/html
@@ -382,7 +382,7 @@ jobs:
         run: make coverage-combine UNIT_TEST_COVERAGE_PATHS="tests/coverage_reports/unit_tests_client.coverage tests/coverage_reports/unit_tests_server.coverage"
         # Save it as an artifact:
       - name: Upload coverage combined report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage_combined_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/combined.coverage
@@ -394,7 +394,7 @@ jobs:
           --show-uncovered \
           --html-report tests/coverage_reports/combined_diff.html
       - name: Upload coverage diff report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage_combined_diff_report_${{ matrix.python-version }}_${{ github.run_id }}.html
           path: tests/coverage_reports/combined_diff.html

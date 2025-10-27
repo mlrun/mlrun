@@ -20,10 +20,10 @@ def generate(model_name: str, tone: str, depth: str, prompt: str) -> str:
     """API call for model generation."""
     payload = {
         "model_name": model_name,
-        "question": prompt,
-        "depth_level": depth,
-        "user_id": USER_ID,
-        "tone": tone,
+        "user_query": prompt,
+        "response_detail_level": depth,
+        "customer_id": USER_ID,
+        "reply_style": tone,
     }
     resp = requests.post(API_URL, data=json.dumps(payload).encode("utf-8"))
     resp.raise_for_status()

@@ -564,6 +564,36 @@ def test_store_user_token_secret_skipped(k8s_helper):
     k8s_helper._create_secret.assert_not_called()
 
 
+def test_store_user_token_secret_force_update(k8s_helper):
+    username = "test-user"
+    token_name = "my-token"
+    token_value = "abc123"
+    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+
+    # Existing secret with newer expiration
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=token_name,
+        token_value=token_value,
+        expiration=5000,
+    )
+    k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
+
+    # Call with force=True and older expiration
+    result = k8s_helper.store_user_token_secret(
+        username=username,
+        token_name=token_name,
+        token=token_value,
+        expiration=4000,
+        namespace="default",
+        force=True,
+    )
+
+    assert result == mlrun.common.schemas.SecretEventActions.updated
+    k8s_helper._update_secret.assert_called_once()
+    k8s_helper._create_secret.assert_not_called()
+
+
 def test_list_secrets_with_labels(k8s_helper):
     secret1 = _make_k8s_secret(
         "secret1",

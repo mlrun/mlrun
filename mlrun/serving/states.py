@@ -522,7 +522,9 @@ class BaseStep(ModelObj):
 
         root = self._extract_root_step()
 
-        if not isinstance(root, RootFlowStep):
+        if not isinstance(root, RootFlowStep) or (
+            isinstance(root, RootFlowStep) and root.engine != "async"
+        ):
             raise GraphError(
                 "ModelRunnerStep can be added to 'Flow' topology graph only"
             )

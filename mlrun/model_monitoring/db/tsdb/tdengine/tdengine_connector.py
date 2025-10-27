@@ -55,14 +55,12 @@ class TDEngineConnector(TSDBConnector):
     """
 
     type: str = mm_schemas.TSDBTarget.TDEngine
-    database = f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
 
     def __init__(
         self,
         project: str,
         profile: DatastoreProfile,
         timestamp_precision: TDEngineTimestampPrecision = TDEngineTimestampPrecision.MICROSECOND,
-        **kwargs,
     ):
         super().__init__(project=project)
 
@@ -72,6 +70,15 @@ class TDEngineConnector(TSDBConnector):
             timestamp_precision
         )
 
+        if not mlrun.mlconf.system_id:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "system_id is not set in mlrun.mlconf. "
+                "TDEngineConnector requires system_id to be configured for database name construction. "
+                "Please ensure MLRun configuration is properly loaded before creating TDEngineConnector."
+            )
+        self.database = (
+            f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
+        )
         self._init_super_tables()
 
     @property

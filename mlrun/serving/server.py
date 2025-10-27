@@ -522,7 +522,7 @@ def add_system_steps_to_graph(
                 monitor_flow_step.after = [
                     step_name,
                 ]
-    context.logger.info_with(
+    context.logger.debug(
         "Server graph after adding system steps",
         graph=str(graph.steps),
     )

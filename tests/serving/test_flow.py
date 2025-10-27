@@ -19,7 +19,7 @@ import pytest
 
 import mlrun
 from mlrun.serving import GraphContext, QueueStep, V2ModelServer  # noqa
-from mlrun.serving.states import TaskStep
+from mlrun.serving.states import ModelRunnerStep, TaskStep
 
 from .demo_states import *  # noqa
 
@@ -460,3 +460,19 @@ def test_set_flow_names(
         else [step.name for step in steps]
     )
     assert list(graph.to_dict()["steps"].keys()) == expected
+
+
+def test_model_runner_with_selector():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="sync")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner",
+    )
+    with pytest.raises(mlrun.serving.states.GraphError):
+        graph.to(model_runner_step)
+
+    with pytest.raises(mlrun.serving.states.GraphError):
+        graph.add_step(model_runner_step)
+
+    with pytest.raises(mlrun.serving.states.GraphError):
+        graph.to(name="s1", handler="(event + 1)").to(model_runner_step)

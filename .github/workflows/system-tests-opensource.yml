@@ -371,6 +371,19 @@ jobs:
         sudo /usr/local/bin/k3s-uninstall.sh
         sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s
         sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s
+        echo "Listing all Helm releases before cleanup:"
+        helm list --all-namespaces
+
+        echo "Deleting all Helm releases in all namespaces:"
+        for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name"); do
+          for release in $(helm list -n "$ns" --short); do
+            echo "Deleting Helm release '$release' in namespace '$ns'..."
+            helm uninstall "$release" -n "$ns" || true
+          done
+        done
+
+        echo "Listing Helm releases after cleanup:"
+        helm list --all-namespaces
 
     - name: Run system tests
       run: |

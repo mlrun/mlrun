@@ -391,8 +391,6 @@ jobs:
       run: |
         # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
         source venv/bin/activate
-        # Set longer Helm timeout for PVC binding
-        export HELM_TIMEOUT=25m
         
         python automation/deployment/ce.py deploy \
             --verbose \
@@ -407,58 +405,12 @@ jobs:
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
-            --set grafana.persistence.size="500Mi" \
-            --set grafana.persistence.storageClassName="local-path" \
-            --set mysql.persistence.size="1Gi" \
-            --set mysql.persistence.storageClassName="local-path" \
-            --set mlrun.api.persistence.size="1Gi" \
-            --set mlrun.api.persistence.storageClassName="local-path" \
-            --set grafana.resources.requests.memory="64Mi" \
-            --set grafana.resources.requests.cpu="50m" \
-            --set grafana.resources.limits.memory="256Mi" \
-            --set grafana.resources.limits.cpu="200m"
+            --wait \
+            --timeout=25m
 
-    - name: Monitor MLRun deployment progress
-      run: |
-        echo "=== Checking MLRun deployment status ==="
-        
-        # Wait a bit for resources to be created
-        sleep 30
-        
-        echo "=== PVC Status ==="
-        kubectl get pvc -n ${NAMESPACE} -o wide
-        
-        echo "=== Pod Status ==="
-        kubectl get pods -n ${NAMESPACE} -o wide
-        
-        echo "=== Events in mlrun namespace ==="
-        kubectl get events -n ${NAMESPACE} --sort-by='.lastTimestamp' | tail -20
-        
-        echo "=== Storage Class Details ==="
-        kubectl describe storageclass local-path
-        
-        # Wait for PVCs to bind (with timeout)
-        echo "=== Waiting for PVCs to bind ==="
-        for i in {1..60}; do
-          unbound_pvcs=$(kubectl get pvc -n ${NAMESPACE} --no-headers | grep -v Bound | wc -l)
-          if [ "$unbound_pvcs" -eq 0 ]; then
-            echo "All PVCs are bound!"
-            break
-          else
-            echo "Attempt $i/60: $unbound_pvcs PVCs still unbound, waiting..."
-            kubectl get pvc -n ${NAMESPACE} --no-headers | grep -v Bound || true
-            sleep 10
-          fi
-        done
-        
-        echo "=== Final PVC Status ==="
-        kubectl get pvc -n ${NAMESPACE}
-        
-        echo "=== Final Pod Status ==="
-        kubectl get pods -n ${NAMESPACE}
-
+          
     - name: On helm install failure delete k3s
-      if: failure()
+      if: failure() && false
       run: |
         echo "Listing all Helm releases before cleanup:"
         helm list --all-namespaces
@@ -506,7 +458,7 @@ jobs:
         set +x
 
     - name: Delete the k8s namespace (including PVCs)
-      if: always()
+      if: always() && false
       run: |
         source venv/bin/activate
 
@@ -542,7 +494,7 @@ jobs:
         echo "=== Cleanup completed ==="
 
     - name: Final K3S cleanup
-      if: always()
+      if: always() && false
       run: |
         echo "=== Final K3S cleanup ==="
         

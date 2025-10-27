@@ -1227,7 +1227,11 @@ class RemoteRuntime(KubeResource):
         # if none of urls is set, function was deployed with watch=False
         # and status wasn't fetched with Nuclio
         # _get_state fetches the state and updates url
-        if not self.status.address and not self.status.internal_invocation_urls and not self.status.external_invocation_urls:
+        if (
+            not self.status.address
+            and not self.status.internal_invocation_urls
+            and not self.status.external_invocation_urls
+        ):
             state, _, _ = self._get_state()
             if state not in ["ready", "scaledToZero"]:
                 logger.warning(f"Function is in the {state} state")

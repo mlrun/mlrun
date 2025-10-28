@@ -233,7 +233,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         try:
             yield endpoints_output, application_schedules.__enter__()
         finally:
-            if write_output:
+            if write_output and any(endpoints_output.values()):
                 logger.debug(
                     "Pushing model monitoring application job data to the writer stream",
                     passed_stream_profile=str(stream_profile),
@@ -332,35 +332,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             project=project,
         ) as (endpoints_output, application_schedules):
 
-            def call_do_tracking(event: Optional[dict] = None):
+            def call_do_tracking(
+                monitoring_context: mm_context.MonitoringApplicationContext,
+            ):
                 nonlocal endpoints_output
-
-                if event is None:
-                    event = {}
-                monitoring_context = (
-                    mm_context.MonitoringApplicationContext._from_ml_ctx(
-                        event=event,
-                        application_name=application_name,
-                        context=context,
-                        project=project,
-                        sample_df=sample_data,
-                        feature_stats=feature_stats,
-                    )
-                )
-
-                if (
-                    monitoring_context.endpoint_id
-                    and monitoring_context.sample_df.empty
-                ):
-                    # The current sample is empty
-                    context.logger.warning(
-                        "No sample data available for tracking",
-                        application_name=application_name,
-                        endpoint_id=monitoring_context.endpoint_id,
-                        start_time=monitoring_context.start_infer_time,
-                        end_time=monitoring_context.end_infer_time,
-                    )
-                    return
 
                 result = self.do_tracking(monitoring_context)
                 endpoints_output[monitoring_context.endpoint_id].append(
@@ -369,7 +344,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 return result
 
             if endpoints is not None:
-                resolved_endpoints = self._handle_endpoints_type_evaluate(
+                resolved_endpoints = self._normalize_and_validate_endpoints(
                     project=project, endpoints=endpoints
                 )
                 if (
@@ -391,94 +366,161 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         application_schedules=application_schedules,
                     )
                 for endpoint_name, endpoint_id in resolved_endpoints:
-                    for window_start, window_end in self._window_generator(
+                    for monitoring_ctx in self._window_generator(
                         start=start,
                         end=end,
                         base_period=base_period,
                         application_schedules=application_schedules,
                         endpoint_id=endpoint_id,
+                        endpoint_name=endpoint_name,
                         application_name=application_name,
                         existing_data_handling=existing_data_handling,
+                        sample_data=sample_data,
+                        context=context,
+                        project=project,
                     ):
-                        result = call_do_tracking(
-                            event={
-                                mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
-                                mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
-                                mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
-                                mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
-                            }
-                        )
+                        result = call_do_tracking(monitoring_ctx)
                         result_key = (
-                            f"{endpoint_name}-{endpoint_id}_{window_start.isoformat()}_{window_end.isoformat()}"
-                            if window_start and window_end
+                            f"{endpoint_name}-{endpoint_id}_{monitoring_ctx.start_infer_time.isoformat()}_{monitoring_ctx.end_infer_time.isoformat()}"
+                            if monitoring_ctx.start_infer_time
+                            and monitoring_ctx.end_infer_time
                             else f"{endpoint_name}-{endpoint_id}"
                         )
 
                         context.log_result(
                             result_key, self._flatten_data_result(result)
                         )
+                # Check if no result was produced for any endpoint (e.g., due to no data in all windows)
+                if not any(endpoints_output.values()):
+                    context.logger.warning(
+                        "No data was found for any of the specified endpoints. "
+                        "No results were produced",
+                        application_name=application_name,
+                        endpoints=endpoints,
+                        start=start,
+                        end=end,
+                    )
             else:
-                return self._flatten_data_result(call_do_tracking())
+                result = call_do_tracking(
+                    mm_context.MonitoringApplicationContext._from_ml_ctx(
+                        context=context,
+                        project=project,
+                        application_name=application_name,
+                        event={},
+                        sample_df=sample_data,
+                        feature_stats=feature_stats,
+                    )
+                )
+                return self._flatten_data_result(result)
 
     @staticmethod
-    def _handle_endpoints_type_evaluate(
+    def _check_endpoints_first_request(
+        endpoints: list[mlrun.common.schemas.ModelEndpoint],
+    ) -> None:
+        """Make sure that all the endpoints have had at least one request"""
+        endpoints_no_requests = [
+            (endpoint.metadata.name, endpoint.metadata.uid)
+            for endpoint in endpoints
+            if not endpoint.status.first_request
+        ]
+        if endpoints_no_requests:
+            raise mlrun.errors.MLRunValueError(
+                "The following model endpoints have not had any requests yet and "
+                "have no data, cannot run the model monitoring application on them: "
+                f"{endpoints_no_requests}"
+            )
+
+    @classmethod
+    def _normalize_and_validate_endpoints(
+        cls,
         project: "mlrun.MlrunProject",
         endpoints: Union[
             list[tuple[str, str]], list[list[str]], list[str], Literal["all"]
         ],
-    ) -> Union[list[tuple[str, str]], list[list[str]]]:
-        if not endpoints:
-            raise mlrun.errors.MLRunValueError(
-                "The endpoints list cannot be empty. If you want to run on all the endpoints, "
-                'use `endpoints="all"`.'
-            )
+    ) -> list[tuple[str, str]]:
+        if isinstance(endpoints, list):
+            if all(
+                isinstance(endpoint, (tuple, list)) and len(endpoint) == 2
+                for endpoint in endpoints
+            ):
+                # A list of [(name, uid), ...] / [[name, uid], ...] tuples/lists
+                endpoint_uids_to_names = {
+                    endpoint[1]: endpoint[0] for endpoint in endpoints
+                }
+                endpoints_list = project.list_model_endpoints(
+                    uids=list(endpoint_uids_to_names.keys()), latest_only=True
+                ).endpoints
 
-        if isinstance(endpoints, list) and isinstance(endpoints[0], (tuple, list)):
-            return endpoints
-
-        if not (isinstance(endpoints, list) and isinstance(endpoints[0], str)):
-            if isinstance(endpoints, str):
-                if endpoints != "all":
-                    raise mlrun.errors.MLRunValueError(
-                        'A string input for `endpoints` can only be "all" for all the model endpoints in '
-                        "the project. If you want to select a single model endpoint with the given name, "
-                        f'use a list: `endpoints=["{endpoints}"]`.'
+                # Check for missing endpoint uids or name/uid mismatches
+                for endpoint in endpoints_list:
+                    if (
+                        endpoint_uids_to_names[cast(str, endpoint.metadata.uid)]
+                        != endpoint.metadata.name
+                    ):
+                        raise mlrun.errors.MLRunNotFoundError(
+                            "Could not find model endpoint with name "
+                            f"'{endpoint_uids_to_names[cast(str, endpoint.metadata.uid)]}' "
+                            f"and uid '{endpoint.metadata.uid}'"
+                        )
+                missing = set(endpoint_uids_to_names.keys()) - {
+                    cast(str, endpoint.metadata.uid) for endpoint in endpoints_list
+                }
+                if missing:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        "Could not find model endpoints with the following uids: "
+                        f"{missing}"
                     )
-            else:
-                raise mlrun.errors.MLRunValueError(
-                    f"Could not resolve endpoints as list of [(name, uid)], {endpoints=}"
-                )
 
-        if endpoints == "all":
-            endpoint_names = None
-        else:
-            endpoint_names = endpoints
+            elif all(isinstance(endpoint, str) for endpoint in endpoints):
+                # A list of [name, ...] strings
+                endpoint_names = cast(list[str], endpoints)
+                endpoints_list = project.list_model_endpoints(
+                    names=endpoint_names, latest_only=True
+                ).endpoints
 
-        endpoints_list = project.list_model_endpoints(
-            names=endpoint_names, latest_only=True
-        ).endpoints
-        if endpoints_list:
-            list_endpoints_result = [
-                (endpoint.metadata.name, endpoint.metadata.uid)
-                for endpoint in endpoints_list
-            ]
-            if endpoints != "all":
+                # Check for missing endpoint names
                 missing = set(endpoints) - {
-                    endpoint[0] for endpoint in list_endpoints_result
+                    endpoint.metadata.name for endpoint in endpoints_list
                 }
                 if missing:
                     logger.warning(
                         "Could not list all the required endpoints",
-                        missing_endpoint=missing,
-                        endpoints=list_endpoints_result,
+                        missing_endpoints=missing,
+                        endpoints_list=endpoints_list,
                     )
-            return list_endpoints_result
-        else:
-            if endpoints != "all":
-                err_msg_suffix = f" named '{endpoints}'"
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Did not find any model endpoints {err_msg_suffix}"
+            else:
+                raise mlrun.errors.MLRunValueError(
+                    "Could not resolve the following list as a list of endpoints:\n"
+                    f"{endpoints}\n"
+                    "The list must be either a list of (name, uid) tuples/lists or a list of names."
+                )
+        elif endpoints == "all":
+            endpoints_list = project.list_model_endpoints(latest_only=True).endpoints
+        elif isinstance(endpoints, str):
+            raise mlrun.errors.MLRunValueError(
+                'A string input for `endpoints` can only be "all" for all the model endpoints in '
+                "the project. If you want to select a single model endpoint with the given name, "
+                f'use a list: `endpoints=["{endpoints}"]`.'
             )
+        else:
+            raise mlrun.errors.MLRunValueError(
+                "Could not resolve the `endpoints` parameter. The parameter must be either:\n"
+                "- a list of (name, uid) tuples/lists\n"
+                "- a list of names\n"
+                '- the string "all" for all the model endpoints in the project.'
+            )
+
+        if not endpoints_list:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Did not find any model endpoints {endpoints=}"
+            )
+
+        cls._check_endpoints_first_request(endpoints_list)
+
+        return [
+            (endpoint.metadata.name, cast(str, endpoint.metadata.uid))
+            for endpoint in endpoints_list
+        ]
 
     @staticmethod
     def _validate_and_get_window_length(
@@ -596,13 +638,51 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         application_schedules: Optional[
             mm_schedules.ModelMonitoringSchedulesFileApplication
         ],
+        endpoint_name: str,
         endpoint_id: str,
         application_name: str,
         existing_data_handling: ExistingDataHandling,
-    ) -> Iterator[tuple[Optional[datetime], Optional[datetime]]]:
+        context: "mlrun.MLClientCtx",
+        project: "mlrun.MlrunProject",
+        sample_data: Optional[pd.DataFrame],
+    ) -> Iterator[mm_context.MonitoringApplicationContext]:
+        def yield_monitoring_ctx(
+            window_start: Optional[datetime], window_end: Optional[datetime]
+        ) -> Iterator[mm_context.MonitoringApplicationContext]:
+            ctx = mm_context.MonitoringApplicationContext._from_ml_ctx(
+                event={
+                    mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+                    mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
+                    mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
+                    mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
+                },
+                application_name=application_name,
+                context=context,
+                project=project,
+                sample_df=sample_data,
+            )
+
+            if ctx.sample_df.empty:
+                # The current sample is empty
+                context.logger.debug(
+                    "No sample data available for tracking",
+                    application_name=application_name,
+                    endpoint_id=ctx.endpoint_id,
+                    start_time=ctx.start_infer_time,
+                    end_time=ctx.end_infer_time,
+                )
+                return
+
+            yield ctx
+
+            if application_schedules and window_end:
+                application_schedules.update_endpoint_last_analyzed(
+                    endpoint_uid=endpoint_id, last_analyzed=window_end
+                )
+
         if start is None or end is None:
             # A single window based on the `sample_data` input - see `_handler`.
-            yield None, None
+            yield from yield_monitoring_ctx(None, None)
             return
 
         start_dt = datetime.fromisoformat(start)
@@ -630,11 +710,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
 
         if base_period is None:
-            yield start_dt, end_dt
-            if application_schedules:
-                application_schedules.update_endpoint_last_analyzed(
-                    endpoint_uid=endpoint_id, last_analyzed=end_dt
-                )
+            yield from yield_monitoring_ctx(start_dt, end_dt)
             return
 
         window_length = cls._validate_and_get_window_length(
@@ -644,11 +720,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         current_start_time = start_dt
         while current_start_time < end_dt:
             current_end_time = min(current_start_time + window_length, end_dt)
-            yield current_start_time, current_end_time
-            if application_schedules:
-                application_schedules.update_endpoint_last_analyzed(
-                    endpoint_uid=endpoint_id, last_analyzed=current_end_time
-                )
+            yield from yield_monitoring_ctx(current_start_time, current_end_time)
             current_start_time = current_end_time
 
     @classmethod

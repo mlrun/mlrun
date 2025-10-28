@@ -15,15 +15,18 @@ import contextlib
 import io
 import pathlib
 import sys
+import tempfile
 from unittest.mock import MagicMock, Mock
 
 import pytest
+import yaml
 
 import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.errors
 import mlrun.launcher.factory
 from mlrun import code_to_function, new_function, new_task
+from mlrun.run import import_function_to_dict
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -443,3 +446,80 @@ def test_run_status_retry_updates(rundb_mock):
         result["status"]["state"]
         == mlrun.common.runtimes.constants.RunStates.pending_retry
     ), "Expected run state to be pending_retry"
+
+
+@pytest.mark.parametrize(
+    "function_yaml, file, expected_exception, match",
+    [
+        # 1. Missing spec
+        (
+            {"kind": "local", "spec": {}},
+            None,
+            ValueError,
+            "command or code not specified in function spec",
+        ),
+        # 2. Path traversal in spec.command
+        (
+            {"kind": "local", "spec": {"command": "../escape.py"}},
+            None,
+            ValueError,
+            "exec file spec.command=../escape.py is outside of allowed directory",
+        ),
+        # 3. Absolute path required but relative given
+        (
+            {"kind": "local", "spec": {"command": "relative.py"}},
+            "relative.py",
+            ValueError,
+            "exec file spec.command=relative.py is relative, it must be absolute. Change working dir",
+        ),
+        # 4. File does not exist
+        (
+            {"kind": "local", "spec": {"command": "nonexistent.py"}},
+            None,
+            ValueError,
+            "no file in exec path",
+        ),
+        # 5. File exists and is valid - no exception expected
+        (
+            {"kind": "local", "spec": {"command": "success.py"}},
+            "success.py",
+            None,
+            None,
+        ),
+    ],
+)
+def test_import_function_to_dict(function_yaml, file, expected_exception, match):
+    """
+    Test the `import_function_to_dict` utility for various edge cases and valid scenarios.
+
+    This test covers:
+    - Missing command the function spec
+    - Path traversal attempts in the command field
+    - Relative path usage
+    - Nonexistent file specified in the function spec
+    - Successful import when the file exists and is valid.
+
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir_path = pathlib.Path(temp_dir)
+        yaml_path = temp_dir_path / "test.yaml"
+
+        # Create file if needed
+        if file:
+            (temp_dir_path / file).write_text("# dummy python file")
+
+        # For valid file, set absolute path
+        if function_yaml.get("spec", {}).get("command") in ["success.py"]:
+            function_yaml["spec"]["command"] = str(
+                temp_dir_path / function_yaml["spec"]["command"]
+            )
+
+        with open(yaml_path, "w") as temp_file:
+            yaml.dump(function_yaml, temp_file)
+
+        if expected_exception:
+            with pytest.raises(expected_exception, match=match):
+                import_function_to_dict(str(yaml_path))
+        else:
+            result = import_function_to_dict(str(yaml_path))
+            assert result["spec"]["command"] == str(temp_dir_path / "success.py")

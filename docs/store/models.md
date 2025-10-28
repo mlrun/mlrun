@@ -142,7 +142,11 @@ run = func.run(
 ```
 
 ## Remote models
-You can use models stored in a remote source, for example HuggingFace. You can load the model from the remote source, without saving it in your datastore. A remote {py:class}`mlrun.artifacts.model.ModelArtifact` instance does not have any extra data or similar facilities that the locally stored model artifact supports. Remote models are specified by the `ModelArtifact` parameter `model_url`, which accepts various path schemas, as described in the next sections. You can specify the default configuration for building clients with the `default_config` parameter.
+You can use models stored in a remote source, for example OpenAI. You can load the model from the remote source, without
+saving it in your datastore. A remote {py:class}`mlrun.artifacts.model.ModelArtifact` instance does not have any extra
+data or similar facilities that the locally stored model artifact supports. Remote models are specified by the `ModelArtifact`
+parameter `model_url`, which accepts various path schemas, as described in the next sections. You can specify the default
+configuration for building clients with the `default_config` parameter.
 
 ### Guidelines for the parameter `model_url`:
 - Remote model artifacts cannot be uploaded or downloaded. Consequently, the `upload` parameter cannot be set to `True`.
@@ -164,9 +168,8 @@ For each type of schema, a standard secret name must be provided. For example, `
 - model_kwargs / "HF_MODEL_KWARGS",
 
 ### OpenAI
- `openai://<model-name>`: work with a model that supports the OpenAI protocol. By default, models are assumed to be models served by OpenAI. The secrets option is:
+ `openai://<model-name>`: work with a model that supports the OpenAI protocol. Models are assumed to be models served by OpenAI. OpenAI secrets and parameters are:
 - api_key / "OPENAI_API_KEY"
-The env options are:
 - endpoint / "OPENAI_BASE_URL"
 - organization / "OPENAI_ORG_ID"
 - project / "OPENAI_PROJECT_ID"

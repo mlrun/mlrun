@@ -295,12 +295,7 @@ jobs:
         # Configure K3S kubelet to maximize allocatable ephemeral storage
         # Hard eviction at 5% free = ~95% allocatable for pods (very aggressive)
         # Soft eviction at 10% free = early warning before hard limit
-        extra-setup-args: >-
-          --kubelet-arg="eviction-hard=memory.available<100Mi,nodefs.available<5%,nodefs.inodesFree<3%,imagefs.available<5%"
-          --kubelet-arg="eviction-soft=memory.available<200Mi,nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<10%"
-          --kubelet-arg="eviction-soft-grace-period=memory.available=1m,nodefs.available=2m,nodefs.inodesFree=2m,imagefs.available=2m"
-          --kubelet-arg="image-gc-high-threshold=85"
-          --kubelet-arg="image-gc-low-threshold=80"
+        extra-setup-args: '--kubelet-arg=eviction-hard=memory.available\<100Mi,nodefs.available\<5%,nodefs.inodesFree\<3%,imagefs.available\<5% --kubelet-arg=eviction-soft=memory.available\<200Mi,nodefs.available\<10%,nodefs.inodesFree\<5%,imagefs.available\<10% --kubelet-arg=eviction-soft-grace-period=memory.available=1m,nodefs.available=2m,nodefs.inodesFree=2m,imagefs.available=2m --kubelet-arg=image-gc-high-threshold=85 --kubelet-arg=image-gc-low-threshold=80'
 
     - name: Verify K3S kubelet configuration
       run: |

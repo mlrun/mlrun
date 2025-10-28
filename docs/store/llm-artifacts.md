@@ -3,19 +3,36 @@
 
 LLM prompt artifacts are defined by their prompt template, the model, and the generation configuration.
 
-Prompt template
-
+Prompt artifacts
+Logging llm prompt artifacts
+Deleting prompt artifacts
 Viewing LLM-prompt artifacts using the SDK 
 Viewing LLM-prompt artifacts in the UI
 
-deleing prompt srtifacts
 
-## LLM prompt templates
 
-Prompt templates use variables to define the format of the prompt. This example
-`finance_prompt_template` is structured to guide the LLM in generating responses based on user queries. The template includes
-a system message that sets the context for the LLM, and a user message that includes the user's ID, tone, depth level, and question.
-The name of the template is important, since you can use it subsequently in filters and searches.
+
+
+## Prompt artifacts
+
+
+Prompt artifacts are defined by their LLM, prompt template, and the model generation configuration.
+
+### LLM prompt template format
+
+The name of the template is important, since you can use it afterwards in filters and searches.
+
+The prompt template format is a list[dict], using variables to define the format of the prompt.
+It's structured as follows:
+```
+[
+    { "role": "system", "content": "You are a helpful assistant ..." },
+    { "role": "user", "content": "please help with this issue {user_message}" }
+]
+```
+This example `finance_prompt_template` is structured to guide the LLM in generating responses based on user queries.
+The template includes a system message that sets the context
+for the LLM, and a user message that includes the user's ID, tone, depth level, and question.
 
 ```
 finance_prompt_template = [
@@ -45,7 +62,14 @@ finance_prompt_template = [
     },
 ]```
 
-## Prompt artifacts
+- There is no limitation on the list’s size, although common cases will have 2 dictionaries (system and user)
+- Each content can hold a plain text, a place holder or a combination of both.
+- The place holders names are relevant for the entire template (meaning if there is a place holder “user_input” it can be used inside a few contents, and will always be the same) 
+- The prompt_path / target_path point to a JSON file that follows the same structure as above.
+- (Optional) arguments: A dictionary of argument names and their description - what value is expected to be there.
 
+## Logging LLM prompt artifacts
 
-Prompt artifacts are defined by their LLM, prompt template, and the model generation configuration.
+LLM prompt artifacts are logged to a project.
+
+{py:class}`~mlrun.projects.MlrunProject.log_llm_prompt`

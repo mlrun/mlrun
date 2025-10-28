@@ -202,13 +202,15 @@ def detect_demo_version(repo, mlrun_version):
             match = VERSION_PATTERN.match(mlrun_version)
             if match:
                 base_version = match.group(1)
-                matching_releases = [r for r in sorted_versions if r.startswith(base_version)]
+                matching_releases = [
+                    r for r in sorted_versions if r.startswith(base_version)
+                ]
                 if matching_releases:
                     return matching_releases[0]
             return sorted_versions[0]
     except Exception:
         pass
-    
+
     return "unknown"
 
 
@@ -218,10 +220,10 @@ def process_repo(repo, mlrun_version):
         if download_demo(repo, mlrun_version):
             rename_demo_folder(repo=repo)
             remove_git_folder(repo=repo)
-            
+
             # Detect the downloaded version
             demo_version = detect_demo_version(repo, mlrun_version)
-            
+
             log("Successfully processed", repo)
             return demo_version
         else:
@@ -242,9 +244,9 @@ def create_manifest(mlrun_version, demo_versions):
         "mlrun_version": mlrun_version,
         "download_date": datetime.now(timezone.utc).isoformat(),
         "github_org": GITHUB_ORG,
-        "demos": demo_versions
+        "demos": demo_versions,
     }
-    
+
     manifest_path = os.path.join(DEST_DIR, "demos_manifest.json")
     try:
         with open(manifest_path, "w", encoding="utf-8") as f:

@@ -1150,6 +1150,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         "artifact_uri",
         "shared_runnable_name",
         "shared_proxy_mapping",
+        "execution_mechanism",
     ]
     kind = "model"
 
@@ -1172,6 +1173,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.model_artifact: Optional[ModelArtifact] = None
         self.model_provider: Optional[ModelProvider] = None
         self._artifact_were_loaded = False
+        self._execution_mechanism = None
 
     def __init_subclass__(cls):
         super().__init_subclass__()
@@ -1190,6 +1192,23 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
                 default_invoke_kwargs=self.model_artifact.default_config,
                 raise_missing_schema_exception=False,
             )
+
+        # check if the relevant predict method is implemented when tring to initilaze the model
+        want_async = (
+            self._execution_mechanism == storey.ParallelExecutionMechanisms.asyncio
+        )
+        # Check for async model
+        if want_async:
+            if self.__class__.predict_async is Model.predict_async:
+                raise mlrun.errors.ModelRunnerError(
+                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict_async() is not implemented"
+                )
+        # Check for sync model
+        else:
+            if self.__class__.predict is Model.predict:
+                raise mlrun.errors.ModelRunnerError(
+                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict() is not implemented"
+                )
 
     def _load_artifacts(self) -> None:
         if not self._artifact_were_loaded:
@@ -2095,24 +2114,28 @@ class ModelRunnerStep(MonitoredStep):
             )
         model_objects = []
         for model, model_params in models.values():
+            model_name = model_params.get("name")
             model_params[schemas.MonitoringData.INPUT_PATH] = (
                 self.class_args.get(
                     mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
                 )
-                .get(model_params.get("name"), {})
+                .get(model_name, {})
                 .get(schemas.MonitoringData.INPUT_PATH)
             )
             model_params[schemas.MonitoringData.RESULT_PATH] = (
                 self.class_args.get(
                     mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
                 )
-                .get(model_params.get("name"), {})
+                .get(model_name, {})
                 .get(schemas.MonitoringData.RESULT_PATH)
             )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True
             )
             model._raise_exception = False
+            model._execution_mechanism = execution_mechanism_by_model_name.get(
+                model_name
+            )
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import typing
 import unittest.mock
 from copy import deepcopy
 from types import SimpleNamespace
@@ -23,7 +24,7 @@ import mlrun
 import mlrun.common.schemas as schemas
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
 from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
 from mlrun.utils import logger
 from tests.conftest import results
@@ -235,6 +236,17 @@ class MyPklModel(Model):
 class ModelWithoutPredict(Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    async def predict_async(self, body: typing.Any, **kwargs) -> typing.Any:
+        return body
+
+
+class ModelWithoutAsyncPredict(Model):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def predict(self, body: typing.Any, **kwargs) -> typing.Any:
+        return body
 
 
 def test_model_runner():
@@ -1029,27 +1041,19 @@ def test_using_model_without_predict_implementation(execution_mechanism: str):
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="model-runner")
     model_runner_step.add_model(
-        model_class="ModelWithoutPredict",
+        model_class="ModelWithoutPredict"
+        if execution_mechanism != "asyncio"
+        else "ModelWithoutAsyncPredict",
         execution_mechanism=execution_mechanism,
         endpoint_name="model_without_predict",
     )
     graph.to(model_runner_step).respond()
 
-    server = function.to_mock_server()
-    try:
-        with pytest.raises(RuntimeError) as exc_info:
-            server.test(body={})
-
-        method_name = (
-            "predict()" if execution_mechanism != "asyncio" else "predict_async()"
-        )
-        expected_msg = (
-            "ModelRunnerError: "
-            "{'model_without_predict': "
-            f"'NotImplementedError: {method_name} method not implemented"
-            "'}"
-        )
-        assert expected_msg in str(exc_info.value)
-
-    finally:
-        server.wait_for_completion()
+    with pytest.raises(ModelRunnerError) as exc_info:
+        function.to_mock_server()
+    method_name = "predict()" if execution_mechanism != "asyncio" else "predict_async()"
+    expected_msg = (
+        f"'model_without_predict is running with {execution_mechanism} execution_mechanism but "
+        f"{method_name} is not implemented'"
+    )
+    assert expected_msg in str(exc_info.value)

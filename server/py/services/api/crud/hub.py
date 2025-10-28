@@ -406,5 +406,4 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             for s in categories
             if isinstance(s, str)
         ]
-        # todo: or any other mapping we'd like to do
         setattr(item.metadata, "categories", normalized_categories)

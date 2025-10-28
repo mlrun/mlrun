@@ -5351,11 +5351,11 @@ class HTTPRunDB(RunDBInterface):
     def _store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
-        force: bool,
         error: str,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         body = [token.dict() for token in secret_tokens]
-        params = {"force": str(force).lower()}  # send as query param
+        params = {"force": force}  # send as query param
         endpoint_path = "user-secrets/tokens"
 
         response = self.api_call(

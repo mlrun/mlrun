@@ -1201,13 +1201,15 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         if want_async:
             if self.__class__.predict_async is Model.predict_async:
                 raise mlrun.errors.ModelRunnerError(
-                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict_async() is not implemented"
+                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict_async() "
+                    f"is not implemented"
                 )
         # Check for sync model
         else:
             if self.__class__.predict is Model.predict:
                 raise mlrun.errors.ModelRunnerError(
-                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict() is not implemented"
+                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict() "
+                    f"is not implemented"
                 )
 
     def _load_artifacts(self) -> None:

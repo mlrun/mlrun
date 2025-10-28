@@ -16,6 +16,7 @@ import datetime
 from collections.abc import Iterator
 from typing import NamedTuple, Optional, Union
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import nuclio
 import numpy as np
@@ -682,6 +683,29 @@ def test_get_start_end():
     )
 
     assert start == now - datetime.timedelta(seconds=10)
+    assert end == start + datetime.timedelta(seconds=1)
+
+    # Test when start is not timezone-aware
+    now = datetime.datetime.now()  # naive datetime
+    start, end = get_start_end(
+        start=now - datetime.timedelta(seconds=10),
+        end=None,
+        delta=datetime.timedelta(seconds=1),
+    )
+    assert start == start.replace(tzinfo=datetime.timezone.utc)
+    assert end == start.replace(tzinfo=datetime.timezone.utc) + datetime.timedelta(
+        seconds=1
+    )
+
+    # Test when start has timezone which is not UTC
+    now_local = datetime.datetime.now(ZoneInfo("Asia/Jerusalem"))
+    start_local = now_local - datetime.timedelta(seconds=10)
+    start, end = get_start_end(
+        start=start_local,
+        end=None,
+        delta=datetime.timedelta(seconds=1),
+    )
+    assert start == start_local.astimezone(datetime.timezone.utc)
     assert end == start + datetime.timedelta(seconds=1)
 
     # Test when start time is later than end time

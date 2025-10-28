@@ -292,10 +292,9 @@ jobs:
         k3s-version: v1.32.3+k3s1
         # - helm versions at https://github.com/helm/helm/tags
         helm-version: v3.17.2
-        # Configure K3S kubelet to maximize allocatable ephemeral storage
-        # Hard eviction at 5% free = ~95% allocatable for pods (very aggressive)
-        # Soft eviction at 10% free = early warning before hard limit
-        extra-setup-args: '--kubelet-arg=eviction-hard=memory.available\<100Mi,nodefs.available\<5%,nodefs.inodesFree\<3%,imagefs.available\<5% --kubelet-arg=eviction-soft=memory.available\<200Mi,nodefs.available\<10%,nodefs.inodesFree\<5%,imagefs.available\<10% --kubelet-arg=eviction-soft-grace-period=memory.available=1m,nodefs.available=2m,nodefs.inodesFree=2m,imagefs.available=2m --kubelet-arg=image-gc-high-threshold=85 --kubelet-arg=image-gc-low-threshold=80'
+        # Simple disk eviction config: Reserve 5% = 95% allocatable ephemeral storage
+        # Change the 5% value to increase/decrease allocatable storage
+        extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5%'
 
     - name: Verify K3S kubelet configuration
       run: |
@@ -406,28 +405,6 @@ jobs:
         HOST_IP=$(get_host_ip)
         echo "Detected host IP: $HOST_IP"
         
-        # Test connectivity to the NodePort service
-        echo "=== Testing NodePort connectivity ==="
-        MAX_RETRIES=30
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if curl -f "http://${HOST_IP}:${MLRUN_API_NODE_PORT}/api/v1/healthz" 2>/dev/null; then
-            echo "MLRun API is accessible at http://${HOST_IP}:${MLRUN_API_NODE_PORT}"
-            break
-          fi
-          echo "Attempt $((RETRY_COUNT+1))/$MAX_RETRIES: API not ready yet, waiting..."
-          sleep 10
-          RETRY_COUNT=$((RETRY_COUNT+1))
-        done
-        
-        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-          echo "ERROR: Failed to connect to MLRun API after $MAX_RETRIES attempts"
-          echo "Checking port forwarding and service status..."
-          kubectl get svc -n ${NAMESPACE}
-          kubectl get endpoints -n ${NAMESPACE}
-          exit 1
-        fi
-        
         source venv/bin/activate
         python automation/system_test/prepare.py env \
           --mlrun-dbpath "http://${HOST_IP}:${MLRUN_API_NODE_PORT}" \
@@ -452,7 +429,10 @@ jobs:
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
+            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
+            --set jupyterNotebook.enabled=false \
+            --set kube-prometheus-stack.enabled=false \
+            --set kafka.enabled=false
 
           
     - name: On helm install failure delete k3s

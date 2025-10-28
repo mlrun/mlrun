@@ -413,7 +413,7 @@ class CommunityEditionDeployer:
             "--install",
             "--wait",
             "--timeout",
-            "1920s",
+            "960s",
         ]
 
         if self._debug:

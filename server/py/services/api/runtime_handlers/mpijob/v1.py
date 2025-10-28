@@ -123,12 +123,8 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
             "spec.nodeSelector": mlrun.utils.helpers.to_non_empty_values_dict(
                 run.spec.node_selector
             ),
-            "spec.affinity": mlrun.runtimes.pod.get_sanitized_attribute(
-                run.spec, "affinity"
-            ),
-            "spec.tolerations": mlrun.runtimes.pod.get_sanitized_attribute(
-                run.spec, "tolerations"
-            ),
+            "spec.affinity": run.spec.affinity,
+            "spec.tolerations": run.spec.tolerations,
             "spec.securityContext": mlrun.runtimes.pod.get_sanitized_attribute(
                 runtime.spec, "security_context"
             )

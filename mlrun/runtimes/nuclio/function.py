@@ -1224,6 +1224,18 @@ class RemoteRuntime(KubeResource):
         # try to infer the invocation url from the internal and if not exists, use external.
         # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc.)
 
+        # if none of urls is set, function was deployed with watch=False
+        # and status wasn't fetched with Nuclio
+        # _get_state fetches the state and updates url
+        if (
+            not self.status.address
+            and not self.status.internal_invocation_urls
+            and not self.status.external_invocation_urls
+        ):
+            state, _, _ = self._get_state()
+            if state not in ["ready", "scaledToZero"]:
+                logger.warning(f"Function is in the {state} state")
+
         # prefer internal invocation url if running inside k8s cluster
         if (
             not force_external_address

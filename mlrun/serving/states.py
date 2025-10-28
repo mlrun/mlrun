@@ -1221,11 +1221,11 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
     def predict(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
-        return body
+        raise NotImplementedError("predict() method not implemented")
 
     async def predict_async(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic if the logic requires asyncio."""
-        return body
+        raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         return self.predict(body)

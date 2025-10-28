@@ -3045,6 +3045,7 @@ class RootFlowStep(FlowStep):
                     model_params, init_with_params=True
                 )
                 model._raise_exception = False
+                model._execution_mechanism = self._shared_models_mechanism[model.name]
                 self.context.executor.add_runnable(
                     model, self._shared_models_mechanism[model.name]
                 )

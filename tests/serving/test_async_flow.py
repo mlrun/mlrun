@@ -1057,3 +1057,44 @@ def test_using_model_without_predict_implementation(execution_mechanism: str):
         f"{method_name} is not implemented'"
     )
     assert expected_msg in str(exc_info.value)
+
+
+@pytest.mark.parametrize("execution_mechanism", ("naive", "thread_pool", "asyncio"))
+def test_shared_using_model_without_predict_implementation(execution_mechanism: str):
+    project = mlrun.new_project("model-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    graph.add_shared_model(
+        name="model_without_predict_shared",
+        model_class="ModelWithoutPredict"
+        if execution_mechanism != "asyncio"
+        else "ModelWithoutAsyncPredict",
+        execution_mechanism=execution_mechanism,
+        model_artifact=model_artifact,
+    )
+    model_runner_step = ModelRunnerStep(name="model-runner")
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="model_without_predict_shared",
+        shared_model_name="model_without_predict_shared",
+        model_artifact=model_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
+    ):
+        with pytest.raises(ModelRunnerError) as exc_info:
+            function.to_mock_server()
+        method_name = (
+            "predict()" if execution_mechanism != "asyncio" else "predict_async()"
+        )
+        expected_msg = (
+            f"'model_without_predict_shared is running with {execution_mechanism} execution_mechanism but "
+            f"{method_name} is not implemented'"
+        )
+        assert expected_msg in str(exc_info.value)

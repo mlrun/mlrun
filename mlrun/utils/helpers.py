@@ -970,8 +970,15 @@ def enrich_image_url(
         else:
             image_url = "mlrun/mlrun"
 
-    if is_mlrun_image and tag and ":" not in image_url:
-        image_url = f"{image_url}:{tag}"
+    if is_mlrun_image and tag:
+        if ":" not in image_url:
+            image_url = f"{image_url}:{tag}"
+        elif enrich_kfp_python_version:
+            # For mlrun-kfp >= 1.10.0-rc0, append python suffix to existing tag
+            python_suffix = resolve_image_tag_suffix(
+                mlrun_version, client_python_version
+            )
+            image_url = f"{image_url}{python_suffix}" if python_suffix else image_url
 
     registry = (
         config.images_registry if is_mlrun_image else config.vendor_images_registry

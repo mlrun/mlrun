@@ -51,8 +51,9 @@ class Member(
             mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._projects_in_deletion = set()
-        # run one sync to start off on the right foot
-        self._sync_projects()
+        if self._periodic_sync_interval_seconds > 0 and self._followers:
+            # run one sync to start off on the right foot
+            self._sync_projects()
 
     def start(self):
         self._start_periodic_sync()

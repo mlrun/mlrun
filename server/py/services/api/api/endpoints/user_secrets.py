@@ -35,6 +35,7 @@ router = fastapi.APIRouter(prefix="/user-secrets")
 )
 async def store_secret_tokens(
     secret_tokens: list[mlrun.common.schemas.SecretToken],
+    force: bool = False,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -44,6 +45,7 @@ async def store_secret_tokens(
         services.api.crud.Secrets().store_secret_tokens,
         secret_tokens,
         auth_info.username,
+        force,
     )
 
 

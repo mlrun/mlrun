@@ -1001,6 +1001,7 @@ class NopDB(RunDBInterface):
         self,
         secret_token: mlrun.common.schemas.SecretToken,
         log_warning: bool = True,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
 
@@ -1008,6 +1009,7 @@ class NopDB(RunDBInterface):
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
         log_warning: bool = True,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
 

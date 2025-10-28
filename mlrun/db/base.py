@@ -1166,6 +1166,7 @@ class RunDBInterface(ABC):
         self,
         secret_token: mlrun.common.schemas.SecretToken,
         log_warning: bool = True,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
 
@@ -1174,6 +1175,7 @@ class RunDBInterface(ABC):
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
         log_warning: bool = True,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
 

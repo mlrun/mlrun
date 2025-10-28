@@ -62,6 +62,7 @@ class SecretProviderInterface(ABC):
         token_name: str,
         token: str,
         expiration: int,
+        force: bool = False,
         namespace: typing.Optional[str] = None,
     ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         pass
@@ -174,6 +175,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         token_name: str,
         token: str,
         expiration: int,
+        force: bool = False,
         namespace: typing.Optional[str] = None,
     ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         raise NotImplementedError()

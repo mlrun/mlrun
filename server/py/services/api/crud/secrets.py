@@ -427,11 +427,13 @@ class Secrets(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
         authenticated_username: str,
+        force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
         Validate and store offline tokens as Kubernetes secrets.
 
         :param secret_tokens: List of SecretToken objects to store.
+        :param force: Whether to force update existing tokens.
         :param authenticated_username: Username used to name Kubernetes secrets.
         :return: StoreSecretTokensResponse object with created, updated, and skipped tokens.
         """
@@ -474,6 +476,7 @@ class Secrets(
                 token_name=token_name,
                 token=token,
                 expiration=expiration,
+                force=force,
             )
             if action is not None:
                 token_actions[action].append(token_name)

@@ -535,33 +535,55 @@ def test_store_user_token_secret_updated(k8s_helper):
     assert decoded_expiration == new_expiration
 
 
-def test_store_user_token_secret_skipped(k8s_helper):
+@pytest.mark.parametrize(
+    "expiration, force, expected_result, update_called, create_called",
+    [
+        (4000, False, None, False, False),  # skip update, expiration older
+        (
+            4000,
+            True,
+            mlrun.common.schemas.SecretEventActions.updated,
+            True,
+            False,
+        ),  # force update
+    ],
+)
+def test_store_user_token_secret_skipped_and_force_update(
+    k8s_helper, expiration, force, expected_result, update_called, create_called
+):
     username = "test-user"
     token_name = "my-token"
     token_value = "abc123"
     secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
 
-    # Existing secret with newer expiration than what we pass -> should skip update
     existing_secret = _make_user_token_secret(
         secret_name,
         token_name=token_name,
         token_value=token_value,
-        expiration=5000,  # current expiration is newer
+        expiration=5000,
     )
-
     k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
 
     result = k8s_helper.store_user_token_secret(
         username=username,
         token_name=token_name,
         token=token_value,
-        expiration=4000,  # older expiration -> should skip
+        expiration=expiration,
         namespace="default",
+        force=force,
     )
 
-    assert result is None
-    k8s_helper._update_secret.assert_not_called()
-    k8s_helper._create_secret.assert_not_called()
+    assert result == expected_result
+
+    if update_called:
+        k8s_helper._update_secret.assert_called_once()
+    else:
+        k8s_helper._update_secret.assert_not_called()
+
+    if create_called:
+        k8s_helper._create_secret.assert_called_once()
+    else:
+        k8s_helper._create_secret.assert_not_called()
 
 
 def test_list_secrets_with_labels(k8s_helper):

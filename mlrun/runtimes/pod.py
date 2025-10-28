@@ -89,9 +89,7 @@ sanitized_attributes = {
 
 _AUTH_SECRET_PATTERN = re.compile(
     re.escape(
-        mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
-            hashed_access_key=""
-        )
+        mlconf.secret_stores.kubernetes.auth_secret_name.format(hashed_access_key="")
     )
     + ".*"
 )

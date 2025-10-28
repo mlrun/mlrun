@@ -13,9 +13,9 @@
 # limitations under the License.
 import os
 import pathlib
-import typing
 import shutil
 import tempfile
+import typing
 import unittest.mock
 from copy import deepcopy
 from types import SimpleNamespace

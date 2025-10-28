@@ -1193,18 +1193,13 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
                 raise_missing_schema_exception=False,
             )
 
-        # check if the relevant predict method is implemented when tring to initilaze the model
-        want_async = (
-            self._execution_mechanism == storey.ParallelExecutionMechanisms.asyncio
-        )
-        # Check for async model
-        if want_async:
+        # Check if the relevant predict method is implemented when trying to initialize the model
+        if self._execution_mechanism == storey.ParallelExecutionMechanisms.asyncio:
             if self.__class__.predict_async is Model.predict_async:
                 raise mlrun.errors.ModelRunnerError(
                     f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict_async() "
                     f"is not implemented"
                 )
-        # Check for sync model
         else:
             if self.__class__.predict is Model.predict:
                 raise mlrun.errors.ModelRunnerError(

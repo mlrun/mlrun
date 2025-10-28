@@ -232,6 +232,11 @@ class MyPklModel(Model):
         return body
 
 
+class ModelWithoutPredict(Model):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
 def test_model_runner():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
@@ -1016,3 +1021,35 @@ def test_llm_with_missing_llm_prompt():
         )
         server.wait_for_completion()
         assert resp["prompt"] == expected_prompt
+
+
+@pytest.mark.parametrize("execution_mechanism", ("naive", "thread_pool", "asyncio"))
+def test_using_model_without_predict_implementation(execution_mechanism: str):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="model-runner")
+    model_runner_step.add_model(
+        model_class="ModelWithoutPredict",
+        execution_mechanism=execution_mechanism,
+        endpoint_name="model_without_predict",
+    )
+    graph.to(model_runner_step).respond()
+
+    server = function.to_mock_server()
+    try:
+        with pytest.raises(RuntimeError) as exc_info:
+            server.test(body={})
+
+        method_name = (
+            "predict()" if execution_mechanism != "asyncio" else "predict_async()"
+        )
+        expected_msg = (
+            "ModelRunnerError: "
+            "{'model_without_predict': "
+            f"'NotImplementedError: {method_name} method not implemented"
+            "'}"
+        )
+        assert expected_msg in str(exc_info.value)
+
+    finally:
+        server.wait_for_completion()

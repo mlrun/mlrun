@@ -31,6 +31,7 @@ from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 import framework.db.session
+import framework.utils.clients.iguazio.v4
 import framework.utils.clients.nuclio
 import framework.utils.periodic
 import framework.utils.projects.member
@@ -66,13 +67,16 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.ProjectOut], bool]:
         self._enrich_and_validate(project)
-        self._run_on_all_followers(True, "create_project", db_session, project)
+        self._run_on_all_followers(
+            True, "create_project", db_session, project, auth_info
+        )
         return self.get_project(db_session, project.metadata.name), False
 
     def store_project(
@@ -80,13 +84,16 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.ProjectOut], bool]:
         self._enrich_and_validate(project)
         self._validate_body_and_path_names_matches(name, project)
-        self._run_on_all_followers(True, "store_project", db_session, name, project)
+        self._run_on_all_followers(
+            True, "store_project", db_session, name, project, auth_info
+        )
         return self.get_project(db_session, name), False
 
     def patch_project(
@@ -95,14 +102,15 @@ class Member(
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> tuple[mlrun.common.schemas.Project, bool]:
+    ) -> tuple[mlrun.common.schemas.ProjectOut, bool]:
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(
-            True, "patch_project", db_session, name, project, patch_mode
+            True, "patch_project", db_session, name, project, patch_mode, auth_info
         )
         return self.get_project(db_session, name), False
 
@@ -424,6 +432,7 @@ class Member(
         followers_classes_map = {
             "mlrun": services.api.crud.Projects(),
             "nuclio": framework.utils.clients.nuclio.Client(),
+            "igz": framework.utils.clients.iguazio.v4.AsyncClient(),
             # for tests
             "nop-self-leader": framework.utils.projects.remotes.nop_follower.Member(),
             "nop": framework.utils.projects.remotes.nop_follower.Member(),

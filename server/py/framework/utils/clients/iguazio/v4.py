@@ -15,6 +15,7 @@ import sys
 import typing
 
 import httpx
+import sqlalchemy.orm
 
 # iguazio package is only supported in Python >= 3.11
 if sys.version_info >= (3, 11):
@@ -22,20 +23,23 @@ if sys.version_info >= (3, 11):
     from iguazio.schemas import (
         RefreshAccessTokenOptionsV1,
         RevokeOfflineTokenOptionsV1,
+        UpdateProjectOwnerOptionsV1,
     )
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
 from mlrun.utils import get_in
 
+import framework.utils.projects.remotes.follower as project_follower
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 _GROUP_TYPE_KEY = "@type"
 _GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
 
 
-class Client(BaseClient):
+class Client(BaseClient, project_follower.Member):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         if sys.version_info < (3, 11):
@@ -64,37 +68,20 @@ class Client(BaseClient):
             "Refreshing access token via Iguazio", token_name=secret_token.name
         )
 
-        try:
-            # Validate the offline token by sending it to Iguazio
+        # Validate the offline token by sending it to Iguazio
+        def _refresh_access_token():
             options = RefreshAccessTokenOptionsV1(refresh_token=secret_token.token)
             self._client.refresh_access_token(options=options)
             self._logger.info(
                 "Successfully refreshed access token via Iguazio",
                 token_name=secret_token.name,
             )
-        except httpx.HTTPStatusError as exc:
-            error_message, ctx = self._extract_response_error(exc.response)
-            self._logger.warning(
-                "Failed to refresh access token from Iguazio",
-                token_name=secret_token.name,
-                status_code=exc.response.status_code,
-                error_message=error_message,
-                ctx=ctx,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to refresh token '{secret_token.name}' from Iguazio: {error_message}, ctx={ctx}"
-            ) from exc
-        except Exception as exc:
-            exc_str = mlrun.errors.err_to_str(exc)
-            self._logger.warning(
-                "Failed to refresh access token from Iguazio (unexpected error)",
-                token_name=secret_token.name,
-                exc=exc_str,
-            )
-            raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to refresh token '{secret_token.name}' from Iguazio: {exc_str}"
-            ) from exc
+
+        return self._try_callback_with_httpx_exceptions(
+            _refresh_access_token,
+            mlrun.errors.MLRunUnauthorizedError,
+            "Failed to refresh access token from Iguazio",
+        )
 
     def refresh_access_tokens(
         self, secret_tokens: list[mlrun.common.schemas.SecretToken]
@@ -128,32 +115,179 @@ class Client(BaseClient):
 
         self._logger.info("Revoking offline token via Iguazio")
 
-        try:
-            # Use Iguazio client to revoke the token
+        # Use Iguazio client to revoke the token
+        def _revoke_offline_token():
             options = RevokeOfflineTokenOptionsV1(token=token)
             self._client.set_override_auth_headers(request_headers)
             self._client.revoke_offline_token(options=options)
             self._logger.info("Successfully revoked offline token via Iguazio")
+
+        return self._try_callback_with_httpx_exceptions(
+            _revoke_offline_token,
+            mlrun.errors.MLRunUnauthorizedError,
+            "Failed to revoke offline token from Iguazio",
+        )
+
+    def create_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        self._logger.debug("Creating default project policies in Iguazio V4")
+
+        def _create_default_project_policies():
+            self._client.set_override_auth_headers(auth_info.request_headers)
+            self._client.create_default_project_policies(project=project)
+            self._logger.info(
+                "Successfully created default project policies in Iguazio V4"
+            )
+
+        self._try_callback_with_httpx_exceptions(
+            _create_default_project_policies,
+            mlrun.errors.MLRunInternalServerError,
+            "Failed to create default project policies in Iguazio V4",
+        )
+
+    def store_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        self._logger.debug(
+            "Storing project owner or creating default policies in Iguazio V4"
+        )
+
+        def _update_owner_or_create_policies():
+            self._client.set_override_auth_headers(auth_info.request_headers)
+            if self._project_policies_exist(project.metadata.name, auth_info):
+                self.patch_project(session, name, project.dict(), auth_info=auth_info)
+            else:
+                self.create_project(session, project, auth_info=auth_info)
+
+        self._try_callback_with_httpx_exceptions(
+            _update_owner_or_create_policies,
+            mlrun.errors.MLRunInternalServerError,
+            "Failed to store project owner or create default policies in Iguazio V4",
+        )
+
+    def patch_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: dict,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        self._logger.debug("Updating project owner in Iguazio V4")
+
+        def _update_project_owner():
+            owner = project.get("spec", {}).get("owner")
+            if not owner:
+                # No owner to update, nothing to do
+                return
+
+            options = UpdateProjectOwnerOptionsV1(owner=owner)
+            self._client.set_override_auth_headers(auth_info.request_headers)
+            self._client.update_project_owner(project=project, options=options)
+            self._logger.info("Successfully updated project owner in Iguazio V4")
+
+        self._try_callback_with_httpx_exceptions(
+            _update_project_owner,
+            mlrun.errors.MLRunInternalServerError,
+            "Failed to update project owner in Iguazio V4",
+        )
+
+    def delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        self._logger.debug("Deleting project policies in Iguazio V4")
+
+        def _delete_project_policies():
+            self._client.set_override_auth_headers(auth_info.request_headers)
+            self._client.delete_project_policies(project=name)
+            self._logger.info("Successfully deleted project policies in Iguazio V4")
+
+        self._try_callback_with_httpx_exceptions(
+            _delete_project_policies,
+            mlrun.errors.MLRunInternalServerError,
+            "Failed to delete project policies in Iguazio V4",
+        )
+
+    def get_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> mlrun.common.schemas.Project:
+        raise NotImplementedError("Getting a project is not supported")
+
+    def list_projects(
+        self,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: typing.Optional[str] = None,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        labels: typing.Optional[list[str]] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: typing.Optional[list[str]] = None,
+    ) -> mlrun.common.schemas.ProjectsOutput:
+        # TODO: This is a placeholder implementation, as it is used for project sync. Implement this method as needed
+        #       when we support the project sync functionality with Iguazio 4.
+        return mlrun.common.schemas.ProjectsOutput(projects=[])
+
+    def list_project_summaries(
+        self,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        owner: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: typing.Optional[list[str]] = None,
+    ) -> mlrun.common.schemas.ProjectSummariesOutput:
+        raise NotImplementedError("Listing project summaries is not supported")
+
+    def get_project_summary(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> mlrun.common.schemas.ProjectSummary:
+        raise NotImplementedError("Get project summary is not supported")
+
+    def _project_policies_exist(
+        self, project: str, auth_info: mlrun.common.schemas.AuthInfo
+    ) -> bool:
+        self._client.set_override_auth_headers(auth_info.request_headers)
+        try:
+            self._client.get_project_policy_assignments(project=project)
         except httpx.HTTPStatusError as exc:
             error_message, ctx = self._extract_response_error(exc.response)
-            self._logger.warning(
-                "Failed to revoke offline token from Iguazio",
-                status_code=exc.response.status_code,
-                error_message=error_message,
-                ctx=ctx,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to revoke offline token from Iguazio: {error_message}, ctx={ctx}"
-            ) from exc
+            if exc.response.status_code == httpx.codes.NOT_FOUND:
+                self._logger.info(
+                    "Project policies do not exist in Iguazio V4",
+                    project=project,
+                    error_message=error_message,
+                    ctx=ctx,
+                )
+                return False
         except Exception as exc:
             self._logger.warning(
-                "Failed to revoke offline token from Iguazio (unexpected error)",
+                "Failed to check if project policies exist in Iguazio V4",
+                project=project,
                 exc=mlrun.errors.err_to_str(exc),
             )
-            raise mlrun.errors.MLRunUnauthorizedError(
-                "Failed to revoke offline token from Iguazio"
+            raise mlrun.errors.MLRunInternalServerError(
+                "Failed to check if project policies exist in Iguazio V4"
             ) from exc
+
+        return True
 
     def _extract_response_error(
         self, response: httpx.Response
@@ -216,6 +350,33 @@ class Client(BaseClient):
             raise mlrun.errors.MLRunUnauthorizedError(
                 "Request must include either an Authorization header or _oauth2_proxy cookie"
             )
+
+    def _try_callback_with_httpx_exceptions(
+        self,
+        callback: typing.Callable[..., typing.Any],
+        exception_type: typing.Type[Exception],
+        failure_message: str,
+    ) -> typing.Any:
+        try:
+            return callback()
+        except httpx.HTTPStatusError as exc:
+            error_message, ctx = self._extract_response_error(exc.response)
+            self._logger.warning(
+                failure_message,
+                status_code=exc.response.status_code,
+                error_message=error_message,
+                ctx=ctx,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise exception_type(
+                f"{failure_message}: {error_message}, ctx={ctx}"
+            ) from exc
+        except Exception as exc:
+            self._logger.warning(
+                f"{failure_message} (unexpected error)",
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise exception_type(failure_message) from exc
 
     def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
         return response_body.get("status", {}).get("ctx")

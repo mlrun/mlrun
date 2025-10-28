@@ -291,7 +291,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             project_name = "*"
         if not resource_name:
             resource_name = "*"
-        return self._attach_resource_prefix(resource_type.to_resource_string(project_name, resource_name))
+        return self._attach_resource_prefix(
+            resource_type.to_resource_string(project_name, resource_name)
+        )
 
     def _attach_resource_prefix(self, resource: str) -> str:
         if self._resource_prefix:

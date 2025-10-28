@@ -189,34 +189,3 @@ def test_validate_function_name(function_name, expected):
     """Test that validate_function_name enforces DNS-1123 label requirements."""
     with expected:
         mlrun.k8s_utils.validate_function_name(function_name)
-
-
-@pytest.mark.parametrize(
-    "function_name,kind,expected",
-    [
-        # Valid case
-        ("my-function", "serving", does_not_raise()),
-        # At length limit (57 + 6 = 63)
-        ("a" * 57, "serving", does_not_raise()),
-        # Non-serving/local runtimes - should skip validation
-        ("my-function-batch", "job", does_not_raise()),
-        # Invalid - name already ends with -batch
-        (
-            "my-function-batch",
-            "serving",
-            pytest.raises(
-                mlrun.errors.MLRunValueError, match="cannot end with `-batch`"
-            ),
-        ),
-        # Invalid - name too long (58 + 6 = 64 > 63)
-        (
-            "a" * 58,
-            "serving",
-            pytest.raises(mlrun.errors.MLRunValueError, match="too long"),
-        ),
-    ],
-)
-def test_validate_function_name_for_batch_suffix(function_name, kind, expected):
-    """Test that validate_function_name_for_batch_suffix enforces batch suffix rules."""
-    with expected:
-        mlrun.k8s_utils.validate_function_name_for_batch_suffix(function_name, kind)

@@ -922,6 +922,23 @@ class ServingRuntime(RemoteRuntime):
             job_metadata.name, was_renamed, suffix = (
                 mlrun.utils.helpers.ensure_batch_job_suffix(job_metadata.name)
             )
+
+            # Check if the resulting name exceeds Kubernetes length limit
+            if (
+                len(job_metadata.name)
+                > mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH
+            ):
+                max_allowed_length = (
+                    mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH - len(suffix)
+                )
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Cannot convert serving function '{original_name}' to batch job: "
+                    f"the resulting name '{job_metadata.name}' ({len(job_metadata.name)} characters) "
+                    f"exceeds Kubernetes limit of {mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters. "
+                    f"Please provide a custom name via the func_name parameter, "
+                    f"with at most {max_allowed_length} characters."
+                )
+
             if was_renamed:
                 logger.info(
                     "Creating job from serving function (auto-appended suffix to prevent collision)",

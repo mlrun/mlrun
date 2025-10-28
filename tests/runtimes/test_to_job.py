@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 import mlrun
 import mlrun.common.constants
 
@@ -222,3 +224,69 @@ def test_to_job_preserves_class_attributes():
     ), "Spec should be independent (not shared reference)"
 
     print(" All class attributes and object independence verified!")
+
+
+@pytest.mark.parametrize("kind", ["serving", "local"])
+def test_to_job_name_length_validation_fails(kind):
+    """Test that to_job() fails when name+suffix exceeds 63 chars for serving and local."""
+    # Create a function with name that will exceed limit when suffix is added
+    # 58 chars + 6 chars ("-batch") = 64 chars > 63 limit
+    long_name = "a" * 58
+    fn = mlrun.new_function(name=long_name, kind=kind)
+
+    # Should fail with clear error message
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=f"Cannot convert {kind} function .* to batch job",
+    ) as exc_info:
+        fn.to_job()
+
+    error_msg = str(exc_info.value)
+    assert "exceeds Kubernetes limit" in error_msg
+    assert "func_name parameter" in error_msg
+    assert "57 characters" in error_msg
+
+
+@pytest.mark.parametrize("kind", ["serving", "local"])
+def test_to_job_name_length_validation_with_custom_name(kind):
+    """Test that providing func_name bypasses length validation for serving and local."""
+    # Create a function with name that would exceed limit
+    long_name = "a" * 58
+    fn = mlrun.new_function(name=long_name, kind=kind)
+
+    # Should succeed with custom name that fits within limit
+    job = fn.to_job(func_name="custom-job-name")
+    assert job.metadata.name == "custom-job-name"
+
+
+def test_to_job_backward_compatibility():
+    """Test backward compatibility - functions can be created with 58-63 char names.
+
+    This ensures we didn't break existing code that creates serving/local functions
+    with long names. They only fail when to_job() is called and suffix would exceed limit.
+    """
+    # Functions can be created with names up to 63 chars (standard K8s limit)
+    long_name = "a" * 63
+    serving_fn = mlrun.new_function(name=long_name, kind="serving")
+    assert serving_fn.metadata.name == long_name
+
+    local_fn = mlrun.new_function(name=long_name, kind="local")
+    assert local_fn.metadata.name == long_name
+
+    # 58 char name also succeeds at creation (but would fail at to_job())
+    name_58 = "a" * 58
+    serving_fn = mlrun.new_function(name=name_58, kind="serving")
+    assert serving_fn.metadata.name == name_58
+
+    local_fn = mlrun.new_function(name=name_58, kind="local")
+    assert local_fn.metadata.name == name_58
+
+    # 57 char name succeeds at both creation AND to_job()
+    name_57 = "a" * 57
+    serving_fn = mlrun.new_function(name=name_57, kind="serving")
+    job = serving_fn.to_job()
+    assert len(job.metadata.name) == 63  # 57 + 6 ("-batch")
+
+    local_fn = mlrun.new_function(name=name_57, kind="local")
+    job = local_fn.to_job()
+    assert len(job.metadata.name) == 63

@@ -212,7 +212,7 @@ def test_run_local_serving_job(batching, batch_size, code_to_function):
         )
     graph = function.set_topology("flow", engine="async")
     graph.to(name="increaser", class_name="SepalLengthIncreaser").respond()
-    job = function.to_job()
+    job = function.to_job(func_name="test")
 
     inputs = {"data": str(input_csv_path)}
     params = {"batching": batching, "batch_size": batch_size}
@@ -252,7 +252,7 @@ def test_run_local_serving_job_with_target():
         graph.to(name="increaser", class_name="SepalLengthIncreaser")
         graph.to(name="parquet", class_name="storey.ParquetTarget", path=tmp_dir)
 
-        job = function.to_job()
+        job = function.to_job(func_name="test")
 
         inputs = {"data": str(input_csv_path)}
 

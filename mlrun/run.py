@@ -580,9 +580,6 @@ def new_function(
 
     runner.prepare_image_for_deploy()
 
-    # Validate serving and local function names don't end with reserved batch suffix
-    mlrun.k8s_utils.validate_function_name_for_batch_suffix(name, kind)
-
     return runner
 
 
@@ -844,9 +841,6 @@ def code_to_function(
         runtime.spec.build.origin_filename = filename or (name + ".ipynb")
         update_common(runtime, spec)
 
-        # Validate serving function names don't end with reserved batch suffix
-        mlrun.k8s_utils.validate_function_name_for_batch_suffix(name, kind)
-
         return runtime
 
     if kind is None or kind in ["", "Function"]:
@@ -880,9 +874,6 @@ def code_to_function(
     build.image = get_in(spec, "spec.build.image")
     update_common(runtime, spec)
     runtime.prepare_image_for_deploy()
-
-    # Validate local function names don't end with reserved batch suffix
-    mlrun.k8s_utils.validate_function_name_for_batch_suffix(name, kind)
 
     if with_doc:
         update_function_entry_points(runtime, code)

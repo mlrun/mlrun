@@ -390,6 +390,7 @@ jobs:
 
         echo "Listing Helm releases after cleanup:"
         helm list --all-namespaces
+
     - name: Prepare system tests env
       run: |
         # Define get_host_ip function
@@ -405,9 +406,13 @@ jobs:
         HOST_IP=$(get_host_ip)
         echo "Detected host IP: $HOST_IP"
         
+        # Export MLRUN_DBPATH before running prepare.py to avoid warnings
+        export MLRUN_DBPATH="http://${HOST_IP}:${MLRUN_API_NODE_PORT}"
+        echo "MLRUN_DBPATH set to: $MLRUN_DBPATH"
+        
         source venv/bin/activate
         python automation/system_test/prepare.py env \
-          --mlrun-dbpath "http://${HOST_IP}:${MLRUN_API_NODE_PORT}" \
+          --mlrun-dbpath "$MLRUN_DBPATH" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
           --openai-api-key "${{ secrets.OPENAI_API_KEY }}"  
@@ -433,102 +438,144 @@ jobs:
             --set jupyterNotebook.enabled=false \
             --set kube-prometheus-stack.enabled=false \
             --set kafka.enabled=false
-
-          
-    - name: On helm install failure delete k3s
-      if: failure() && false
-      run: |
-        echo "Listing all Helm releases before cleanup:"
-        helm list --all-namespaces
-
-        echo "Deleting all Helm releases in all namespaces:"
-        for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name"); do
-          for release in $(helm list -n "$ns" --short); do
-            echo "Deleting Helm release '$release' in namespace '$ns'..."
-            helm uninstall "$release" -n "$ns" || true
-          done
-        done
-
-        echo "Listing Helm releases after cleanup:"
-        helm list --all-namespaces
-
-        sudo /usr/local/bin/k3s-uninstall.sh
-        sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s
-        sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s
+          echo "Waiting for 30 minutes to allow Helm installation to complete...TODO TROUBELSHOOT WAIT PROBLEMS?!"
+          sleep 1800
 
     - name: Run system tests
       run: |
+        # Define get_host_ip function
+        get_host_ip() {
+            case "$(uname -s)" in
+                "Darwin") ipconfig getifaddr en0 2>/dev/null ;;
+                "Linux") hostname -I 2>/dev/null | awk '{print $1}' ;;
+                *) echo "localhost" ;;  # fallback
+            esac
+        }
+        
+        # Get the host IP
+        HOST_IP=$(get_host_ip)
+        echo "Detected host IP: $HOST_IP"
+        
+        # Export environment variables for tests
+        export MLRUN_DBPATH="http://${HOST_IP}:${MLRUN_API_NODE_PORT}"
+        export MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS"
+        export MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}"
+        export MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}"
+        
+        echo "Running tests with MLRUN_DBPATH=$MLRUN_DBPATH"
+        
         source venv/bin/activate
-        MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS" \
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}" \
-        MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}" \
-          make test-system-open-source
+        make test-system-open-source
       env:
         PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
 
     - name: Output some logs in case of failure
-      if: ${{ failure() && (github.event.inputs.on_failure_dump_k8_kogs || env.DEFAULT_ON_FAILURE_DUMP_K8_LOGS) == 'true' }}
+      if: failure()
       # add set -x to print commands before executing to make logs reading easier
       run: |
         set -x
-        kubectl --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
-        kubectl --namespace ${NAMESPACE} get all
-        kubectl --namespace ${NAMESPACE} get all -o yaml
+        echo "=================================="
+        echo "=== KUBERNETES CLUSTER STATE ==="
+        echo "=================================="
+        
+        echo "=== Nodes ==="
+        kubectl get nodes -o wide
+        kubectl describe nodes
+        
+        echo "=== Events (all namespaces) ==="
+        kubectl get events --all-namespaces --sort-by='.lastTimestamp' | tail -100
+        
+        echo "=== Events in ${NAMESPACE} ==="
+        kubectl get events -n ${NAMESPACE} --sort-by='.lastTimestamp'
+        
+        echo "=================================="
+        echo "=== NAMESPACE: ${NAMESPACE} ==="
+        echo "=================================="
+        
+        echo "=== All Resources ==="
+        kubectl --namespace ${NAMESPACE} get all -o wide
+        
+        echo "=== Pods Status ==="
+        kubectl --namespace ${NAMESPACE} get pods -o wide
+        
+        echo "=== Pods Descriptions ==="
         kubectl --namespace ${NAMESPACE} describe pods
-        kubectl --namespace ${NAMESPACE} get cm
-        kubectl --namespace ${NAMESPACE} get cm -o yaml
-        kubectl --namespace ${NAMESPACE} get secrets
-        kubectl --namespace ${NAMESPACE} get secrets -o yaml
+        
+        echo "=== PVC and PV ==="
         kubectl --namespace ${NAMESPACE} get pvc
-        kubectl --namespace ${NAMESPACE} get pv
+        kubectl get pv
+        kubectl --namespace ${NAMESPACE} describe pvc
+        kubectl describe pv
+        
+        echo "=== ConfigMaps (names only) ==="
+        kubectl --namespace ${NAMESPACE} get cm
+        
+        echo "=== Secrets (names only) ==="
+        kubectl --namespace ${NAMESPACE} get secrets
+        
+        echo "=== Deployments ==="
+        kubectl --namespace ${NAMESPACE} get deployments -o wide
+        kubectl --namespace ${NAMESPACE} describe deployments
+        
+        echo "=== StatefulSets ==="
+        kubectl --namespace ${NAMESPACE} get statefulsets -o wide
+        kubectl --namespace ${NAMESPACE} describe statefulsets
+        
+        echo "=== Services ==="
+        kubectl --namespace ${NAMESPACE} get svc -o wide
+        
+        echo "=================================="
+        echo "=== POD LOGS ==="
+        echo "=================================="
+        
+        # Get logs from ALL pods
+        for pod in $(kubectl get pods -n ${NAMESPACE} -o jsonpath='{.items[*].metadata.name}'); do
+          echo "========================================"
+          echo "=== Logs for pod: $pod ==="
+          echo "========================================"
+          
+          # Get current logs
+          kubectl logs -n ${NAMESPACE} $pod --all-containers=true --tail=500 || echo "Failed to get current logs for $pod"
+          
+          # Get previous logs if pod restarted
+          if kubectl logs -n ${NAMESPACE} $pod --all-containers=true --previous &>/dev/null; then
+            echo "=== Previous logs for $pod (pod restarted) ==="
+            kubectl logs -n ${NAMESPACE} $pod --all-containers=true --previous --tail=500 || echo "Failed to get previous logs"
+          fi
+        done
+        
+        echo "=================================="
+        echo "=== HELM RELEASES ==="
+        echo "=================================="
+        helm list -n ${NAMESPACE} --all
+        helm status mlrun-ce -n ${NAMESPACE} || echo "Helm release status unavailable"
+        
+        echo "=================================="
+        echo "=== DISK USAGE ==="
+        echo "=================================="
+        df -h
+        
         set +x
 
-    - name: Delete the k8s namespace (including PVCs)
-      if: always() && false
+    - name: Final clean up
+      if: always()
       run: |
-        source venv/bin/activate
-
-        echo "=== Starting cleanup ==="
+        echo "=== Checking for previous K3S installation ==="
         
-        # First, try the standard cleanup
-        python automation/deployment/ce.py delete \
-          --namespace=${NAMESPACE} \
-          --cleanup-volumes \
-          --skip-cleanup-registry-secret || echo "Standard cleanup failed, continuing with force cleanup"
-
-        python automation/deployment/ce.py delete \
-          --namespace=${NAMESPACE} \
-          --cleanup-namespace || echo "Namespace cleanup failed, trying force delete"
+        # Check if K3S is installed or running
+        K3S_INSTALLED=false
         
-        # Force delete the namespace if it still exists
-        if kubectl get namespace ${NAMESPACE} 2>/dev/null; then
-          echo "Namespace still exists, forcing deletion..."
-          kubectl patch namespace ${NAMESPACE} -p '{"metadata":{"finalizers":[]}}' --type=merge || true
-          kubectl delete namespace ${NAMESPACE} --force --grace-period=0 || true
-          
-          # Wait and check if namespace is really gone
-          for i in {1..30}; do
-            if ! kubectl get namespace ${NAMESPACE} 2>/dev/null; then
-              echo "Namespace successfully deleted"
-              break
-            fi
-            echo "Waiting for namespace deletion... ($i/30)"
-            sleep 2
-          done
+        if [ -f /usr/local/bin/k3s ] || [ -f /usr/local/bin/k3s-uninstall.sh ] || pgrep -f k3s >/dev/null 2>&1; then
+          K3S_INSTALLED=true
+          echo "Found existing K3S installation, cleaning up..."
+        else
+          echo "No existing K3S installation found, skipping cleanup"
         fi
         
-        echo "=== Cleanup completed ==="
-
-    - name: Final K3S cleanup
-      if: always() && false
-      run: |
-        echo "=== Final K3S cleanup ==="
-        
-        # Check if K3S exists before trying to clean it up
-        if [ -f /usr/local/bin/k3s ] || [ -f /usr/local/bin/k3s-uninstall.sh ] || pgrep -f k3s >/dev/null 2>&1; then
-          echo "K3S installation found, cleaning up..."
+        if [ "$K3S_INSTALLED" = true ]; then
+          echo "=== Cleaning up previous K3S installation ==="
           
-          # Stop K3S services only if they exist
+          # Stop K3S services if they exist
           if systemctl is-active --quiet k3s 2>/dev/null; then
             echo "Stopping K3S service..."
             sudo systemctl stop k3s || true
@@ -539,36 +586,29 @@ jobs:
             sudo systemctl stop k3s-agent || true
           fi
           
-          # Kill processes if running
+          # Kill any running K3S processes
           if pgrep -f k3s >/dev/null 2>&1; then
             echo "Killing K3S processes..."
             sudo pkill -f k3s || true
+            sleep 2
           fi
           
-          # Uninstall if uninstaller exists
+          # Uninstall K3S if uninstaller exists
           if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
             echo "Running K3S uninstaller..."
             sudo /usr/local/bin/k3s-uninstall.sh || true
           fi
           
-          # Clean up files
-          echo "Cleaning up K3S files..."
+          # Clean up remaining files only if they exist
+          echo "Cleaning up remaining K3S files..."
           sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s 2>/dev/null || true
           sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s* 2>/dev/null || true
           
-          echo "K3S cleanup completed"
-        else
-          echo "No K3S installation found, skipping cleanup"
-        fi
-        
-        # Clean up Docker only if it's running and has content
-        if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-          if [ "$(docker ps -aq | wc -l)" -gt 0 ] || [ "$(docker images -q | wc -l)" -gt 0 ]; then
+          # Clean up containers/images only if Docker is running
+          if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
             echo "Cleaning up Docker containers and images..."
             docker system prune -af || true
-          else
-            echo "No Docker containers or images to clean up"
           fi
+          
+          echo "=== Cleanup completed ==="
         fi
-        
-        echo "=== Final cleanup completed ==="

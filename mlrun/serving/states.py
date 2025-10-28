@@ -522,7 +522,9 @@ class BaseStep(ModelObj):
 
         root = self._extract_root_step()
 
-        if not isinstance(root, RootFlowStep):
+        if not isinstance(root, RootFlowStep) or (
+            isinstance(root, RootFlowStep) and root.engine != "async"
+        ):
             raise GraphError(
                 "ModelRunnerStep can be added to 'Flow' topology graph only"
             )
@@ -1219,11 +1221,11 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
     def predict(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
-        return body
+        raise NotImplementedError("predict() method not implemented")
 
     async def predict_async(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic if the logic requires asyncio."""
-        return body
+        raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         return self.predict(body)
@@ -1643,6 +1645,8 @@ class ModelRunnerStep(MonitoredStep):
 
     Note when ModelRunnerStep is used in a graph, MLRun automatically imports
     the default language model class (LLModel) during function deployment.
+
+    Note ModelRunnerStep can only be added to a graph that has the flow topology and running with async engine.
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.

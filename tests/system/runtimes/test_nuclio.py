@@ -168,6 +168,22 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         resp = function.invoke("/", {"x": "y", "models": ["my-model"]})
         assert resp == {"my-model": {"extra": 123, "x": "y"}}
 
+    def test_set_function_llmodel_without_py(self):
+        function = self.project.set_function(
+            name="llmodel-without-py",
+            image=self.image,
+            kind="serving",
+        )
+        graph = function.set_topology("flow")
+        model_runner = ModelRunnerStep(name="model-runner")
+        model_runner.add_model("my_llm", "mlrun.serving.states.LLModel", "naive")
+        graph.to(model_runner).respond()
+        deployment = function.deploy()
+        assert deployment == function.get_url()  # check function url
+
+        resp = function.invoke("/", {"something_with_meaning": "life"})
+        assert resp == {"something_with_meaning": "life"}
+
     def test_model_runner_with_llm_and_shared_models(self):
         code_path = str(self.assets_path / "function_with_llm.py")
 

@@ -44,8 +44,11 @@ from mlrun.model_monitoring.stream_processing import EventStreamProcessor
     ],
 )
 def test_plot_monitoring_serving_graph(
-    tsdb_profile: DatastoreProfile, stream_profile: DatastoreProfile
+    monkeypatch: pytest.MonkeyPatch,
+    tsdb_profile: DatastoreProfile,
+    stream_profile: DatastoreProfile,
 ) -> None:
+    monkeypatch.setattr(mlrun.mlconf, "system_id", "123456")
     project_name = "test-stream-processing"
     project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
 

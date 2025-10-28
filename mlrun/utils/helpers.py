@@ -46,6 +46,8 @@ import pytz
 import semver
 import yaml
 from dateutil import parser
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -808,6 +810,10 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     return uri if not add_store else DB_SCHEMA + "://" + uri
 
 
+def check_if_hub_uri(uri: str) -> bool:
+    return uri.startswith(hub_prefix)
+
+
 def extend_hub_uri_if_needed(
     uri: str,
     asset_type: HubSourceType = HubSourceType.functions,
@@ -824,7 +830,7 @@ def extend_hub_uri_if_needed(
                [0] = Extended URI of item
                [1] =  Is hub item (bool)
     """
-    is_hub_uri = uri.startswith(hub_prefix)
+    is_hub_uri = check_if_hub_uri(uri)
     if not is_hub_uri:
         return uri, is_hub_uri
 
@@ -2421,6 +2427,41 @@ def set_data_by_path(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected path to be of type str or list of str"
         )
+
+
+def _normalize_requirements(reqs: typing.Union[str, list[str], None]) -> list[str]:
+    if reqs is None:
+        return []
+    if isinstance(reqs, str):
+        s = reqs.strip()
+        return [s] if s else []
+    return [s.strip() for s in reqs if s and s.strip()]
+
+
+def merge_requirements(
+    reqs_priority: typing.Union[str, list[str], None],
+    reqs_secondary: typing.Union[str, list[str], None],
+) -> list[str]:
+    """
+    Merge two requirement collections into a union. If the same package
+    appears in both, the specifier from reqs_priority wins.
+
+    Args:
+        reqs_priority: str | list[str] | None  (priority input)
+        reqs_secondary: str | list[str] | None
+
+    Returns:
+        list[str]: pip-style requirements.
+    """
+    merged: dict[str, Requirement] = {}
+
+    for r in _normalize_requirements(reqs_secondary) + _normalize_requirements(
+        reqs_priority
+    ):
+        req = Requirement(r)
+        merged[canonicalize_name(req.name)] = req
+
+    return [str(req) for req in merged.values()]
 
 
 def get_module_name_from_path(source_file_path: str) -> str:

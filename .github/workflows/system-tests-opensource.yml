@@ -391,26 +391,6 @@ jobs:
 
         echo "Listing Helm releases after cleanup:"
         helm list --all-namespaces
-
-    - name: Wait for MLRun API to be ready
-      run: |
-        echo "=== Waiting for MLRun API pod to be ready ==="
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=mlrun,app.kubernetes.io/component=api -n ${NAMESPACE} --timeout=600s || {
-          echo "MLRun API pod failed to become ready, checking status..."
-          kubectl get pods -n ${NAMESPACE}
-          kubectl describe pods -l app.kubernetes.io/name=mlrun,app.kubernetes.io/component=api -n ${NAMESPACE}
-          kubectl logs -l app.kubernetes.io/name=mlrun,app.kubernetes.io/component=api -n ${NAMESPACE} --tail=100
-          exit 1
-        }
-        
-        echo "=== Checking MLRun API service ==="
-        kubectl get svc -n ${NAMESPACE}
-        kubectl describe svc mlrun-api -n ${NAMESPACE}
-        
-        echo "=== Testing API connectivity from within cluster ==="
-        kubectl run curl-test --image=curlimages/curl:latest --rm -i --restart=Never -n ${NAMESPACE} -- \
-          curl -v http://mlrun-api:8080/api/v1/healthz || echo "Internal cluster connectivity test failed"
-
     - name: Prepare system tests env
       run: |
         # Define get_host_ip function

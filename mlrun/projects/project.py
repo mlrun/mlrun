@@ -20,7 +20,6 @@ import importlib.util as imputil
 import json
 import os
 import pathlib
-import re
 import shutil
 import tempfile
 import typing
@@ -3455,11 +3454,12 @@ class MlrunProject(ModelObj):
         # Block using mlrun-auth-secrets.* via azure_vault's k8s_secret param (client-side only)
         if kind == "azure_vault" and isinstance(source, dict):
             candidate_secret_name = (source.get("k8s_secret") or "").strip()
-            if candidate_secret_name and mlrun.runtimes.pod._AUTH_SECRET_PATTERN.match(candidate_secret_name):
+            if candidate_secret_name and mlrun.runtimes.pod._AUTH_SECRET_PATTERN.match(
+                candidate_secret_name
+            ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Forbidden secret '{candidate_secret_name}' matches MLRun auth-secret pattern."
                 )
-
 
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.name, "secrets": source}

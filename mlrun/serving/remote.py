@@ -533,7 +533,6 @@ class MLRunAPIRemoteStep(RemoteStep):
 class RemoteFunctionStep(RemoteStep):
     """
     Graph step implementation for invoking functions remotely.
-
     :param fn: Either an `mlrun.runtimes.RemoteRuntime` object or
     a string URI in the form `function_name` or `project_name/function_name`.
     :param project_name: Optional project name containing the function. If not provided,

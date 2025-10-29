@@ -49,7 +49,7 @@ class Client(BaseClient, project_follower.Member):
         self._client = iguazio.Client(
             api_url=self._api_url,
             auto_login=False,
-            # load_token_file=False,
+            load_token_file=False,
         )
 
     def refresh_access_token(

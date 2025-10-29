@@ -1,0 +1,61 @@
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - '*'
+
+jobs:
+  notify:
+    runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
+    steps:
+      - uses: actions/checkout@v4
+#      - name: Install jq
+#        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: quay to artifactory
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Logging into Quay"
+          echo "$QUAY_PASSWORD" | docker login quay.io -u "$QUAY_USERNAME" --password-stdin
+          echo "Logging into Artifactory"
+          echo "$ARTI_PASSWORD" | docker login "$ARTIFACTORY_REGISTRY" -u "$ARTI_USERNAME" --password-stdin
+
+          echo "Fetching all repositories from quay.io/$ORG"
+          REPOS=$(curl -s -u "$QUAY_USERNAME:$QUAY_PASSWORD" \
+            "https://quay.io/api/v1/repository?namespace=$ORG&public=true" | jq -r '.repositories[].name')
+
+          for IMAGE in $REPOS; do
+              echo "Checking tag $VERSION_TAG for $IMAGE"
+              TAG_EXISTS=$(curl -s -u "$QUAY_USERNAME:$QUAY_PASSWORD" \
+                "https://quay.io/api/v1/repository/$ORG/${IMAGE}/tag/?specificTag=${VERSION_TAG}" | jq -r '.tags | length')
+
+              if [ "$TAG_EXISTS" -gt 0 ]; then
+                  QUAY_IMAGE="quay.io/$ORG/${IMAGE}:${VERSION_TAG}"
+                  ARTI_IMAGE="${ARTIFACTORY_REGISTRY}/$ORG/${IMAGE}:${VERSION_TAG}"
+                  docker pull "$QUAY_IMAGE"
+                  docker tag "$QUAY_IMAGE" "$ARTI_IMAGE"
+                  docker push "$ARTI_IMAGE"
+              fi
+
+              if [[ "$IMAGE" =~ ^(mlrun|mlrun-kfp|mlrun-gpu)$ ]]; then
+                  PY39_TAG="${VERSION_TAG}-py39"
+                  TAG_EXISTS=$(curl -s -u "$QUAY_USERNAME:$QUAY_PASSWORD" \
+                    "https://quay.io/api/v1/repository/$ORG/${IMAGE}/tag/?specificTag=${PY39_TAG}" | jq -r '.tags | length')
+                  if [ "$TAG_EXISTS" -gt 0 ]; then
+                      QUAY_IMAGE="quay.io/$ORG/${IMAGE}:${PY39_TAG}"
+                      ARTI_IMAGE="${ARTIFACTORY_REGISTRY}/$ORG/${IMAGE}:${PY39_TAG}"
+                      docker pull "$QUAY_IMAGE"
+                      docker tag "$QUAY_IMAGE" "$ARTI_IMAGE"
+                      docker push "$ARTI_IMAGE"
+                  fi
+              fi
+          done
+        env:
+          ORG: mlrun
+          QUAY_USERNAME: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
+          QUAY_PASSWORD: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
+          ARTI_USERNAME: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_USERNAME }}
+          ARTI_PASSWORD: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_PASSWORD }}
+          ARTIFACTORY_REGISTRY: artifactory.iguazeng.com:6555
+          VERSION_TAG: ${{ github.ref_name }}

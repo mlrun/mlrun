@@ -14,10 +14,8 @@ them from other graphs, as well as scale up and down the different components in
 The serving graphs can be composed of [pre-defined graph steps](./available-steps.md), block-type elements (model servers, routers, ensembles, 
 data readers and writers, data engineering tasks, validators, etc.), [custom steps](./writing-custom-steps.ipynb), or from native python 
 classes/functions. A graph can have data processing steps, model ensembles, model servers, post-processing, etc. (see the [Advanced Model Serving Graph Notebook Example](./graph-example.ipynb)). Graphs can auto-scale and span multiple function containers (connected through streaming protocols).
-
-![serving graph high-level](../_static/images/serving-graph-high-level.png)
   
-
+<img src="../_static/images/serving-graph-high-level.png" height="3cm">
 
 Graphs can run inside your IDE or Notebook for test and simulation. Serving graphs are built on 
 top of [Nuclio](https://github.com/nuclio/nuclio) (real-time serverless engine), [MLRun jobs](../concepts/scheduled-jobs.md), 
@@ -30,14 +28,10 @@ The serving graphs are used by [MLRun’s Feature Store](../feature-store/featur
 
 ```{toctree}
 :maxdepth: 1
-  
 getting-started
 use-cases
-realtime-pipelines
 model-serving-get-started
-writing-custom-steps
-available-steps
+deploying-graphs
 demos
-graph-ha-cfg
-pipelines-error-handling
+graph-advanced-cfg
 ```

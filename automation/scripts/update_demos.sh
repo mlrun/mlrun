@@ -115,18 +115,6 @@ backup_old_demos(){
     fi
     }
 
-# --------------------------------------------------------------------------------------------------------------------------------
-# Function to verify update_demos is present, otherwise grab it
-# --------------------------------------------------------------------------------------------------------------------------------
-
-verify_update_demos(){
-    local demos_dir="$1"
-    local branch="$2"
-    if [[ ! -f "${demos_dir}/update_demos.sh" || ${branch}<"v1.7" ]]; then
-        echo "update_demos is missing or old, downloading .."
-        wget -O "${demos_dir}/update_demos.sh" https://raw.githubusercontent.com/mlrun/mlrun/development/automation/scripts/update_demos.sh
-    fi
-    }
 
 # --------------------------------------------------------------------------------------------------------------------------------
 # Printing flags - dry_run and no_backup
@@ -271,77 +259,85 @@ download_tar_gz_to_temp_dir() {
     }
 
 # --------------------------------------------------------------------------------------------------------------------------------
-# Main script
-# backup old demos.
+# Main script (new flow): use get_demos.py to fetch demos matched to MLRun version
 # --------------------------------------------------------------------------------------------------------------------------------
 
 # Defer backup/removal until after successful download and extraction
 
-# --------------------------------------------------------------------------------------------------------------------------------
-# If --mlrun-ver isn't set, use installed mlrun version.
-# When mlrun isn't installed, use 1.7.0.
-# --------------------------------------------------------------------------------------------------------------------------------
-
-if [ -z "$mlrun_version" ]; then # mlrun version isn't specified. using installed mlrun version
-    pip_mlrun=$(pip show mlrun | grep Version) || :
-    if [ -z "${pip_mlrun}" ]; then
-        mlrun_version="1.7.0"
-        # error_exit "MLRun version not found. Aborting..."
-        # no --mlrun-ver and mlrun installed, using mlrun==1.7.0
+# Resolve MLRun version if not provided. Fallback to installed mlrun; if not installed, let get_demos pick latest.
+if [ -z "$mlrun_version" ]; then
+    if command -v python3 >/dev/null 2>&1; then PYTHON_BIN=python3; elif command -v python >/dev/null 2>&1; then PYTHON_BIN=python; fi
+    if [ -n "$PYTHON_BIN" ]; then
+        mlrun_version=$($PYTHON_BIN -c "\
+import sys
+try:
+    import mlrun
+    print(mlrun.__version__)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null) || true
+    fi
+    if [ -n "$mlrun_version" ]; then
+        echo "Detected MLRun version: ${mlrun_version}"
     else
-        echo "Detected MLRun version: ${pip_mlrun}"
-        mlrun_version="${pip_mlrun##Version: }"
+        mlrun_version="1.9.2"
+        echo "MLRun version not found. Using fallback version: ${mlrun_version}"
     fi
 fi
 
-# Handling the case mlrun version is 0.0.0+unstable
-tag_prefix=`echo "${mlrun_version}" | cut -d . -f1-2`
-if [ "$tag_prefix" = "0.0" ]; then
-    mlrun_version="1.7.0"
+work_dir=$(mktemp -d /tmp/update-demos.XXXXXXXXXX)
+trap 'rm -rf "$work_dir"' EXIT
+
+# Ensure Python and required modules are available
+if [ -z "$PYTHON_BIN" ]; then
+    if command -v python3 >/dev/null 2>&1; then PYTHON_BIN=python3; elif command -v python >/dev/null 2>&1; then PYTHON_BIN=python; else error_exit "Python is required to run get_demos.py"; fi
 fi
 
-if [[ "${mlrun_version}"<"1.7" ]]; then
-    git_repo="demos"
-fi
-latest_tag=$(get_latest_tag "${mlrun_version}" "${git_owner}" "${git_repo}" "${git_base_url}" "${git_url}")
-echo "release tag or latest tag : ${latest_tag}"
-if [ -z "${latest_tag}" ]; then
-     error_exit "Couldn't locate a Git tag with prefix 'v${mlrun_version}.*'."
-fi
-branch=${latest_tag#refs/tags/}
+$PYTHON_BIN - <<'PY' 2>/dev/null || $PYTHON_BIN -m pip install --user --no-cache-dir requests packaging tqdm >/dev/null 2>&1 || true
+try:
+    import requests, packaging, tqdm  # noqa: F401
+except Exception:
+    raise SystemExit(1)
+PY
 
-# Remove the 'v' prefix and suffixes like '-rc2'
-version="${branch#v}"               # remove leading 'v'
-version="${version%%-*}"           # remove suffix after '-' (e.g., '0-rc2' → '0')
-IFS='.' read -r major minor _ <<< "$version"
-echo "branch is ${branch}, parsed major : ${major}, parsed minor : ${minor}"
-
-# Convert to integers
-major=$((major))
-minor=$((minor))
-
-echo "Using branch ${branch} to download demos"
-temp_dir=$(mktemp -d /tmp/temp-get-demos.XXXXXXXXXX)
-
-# demos introduced to mlrun in 1.7.0
-if (( major > 1 )) || (( major == 1 && minor > 6 )); then
-    tar_url="${git_base_url}/releases/download/${branch}/mlrun-demos.tar"
-    download_tar_to_temp_dir "$tar_url" "$temp_dir"
-    verify_update_demos "${temp_dir}" "${branch}"
+# Determine which ref to fetch scripts from (tag matching version or development)
+if [ -n "$mlrun_version" ] && echo "$mlrun_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'; then
+    RAW_REF="refs/tags/v${mlrun_version}"
 else
-    git_repo="demos"
-    git_base_url="https://github.com/${git_owner}/${git_repo}"
-    tar_url="${git_base_url}/archive/${branch}.tar.gz"
-    download_tar_gz_to_temp_dir "$tar_url" "$temp_dir"
-    verify_update_demos "${temp_dir}" "${branch}"
+    RAW_REF="development"
 fi
+
+# Fetch get_demos.py and its config
+GET_DEMOS_URL="https://raw.githubusercontent.com/mlrun/mlrun/${RAW_REF}/automation/scripts/get_demos.py"
+DEMOS_CONFIG_URL="https://raw.githubusercontent.com/mlrun/mlrun/${RAW_REF}/automation/scripts/demos_config.json"
+
+fetch_file() {
+    local url="$1"; local out="$2"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$url" -o "$out"
+    else
+        wget -q -O "$out" "$url"
+    fi
+}
+
+echo "Downloading get_demos.py and demos_config.json ..."
+fetch_file "$GET_DEMOS_URL" "$work_dir/get_demos.py" || error_exit "Failed to download get_demos.py"
+fetch_file "$DEMOS_CONFIG_URL" "$work_dir/demos_config.json" || error_exit "Failed to download demos_config.json"
+
+temp_demos_dir=$(mktemp -d /tmp/demos.XXXXXXXXXX)
+
+echo "Running get_demos.py (dest=${temp_demos_dir}) ..."
+GITHUB_TOKEN="$GITHUB_TOKEN" $PYTHON_BIN "$work_dir/get_demos.py" ${mlrun_version:+"$mlrun_version"} \
+    --config_path "$work_dir/demos_config.json" \
+    --dest "$temp_demos_dir"
+
 if [ -z "${dry_run}" ]; then
     # Ensure we actually have content before touching the existing demos directory
-    if [ -z "$(ls -A "${temp_dir}")" ]; then
-        error_exit "No files extracted to temporary directory; aborting without changing '${demos_dir}'."
+    if [ -z "$(ls -A "${temp_demos_dir}")" ]; then
+        error_exit "No files downloaded; aborting without changing '${demos_dir}'."
     fi
 
-    # Backup existing demos (or remove if --no-backup), only after a successful download/extract
+    # Backup existing demos (or remove if --no-backup), only after a successful download
     if [ -z "${no_backup}" ]; then
         backup_old_demos "$dest_dir" "$demos_dir"
     else
@@ -349,10 +345,15 @@ if [ -z "${dry_run}" ]; then
         mkdir -p "${demos_dir}"
     fi
 
-    echo "copy files from ${temp_dir} to ${demos_dir}"
-    cp -rf "$temp_dir/." "$demos_dir"
+    echo "Copying files from ${temp_demos_dir} to ${demos_dir}"
+    cp -rf "$temp_demos_dir/." "$demos_dir"
+    
+    # Add update_demos.sh to the demos directory for future updates
+    echo "Adding update_demos.sh to ${demos_dir} for future updates..."
+    UPDATE_DEMOS_URL="https://raw.githubusercontent.com/mlrun/mlrun/${RAW_REF}/automation/scripts/update_demos.sh"
+    fetch_file "$UPDATE_DEMOS_URL" "${demos_dir}/update_demos.sh" && chmod +x "${demos_dir}/update_demos.sh" || \
+        echo "Warning: Could not download update_demos.sh to demos directory"
 else
     echo "Identified the following files to copy to '${dest_dir}':"
-    cd ${temp_dir}
-    echo "$(ls -a)"
+    (cd "$temp_demos_dir" && ls -a)
 fi

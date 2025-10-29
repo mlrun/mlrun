@@ -1832,6 +1832,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     def test_enable_model_monitoring_after_failure(self) -> None:
         self.function_name = "test-function"
 
+        # non-exstent-image, should fail
         with pytest.raises(
             mlrun.runtimes.utils.RunError,
             match="Function .* deployment failed",
@@ -1840,10 +1841,13 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 image="nonexistent-image:1.0.0",
                 wait_for_deployment=True,
             )
+
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             wait_for_deployment=True,
         )
+
+        # double enable should fail
         with pytest.raises(
             mlrun.errors.MLRunConflictError,
             match="The following model-montioring infrastructure functions are already deployed, aborting: ",
@@ -1852,6 +1856,14 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 image=self.image or "mlrun/mlrun",
                 wait_for_deployment=True,
             )
+
+        # disable + enable should succeed
+        self.project.disable_model_monitoring()
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=True,
+        )
+
         # check that all the function are still deployed
         all_functions = mm_constants.MonitoringFunctionNames.list() + [
             mm_constants.HistogramDataDriftApplicationConstants.NAME

@@ -233,7 +233,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         try:
             yield endpoints_output, application_schedules.__enter__()
         finally:
-            if write_output:
+            if write_output and any(endpoints_output.values()):
                 logger.debug(
                     "Pushing model monitoring application job data to the writer stream",
                     passed_stream_profile=str(stream_profile),
@@ -390,6 +390,16 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         context.log_result(
                             result_key, self._flatten_data_result(result)
                         )
+                # Check if no result was produced for any endpoint (e.g., due to no data in all windows)
+                if not any(endpoints_output.values()):
+                    context.logger.warning(
+                        "No data was found for any of the specified endpoints. "
+                        "No results were produced",
+                        application_name=application_name,
+                        endpoints=endpoints,
+                        start=start,
+                        end=end,
+                    )
             else:
                 result = call_do_tracking(
                     mm_context.MonitoringApplicationContext._from_ml_ctx(

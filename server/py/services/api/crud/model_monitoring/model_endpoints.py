@@ -986,16 +986,22 @@ class ModelEndpoints:
         if feature_analysis:
             logger.info("Adding feature analysis to the model endpoint")
             if config.model_endpoint_monitoring.writer_graph.writer_version != "v1":
+                parquet_target = await run_in_threadpool(
+                    framework.db.session.run_function_with_new_db_session,
+                    services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path,
+                    project=project,
+                    kind="parquet_stats",
+                )
                 drift_measures, drift_measures_timestamp = await run_in_threadpool(
                     self._get_mep_stats_dict_from_parquet,
-                    db_session=db_session,
+                    parquet_target=parquet_target,
                     project=project,
                     uid=model_endpoint_object.metadata.uid,
                     kind=mm_constants.StatsKind.DRIFT_MEASURES,
                 )
                 current_stats, current_stats_timestamp = await run_in_threadpool(
                     self._get_mep_stats_dict_from_parquet,
-                    db_session=db_session,
+                    parquet_target=parquet_target,
                     project=project,
                     uid=model_endpoint_object.metadata.uid,
                     kind=mm_constants.StatsKind.CURRENT_STATS,
@@ -1020,8 +1026,13 @@ class ModelEndpoints:
                 )[0]
 
             if model_endpoint_object.spec.model_uri:
-                model_endpoint_object, _ = self._add_feature_stats(
-                    session=db_session, model_endpoint_object=model_endpoint_object
+                (
+                    model_endpoint_object,
+                    _,
+                ) = await run_in_threadpool(
+                    framework.db.session.run_function_with_new_db_session,
+                    self._add_feature_stats,
+                    model_endpoint_object=model_endpoint_object,
                 )
 
         return model_endpoint_object
@@ -1502,18 +1513,11 @@ class ModelEndpoints:
 
     @staticmethod
     def _get_mep_stats_dict_from_parquet(
-        db_session,
+        parquet_target,
         project,
         uid,
         kind,
     ) -> tuple[dict, typing.Optional[datetime]]:
-        parquet_target = (
-            services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
-                db_session=db_session,
-                project=project,
-                kind="parquet_stats",
-            )
-        )
         parquet_target = (
             parquet_target if parquet_target.endswith("/") else parquet_target + "/"
         )

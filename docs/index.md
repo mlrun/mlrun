@@ -11,9 +11,18 @@ This page explains how MLRun addresses the [**gen AI tasks**](#gen-ai-tasks), [*
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
 **In this section**
+- [Deployemnt options](#deployment-options)
 - [Gen AI tasks](#gen-ai-tasks) 
 - [MLOps tasks](#mlops-tasks)
 - [MLRun core components](#mlrun-core-components)
+
+## Deployment options
+
+The deployment options are:
+- {ref}`Kubernetes<install-on-kubernetes>`: Deploys the MLRun CE server over Kubernetes. 
+- {ref}`AWS cluster<aws-install>`: Deploys the MLRun CE server on an AWS cluster.
+- [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
+  Note that Iguazio provides a 14 day free trial.
 
 ## Gen AI tasks
 

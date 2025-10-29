@@ -1,4 +1,4 @@
-# Development Notes
+# MLRun CE Development Notes
 
 This page contains development notes for configure your developemt system.
 

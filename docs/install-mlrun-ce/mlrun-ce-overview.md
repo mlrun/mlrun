@@ -6,9 +6,10 @@ This page provides a comprehensive overview of MLRun Community Edition, the open
 **In this section**
 - [What is MLRun CE](#what-is-mlrun-ce)
 - [Main Advantages](#mlrun-ce-main-advantages)
+- [Ecosystem](#ecosystem)
 - [Core Components](#core-components)
 - [Storage Resources](#storage-resources)
-- [Addional Refernces](#addional-refernces)
+- [Addional References](#addional-references)
 
 ## What is MLRun CE
 
@@ -70,7 +71,7 @@ These are not deleted when the stack is uninstalled, which allows upgrading with
 - **Container Images in the configured docker-registry**: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are 
 stored in the given configured docker registry. These images persist in the docker registry and are not deleted.
 
-## Addional Refernces 
+## Addional References 
 
 - **Documentation:** [MLRun Docs](https://docs.mlrun.org) | [Nuclio Docs](https://docs.nuclio.io/en/latest/index.html)
 - **Quick Start:** [MLRun basics tutorial](https://docs.mlrun.org/en/stable/tutorials/01-mlrun-basics.html)

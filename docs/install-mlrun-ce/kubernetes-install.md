@@ -28,7 +28,7 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
   - 8Gi
   - Set a default storage class for the kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
 - RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
-- Please review the [installation notes](./installation-notes.md) for any additional installation steps you may need to consider.
+- Please review the [MLRun CE Installation Notes](./mlrun-ce-installation-notes.md) for any additional installation steps you may need to consider.
 
 ``` {admonition} Note
 The MLRun Community Edition resources are configured initially with the default cluster/namespace resource limits. You can modify the resources from outside if needed.
@@ -151,7 +151,7 @@ Make sure to save your changes in the `data` folder within the Jupyter Lab. The 
 
 ## Configuring the remote environment
 
-You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your environment](https://docs.mlrun.org/en/latest//development-guide/remote.md.html) for more information.
+You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your environment](https://docs.mlrun.org/en/latest//setup-guide/remote.md.html) for more information.
 
 ### Installing on Docker Desktop
 

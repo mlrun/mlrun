@@ -7,8 +7,9 @@ Table of Contents
    
    index
    tutorials/index
-   development-guide
-   mlrun-ce/index   
+   install-mlrun-ce/index  
+   setup-guide
+ 
 
        
 .. toctree::
@@ -58,7 +59,6 @@ Table of Contents
    cli
    resources
    glossary
-   security
    
 .. toctree::
    :maxdepth: 1

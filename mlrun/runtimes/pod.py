@@ -89,7 +89,9 @@ sanitized_attributes = {
 
 _AUTH_SECRET_PATTERN = re.compile(
     re.escape(
-        mlconf.secret_stores.kubernetes.auth_secret_name.format(hashed_access_key="")
+        mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key="",
+        )
     )
     + ".*"
 )
@@ -723,16 +725,20 @@ class KubeResource(BaseRuntime):
         secret_key: Optional[str] = None,
     ):
         """Set env var from secret; block auth-secret usage on client side."""
-        if secret and _AUTH_SECRET_PATTERN.match(secret):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Forbidden secret '{secret}' matches MLRun auth-secret pattern."
-            )
-
+        self._validate_no_auth_secret(
+            secret_name=secret,
+        )
         secret_key = secret_key or name
         value_from = k8s_client.V1EnvVarSource(
-            secret_key_ref=k8s_client.V1SecretKeySelector(name=secret, key=secret_key)
+            secret_key_ref=k8s_client.V1SecretKeySelector(
+                name=secret,
+                key=secret_key,
+            )
         )
-        return self._set_env(name, value_from=value_from)
+        return self._set_env(
+            name=name,
+            value_from=value_from,
+        )
 
     def set_env(
         self,
@@ -742,26 +748,12 @@ class KubeResource(BaseRuntime):
     ):
         """Set env var; block auth-secret usage when coming from a secret."""
         if value_from is not None:
-            # Extract secret name (works for both object and dict)
-            secret_name = None
-            if isinstance(value_from, k8s_client.V1EnvVarSource):
-                if value_from.secret_key_ref:
-                    secret_name = value_from.secret_key_ref.name
-            elif isinstance(value_from, dict):
-                vf = (
-                    value_from.get("valueFrom")
-                    or value_from.get("value_from")
-                    or value_from
-                )
-                sk = (vf or {}).get("secretKeyRef") or (vf or {}).get("secret_key_ref")
-                if isinstance(sk, dict):
-                    secret_name = sk.get("name")
-
-            if secret_name and _AUTH_SECRET_PATTERN.match(secret_name):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
-                )
-
+            secret_name = self._extract_secret_name_from_value_from(
+                value_from=value_from,
+            )
+            self._validate_no_auth_secret(
+                secret_name=secret_name,
+            )
             return self._set_env(name, value_from=value_from)
         return self._set_env(name, value=str(value) if value is not None else None)
 
@@ -1408,6 +1400,35 @@ class KubeResource(BaseRuntime):
                     offset += len(text)
 
         return self.status.state
+
+    @staticmethod
+    def _validate_no_auth_secret(
+        secret_name: Optional[str],
+    ):
+        """Raise if secret name matches MLRun auth-secret pattern."""
+        if secret_name and _AUTH_SECRET_PATTERN.match(secret_name):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
+            )
+
+    @staticmethod
+    def _extract_secret_name_from_value_from(
+        value_from: typing.Any,
+    ) -> Optional[str]:
+        """Extract secret name from a V1EnvVarSource or dict representation."""
+        if isinstance(value_from, k8s_client.V1EnvVarSource):
+            if value_from.secret_key_ref:
+                return value_from.secret_key_ref.name
+        elif isinstance(value_from, dict):
+            vf = (
+                value_from.get("valueFrom")
+                or value_from.get("value_from")
+                or value_from
+            )
+            sk = (vf or {}).get("secretKeyRef") or (vf or {}).get("secret_key_ref")
+            if isinstance(sk, dict):
+                return sk.get("name")
+        return None
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):

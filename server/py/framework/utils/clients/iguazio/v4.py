@@ -46,7 +46,11 @@ class Client(BaseClient, project_follower.Member):
             raise mlrun.errors.MLRunRuntimeError(
                 "The 'iguazio' client is only supported in Python >= 3.11"
             )
-        self._client = iguazio.Client(api_url=self._api_url, auto_login=False)
+        self._client = iguazio.Client(
+            api_url=self._api_url,
+            auto_login=False,
+            # load_token_file=False,
+        )
 
     def refresh_access_token(
         self, secret_token: mlrun.common.schemas.SecretToken
@@ -138,7 +142,7 @@ class Client(BaseClient, project_follower.Member):
 
         def _create_default_project_policies():
             self._client.set_override_auth_headers(auth_info.request_headers)
-            self._client.create_default_project_policies(project=project)
+            self._client.create_default_project_policies(project=project.metadata.name)
             self._logger.info(
                 "Successfully created default project policies in Iguazio V4"
             )
@@ -191,7 +195,7 @@ class Client(BaseClient, project_follower.Member):
 
             options = UpdateProjectOwnerOptionsV1(owner=owner)
             self._client.set_override_auth_headers(auth_info.request_headers)
-            self._client.update_project_owner(project=project, options=options)
+            self._client.update_project_owner(project=name, options=options)
             self._logger.info("Successfully updated project owner in Iguazio V4")
 
         self._try_callback_with_httpx_exceptions(

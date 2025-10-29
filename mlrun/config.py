@@ -481,7 +481,10 @@ default_config = {
         },
         "authorization": {
             "mode": "none",  # one of none, opa
-            "resource_prefix": "resources",
+            "resource_prefixes": {
+                "resources": "resources",
+                "mgmt": "mgmt",
+            },
             "opa": {
                 "address": "",
                 "request_timeout": 10,

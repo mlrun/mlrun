@@ -43,6 +43,7 @@ from .artifact import (
 from .auth import (
     AuthInfo,
     AuthorizationAction,
+    AuthorizationResourceNamespace,
     AuthorizationResourceTypes,
     AuthorizationVerificationInput,
     Credentials,

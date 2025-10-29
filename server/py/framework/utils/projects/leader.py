@@ -426,7 +426,8 @@ class Member(
         followers_classes_map = {
             "mlrun": services.api.crud.Projects,
             "nuclio": framework.utils.clients.nuclio.Client,
-            "igz": framework.utils.clients.iguazio.v4.AsyncClient,
+            # leader follower logic doesn't support async, so we use the v4 sync client
+            "igz": framework.utils.clients.iguazio.v4.Client,
             # for tests
             "nop-self-leader": framework.utils.projects.remotes.nop_follower.Member,
             "nop": framework.utils.projects.remotes.nop_follower.Member,

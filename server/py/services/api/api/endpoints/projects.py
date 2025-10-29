@@ -42,7 +42,7 @@ router = fastapi.APIRouter()
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
-def create_project(
+async def create_project(
     project: mlrun.common.schemas.Project,
     response: fastapi.Response,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
@@ -55,7 +55,17 @@ def create_project(
         framework.api.deps.get_db_session
     ),
 ):
-    project, is_running_in_background = get_project_member().create_project(
+    if (
+        not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+        and mlrun.mlconf.is_iguazio_v4_mode()
+    ):
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_global,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+    project, is_running_in_background = await run_in_threadpool(
+        get_project_member().create_project,
         db_session,
         project,
         auth_info,
@@ -261,7 +271,6 @@ async def delete_project(
             db_session,
             name,
             deletion_strategy,
-            auth_info.projects_role,
             auth_info,
             wait_for_completion=wait_for_completion,
         )

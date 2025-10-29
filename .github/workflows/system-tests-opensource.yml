@@ -438,8 +438,30 @@ jobs:
             --set jupyterNotebook.enabled=false \
             --set kube-prometheus-stack.enabled=false \
             --set kafka.enabled=false
-          echo "Waiting for 30 minutes to allow Helm installation to complete...TODO TROUBELSHOOT WAIT PROBLEMS?!"
-          sleep 1800
+        
+          # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
+          echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
+
+          # Wait up to 30 minutes (1800 seconds) for all pods to be ready
+          timeout=1800
+          interval=60
+          elapsed=0
+
+          while true; do
+            not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
+            if [ "$not_ready" -eq 0 ]; then
+              echo "All pods in namespace ${NAMESPACE} are ready."
+              break
+            fi
+            if [ "$elapsed" -ge "$timeout" ]; then
+              echo "Timeout reached waiting for pods to be ready."
+              kubectl get pods -n ${NAMESPACE}
+              exit 1
+            fi
+            echo "Waiting for pods to be ready... (${elapsed}/${timeout}s)"
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
 
     - name: Run system tests
       run: |
@@ -469,13 +491,13 @@ jobs:
       env:
         PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
 
-    - name: Output some logs in case of failure
-      if: failure()
+    - name: Output  logs
+      if: always()
       # add set -x to print commands before executing to make logs reading easier
       run: |
         set -x
         echo "=================================="
-        echo "=== KUBERNETES CLUSTER STATE ==="
+        echo "==== KUBERNETES CLUSTER STATE ===="
         echo "=================================="
         
         echo "=== Nodes ==="

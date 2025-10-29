@@ -279,8 +279,12 @@ def test_store_secret(
         assert data == secrets_to_store
 
 
-# Labels param in read_secret should be used only with IG4 secrets
+
 def test_store_secrets_does_not_pass_labels_to_read_secret(k8s_helper):
+    """
+        Test ensures that labels param is not passed to read_secret when storing secrets.
+        The labels param during read_secret is intended for IG4 secrets only.
+    """
     k8s_helper.read_secret = mock.MagicMock(
         side_effect=k8s_dynamic_exceptions.NotFoundError(
             k8s_client_rest.ApiException(status=404)

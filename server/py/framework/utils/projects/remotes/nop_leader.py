@@ -33,6 +33,7 @@ class Member(project_leader.Member):
         self,
         session: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         self._update_state(project)
@@ -40,7 +41,7 @@ class Member(project_leader.Member):
             _,
             is_running_in_background,
         ) = framework.utils.singletons.project_member.get_project_member().create_project(
-            self.db_session, project, self._project_role
+            self.db_session, project, auth_info, self._project_role
         )
         return is_running_in_background
 
@@ -49,10 +50,11 @@ class Member(project_leader.Member):
         session: str,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._update_state(project)
         framework.utils.singletons.project_member.get_project_member().store_project(
-            self.db_session, name, project, self._project_role
+            self.db_session, name, project, auth_info, self._project_role
         )
 
     @staticmethod
@@ -70,21 +72,23 @@ class Member(project_leader.Member):
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
         return framework.utils.singletons.project_member.get_project_member().delete_project(
-            self.db_session, name, deletion_strategy, self._project_role
+            self.db_session, name, auth_info, deletion_strategy, self._project_role
         )
 
     def list_projects(
         self,
         session: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         updated_after: typing.Optional[datetime.datetime] = None,
     ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
         return (
             framework.utils.singletons.project_member.get_project_member()
-            .list_projects(self.db_session)
+            .list_projects(self.db_session, auth_info)
             .projects,
             datetime.datetime.utcnow(),
         )
@@ -93,10 +97,11 @@ class Member(project_leader.Member):
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
         return (
             framework.utils.singletons.project_member.get_project_member().get_project(
-                self.db_session, name
+                self.db_session, name, auth_info
             )
         )
 
@@ -109,8 +114,9 @@ class Member(project_leader.Member):
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectOwner:
-        project = self.get_project(session, name)
+        project = self.get_project(session, name, auth_info)
         return mlrun.common.schemas.ProjectOwner(
             username=project.spec.owner, access_key=self.project_owner_access_key
         )

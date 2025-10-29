@@ -45,8 +45,8 @@ def grafana_list_projects(
 
     projects_output = get_project_member().list_projects(
         db_session,
+        auth_info=auth_info,
         format_=mlrun.common.formatters.ProjectFormat.name_only,
-        leader_session=auth_info.session,
     )
     return projects_output.projects
 

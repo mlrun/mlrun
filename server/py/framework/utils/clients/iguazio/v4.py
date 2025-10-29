@@ -354,7 +354,7 @@ class Client(BaseClient, project_follower.Member):
     def _try_callback_with_httpx_exceptions(
         self,
         callback: typing.Callable[..., typing.Any],
-        exception_type: typing.Type[Exception],
+        exception_type: type[Exception],
         failure_message: str,
     ) -> typing.Any:
         try:

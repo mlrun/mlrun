@@ -808,6 +808,7 @@ class SQLDB(DBInterface):
                 )
                 db_artifact = existing_artifact
                 self._update_artifact_record_from_dict(
+                    session,
                     db_artifact,
                     artifact_dict,
                     project,
@@ -871,6 +872,7 @@ class SQLDB(DBInterface):
 
         db_artifact = ArtifactV2(project=project, key=key)
         self._update_artifact_record_from_dict(
+            session,
             db_artifact,
             artifact,
             project,
@@ -879,7 +881,6 @@ class SQLDB(DBInterface):
             iteration,
             best_iteration,
             producer_id,
-            session,
         )
 
         self._upsert(session, [db_artifact])
@@ -1589,6 +1590,7 @@ class SQLDB(DBInterface):
 
     def _update_artifact_record_from_dict(
         self,
+        session: Session,
         artifact_record,
         artifact_dict: dict,
         project: str,
@@ -1597,7 +1599,6 @@ class SQLDB(DBInterface):
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         producer_id: typing.Optional[str] = None,
-        session: Session = None,
     ):
         artifact_record.project = project
         kind = artifact_dict.get("kind") or "artifact"

@@ -3771,7 +3771,9 @@ class HTTPRunDB(RunDBInterface):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
-        modes: Optional[list[mm_constants.EndpointMode]] = None,
+        modes: Optional[
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -3802,8 +3804,13 @@ class HTTPRunDB(RunDBInterface):
         labels = self._parse_labels(labels)
         if names and isinstance(names, str):
             names = [names]
-        if isinstance(modes, mm_constants.EndpointMode):
-            modes = [modes]
+        if modes:
+            # Ensure backward compatibility with Python 3.9 clients by converting IntEnum modes to integer values
+            modes = (
+                [modes.value]
+                if isinstance(modes, mm_constants.EndpointMode)
+                else [mode.value for mode in modes]
+            )
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,

@@ -33,7 +33,12 @@ from mlrun.model_monitoring.writer import WriterGraphFactory
         ),
     ],
 )
-def test_plot_writer_graph(tsdb_profile: DatastoreProfile) -> None:
+def test_plot_writer_graph(
+    monkeypatch: pytest.MonkeyPatch, tsdb_profile: DatastoreProfile
+) -> None:
+    monkeypatch.setattr(mlrun.mlconf, "system_id", "123456")
+    # Set system_id for the test to enable TDEngineConnector to construct database name
+    mlrun.mlconf.system_id = "123456"
     project_name = "test-writer"
     project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
 

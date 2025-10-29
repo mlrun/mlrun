@@ -732,7 +732,7 @@ def print_df(df):
         inputs = {"data": input_path}
         run_object = self.project.run_function(job, inputs=inputs, local=local)
         assert run_object.status.results == {
-            "return": [{"x": "a", "y": 1, "extra": 123}],
+            "num_rows": 1,
         }
 
     @pytest.mark.parametrize("local", [True, False])

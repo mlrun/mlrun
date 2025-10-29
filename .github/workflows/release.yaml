@@ -145,7 +145,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up uv
-        uses: astral-sh/setup-uv@3259c6206f993105e3a61b142c2d97bf4b9ef83d # 7.1.0
+        uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # 7.1.2
       - name: Build & push to PyPI
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
@@ -231,10 +231,21 @@ jobs:
           echo "$venv/bin" >> $GITHUB_PATH
       - name: Install prerequisites
         run: |
-          pip install gitpython requests
-      - name: Create mlrun demos tar
+          pip install requests packaging tqdm
+      - name: Download demos using get_demos script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python automation/scripts/bundle_demos.py
+          python automation/scripts/get_demos.py ${{ needs.prepare-inputs.outputs.version }} \
+          --config_path automation/scripts/demos_config.json \
+          --dest demos
+      - name: Copy update script to demos folder
+        run: |
+          cp automation/scripts/update_demos.sh demos/update_demos.sh
+      - name: Create mlrun-demos tar
+        run: |
+          tar -cf mlrun-demos.tar demos
+          echo "✅ Archive created successfully!"
       - name: Add mlrun-demos tar to release
         uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
         with:

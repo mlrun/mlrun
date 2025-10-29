@@ -16,6 +16,7 @@ import pathlib
 import sys
 import tempfile
 
+import pandas as pd
 import pytest
 
 import mlrun.launcher.local
@@ -197,7 +198,7 @@ def func_b():
     ["batching", "batch_size"], [(False, None), (True, None), (True, 10), (True, 77)]
 )
 @pytest.mark.parametrize("code_to_function", (False, True))
-def test_run_local_serving_job(batching, batch_size, code_to_function):
+def test_run_local_serving_job(batching, batch_size, code_to_function, tmp_path):
     project = mlrun.new_project("some-project")
 
     if code_to_function:
@@ -217,8 +218,13 @@ def test_run_local_serving_job(batching, batch_size, code_to_function):
     inputs = {"data": str(input_csv_path)}
     params = {"batching": batching, "batch_size": batch_size}
 
-    result = project.run_function(job, inputs=inputs, params=params, local=True)
-    responses = result.status.results["return"]
+    run_obj = project.run_function(
+        job, inputs=inputs, params=params, output_path=str(tmp_path), local=True
+    )
+    file_path = (
+        tmp_path / f"{run_obj.metadata.uid}/test-execute-graph/0/prediction.parquet"
+    )
+    responses = pd.read_parquet(file_path)
 
     num_input_rows = 150  # number of rows in input file
     if batching:
@@ -229,9 +235,9 @@ def test_run_local_serving_job(batching, batch_size, code_to_function):
         num_expected_responses = 150
     assert len(responses) == num_expected_responses
 
-    first_response = responses[0]
+    first_response = responses.iloc[0].to_dict()
     if batching:
-        first_response = first_response[0]
+        first_response = first_response["0"]
     assert first_response == {  # based on the first row in input file
         "sepal_length": 6.1,
         "sepal_width": 3.5,

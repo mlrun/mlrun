@@ -201,77 +201,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
 
-    def to_job(
-        self, image: str = "", func_name: Optional[str] = None
-    ) -> KubejobRuntime:
-        """Convert this LocalRuntime to a KubejobRuntime.
-
-        Args:
-            image: Optional Docker image to use for the job.
-            func_name: Optional custom name for the job function. If not provided, automatically
-                      appends '-batch' suffix to the local function name to prevent database collision.
-
-        Returns:
-            KubejobRuntime configured to execute the local function as a batch job.
-
-        Note:
-            The job will have a different name than the local function to prevent database collision.
-            The original local function remains unchanged.
-        """
-        # Convert to dict and back creates independent objects (no reference sharing)
+    def to_job(self, image="", func_name: Optional[str] = None):
         struct = self.to_dict()
-        # Change kind from "local" to "job" before creating KubejobRuntime
-        struct["kind"] = "job"
         obj = KubejobRuntime.from_dict(struct)
-        original_name = obj.metadata.name
-
+        obj.kind = "job"  # Ensure kind is set to 'job' for KubejobRuntime
         if func_name:
-            # User provided explicit job name
             obj.metadata.name = func_name
-            logger.debug(
-                "Creating job from local function with custom name",
-                original_name=original_name,
-                new_name=func_name,
-                was_renamed=False,
-            )
-        else:
-            obj.metadata.name, was_renamed, suffix = (
-                mlrun.utils.helpers.ensure_batch_job_suffix(obj.metadata.name)
-            )
-
-            # Check if the resulting name exceeds Kubernetes length limit
-            if (
-                len(obj.metadata.name)
-                > mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH
-            ):
-                max_allowed_length = (
-                    mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH - len(suffix)
-                )
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Cannot convert local function '{original_name}' to batch job: "
-                    f"the resulting name '{obj.metadata.name}' ({len(obj.metadata.name)} characters) "
-                    f"exceeds Kubernetes limit of {mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters. "
-                    f"Please provide a custom name via the func_name parameter, "
-                    f"with at most {max_allowed_length} characters."
-                )
-
-            if was_renamed:
-                logger.info(
-                    "Creating job from local function (auto-appended suffix to prevent collision)",
-                    original_name=original_name,
-                    new_name=obj.metadata.name,
-                    suffix=suffix,
-                    was_renamed=True,
-                )
-            else:
-                logger.debug(
-                    "Creating job from local function (name already has suffix)",
-                    original_name=original_name,
-                    new_name=obj.metadata.name,
-                    suffix=suffix,
-                    was_renamed=False,
-                )
-
         if image:
             obj.spec.image = image
         return obj

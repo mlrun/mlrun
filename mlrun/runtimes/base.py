@@ -394,10 +394,7 @@ class BaseRuntime(ModelObj):
             )
         output_path = output_path or out_path or artifact_path
 
-        # Validate function name for k8s runtimes before execution
-        # (catches functions loaded from DB/YAML or programmatically modified names)
-        if mlrun.runtimes.RuntimeKinds.requires_k8s_name_validation(self.kind):
-            mlrun.k8s_utils.validate_function_name(self.metadata.name)
+        mlrun.utils.helpers.validate_function_name(self.metadata.name)
 
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs

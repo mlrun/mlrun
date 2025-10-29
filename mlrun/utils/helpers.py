@@ -253,6 +253,40 @@ def verify_field_regex(
         return False
 
 
+def validate_function_name(name: str) -> None:
+    """
+    Validate that a function name conforms to Kubernetes DNS-1123 label requirements.
+
+    Function names for Kubernetes resources must:
+    - Be lowercase alphanumeric characters or '-'
+    - Start and end with an alphanumeric character
+    - Be at most 63 characters long
+
+    This validation should be called AFTER normalize_name() has been applied.
+
+    Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
+
+    :param name: The function name to validate (after normalization)
+    :raises MLRunInvalidArgumentError: If the function name is invalid for Kubernetes
+    """
+    if not name:
+        return
+
+    verify_field_regex(
+        "function.metadata.name",
+        name,
+        mlrun.utils.regex.dns_1123_label,
+        raise_on_failure=True,
+        log_message=(
+            f"Function name '{name}' is invalid. "
+            "Kubernetes function names must be DNS-1123 labels: "
+            "lowercase alphanumeric characters or '-', "
+            "starting and ending with an alphanumeric character, "
+            "and at most 63 characters long."
+        ),
+    )
+
+
 def validate_builder_source(
     source: str, pull_at_runtime: bool = False, workdir: Optional[str] = None
 ):
@@ -507,37 +541,6 @@ def ensure_batch_job_suffix(
             True,
             suffix,
         )
-    return function_name, False, suffix
-
-
-def strip_batch_job_suffix(
-    function_name: typing.Optional[str],
-) -> tuple[typing.Optional[str], bool, str]:
-    """
-    Remove the batch job suffix if present.
-
-    This helper is used when converting a batch job back to a local/serving runtime for execution.
-    The launcher uses this to strip the `-batch` suffix when creating temporary local functions
-    from batch jobs for local execution.
-
-    :param function_name: The function name (may have -batch suffix, can be None or empty string)
-
-    :return: A tuple of (stripped_name, was_stripped, suffix) where:
-        - stripped_name: The function name without the batch suffix (if it was present),
-          or the original name if suffix wasn't present, or empty string/None if input was empty
-        - was_stripped: True if the suffix was removed, False if it wasn't present or if name was empty
-        - suffix: The suffix value that was removed (or would have been removed)
-
-    """
-    suffix = mlrun_constants.RESERVED_BATCH_JOB_SUFFIX
-
-    # Handle None or empty string
-    if not function_name:
-        return function_name, False, suffix
-
-    if function_name.endswith(suffix):
-        return function_name.removesuffix(suffix), True, suffix
-
     return function_name, False, suffix
 
 

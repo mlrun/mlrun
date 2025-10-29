@@ -65,34 +65,6 @@ def test_serving_to_job_metadata_independence():
     ), "Modifying job metadata should not affect original function"
 
 
-def test_local_to_job_auto_rename():
-    """Test that LocalRuntime.to_job() auto-appends -batch suffix."""
-    local_fn = mlrun.new_function(name="test-local", kind="local", command="script.py")
-
-    # Auto-generated name
-    job = local_fn.to_job()
-
-    expected_name = f"test-local{mlrun.common.constants.RESERVED_BATCH_JOB_SUFFIX}"
-    assert (
-        job.metadata.name == expected_name
-    ), f"Auto-generated job name should be '{expected_name}', got '{job.metadata.name}'"
-    assert (
-        local_fn.metadata.name == "test-local"
-    ), "Original local function name should remain unchanged"
-
-
-def test_local_to_job_custom_func_name():
-    """Test that LocalRuntime.to_job() accepts custom func_name parameter."""
-    local_fn = mlrun.new_function(name="test-local", kind="local", command="script.py")
-
-    # Custom func_name
-    job = local_fn.to_job(func_name="my-custom-job")
-
-    assert (
-        job.metadata.name == "my-custom-job"
-    ), f"Custom job name should be 'my-custom-job', got '{job.metadata.name}'"
-
-
 def test_local_to_job_metadata_independence():
     """Test that job metadata is independent from local function metadata."""
     local_fn = mlrun.new_function(name="test-local", kind="local", command="script.py")
@@ -121,6 +93,21 @@ def test_local_to_job_with_image():
     ), f"Job should have custom image, got '{job.spec.image}'"
 
 
+def test_local_to_job_custom_func_name():
+    """Test that LocalRuntime.to_job() accepts custom func_name parameter."""
+    local_fn = mlrun.new_function(name="test-local", kind="local", command="script.py")
+
+    # Custom func_name
+    job = local_fn.to_job(func_name="my-custom-job")
+
+    assert (
+        job.metadata.name == "my-custom-job"
+    ), f"Custom job name should be 'my-custom-job', got '{job.metadata.name}'"
+    assert (
+        local_fn.metadata.name == "test-local"
+    ), "Original local function name should remain unchanged"
+
+
 def test_local_to_job_sets_kind_to_job():
     """Test that LocalRuntime.to_job() correctly sets kind to 'job'.
 
@@ -138,9 +125,10 @@ def test_local_to_job_sets_kind_to_job():
 
     # Verify job has kind='job' (not 'local')
     assert job.kind == "job", f"Job should have kind='job', got '{job.kind}'"
+    # LocalRuntime keeps the same name (no batch suffix)
     assert (
-        job.metadata.name == "test-local-batch"
-    ), f"Job should have batch suffix, got '{job.metadata.name}'"
+        job.metadata.name == "test-local"
+    ), f"Job should keep original name, got '{job.metadata.name}'"
 
 
 def test_serving_to_job_sets_kind_to_job():
@@ -226,33 +214,31 @@ def test_to_job_preserves_class_attributes():
     print(" All class attributes and object independence verified!")
 
 
-@pytest.mark.parametrize("kind", ["serving", "local"])
-def test_to_job_name_length_validation_fails(kind):
-    """Test that to_job() fails when name+suffix exceeds 63 chars for serving and local."""
+def test_to_job_name_length_validation_fails():
+    """Test that to_job() fails when name+suffix exceeds 63 chars for serving."""
     # Create a function with name that will exceed limit when suffix is added
     # 58 chars + 6 chars ("-batch") = 64 chars > 63 limit
     long_name = "a" * 58
-    fn = mlrun.new_function(name=long_name, kind=kind)
+    fn = mlrun.new_function(name=long_name, kind="serving")
 
     # Should fail with clear error message
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match=f"Cannot convert {kind} function .* to batch job",
+        match="Cannot convert serving function .* to batch job",
     ) as exc_info:
         fn.to_job()
 
     error_msg = str(exc_info.value)
     assert "exceeds Kubernetes limit" in error_msg
     assert "func_name parameter" in error_msg
-    assert "57 characters" in error_msg
+    assert "63 characters" in error_msg
 
 
-@pytest.mark.parametrize("kind", ["serving", "local"])
-def test_to_job_name_length_validation_with_custom_name(kind):
-    """Test that providing func_name bypasses length validation for serving and local."""
+def test_to_job_name_length_validation_with_custom_name():
+    """Test that providing func_name bypasses length validation for serving."""
     # Create a function with name that would exceed limit
     long_name = "a" * 58
-    fn = mlrun.new_function(name=long_name, kind=kind)
+    fn = mlrun.new_function(name=long_name, kind="serving")
 
     # Should succeed with custom name that fits within limit
     job = fn.to_job(func_name="custom-job-name")
@@ -260,26 +246,20 @@ def test_to_job_name_length_validation_with_custom_name(kind):
 
 
 def test_to_job_backward_compatibility():
-    """Test backward compatibility - functions can be created with 58-63 char names.
+    """Test backward compatibility - serving functions can be created with 58-63 char names.
 
-    This ensures we didn't break existing code that creates serving/local functions
+    This ensures we didn't break existing code that creates serving functions
     with long names. They only fail when to_job() is called and suffix would exceed limit.
     """
-    # Functions can be created with names up to 63 chars (standard K8s limit)
+    # Serving functions can be created with names up to 63 chars (standard K8s limit)
     long_name = "a" * 63
     serving_fn = mlrun.new_function(name=long_name, kind="serving")
     assert serving_fn.metadata.name == long_name
-
-    local_fn = mlrun.new_function(name=long_name, kind="local")
-    assert local_fn.metadata.name == long_name
 
     # 58 char name also succeeds at creation (but would fail at to_job())
     name_58 = "a" * 58
     serving_fn = mlrun.new_function(name=name_58, kind="serving")
     assert serving_fn.metadata.name == name_58
-
-    local_fn = mlrun.new_function(name=name_58, kind="local")
-    assert local_fn.metadata.name == name_58
 
     # 57 char name succeeds at both creation AND to_job()
     name_57 = "a" * 57
@@ -287,6 +267,8 @@ def test_to_job_backward_compatibility():
     job = serving_fn.to_job()
     assert len(job.metadata.name) == 63  # 57 + 6 ("-batch")
 
-    local_fn = mlrun.new_function(name=name_57, kind="local")
+    # Local functions don't have batch suffix logic, so they keep the same name
+    local_fn = mlrun.new_function(name=long_name, kind="local")
+    assert local_fn.metadata.name == long_name
     job = local_fn.to_job()
-    assert len(job.metadata.name) == 63
+    assert job.metadata.name == long_name  # Name unchanged

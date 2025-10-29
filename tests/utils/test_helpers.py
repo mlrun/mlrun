@@ -48,10 +48,10 @@ from mlrun.utils.helpers import (
     set_data_by_path,
     split_path,
     str_to_timestamp,
-    strip_batch_job_suffix,
     template_artifact_path,
     update_in,
     validate_artifact_key_name,
+    validate_function_name,
     validate_tag_name,
     validate_v3io_stream_consumer_group,
     verify_field_regex,
@@ -1938,22 +1938,48 @@ def test_ensure_batch_job_suffix(function_name, expected_name, expected_renamed)
     assert suffix == "-batch"
 
 
-# Test strip_batch_job_suffix
 @pytest.mark.parametrize(
-    "function_name,expected_name,expected_stripped",
+    "function_name,expected",
     [
-        # Normal case - suffix should be stripped
-        ("my-function-batch", "my-function", True),
-        # No suffix - should return unchanged
-        ("my-function", "my-function", False),
-        # Double suffix (should only strip one)
-        ("func-batch-batch", "func-batch", True),
+        # Invalid names - uppercase letters
+        ("MyFunction", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("FUNCTION", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("myFunction", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        # Invalid names - special characters
+        ("my_function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my.function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my@function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my#function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        # Invalid names - starts/ends with dash
+        ("-myfunction", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("myfunction-", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        # Empty name - allowed (returns early without validation)
+        ("", does_not_raise()),
+        # Invalid names - too long (>63 characters)
+        (
+            "a" * 64,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "my-very-long-function-name-that-exceeds-kubernetes-limit-of-sixtythree",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # Valid names
+        ("myfunction", does_not_raise()),
+        ("my-function", does_not_raise()),
+        ("my-function-2", does_not_raise()),
+        ("function123", does_not_raise()),
+        ("123function", does_not_raise()),
+        ("a", does_not_raise()),
+        ("a1", does_not_raise()),
+        ("1a", does_not_raise()),
+        # Valid names - at the limit (63 characters)
+        ("a" * 63, does_not_raise()),
+        ("my-function-" + "a" * 50, does_not_raise()),
     ],
 )
-def test_strip_batch_job_suffix(function_name, expected_name, expected_stripped):
-    """Test that strip_batch_job_suffix correctly removes suffix when present."""
-    stripped_name, was_stripped, suffix = strip_batch_job_suffix(function_name)
-
-    assert stripped_name == expected_name
-    assert was_stripped == expected_stripped
-    assert suffix == "-batch"
+def test_validate_function_name(function_name, expected):
+    """Test that validate_function_name enforces DNS-1123 label requirements."""
+    with expected:
+        validate_function_name(function_name)

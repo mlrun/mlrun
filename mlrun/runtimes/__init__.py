@@ -187,18 +187,6 @@ class RuntimeKinds:
         ]
 
     @staticmethod
-    def runtimes_with_to_job() -> list[str]:
-        """Runtimes that support conversion to batch jobs via to_job() method.
-
-        These runtimes auto-append -batch suffix to prevent database collision
-        when converted to jobs.
-        """
-        return [
-            RuntimeKinds.serving,
-            RuntimeKinds.local,
-        ]
-
-    @staticmethod
     def is_log_collectable_runtime(kind: typing.Optional[str]):
         """
         whether log collector can collect logs for that runtime

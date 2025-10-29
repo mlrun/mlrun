@@ -660,7 +660,7 @@ class ServingRuntime(RemoteRuntime):
         :param force_build: set True for force building the image
         """
         # Validate function name before deploying to k8s
-        mlrun.k8s_utils.validate_function_name(self.metadata.name)
+        mlrun.utils.helpers.validate_function_name(self.metadata.name)
 
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
@@ -914,9 +914,7 @@ class ServingRuntime(RemoteRuntime):
             job_metadata.name = func_name
             logger.debug(
                 "Creating job from serving function with custom name",
-                original_name=original_name,
                 new_name=func_name,
-                was_renamed=False,
             )
         else:
             job_metadata.name, was_renamed, suffix = (
@@ -928,32 +926,25 @@ class ServingRuntime(RemoteRuntime):
                 len(job_metadata.name)
                 > mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH
             ):
-                max_allowed_length = (
-                    mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH - len(suffix)
-                )
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Cannot convert serving function '{original_name}' to batch job: "
                     f"the resulting name '{job_metadata.name}' ({len(job_metadata.name)} characters) "
                     f"exceeds Kubernetes limit of {mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters. "
                     f"Please provide a custom name via the func_name parameter, "
-                    f"with at most {max_allowed_length} characters."
+                    f"with at most {mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters."
                 )
 
             if was_renamed:
                 logger.info(
                     "Creating job from serving function (auto-appended suffix to prevent collision)",
-                    original_name=original_name,
                     new_name=job_metadata.name,
                     suffix=suffix,
-                    was_renamed=True,
                 )
             else:
                 logger.debug(
                     "Creating job from serving function (name already has suffix)",
-                    original_name=original_name,
-                    new_name=job_metadata.name,
+                    name=original_name,
                     suffix=suffix,
-                    was_renamed=False,
                 )
 
         job = KubejobRuntime(

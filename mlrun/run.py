@@ -537,9 +537,7 @@ def new_function(
 
     # make sure function name is valid
     name = mlrun.utils.helpers.normalize_name(name)
-
-    if kind not in RuntimeKinds.runtimes_with_to_job():
-        mlrun.k8s_utils.validate_function_name(name)
+    mlrun.utils.helpers.validate_function_name(name)
 
     runner.metadata.name = name
     runner.metadata.project = (
@@ -785,8 +783,7 @@ def code_to_function(
         ignored_tags=ignored_tags,
     )
 
-    if name:
-        mlrun.k8s_utils.validate_function_name(name)
+    mlrun.utils.helpers.validate_function_name(name)
 
     spec["spec"]["env"].append(
         {

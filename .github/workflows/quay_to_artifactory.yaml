@@ -5,6 +5,9 @@ on:
     tags:
       - '*'
 
+permissions:
+  contents: read
+
 jobs:
   notify:
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]

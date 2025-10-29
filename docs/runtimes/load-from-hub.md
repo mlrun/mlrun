@@ -1,8 +1,6 @@
 (load-from-hub)=
 # MLRun hub <!-- omit in toc -->
 
-## MLRun hub
-
 The [MLRun hub](https://www.mlrun.org/hub/) has a wide range of functions, modules, and apps that you can incorporate into your projects, for a variety of use cases.
 You can search and filter the categories and kinds to find an item that meets your needs.
 Reusing built-in code can significicantly speed up your development cycle. 
@@ -11,7 +9,6 @@ Reusing built-in code can significicantly speed up your development cycle.
 **In this section**
 
 - [Custom hub](#custom-hub)
-- [Setting the project configuration](#setting-the-project-configuration)
 - [Loading functions from the MLRun hub](#loading-functions-from-the-mlrun-hub)
 - [View the function params](#view-the-function-params)
 - [Running the function](#running-the-function)
@@ -91,7 +88,7 @@ Each function has a docstring that explains how to use it. The functions and mod
 ### Loading functions from the MLRun hub
 
 This section demonstrates how to import a function from the hub into your project, and provides some basic instructions on how to run the function and view the results.
-Learn about [artifact paths](/store/artifacts.html#artifact-path)
+Learn about [artifact paths](/store/artifacts.md#artifact-path)
 Run `project.set_function` to add or update a function object to the project.
 
 `set_function(func, name='', kind='', image=None, with_repo=None)`
@@ -187,4 +184,5 @@ my_describe.run(
 There are few options to view the outputs of the jobs you ran:
 - In the MLRun UI, under the project name, you can view the job that was running as well as the artifacts it generated.
 - In Jupyter the result of the job is displayed in the Jupyter notebook. When you click on the artifacts it displays its content in Jupyter.
-
+## Apps
+### Loading apps from the MLRun hub

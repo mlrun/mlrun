@@ -29,12 +29,12 @@ from os import environ, remove
 from pathlib import Path
 from subprocess import PIPE, Popen
 from sys import executable
+from typing import Optional
 
 from nuclio import Event
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
-import mlrun.common.runtimes.constants
 from mlrun.lists import RunList
 
 from ..errors import err_to_str
@@ -201,9 +201,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
 
-    def to_job(self, image=""):
+    def to_job(self, image="", func_name: Optional[str] = None):
         struct = self.to_dict()
         obj = KubejobRuntime.from_dict(struct)
+        obj.kind = "job"  # Ensure kind is set to 'job' for KubejobRuntime
+        if func_name:
+            obj.metadata.name = func_name
         if image:
             obj.spec.image = image
         return obj

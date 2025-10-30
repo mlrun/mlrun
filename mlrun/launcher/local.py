@@ -243,6 +243,8 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
 
         # if the handler has module prefix force "local" (vs "handler") runtime
         kind = "local" if isinstance(handler, str) and "." in handler else ""
+
+        # Create temporary local function for execution
         fn = mlrun.new_function(meta.name, command=command, args=args, kind=kind)
         fn.metadata = meta
         setattr(fn, "_is_run_local", True)

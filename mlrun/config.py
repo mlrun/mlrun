@@ -481,7 +481,7 @@ default_config = {
         },
         "authorization": {
             "mode": "none",  # one of none, opa
-            "resource_prefixes": {
+            "namespaces": {
                 "resources": "",
                 "mgmt": "mgmt",
             },

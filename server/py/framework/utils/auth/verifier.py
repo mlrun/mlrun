@@ -32,10 +32,8 @@ import framework.utils.clients.iguazio.v4
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self) -> None:
         super().__init__()
-        self._resources_prefix = (
-            mlrun.mlconf.httpdb.authorization.resource_prefixes.resources
-        )
-        self._mgmt_prefix = mlrun.mlconf.httpdb.authorization.resource_prefixes.mgmt
+        self._resources_prefix = mlrun.mlconf.httpdb.authorization.namespaces.resources
+        self._mgmt_prefix = mlrun.mlconf.httpdb.authorization.namespaces.mgmt
         self._prefixes = {
             schemas.AuthorizationResourceNamespace.resources: self._resources_prefix,
             schemas.AuthorizationResourceNamespace.mgmt: self._mgmt_prefix,

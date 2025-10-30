@@ -30,8 +30,12 @@ depends_on = None
 
 
 def upgrade():
-    op.execute("CREATE INDEX idx_project_bi_updated ON artifacts_v2 (project, best_iteration, kind, updated DESC, id DESC);")
-    op.execute("CREATE INDEX idx_artifacts_tags_name_obj ON artifacts_v2_tags (name, obj_id);")
+    op.execute(
+        "CREATE INDEX idx_project_bi_updated ON artifacts_v2 (project, best_iteration, kind, updated DESC, id DESC);"
+    )
+    op.execute(
+        "CREATE INDEX idx_artifacts_tags_name_obj ON artifacts_v2_tags (name, obj_id);"
+    )
 
 
 def downgrade():

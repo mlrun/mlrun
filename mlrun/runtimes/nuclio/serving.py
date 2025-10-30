@@ -659,6 +659,9 @@ class ServingRuntime(RemoteRuntime):
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
+        # Validate function name before deploying to k8s
+        mlrun.utils.helpers.validate_function_name(self.metadata.name)
+
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
             raise ValueError(f"illegal model loading mode {load_mode}")
@@ -855,8 +858,20 @@ class ServingRuntime(RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(self) -> KubejobRuntime:
-        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job."""
+    def to_job(self, func_name: Optional[str] = None) -> KubejobRuntime:
+        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
+
+        Args:
+            func_name: Optional custom name for the job function. If not provided, automatically
+                      appends '-batch' suffix to the serving function name to prevent database collision.
+
+        Returns:
+            KubejobRuntime configured to execute the serving graph as a batch job.
+
+        Note:
+            The job will have a different name than the serving function to prevent database collision.
+            The original serving function remains unchanged and can still be invoked after running the job.
+        """
         if self.spec.function_refs:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
@@ -890,8 +905,50 @@ class ServingRuntime(RemoteRuntime):
             parameters=self.spec.parameters,
             graph=self.spec.graph,
         )
+
+        job_metadata = deepcopy(self.metadata)
+        original_name = job_metadata.name
+
+        if func_name:
+            # User provided explicit job name
+            job_metadata.name = func_name
+            logger.debug(
+                "Creating job from serving function with custom name",
+                new_name=func_name,
+            )
+        else:
+            job_metadata.name, was_renamed, suffix = (
+                mlrun.utils.helpers.ensure_batch_job_suffix(job_metadata.name)
+            )
+
+            # Check if the resulting name exceeds Kubernetes length limit
+            if (
+                len(job_metadata.name)
+                > mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Cannot convert serving function '{original_name}' to batch job: "
+                    f"the resulting name '{job_metadata.name}' ({len(job_metadata.name)} characters) "
+                    f"exceeds Kubernetes limit of {mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters. "
+                    f"Please provide a custom name via the func_name parameter, "
+                    f"with at most {mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters."
+                )
+
+            if was_renamed:
+                logger.info(
+                    "Creating job from serving function (auto-appended suffix to prevent collision)",
+                    new_name=job_metadata.name,
+                    suffix=suffix,
+                )
+            else:
+                logger.debug(
+                    "Creating job from serving function (name already has suffix)",
+                    name=original_name,
+                    suffix=suffix,
+                )
+
         job = KubejobRuntime(
             spec=spec,
-            metadata=self.metadata,
+            metadata=job_metadata,
         )
         return job

@@ -555,6 +555,7 @@ def new_function(
 
     # make sure function name is valid
     name = mlrun.utils.helpers.normalize_name(name)
+    mlrun.utils.helpers.validate_function_name(name)
 
     runner.metadata.name = name
     runner.metadata.project = (
@@ -594,6 +595,7 @@ def new_function(
         )
 
     runner.prepare_image_for_deploy()
+
     return runner
 
 
@@ -798,6 +800,9 @@ def code_to_function(
         kind=sub_kind,
         ignored_tags=ignored_tags,
     )
+
+    mlrun.utils.helpers.validate_function_name(name)
+
     spec["spec"]["env"].append(
         {
             "name": "MLRUN_HTTPDB__NUCLIO__EXPLICIT_ACK",
@@ -850,6 +855,7 @@ def code_to_function(
         runtime.spec.build.code_origin = code_origin
         runtime.spec.build.origin_filename = filename or (name + ".ipynb")
         update_common(runtime, spec)
+
         return runtime
 
     if kind is None or kind in ["", "Function"]:
@@ -863,6 +869,7 @@ def code_to_function(
 
     if not name:
         raise ValueError("name must be specified")
+
     h = get_in(spec, "spec.handler", "").split(":")
     runtime.handler = h[0] if len(h) <= 1 else h[1]
     runtime.metadata = get_in(spec, "spec.metadata")

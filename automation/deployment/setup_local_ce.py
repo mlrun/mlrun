@@ -118,6 +118,12 @@ def is_traefik_installed(debug: bool = False) -> bool:
 
 
 def clear_namespaces(namespace: str, debug: bool):
+    res = subprocess.run(
+        ["kubectl", "get", "namespace", namespace], capture_output=True, text=True
+    )
+    if res.returncode != 0:
+        echo_color(f"Namespace '{namespace}' not found – skipping delete")
+        return
     echo_color("Clearing Kubernetes namespace ...")
     run_command(
         ["kubectl", "delete", "namespace", namespace], debug=debug, raise_on_error=False
@@ -322,19 +328,54 @@ def get_all_tags(repository: str):
         page += 1
     return tags
 
-
 def get_latest_valid_version(repo_name: str) -> str:
-    if tag := get_latest_tag(repo_name):
-        cleaned = clean_version(tag)
-        if is_valid_version(cleaned):
-            echo_color(f"Using latest release tag for {repo_name}: {cleaned}")
-            return cleaned
+    # Accept x.y.z or x.y.z-rcN; patch must be 1–2 digits; allow optional leading 'v'
+    pattern = re.compile(r"^v?(?P<maj>\d+)\.(?P<min>\d+)\.(?P<patch>\d{1,2})(?:[-.]?rc(?P<rc>\d+))?$", re.IGNORECASE)
+    allowed_major_by_repo = {
+        "mlrun/mlrun": 1,
+        "nuclio/nuclio": 1,
+    }
+
+    def parse_tag(raw: str) -> tuple[tuple[int, int, int, int, int], str] | None:
+        if not raw:
+            return None
+        m = pattern.match(raw) or pattern.match(clean_version(raw))
+        if not m:
+            return None
+        maj = int(m.group("maj"))
+        # Enforce expected major if defined for this repo
+        if repo_name in allowed_major_by_repo and maj != allowed_major_by_repo[repo_name]:
+            return None
+        min_ = int(m.group("min"))
+        patch = int(m.group("patch"))
+        rc_str = m.group("rc")
+        is_final = 1 if rc_str is None else 0
+        rc_num = float("inf") if rc_str is None else int(rc_str)
+        cleaned = f"{maj}.{min_}.{patch}" + (f"-rc{rc_str}" if rc_str is not None else "")
+        return (maj, min_, patch, is_final, rc_num), cleaned
+
+    candidates: list[tuple[tuple[int, int, int, int, int], str]] = []
+
+    latest = get_latest_tag(repo_name)
+    parsed = parse_tag(latest)
+    if parsed:
+        candidates.append(parsed)
+
     for tag in get_all_tags(repo_name):
-        cleaned = clean_version(tag.get("name", ""))
-        if is_valid_version(cleaned):
-            echo_color(f"Using latest semver tag for {repo_name}: {cleaned}")
-            return cleaned
-    raise ValueError(f"No semver tag found for {repo_name}")
+        name = tag.get("name", "")
+        parsed = parse_tag(name)
+        if parsed:
+            candidates.append(parsed)
+
+    if not candidates:
+        raise ValueError(f"No semver tag found for {repo_name}")
+
+    best_key, best_cleaned = max(candidates, key=lambda t: t[0])
+    echo_color(f"Using latest semver tag for {repo_name}: {best_cleaned}")
+    return best_cleaned
+
+
+
 
 
 def get_existing_helm_repos(debug: bool):
@@ -511,9 +552,11 @@ def upgrade_images(
         debug=debug,
     )
 
-    # nuclio maps x86_64 to amd64
-    if arch == "x86_64":
-        arch = "amd64"
+    # Always use arm64 for Nuclio images regardless of provided arch
+    nuclio_arch = "arm64"
+
+    # For jupyter and log-collector images, drop a leading 'v' if provided
+    mlrun_ver = mlrun_ver.lstrip("v")
 
     cmd = [
         "helm",
@@ -534,9 +577,9 @@ def upgrade_images(
         "--set",
         f"jupyterNotebook.image.tag={mlrun_ver}",
         "--set",
-        f"nuclio.controller.image.tag={nuclio_ver}-{arch}",
+        f"nuclio.controller.image.tag={nuclio_ver}-{nuclio_arch}",
         "--set",
-        f"nuclio.dashboard.image.tag={nuclio_ver}-{arch}",
+        f"nuclio.dashboard.image.tag={nuclio_ver}-{nuclio_arch}",
     ]
     if docker_creds_secret_name:
         cmd.extend(
@@ -643,6 +686,13 @@ def install_ce(
     ingress_host: str,
     mlrun_install_extra_values: dict[str, str] | None = None,
 ):
+    if not ce_ver:
+        ce_ver = get_latest_valid_version("mlrun/ce").replace("mlrun-ce-", "")
+    if not mlrun_ver:
+        mlrun_ver = get_latest_valid_version("mlrun/mlrun").lstrip("v")
+    if not nuclio_ver:
+        nuclio_ver = get_latest_valid_version("nuclio/nuclio").lstrip("v")
+
     for cmd in REQUIRED_COMMANDS:
         check_command_exists(cmd)
 

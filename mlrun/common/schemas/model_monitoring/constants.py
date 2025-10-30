@@ -486,8 +486,6 @@ class ModelMonitoringLabels:
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
 
-_RESERVED_EVALUATE_FUNCTION_SUFFIX = "-batch"
-
 
 class ModelEndpointMonitoringMetricType(StrEnum):
     RESULT = "result"

@@ -2050,8 +2050,7 @@ def test_create_api_gateway_valid(
     ):
         api_gateway.with_access_key_auth()
     elif (
-        authentication_mode
-        == mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio
+        authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio
     ):
         api_gateway.with_iguazio_auth()
 

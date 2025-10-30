@@ -57,7 +57,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         def _generate_opa_resource(resource):
             project_name, resource_name = project_and_resource_name_extractor(resource)
             return self._generate_resource_string_from_project_resource(
-                resource_type, project_name, resource_name, resource_namespace
+                resource_type=resource_type,
+                project_name=project_name,
+                resource_name=resource_name,
+                resource_namespace=resource_namespace,
             )
 
         return await self.filter_by_permissions(
@@ -127,7 +130,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     ) -> bool:
         return await self.query_permissions(
             self._generate_resource_string_from_project_resource(
-                resource_type, project_name, resource_name, resource_namespace
+                resource_type=resource_type,
+                project_name=project_name,
+                resource_name=resource_name,
+                resource_namespace=resource_namespace,
             ),
             action,
             auth_info,

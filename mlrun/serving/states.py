@@ -522,7 +522,9 @@ class BaseStep(ModelObj):
 
         root = self._extract_root_step()
 
-        if not isinstance(root, RootFlowStep):
+        if not isinstance(root, RootFlowStep) or (
+            isinstance(root, RootFlowStep) and root.engine != "async"
+        ):
             raise GraphError(
                 "ModelRunnerStep can be added to 'Flow' topology graph only"
             )
@@ -1148,6 +1150,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         "artifact_uri",
         "shared_runnable_name",
         "shared_proxy_mapping",
+        "execution_mechanism",
     ]
     kind = "model"
 
@@ -1170,6 +1173,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.model_artifact: Optional[ModelArtifact] = None
         self.model_provider: Optional[ModelProvider] = None
         self._artifact_were_loaded = False
+        self._execution_mechanism = None
 
     def __init_subclass__(cls):
         super().__init_subclass__()
@@ -1188,6 +1192,20 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
                 default_invoke_kwargs=self.model_artifact.default_config,
                 raise_missing_schema_exception=False,
             )
+
+        # Check if the relevant predict method is implemented when trying to initialize the model
+        if self._execution_mechanism == storey.ParallelExecutionMechanisms.asyncio:
+            if self.__class__.predict_async is Model.predict_async:
+                raise mlrun.errors.ModelRunnerError(
+                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict_async() "
+                    f"is not implemented"
+                )
+        else:
+            if self.__class__.predict is Model.predict:
+                raise mlrun.errors.ModelRunnerError(
+                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict() "
+                    f"is not implemented"
+                )
 
     def _load_artifacts(self) -> None:
         if not self._artifact_were_loaded:
@@ -1219,11 +1237,11 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
     def predict(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
-        return body
+        raise NotImplementedError("predict() method not implemented")
 
     async def predict_async(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic if the logic requires asyncio."""
-        return body
+        raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         return self.predict(body)
@@ -1338,7 +1356,7 @@ class LLModel(Model):
         self,
         body: Any,
         messages: Optional[list[dict]] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
         llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
@@ -1349,12 +1367,12 @@ class LLModel(Model):
                 "Invoking model provider",
                 model_name=self.name,
                 messages=messages,
-                model_configuration=model_configuration,
+                invocation_config=invocation_config,
             )
             response_with_stats = self.model_provider.invoke(
                 messages=messages,
                 invoke_response_format=InvokeResponseFormat.USAGE,
-                **(model_configuration or {}),
+                **(invocation_config or {}),
             )
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
@@ -1378,7 +1396,7 @@ class LLModel(Model):
         self,
         body: Any,
         messages: Optional[list[dict]] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
         llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
@@ -1389,12 +1407,12 @@ class LLModel(Model):
                 "Async invoking model provider",
                 model_name=self.name,
                 messages=messages,
-                model_configuration=model_configuration,
+                invocation_config=invocation_config,
             )
             response_with_stats = await self.model_provider.async_invoke(
                 messages=messages,
                 invoke_response_format=InvokeResponseFormat.USAGE,
-                **(model_configuration or {}),
+                **(invocation_config or {}),
             )
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
@@ -1416,7 +1434,7 @@ class LLModel(Model):
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
-        messages, model_configuration = self.enrich_prompt(
+        messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
         )
         logger.info(
@@ -1428,7 +1446,7 @@ class LLModel(Model):
         return self.predict(
             body,
             messages=messages,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             llm_prompt_artifact=llm_prompt_artifact,
         )
 
@@ -1436,7 +1454,7 @@ class LLModel(Model):
         self, body: Any, path: str, origin_name: Optional[str] = None
     ) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
-        messages, model_configuration = self.enrich_prompt(
+        messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
         )
         logger.info(
@@ -1448,7 +1466,7 @@ class LLModel(Model):
         return await self.predict_async(
             body,
             messages=messages,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             llm_prompt_artifact=llm_prompt_artifact,
         )
 
@@ -1472,11 +1490,11 @@ class LLModel(Model):
                 artifact_type=type(llm_prompt_artifact).__name__,
                 llm_prompt_artifact=llm_prompt_artifact,
             )
-            prompt_legend, prompt_template, model_configuration = {}, [], {}
+            prompt_legend, prompt_template, invocation_config = {}, [], {}
         else:
             prompt_legend = llm_prompt_artifact.spec.prompt_legend
             prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
-            model_configuration = llm_prompt_artifact.spec.model_configuration
+            invocation_config = llm_prompt_artifact.spec.invocation_config
         input_data = copy(get_data_from_path(self._input_path, body))
         if isinstance(input_data, dict) and prompt_template:
             kwargs = (
@@ -1512,7 +1530,7 @@ class LLModel(Model):
                 model_name=self.name,
                 input_data_type=type(input_data).__name__,
             )
-        return prompt_template, model_configuration
+        return prompt_template, invocation_config
 
     def _get_invocation_artifact(
         self, origin_name: Optional[str] = None
@@ -1643,6 +1661,8 @@ class ModelRunnerStep(MonitoredStep):
 
     Note when ModelRunnerStep is used in a graph, MLRun automatically imports
     the default language model class (LLModel) during function deployment.
+
+    Note ModelRunnerStep can only be added to a graph that has the flow topology and running with async engine.
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
@@ -2091,24 +2111,28 @@ class ModelRunnerStep(MonitoredStep):
             )
         model_objects = []
         for model, model_params in models.values():
+            model_name = model_params.get("name")
             model_params[schemas.MonitoringData.INPUT_PATH] = (
                 self.class_args.get(
                     mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
                 )
-                .get(model_params.get("name"), {})
+                .get(model_name, {})
                 .get(schemas.MonitoringData.INPUT_PATH)
             )
             model_params[schemas.MonitoringData.RESULT_PATH] = (
                 self.class_args.get(
                     mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
                 )
-                .get(model_params.get("name"), {})
+                .get(model_name, {})
                 .get(schemas.MonitoringData.RESULT_PATH)
             )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True
             )
             model._raise_exception = False
+            model._execution_mechanism = execution_mechanism_by_model_name.get(
+                model_name
+            )
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,
@@ -3018,6 +3042,7 @@ class RootFlowStep(FlowStep):
                     model_params, init_with_params=True
                 )
                 model._raise_exception = False
+                model._execution_mechanism = self._shared_models_mechanism[model.name]
                 self.context.executor.add_runnable(
                     model, self._shared_models_mechanism[model.name]
                 )

@@ -196,6 +196,10 @@ class WriterEventKind(MonitoringStrEnum):
     RESULT = "result"
     STATS = "stats"
 
+    @classmethod
+    def user_app_outputs(cls):
+        return [cls.METRIC, cls.RESULT]
+
 
 class ControllerEvent(MonitoringStrEnum):
     KIND = "kind"
@@ -304,6 +308,7 @@ class FileTargetKind:
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"
     STATS = "stats"
+    PARQUET_STATS = "parquet_stats"
     LAST_REQUEST = "last_request"
 
 
@@ -480,8 +485,6 @@ class ModelMonitoringLabels:
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
-
-_RESERVED_EVALUATE_FUNCTION_SUFFIX = "-batch"
 
 
 class ModelEndpointMonitoringMetricType(StrEnum):

@@ -135,15 +135,15 @@ def test_llm_prompt_artifact_validator():
     )
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="LLMPromptArtifact model_configuration must be a dictionary or None",
+        match="LLMPromptArtifact invocation_config must be a dictionary or None",
     ):
         mlrun.artifacts.LLMPromptArtifact(
-            model_artifact=model_artifact, model_configuration=50
+            model_artifact=model_artifact, invocation_config=50
         )
     llm_prompt_artifact = mlrun.artifacts.LLMPromptArtifact(
-        model_artifact=model_artifact, model_configuration=None
+        model_artifact=model_artifact, invocation_config=None
     )
-    assert llm_prompt_artifact.spec.model_configuration == {}
+    assert llm_prompt_artifact.spec.invocation_config == {}
 
 
 class FakeProducer:

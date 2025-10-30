@@ -18,6 +18,7 @@ import datetime
 import http
 import json.decoder
 import os
+import typing
 import unittest.mock
 from http import HTTPStatus
 from typing import Optional
@@ -352,6 +353,61 @@ def test_delete_project_with_resources(
         mlrun.common.schemas.DeletionStrategy.restricted,
         HTTPStatus.NO_CONTENT.value,
     )
+
+
+@pytest.mark.asyncio
+async def test_only_iteration_zero_runs_are_counted(db: Session, client: TestClient):
+    proj = "iter-filter-project"
+    _create_project(client, proj)
+    one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
+
+    # iter==0 (counted)
+    _create_runs(client, proj, 2, mlrun.common.runtimes.constants.RunStates.running)
+    _create_runs(
+        client,
+        proj,
+        3,
+        mlrun.common.runtimes.constants.RunStates.completed,
+        one_hour_ago,
+    )
+    _create_runs(
+        client, proj, 4, mlrun.common.runtimes.constants.RunStates.error, one_hour_ago
+    )
+
+    # iter>0 (ignored)
+    _create_hyperparam_runs(
+        client=client,
+        project_name=proj,
+        param_name="x",
+        values=[1, 2, 3, 4, 5],
+        state=mlrun.common.runtimes.constants.RunStates.running,
+    )
+    _create_hyperparam_runs(
+        client=client,
+        project_name=proj,
+        param_name="x",
+        values=[6, 7, 8, 9, 10, 11],
+        state=mlrun.common.runtimes.constants.RunStates.completed,
+        start_time=one_hour_ago,
+    )
+    _create_hyperparam_runs(
+        client=client,
+        project_name=proj,
+        param_name="x",
+        values=[12, 13, 14],
+        state=mlrun.common.runtimes.constants.RunStates.aborted,
+        start_time=one_hour_ago,
+    )
+
+    await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
+    summary = mlrun.common.schemas.ProjectSummary(
+        **client.get(f"project-summaries/{proj}").json()
+    )
+
+    # each run created 3 instances
+    assert summary.runs_running_count == 2 * 3
+    assert summary.runs_completed_recent_count == 3 * 3
+    assert summary.runs_failed_recent_count == 4 * 3
 
 
 @pytest.mark.asyncio
@@ -2050,30 +2106,91 @@ def _create_running_and_failed_model_monitoring_functions(
     )
 
 
+def _create_run(
+    client: TestClient,
+    project_name: str,
+    run_uid: str,
+    run_name: str,
+    kind: str,
+    state: typing.Optional[str] = None,
+    start_time: typing.Optional[datetime.datetime] = None,
+    parameters: typing.Optional[dict] = None,
+    iteration: typing.Optional[int] = None,
+):
+    """Helper function to create a single run."""
+    run = {
+        "kind": kind,
+        "metadata": {
+            "name": run_name,
+            "uid": run_uid,
+            "project": project_name,
+        },
+    }
+
+    if parameters:
+        run["spec"] = {"parameters": parameters}
+
+    if state or start_time:
+        run["status"] = {}
+        if state:
+            run["status"]["state"] = state
+        if start_time:
+            run["status"]["start_time"] = start_time.isoformat()
+
+    url = f"projects/{project_name}/runs/{run_uid}"
+    if iteration:
+        url += f"?iter={iteration}"
+
+    response = client.post(url, json=run)
+    assert response.status_code == HTTPStatus.OK.value, response.json()
+
+
 def _create_runs(
     client: TestClient, project_name, runs_count, state=None, start_time=None
 ):
+    """Create multiple runs with the same name (3 instances each)."""
     for index in range(runs_count):
         run_name = f"run-name-{str(uuid4())}"
         # create several runs of the same name to verify we're counting all instances
         for _ in range(3):
             run_uid = str(uuid4())
-            run = {
-                "kind": mlrun.artifacts.model.ModelArtifact.kind,
-                "metadata": {
-                    "name": run_name,
-                    "uid": run_uid,
-                    "project": project_name,
-                },
-            }
-            if state:
-                run["status"] = {
-                    "state": state,
-                }
-            if start_time:
-                run.setdefault("status", {})["start_time"] = start_time.isoformat()
-            response = client.post(f"projects/{project_name}/runs/{run_uid}", json=run)
-            assert response.status_code == HTTPStatus.OK.value, response.json()
+            _create_run(
+                client=client,
+                project_name=project_name,
+                run_uid=run_uid,
+                run_name=run_name,
+                kind=mlrun.artifacts.model.ModelArtifact.kind,
+                state=state,
+                start_time=start_time,
+            )
+    # Total runs created: runs_count * 3
+
+
+def _create_hyperparam_runs(
+    client: TestClient,
+    project_name: str,
+    param_name: str,
+    values: list,
+    state: str,
+    start_time: typing.Optional[datetime.datetime] = None,
+    iteration_start: int = 1,
+):
+    """Create hyperparameter runs with different parameter values."""
+    for i, val in enumerate(values, start=iteration_start):
+        run_uid = str(uuid4())
+        run_name = f"hp-{param_name}-{val}"
+
+        _create_run(
+            client=client,
+            project_name=project_name,
+            run_uid=run_uid,
+            run_name=run_name,
+            kind="job",
+            state=state,
+            start_time=start_time,
+            parameters={param_name: val},
+            iteration=i,
+        )
 
 
 def _create_schedule(

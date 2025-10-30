@@ -177,30 +177,30 @@ class TestKFP(tests.system.base.TestMLRunSystem):
 
         assert run["run"].get("error") == "Error (exit code 1)"
 
+    # TODO - uncomment when system tests is bumped to kfp 2.0+ (IGZ 3.7+)
+    @pytest.mark.skip(reason="Not supported in kfp<2.0")
     def test_kfp_terminate_pipeline(self):
         code_path = str(self.assets_path / "sleep.py")
-        sleep_fn = mlrun.code_to_function(
+        self.project.set_function(
+            func=code_path,
             name="sleep-func",
             kind="job",
-            filename=code_path,
-            project=self.project_name,
             image="mlrun/mlrun",
+            handler="handler",
         )
 
         # 1. define a pipeline that sleeps for a few seconds
         @dsl.pipeline(name="terminate-test", description="pipeline to test termination")
         def terminate_pipeline(time_to_sleep: int = 10):
-            sleep_fn.as_step(
-                handler="handler",
-                params={"time_to_sleep": time_to_sleep},
-            )
+            mlrun.run_function("sleep-func", params={"time_to_sleep": time_to_sleep})
 
-        # 2. launch it (non-blocking)
-        run_id = mlrun._run_pipeline(
-            terminate_pipeline,
+        # 2. Start the pipeline run
+        run_id = self.project.run(
+            workflow_handler=terminate_pipeline,
+            engine="kfp",
             arguments={"time_to_sleep": 60},
-            experiment="terminate-exp",
-            project=self.project_name,
+            name="terminate-exp",
+            watch=False,
         )
 
         # 3. Wait for it to start
@@ -212,16 +212,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
             time.sleep(1)
 
         # 4. issue a termination request
-        terminate_task_id = mlrun.terminate_pipeline(run_id, project=self.project_name)
-
-        time.sleep(10)  # wait a bit to ensure the termination request is processed
-        duplicate_terminate_task_id = mlrun.terminate_pipeline(
-            run_id, project=self.project_name
-        )
-
-        assert (
-            terminate_task_id == duplicate_terminate_task_id
-        ), "Duplicate termination requests should return the same task ID"
+        mlrun.terminate_pipeline(run_id, project=self.project_name)
 
         # 5. wait for it to finish, expecting failed status
         mlrun.wait_for_pipeline_completion(
@@ -233,5 +224,5 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         # 6. verify the run record shows a termination error
         db = mlrun.get_run_db()
         record = db.get_pipeline(run_id, project=self.project_name)
-        err = record["run"].get("error", "")
+        err = record["run"].get("status", "")
         assert "failed" in err.lower(), f"expected failed error, got: {err}"

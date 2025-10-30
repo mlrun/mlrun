@@ -591,15 +591,14 @@ class BaseStep(ModelObj):
                 root.get_shared_model_by_artifact_uri(model_artifact_uri)
             )
 
-            if not shared_runnable_name:
-                if not actual_shared_name:
-                    raise GraphError(
-                        f"Can't find shared model for {name} model endpoint"
-                    )
-                else:
-                    step.class_args[schemas.ModelRunnerStepData.MODELS][name][
-                        schemas.ModelsData.MODEL_PARAMETERS.value
-                    ]["shared_runnable_name"] = actual_shared_name
+            if not actual_shared_name:
+                raise GraphError(
+                    f"Can't find shared model named {shared_runnable_name}"
+                )
+            elif not shared_runnable_name:
+                step.class_args[schemas.ModelRunnerStepData.MODELS][name][
+                    schemas.ModelsData.MODEL_PARAMETERS.value
+                ]["shared_runnable_name"] = actual_shared_name
             elif actual_shared_name != shared_runnable_name:
                 raise GraphError(
                     f"Model endpoint {name} shared runnable name mismatch: "
@@ -1748,6 +1747,7 @@ class ModelRunnerStep(MonitoredStep):
           2. Create a new model endpoint with the same name and set it to `latest`.
 
         :param override:            bool allow override existing model on the current ModelRunnerStep.
+        :raise GraphError:  when the shared model is not found in the root flow step shared models.
         """
         model_class, model_params = (
             "mlrun.serving.Model",
@@ -2983,7 +2983,7 @@ class RootFlowStep(FlowStep):
 
     def get_shared_model_by_artifact_uri(
         self, artifact_uri: str
-    ) -> Optional[tuple[str, str, dict]]:
+    ) -> Union[tuple[str, str, dict], tuple[None, None, None]]:
         """
         Get a shared model by its artifact URI.
         :param artifact_uri: The artifact URI of the model.
@@ -2992,7 +2992,7 @@ class RootFlowStep(FlowStep):
         for model_name, (model_class, model_params) in self.shared_models.items():
             if model_params.get("artifact_uri") == artifact_uri:
                 return model_name, model_class, model_params
-        return None
+        return None, None, None
 
     def config_pool_resource(
         self,

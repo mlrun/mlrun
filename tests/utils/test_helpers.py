@@ -40,6 +40,7 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    merge_requirements,
     parse_artifact_uri,
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
@@ -858,6 +859,31 @@ def test_validate_v3io_consumer_group(value, expected):
             "client_python_version": "3.11.13",
             "images_tag": None,
             "expected_output": "mlrun/mlrun-kfp:1.10.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.10.0-rc1",
+            "client_python_version": "3.11.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-rc1",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.9.0",
+            "client_python_version": "3.9.10",
+            "images_tag": None,
+            # no -py suffix as 1.9 has no dual python support
+            "expected_output": "mlrun/mlrun-kfp:1.9.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp:1.10.0-rc37",
+            "client_version": "1.10.0-rc37",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-rc37-py39",
             "images_to_enrich_registry": "",
         },
     ],
@@ -1874,3 +1900,21 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
     data = {}
     with pytest.raises(exc_type, match=exc_msg):
         set_data_by_path(path, data, value)
+
+
+@pytest.mark.parametrize(
+    "priority_reqs, reqs, expected_result",
+    [
+        (None, None, []),
+        ([], ["requests"], ["requests"]),
+        (["requests"], [], ["requests"]),
+        (
+            ["requests>=1.0", "pydantic==1.0"],
+            ["requests==2.0", "pandas"],
+            ["requests>=1.0", "pydantic==1.0", "pandas"],
+        ),
+    ],
+)
+def test_merge_requirements(priority_reqs, reqs, expected_result):
+    result = merge_requirements(reqs_priority=priority_reqs, reqs_secondary=reqs)
+    assert set(result) == set(expected_result)

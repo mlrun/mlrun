@@ -1420,14 +1420,16 @@ class KubeResource(BaseRuntime):
             if value_from.secret_key_ref:
                 return value_from.secret_key_ref.name
         elif isinstance(value_from, dict):
-            vf = (
+            value_from = (
                 value_from.get("valueFrom")
                 or value_from.get("value_from")
                 or value_from
             )
-            sk = (vf or {}).get("secretKeyRef") or (vf or {}).get("secret_key_ref")
-            if isinstance(sk, dict):
-                return sk.get("name")
+            secret_key_ref = (value_from or {}).get("secretKeyRef") or (
+                value_from or {}
+            ).get("secret_key_ref")
+            if isinstance(secret_key_ref, dict):
+                return secret_key_ref.get("name")
         return None
 
 

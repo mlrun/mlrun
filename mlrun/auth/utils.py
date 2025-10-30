@@ -63,7 +63,7 @@ def load_secret_tokens_from_file(
     Load and parse secret tokens from a configured file.
 
     This function reads the secret tokens file (specified in
-    ``config.auth_with_oauth_token.auth_token_file``) and returns the raw list
+    ``config.auth_with_oauth_token.token_file``) and returns the raw list
     of token dictionaries under the ``secretTokens`` key. It does NOT validate
     the tokens.
 
@@ -76,7 +76,7 @@ def load_secret_tokens_from_file(
              Returns an empty list if parsing fails or no tokens exist.
     :rtype: list[dict[str, Any]]
     """
-    token_file = os.path.expanduser(config.auth_with_oauth_token.auth_token_file)
+    token_file = os.path.expanduser(mlrun.mlconf.auth_with_oauth_token.token_file)
     data = read_secret_tokens_file(raise_on_error=raise_on_error)
     if not data:
         mlrun.utils.helpers.raise_or_log_error(
@@ -114,7 +114,7 @@ def read_secret_tokens_file(
     :param raise_on_error: Whether to raise an error or log a warning on failure.
     :return: The parsed content of the token file as a dictionary, or None if an error occurs.
     """
-    token_file = os.path.expanduser(config.auth_with_oauth_token.auth_token_file)
+    token_file = os.path.expanduser(config.auth_with_oauth_token.token_file)
 
     # If the file doesn't exist, try the alternative extension
     if not os.path.exists(token_file):
@@ -169,7 +169,7 @@ def parse_offline_token_data(
     Extract the correct offline token entry from the parsed tokens list.
 
     Logic:
-    1. Identify the target token entry using `mlrun.mlconf.auth_with_oauth_token.auth_token_name`:
+    1. Identify the target token entry using `mlrun.mlconf.auth_with_oauth_token.token_name`:
        - If the value is set (non-empty):
          - Look for an entry where `name == <TOKEN_NAME>`.
          - If no match is found, resolution fails.
@@ -275,7 +275,7 @@ def validate_secret_tokens(
     valid_tokens = []
     seen = set()
 
-    token_file = os.path.expanduser(config.auth_with_oauth_token.auth_token_file)
+    token_file = os.path.expanduser(config.auth_with_oauth_token.token_file)
     for token in tokens_list:
         name = token.get("name")
         token_value = token.get("token")
@@ -317,7 +317,7 @@ def translate_secret_tokens(
     :return: List of SecretToken objects created from the input dictionaries.
     :rtype: list[mlrun.common.schemas.SecretToken]
     """
-    token_file = os.path.expanduser(config.auth_with_oauth_token.auth_token_file)
+    token_file = os.path.expanduser(config.auth_with_oauth_token.token_file)
     tokens = []
     for token in tokens_list:
         try:

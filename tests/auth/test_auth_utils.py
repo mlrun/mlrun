@@ -137,7 +137,7 @@ def test_load_offline_token_parametrized(env_token, file_token, expected):
 
 def test_token_file_not_exists(monkeypatch):
     fake_file = "no_such_file.yaml"
-    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", str(fake_file))
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", str(fake_file))
 
     result = mlrun.auth.utils.get_offline_token_from_file(raise_on_error=False)
     assert result is None
@@ -180,7 +180,7 @@ def test_get_offline_token_from_file(
 
     # Monkeypatch config to point to temp file
     monkeypatch.setattr(
-        "mlrun.config.config.auth_with_oauth_token.auth_token_file", str(token_file)
+        "mlrun.config.config.auth_with_oauth_token.token_file", str(token_file)
     )
 
     if expected_token is None and raise_on_error:
@@ -221,7 +221,7 @@ def test_load_and_prepare_secret_tokens_valid(
     tmp_path, content, expected_count, monkeypatch
 ):
     path = _write_file(tmp_path, "tokens.yml", content)
-    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", path)
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
 
     secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
     assert isinstance(secret_tokens, list)
@@ -248,7 +248,7 @@ def test_load_and_prepare_secret_tokens_valid(
 )
 def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
     path = _write_file(tmp_path, "tokens.yml", content)
-    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", path)
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         mlrun.auth.utils.load_secret_tokens_from_file()
 
@@ -275,7 +275,7 @@ def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
 )
 def test_validate_secret_tokens_invalid_entries(tmp_path, content, monkeypatch):
     path = _write_file(tmp_path, "tokens.yml", content)
-    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", path)
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
     tokens_list = mlrun.auth.utils.load_secret_tokens_from_file(raise_on_error=False)
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         mlrun.auth.utils.validate_secret_tokens(tokens_list)
@@ -283,7 +283,7 @@ def test_validate_secret_tokens_invalid_entries(tmp_path, content, monkeypatch):
 
 def test_read_secret_tokens_file_non_existent(tmp_path, monkeypatch):
     file_path = tmp_path / "does_not_exist.yml"
-    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", str(file_path))
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", str(file_path))
 
     result = mlrun.auth.utils.read_secret_tokens_file(raise_on_error=False)
     assert result is None
@@ -307,7 +307,7 @@ def test_read_secret_tokens_file_alternative_extension(tmp_path, monkeypatch):
     yml_path = _write_file(tmp_path, "tokens.yml", yml_content)
     _write_file(tmp_path, "tokens.yaml", yaml_content)
 
-    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", yml_path)
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", yml_path)
     result = mlrun.auth.utils.read_secret_tokens_file()
     assert result["secretTokens"][0]["name"] == "token1"
 
@@ -347,7 +347,7 @@ def test_read_secret_tokens_file_edge_cases(
     # Use shared helper to write file
     file_path = _write_file(tmp_path, file_name, file_content)
 
-    monkeypatch.setattr(config.auth_with_oauth_token, "auth_token_file", str(file_path))
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", str(file_path))
 
     if expect_error and raise_on_error:
         with pytest.raises(mlrun.errors.MLRunRuntimeError):

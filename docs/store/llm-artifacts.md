@@ -1,21 +1,19 @@
 (llm-prompt-artifcta)=
-# LLM-prompt artifacts
+# LLM prompt artifacts
 
 LLM prompt artifacts are defined by their prompt template, the model, and the generation configuration.
 
-Prompt artifacts
-Logging llm prompt artifacts
-Deleting prompt artifacts
-Viewing LLM-prompt artifacts using the SDK 
-Viewing LLM-prompt artifacts in the UI
+- [Prompt artifacts](#prompt-artifacts)
+- Logging llm prompt artifacts
+- Deleting prompt artifacts
+- Viewing LLM-prompt artifacts using the SDK 
+- Viewing LLM-prompt artifacts in the UI
 
 
 
 
 
 ## Prompt artifacts
-
-
 Prompt artifacts are defined by their LLM, prompt template, and the model generation configuration.
 
 ### LLM prompt template format
@@ -70,6 +68,5 @@ finance_prompt_template = [
 
 ## Logging LLM prompt artifacts
 
-LLM prompt artifacts are logged to a project.
-
-{py:class}`~mlrun.projects.MlrunProject.log_llm_prompt`
+LLM prompt artifacts capture. a prompt definition for LLM interactions. You can log prompt artifacts (to your project) with an inline prompt template, or from a file, with optional metadata like generation parameters, a legend for variable injection, and references to a parent model artifact.
+See the parameters and examples in {py:class}`~mlrun.projects.MlrunProject.log_llm_prompt`.

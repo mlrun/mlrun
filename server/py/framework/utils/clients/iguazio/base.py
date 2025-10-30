@@ -240,7 +240,7 @@ class BaseAsyncClient(BaseClient):
         response = None
         try:
             response = await self._async_session.request(
-                method, url, verify_ssl=False, retry_options=retry_options, **kwargs
+                method, url, verify_ssl=mlrun.mlconf.httpdb.http.verify, retry_options=retry_options, **kwargs
             )
             if not response.ok:
                 try:

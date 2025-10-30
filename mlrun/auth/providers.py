@@ -119,7 +119,7 @@ class DynamicTokenProvider(TokenProvider):
                 "url": self._token_endpoint,
                 "timeout": self._timeout,
                 "headers": headers,
-                "verify": mlrun.mlconf.httpdb.http.verify,
+                "verify": config.httpdb.http.verify,
             }
             if body_type == "json":
                 request_kwargs["json"] = request_body

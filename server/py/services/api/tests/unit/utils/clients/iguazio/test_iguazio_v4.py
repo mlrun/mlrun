@@ -35,7 +35,6 @@ from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
 )
 from tests.common_fixtures import aioresponses_mock
 
-import framework.utils.clients.iguazio.v4
 from framework.utils.asyncio import maybe_coroutine
 
 TEST_PROJECT_NAME = "test-project"
@@ -340,35 +339,128 @@ def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=N
     }
 
 
-def test_revoke_offline_token_success(mock_igv4_client, igv4_auth_info):
-    token = "valid-token"
-    mock_igv4_client.revoke_offline_token(token, igv4_auth_info.request_headers)
-    mock_igv4_client._client.set_override_auth_headers.assert_called_once_with(
-        igv4_auth_info.request_headers
+@pytest.mark.parametrize(
+    "secret_token, expected_exception",
+    [
+        (None, mlrun.errors.MLRunInvalidArgumentError),  # None token
+        (
+            mlrun.common.schemas.SecretToken(name="t1", token=""),
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),  # empty token
+        (
+            mlrun.common.schemas.SecretToken(name="t1", token="valid-token"),
+            None,
+        ),  # valid token
+    ],
+)
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_refresh_access_token_cases(iguazio_client, secret_token, expected_exception):
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            iguazio_client.refresh_access_token(secret_token)
+    else:
+        # simulate HTTP error
+        iguazio_client._client.refresh_access_token.side_effect = httpx.HTTPStatusError(
+            "Error",
+            request=None,
+            response=unittest.mock.MagicMock(
+                status_code=401,
+                json=lambda: {"status": {"errorMessage": "invalid", "ctx": "dummy"}},
+            ),
+        )
+        with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
+            iguazio_client.refresh_access_token(secret_token)
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_refresh_access_token_success(iguazio_client):
+    secret_token = mlrun.common.schemas.SecretToken(
+        name="test-token", token="valid-token"
     )
-    mock_igv4_client._client.revoke_offline_token.assert_called_once()
+
+    # Should not raise
+    iguazio_client.refresh_access_token(secret_token)
+
+    iguazio_client._client.refresh_access_token.assert_called_once()
+    called_options = iguazio_client._client.refresh_access_token.call_args[1]["options"]
+    assert called_options.refresh_token == "valid-token"
 
 
-def test_create_project(mock_session, mock_igv4_client, igv4_auth_info):
+@pytest.mark.parametrize(
+    "secret_tokens, expected_exception",
+    [
+        ([], mlrun.errors.MLRunInvalidArgumentError),  # empty list
+        (
+            [mlrun.common.schemas.SecretToken(name="t1", token="")],
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),  # empty token in list
+        (
+            [
+                mlrun.common.schemas.SecretToken(name="t1", token="token1"),
+                mlrun.common.schemas.SecretToken(name="t2", token="token2"),
+            ],
+            None,
+        ),  # valid tokens
+    ],
+)
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_refresh_access_tokens_cases(iguazio_client, secret_tokens, expected_exception):
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            iguazio_client.refresh_access_tokens(secret_tokens)
+    else:
+        # simulate HTTP error
+        iguazio_client._client.refresh_access_tokens.side_effect = (
+            httpx.HTTPStatusError(
+                "Error",
+                request=None,
+                response=unittest.mock.MagicMock(
+                    status_code=401,
+                    json=lambda: {
+                        "status": {"errorMessage": "invalid", "ctx": "dummy"}
+                    },
+                ),
+            )
+        )
+        with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
+            iguazio_client.refresh_access_tokens(secret_tokens)
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_revoke_offline_token_success(iguazio_client):
+    token = "valid-token"
+    request_headers = {
+        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
+    }
+
+    iguazio_client.revoke_offline_token(token, request_headers)
+
+    iguazio_client._client.set_override_auth_headers.assert_called_once_with(
+        request_headers
+    )
+    iguazio_client._client.revoke_offline_token.assert_called_once()
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_create_project(mock_session, iguazio_client, igv4_auth_info):
     project = _generate_igv4_project()
 
-    mock_igv4_client.create_project(mock_session, project, auth_info=igv4_auth_info)
-    mock_igv4_client._client.set_override_auth_headers.assert_called_once_with(
+    iguazio_client.create_project(mock_session, project, auth_info=igv4_auth_info)
+    iguazio_client._client.set_override_auth_headers.assert_called_once_with(
         igv4_auth_info.request_headers
     )
-    mock_igv4_client._client.create_default_project_policies.assert_called_once_with(
+    iguazio_client._client.create_default_project_policies.assert_called_once_with(
         project=TEST_PROJECT_NAME
     )
 
 
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
 @pytest.mark.parametrize("patch_mode", mlrun.common.schemas.PatchMode)
 @pytest.mark.parametrize("owner", [TEST_PROJECT_OWNER, None])
-def test_patch_project(
-    owner, patch_mode, mock_session, mock_igv4_client, igv4_auth_info
-):
+def test_patch_project(owner, patch_mode, mock_session, iguazio_client, igv4_auth_info):
     project = _generate_igv4_project(owner=owner)
 
-    mock_igv4_client.patch_project(
+    iguazio_client.patch_project(
         mock_session,
         TEST_PROJECT_NAME,
         project.dict(),
@@ -377,73 +469,76 @@ def test_patch_project(
     )
 
     if not owner:
-        mock_igv4_client._client.set_override_auth_headers.assert_not_called()
-        mock_igv4_client._client.update_project_owner.assert_not_called()
+        iguazio_client._client.set_override_auth_headers.assert_not_called()
+        iguazio_client._client.update_project_owner.assert_not_called()
     else:
-        mock_igv4_client._client.set_override_auth_headers.assert_called_once_with(
+        iguazio_client._client.set_override_auth_headers.assert_called_once_with(
             igv4_auth_info.request_headers
         )
-        mock_igv4_client._client.update_project_owner.assert_called_once_with(
+        iguazio_client._client.update_project_owner.assert_called_once_with(
             project=TEST_PROJECT_NAME,
             options=iguazio.schemas.UpdateProjectOwnerOptionsV1(owner=owner),
         )
 
 
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
 @pytest.mark.parametrize("owner", [TEST_PROJECT_OWNER, None])
 @pytest.mark.parametrize("project_exists", [True, False])
 def test_store_project(
-    project_exists, owner, mock_session, mock_igv4_client, igv4_auth_info
+    project_exists, owner, mock_session, iguazio_client, igv4_auth_info
 ):
     project = _generate_igv4_project(owner=owner)
 
     if not project_exists:
-        mock_igv4_client._client.get_project_policy_assignments.side_effect = (
+        iguazio_client._client.get_project_policy_assignments.side_effect = (
             _generate_igv4_httpx_exception(
                 "Project not found",
                 httpx.codes.NOT_FOUND,
             )
         )
 
-    mock_igv4_client.store_project(
+    iguazio_client.store_project(
         mock_session, TEST_PROJECT_NAME, project, auth_info=igv4_auth_info
     )
-    mock_igv4_client._client.set_override_auth_headers.assert_called_with(
+    iguazio_client._client.set_override_auth_headers.assert_called_with(
         igv4_auth_info.request_headers
     )
 
-    mock_igv4_client._client.get_project_policy_assignments.assert_called_once_with(
+    iguazio_client._client.get_project_policy_assignments.assert_called_once_with(
         project=TEST_PROJECT_NAME
     )
 
     if not project_exists:
-        mock_igv4_client._client.create_default_project_policies.assert_called_once_with(
+        iguazio_client._client.create_default_project_policies.assert_called_once_with(
             project=TEST_PROJECT_NAME
         )
-        mock_igv4_client._client.update_project_owner.assert_not_called()
+        iguazio_client._client.update_project_owner.assert_not_called()
     else:
         if not owner:
-            mock_igv4_client._client.update_project_owner.assert_not_called()
+            iguazio_client._client.update_project_owner.assert_not_called()
         else:
-            mock_igv4_client._client.update_project_owner.assert_called_once_with(
+            iguazio_client._client.update_project_owner.assert_called_once_with(
                 project=TEST_PROJECT_NAME,
                 options=iguazio.schemas.UpdateProjectOwnerOptionsV1(owner=owner),
             )
 
 
-def test_delete_project(mock_session, mock_igv4_client, igv4_auth_info):
-    mock_igv4_client.delete_project(
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_delete_project(mock_session, iguazio_client, igv4_auth_info):
+    iguazio_client.delete_project(
         mock_session, TEST_PROJECT_NAME, auth_info=igv4_auth_info
     )
-    mock_igv4_client._client.set_override_auth_headers.assert_called_once_with(
+    iguazio_client._client.set_override_auth_headers.assert_called_once_with(
         igv4_auth_info.request_headers
     )
-    mock_igv4_client._client.delete_project_policies.assert_called_once_with(
+    iguazio_client._client.delete_project_policies.assert_called_once_with(
         project=TEST_PROJECT_NAME
     )
 
 
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
 @pytest.mark.parametrize("internal_exception", [Exception, httpx.HTTPStatusError])
-def test_try_callback_with_httpx_exceptions(internal_exception):
+def test_try_callback_with_httpx_exceptions(internal_exception, iguazio_client):
     final_exception_type = mlrun.errors.MLRunInternalServerError
     final_failure_message = "Final failure message"
     internal_error_message = "Internal error message"
@@ -457,29 +552,18 @@ def test_try_callback_with_httpx_exceptions(internal_exception):
             internal_error_message, httpx.codes.INTERNAL_SERVER_ERROR, ctx
         )
 
-    with unittest.mock.patch("framework.utils.clients.iguazio.v4.iguazio.Client"):
-        client = framework.utils.clients.iguazio.v4.Client()
-        client._client = unittest.mock.MagicMock()
-        with pytest.raises(final_exception_type) as exc:
-            client._try_callback_with_httpx_exceptions(
-                callback, final_exception_type, final_failure_message
+    with pytest.raises(final_exception_type) as exc:
+        iguazio_client._try_callback_with_httpx_exceptions(
+            callback, final_exception_type, final_failure_message
+        )
+
+        if internal_exception is Exception:
+            assert final_failure_message == str(exc.value)
+        else:
+            assert (
+                f"{final_failure_message}: {internal_error_message}, ctx={ctx}"
+                == str(exc.value)
             )
-
-            if internal_exception is Exception:
-                assert final_failure_message == str(exc.value)
-            else:
-                assert (
-                    f"{final_failure_message}: {internal_error_message}, ctx={ctx}"
-                    == str(exc.value)
-                )
-
-
-@pytest.fixture
-def mock_igv4_client() -> framework.utils.clients.iguazio.v4.Client:
-    with unittest.mock.patch("framework.utils.clients.iguazio.v4.iguazio.Client"):
-        client = framework.utils.clients.iguazio.v4.Client()
-        client._client = unittest.mock.MagicMock()
-        yield client
 
 
 @pytest.fixture

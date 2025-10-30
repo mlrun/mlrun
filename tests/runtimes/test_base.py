@@ -124,9 +124,7 @@ class TestAutoMount:
         ],
     )
     def test_resolve_requirements(self, requirements, encoded_requirements):
-        encoded = self._generate_runtime().spec.build._resolve_requirements(
-            requirements
-        )
+        encoded = self._generate_runtime().spec.build.resolve_requirements(requirements)
         assert encoded == encoded_requirements, f"Failed to encode {requirements}"
 
     @pytest.mark.parametrize(
@@ -153,7 +151,7 @@ class TestAutoMount:
         # create requirements file
         requirements_file = self._create_temp_requirements_file(requirements_in_file)
 
-        encoded = self._generate_runtime().spec.build._resolve_requirements(
+        encoded = self._generate_runtime().spec.build.resolve_requirements(
             requirements, requirements_file
         )
         assert (

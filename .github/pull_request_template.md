@@ -12,6 +12,9 @@
 ### ✅ Checklist
 - [ ] I updated the documentation (if applicable)
 - [ ] I have tested the changes in this PR
+- [ ] I confirmed whether my changes are covered by system tests
+  - [ ] If yes, I ran all relevant system tests and ensured they passed before submitting this PR
+  - [ ] I updated existing system tests and/or added new ones if needed to cover my changes
 - [ ] If I introduced a deprecation:
   - [ ] I followed the [Deprecation Guidelines](./DEPRECATION.md)
   - [ ] I updated the relevant Jira ticket for documentation

@@ -1177,6 +1177,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token_name: str,
         token: str,
         expiration: int,
+        force: bool = False,
         namespace: typing.Optional[str] = None,
     ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         """
@@ -1194,6 +1195,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param token_name: The logical name for the token.
         :param token: The offline token string (JWT).
         :param expiration: The token's expiration timestamp (int UNIX epoch).
+        :param force: If True, forces an update of the secret even if the expiration
+                      is not later than the existing one.
         :param namespace: Kubernetes namespace for the secret.
         :return: SecretEventActions.{created, updated, skipped}
         """
@@ -1230,8 +1233,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             return mlrun.common.schemas.SecretEventActions.created
 
-        # Update only if expiration is newer
-        if self._should_update_token_secret(k8s_secret, expiration):
+        # Update if force or if expiration is newer
+        if force or self._should_update_token_secret(k8s_secret, expiration):
             self._update_secret(
                 k8s_secret=k8s_secret,
                 namespace=namespace,

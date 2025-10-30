@@ -22,6 +22,7 @@ if sys.version_info >= (3, 11):
     import iguazio
     from iguazio.schemas import (
         RefreshAccessTokenOptionsV1,
+        RefreshAccessTokensOptionsV1,
         RevokeOfflineTokenOptionsV1,
         UpdateProjectOwnerOptionsV1,
     )
@@ -59,10 +60,13 @@ class Client(BaseClient, project_follower.Member):
         Refreshes the access token by validating the provided token via the Iguazio client.
 
         :param secret_token: SecretToken object containing the token name and offline token string.
-        :raises mlrun.errors.MLRunInvalidArgumentError: If the offline token is empty.
+        :raises mlrun.errors.MLRunInvalidArgumentError: If the secret_token is None or the offline token is empty.
         :raises mlrun.errors.MLRunUnauthorizedError: If the offline token is invalid, expired, or an error
         occurs while refreshing.
         """
+        if not secret_token:
+            raise mlrun.errors.MLRunInvalidArgumentError("SecretToken is None")
+
         if not secret_token.token:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Offline token for '{secret_token.name}' is empty"
@@ -93,11 +97,59 @@ class Client(BaseClient, project_follower.Member):
         """
         Refresh all offline tokens using the Iguazio client to validate them.
 
-        :param secret_tokens: List of SecretToken objects
+        :param secret_tokens: List of SecretToken
+        :raises mlrun.errors.MLRunInvalidArgumentError: If the list is empty or any token is empty
         :raises mlrun.errors.MLRunUnauthorizedError: If any token is invalid or expired
         """
-        # TODO: Implement this method once it is available in the Iguazio package
-        pass
+        if not secret_tokens:
+            raise mlrun.errors.MLRunInvalidArgumentError("No offline tokens provided")
+
+        token_names = [t.name for t in secret_tokens]
+        token_values = [t.token for t in secret_tokens]
+
+        if not all(token_values):
+            empty_tokens = [t.name for t in secret_tokens if not t.token]
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Offline tokens are empty for: {', '.join(empty_tokens)}"
+            )
+
+        self._logger.info(
+            "Refreshing multiple access tokens via Iguazio", token_names=token_names
+        )
+
+        try:
+            options = RefreshAccessTokensOptionsV1(refresh_tokens=token_values)
+            # Call Iguazio batch refresh
+            self._client.refresh_access_tokens(options=options)
+
+            self._logger.info(
+                "Successfully refreshed multiple access tokens via Iguazio",
+                token_names=token_names,
+            )
+
+        except httpx.HTTPStatusError as exc:
+            error_message, ctx = self._extract_response_error(exc.response)
+            self._logger.warning(
+                "Failed to refresh multiple access tokens from Iguazio",
+                token_names=token_names,
+                status_code=exc.response.status_code,
+                error_message=error_message,
+                ctx=ctx,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise mlrun.errors.MLRunUnauthorizedError(
+                f"Failed to refresh tokens '{', '.join(token_names)}' from Iguazio: {error_message}, ctx={ctx}"
+            ) from exc
+        except Exception as exc:
+            exc_str = mlrun.errors.err_to_str(exc)
+            self._logger.warning(
+                "Failed to refresh multiple access tokens from Iguazio (unexpected error)",
+                token_names=token_names,
+                exc=exc_str,
+            )
+            raise mlrun.errors.MLRunUnauthorizedError(
+                f"Failed to refresh tokens '{', '.join(token_names)}' from Iguazio: {exc_str}"
+            ) from exc
 
     def revoke_offline_token(
         self, token: str, request_headers: typing.Optional[dict[str, str]] = None

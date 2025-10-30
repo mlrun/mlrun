@@ -679,9 +679,13 @@ class ServingRuntime(RemoteRuntime):
                         f"function {function} is used in steps and is not defined, "
                         "use the .add_child_function() to specify child function attributes"
                     )
-        if isinstance(self.spec.graph, RootFlowStep) and any(
-            isinstance(step_type, mlrun.serving.states.ModelRunnerStep)
-            for step_type in self.spec.graph.steps.values()
+        if (
+            isinstance(self.spec.graph, RootFlowStep)
+            and any(
+                isinstance(step_type, mlrun.serving.states.ModelRunnerStep)
+                for step_type in self.spec.graph.steps.values()
+            )
+            and self.spec.build.functionSourceCode
         ):
             # Add import for LLModel
             decoded_code = b64decode(self.spec.build.functionSourceCode).decode("utf-8")

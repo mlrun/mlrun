@@ -1224,6 +1224,9 @@ def test_store_secret_token_invalid_inputs(create_server):
         db.store_secret_token(None)
 
 
+# TODO add test for force parameter when IG4 mode is enabled for integration test (ML-11332)
+
+
 @pytest.mark.parametrize("secret_tokens", [None, []])
 def test_store_secret_tokens_invalid_inputs(create_server, secret_tokens):
     server: Server = create_server()

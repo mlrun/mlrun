@@ -456,6 +456,9 @@ class BaseRuntime(ModelObj):
             mlrun_constants.MLRUN_ACTIVE_PROJECT: active_project,
             # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
             "MLRUN_DEFAULT_PROJECT": active_project,
+            "MLRUN_AUTH_OFFLINE_TOKEN": "eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJiYjg3Zjc0NC00YWUwLTQ0YTAtODgzYS1kZWE5YzkwNjRjNjcifQ.eyJleHAiOjE3NjcwMTYxMTksImlhdCI6MTc2MTgzMjExOSwianRpIjoiMWQ1ODg0N2YtNDZlMy00ODMyLWFiMjktMGZlZWUyZDFmNmE2IiwiaXNzIjoiaHR0cHM6Ly9rZXljbG9hay5tb3Jhbi52bWRldjQ0aWc0LmxhYi5pZ3VhemVuZy5jb20vcmVhbG1zL2lndWF6aW8iLCJhdWQiOiJodHRwczovL2tleWNsb2FrLm1vcmFuLnZtZGV2NDRpZzQubGFiLmlndWF6ZW5nLmNvbS9yZWFsbXMvaWd1YXppbyIsInN1YiI6IjkxYTBjZWQ4LWQ0YWMtNDZjNC1iNjQ1LWIwZGYzNjEyYjFjOSIsInR5cCI6Ik9mZmxpbmUiLCJhenAiOiJpZ3otb2F1dGgiLCJzaWQiOiJlNjhhMGYwMS04Mzc3LTQzMTQtOTAwYS02Yjg1NzRlNzU5ZTQiLCJzY29wZSI6Im9wZW5pZCBiYXNpYyBvZmZsaW5lX2FjY2VzcyB3ZWItb3JpZ2lucyBwcm9maWxlIGFjciBlbWFpbCByb2xlcyJ9.3EixeAd87TcCvDrspaTv5g9ML5",
+            "MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED": "true",
+            "MLRUN_AUTH_TOKEN_ENDPOINT": "https://igz-api.moran.vmdev44ig4.lab.iguazeng.com/api/v1/refresh-access-token",
         }
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(

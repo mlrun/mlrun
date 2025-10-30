@@ -43,7 +43,12 @@ class Client(BaseClient):
             raise mlrun.errors.MLRunRuntimeError(
                 "The 'iguazio' client is only supported in Python >= 3.11"
             )
-        self._client = iguazio.Client(api_url=self._api_url, auto_login=False, load_token_file=False, verify_ssl=mlrun.mlconf.httpdb.http.verify)
+        self._client = iguazio.Client(
+            api_url=self._api_url,
+            auto_login=False,
+            load_token_file=False,
+            verify_ssl=mlrun.mlconf.httpdb.http.verify,
+        )
 
     def refresh_access_token(
         self, secret_token: mlrun.common.schemas.SecretToken

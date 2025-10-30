@@ -17,7 +17,6 @@
 Revision ID: 3da3ddd2068c
 Revises: 31d54cd9ff11
 Create Date: 2025-10-30 16:45:07.195227
-
 """
 
 from alembic import op
@@ -30,14 +29,34 @@ depends_on = None
 
 
 def upgrade():
-    op.execute(
-        "CREATE INDEX idx_project_bi_updated ON artifacts_v2 (project, best_iteration, kind, updated DESC, id DESC);"
+    # Drop old index if it already exists (MySQL 8+ / Postgres safe)
+    op.execute("DROP INDEX IF EXISTS idx_project_bi_updated ON artifacts_v2;")
+
+    # Recreate with new definition (adds kind + id)
+    op.create_index(
+        "idx_project_bi_updated",
+        "artifacts_v2",
+        ["project", "best_iteration", "kind", "updated", "id"],
+        unique=False,
     )
-    op.execute(
-        "CREATE INDEX idx_artifacts_tags_name_obj ON artifacts_v2_tags (name, obj_id);"
+
+    # Add new index for tag lookup
+    op.create_index(
+        "idx_artifacts_tags_name_obj",
+        "artifacts_v2_tags",
+        ["name", "obj_id"],
+        unique=False,
     )
 
 
 def downgrade():
-    op.execute("DROP INDEX idx_project_bi_updated ON artifacts_v2;")
-    op.execute("DROP INDEX idx_artifacts_tags_name_obj ON artifacts_v2_tags;")
+    # Drop new indexes
+    op.drop_index("idx_project_bi_updated", table_name="artifacts_v2")
+    op.drop_index("idx_artifacts_tags_name_obj", table_name="artifacts_v2_tags")
+
+    op.create_index(
+        "idx_project_bi_updated",
+        "artifacts_v2",
+        ["project", "best_iteration", "updated"],
+        unique=False,
+    )

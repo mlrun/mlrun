@@ -255,7 +255,7 @@ def sync_secret_tokens() -> None:
 
     This function:
       1. Reads the local token file (default: ~/.igz.yml, configurable via
-         `config.auth_with_oauth_token.token_file`).
+         `mlrun.mlconf.auth_with_oauth_token.token_file`).
       2. Validates its content and converts validated tokens into `SecretToken` objects.
       3. Uploads the tokens to the backend.
       4. Logs a warning if any tokens were updated on the backend due to newer

@@ -1933,33 +1933,6 @@ def _assert_project_summary(
     running_model_monitoring_functions: int,
     failed_model_monitoring_functions: int,
 ):
-    from mlrun.utils import logger
-
-    logger.info(
-        "ASSERTING PROJECT SUMMARY",
-        project_summary_files_count=project_summary.files_count,
-        files_count=files_count,
-        project_summary_feature_sets_count=project_summary.feature_sets_count,
-        feature_sets_count=feature_sets_count,
-        project_summary_models_count=project_summary.models_count,
-        models_count=models_count,
-        project_summary_runs_completed_recent_count=project_summary.runs_completed_recent_count,
-        runs_completed_recent_count=runs_completed_recent_count,
-        project_summary_runs_failed_recent_count=project_summary.runs_failed_recent_count,
-        runs_failed_recent_count=runs_failed_recent_count,
-        project_summary_runs_running_count=project_summary.runs_running_count,
-        runs_running_count=runs_running_count,
-        project_summary_pipelines_running_count=project_summary.pipelines_running_count,
-        pipelines_running_count=pipelines_running_count,
-        project_summary_real_time_model_endpoint_count=project_summary.real_time_model_endpoint_count,
-        real_time_model_endpoint_count=real_time_model_endpoint_count,
-        project_summary_batch_model_endpoint_count=project_summary.batch_model_endpoint_count,
-        batch_model_endpoints_count=batch_model_endpoints_count,
-        project_summary_running_model_monitoring_functions=project_summary.running_model_monitoring_functions,
-        running_model_monitoring_functions=running_model_monitoring_functions,
-        project_summary_failed_model_monitoring_functions=project_summary.failed_model_monitoring_functions,
-        failed_model_monitoring_functions=failed_model_monitoring_functions,
-    )
     assert project_summary.files_count == files_count
     assert project_summary.feature_sets_count == feature_sets_count
     assert project_summary.models_count == models_count

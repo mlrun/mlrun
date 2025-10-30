@@ -194,9 +194,9 @@ def parse_offline_token_data(
         )
         return None
 
-    name = config.auth_with_oauth_token.auth_token_name or "default"
+    name = config.auth_with_oauth_token.token_name or "default"
     matches = [t for t in tokens if t.get("name") == name] or (
-        [tokens[0]] if not config.auth_with_oauth_token.auth_token_name else []
+        [tokens[0]] if not config.auth_with_oauth_token.token_name else []
     )
 
     if len(matches) != 1:

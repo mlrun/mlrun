@@ -76,7 +76,7 @@ def test_get_offline_token_from_env(monkeypatch):
 )
 def test_parse_offline_token_data_cases(data, token_name, expected_token, monkeypatch):
     monkeypatch.setattr(
-        "mlrun.config.config.auth_with_oauth_token.auth_token_name", token_name
+        "mlrun.config.config.auth_with_oauth_token.token_name", token_name
     )
     # Suppress raising errors, we just check return value
     token = mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=False)
@@ -104,7 +104,7 @@ def test_parse_offline_token_data_cases(data, token_name, expected_token, monkey
 )
 def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch):
     monkeypatch.setattr(
-        "mlrun.config.config.auth_with_oauth_token.auth_token_name", token_name
+        "mlrun.config.config.auth_with_oauth_token.token_name", token_name
     )
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):

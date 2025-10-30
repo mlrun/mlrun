@@ -328,9 +328,13 @@ def get_all_tags(repository: str):
         page += 1
     return tags
 
+
 def get_latest_valid_version(repo_name: str) -> str:
     # Accept x.y.z or x.y.z-rcN; patch must be 1–2 digits; allow optional leading 'v'
-    pattern = re.compile(r"^v?(?P<maj>\d+)\.(?P<min>\d+)\.(?P<patch>\d{1,2})(?:[-.]?rc(?P<rc>\d+))?$", re.IGNORECASE)
+    pattern = re.compile(
+        r"^v?(?P<maj>\d+)\.(?P<min>\d+)\.(?P<patch>\d{1,2})(?:[-.]?rc(?P<rc>\d+))?$",
+        re.IGNORECASE,
+    )
     allowed_major_by_repo = {
         "mlrun/mlrun": 1,
         "nuclio/nuclio": 1,
@@ -344,14 +348,19 @@ def get_latest_valid_version(repo_name: str) -> str:
             return None
         maj = int(m.group("maj"))
         # Enforce expected major if defined for this repo
-        if repo_name in allowed_major_by_repo and maj != allowed_major_by_repo[repo_name]:
+        if (
+            repo_name in allowed_major_by_repo
+            and maj != allowed_major_by_repo[repo_name]
+        ):
             return None
         min_ = int(m.group("min"))
         patch = int(m.group("patch"))
         rc_str = m.group("rc")
         is_final = 1 if rc_str is None else 0
         rc_num = float("inf") if rc_str is None else int(rc_str)
-        cleaned = f"{maj}.{min_}.{patch}" + (f"-rc{rc_str}" if rc_str is not None else "")
+        cleaned = f"{maj}.{min_}.{patch}" + (
+            f"-rc{rc_str}" if rc_str is not None else ""
+        )
         return (maj, min_, patch, is_final, rc_num), cleaned
 
     candidates: list[tuple[tuple[int, int, int, int, int], str]] = []
@@ -373,9 +382,6 @@ def get_latest_valid_version(repo_name: str) -> str:
     best_key, best_cleaned = max(candidates, key=lambda t: t[0])
     echo_color(f"Using latest semver tag for {repo_name}: {best_cleaned}")
     return best_cleaned
-
-
-
 
 
 def get_existing_helm_repos(debug: bool):

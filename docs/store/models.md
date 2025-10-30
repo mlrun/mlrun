@@ -159,13 +159,13 @@ For models not using a datastore profile, the MLRun code attempts to retrieve cr
 For each type of schema, a standard secret name must be provided. For example, `OPENAI_API_KEY` for OpenAI, `HF_TOKEN` for HF, etc.
 
 ### HuggingFace
-`hugging_face://<model-path>`: Use the Hugging Face pipeline as a client to download models and use them. The URL contains the vendor and name of model, for example: `huggingface://google/gemma-3-27b-it`. The Hugging Face parameters are:
+`huggingface://<model-path>`: Use the Hugging Face pipeline as a client to download models and use them. The URL contains the vendor and name of model, for example: `huggingface://google/gemma-3-27b-it`. Hugging Face secrets and parameters are:
 - task / "HF_TASK", "text-generation" by default
 - token / "HF_TOKEN"
 - device / "HF_DEVICE"
 - device_map/ "HF_DEVICE_MAP"
 - trust_remote_code / "HF_TRUST_REMOTE_CODE"
-- model_kwargs / "HF_MODEL_KWARGS",
+- model_kwargs / "HF_MODEL_KWARGS"
 
 ### OpenAI
  `openai://<model-name>`: work with a model that supports the OpenAI protocol. Models are assumed to be models served by OpenAI. OpenAI secrets and parameters are:

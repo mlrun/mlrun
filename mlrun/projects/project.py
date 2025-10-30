@@ -45,6 +45,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.secrets
 import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
@@ -3454,7 +3455,7 @@ class MlrunProject(ModelObj):
         # Block using mlrun-auth-secrets.* via azure_vault's k8s_secret param (client-side only)
         if kind == "azure_vault" and isinstance(source, dict):
             candidate_secret_name = (source.get("k8s_secret") or "").strip()
-            if candidate_secret_name and mlrun.runtimes.pod._AUTH_SECRET_PATTERN.match(
+            if candidate_secret_name and mlrun.common.secrets.AUTH_SECRET_PATTERN.match(
                 candidate_secret_name
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(

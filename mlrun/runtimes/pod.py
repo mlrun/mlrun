@@ -35,6 +35,7 @@ from mlrun.common.schemas import (
     SecurityContextEnrichmentModes,
 )
 
+from ..common.secrets import AUTH_SECRET_PATTERN
 from ..config import config as mlconf
 from ..k8s_utils import (
     generate_preemptible_nodes_affinity_terms,
@@ -86,15 +87,6 @@ sanitized_attributes = {
     "executor_security_context": sanitized_types["security_context"],
     "driver_security_context": sanitized_types["security_context"],
 }
-
-_AUTH_SECRET_PATTERN = re.compile(
-    re.escape(
-        mlconf.secret_stores.kubernetes.auth_secret_name.format(
-            hashed_access_key="",
-        )
-    )
-    + ".*"
-)
 
 
 class KubeResourceSpec(FunctionSpec):
@@ -1406,7 +1398,7 @@ class KubeResource(BaseRuntime):
         secret_name: Optional[str],
     ):
         """Raise if secret name matches MLRun auth-secret pattern."""
-        if secret_name and _AUTH_SECRET_PATTERN.match(secret_name):
+        if secret_name and AUTH_SECRET_PATTERN.match(secret_name):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
             )

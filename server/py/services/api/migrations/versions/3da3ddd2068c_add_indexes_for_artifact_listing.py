@@ -30,7 +30,7 @@ depends_on = None
 
 def upgrade():
     # Drop old index if it already exists (MySQL 8+ / Postgres safe)
-    op.execute("DROP INDEX idx_project_bi_updated ON artifacts_v2;")
+    op.drop_index(op.f("idx_project_bi_updated"), table_name="artifacts_v2")
 
     # Recreate with new definition (adds kind + id)
     op.create_index(
@@ -42,17 +42,16 @@ def upgrade():
 
     # Add new index for tag lookup
     op.create_index(
-        "idx_artifacts_tags_name_obj",
+        "idx_artifacts_v2_tags_name_obj",
         "artifacts_v2_tags",
         ["name", "obj_id"],
-        unique=False,
     )
 
 
 def downgrade():
     # Drop new indexes
     op.drop_index("idx_project_bi_updated", table_name="artifacts_v2")
-    op.drop_index("idx_artifacts_tags_name_obj", table_name="artifacts_v2_tags")
+    op.drop_index("idx_artifacts_v2_tags_name_obj", table_name="artifacts_v2_tags")
 
     op.create_index(
         "idx_project_bi_updated",

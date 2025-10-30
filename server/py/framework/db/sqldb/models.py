@@ -219,6 +219,11 @@ def make_artifact_tag(cls):
                 "name",
                 "obj_name",
             ),
+            Index(
+                f"idx_{table}_tags_name_obj",
+                "name",
+                "obj_id",
+            ),
             ForeignKeyConstraint(
                 ["obj_id"],
                 [f"{table}.id"],
@@ -371,8 +376,8 @@ with warnings.catch_warnings():
                 "project",
                 "best_iteration",
                 "kind",
-                text("updated DESC"),
-                text("id DESC"),
+                "updated",
+                "id",
             ),
         )
 

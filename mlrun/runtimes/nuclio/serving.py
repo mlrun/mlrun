@@ -44,6 +44,7 @@ from mlrun.serving.states import (
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
 
+from ...common.secrets import AUTH_SECRET_PATTERN
 from .. import KubejobRuntime
 from ..pod import KubeResourceSpec
 from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
@@ -635,7 +636,14 @@ class ServingRuntime(RemoteRuntime):
 
         :returns: The Runtime (function) object
         """
-
+        if kind == "azure_vault" and isinstance(source, dict):
+            candidate_secret_name = (source.get("k8s_secret") or "").strip()
+            if candidate_secret_name and AUTH_SECRET_PATTERN.match(
+                candidate_secret_name
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Forbidden secret '{candidate_secret_name}' matches MLRun auth-secret pattern."
+                )
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.project, "secrets": source}
 

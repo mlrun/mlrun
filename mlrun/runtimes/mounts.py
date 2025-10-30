@@ -17,6 +17,8 @@ import typing
 import warnings
 from collections import namedtuple
 
+import mlrun.common.secrets
+import mlrun.errors
 from mlrun.config import config
 from mlrun.config import config as mlconf
 from mlrun.errors import MLRunInvalidArgumentError
@@ -411,6 +413,13 @@ def mount_secret(
                          If specified, the listed keys will be projected into
                          the specified paths, and unlisted keys will not be
                          present."""
+
+    if secret_name and mlrun.common.secrets.AUTH_SECRET_PATTERN.match(
+        secret_name.strip()
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
+        )
 
     def _mount_secret(runtime: "KubeResource"):
         # Define the secret volume source

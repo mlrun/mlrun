@@ -2555,9 +2555,7 @@ class MonitoringDeployment:
             application_name=application_name, endpoint_ids=endpoint_ids
         )
 
-        if not application_name.endswith(
-            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
-        ):
+        if not application_name.endswith(mlrun_constants.RESERVED_BATCH_JOB_SUFFIX):
             # The schedules file of "batch" applications is handled on the user side
             await self._delete_app_from_schedules_files(
                 application_name=application_name, endpoint_ids=endpoint_ids

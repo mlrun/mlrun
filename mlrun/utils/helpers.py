@@ -253,6 +253,40 @@ def verify_field_regex(
         return False
 
 
+def validate_function_name(name: str) -> None:
+    """
+    Validate that a function name conforms to Kubernetes DNS-1123 label requirements.
+
+    Function names for Kubernetes resources must:
+    - Be lowercase alphanumeric characters or '-'
+    - Start and end with an alphanumeric character
+    - Be at most 63 characters long
+
+    This validation should be called AFTER normalize_name() has been applied.
+
+    Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
+
+    :param name: The function name to validate (after normalization)
+    :raises MLRunInvalidArgumentError: If the function name is invalid for Kubernetes
+    """
+    if not name:
+        return
+
+    verify_field_regex(
+        "function.metadata.name",
+        name,
+        mlrun.utils.regex.dns_1123_label,
+        raise_on_failure=True,
+        log_message=(
+            f"Function name '{name}' is invalid. "
+            "Kubernetes function names must be DNS-1123 labels: "
+            "lowercase alphanumeric characters or '-', "
+            "starting and ending with an alphanumeric character, "
+            "and at most 63 characters long."
+        ),
+    )
+
+
 def validate_builder_source(
     source: str, pull_at_runtime: bool = False, workdir: Optional[str] = None
 ):
@@ -474,6 +508,40 @@ def normalize_name(name: str):
     if "_" in name:
         name = name.replace("_", "-")
     return name.lower()
+
+
+def ensure_batch_job_suffix(
+    function_name: typing.Optional[str],
+) -> tuple[typing.Optional[str], bool, str]:
+    """
+    Ensure that a function name has the batch job suffix appended to prevent database collision.
+
+    This helper is used by to_job() methods in runtimes that convert online functions (serving, local)
+    to batch processing jobs. The suffix prevents the job from overwriting the original function in
+    the database when both are stored with the same (project, name) key.
+
+    :param function_name: The original function name (can be None or empty string)
+
+    :return: A tuple of (modified_name, was_renamed, suffix) where:
+        - modified_name: The function name with the batch suffix (if not already present),
+          or empty string if input was empty
+        - was_renamed: True if the suffix was added, False if it was already present or if name was empty/None
+        - suffix: The suffix value that was used (or would have been used)
+
+    """
+    suffix = mlrun_constants.RESERVED_BATCH_JOB_SUFFIX
+
+    # Handle None or empty string
+    if not function_name:
+        return function_name, False, suffix
+
+    if not function_name.endswith(suffix):
+        return (
+            f"{function_name}{suffix}",
+            True,
+            suffix,
+        )
+    return function_name, False, suffix
 
 
 class LogBatchWriter:

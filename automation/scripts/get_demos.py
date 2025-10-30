@@ -20,6 +20,7 @@ import shutil
 import sys
 import tarfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from pathlib import Path
 from time import sleep
 
@@ -192,12 +193,39 @@ def download_demo(demo_repo, mlrun_version):
     return download_release(demo_repo, sorted_versions[0])
 
 
+def detect_demo_version(repo, mlrun_version):
+    """Detect the downloaded version by querying GitHub releases API."""
+    try:
+        all_releases = validate_versions(get_all_releases(repo))
+        if all_releases:
+            sorted_versions = sorted(all_releases, key=Version, reverse=True)
+            match = VERSION_PATTERN.match(mlrun_version)
+            if match:
+                base_version = match.group(1)
+                matching_releases = [
+                    r for r in sorted_versions if r.startswith(base_version)
+                ]
+                if matching_releases:
+                    return matching_releases[0]
+            return sorted_versions[0]
+    except Exception:
+        pass
+
+    return "unknown"
+
+
 def process_repo(repo, mlrun_version):
+    """Process a demo repository and return its downloaded version."""
     try:
         if download_demo(repo, mlrun_version):
             rename_demo_folder(repo=repo)
             remove_git_folder(repo=repo)
+
+            # Detect the downloaded version
+            demo_version = detect_demo_version(repo, mlrun_version)
+
             log("Successfully processed", repo)
+            return demo_version
         else:
             raise RuntimeError(
                 f"Failed to download release from repository {GITHUB_ORG}/{repo}"
@@ -208,6 +236,24 @@ def process_repo(repo, mlrun_version):
         if os.path.exists(final_path):
             shutil.rmtree(final_path, ignore_errors=True)
         raise
+
+
+def create_manifest(mlrun_version, demo_versions):
+    """Create a manifest file with version information for all downloaded demos."""
+    manifest = {
+        "mlrun_version": mlrun_version,
+        "download_date": datetime.now(timezone.utc).isoformat(),
+        "github_org": GITHUB_ORG,
+        "demos": demo_versions,
+    }
+
+    manifest_path = os.path.join(DEST_DIR, "demos_manifest.json")
+    try:
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2, sort_keys=True)
+        tqdm.write(f"✅ Created manifest file: {manifest_path}")
+    except Exception as e:
+        tqdm.write(f"⚠️  Warning: Failed to create manifest file: {e}")
 
 
 def get_demos(mlrun_version):
@@ -231,6 +277,7 @@ def get_demos(mlrun_version):
         raise RuntimeError(f"All demo entries must be strings in {CONFIG_PATH}")
 
     errors = []
+    demo_versions = {}
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = {
             executor.submit(process_repo, repo, mlrun_version): repo
@@ -246,7 +293,8 @@ def get_demos(mlrun_version):
             for future in as_completed(futures):
                 repo = futures[future]
                 try:
-                    future.result()
+                    demo_version = future.result()
+                    demo_versions[repo] = demo_version
                     pbar.set_postfix_str(f"✓ {repo}")
                 except Exception as e:
                     errors.append((repo, e))
@@ -259,6 +307,9 @@ def get_demos(mlrun_version):
             raise RuntimeError(
                 f"Failed to process {len(errors)} out of {len(repositories)} repositories:\n{error_details}"
             )
+
+        # Create manifest file
+        create_manifest(mlrun_version, demo_versions)
 
         tqdm.write(
             f"\n✅ Successfully downloaded and processed all {len(repositories)} demos to '{DEST_DIR}/'"

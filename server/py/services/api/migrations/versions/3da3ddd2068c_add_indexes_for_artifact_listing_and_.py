@@ -30,7 +30,7 @@ depends_on = None
 
 def upgrade():
     # Drop old index if it already exists (MySQL 8+ / Postgres safe)
-    op.execute("DROP INDEX IF EXISTS idx_project_bi_updated ON artifacts_v2;")
+    op.execute("DROP INDEX idx_project_bi_updated ON artifacts_v2;")
 
     # Recreate with new definition (adds kind + id)
     op.create_index(

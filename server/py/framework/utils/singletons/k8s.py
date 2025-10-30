@@ -618,7 +618,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             k8s_secret = self.read_secret(
                 secret_name=secret_name,
                 namespace=namespace,
-                labels=labels,
             )
         except (
             k8s_dynamic_exceptions.NotFoundError

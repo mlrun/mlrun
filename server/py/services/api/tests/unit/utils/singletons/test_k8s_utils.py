@@ -279,6 +279,33 @@ def test_store_secret(
         assert data == secrets_to_store
 
 
+def test_store_secrets_no_labels(k8s_helper):
+    """
+    Test ensures that labels param is not passed to read_secret when storing secrets.
+    The labels param during read_secret is intended for IG4 secrets only.
+    """
+    k8s_helper.read_secret = mock.MagicMock(
+        side_effect=k8s_dynamic_exceptions.NotFoundError(
+            k8s_client_rest.ApiException(status=404)
+        )
+    )
+    k8s_helper.store_secrets(
+        secret_name="my-secret",
+        secrets={"key1": "value1"},
+        namespace="default",
+    )
+
+    try:
+        k8s_helper.read_secret.assert_called_once_with(
+            secret_name="my-secret", namespace="default"
+        )
+    except AssertionError:
+        raise AssertionError(
+            "Store secrets should not pass 'labels' to read_secret. Please review params that were "
+            "added to the read_secret call."
+        )
+
+
 @pytest.mark.parametrize(
     "k8s_secret_data, secrets_data, expected_action, expected_secret_data",
     [

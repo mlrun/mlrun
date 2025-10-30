@@ -970,8 +970,15 @@ def enrich_image_url(
         else:
             image_url = "mlrun/mlrun"
 
-    if is_mlrun_image and tag and ":" not in image_url:
-        image_url = f"{image_url}:{tag}"
+    if is_mlrun_image and tag:
+        if ":" not in image_url:
+            image_url = f"{image_url}:{tag}"
+        elif enrich_kfp_python_version:
+            # For mlrun-kfp >= 1.10.0-rc0, append python suffix to existing tag
+            python_suffix = resolve_image_tag_suffix(
+                mlrun_version, client_python_version
+            )
+            image_url = f"{image_url}{python_suffix}" if python_suffix else image_url
 
     registry = (
         config.images_registry if is_mlrun_image else config.vendor_images_registry
@@ -2464,15 +2471,16 @@ def merge_requirements(
     return [str(req) for req in merged.values()]
 
 
-def get_module_name_from_path(source_file_path: str) -> str:
+def get_source_and_working_dir_paths(source_file_path) -> (pathlib.Path, pathlib.Path):
     source_file_path_object = pathlib.Path(source_file_path).resolve()
-    current_dir_path_object = pathlib.Path(".").resolve()
-    if not source_file_path_object.is_relative_to(current_dir_path_object):
-        raise mlrun.errors.MLRunRuntimeError(
-            f"Source file path '{source_file_path}' is not under the current working directory "
-            f"(which is required when running with local=True)"
-        )
+    working_dir_path_object = pathlib.Path(".").resolve()
+    return source_file_path_object, working_dir_path_object
+
+
+def get_relative_module_name_from_path(
+    source_file_path_object, working_dir_path_object
+) -> str:
     relative_path_to_source_file = source_file_path_object.relative_to(
-        current_dir_path_object
+        working_dir_path_object
     )
     return ".".join(relative_path_to_source_file.with_suffix("").parts)

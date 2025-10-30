@@ -878,6 +878,14 @@ def test_validate_v3io_consumer_group(value, expected):
             "expected_output": "mlrun/mlrun-kfp:1.9.0",
             "images_to_enrich_registry": "",
         },
+        {
+            "image": "mlrun/mlrun-kfp:1.10.0-rc37",
+            "client_version": "1.10.0-rc37",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-rc37-py39",
+            "images_to_enrich_registry": "",
+        },
     ],
 )
 def test_enrich_image(case):

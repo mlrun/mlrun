@@ -55,6 +55,11 @@ class Authenticator(typing.Protocol):
             == schemas.APIGatewayAuthenticationMode.access_key.value
         ):
             return AccessKeyAuth()
+        elif (
+            api_gateway_spec.authenticationMode
+            == schemas.APIGatewayAuthenticationMode.iguazio.value
+        ):
+            return IguazioAuth()
         else:
             return NoneAuth()
 
@@ -110,6 +115,16 @@ class AccessKeyAuth(APIGatewayAuthenticator):
     @property
     def authentication_mode(self) -> str:
         return schemas.APIGatewayAuthenticationMode.access_key.value
+
+
+class IguazioAuth(APIGatewayAuthenticator):
+    """
+    An API gateway authenticator with Iguazio authentication.
+    """
+
+    @property
+    def authentication_mode(self) -> str:
+        return schemas.APIGatewayAuthenticationMode.iguazio.value
 
 
 class APIGatewayMetadata(ModelObj):
@@ -451,6 +466,11 @@ class APIGateway(ModelObj):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
                 )
+        if (
+            self.spec.authentication.authentication_mode
+            == schemas.APIGatewayAuthenticationMode.iguazio.value
+        ):
+            auth = NuclioAuthInfo().from_envvar().to_requests_auth()
         url = urljoin(self.invoke_url, path or "")
 
         # Determine the correct keyword argument for the body
@@ -526,6 +546,12 @@ class APIGateway(ModelObj):
         Set access key authentication for the API gateway.
         """
         self.spec.authentication = AccessKeyAuth()
+
+    def with_iguazio_auth(self):
+        """
+        Set iguazio authentication for the API gateway.
+        """
+        self.spec.authentication = IguazioAuth()
 
     def with_canary(
         self,

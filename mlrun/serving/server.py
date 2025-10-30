@@ -23,6 +23,7 @@ import os
 import socket
 import traceback
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Optional, Union
 
@@ -50,7 +51,7 @@ from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..execution import MLClientCtx
 from ..model import ModelObj
-from ..utils import get_caller_globals, get_module_name_from_path
+from ..utils import get_caller_globals, get_relative_module_name_from_path
 from .states import (
     FlowStep,
     MonitoredStep,
@@ -522,10 +523,6 @@ def add_system_steps_to_graph(
                 monitor_flow_step.after = [
                     step_name,
                 ]
-    context.logger.info_with(
-        "Server graph after adding system steps",
-        graph=str(graph.steps),
-    )
     return graph
 
 
@@ -583,7 +580,7 @@ async def async_execute_graph(
     batch_size: Optional[int],
     read_as_lists: bool,
     nest_under_inputs: bool,
-) -> list[Any]:
+) -> None:
     # Validate that data parameter is a DataItem and not passed via params
     if not isinstance(data, DataItem):
         raise MLRunInvalidArgumentError(
@@ -593,7 +590,7 @@ async def async_execute_graph(
             f"while 'inputs' is for data files that need to be loaded. "
             f"Example: run_function(..., inputs={{'data': 'path/to/data.csv'}}, params={{other_config: value}})"
         )
-
+    run_call_count = 0
     spec = mlrun.utils.get_serving_spec()
     modname = None
     code = os.getenv("MLRUN_EXEC_CODE")
@@ -607,7 +604,17 @@ async def async_execute_graph(
         #  gets set in local flow and not just in the remote pod
         source_file_path = spec.get("filename", None)
         if source_file_path:
-            modname = get_module_name_from_path(source_file_path)
+            source_file_path_object, working_dir_path_object = (
+                mlrun.utils.helpers.get_source_and_working_dir_paths(source_file_path)
+            )
+            if not source_file_path_object.is_relative_to(working_dir_path_object):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Source file path '{source_file_path}' is not under the current working directory "
+                    f"(which is required when running with local=True)"
+                )
+            modname = get_relative_module_name_from_path(
+                source_file_path_object, working_dir_path_object
+            )
 
     namespace = {}
     if modname:
@@ -682,7 +689,6 @@ async def async_execute_graph(
 
     if config.log_level.lower() == "debug":
         server.verbose = True
-    context.logger.info_with("Initializing states", namespace=namespace)
     kwargs = {}
     if hasattr(context, "is_mock"):
         kwargs["is_mock"] = context.is_mock
@@ -700,6 +706,7 @@ async def async_execute_graph(
         context.logger.info(server.to_yaml())
 
     async def run(body):
+        nonlocal run_call_count
         event = storey.Event(id=index, body=body)
         if timestamp_column:
             if batching:
@@ -714,6 +721,7 @@ async def async_execute_graph(
                     f"Event body '{body}' did not contain timestamp column '{timestamp_column}'"
                 )
             event._original_timestamp = body[timestamp_column]
+        run_call_count += 1
         return await server.run(event, context)
 
     if batching and not batch_size:
@@ -771,7 +779,31 @@ async def async_execute_graph(
         model_endpoint_uids=model_endpoint_uids,
     )
 
-    return responses
+    # log the results as artifacts
+    num_of_meps_in_the_graph = len(server.graph.model_endpoints_names)
+    artifact_path = None
+    if (
+        "{{run.uid}}" not in context.artifact_path
+    ):  # TODO: delete when IG-22841 is resolved
+        artifact_path = "+/{{run.uid}}"  # will be concatenated to the context's path in extend_artifact_path
+    if num_of_meps_in_the_graph <= 1:
+        context.log_dataset(
+            "prediction", df=pd.DataFrame(responses), artifact_path=artifact_path
+        )
+    else:
+        # turn this list of samples into a dict of lists, one per model endpoint
+        grouped = defaultdict(list)
+        for sample in responses:
+            for model_name, features in sample.items():
+                grouped[model_name].append(features)
+        # create a dataframe per model endpoint and log it
+        for model_name, features in grouped.items():
+            context.log_dataset(
+                f"prediction_{model_name}",
+                df=pd.DataFrame(features),
+                artifact_path=artifact_path,
+            )
+    context.log_result("num_rows", run_call_count)
 
 
 def _is_inside_asyncio_loop():

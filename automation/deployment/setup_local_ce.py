@@ -22,7 +22,6 @@ import platform
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -73,19 +72,26 @@ def run_command(
     """Thin wrapper around *subprocess.run* with optional debug printing."""
     if debug:
         echo_color(f"[DEBUG] {' '.join(cmd)}", color=typer.colors.MAGENTA)
+    stdout = None
     try:
-        subprocess.run(
+        stdout = subprocess.check_output(
             cmd,
-            check=raise_on_error,
             cwd=str(cwd) if cwd else None,
             input=input_data,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
             text=True,
+            stderr=subprocess.STDOUT,
         )
+
     except subprocess.SubprocessError as exc:
-        echo_color(f"[ERROR] Command failed: {' '.join(cmd)}", err=True)
-        raise exc
+        if raise_on_error:
+            echo_color(f"[ERROR] Command failed: {' '.join(cmd)}", err=True)
+            raise exc
+        else:
+            echo_color(f"[WARNING] Command failed: {stdout}", err=True)
+    else:
+        if stdout and debug:
+            print(stdout)
+    return stdout
 
 
 @app.callback()
@@ -128,9 +134,9 @@ def ensure_namespace(namespace: str, debug: bool = False):
 
 def setup_ingress(debug: bool):
     if is_traefik_installed(debug):
-        typer.echo("Traefik already present – skipping ingress‑nginx install")
+        echo_color("Traefik already present – skipping ingress‑nginx install")
         return
-    typer.echo("Installing ingress‑nginx controller ...")
+    echo_color("Installing ingress‑nginx controller ...")
     run_command(
         [
             "helm",
@@ -166,7 +172,7 @@ def setup_ingress(debug: bool):
 
 def create_ingress(namespace: str, debug: bool, ingress_host: str):
     ensure_namespace(namespace, debug)
-    typer.echo("Creating Ingresses ...")
+    echo_color("Creating Ingresses ...")
     ingress_class = "traefik" if is_traefik_installed(debug) else "nginx"
     ingress = {
         "apiVersion": "networking.k8s.io/v1",
@@ -182,7 +188,6 @@ def create_ingress(namespace: str, debug: bool, ingress_host: str):
         ("nuclio-dashboard", 8070, "nuclio-dashboard"),
         ("mlrun-jupyter", 8888, "jupyter"),
         ("minio-console", 9001, "minio"),
-        ("grafana", 80, "grafana"),
         ("ml-pipeline-ui", 80, "kfp-ui"),
         ("ml-pipeline", 8888, "kfp"),
         ("metadata-envoy-service", 9090, "metadata-envoy"),
@@ -194,6 +199,7 @@ def create_ingress(namespace: str, debug: bool, ingress_host: str):
     for name, host_suffix in host_suffixes:
         ingress_to_apply = copy.deepcopy(ingress)
         ingress_to_apply["metadata"]["name"] += f"-{name}"
+        rules = []
         for svc, port, host_prefix in service_matrix:
             host = f"{host_prefix}.{namespace}.{host_suffix}"
             rule = {
@@ -210,18 +216,13 @@ def create_ingress(namespace: str, debug: bool, ingress_host: str):
                     ]
                 },
             }
-            ingress_to_apply["spec"]["rules"].append(rule)
+            rules.append(rule)
+        ingress_to_apply["spec"].get("rules", []).extend(rules)
         subprocess.run(
             ["kubectl", "apply", "-f", "-"],
             input=yaml.dump(ingress_to_apply, sort_keys=False),
             text=True,
         )
-
-
-def add_helm_repositories(debug: bool):
-    echo_color("Adding Helm repos ...")
-    for name, url in HELM_REPOS.items():
-        run_command(["helm", "repo", "add", "--force-update", name, url], debug=debug)
 
 
 def setup_registry_secret(
@@ -282,6 +283,21 @@ def is_valid_version(version: str) -> bool:
     return bool(SEMVER_RC_REGEX.match(version))
 
 
+def get_latest_tag(repository: str) -> str | None:
+    token = os.environ.get("GITHUB_TOKEN")
+    headers = {"Authorization": f"token {token}"} if token else {}
+    resp = requests.get(
+        f"https://api.github.com/repos/{repository}/releases/latest",
+        timeout=30,
+        headers=headers,
+    )
+    if resp.status_code != 200:
+        echo_color(f"GitHub API error {resp.status_code}: {resp.text[:80]}", err=True)
+        return None
+    release = resp.json()
+    return release.get("tag_name")
+
+
 def get_all_tags(repository: str):
     tags: list[dict[str, str]] = []
     page, per_page = 1, 100
@@ -308,6 +324,11 @@ def get_all_tags(repository: str):
 
 
 def get_latest_valid_version(repo_name: str) -> str:
+    if tag := get_latest_tag(repo_name):
+        cleaned = clean_version(tag)
+        if is_valid_version(cleaned):
+            echo_color(f"Using latest release tag for {repo_name}: {cleaned}")
+            return cleaned
     for tag in get_all_tags(repo_name):
         cleaned = clean_version(tag.get("name", ""))
         if is_valid_version(cleaned):
@@ -316,34 +337,76 @@ def get_latest_valid_version(repo_name: str) -> str:
     raise ValueError(f"No semver tag found for {repo_name}")
 
 
+def get_existing_helm_repos(debug: bool):
+    """Returns a dict of existing helm repos: {name: url}"""
+    result = run_command(["helm", "repo", "list", "--output", "json"], debug=debug)
+    return {repo["name"]: repo["url"] for repo in json.loads(result)}
+
+
+def ensure_helm_repos(debug: bool):
+    """Ensure all required helm repositories are added."""
+    echo_color("Ensuring helm repositories ...")
+    existing_repos = get_existing_helm_repos(debug)
+    for name, url in HELM_REPOS.items():
+        ensure_helm_repo(name, url, existing_repos, debug)
+    update_helm_repos(debug)
+
+
+def ensure_helm_repo(name: str, url: str, existing_repos: dict[str, str], debug: bool):
+    """Adds the repo if it's not already added"""
+    if name in existing_repos:
+        if existing_repos[name] == url:
+            if debug:
+                echo_color(
+                    f"Repo '{name}' already exists with the same URL. Skipping..."
+                )
+            return
+        else:
+            echo_color(f"Adding helm repo '{name}'...")
+            run_command(
+                ["helm", "repo", "add", "--force-update", name, url], debug=debug
+            )
+
+
+def update_helm_repos(debug):
+    """Update all helm repositories."""
+    run_command(["helm", "repo", "update"], debug=debug)
+
+
 def setup_ce(
-    server: str,
+    docker_registry: str,
     ce_version: str,
     namespace: str,
+    admin_namespace: str,
     ce_dir: Path,
     branch: str,
     docker_creds_secret_name: str | None,
     debug: bool,
+    mlrun_install_extra_values: dict[str, str] | None = None,
 ):
     if not ce_version:
         ce_version = get_latest_valid_version("mlrun/ce").replace("mlrun-ce-", "")
-    add_helm_repositories(debug)
+    ensure_helm_repos(debug)
     if not ce_dir.is_dir():
         run_command(["git", "clone", REPO_URL, str(ce_dir)], debug=debug)
     if branch:
         run_command(["git", "checkout", branch], cwd=ce_dir, debug=debug)
         run_command(["git", "pull"], cwd=ce_dir, debug=debug)
 
+    echo_color("Building helm dependencies")
     run_command(
         ["helm", "dependency", "build"], cwd=ce_dir / "charts" / "mlrun-ce", debug=debug
     )
 
     res = subprocess.run(
-        ["helm", "status", "mlrun-admin", "-n", namespace],
+        ["helm", "status", "mlrun-admin", "--namespace", admin_namespace],
         capture_output=True,
         text=True,
     )
     if "not found" in (res.stdout + res.stderr).lower():
+        echo_color(
+            "No mlrun-admin installation found, installing mlrun-ce admin requirements"
+        )
         run_command(
             [
                 "helm",
@@ -352,7 +415,7 @@ def setup_ce(
                 "mlrun-admin",
                 f"{ce_dir}/charts/mlrun-ce",
                 "--namespace",
-                namespace,
+                admin_namespace,
                 "--create-namespace",
                 "--devel",
                 "--version",
@@ -365,12 +428,11 @@ def setup_ce(
             cwd=ce_dir,
         )
 
-    registry_url = server.rstrip("/")
     base_values = [
         "--namespace",
         namespace,
         "--set",
-        f"global.registry.url={registry_url}",
+        f"global.registry.url={docker_registry}",
         "--set",
         "global.externalHostAddress=mlrun.svc.cluster.local",
         "--set",
@@ -395,7 +457,17 @@ def setup_ce(
         f"{ce_dir}/charts/mlrun-ce/non_admin_cluster_ip_installation_values.yaml",
         "--set",
         "argoWorkflows.controller.metricsConfig.enabled=false",
+        "--set",
+        "kube-prometheus-stack.enabled=false",
     ]
+    if mlrun_install_extra_values:
+        for key, value in mlrun_install_extra_values.items():
+            base_values.extend(
+                [
+                    "--set",
+                    f"{key}={value}",
+                ]
+            )
     if docker_creds_secret_name:
         base_values.extend(
             [
@@ -403,6 +475,7 @@ def setup_ce(
                 f"global.registry.secretName={docker_creds_secret_name}",
             ]
         )
+    echo_color("Installing mlrun-ce")
     run_command(
         ["helm", "upgrade", "--install", "mlrun"] + base_values, debug=debug, cwd=ce_dir
     )
@@ -416,6 +489,7 @@ def upgrade_images(
     docker_registry: str,
     arch: str,
     namespace: str,
+    docker_creds_secret_name: str | None,
     debug: bool,
 ):
     charts = ce_dir / "charts" / "mlrun-ce"
@@ -424,11 +498,13 @@ def upgrade_images(
             f"{charts} not found – skipping image upgrade", color=typer.colors.YELLOW
         )
         return
+    else:
+        echo_color(f"Upgrading images in {charts} ...")
     if not mlrun_ver:
         mlrun_ver = get_latest_valid_version("mlrun/mlrun").lstrip("v")
     if not nuclio_ver:
         nuclio_ver = get_latest_valid_version("nuclio/nuclio").lstrip("v")
-    registry_url = f"{docker_registry.rstrip('/')}/{user}"
+    registry_url = f"{docker_registry}/{user}"
     run_command(
         ["helm", "dependency", "build"] + (["--debug"] if debug else []),
         cwd=charts,
@@ -438,32 +514,39 @@ def upgrade_images(
     # nuclio maps x86_64 to amd64
     if arch == "x86_64":
         arch = "amd64"
+
+    cmd = [
+        "helm",
+        "upgrade",
+        "mlrun",
+        ".",
+        "--namespace",
+        namespace,
+        "--reuse-values",
+        "--set",
+        f"global.registry.url={registry_url}",
+        "--set",
+        f"mlrun.api.image.tag={mlrun_ver}",
+        "--set",
+        f"mlrun.ui.image.tag={mlrun_ver}",
+        "--set",
+        f"mlrun.api.sidecars.logCollector.image.tag={mlrun_ver}",
+        "--set",
+        f"jupyterNotebook.image.tag={mlrun_ver}",
+        "--set",
+        f"nuclio.controller.image.tag={nuclio_ver}-{arch}",
+        "--set",
+        f"nuclio.dashboard.image.tag={nuclio_ver}-{arch}",
+    ]
+    if docker_creds_secret_name:
+        cmd.extend(
+            [
+                "--set",
+                f"global.registry.secretName={docker_creds_secret_name}",
+            ]
+        )
     run_command(
-        [
-            "helm",
-            "upgrade",
-            "mlrun",
-            ".",
-            "--namespace",
-            namespace,
-            "--reuse-values",
-            "--set",
-            f"global.registry.url={registry_url}",
-            "--set",
-            "global.registry.secretName=registry-credentials",
-            "--set",
-            f"mlrun.api.image.tag={mlrun_ver}",
-            "--set",
-            f"mlrun.ui.image.tag={mlrun_ver}",
-            "--set",
-            f"mlrun.api.sidecars.logCollector.image.tag={mlrun_ver}",
-            "--set",
-            f"jupyterNotebook.image.tag={mlrun_ver}",
-            "--set",
-            f"nuclio.controller.image.tag={nuclio_ver}-{arch}",
-            "--set",
-            f"nuclio.dashboard.image.tag={nuclio_ver}-{arch}",
-        ],
+        cmd,
         cwd=charts,
         debug=debug,
     )
@@ -478,7 +561,6 @@ def add_dns_entries_to_hosts(namespace: str, target_ip: str):
         f"nuclio-dashboard.{namespace}.svc.cluster.local",
         f"jupyter.{namespace}.svc.cluster.local",
         f"minio.{namespace}.svc.cluster.local",
-        f"grafana.{namespace}.svc.cluster.local",
         f"kfp-ui.{namespace}.svc.cluster.local",
         f"metadata-envoy.{namespace}.svc.cluster.local",
         f"workflow-metrics.{namespace}.svc.cluster.local",
@@ -555,9 +637,11 @@ def install_ce(
     branch: str,
     arch: str,
     namespace: str,
+    admin_namespace: str,
     debug: bool,
-    update_hosts: bool,
+    skip_update_hosts: bool,
     ingress_host: str,
+    mlrun_install_extra_values: dict[str, str] | None = None,
 ):
     for cmd in REQUIRED_COMMANDS:
         check_command_exists(cmd)
@@ -578,17 +662,27 @@ def install_ce(
         docker_registry,
         ce_ver,
         namespace,
+        admin_namespace,
         ce_dir,
         branch,
         docker_creds_secret_name,
         debug,
+        mlrun_install_extra_values,
     )
     upgrade_images(
-        mlrun_ver, nuclio_ver, ce_dir, user, docker_registry, arch, namespace, debug
+        mlrun_ver,
+        nuclio_ver,
+        ce_dir,
+        user,
+        docker_registry,
+        arch,
+        namespace,
+        docker_creds_secret_name,
+        debug,
     )
     patch_mlrun_env(namespace)
 
-    if update_hosts:
+    if not skip_update_hosts:
         ip = get_node_external_ip(debug) or "127.0.0.1"
         add_dns_entries_to_hosts(namespace, ip)
 
@@ -600,7 +694,8 @@ def install(
     docker_user: str = typer.Option("", help="Docker username"),
     docker_password: str = typer.Option("", help="Docker password / token"),
     docker_registry: str = typer.Option(
-        ..., help="Docker registry (e.g. docker.io / registry.localhost)"
+        "registry.localhost",
+        help="Docker registry (e.g. docker.io / registry.localhost)",
     ),
     ce_folder: Path = typer.Option(
         Path.home() / "mlrun-ce", "--ce-folder", help="Clone destination for mlrun/ce"
@@ -617,16 +712,30 @@ def install(
         "", "--branch", help="Git branch to checkout before upgrade"
     ),
     namespace: str = typer.Option("mlrun", "--namespace", help="Kubernetes namespace"),
+    admin_namespace: str = typer.Option(
+        "mlrun-admin",
+        "--admin-namespace",
+        help="Kubernetes admin namespace to install CRDs and cross tenant dependencies",
+    ),
     debug: bool = typer.Option(False, "--debug", help="Verbose output"),
     arch: str = typer.Option(platform.machine(), "--arch", help="CPU arch"),
-    update_hosts: bool = typer.Option(
-        False, "--update-hosts", help="Add hostnames to /etc/hosts"
+    skip_update_hosts: bool = typer.Option(
+        True, "--skip-update-hosts", help="Add hostnames to /etc/hosts"
     ),
     ingress_host: str = typer.Option(
         "", "--ingress-host", help="Ingress host suffix (e.g..platform.iguaz.io)"
     ),
+    mlrun_install_extra_values: str = typer.Option(
+        None, "--mlrun-install-extra-values", help="Extra values for mlrun installation"
+    ),
 ):
     """High‑level installation command."""
+
+    mlrun_install_extra_values = (
+        json.loads(mlrun_install_extra_values) if mlrun_install_extra_values else None
+    )
+
+    docker_registry = docker_registry.rstrip("/")
     install_ce(
         docker_user,
         docker_password,
@@ -639,9 +748,11 @@ def install(
         branch,
         arch,
         namespace,
+        admin_namespace,
         debug,
-        update_hosts,
+        skip_update_hosts,
         ingress_host,
+        mlrun_install_extra_values,
     )
 
 

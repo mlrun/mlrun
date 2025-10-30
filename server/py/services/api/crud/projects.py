@@ -304,6 +304,7 @@ class Projects(
 
         projects_output = self.list_projects(
             session,
+            auth_info,
             format_=mlrun.common.formatters.ProjectFormat.name_only,
             **project_filters,
         )

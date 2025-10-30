@@ -80,7 +80,10 @@ class Member(project_leader.Member):
     ) -> bool:
         auth_info.projects_role = self._project_role
         return framework.utils.singletons.project_member.get_project_member().delete_project(
-            self.db_session, name, auth_info, deletion_strategy
+            self.db_session,
+            name,
+            deletion_strategy,
+            auth_info=auth_info,
         )
 
     def list_projects(

@@ -194,14 +194,13 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: typing.Optional[str] = None,
         model_monitoring_access_key: typing.Optional[str] = None,
     ) -> bool:
         if framework.utils.helpers.is_request_from_leader(
-            projects_role, leader_name=self._leader_name
+            auth_info.projects_role, leader_name=self._leader_name
         ):
             services.api.crud.Projects().delete_project(
                 session=db_session,
@@ -271,7 +270,7 @@ class Member(
             )
 
         projects_output = services.api.crud.Projects().list_projects(
-            db_session, owner, format_, labels, state, names
+            db_session, auth_info, owner, format_, labels, state, names
         )
         if format_ == mlrun.common.formatters.ProjectFormat.leader:
             leader_projects = [

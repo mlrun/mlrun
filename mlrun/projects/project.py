@@ -45,7 +45,6 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.common.secrets
 import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
@@ -3419,12 +3418,7 @@ class MlrunProject(ModelObj):
         self._initialized = True
         return self.spec._function_objects
 
-    def with_secrets(
-        self,
-        kind,
-        source,
-        prefix="",
-    ):
+    def with_secrets(self, kind, source, prefix=""):
         """register a secrets source (file, env or dict)
 
         read secrets from a source provider to be used in workflows, example::
@@ -3446,21 +3440,12 @@ class MlrunProject(ModelObj):
 
         This will enable access to all secrets in vault registered to the current project.
 
-        :param kind:   secret type (file, inline, env, vault, azure_vault)
+        :param kind:   secret type (file, inline, env, vault)
         :param source: secret data or link (see example)
         :param prefix: add a prefix to the keys in this source
 
         :returns: project object
         """
-        # Block using mlrun-auth-secrets.* via azure_vault's k8s_secret param (client-side only)
-        if kind == "azure_vault" and isinstance(source, dict):
-            candidate_secret_name = (source.get("k8s_secret") or "").strip()
-            if candidate_secret_name and mlrun.common.secrets.AUTH_SECRET_PATTERN.match(
-                candidate_secret_name
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Forbidden secret '{candidate_secret_name}' matches MLRun auth-secret pattern."
-                )
 
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.name, "secrets": source}

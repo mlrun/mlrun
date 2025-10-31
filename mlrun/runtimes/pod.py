@@ -20,7 +20,6 @@ import typing
 import warnings
 from collections.abc import Iterable
 from enum import Enum
-from typing import Optional
 
 import dotenv
 import kubernetes.client as k8s_client
@@ -35,7 +34,6 @@ from mlrun.common.schemas import (
     SecurityContextEnrichmentModes,
 )
 
-from ..common.secrets import AUTH_SECRET_PATTERN
 from ..config import config as mlconf
 from ..k8s_utils import (
     generate_preemptible_nodes_affinity_terms,
@@ -710,44 +708,19 @@ class KubeResource(BaseRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
 
-    def set_env_from_secret(
-        self,
-        name: str,
-        secret: Optional[str] = None,
-        secret_key: Optional[str] = None,
-    ):
-        """Set env var from secret; block auth-secret usage on client side."""
-        self._validate_no_auth_secret(
-            secret_name=secret,
-        )
+    def set_env_from_secret(self, name, secret=None, secret_key=None):
+        """set pod environment var from secret"""
         secret_key = secret_key or name
         value_from = k8s_client.V1EnvVarSource(
-            secret_key_ref=k8s_client.V1SecretKeySelector(
-                name=secret,
-                key=secret_key,
-            )
+            secret_key_ref=k8s_client.V1SecretKeySelector(name=secret, key=secret_key)
         )
-        return self._set_env(
-            name=name,
-            value_from=value_from,
-        )
+        return self._set_env(name, value_from=value_from)
 
-    def set_env(
-        self,
-        name: str,
-        value: Optional[str] = None,
-        value_from: Optional[typing.Any] = None,
-    ):
-        """Set env var; block auth-secret usage when coming from a secret."""
-        if value_from is not None:
-            secret_name = self._extract_secret_name_from_value_from(
-                value_from=value_from,
-            )
-            self._validate_no_auth_secret(
-                secret_name=secret_name,
-            )
-            return self._set_env(name, value_from=value_from)
-        return self._set_env(name, value=str(value) if value is not None else None)
+    def set_env(self, name, value=None, value_from=None):
+        """set pod environment var from value"""
+        if value is not None:
+            return self._set_env(name, value=str(value))
+        return self._set_env(name, value_from=value_from)
 
     def with_annotations(self, annotations: dict):
         """set a key/value annotations in the metadata of the pod"""
@@ -1392,37 +1365,6 @@ class KubeResource(BaseRuntime):
                     offset += len(text)
 
         return self.status.state
-
-    @staticmethod
-    def _validate_no_auth_secret(
-        secret_name: Optional[str],
-    ):
-        """Raise if secret name matches MLRun auth-secret pattern."""
-        if secret_name and AUTH_SECRET_PATTERN.match(secret_name):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
-            )
-
-    @staticmethod
-    def _extract_secret_name_from_value_from(
-        value_from: typing.Any,
-    ) -> Optional[str]:
-        """Extract secret name from a V1EnvVarSource or dict representation."""
-        if isinstance(value_from, k8s_client.V1EnvVarSource):
-            if value_from.secret_key_ref:
-                return value_from.secret_key_ref.name
-        elif isinstance(value_from, dict):
-            value_from = (
-                value_from.get("valueFrom")
-                or value_from.get("value_from")
-                or value_from
-            )
-            secret_key_ref = (value_from or {}).get("secretKeyRef") or (
-                value_from or {}
-            ).get("secret_key_ref")
-            if isinstance(secret_key_ref, dict):
-                return secret_key_ref.get("name")
-        return None
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):

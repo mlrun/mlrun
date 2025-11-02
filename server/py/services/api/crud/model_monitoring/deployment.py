@@ -132,7 +132,7 @@ class MonitoringDeployment:
             )
         return self.__tsdb_connector
 
-    def deploy_monitoring_functions(
+    async def deploy_monitoring_functions(
         self,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
@@ -152,7 +152,7 @@ class MonitoringDeployment:
         """
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
-            self.set_credentials()
+            await self.set_credentials()
         # reject the request if controller and/or writer pods are already deployed.
         # stream-pod is not checked since by default it is not deleted by disable_model_monitoring.
         if deployed_functions := [
@@ -849,7 +849,7 @@ class MonitoringDeployment:
                 app_data=fn.to_dict(),
             )
 
-    def _create_tsdb_tables(
+    async def _create_tsdb_tables(
         self, tsdb_profile: mlrun.datastore.datastore_profile.DatastoreProfile
     ) -> None:
         """
@@ -858,9 +858,11 @@ class MonitoringDeployment:
         - metrics: a basic key value that represents a numeric metric.
         - predictions: latency of each prediction.
         """
-        mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project, profile=tsdb_profile
-        ).create_tables()
+        await run_in_threadpool(
+            mlrun.model_monitoring.get_tsdb_connector(
+                project=self.project, profile=tsdb_profile
+            ).create_tables
+        )
 
     def list_model_monitoring_functions(
         self,
@@ -1792,7 +1794,7 @@ class MonitoringDeployment:
             container, path, raise_for_status=[HTTPStatus.OK, HTTPStatus.NOT_FOUND]
         )
 
-    def set_credentials(
+    async def set_credentials(
         self,
         *,
         tsdb_profile_name: typing.Optional[str] = None,
@@ -1860,7 +1862,7 @@ class MonitoringDeployment:
                 )
 
         # Create TSDB tables that will be used for storing the model monitoring data
-        self._create_tsdb_tables(tsdb_profile)
+        await self._create_tsdb_tables(tsdb_profile=tsdb_profile)
 
         services.api.crud.Secrets().store_project_secrets(
             project=self.project,
@@ -2555,8 +2557,10 @@ class MonitoringDeployment:
             application_name=application_name,
             endpoint_ids=endpoint_ids,
         )
-        self._tsdb_connector.delete_application_records(
-            application_name=application_name, endpoint_ids=endpoint_ids
+        run_in_threadpool(
+            self._tsdb_connector.delete_application_records,
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
         )
 
         if not application_name.endswith(mlrun_constants.RESERVED_BATCH_JOB_SUFFIX):

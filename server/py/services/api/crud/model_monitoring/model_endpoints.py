@@ -910,7 +910,7 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-            tsdb_connector.delete_tsdb_records(endpoint_ids=uids)
+            run_in_threadpool(tsdb_connector.delete_tsdb_records, endpoint_ids=uids)
             logger.info("TSDB resources were deleted")
         except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.info(
@@ -1200,7 +1200,7 @@ class ModelEndpoints:
             )
             tsdb_connector = None
         if tsdb_connector:
-            tsdb_connector.delete_tsdb_resources()
+            run_in_threadpool(tsdb_connector.delete_tsdb_resources)
         cls._delete_model_monitoring_stream_resources(
             project_name=project_name,
             model_monitoring_applications=model_monitoring_applications,
@@ -1236,6 +1236,8 @@ class ModelEndpoints:
         :param metrics_format:  Determines the format of the result, which can be `single`, `separation`, or
                                 `intersection`.
         :return: metrics in the chosen format.
+
+        Note should be called only on different thread than the main fastapi thread
         """
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
@@ -1359,7 +1361,7 @@ class ModelEndpoints:
             )
 
     @staticmethod
-    def _get_real_time_metrics(
+    async def _get_real_time_metrics(
         model_endpoint_object: mlrun.common.schemas.ModelEndpoint,
         metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
@@ -1402,9 +1404,10 @@ class ModelEndpoints:
                 " Returning without adding real time metrics.",
                 error=mlrun.errors.err_to_str(e),
             )
-            return model_endpoint_object
+            return {}
 
-        endpoint_metrics = tsdb_connector.get_model_endpoint_real_time_metrics(
+        endpoint_metrics = await run_in_threadpool(
+            tsdb_connector.get_model_endpoint_real_time_metrics,
             endpoint_id=model_endpoint_object.metadata.uid,
             metrics=metrics,
             start=start,

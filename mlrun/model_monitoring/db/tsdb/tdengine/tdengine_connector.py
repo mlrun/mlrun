@@ -1281,7 +1281,7 @@ class TDEngineConnector(TSDBConnector):
                     del metric_name_to_function[metric_name]
 
         metric_name_to_df = {
-            metric_name: function(endpoint_ids=uids)
+            metric_name: await run_in_threadpool(function, endpoint_ids=uids)
             for metric_name, function in metric_name_to_function.items()
         }
 

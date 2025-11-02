@@ -198,9 +198,9 @@ class TimescaleDBConnector(TSDBConnector):
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
-        # Note: project and run_in_threadpool parameters are part of the interface
-        # but unused in TimescaleDB implementation (uses self.project, synchronous operations)
-        del project, run_in_threadpool  # Suppress unused variable warnings
+        # Note: project param is part of the interface
+        # but unused in TimescaleDB implementation (uses self.project)
+        del project  # Suppress unused variable warnings
 
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
 
@@ -218,7 +218,7 @@ class TimescaleDBConnector(TSDBConnector):
                     del metric_name_to_function[metric_name]
 
         metric_name_to_df = {
-            metric_name: function(endpoint_ids=uids)
+            metric_name: await run_in_threadpool(function, endpoint_ids=uids)
             for metric_name, function in metric_name_to_function.items()
         }
 

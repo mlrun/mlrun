@@ -451,6 +451,8 @@ class TSDBConnector(ABC):
         run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
+        """Note that each call to this method may add multiple TSDB calls,
+        and each one of them shouldn't run on the main thread."""
         raise NotImplementedError()
 
     @staticmethod

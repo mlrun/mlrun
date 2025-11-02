@@ -380,7 +380,7 @@ class IGTokenProvider(DynamicTokenProvider):
 
         if not self._token:
             raise mlrun.errors.MLRunRuntimeError(
-                "Failed to fetch access token, no token available after fetch"
+                "Failed to fetch access token, the requested token does not exist or is invalid."
             )
 
     @staticmethod

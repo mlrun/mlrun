@@ -2557,7 +2557,7 @@ class MonitoringDeployment:
             application_name=application_name,
             endpoint_ids=endpoint_ids,
         )
-        run_in_threadpool(
+        await run_in_threadpool(
             self._tsdb_connector.delete_application_records,
             application_name=application_name,
             endpoint_ids=endpoint_ids,

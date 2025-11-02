@@ -193,7 +193,6 @@ class TimescaleDBConnector(TSDBConnector):
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project (unused - uses self.project from constructor).
         :param run_in_threadpool:      A function that runs another function in a thread pool
-                                       (unused - TimescaleDB operations are synchronous).
         :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.

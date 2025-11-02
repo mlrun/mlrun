@@ -903,6 +903,7 @@ class ModelEndpoints:
 
     @staticmethod
     async def delete_tsdb_records(project: str, uids: list[str]):
+        """Use only in background task to delete TSDB records of model endpoints."""
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=project,
@@ -910,7 +911,7 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-            run_in_threadpool(tsdb_connector.delete_tsdb_records, endpoint_ids=uids)
+            tsdb_connector.delete_tsdb_records(endpoint_ids=uids)
             logger.info("TSDB resources were deleted")
         except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.info(
@@ -1200,7 +1201,7 @@ class ModelEndpoints:
             )
             tsdb_connector = None
         if tsdb_connector:
-            run_in_threadpool(tsdb_connector.delete_tsdb_resources)
+            tsdb_connector.delete_tsdb_resources()
         cls._delete_model_monitoring_stream_resources(
             project_name=project_name,
             model_monitoring_applications=model_monitoring_applications,

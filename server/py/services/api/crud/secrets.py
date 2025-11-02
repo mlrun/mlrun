@@ -451,7 +451,9 @@ class Secrets(
         # First validate all token names
         seen_names = set()
         for secret_token in secret_tokens:
-            self._validate_token_name_and_user(secret_token, seen_names, auth_info.user_id)
+            self._validate_token_name_and_user(
+                secret_token, seen_names, auth_info.user_id
+            )
 
         # TODO: move init iguazio_client (ML-11077)
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
@@ -596,9 +598,15 @@ class Secrets(
         )
 
     @staticmethod
-    def _validate_token_name_and_user(secret_token: mlrun.common.schemas.SecretToken, seen_names: set, authenticated_id: str):
+    def _validate_token_name_and_user(
+        secret_token: mlrun.common.schemas.SecretToken,
+        seen_names: set,
+        authenticated_id: str,
+    ):
         token_name = secret_token.name
-        token_sub = Secrets._decode_offline_token(token_name, secret_token.token).get("sub")
+        token_sub = Secrets._decode_offline_token(token_name, secret_token.token).get(
+            "sub"
+        )
 
         if token_sub != authenticated_id:
             raise mlrun.errors.MLRunInvalidArgumentError(

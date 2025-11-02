@@ -911,8 +911,9 @@ dependency-injector==4.48.2 \
     --hash=sha256:f026957ba99997a9566cb846804ec712c67428a8041d93bf2e2966ed4a4d7dfc \
     --hash=sha256:f2e3df258cb3ca59f40fffb9c88677cc9dde3f3cdd0f8fc706cf88dad2ac2736
     # via -r requirements.txt
-deprecated==1.3.0 \
-    --hash=sha256:0efaf13de8bd3f3f86d88f6e1001d3982dae6e64b85302b60230de4d047387bd
+deprecated==1.3.1 \
+    --hash=sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f \
+    --hash=sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223
     # via -r requirements.txt
 distributed==2023.12.1 ; python_full_version < '3.11' \
     --hash=sha256:56e69d90c6099e066751907956144cf94d0bc7050bd69ef2ec8003e890c2540c \
@@ -944,9 +945,9 @@ executing==2.2.1 \
     --hash=sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4 \
     --hash=sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017
     # via stack-data
-fastapi==0.120.2 \
-    --hash=sha256:4c5ab43e2a90335bbd8326d1b659eac0f3dbcc015e2af573c4f5de406232c4ac \
-    --hash=sha256:bedcf2c14240e43d56cb9a339b32bcf15104fe6b5897c0222603cb7ec416c8eb
+fastapi==0.120.4 \
+    --hash=sha256:2d856bc847893ca4d77896d4504ffdec0fb04312b705065fca9104428eca3868 \
+    --hash=sha256:9bdf192308676480d3593e10fd05094e56d6fdc7d9283db26053d8104d5f82a0
     # via mlflow-skinny
 fastjsonschema==2.21.2 \
     --hash=sha256:1c797122d0a86c5cace2e54bf4e819c36223b552017172f32c5c024a6b77e463 \
@@ -1196,9 +1197,9 @@ google-api-core==2.28.1 \
     #   google-cloud-bigquery-storage
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.42.0 \
-    --hash=sha256:9bbbeef3442586effb124d1ca032cfb8fb7acd8754ab79b55facd2b8f3ab2802 \
-    --hash=sha256:f8f944bcb9723339b0ef58a73840f3c61bc91b69bf7368464906120b55804473
+google-auth==2.42.1 \
+    --hash=sha256:30178b7a21aa50bffbdc1ffcb34ff770a2f65c712170ecd5446c4bef4dc2b94e \
+    --hash=sha256:eb73d71c91fc95dbd221a2eb87477c278a355e7367a35c0d84e6b0e5f9b4ad11
     # via
     #   databricks-sdk
     #   gcsfs
@@ -1293,9 +1294,9 @@ graphene==3.4.3 \
     --hash=sha256:2a3786948ce75fe7e078443d37f609cbe5bb36ad8d6b828740ad3b95ed1a0aaa \
     --hash=sha256:820db6289754c181007a150db1f7fff544b94142b556d12e3ebc777a7bf36c71
     # via mlflow
-graphql-core==3.2.6 \
-    --hash=sha256:78b016718c161a6fb20a7d97bbf107f331cd1afe53e45566c59f776ed7f0b45f \
-    --hash=sha256:c08eec22f9e40f0bd61d805907e3b3b1b9a320bc606e23dc145eebca07c8fbab
+graphql-core==3.2.7 \
+    --hash=sha256:17fc8f3ca4a42913d8e24d9ac9f08deddf0a0b2483076575757f6c412ead2ec0 \
+    --hash=sha256:27b6904bdd3b43f2a0556dad5d579bdfdeab1f38e8e8788e555bdcb586a6f62c
     # via
     #   graphene
     #   graphql-relay
@@ -4206,9 +4207,9 @@ stack-data==0.6.3 \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
     --hash=sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695
     # via ipython
-starlette==0.49.1 \
-    --hash=sha256:481a43b71e24ed8c43b11ea02f5353d77840e01480881b8cb5a26b8cae64a8cb \
-    --hash=sha256:d92ce9f07e4a3caa3ac13a79523bd18e3bc0042bb8ff2d759a8e7dd0e1859875
+starlette==0.49.3 \
+    --hash=sha256:1c14546f299b5901a1ea0e34410575bc33bbd741377a10484a54445588d00284 \
+    --hash=sha256:b579b99715fdc2980cf88c8ec96d3bf1ce16f5a8051a7c2b84ef9b1cdecaea2f
     # via fastapi
 storey==1.10.17 \
     --hash=sha256:c423f94e5bd7f754b4c980ae1f519ff617f998941c03eb8006f17599042017c3
@@ -4225,9 +4226,9 @@ taos-ws-py==0.3.2 \
     --hash=sha256:ea3a7fff25fc828e050459024e59558a925788c4fb8623af83bbcbca0f47c535 \
     --hash=sha256:f165176a20e99e44205e9693e032540a6be8125841e43d809a21b4888ac9be44
     # via -r extras-requirements.txt
-tblib==3.2.0 \
-    --hash=sha256:32c4d3c36ac59c59e8c442d94e7b274b3ce80263ca3201686476ee7616f3579a \
-    --hash=sha256:62ae1b8808cfd7c1c15b871d4022abb46188c49d21ace87a02a88707dc7aa1b1
+tblib==3.2.1 \
+    --hash=sha256:846e274d0aeec822953251a3cbd3d840fd0ee7a5ec844d59ffbde7b056f9cd2b \
+    --hash=sha256:aacdaffceac6c4ef6818887b15677513f16d75c68384b76b415a935d548dd172
     # via distributed
 tenacity==9.1.2 \
     --hash=sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb \
@@ -4449,9 +4450,13 @@ wcwidth==0.2.14 \
     --hash=sha256:4d478375d31bc5395a3c55c40ccdf3354688364cd61c4f6adacaa9215d0b3605 \
     --hash=sha256:a7bb560c8aee30f9957e5f9895805edd20602f2d7f720186dfd906e82b4982e1
     # via prompt-toolkit
-webcolors==24.11.1 \
+webcolors==24.11.1 ; python_full_version < '3.10' \
     --hash=sha256:515291393b4cdf0eb19c155749a096f779f7d909f7cceea072791cb9095b92e9 \
     --hash=sha256:ecb3d768f32202af770477b8b65f318fa4f566c22948673a977b00d589dd80f6
+    # via jsonschema
+webcolors==25.10.0 ; python_full_version >= '3.10' \
+    --hash=sha256:032c727334856fc0b968f63daa252a1ac93d33db2f5267756623c210e57a4f1d \
+    --hash=sha256:62abae86504f66d0f6364c2a8520de4a0c47b80c03fc3a5f1815fedbef7c19bf
     # via jsonschema
 webencodings==0.5.1 \
     --hash=sha256:a0af1213f3c2226497a97e2b3aa01a7e4bee4f403f95be16fc9acd2947514a78 \

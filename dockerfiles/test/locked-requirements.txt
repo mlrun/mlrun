@@ -4505,7 +4505,6 @@ pydantic==1.10.24 \
     --hash=sha256:fac7fbcb65171959973f3136d0792c3d1668bc01fd414738f0898b01f692f1b4 \
     --hash=sha256:fc3f4a6544517380658b63b144c7d43d5276a343012913b7e5d18d9fba2f12bb
     # via
-    #   -r dockerfiles/mlrun-api/requirements.txt
     #   -r requirements.txt
     #   evidently
     #   fastapi

@@ -73,7 +73,7 @@ import mlrun
 
 project = mlrun.get_or_create_project("myproj")
 
-gen_func = set_function(
+gen_func = project.set_function(
     name="train_iris",
     func="<path to train_iris.py>",
     handler="train_iris",
@@ -128,7 +128,7 @@ To run the code, place the code above in `test_model.py` and use the following s
 ``` python
 import mlrun.platforms
 
-gen_func = set_function(
+gen_func = project.set_function(
     name="test_model",
     func="<path to test_model.py>",
     handler="test_model",

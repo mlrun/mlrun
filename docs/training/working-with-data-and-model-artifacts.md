@@ -155,7 +155,7 @@ import mlrun
 
 project = mlrun.get_or_create_project("myproj")
 
-gen_func = set_function(
+gen_func = project.set_function(
     name="train_iris",
     func="<path to train_iris.py>",
     handler="train_iris",
@@ -215,7 +215,7 @@ from mlrun.platforms import auto_mount
 
 project = mlrun.get_or_create_project("myproj")
 
-gen_func = set_function(
+gen_func = project.set_function(
     name="test_model",
     func="<path to test_model.py>",
     handler="test_model",

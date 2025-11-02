@@ -157,7 +157,6 @@ def log_background_task_state(
     logger.info(
         "Checking model endpoint creation task status",
         task_name=server.model_endpoint_creation_task_name,
-        function_name=server.function_name,
     )
     if (
         background_task_state

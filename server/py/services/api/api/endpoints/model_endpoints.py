@@ -351,7 +351,7 @@ async def _collect_get_metrics_tasks_results(
         tasks.append(
             asyncio.create_task(
                 run_in_threadpool(
-                    services.api.crud.ModelEndpoints.get_model_xendpoints_metrics,
+                    services.api.crud.ModelEndpoints.get_model_endpoints_metrics,
                     endpoint_id=endpoint_ids,
                     type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
                     project=project,

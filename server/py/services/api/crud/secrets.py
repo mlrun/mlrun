@@ -426,7 +426,7 @@ class Secrets(
     def store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
-        authenticated_username: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
         force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         """
@@ -434,7 +434,7 @@ class Secrets(
 
         :param secret_tokens: List of SecretToken objects to store.
         :param force: Whether to force update existing tokens.
-        :param authenticated_username: Username used to name Kubernetes secrets.
+        :param auth_info: Authentication information of the user storing the tokens.
         :return: StoreSecretTokensResponse object with created, updated, and skipped tokens.
         """
         if not secret_tokens:
@@ -444,14 +444,14 @@ class Secrets(
 
         logger.debug(
             "Starting to store secret tokens",
-            username=authenticated_username,
+            username=auth_info.username,
             token_count=len(secret_tokens),
         )
 
         # First validate all token names
         seen_names = set()
         for secret_token in secret_tokens:
-            self._validate_token_name(secret_token.name, seen_names)
+            self._validate_token_name_and_user(secret_token, seen_names, auth_info.user_id)
 
         # TODO: move init iguazio_client (ML-11077)
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
@@ -468,7 +468,7 @@ class Secrets(
             expiration = self._extract_and_validate_expiration(token_name, token)
 
             action = self.secrets_provider.store_user_token_secret(
-                username=authenticated_username,
+                username=auth_info.username,
                 token_name=token_name,
                 token=token,
                 expiration=expiration,
@@ -596,7 +596,15 @@ class Secrets(
         )
 
     @staticmethod
-    def _validate_token_name(token_name: str, seen_names: set):
+    def _validate_token_name_and_user(secret_token: mlrun.common.schemas.SecretToken, seen_names: set, authenticated_id: str):
+        token_name = secret_token.name
+        token_sub = Secrets._decode_offline_token(token_name, secret_token.token).get("sub")
+
+        if token_sub != authenticated_id:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Offline token '{token_name}' subject '{token_sub}' does not match the authenticated user ID. "
+                "Stored tokens can only belong to the authenticated user."
+            )
         if not token_name or token_name in seen_names:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid or duplicate token name '{token_name}' found in request payload"

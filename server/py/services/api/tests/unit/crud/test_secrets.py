@@ -712,11 +712,27 @@ def test_store_secret_tokens_missing_tokens(
     tokens,
 ):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        services.api.crud.Secrets().store_secret_tokens(tokens, "dummy-username")
+        services.api.crud.Secrets().store_secret_tokens(tokens, mlrun.common.schemas.AuthInfo(username="dummy-username", user_id="user-id-123"))
 
+def test_store_secret_tokens_incorrect_user_id():
+    token_payload = {"exp": 9999999999, "sub": "user-id-123"}
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name="token1", token=_generate_token(token_payload)
+        ),
+    ]
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Offline token 'token1' subject 'user-id-123' does not match the authenticated user ID",
+    ):
+        services.api.crud.Secrets().store_secret_tokens(
+            secret_tokens,
+            mlrun.common.schemas.AuthInfo(username="dummy-username", user_id="different-user-id"),
+        )
 
 def test_store_secret_tokens_duplicate_names():
-    token_payload = {"exp": 9999999999}
+    token_payload = {"exp": 9999999999, "sub": "user-id-123"}
 
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
@@ -730,7 +746,7 @@ def test_store_secret_tokens_duplicate_names():
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError, match="Invalid or duplicate token name"
     ):
-        services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, mlrun.common.schemas.AuthInfo(username="dummy-username", user_id="user-id-123"))
 
 
 def test_store_secret_tokens_invalid_offline_token_jwt_decode(mock_iguazio_client):
@@ -744,16 +760,16 @@ def test_store_secret_tokens_invalid_offline_token_jwt_decode(mock_iguazio_clien
     ):
         services.api.crud.Secrets().store_secret_tokens(
             secret_tokens,
-            "dummy-user-id",
+            mlrun.common.schemas.AuthInfo(username="dummy-username", user_id="user-id-123"),
         )
 
 
 @pytest.mark.parametrize(
     "payload",
     [
-        {"sub": "user-123"},  # missing exp
-        {"sub": "user-123", "exp": None},  # exp is None
-        {"sub": "user-123", "exp": ""},  # exp is empty
+        {"sub": "user-id-123"},  # missing exp
+        {"sub": "user-id-123", "exp": None},  # exp is None
+        {"sub": "user-id-123", "exp": ""},  # exp is empty
     ],
 )
 def test_store_secret_tokens_missing_required_claims_in_offline_token(
@@ -768,7 +784,7 @@ def test_store_secret_tokens_missing_required_claims_in_offline_token(
         mlrun.errors.MLRunInvalidArgumentError,
         match=r"missing the 'exp' \(expiration\) claim",
     ):
-        services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, mlrun.common.schemas.AuthInfo(username="dummy-username", user_id="user-id-123"))
 
 
 def test_store_secret_tokens_return_values(mock_iguazio_client):
@@ -794,7 +810,7 @@ def test_store_secret_tokens_return_values(mock_iguazio_client):
     ]
 
     result = services.api.crud.Secrets().store_secret_tokens(
-        secret_tokens, "dummy-username"
+        secret_tokens, mlrun.common.schemas.AuthInfo(username="dummy-username", user_id="user-id-123")
     )
 
     assert result == {
@@ -819,10 +835,53 @@ def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
     ]
 
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError, match="Refresh failed"):
-        services.api.crud.Secrets().store_secret_tokens(secret_tokens, "dummy-username")
+        services.api.crud.Secrets().store_secret_tokens(secret_tokens, mlrun.common.schemas.AuthInfo(username="dummy-username", user_id="user-id-123"))
 
     mock_iguazio_client.refresh_access_tokens.assert_called_once_with(secret_tokens)
 
+
+@pytest.mark.parametrize(
+    "decoded_sub, token_name, seen_names, authenticated_id, should_raise, expected_msg",
+    [
+        # Valid token
+        ("user-123", "token1", set(), "user-123", False, None),
+
+        # Wrong user
+        ("different-user", "token1", set(), "user-123", True, "Offline token 'token1' subject 'different-user' does not match the authenticated user ID. "
+            "Stored tokens can only belong to the authenticated user.",),
+
+        # Duplicate token names
+        ("user-123", "token1", {"token1"}, "user-123", True, "Invalid or duplicate token name 'token1' found in request payload"),
+
+        # Missing token name
+        ("user-123", "", set(), "user-123", True, "Invalid or duplicate token name '' found in request payload"),
+    ],
+)
+def test_validate_token_name_and_user(
+    decoded_sub,
+    token_name,
+    seen_names,
+    authenticated_id,
+    should_raise,
+    expected_msg,
+):
+    with unittest.mock.patch(
+            "services.api.crud.Secrets._decode_offline_token",
+            return_value={"sub": decoded_sub},
+    ):
+        secret_token = mlrun.common.schemas.SecretToken(name=token_name, token="dummy")
+
+        if should_raise:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+                services.api.crud.Secrets()._validate_token_name_and_user(
+                    secret_token, seen_names, authenticated_id
+                )
+            assert expected_msg in str(exc.value)
+        else:
+            services.api.crud.Secrets()._validate_token_name_and_user(
+                secret_token, seen_names, authenticated_id
+            )
+            assert token_name in seen_names
 
 def test_list_secret_tokens_returns_tokens():
     username = "dummy-user"

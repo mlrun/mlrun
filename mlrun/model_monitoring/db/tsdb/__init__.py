@@ -29,6 +29,7 @@ class ObjectTSDBFactory(enum.Enum):
 
     v3io_tsdb = "v3io-tsdb"
     tdengine = "tdengine"
+    timescaledb = "postgresql"
 
     def to_tsdb_connector(
         self, project: str, profile: DatastoreProfile, **kwargs
@@ -50,12 +51,17 @@ class ObjectTSDBFactory(enum.Enum):
 
             return V3IOTSDBConnector(project=project, **kwargs)
 
-        # Assuming TDEngine connector if connector type is not V3IO TSDB.
-        # Update these lines once there are more than two connector types.
+        if self == self.timescaledb:
+            from .timescaledb.timescaledb_connector import TimescaleDBConnector
 
-        from .tdengine.tdengine_connector import TDEngineConnector
+            return TimescaleDBConnector(project=project, profile=profile, **kwargs)
 
-        return TDEngineConnector(project=project, profile=profile, **kwargs)
+        if self == self.tdengine:
+            from .tdengine.tdengine_connector import TDEngineConnector
+
+            return TDEngineConnector(project=project, profile=profile, **kwargs)
+
+        raise mlrun.errors.MLRunInvalidMMStoreTypeError("Code should not reach here")
 
     @classmethod
     def _missing_(cls, value: typing.Any):
@@ -95,6 +101,12 @@ def get_tsdb_connector(
         profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
     ):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL
+    ):
+        tsdb_connector_type = (
+            mlrun.common.schemas.model_monitoring.TSDBTarget.TimescaleDB
+        )
     else:
         extra_message = (
             ""

@@ -11,18 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import re
+
 from abc import ABC, abstractmethod
 
 import mlrun.common.schemas
-from mlrun.config import config as mlconf
-
-_AUTH_SECRET_NAME_TEMPLATE = re.escape(
-    mlconf.secret_stores.kubernetes.auth_secret_name.format(
-        hashed_access_key="",
-    )
-)
-AUTH_SECRET_PATTERN = re.compile(f"^{_AUTH_SECRET_NAME_TEMPLATE}.*")
 
 
 class SecretProviderInterface(ABC):

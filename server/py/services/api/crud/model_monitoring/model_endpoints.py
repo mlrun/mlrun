@@ -919,7 +919,7 @@ class ModelEndpoints:
                 error=mlrun.errors.err_to_str(e),
             )
 
-    async def get_model_endpoint(
+    def get_model_endpoint(
         self,
         name: str,
         project: str,
@@ -964,21 +964,22 @@ class ModelEndpoints:
         )
 
         # Get the model endpoint record
-        model_endpoint_object = await run_in_threadpool(
-            framework.utils.singletons.db.get_db().get_model_endpoint,
-            session=db_session,
-            project=project,
-            name=name,
-            function_name=function_name,
-            function_tag=function_tag,
-            uid=endpoint_id,
+        model_endpoint_object = (
+            framework.utils.singletons.db.get_db().get_model_endpoint(
+                session=db_session,
+                project=project,
+                name=name,
+                function_name=function_name,
+                function_tag=function_tag,
+                uid=endpoint_id,
+            )
         )
 
         # If time metrics were provided, retrieve the results from the time series DB
         if tsdb_metrics:
             logger.info("Adding real time metrics to the model endpoint")
             model_endpoint_object = (
-                await self._add_basic_metrics(
+                self._add_basic_metrics(
                     model_endpoint_objects=[model_endpoint_object],
                     project=project,
                     metric_list=metric_list,
@@ -987,25 +988,26 @@ class ModelEndpoints:
         if feature_analysis:
             logger.info("Adding feature analysis to the model endpoint")
             if config.model_endpoint_monitoring.writer_graph.writer_version != "v1":
-                parquet_target = await run_in_threadpool(
-                    framework.db.session.run_function_with_new_db_session,
+                parquet_target = framework.db.session.run_function_with_new_db_session(
                     services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path,
                     project=project,
                     kind="parquet_stats",
                 )
-                drift_measures, drift_measures_timestamp = await run_in_threadpool(
-                    self._get_mep_stats_dict_from_parquet,
-                    parquet_target=parquet_target,
-                    project=project,
-                    uid=model_endpoint_object.metadata.uid,
-                    kind=mm_constants.StatsKind.DRIFT_MEASURES,
+                drift_measures, drift_measures_timestamp = (
+                    self._get_mep_stats_dict_from_parquet(
+                        parquet_target=parquet_target,
+                        project=project,
+                        uid=model_endpoint_object.metadata.uid,
+                        kind=mm_constants.StatsKind.DRIFT_MEASURES,
+                    )
                 )
-                current_stats, current_stats_timestamp = await run_in_threadpool(
-                    self._get_mep_stats_dict_from_parquet,
-                    parquet_target=parquet_target,
-                    project=project,
-                    uid=model_endpoint_object.metadata.uid,
-                    kind=mm_constants.StatsKind.CURRENT_STATS,
+                current_stats, current_stats_timestamp = (
+                    self._get_mep_stats_dict_from_parquet(
+                        parquet_target=parquet_target,
+                        project=project,
+                        uid=model_endpoint_object.metadata.uid,
+                        kind=mm_constants.StatsKind.CURRENT_STATS,
+                    )
                 )
             else:
                 current_stats, current_stats_timestamp = {}, None
@@ -1030,8 +1032,7 @@ class ModelEndpoints:
                 (
                     model_endpoint_object,
                     _,
-                ) = await run_in_threadpool(
-                    framework.db.session.run_function_with_new_db_session,
+                ) = framework.db.session.run_function_with_new_db_session(
                     self._add_feature_stats,
                     model_endpoint_object=model_endpoint_object,
                 )
@@ -1123,7 +1124,7 @@ class ModelEndpoints:
         )
 
         if tsdb_metrics and endpoint_list.endpoints:
-            endpoint_list.endpoints = await self._add_basic_metrics(
+            endpoint_list.endpoints = self._add_basic_metrics(
                 model_endpoint_objects=endpoint_list.endpoints,
                 project=project,
                 metric_list=metric_list,
@@ -1441,7 +1442,7 @@ class ModelEndpoints:
                 )
         return model_endpoint_objects
 
-    async def _add_basic_metrics(
+    def _add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
@@ -1475,10 +1476,8 @@ class ModelEndpoints:
             )
             return model_endpoint_objects
 
-        return await tsdb_connector.add_basic_metrics(
+        return tsdb_connector.add_basic_metrics(
             model_endpoint_objects,
-            project,
-            run_in_threadpool,
             metric_list,
         )
 

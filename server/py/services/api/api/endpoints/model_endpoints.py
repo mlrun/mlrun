@@ -548,7 +548,8 @@ async def get_model_endpoint(
         project=project, name_or_uid=name, auth_info=auth_info
     )
 
-    return await services.api.crud.ModelEndpoints().get_model_endpoint(
+    return await run_in_threadpool(
+        services.api.crud.ModelEndpoints().get_model_endpoint,
         name=name,
         project=project,
         function_name=function_name,

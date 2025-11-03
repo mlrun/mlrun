@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import Callable, Optional
+from typing import Optional
 
 import pandas as pd
 
@@ -179,11 +179,9 @@ class TimescaleDBConnector(TSDBConnector):
     def get_metrics_metadata(self, *args, **kwargs):
         return self._metrics_queries.get_metrics_metadata(*args, **kwargs)
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
@@ -191,16 +189,10 @@ class TimescaleDBConnector(TSDBConnector):
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
-        :param project:                The name of the project (unused - uses self.project from constructor).
-        :param run_in_threadpool:      A function that runs another function in a thread pool
         :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
-        # Note: project param is part of the interface
-        # but unused in TimescaleDB implementation (uses self.project)
-        del project  # Suppress unused variable warnings
-
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
 
         # Access methods directly from the respective query classes
@@ -216,8 +208,9 @@ class TimescaleDBConnector(TSDBConnector):
                 if metric_name not in metric_list:
                     del metric_name_to_function[metric_name]
 
+        # TODO: Optimize by parallelizing calls if needed
         metric_name_to_df = {
-            metric_name: await run_in_threadpool(function, endpoint_ids=uids)
+            metric_name: function(endpoint_ids=uids)
             for metric_name, function in metric_name_to_function.items()
         }
 

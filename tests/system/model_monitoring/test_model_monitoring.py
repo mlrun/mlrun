@@ -99,7 +99,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "mm-app-project"
-    image = "mlrun/mlrun"
+    image = "artifactory.iguazeng.com:10557/mlrun/mlrun:unstable"
 
     def setup_method(self, method):
         super().setup_method(method)

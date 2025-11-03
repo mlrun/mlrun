@@ -14,7 +14,7 @@
 import math
 from datetime import datetime, timedelta
 from io import StringIO
-from typing import Callable, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 import pandas as pd
 import v3io_frames
@@ -1230,11 +1230,9 @@ class V3IOTSDBConnector(TSDBConnector):
             )
         return df.reset_index(drop=True)
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
@@ -1268,12 +1266,12 @@ class V3IOTSDBConnector(TSDBConnector):
 
         metric_name_to_result = {}
 
+        # TODO: Optimize by parallelizing calls if needed
         for metric_name, (
             function,
             _,
         ) in metric_name_to_function_and_column_name.items():
-            metric_name_to_result[metric_name] = await run_in_threadpool(
-                function,
+            metric_name_to_result[metric_name] = function(
                 endpoint_ids=uids,
                 get_raw=True,
             )

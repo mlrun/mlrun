@@ -14,7 +14,7 @@
 
 import threading
 from datetime import datetime, timedelta
-from typing import Callable, Final, Literal, Optional, Union
+from typing import Final, Literal, Optional, Union
 
 import pandas as pd
 import taosws
@@ -1248,11 +1248,9 @@ class TDEngineConnector(TSDBConnector):
             df.dropna(inplace=True)
         return df
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
@@ -1280,8 +1278,9 @@ class TDEngineConnector(TSDBConnector):
                 if metric_name not in metric_list:
                     del metric_name_to_function[metric_name]
 
+        # TODO: Optimize by parallelizing calls if needed
         metric_name_to_df = {
-            metric_name: await run_in_threadpool(function, endpoint_ids=uids)
+            metric_name: function(endpoint_ids=uids)
             for metric_name, function in metric_name_to_function.items()
         }
 

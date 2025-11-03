@@ -2112,11 +2112,11 @@ class ModelRunnerStep(MonitoredStep):
     ) -> None:
         """
         Configure the resource limits for the shared models in the graph.
+
         :param max_processes: Maximum number of processes to spawn (excluding dedicated processes).
-                              defaults to the number of CPUs or 16 if undetectable.
+            Defaults to the number of CPUs or 16 if undetectable.
         :param max_threads: Maximum number of threads to spawn. Defaults to 32.
         :param pool_factor: Multiplier to scale the number of process/thread workers per runnable. Defaults to 1.
-
         """
         self.max_processes = max_processes
         self.max_threads = max_threads

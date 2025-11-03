@@ -282,7 +282,7 @@ class ServingRuntime(RemoteRuntime):
         :param exist_ok:     - allow overriding existing topology
         :param class_args:   - optional, router/flow class init args
 
-        :return graph object (fn.spec.graph)
+        :return: graph object (fn.spec.graph)
         """
         topology = topology or StepKinds.router
         if self.spec.graph and not exist_ok:
@@ -395,7 +395,7 @@ class ServingRuntime(RemoteRuntime):
         outputs: Optional[list[str]] = None,
         **class_args,
     ):
-        """add ml model and/or route to the function.
+        """Add ml model and/or route to the function.
 
         Example, create a function (from the notebook), add a model class, and deploy::
 
@@ -403,7 +403,7 @@ class ServingRuntime(RemoteRuntime):
             fn.add_model("boost", model_path, model_class="MyClass", my_arg=5)
             fn.deploy()
 
-        only works with router topology, for nested topologies (model under router under flow)
+        Only works with router topology. For nested topologies (model under router under flow)
         need to add router to flow and use router.add_route()
 
         :param key:         model api key (or name:version), will determine the relative url/path
@@ -416,18 +416,19 @@ class ServingRuntime(RemoteRuntime):
                             with multiple router steps)
         :param child_function: child function name, when the model runs in a child function
         :param creation_strategy: Strategy for creating or updating the model endpoint:
-            * **overwrite**:
-            1. If model endpoints with the same name exist, delete the `latest` one.
-            2. Create a new model endpoint entry and set it as `latest`.
-            * **inplace** (default):
-            1. If model endpoints with the same name exist, update the `latest` entry.
-            2. Otherwise, create a new entry.
-            * **archive**:
-            1. If model endpoints with the same name exist, preserve them.
-            2. Create a new model endpoint with the same name and set it to `latest`.
-        :param outputs: list of the model outputs (e.g. labels) ,if provided will override the outputs that been
-                        configured in the model artifact, please note that those outputs need to be equal to the
-                        model serving function outputs (length, and order)
+
+                          * **overwrite**: If model endpoints with the same name exist, delete the `latest`
+                            one. Create a new model endpoint entry and set it as `latest`.
+
+                          * **inplace** (default): If model endpoints with the same name exist, update the
+                            `latest` entry. Otherwise, create a new entry.
+
+                          * **archive**: If model endpoints with the same name exist, preserve them.
+                            Create a new model endpoint with the same name and set it to `latest`.
+
+        :param outputs: list of the model outputs (e.g. labels), if provided will override the outputs that were
+                        configured in the model artifact. Note that those outputs need to be equal to the
+                        model serving function outputs (length, and order).
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -520,7 +521,7 @@ class ServingRuntime(RemoteRuntime):
         :param requirements: py package requirements file path OR list of packages
         :param kind:   mlrun function/runtime kind
 
-        :return function object
+        :return: function object
         """
         function_reference = FunctionReference(
             url,
@@ -659,6 +660,9 @@ class ServingRuntime(RemoteRuntime):
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
+        # Validate function name before deploying to k8s
+        mlrun.utils.helpers.validate_function_name(self.metadata.name)
+
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
             raise ValueError(f"illegal model loading mode {load_mode}")
@@ -855,8 +859,20 @@ class ServingRuntime(RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(self) -> KubejobRuntime:
-        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job."""
+    def to_job(self, func_name: Optional[str] = None) -> KubejobRuntime:
+        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
+
+        Args:
+            func_name: Optional custom name for the job function. If not provided, automatically
+                      appends '-batch' suffix to the serving function name to prevent database collision.
+
+        Returns:
+            KubejobRuntime configured to execute the serving graph as a batch job.
+
+        Note:
+            The job will have a different name than the serving function to prevent database collision.
+            The original serving function remains unchanged and can still be invoked after running the job.
+        """
         if self.spec.function_refs:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
@@ -890,8 +906,50 @@ class ServingRuntime(RemoteRuntime):
             parameters=self.spec.parameters,
             graph=self.spec.graph,
         )
+
+        job_metadata = deepcopy(self.metadata)
+        original_name = job_metadata.name
+
+        if func_name:
+            # User provided explicit job name
+            job_metadata.name = func_name
+            logger.debug(
+                "Creating job from serving function with custom name",
+                new_name=func_name,
+            )
+        else:
+            job_metadata.name, was_renamed, suffix = (
+                mlrun.utils.helpers.ensure_batch_job_suffix(job_metadata.name)
+            )
+
+            # Check if the resulting name exceeds Kubernetes length limit
+            if (
+                len(job_metadata.name)
+                > mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Cannot convert serving function '{original_name}' to batch job: "
+                    f"the resulting name '{job_metadata.name}' ({len(job_metadata.name)} characters) "
+                    f"exceeds Kubernetes limit of {mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters. "
+                    f"Please provide a custom name via the func_name parameter, "
+                    f"with at most {mlrun.common.constants.K8S_DNS_1123_LABEL_MAX_LENGTH} characters."
+                )
+
+            if was_renamed:
+                logger.info(
+                    "Creating job from serving function (auto-appended suffix to prevent collision)",
+                    new_name=job_metadata.name,
+                    suffix=suffix,
+                )
+            else:
+                logger.debug(
+                    "Creating job from serving function (name already has suffix)",
+                    name=original_name,
+                    suffix=suffix,
+                )
+
         job = KubejobRuntime(
             spec=spec,
-            metadata=self.metadata,
+            metadata=job_metadata,
         )
         return job

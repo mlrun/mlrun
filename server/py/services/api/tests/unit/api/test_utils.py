@@ -14,6 +14,7 @@
 
 import base64
 import json
+import pathlib
 import unittest.mock
 from http import HTTPStatus
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -30,6 +31,7 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.runtimes.mounts
 import mlrun.runtimes.pod
 import mlrun.utils
 from server.py.framework.api.utils import (
@@ -51,6 +53,10 @@ pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
 PROJECT = "some-project"
 
 
+def assets_path():
+    return pathlib.Path(__file__).absolute().parent / "assets"
+
+
 def test_submit_run_sync(db: Session, client: TestClient):
     auth_info = mlrun.common.schemas.AuthInfo()
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
@@ -69,7 +75,9 @@ def test_submit_run_sync(db: Session, client: TestClient):
             "metadata": {"credentials": {"access_key": "some-access-key-override"}},
         },
     }
-    fn, task = _generate_function_and_task_from_submit_run_body(db, submit_job_body)
+    fn, task = _generate_function_and_task_from_submit_run_body(
+        db, auth_info, submit_job_body
+    )
     _, _, _, response_data = framework.api.utils.submit_run_sync(
         db,
         auth_info,
@@ -81,7 +89,9 @@ def test_submit_run_sync(db: Session, client: TestClient):
 
     # submit again, make sure it was modified
     submit_job_body["schedule"] = "0 1 * * *"  # change schedule
-    fn, task = _generate_function_and_task_from_submit_run_body(db, submit_job_body)
+    fn, task = _generate_function_and_task_from_submit_run_body(
+        db, auth_info, submit_job_body
+    )
     _, _, _, response_data = framework.api.utils.submit_run_sync(
         db,
         auth_info,
@@ -133,7 +143,9 @@ def test_submit_run_sync_schedule_with_function_overrides(
             },
         },
     }
-    fn, task = _generate_function_and_task_from_submit_run_body(db, submit_job_body)
+    fn, task = _generate_function_and_task_from_submit_run_body(
+        db, auth_info, submit_job_body
+    )
     _, _, _, response_data = framework.api.utils.submit_run_sync(
         db, auth_info, fn, task, submit_job_body
     )
@@ -301,7 +313,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     }
     parsed_function_object, task = (
         framework.api.utils._generate_function_and_task_from_submit_run_body(
-            db, submit_job_body
+            db, mlrun.common.schemas.AuthInfo(), submit_job_body
         )
     )
     assert parsed_function_object.metadata.name == function_name
@@ -405,7 +417,7 @@ def test_function_object_only_persists_preemption_mode_no_scheduling_fields_on_s
 
     parsed_function_object, task = (
         framework.api.utils._generate_function_and_task_from_submit_run_body(
-            db, submit_job_body
+            db, mlrun.common.schemas.AuthInfo(), submit_job_body
         )
     )
     assert (
@@ -435,7 +447,7 @@ def test_function_object_only_persists_preemption_mode_no_scheduling_fields_on_s
     }
     parsed_function_object, task = (
         framework.api.utils._generate_function_and_task_from_submit_run_body(
-            db, submit_job_body
+            db, mlrun.common.schemas.AuthInfo(), submit_job_body
         )
     )
 
@@ -464,7 +476,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_resources(
     }
     parsed_function_object, task = (
         framework.api.utils._generate_function_and_task_from_submit_run_body(
-            db, submit_job_body
+            db, mlrun.common.schemas.AuthInfo(), submit_job_body
         )
     )
     assert parsed_function_object.metadata.name == function_name
@@ -507,7 +519,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
     }
     parsed_function_object, task = (
         framework.api.utils._generate_function_and_task_from_submit_run_body(
-            db, submit_job_body
+            db, mlrun.common.schemas.AuthInfo(), submit_job_body
         )
     )
     assert parsed_function_object.metadata.name == function_name
@@ -1321,7 +1333,7 @@ def test_generate_function_and_task_from_submit_run_body_imported_function_proje
     }
     parsed_function_object, task = (
         framework.api.utils._generate_function_and_task_from_submit_run_body(
-            db, submit_job_body
+            db, mlrun.common.schemas.AuthInfo(), submit_job_body
         )
     )
     assert parsed_function_object.metadata.project == PROJECT
@@ -1898,3 +1910,134 @@ def test_resolve_client_default_kfp_image(
         project, workflow_spec, client_version
     )
     assert image == expected_image
+
+
+@pytest.mark.parametrize(
+    "secret_sources, expected_exception",
+    [
+        # Inline secrets only (should pass)
+        ([{"kind": "inline", "source": {}}], None),
+        # Azure Vault with empty secrets but correct k8s_secret (should raise)
+        (
+            [
+                {"kind": "inline", "source": {}},
+                {
+                    "kind": "azure_vault",
+                    "source": {
+                        "k8s_secret": "mlrun-project-secrets-default",
+                        "name": "my-vault-name",
+                        "secrets": [],
+                    },
+                },
+            ],
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        (
+            [
+                {"kind": "inline", "source": {}},
+                {
+                    "kind": "azure_vault",
+                    "source": {
+                        "k8s_secret": "mlrun-project-secrets-project-1",
+                        "name": "my-vault-name",
+                        "secrets": [],
+                    },
+                },
+            ],
+            None,
+        ),
+    ],
+)
+def test_validate_function_secret_sources(secret_sources, expected_exception):
+    function = {
+        "metadata": {
+            "iteration": 0,
+            "name": "mytask",
+            "project": "project-1",
+        },
+        "spec": {
+            "secret_sources": secret_sources,
+        },
+    }
+
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            framework.api.utils.validate_function_secret_sources(function)
+    else:
+        framework.api.utils.validate_function_secret_sources(function)
+
+
+@pytest.mark.parametrize(
+    "secret_name, expect_exception",
+    [
+        # Valid project secret
+        ("mlrun-project-secrets-test-project", False),
+        # Invalid secret (should raise)
+        ("mlrun-project-secrets-other-project", True),
+    ],
+)
+def test_validate_volume_mounts_param(secret_name, expect_exception):
+    func_name = "name_with_underscores"
+
+    # create a function with a name that includes underscores
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    func = mlrun.code_to_function(
+        name=func_name,
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        filename=func_path,
+    )
+    func.metadata.project = "test-project"
+    func.apply(mlrun.runtimes.mounts.mount_secret(secret_name, "./secrets/"))
+    for function in [func, func.to_dict()]:
+        if expect_exception:
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+            ):
+                framework.api.utils.validate_function_volume_mounts(function)
+        else:
+            # Should not raise
+            framework.api.utils.validate_function_volume_mounts(function)
+
+
+@pytest.mark.parametrize(
+    "secret_name, expect_exception, kind",
+    [
+        # Valid project secret
+        ("mlrun-project-secrets-test-project", False, "job"),
+        # Invalid secret (should raise)
+        ("mlrun-project-secrets-other-project", True, "job"),
+        # Invalid secret (should raise)
+        ("mlrun-project-secrets-other-project", True, "serving"),
+    ],
+)
+def test_setenv_from_the_project_secret(secret_name, expect_exception, kind):
+    func_name = "name_with_underscores"
+
+    # create a function with a name that includes underscores
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    func = mlrun.code_to_function(
+        name=func_name,
+        kind=kind,
+        image="mlrun/mlrun",
+        handler="myhandler",
+        filename=func_path,
+    )
+    func.metadata.project = "test-project"
+    func.set_env_from_secret(name="MY_ENV", secret=secret_name)
+
+    # simulate the server side object, which is formed via sending dict and then enriching from dict
+    function_retranslated = mlrun.new_function(runtime=func.to_dict())
+    mlrun.runtimes.utils.enrich_function_from_dict(
+        function_retranslated, func.to_dict()
+    )
+    for function in [func, func.to_dict(), function_retranslated]:
+        if expect_exception:
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+            ):
+                framework.api.utils.validate_function_env_vars(function)
+        else:
+            # Should not raise
+            framework.api.utils.validate_function_env_vars(function)

@@ -110,7 +110,7 @@ jobs:
           fi
 
       - name: Scan image
-        uses: anchore/scan-action@f6601287cdb1efc985d6b765bbf99cb4c0ac29d8 # 7.0.0
+        uses: anchore/scan-action@568b89d27fc18c60e56937bff480c91c772cd993 # 7.1.0
         id: scan
         with:
           image: ${{ steps.resolve_image_name.outputs.image_name }}
@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload scan results
         if: github.event.inputs.publish_results != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
           category: ${{ matrix.image-name }}-${{ matrix.python-version }})
@@ -148,7 +148,7 @@ jobs:
           fi
 
       - name: Scan fs
-        uses: anchore/scan-action@f6601287cdb1efc985d6b765bbf99cb4c0ac29d8 # 7.0.0
+        uses: anchore/scan-action@568b89d27fc18c60e56937bff480c91c772cd993 # 7.1.0
         id: scan
         with:
           path: "."
@@ -160,7 +160,7 @@ jobs:
 
       - name: Upload scan results
         if: github.event.inputs.publish_results != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
           category: "repository"

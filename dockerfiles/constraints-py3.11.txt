@@ -1,4 +1,0 @@
-kfp>=1.8.23
-urllib3>=2.5.0
-v3io-frames>=0.13.11
-dask[complete]==2024.8

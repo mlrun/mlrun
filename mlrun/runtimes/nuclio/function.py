@@ -16,6 +16,7 @@ import asyncio
 import copy
 import json
 import typing
+import warnings
 from datetime import datetime
 from time import sleep
 
@@ -423,6 +424,18 @@ class RemoteRuntime(KubeResource):
                 )
         """
         self.spec.build.source = source
+
+        code = (
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        )
+        if code:
+            # Warn and clear any inline code so the archive is actually used
+            logger.warning(
+                "Cannot specify both code and source archive. Removing the code so the provided "
+                "source archive will be used instead."
+            )
+            self.spec.build.functionSourceCode = None
+
         # update handler in function_handler if needed
         if handler:
             self.spec.function_handler = handler
@@ -641,6 +654,8 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
+
+        mlrun.utils.helpers.validate_function_name(self.metadata.name)
 
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()
@@ -1211,10 +1226,17 @@ class RemoteRuntime(KubeResource):
         # try to infer the invocation url from the internal and if not exists, use external.
         # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc.)
 
-        # check function state before invocation
-        state, _, _ = self._get_state()
-        if state not in ["ready", "scaledToZero"]:
-            logger.warning(f"Function is in the {state} state")
+        # if none of urls is set, function was deployed with watch=False
+        # and status wasn't fetched with Nuclio
+        # _get_state fetches the state and updates url
+        if (
+            not self.status.address
+            and not self.status.internal_invocation_urls
+            and not self.status.external_invocation_urls
+        ):
+            state, _, _ = self._get_state()
+            if state not in ["ready", "scaledToZero"]:
+                logger.warning(f"Function is in the {state} state")
 
         # prefer internal invocation url if running inside k8s cluster
         if (
@@ -1317,8 +1339,10 @@ class RemoteRuntime(KubeResource):
         :return: returns function's url
         """
         if auth_info:
-            logger.warning(
-                "Deprecated parameter 'auth_info' was provided, but will be ignored. Will be removed in 1.12.0."
+            warnings.warn(
+                "'auth_info' is deprecated in 1.10.0 and will be removed in 1.12.0.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
             )
         return self._resolve_invocation_url("", force_external_address)
 

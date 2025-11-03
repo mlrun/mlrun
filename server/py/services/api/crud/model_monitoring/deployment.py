@@ -54,7 +54,7 @@ from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
 )
-from mlrun.model_monitoring.writer import ModelMonitoringWriter
+from mlrun.model_monitoring.writer import ModelMonitoringWriter, WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
@@ -153,11 +153,20 @@ class MonitoringDeployment:
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
             self.set_credentials()
-        if deployed_functions := self.get_deployed_model_monitoring_functions():
+        # reject the request if controller and/or writer pods are already deployed.
+        # stream-pod is not checked since by default it is not deleted by disable_model_monitoring.
+        if deployed_functions := [
+            function_name
+            for function_name in self.get_deployed_model_monitoring_functions()
+            if function_name != mm_constants.MonitoringFunctionNames.STREAM
+        ]:
             raise mlrun.errors.MLRunConflictError(
-                f"Model monitoring functions are already deployed: {deployed_functions}"
-                f". If you want to redeploy them, please use disable_model_monitoring first "
-                f"and enable it again."
+                "The following model-montioring infrastructure functions are already deployed, aborting: "
+                f"{deployed_functions}\n"
+                "If you want to redeploy the model-monitoring controller (maybe with different base-period), "
+                "use update_model_monitoring_controller."
+                "If you want to redeploy all of model-monitoring infrastructure, call disable_model_monitoring"
+                "before calling enable_model_monitoring again."
             )
         self.check_if_credentials_are_set()
 
@@ -710,12 +719,30 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
-        graph.to(
-            ModelMonitoringWriter(
-                project=self.project, secret_provider=self._secret_provider
+        if config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
+            logger.info("Using writer graph v1")
+            graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
+            graph.to(
+                ModelMonitoringWriter(
+                    project=self.project, secret_provider=self._secret_provider
+                )
             )
-        )  # writer
+        else:
+            logger.info("Using writer graph v2")
+            parquet_target = (
+                services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
+                    db_session=self.db_session,
+                    project=self.project,
+                    kind="parquet_stats",
+                )
+            )
+            writer_factory = WriterGraphFactory(
+                parquet_path=parquet_target,
+            )
+            writer_factory.apply_writer_graph(
+                fn=function,
+                tsdb_connector=self._tsdb_connector,
+            )
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -1626,8 +1653,7 @@ class MonitoringDeployment:
 
         raise mlrun.errors.MLRunBadRequestError(
             "Model monitoring credentials are not set. "
-            "Please set them using the set_model_monitoring_credentials API/SDK "
-            "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
+            "Please set them using the set_model_monitoring_credentials API/SDK."
         )
 
     def _validate_and_get_tsdb_profile(
@@ -1651,14 +1677,18 @@ class MonitoringDeployment:
         ):
             if mlrun.mlconf.is_ce_mode():
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "MLRun CE supports only TDEngine TSDB, received a V3IO profile for the TSDB"
+                    "MLRun CE supports only TDEngine and TimescaleDB TSDB, received a V3IO profile for the TSDB"
                 )
         elif not isinstance(
-            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
+            tsdb_profile,
+            (
+                mlrun.datastore.datastore_profile.DatastoreProfileTDEngine,
+                mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+            ),
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io` or `DatastoreProfileTDEngine`."
+                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfilePostgreSQL`."
             )
 
         return tsdb_profile
@@ -2529,9 +2559,7 @@ class MonitoringDeployment:
             application_name=application_name, endpoint_ids=endpoint_ids
         )
 
-        if not application_name.endswith(
-            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
-        ):
+        if not application_name.endswith(mlrun_constants.RESERVED_BATCH_JOB_SUFFIX):
             # The schedules file of "batch" applications is handled on the user side
             await self._delete_app_from_schedules_files(
                 application_name=application_name, endpoint_ids=endpoint_ids

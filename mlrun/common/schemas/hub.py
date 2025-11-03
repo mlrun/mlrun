@@ -138,4 +138,4 @@ class HubCatalog(BaseModel):
 
 class HubModuleType(mlrun.common.types.StrEnum):
     generic = "generic"
-    monitoring_app = "monitoring-app"
+    monitoring_app = "monitoring_application"

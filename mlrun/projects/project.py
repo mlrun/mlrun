@@ -1888,7 +1888,7 @@ class MlrunProject(ModelObj):
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         description: Optional[str] = None,
         target_path: Optional[str] = None,
         artifact_path: Optional[str] = None,
@@ -1932,7 +1932,7 @@ class MlrunProject(ModelObj):
                     },
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.5, "max_tokens": 200},
+                invocation_config={"temperature": 0.5, "max_tokens": 200},
                 description="Prompt for handling customer support queries",
                 tag="support-v1",
                 labels={"domain": "support"},
@@ -1949,7 +1949,7 @@ class MlrunProject(ModelObj):
                     }
                 },
                 model_artifact=model,
-                model_configuration={"temperature": 0.7, "max_tokens": 256},
+                invocation_config={"temperature": 0.7, "max_tokens": 256},
                 description="Q&A prompt template with user-provided question",
                 tag="v2",
                 labels={"task": "qa", "stage": "experiment"},
@@ -1971,7 +1971,7 @@ class MlrunProject(ModelObj):
                with the place-holder name. "description" will point to explanation of what that placeholder represents.
                Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
-        :param model_configuration: Configuration dictionary for model generation parameters
+        :param invocation_config: Configuration dictionary for model generation parameters
                (e.g., temperature, max tokens).
         :param description:   Optional description of the prompt.
         :param target_path:   Absolute target path (instead of using artifact_path + local_path)
@@ -1998,7 +1998,7 @@ class MlrunProject(ModelObj):
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             model_artifact=model_artifact,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             target_path=target_path,
             description=description,
             **kwargs,
@@ -2386,8 +2386,9 @@ class MlrunProject(ModelObj):
         handler: Optional[str] = None,
         with_repo: Optional[bool] = None,
         tag: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
+        requirements: Optional[list[str]] = None,
         requirements_file: str = "",
+        local_path: Optional[str] = None,
         **application_kwargs,
     ) -> mlrun.runtimes.RemoteRuntime:
         """
@@ -2402,7 +2403,8 @@ class MlrunProject(ModelObj):
             )
 
         :param func:                    Remote function object or spec/code URL. :code:`None` refers to the current
-                                        notebook.
+                                        notebook. May also be a hub URL of a module of kind model-monitoring-app in the
+                                        format: hub://[{source}/]{name}[:{tag}].
         :param name:                    Name of the function (under the project), can be specified with a tag to support
                                         versions (e.g. myfunc:v1).
         :param image:                   Docker image to be used, can also be specified in
@@ -2417,6 +2419,8 @@ class MlrunProject(ModelObj):
         :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
+        :param local_path:              Path to a local directory to save the downloaded monitoring-app code files in,
+                                        in case 'func' is a hub URL (defaults to current working directory).
         :returns:                       The model monitoring remote function object.
         """
         (
@@ -2433,6 +2437,7 @@ class MlrunProject(ModelObj):
             tag,
             requirements,
             requirements_file,
+            local_path,
             **application_kwargs,
         )
         # save to project spec
@@ -2511,8 +2516,9 @@ class MlrunProject(ModelObj):
         handler: typing.Optional[str] = None,
         with_repo: typing.Optional[bool] = None,
         tag: typing.Optional[str] = None,
-        requirements: typing.Union[str, list[str], None] = None,
+        requirements: typing.Union[list[str], None] = None,
         requirements_file: str = "",
+        local_path: typing.Optional[str] = None,
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.RemoteRuntime, dict]:
         import mlrun.model_monitoring.api
@@ -2529,6 +2535,7 @@ class MlrunProject(ModelObj):
                 tag=tag,
                 requirements=requirements,
                 requirements_file=requirements_file,
+                local_path=local_path,
                 **application_kwargs,
             )
         elif isinstance(func, str) and isinstance(handler, str):
@@ -2574,7 +2581,7 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
-        fetch_credentials_from_sys_config: bool = False,
+        fetch_credentials_from_sys_config: bool = False,  # deprecated
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2609,14 +2616,20 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
                                                   Otherwise, deploy the model monitoring infrastructure on the
                                                   background, including the histogram data drift app if selected.
-        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
+                                                  configuration.
         """
+        if fetch_credentials_from_sys_config:
+            warnings.warn(
+                "`fetch_credentials_from_sys_config` is deprecated in 1.10.0 and will be removed in 1.12.0.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
         if base_period < 10:
             logger.warn(
                 "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
                 project=self.name,
             )
-
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,
@@ -3900,6 +3913,7 @@ class MlrunProject(ModelObj):
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileTDEngine`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL`
 
                                           You need to register one of them, and pass the profile's name.
         :param stream_profile_name:       The datastore profile name of the stream to be used in model monitoring.
@@ -4109,7 +4123,7 @@ class MlrunProject(ModelObj):
                                 The `count` field in the `Retry` object specifies the number of retry attempts.
                                 If `count=0`, the run will not be retried.
                                 The `backoff` field specifies the retry backoff strategy between retry attempts.
-                                If not provided, no backoff is applied.
+                                If not provided, the default backoff delay is 30 seconds.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         if artifact_path:

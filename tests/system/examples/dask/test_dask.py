@@ -112,9 +112,6 @@ class TestDask(TestMLRunSystem):
             name=f"{dask_function.metadata.name}-main",
             project=self.project_name,
             labels={
-                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
-                    "V3IO_USERNAME"
-                ],
                 mlrun_constants.MLRunInternalLabels.owner: self._test_env[
                     "V3IO_USERNAME"
                 ],

@@ -45,7 +45,6 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     image: str = "mlrun/mlrun"
 
-    @pytest.mark.skip(reason="TODO Test disabled temporarily")    
     @pytest.mark.smoke
     def test_deploy_function(self):
         code_path = str(self.assets_path / "kubejob_function.py")
@@ -501,9 +500,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         exec_cli(args)
         end_time = datetime.now()
 
-        assert (end_time - start_time).seconds >= time_to_sleep, (
-            "run did not wait for completion"
-        )
+        assert (
+            end_time - start_time
+        ).seconds >= time_to_sleep, "run did not wait for completion"
 
         runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
         assert len(runs) == 1
@@ -733,11 +732,12 @@ def print_df(df):
         inputs = {"data": input_path}
         run_object = self.project.run_function(job, inputs=inputs, local=local)
         assert run_object.status.results == {
-            "return": [{"x": "a", "y": 1, "extra": 123}],
+            "num_rows": 1,
         }
 
-    @pytest.mark.parametrize("local", [False])
-    def test_job_from_serving_runtime(self, local):
+    @pytest.mark.parametrize("local", [True, False])
+    @pytest.mark.parametrize("deploy_original", [True, False])
+    def test_job_from_serving_runtime(self, local, deploy_original):
         function = self.project.set_function(
             func=str(self.assets_path / "function_with_simple_transformation.py"),
             name="test",
@@ -752,7 +752,23 @@ def print_df(df):
             path=f"v3io:///projects/{self.project_name}/out.parquet",
         )
 
+        if deploy_original:
+            # Make sure it works even after the function has been deployed (ML-10940)
+            function.deploy()
+
         job = function.to_job()
+
+        if deploy_original:
+            assert (
+                job.metadata.name != function.metadata.name
+            ), "Job should have different name than serving function to prevent DB collision"
+            assert (
+                job.metadata.name == "test-batch"
+            ), f"Job should be auto-renamed to 'test-batch', got '{job.metadata.name}'"
+            # Verify original serving function name is unchanged
+            assert (
+                function.metadata.name == "test"
+            ), f"Original serving function name should remain 'test', got '{function.metadata.name}'"
 
         with open(str(self.assets_path / "test_data.csv")) as f:
             csv_content = f.read()
@@ -767,9 +783,20 @@ def print_df(df):
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
-            assert "Mickey Mouse" in read_back_df["Product"].values, (
-                f"Dataframe {read_back_df} was not transformed as expected"
-            )
+            assert (
+                "Mickey Mouse" in read_back_df["Product"].values
+            ), f"Dataframe {read_back_df} was not transformed as expected"
+
+            if deploy_original and not local:
+                # Only test invoke for deployed (non-local) functions
+                # Create a simple test input for invoke
+                test_input = {"inputs": [[1, 2, 3]]}
+                # This should succeed - the serving function should still be invokable
+                # after the job has been run with a different name
+                response = function.invoke("/", body=test_input)
+                assert (
+                    response is not None
+                ), "Invoke should succeed after running job with different name"
         finally:
             v3io_client.close()
 
@@ -804,9 +831,9 @@ def print_df(df):
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
-            assert "Mickey Mouse" in read_back_df["Product"].values, (
-                f"Dataframe {read_back_df} was not transformed as expected"
-            )
+            assert (
+                "Mickey Mouse" in read_back_df["Product"].values
+            ), f"Dataframe {read_back_df} was not transformed as expected"
         finally:
             v3io_client.close()
 
@@ -843,9 +870,9 @@ def print_df(df):
             runs = self._run_db.list_runs(project=self.project_name)
             assert len(runs) == 1
             run = mlrun.RunObject.from_dict(runs[0])
-            assert run.status.retry_count == 3, (
-                f"Expected retry_count=3, got {run.status.retry_count}"
-            )
+            assert (
+                run.status.retry_count == 3
+            ), f"Expected retry_count=3, got {run.status.retry_count}"
             assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
             assert f"Run failed after {max_attempts} attempts" in run.status.status_text
             self._assert_retry_attempts_metadata(run.status.retries)
@@ -862,9 +889,9 @@ def print_df(df):
             run.metadata.uid, project=self.project_name, attempt=2
         )
         assert state == mlrun.common.runtimes.constants.RunStates.error
-        assert "Retrying run - attempt: 2" in str(content), (
-            "Expected logs to contain retry attempt message"
-        )
+        assert "Retrying run - attempt: 2" in str(
+            content
+        ), "Expected logs to contain retry attempt message"
 
     @staticmethod
     def _assert_retry_attempts_metadata(retry_attempts):
@@ -885,7 +912,7 @@ def print_df(df):
             )
             if previous_start_time is not None:
                 assert previous_start_time < current_start_time, (
-                    f"Retry {i} start_time is not after retry {i - 1}: "
+                    f"Retry {i} start_time is not after retry {i-1}: "
                     f"{previous_start_time} >= {current_start_time}"
                 )
             previous_start_time = current_start_time

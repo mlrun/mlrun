@@ -730,7 +730,8 @@ def test_store_secret_tokens_incorrect_user_id():
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="Offline token 'token1' subject 'user-id-123' does not match the authenticated user ID",
+        match="Offline token 'token1' does not match the authenticated user ID. Stored tokens can only belong to the"
+        " authenticated user.",
     ):
         services.api.crud.Secrets().store_secret_tokens(
             secret_tokens,
@@ -868,65 +869,131 @@ def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
 
 
 @pytest.mark.parametrize(
-    "decoded_sub, token_name, seen_names, authenticated_id, should_raise, expected_msg",
+    "token_1, token_2, should_raise, expected_err_msg, expected_token_1, expected_token_2, authenticated_id",
     [
-        # Valid token
-        ("user-123", "token1", set(), "user-123", False, None),
-        # Wrong user
+        # Valid tokens with different names
         (
-            "different-user",
-            "token1",
-            set(),
+            {
+                "token_name": "token1",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            False,
+            None,
+            {"sub": "user-123", "exp": 9999999999},
+            {"sub": "user-123", "exp": 9999999999},
             "user-123",
+        ),
+        # Missing expiration claim
+        (
+            {"token_name": "token1", "token_payload": {"sub": "user-123"}},
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
             True,
-            "Offline token 'token1' subject 'different-user' does not match the authenticated user ID. "
-            "Stored tokens can only belong to the authenticated user.",
+            "Offline token 'token1' is missing the 'exp' (expiration) claim",
+            None,
+            None,
+            "user-123",
+        ),
+        # Missing subject claim
+        (
+            {"token_name": "token1", "token_payload": {"exp": 9999999999}},
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            True,
+            "Offline token 'token1' is missing the 'sub' (subject) claim",
+            None,
+            None,
+            "user-123",
+        ),
+        # Token from wrong user (not matching authenticated ID)
+        (
+            {
+                "token_name": "token1",
+                "token_payload": {"sub": "different-user", "exp": 9999999999},
+            },
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "different-user", "exp": 9999999999},
+            },
+            True,
+            "Offline token 'token1' does not match the authenticated user ID. Stored tokens can only belong to the"
+            " authenticated user.",
+            None,
+            None,
+            "user-123",
         ),
         # Duplicate token names
         (
-            "user-123",
-            "token1",
-            {"token1"},
-            "user-123",
+            {
+                "token_name": "token1",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            {
+                "token_name": "token1",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
             True,
             "Invalid or duplicate token name 'token1' found in request payload",
+            None,
+            None,
+            "user-123",
         ),
         # Missing token name
         (
-            "user-123",
-            "",
-            set(),
-            "user-123",
+            {"token_name": "", "token_payload": {"sub": "user-123", "exp": 9999999999}},
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
             True,
             "Invalid or duplicate token name '' found in request payload",
+            None,
+            None,
+            "user-123",
         ),
     ],
 )
-def test_validate_token_name_and_user(
-    decoded_sub,
-    token_name,
-    seen_names,
-    authenticated_id,
+def test_extract_and_validate_tokens_info(
+    token_1,
+    token_2,
     should_raise,
-    expected_msg,
+    expected_err_msg,
+    expected_token_1,
+    expected_token_2,
+    authenticated_id,
 ):
-    with unittest.mock.patch(
-        "services.api.crud.Secrets._decode_offline_token",
-        return_value={"sub": decoded_sub},
-    ):
-        secret_token = mlrun.common.schemas.SecretToken(name=token_name, token="dummy")
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name=token_1["token_name"], token=_generate_token(token_1["token_payload"])
+        ),
+        mlrun.common.schemas.SecretToken(
+            name=token_2["token_name"], token=_generate_token(token_2["token_payload"])
+        ),
+    ]
 
-        if should_raise:
-            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-                services.api.crud.Secrets()._validate_token_name_and_user(
-                    secret_token, seen_names, authenticated_id
-                )
-            assert expected_msg in str(exc.value)
-        else:
-            services.api.crud.Secrets()._validate_token_name_and_user(
-                secret_token, seen_names, authenticated_id
+    if should_raise:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match=expected_err_msg
+        ):
+            services.api.crud.Secrets()._extract_and_validate_tokens_info(
+                secret_tokens, authenticated_id
             )
-            assert token_name in seen_names
+    else:
+        tokens_info = services.api.crud.Secrets()._extract_and_validate_tokens_info(
+            secret_tokens, authenticated_id
+        )
+        assert tokens_info["token1"]["token_sub"] == expected_token_1["sub"]
+        assert tokens_info["token1"]["token_exp"] == expected_token_1["exp"]
+        assert tokens_info["token2"]["token_sub"] == expected_token_1["sub"]
+        assert tokens_info["token2"]["token_exp"] == expected_token_2["exp"]
 
 
 def test_list_secret_tokens_returns_tokens():

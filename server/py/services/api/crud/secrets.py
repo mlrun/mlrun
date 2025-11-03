@@ -448,12 +448,10 @@ class Secrets(
             token_count=len(secret_tokens),
         )
 
-        # First validate all token names
-        seen_names = set()
-        for secret_token in secret_tokens:
-            self._validate_token_name_and_user(
-                secret_token, seen_names, auth_info.user_id
-            )
+        # Extract and validate tokens info
+        tokens_values = self._extract_and_validate_tokens_info(
+            secret_tokens=secret_tokens, authenticated_id=auth_info.user_id
+        )
 
         # TODO: move init iguazio_client (ML-11077)
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
@@ -463,11 +461,9 @@ class Secrets(
 
         token_actions = defaultdict(list)
 
-        for secret_token in secret_tokens:
-            token_name = secret_token.name
-            token = secret_token.token
-
-            expiration = self._extract_and_validate_expiration(token_name, token)
+        for token_name, token_info in tokens_values.items():
+            token = token_info["token"]
+            expiration = token_info["token_exp"]
 
             action = self.secrets_provider.store_user_token_secret(
                 username=auth_info.username,
@@ -597,36 +593,55 @@ class Secrets(
             token_name=token_name,
         )
 
-    @staticmethod
-    def _validate_token_name_and_user(
-        secret_token: mlrun.common.schemas.SecretToken,
-        seen_names: set,
+    def _extract_and_validate_tokens_info(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
         authenticated_id: str,
     ):
-        token_name = secret_token.name
-        token_sub = Secrets._decode_offline_token(token_name, secret_token.token).get(
-            "sub"
-        )
+        token_values = {}
+        for secret_token in secret_tokens:
+            token_name = secret_token.name
 
-        if token_sub != authenticated_id:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Offline token '{token_name}' subject '{token_sub}' does not match the authenticated user ID. "
-                "Stored tokens can only belong to the authenticated user."
-            )
-        if not token_name or token_name in seen_names:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid or duplicate token name '{token_name}' found in request payload"
-            )
-        seen_names.add(token_name)
+            # Validate name is provided and not duplicate
+            if secret_token.name and secret_token.name not in token_values:
+                decoded_token = self._decode_offline_token(
+                    secret_token.name, secret_token.token
+                )
 
-    def _extract_and_validate_expiration(self, token_name: str, token: str) -> int:
-        decoded = self._decode_offline_token(token_name, token)
-        exp = decoded.get("exp")
-        if exp is None or not isinstance(exp, int):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
-            )
-        return exp
+                # Validate token expiration existence
+                if not decoded_token.get("exp"):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
+                    )
+                # Validate token subject existence
+                if not decoded_token.get("sub"):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
+                    )
+
+                # Validate token belongs to the authenticated user
+                token_sub = decoded_token.get("sub")
+                if token_sub != authenticated_id:
+                    mlrun.utils.logger.warning(
+                        f"Offline token '{token_name}' subject {token_sub} does not match the authenticated user ID:"
+                        f" {authenticated_id}."
+                    )
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' does not match the authenticated user ID. "
+                        "Stored tokens can only belong to the authenticated user."
+                    )
+
+                # Store token info
+                token_values[secret_token.name] = {
+                    "token_sub": decoded_token.get("sub"),
+                    "token_exp": decoded_token.get("exp"),
+                    "token": secret_token.token,
+                }
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid or duplicate token name '{secret_token.name}' found in request payload"
+                )
+        return token_values
 
     @staticmethod
     def _decode_offline_token(token_name: str, token: str) -> dict:

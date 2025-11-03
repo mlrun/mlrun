@@ -1662,7 +1662,7 @@ class ModelRunnerStep(MonitoredStep):
     the default language model class (LLModel) during function deployment.
 
     Note ModelRunnerStep can only be added to a graph that has the flow topology and running with async engine.
-    For default number of max threads and max processes, see config_pool_resource() method documentation.
+    Note see config_pool_resource method documentation for default number of max threads and max processes.
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.

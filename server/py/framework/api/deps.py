@@ -93,3 +93,10 @@ def expose_internal_endpoints(request: Request):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 "Internal endpoints are not exposed"
             )
+
+
+def iguazio_v4_only(request: Request):
+    if not mlrun.mlconf.is_iguazio_v4_mode():
+        raise mlrun.errors.MLRunBadRequestError(
+            "This endpoint is only supported in an Iguazio V4 system."
+        )

@@ -374,20 +374,16 @@ def predictions_df() -> pd.DataFrame:
 @pytest.fixture
 def drift_df() -> pd.DataFrame:
     now = datetime.now().astimezone()
-    return pd.DataFrame(
-        [
-            {
-                "_wstart": now - timedelta(hours=1),
-                "_wend": now - timedelta(hours=1),
-                "max(result_status)": 2,
-            },
-            {
-                "_wstart": now - timedelta(hours=2),
-                "_wend": now - timedelta(hours=2),
-                "max(result_status)": 1,
-            },
-        ]
-    ).set_index("_wstart")
+    data = {
+        "time": [
+            now - timedelta(hours=1),
+            now - timedelta(hours=1),
+            now - timedelta(hours=2),
+        ],
+        "result_status": [2, 1, 1],
+        "endpoint_id": ["ep-1", "ep-1", "ep-2"],
+    }
+    return pd.DataFrame(data).set_index("time")
 
 
 @pytest.fixture
@@ -574,7 +570,7 @@ def test_get_drift_data():
         start=start, end=end
     )
     assert drift_over_time is not None
-    assert len(drift_over_time.values) == 2, "Drift over time should have one value"
+    assert len(drift_over_time.values) == 2, "Drift over time should have two values"
     assert (
         drift_over_time.values[0].count_suspected == 1
     ), "Drift over time should have one detected drift"

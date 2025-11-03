@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import asyncio
 import base64
 import enum
@@ -22,6 +21,7 @@ import inspect
 import itertools
 import json
 import os
+import pathlib
 import re
 import string
 import sys
@@ -46,6 +46,8 @@ import pytz
 import semver
 import yaml
 from dateutil import parser
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -62,6 +64,7 @@ import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.common.schemas import ArtifactCategories
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun_pipelines.models import PipelineRun
 
@@ -248,6 +251,40 @@ def verify_field_regex(
                 f" required patterns: {patterns}"
             )
         return False
+
+
+def validate_function_name(name: str) -> None:
+    """
+    Validate that a function name conforms to Kubernetes DNS-1123 label requirements.
+
+    Function names for Kubernetes resources must:
+    - Be lowercase alphanumeric characters or '-'
+    - Start and end with an alphanumeric character
+    - Be at most 63 characters long
+
+    This validation should be called AFTER normalize_name() has been applied.
+
+    Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
+
+    :param name: The function name to validate (after normalization)
+    :raises MLRunInvalidArgumentError: If the function name is invalid for Kubernetes
+    """
+    if not name:
+        return
+
+    verify_field_regex(
+        "function.metadata.name",
+        name,
+        mlrun.utils.regex.dns_1123_label,
+        raise_on_failure=True,
+        log_message=(
+            f"Function name '{name}' is invalid. "
+            "Kubernetes function names must be DNS-1123 labels: "
+            "lowercase alphanumeric characters or '-', "
+            "starting and ending with an alphanumeric character, "
+            "and at most 63 characters long."
+        ),
+    )
 
 
 def validate_builder_source(
@@ -473,6 +510,40 @@ def normalize_name(name: str):
     return name.lower()
 
 
+def ensure_batch_job_suffix(
+    function_name: typing.Optional[str],
+) -> tuple[typing.Optional[str], bool, str]:
+    """
+    Ensure that a function name has the batch job suffix appended to prevent database collision.
+
+    This helper is used by to_job() methods in runtimes that convert online functions (serving, local)
+    to batch processing jobs. The suffix prevents the job from overwriting the original function in
+    the database when both are stored with the same (project, name) key.
+
+    :param function_name: The original function name (can be None or empty string)
+
+    :return: A tuple of (modified_name, was_renamed, suffix) where:
+        - modified_name: The function name with the batch suffix (if not already present),
+          or empty string if input was empty
+        - was_renamed: True if the suffix was added, False if it was already present or if name was empty/None
+        - suffix: The suffix value that was used (or would have been used)
+
+    """
+    suffix = mlrun_constants.RESERVED_BATCH_JOB_SUFFIX
+
+    # Handle None or empty string
+    if not function_name:
+        return function_name, False, suffix
+
+    if not function_name.endswith(suffix):
+        return (
+            f"{function_name}{suffix}",
+            True,
+            suffix,
+        )
+    return function_name, False, suffix
+
+
 class LogBatchWriter:
     def __init__(self, func, batch=16, maxtime=5):
         self.batch = batch
@@ -502,9 +573,14 @@ def get_in(obj, keys, default=None):
     if isinstance(keys, str):
         keys = keys.split(".")
     for key in keys:
-        if not obj or key not in obj:
+        if obj is None:
             return default
-        obj = obj[key]
+        if isinstance(obj, dict):
+            if key not in obj:
+                return default
+            obj = obj[key]
+        else:
+            obj = getattr(obj, key, default)
     return obj
 
 
@@ -802,17 +878,27 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     return uri if not add_store else DB_SCHEMA + "://" + uri
 
 
-def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
+def check_if_hub_uri(uri: str) -> bool:
+    return uri.startswith(hub_prefix)
+
+
+def extend_hub_uri_if_needed(
+    uri: str,
+    asset_type: HubSourceType = HubSourceType.functions,
+    file: str = "function.yaml",
+) -> tuple[str, bool]:
     """
-    Retrieve the full uri of the item's yaml in the hub.
+    Retrieve the full uri of an object in the hub.
 
     :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
+    :param asset_type:  The type of the hub item (functions, modules, etc.)
+    :param file: The file name inside the hub item directory (default: function.yaml)
 
     :return: A tuple of:
                [0] = Extended URI of item
                [1] =  Is hub item (bool)
     """
-    is_hub_uri = uri.startswith(hub_prefix)
+    is_hub_uri = check_if_hub_uri(uri)
     if not is_hub_uri:
         return uri, is_hub_uri
 
@@ -832,7 +918,7 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     name = normalize_name(name=name)
     if not source_name:
         # Searching item in all sources
-        sources = db.list_hub_sources(item_name=name, tag=tag)
+        sources = db.list_hub_sources(item_name=name, tag=tag, item_type=asset_type)
         if not sources:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Item={name}, tag={tag} not found in any hub source"
@@ -842,10 +928,10 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     else:
         # Specific source is given
         indexed_source = db.get_hub_source(source_name)
-    # hub function directory name are with underscores instead of hyphens
+    # hub directories name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    function_suffix = f"{name}/{tag}/src/function.yaml"
-    return indexed_source.source.get_full_uri(function_suffix), is_hub_uri
+    suffix = f"{name}/{tag}/src/{file}"
+    return indexed_source.source.get_full_uri(suffix, asset_type), is_hub_uri
 
 
 def gen_md_table(header, rows=None):
@@ -913,10 +999,20 @@ def enrich_image_url(
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version or ""
 
-    # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
-    if "mlrun-kfp" not in image_url:
+    # starting mlrun 1.10.0-rc0 we want to enrich the kfp image with the python version
+    # e.g for 1.9 we have a single mlrun-kfp image that supports only python 3.9
+    enrich_kfp_python_version = (
+        "mlrun-kfp" in image_url
+        and mlrun_version
+        and semver.VersionInfo.is_valid(mlrun_version)
+        and semver.VersionInfo.parse(mlrun_version)
+        >= semver.VersionInfo.parse("1.10.0-rc0")
+    )
+
+    if "mlrun-kfp" not in image_url or enrich_kfp_python_version:
         tag += resolve_image_tag_suffix(
-            mlrun_version=mlrun_version, python_version=client_python_version
+            mlrun_version=mlrun_version,
+            python_version=client_python_version,
         )
 
     # it's an mlrun image if the repository is mlrun
@@ -942,8 +1038,15 @@ def enrich_image_url(
         else:
             image_url = "mlrun/mlrun"
 
-    if is_mlrun_image and tag and ":" not in image_url:
-        image_url = f"{image_url}:{tag}"
+    if is_mlrun_image and tag:
+        if ":" not in image_url:
+            image_url = f"{image_url}:{tag}"
+        elif enrich_kfp_python_version:
+            # For mlrun-kfp >= 1.10.0-rc0, append python suffix to existing tag
+            python_suffix = resolve_image_tag_suffix(
+                mlrun_version, client_python_version
+            )
+            image_url = f"{image_url}{python_suffix}" if python_suffix else image_url
 
     registry = (
         config.images_registry if is_mlrun_image else config.vendor_images_registry
@@ -1211,55 +1314,6 @@ def get_workflow_url(
     if id:
         url += f"/{id}"
     return url
-
-
-def get_kfp_list_runs_filter(
-    project_name: Optional[str] = None,
-    end_date: Optional[str] = None,
-    start_date: Optional[str] = None,
-) -> str:
-    """
-    Generates a filter for listing Kubeflow Pipelines (KFP) runs.
-
-    :param project_name: The name of the project. If "*", it won't filter by project.
-    :param end_date: The latest creation date for filtering runs (ISO 8601 format).
-    :param start_date: The earliest creation date for filtering runs (ISO 8601 format).
-    :return: A JSON-formatted filter string for KFP.
-    """
-
-    # KFP filter operation codes
-    kfp_less_than_or_equal_op = 7  # '<='
-    kfp_greater_than_or_equal_op = 5  # '>='
-    kfp_substring_op = 9  # Substring match
-
-    filters = {"predicates": []}
-
-    if end_date:
-        filters["predicates"].append(
-            {
-                "key": "created_at",
-                "op": kfp_less_than_or_equal_op,
-                "timestamp_value": end_date,
-            }
-        )
-
-    if project_name and project_name != "*":
-        filters["predicates"].append(
-            {
-                "key": "name",
-                "op": kfp_substring_op,
-                "string_value": project_name,
-            }
-        )
-    if start_date:
-        filters["predicates"].append(
-            {
-                "key": "created_at",
-                "op": kfp_greater_than_or_equal_op,
-                "timestamp_value": start_date,
-            }
-        )
-    return json.dumps(filters)
 
 
 def validate_and_convert_date(date_input: str) -> str:
@@ -1859,10 +1913,7 @@ async def run_in_threadpool(func, *args, **kwargs):
     Run a sync-function in the loop default thread pool executor pool and await its result.
     Note that this function is not suitable for CPU-bound tasks, as it will block the event loop.
     """
-    loop = asyncio.get_running_loop()
-    if kwargs:
-        func = functools.partial(func, **kwargs)
-    return await loop.run_in_executor(None, func, *args)
+    return await asyncio.to_thread(func, *args, **kwargs)
 
 
 def is_explicit_ack_supported(context):
@@ -2451,3 +2502,77 @@ def set_data_by_path(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected path to be of type str or list of str"
         )
+
+
+def _normalize_requirements(reqs: typing.Union[str, list[str], None]) -> list[str]:
+    if reqs is None:
+        return []
+    if isinstance(reqs, str):
+        s = reqs.strip()
+        return [s] if s else []
+    return [s.strip() for s in reqs if s and s.strip()]
+
+
+def merge_requirements(
+    reqs_priority: typing.Union[str, list[str], None],
+    reqs_secondary: typing.Union[str, list[str], None],
+) -> list[str]:
+    """
+    Merge two requirement collections into a union. If the same package
+    appears in both, the specifier from reqs_priority wins.
+
+    Args:
+        reqs_priority: str | list[str] | None  (priority input)
+        reqs_secondary: str | list[str] | None
+
+    Returns:
+        list[str]: pip-style requirements.
+    """
+    merged: dict[str, Requirement] = {}
+
+    for r in _normalize_requirements(reqs_secondary) + _normalize_requirements(
+        reqs_priority
+    ):
+        req = Requirement(r)
+        merged[canonicalize_name(req.name)] = req
+
+    return [str(req) for req in merged.values()]
+
+
+def get_source_and_working_dir_paths(source_file_path) -> (pathlib.Path, pathlib.Path):
+    source_file_path_object = pathlib.Path(source_file_path).resolve()
+    working_dir_path_object = pathlib.Path(".").resolve()
+    return source_file_path_object, working_dir_path_object
+
+
+def get_relative_module_name_from_path(
+    source_file_path_object, working_dir_path_object
+) -> str:
+    relative_path_to_source_file = source_file_path_object.relative_to(
+        working_dir_path_object
+    )
+    return ".".join(relative_path_to_source_file.with_suffix("").parts)
+
+
+def iguazio_v4_only(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        if not mlrun.mlconf.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
+            )
+        return function(*args, **kwargs)
+
+    return wrapper
+
+
+def raise_or_log_error(message: str, raise_on_error: bool = True):
+    """
+    Handle errors by either raising an exception or logging a warning.
+
+    :param message: The error message.
+    :param raise_on_error: If True, raises an exception. Otherwise, logs a warning.
+    """
+    if raise_on_error:
+        raise mlrun.errors.MLRunRuntimeError(message)
+    logger.warning(message)

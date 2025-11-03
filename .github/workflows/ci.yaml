@@ -48,7 +48,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -97,7 +97,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -139,7 +139,7 @@ jobs:
         make test-dockerized
     - name: Upload coverage report
       if: env.RUN_COVERAGE == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
         path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
@@ -163,7 +163,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -198,7 +198,7 @@ jobs:
       timeout-minutes: 90
 
     - name: Upload coverage report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       if: env.RUN_COVERAGE == 'true'
       with:
          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
@@ -224,7 +224,7 @@ jobs:
       - name: Run Dockerized DB Migration tests
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized RUN_COVERAGE=true
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
           path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
@@ -235,17 +235,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Explicitly define combinations: KFP v1.8 with Python 3.9
-        # TODO: Enable KFP v2 with Python 3.11 when it's supported (in 1.9.0)
         include:
           - python-version: "3.9"
             pipeline-adapter: "kfp-v1-8"
-#          - python-version: "3.11"
-#            pipeline-adapter: "kfp-v2"
+          - python-version: "3.11"
+            pipeline-adapter: "kfp-v1-8"
     steps:
     - uses: actions/checkout@v5
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
@@ -280,7 +278,7 @@ jobs:
       - name: Generate HTML docs
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
       - name: Upload generated docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: docs
           path: docs/_build/html
@@ -328,16 +326,16 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
     - name: Install requirements ${{ matrix.python-version }}
-      run: make install-requirements
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make install-requirements
     - name: Install Complete Requirements ${{ matrix.python-version }}
-      run: make install-complete-requirements
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make install-complete-requirements
     - name: Install All Requirements ${{ matrix.python-version }}
-      run: make install-all-requirements
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make install-all-requirements
 
   coverage:
     name: Full coverage
@@ -351,7 +349,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -359,24 +357,24 @@ jobs:
         # To save time, install only pytest and coverage-related packages, without mlrun and its dependencies.
         run: make install-dev-requirements
       - name: Download server unit tests coverage report
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_server.coverage
           path: tests/coverage_reports/
       - name: Download client unit tests coverage report
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_client.coverage
           path: tests/coverage_reports/
       - name: Download integration coverage report
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
           
           path: tests/coverage_reports/
 
       - name: Download migration coverage report
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/
@@ -384,7 +382,7 @@ jobs:
         run: make coverage-combine UNIT_TEST_COVERAGE_PATHS="tests/coverage_reports/unit_tests_client.coverage tests/coverage_reports/unit_tests_server.coverage"
         # Save it as an artifact:
       - name: Upload coverage combined report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage_combined_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/combined.coverage
@@ -396,7 +394,7 @@ jobs:
           --show-uncovered \
           --html-report tests/coverage_reports/combined_diff.html
       - name: Upload coverage diff report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage_combined_diff_report_${{ matrix.python-version }}_${{ github.run_id }}.html
           path: tests/coverage_reports/combined_diff.html

@@ -680,7 +680,6 @@ class RunDBMock:
                 spec=mlrun.common.schemas.HubSourceSpec(
                     path=mlrun.mlconf.hub.default_source.url,
                     channel="master",
-                    object_type="functions",
                 ),
             ),
         )
@@ -741,7 +740,12 @@ class RunDBMock:
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: Optional[
+            Union[
+                mlrun.common.schemas.EndpointMode,
+                list[mlrun.common.schemas.EndpointMode],
+            ]
+        ] = None,
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
@@ -751,14 +755,40 @@ class RunDBMock:
         if isinstance(names, str):
             names = [names]
         endpoints = []
-        for name in names or ["model-ep-1"]:
+        for name in names or (["model-ep-1"] if uids is None else []):
             endpoints.append(
                 mlrun.common.schemas.model_monitoring.ModelEndpoint(
                     metadata=mlrun.common.schemas.ModelEndpointMetadata(
                         name=name, project=project, uid=f"{name}-uid"
                     ),
                     spec=mlrun.common.schemas.ModelEndpointSpec(),
-                    status=mlrun.common.schemas.ModelEndpointStatus(),
+                    status=mlrun.common.schemas.ModelEndpointStatus(
+                        first_request=datetime(2024, 1, 1)
+                        if name != "model-ep-no-first-request"
+                        and uids != ["model-ep-no-first-request-uid"]
+                        else None,
+                    ),
+                )
+            )
+
+        for uid in uids or []:
+            if uid.endswith("-not-found"):
+                continue
+            endpoints.append(
+                mlrun.common.schemas.model_monitoring.ModelEndpoint(
+                    metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                        name="model-ep-from-uid"
+                        if not uid.endswith("-uid")
+                        else uid.removesuffix("-uid"),
+                        project=project,
+                        uid=uid,
+                    ),
+                    spec=mlrun.common.schemas.ModelEndpointSpec(),
+                    status=mlrun.common.schemas.ModelEndpointStatus(
+                        first_request=datetime(2025, 10, 20)
+                        if uid.startswith("withfirstrequest")
+                        else None,
+                    ),
                 )
             )
 

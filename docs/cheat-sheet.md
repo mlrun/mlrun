@@ -91,7 +91,7 @@ project.run(name="training_pipeline", arguments={...})
 ```
 
 ### Git integration
-Docs: [Create and use functions](./runtimes/create-and-use-functions.ipynb#multiple-source-files)
+Docs: [Create and use functions](./runtimes/create-and-use-functions.ipynb#create-a-function-with-multiple-source-files)
 
 An MLRun project can be backed by a Git repo. Functions consume the repo and pull the code either: once when Docker image is built (production workflow); or at runtime (development workflow).
 
@@ -1084,7 +1084,7 @@ feature_service = fvec.get_online_feature_service().feature_service.get(
 ```
 
 ## Real-time pipelines
-Docs: [Real-time serving pipelines](./serving/serving-graph.md), [Real-time pipeline use cases](./serving/use-cases.md), [Graph concepts and state machine](./serving/realtime-pipelines.ipynb), [Model serving graph](./serving/model-serving-get-started.ipynb), [Writing custom steps](./serving/writing-custom-steps.ipynb)
+Docs: {ref}`serving-graph`, {ref}`model-serve-get-started`, {ref}`use-cases-serving`, {ref}`building-graphs`, {ref}`deploying-graphs`, {ref}`demos-serving`, {ref}`advanced-graph-cfg`.
 
 ### Definitions
 
@@ -1167,7 +1167,7 @@ fn.invoke("/v2/models/model1/infer", body={"inputs": [5]})
 
 ### Custom model serving class
 
-Docs: [Model serving graph](./serving/model-serving-get-started.ipynb)
+Docs: {ref}`writing-custom-steps`
 
 ```python
 from cloudpickle import load

@@ -26,7 +26,7 @@ import pytest
 import mlrun
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
-from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
 from mlrun.model_monitoring.applications import (
     ExistingDataHandling,
     ModelMonitoringApplicationBase,
@@ -239,7 +239,7 @@ class TestEvaluate:
                 end=end,
                 run_local=run_local,
                 write_output=write_output,
-                stream_profile=DatastoreProfileKafkaSource(
+                stream_profile=DatastoreProfileKafkaStream(
                     name="should-not-be-passed-on-remote",
                     brokers=["broker-address:9092"],
                     topics=[],
@@ -255,7 +255,7 @@ class TestEvaluate:
             end=datetime(2025, 5, 4),
             run_local=True,
             write_output=True,
-            stream_profile=DatastoreProfileKafkaSource(
+            stream_profile=DatastoreProfileKafkaStream(
                 name="should-not-be-passed-on-remote",
                 brokers=["broker-address:9092"],
                 topics=[],
@@ -309,7 +309,7 @@ class TestEvaluate:
             end=datetime(2025, 5, 4),
             run_local=True,
             write_output=True,
-            stream_profile=DatastoreProfileKafkaSource(
+            stream_profile=DatastoreProfileKafkaStream(
                 name="kafka-stream", brokers=["broker-address:9092"], topics=[]
             ),
         )
@@ -319,6 +319,18 @@ class TestEvaluate:
             "working with endpoints, without any custom data-frame input"
             in captured.out
         ), "The error message is different than expected or was not captured"
+
+
+@pytest.fixture
+def non_empty_sample_df_context_mock() -> Iterator[MonitoringApplicationContext]:
+    mock = Mock(pd.DataFrame)
+    mock.empty = False
+    with patch.object(
+        MonitoringApplicationContext,
+        "sample_df",
+        property(lambda _: mock),
+    ):
+        yield mock
 
 
 @pytest.mark.parametrize(
@@ -340,8 +352,18 @@ class TestEvaluate:
                 match="`base_period` must be a nonnegative integer .*",
             ),
         ),
+        (
+            datetime(2008, 9, 1, 10, 2, 1).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            None,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The start and end times must either both include time zone information or both be naive",
+            ),
+        ),
     ],
 )
+@pytest.mark.usefixtures("non_empty_sample_df_context_mock")
 def test_window_generator_validation(
     start: Optional[str],
     end: Optional[str],
@@ -355,9 +377,13 @@ def test_window_generator_validation(
                 end=end,
                 base_period=base_period,
                 application_schedules=None,
+                endpoint_name="",
                 endpoint_id="",
                 application_name="",
                 existing_data_handling=ExistingDataHandling.fail_on_overlap,
+                context=mlrun.MLClientCtx.from_dict({}),
+                project=mlrun.projects.MlrunProject(),
+                sample_data=None,
             )
         )
 
@@ -377,8 +403,8 @@ def test_window_generator_validation(
             ],
         ),
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 1, 10, 2, 1),
+            datetime(2008, 9, 2, 6, 2, 1),
             600,
             [
                 (
@@ -416,25 +442,31 @@ def test_window_generator_validation(
         ),
     ],
 )
+@pytest.mark.usefixtures("non_empty_sample_df_context_mock")
 def test_windows(
     start: datetime,
     end: datetime,
     base_period: Optional[int],
     expected_windows: list[tuple[datetime, datetime]],
 ) -> None:
-    assert (
-        list(
-            ModelMonitoringApplicationBase._window_generator(
-                start=start.isoformat(),
-                end=end.isoformat(),
-                base_period=base_period,
-                application_schedules=None,
-                endpoint_id="",
-                application_name="",
-                existing_data_handling=ExistingDataHandling.fail_on_overlap,
-            )
+    windows = [
+        (ctx.start_infer_time, ctx.end_infer_time)
+        for ctx in ModelMonitoringApplicationBase._window_generator(
+            start=start.isoformat(),
+            end=end.isoformat(),
+            base_period=base_period,
+            application_schedules=None,
+            endpoint_name="",
+            endpoint_id="",
+            application_name="",
+            existing_data_handling=ExistingDataHandling.fail_on_overlap,
+            project=mlrun.projects.MlrunProject(),
+            context=mlrun.MLClientCtx.from_dict({}),
+            sample_data=None,
         )
-        == expected_windows
+    ]
+    assert (
+        windows == expected_windows
     ), "The generated windows are different than expected"
 
 
@@ -576,31 +608,91 @@ def project(tmpdir: Path) -> mlrun.MlrunProject:
 
 
 @pytest.mark.parametrize(
-    "endpoints", ["all", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
-)
-@pytest.mark.usefixtures("rundb_mock")
-def test_handle_endpoints_type_evaluate(
-    project: mlrun.MlrunProject, endpoints: Union[str, list[str], list[tuple[str, str]]]
-) -> None:
-    endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
-        project, endpoints
-    )
-    assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]
-
-
-@pytest.mark.parametrize(
-    ("endpoints", "err_msg"),
+    ("endpoints", "normalized_endpoints"),
     [
-        ("*", 'A string input for `endpoints` can only be "all"'),
-        ([], "The endpoints list cannot be empty"),
-        ([1], r"Could not resolve endpoints as list of \[\(name, uid\)\]"),
+        ("all", [("model-ep-1", "model-ep-1-uid")]),
+        (["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]),
+        (
+            [("withfirstrequest-ep-1", "withfirstrequest-ep-1-uid")],
+            [("withfirstrequest-ep-1", "withfirstrequest-ep-1-uid")],
+        ),
     ],
 )
-def test_handle_endpoints_type_evaluate_error(
-    project: mlrun.MlrunProject, endpoints: Union[str, list[str]], err_msg: str
+@pytest.mark.usefixtures("rundb_mock")
+def test_normalize_and_validate_endpoints(
+    project: mlrun.MlrunProject,
+    endpoints: Union[str, list[str], list[tuple[str, str]]],
+    normalized_endpoints: list[tuple[str, str]],
 ) -> None:
-    with pytest.raises(mlrun.errors.MLRunValueError, match=err_msg):
-        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+    endpoints_output = ModelMonitoringApplicationBase._normalize_and_validate_endpoints(
+        project, endpoints
+    )
+    assert endpoints_output == normalized_endpoints
+
+
+@pytest.mark.usefixtures("rundb_mock")
+@pytest.mark.parametrize(
+    ("endpoints", "err_msg", "err_type"),
+    [
+        (
+            "*",
+            'A string input for `endpoints` can only be "all"',
+            mlrun.errors.MLRunValueError,
+        ),
+        (
+            [("name", "name-uid"), "name2"],
+            "Could not resolve the following list as a list of endpoints",
+            mlrun.errors.MLRunValueError,
+        ),
+        (
+            [1],
+            "Could not resolve the following list as a list of endpoints",
+            mlrun.errors.MLRunValueError,
+        ),
+        (
+            ["model-ep-no-first-request"],
+            "have no data, cannot run the model monitoring application on them",
+            mlrun.errors.MLRunValueError,
+        ),
+        (
+            [("model-ep-no-first-request", "model-ep-uid-not-found")],
+            "Could not find model endpoints with the following uids: {'model-ep-uid-not-found'}",
+            mlrun.errors.MLRunNotFoundError,
+        ),
+        (
+            [("model-ep-1", "model-ep-uid")],
+            "Could not find model endpoint with name 'model-ep-1' and uid 'model-ep-uid'",
+            mlrun.errors.MLRunNotFoundError,
+        ),
+        (
+            [("model-ep-no-first-request", "model-ep-no-first-request-uid")],
+            (
+                "have no data, cannot run the model monitoring application on them: "
+                r"\[\('model-ep-no-first-request', 'model-ep-no-first-request-uid'\)\]"
+            ),
+            mlrun.errors.MLRunValueError,
+        ),
+        (
+            [
+                ("model-ep-no-first-request", "model-ep-no-first-request-uid"),
+                ("withfirstrequest", "withfirstrequest-uid"),
+            ],
+            (
+                "have no data, cannot run the model monitoring application on them: "
+                r"\[\('model-ep-no-first-request', 'model-ep-no-first-request-uid'\)\]$"
+            ),
+            mlrun.errors.MLRunValueError,
+        ),
+    ],
+)
+def test_normalize_and_validate_endpoints_error(
+    project: mlrun.MlrunProject,
+    endpoints: Union[str, list[str]],
+    err_msg: str,
+    err_type: type[mlrun.errors.MLRunBaseError],
+) -> None:
+    with pytest.raises(err_type, match=err_msg):
+        ModelMonitoringApplicationBase._normalize_and_validate_endpoints(
             project, endpoints
         )
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import typing
 import uuid
 from datetime import datetime
@@ -35,6 +36,8 @@ import mlrun.errors
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
+from mlrun.config import config
+from mlrun.datastore import ParquetTarget
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
@@ -594,12 +597,13 @@ class ModelEndpoints:
         ModelMonitoringSchedulesFileEndpoint.from_model_endpoint(
             model_endpoint=model_endpoint
         ).create()
-        ModelMonitoringCurrentStatsFile.from_model_endpoint(
-            model_endpoint=model_endpoint
-        ).create()
-        ModelMonitoringDriftMeasuresFile.from_model_endpoint(
-            model_endpoint=model_endpoint
-        ).create()
+        if config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
+            ModelMonitoringCurrentStatsFile.from_model_endpoint(
+                model_endpoint=model_endpoint
+            ).create()
+            ModelMonitoringDriftMeasuresFile.from_model_endpoint(
+                model_endpoint=model_endpoint
+            ).create()
 
     async def patch_model_endpoint(
         self,
@@ -874,7 +878,7 @@ class ModelEndpoints:
             project,
             delete_background_task,
             ModelEndpoints.delete_tsdb_records,
-            mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers,
+            config.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers,
             background_task_name,
             None,
             project,
@@ -981,12 +985,54 @@ class ModelEndpoints:
             )[0]
         if feature_analysis:
             logger.info("Adding feature analysis to the model endpoint")
-            model_endpoint_object = self._add_feature_analysis(
-                model_endpoint_objects=[model_endpoint_object]
-            )[0]
+            if config.model_endpoint_monitoring.writer_graph.writer_version != "v1":
+                parquet_target = await run_in_threadpool(
+                    framework.db.session.run_function_with_new_db_session,
+                    services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path,
+                    project=project,
+                    kind="parquet_stats",
+                )
+                drift_measures, drift_measures_timestamp = await run_in_threadpool(
+                    self._get_mep_stats_dict_from_parquet,
+                    parquet_target=parquet_target,
+                    project=project,
+                    uid=model_endpoint_object.metadata.uid,
+                    kind=mm_constants.StatsKind.DRIFT_MEASURES,
+                )
+                current_stats, current_stats_timestamp = await run_in_threadpool(
+                    self._get_mep_stats_dict_from_parquet,
+                    parquet_target=parquet_target,
+                    project=project,
+                    uid=model_endpoint_object.metadata.uid,
+                    kind=mm_constants.StatsKind.CURRENT_STATS,
+                )
+            else:
+                current_stats, current_stats_timestamp = {}, None
+                drift_measures, drift_measures_timestamp = {}, None
+            if current_stats or drift_measures:
+                (
+                    model_endpoint_object.status.current_stats,
+                    model_endpoint_object.status.current_stats_timestamp,
+                ) = (current_stats, current_stats_timestamp)
+
+                (
+                    model_endpoint_object.status.drift_measures,
+                    model_endpoint_object.status.drift_measures_timestamp,
+                ) = (drift_measures, drift_measures_timestamp)
+            else:
+                # json option
+                model_endpoint_object = self._add_feature_analysis(
+                    model_endpoint_objects=[model_endpoint_object]
+                )[0]
+
             if model_endpoint_object.spec.model_uri:
-                model_endpoint_object, _ = self._add_feature_stats(
-                    session=db_session, model_endpoint_object=model_endpoint_object
+                (
+                    model_endpoint_object,
+                    _,
+                ) = await run_in_threadpool(
+                    framework.db.session.run_function_with_new_db_session,
+                    self._add_feature_stats,
+                    model_endpoint_object=model_endpoint_object,
                 )
 
         return model_endpoint_object
@@ -1004,7 +1050,7 @@ class ModelEndpoints:
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
         top_level: typing.Optional[bool] = None,
-        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: typing.Optional[list[mlrun.common.schemas.EndpointMode]] = None,
         tsdb_metrics: typing.Optional[bool] = None,
         metric_list: Optional[list[str]] = None,
         uids: typing.Optional[list[str]] = None,
@@ -1022,8 +1068,8 @@ class ModelEndpoints:
         :param start:               The start time of the model endpoint creation.
         :param end:                 The end time of the model endpoint creation.
         :param top_level:           When True, only top level model endpoints will be returned.
-        :param mode:                Specifies the mode of the model endpoint. Can be real-time (0), batch (1), or
-                                    both if set to None.
+        :param modes:               Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+                                    "batch_legacy" (2). If set to None, all are included.
         :param tsdb_metrics:        When True, the time series metrics will be added to the output of the resulting
         :param metric_list:         List of metrics to include from the time series DB. Defaults to all metrics.
                                     If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
@@ -1049,7 +1095,7 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
-            mode=mode,
+            modes=modes,
             tsdb_metrics=tsdb_metrics,
             metric_list=metric_list,
             uids=uids,
@@ -1070,7 +1116,7 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
-            mode=mode,
+            modes=modes,
             uids=uids,
             latest_only=latest_only,
         )
@@ -1450,7 +1496,9 @@ class ModelEndpoints:
             model_endpoint_object.spec.model_uri, db=run_db
         )
         if isinstance(model_obj, mlrun.artifacts.LLMPromptArtifact):
-            model_obj = model_obj.model_artifact
+            model_obj = mlrun.datastore.store_resources.get_store_resource(
+                model_obj.spec.model_uri, db=run_db
+            )
         feature_stats: dict = model_obj.spec.feature_stats or {}
         mlrun.common.model_monitoring.helpers.pad_features_hist(
             mlrun.common.model_monitoring.helpers.FeatureStats(feature_stats)
@@ -1464,6 +1512,51 @@ class ModelEndpoints:
 
         model_endpoint_object.spec.feature_stats = feature_stats
         return model_endpoint_object, model_obj
+
+    @staticmethod
+    def _get_mep_stats_dict_from_parquet(
+        parquet_target,
+        project,
+        uid,
+        kind,
+    ) -> tuple[dict, typing.Optional[datetime]]:
+        parquet_target = (
+            parquet_target if parquet_target.endswith("/") else parquet_target + "/"
+        )
+
+        target = ParquetTarget(
+            path=f"{parquet_target}endpoint_id={uid}/stats_name={kind}/target.parquet",
+        )
+        try:
+            df = target.as_df()
+        except Exception as exc:
+            logger.warning(
+                "Failed to read stats from parquet, you may need to check the parquet file",
+                project=project,
+                endpoint_id=uid,
+                kind=kind,
+                error=mlrun.errors.err_to_str(exc),
+            )
+            return {}, None
+
+        if df.empty:
+            return {}, None
+        else:
+            if len(df) > 1:
+                df.sort_values(
+                    by=[mm_constants.StatsData.TIMESTAMP], ascending=False, inplace=True
+                )
+            logger.info(
+                "Got stats from parquet",
+                project=project,
+                endpoint_id=uid,
+                kind=kind,
+                stats=df.iloc[0][mm_constants.StatsData.STATS],
+                timestamp=df.iloc[0][mm_constants.StatsData.TIMESTAMP],
+            )
+            return json.loads(
+                df.iloc[0][mm_constants.StatsData.STATS]
+            ), datetime.fromisoformat(df.iloc[0][mm_constants.StatsData.TIMESTAMP])
 
 
 class ModelMonitoringResourcesDeleter:

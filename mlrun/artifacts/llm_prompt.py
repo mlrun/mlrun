@@ -29,7 +29,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + [
         "prompt_template",
         "prompt_legend",
-        "model_configuration",
+        "invocation_config",
         "description",
     ]
     PROMPT_TEMPLATE_KEYS = ("content", "role")
@@ -41,7 +41,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         prompt_template: Optional[list[dict]] = None,
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         description: Optional[str] = None,
         target_path: Optional[str] = None,
         **kwargs,
@@ -62,12 +62,17 @@ class LLMPromptArtifactSpec(ArtifactSpec):
             parent_uri=model_artifact.uri
             if isinstance(model_artifact, model_art.ModelArtifact)
             else model_artifact,
+            format=kwargs.pop("format", "") or "json",
             **kwargs,
         )
 
         self.prompt_template = prompt_template
         self.prompt_legend = prompt_legend
-        self.model_configuration = model_configuration
+        if invocation_config is not None and not isinstance(invocation_config, dict):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "LLMPromptArtifact invocation_config must be a dictionary or None"
+            )
+        self.invocation_config = invocation_config or {}
         self.description = description
         self._model_artifact = (
             model_artifact
@@ -170,7 +175,7 @@ class LLMPromptArtifact(Artifact):
         prompt_template: Optional[list[dict]] = None,
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         description: Optional[str] = None,
         target_path=None,
         **kwargs,
@@ -180,7 +185,7 @@ class LLMPromptArtifact(Artifact):
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             model_artifact=model_artifact,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             target_path=target_path,
             description=description,
         )

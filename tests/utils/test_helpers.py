@@ -18,6 +18,7 @@ import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -25,17 +26,22 @@ from pandas import Timedelta, Timestamp
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version
+import mlrun_pipelines.client
+import mlrun_pipelines.models
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
+    ensure_batch_job_suffix,
     extend_hub_uri_if_needed,
     get_data_from_path,
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    merge_requirements,
     parse_artifact_uri,
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
@@ -45,6 +51,7 @@ from mlrun.utils.helpers import (
     template_artifact_path,
     update_in,
     validate_artifact_key_name,
+    validate_function_name,
     validate_tag_name,
     validate_v3io_stream_consumer_group,
     verify_field_regex,
@@ -234,7 +241,7 @@ def test_spark_job_name_regex(value, expected):
     ],
 )
 def test_extend_hub_uri(rundb_mock, case):
-    hub_url = mlrun.mlconf.get_default_hub_source()
+    hub_url = mlrun.mlconf.get_default_hub_source_url_prefix(HubSourceType.functions)
     input_uri = case["input_uri"]
     expected_output = case["expected_output"]
     output, is_hub_url = extend_hub_uri_if_needed(input_uri)
@@ -839,6 +846,47 @@ def test_validate_v3io_consumer_group(value, expected):
             "images_tag": "1.10.0",
             "images_registry": "",
             "expected_output": "mlrun/mlrun:1.10.0",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.10.0",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-py39",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.10.0",
+            "client_python_version": "3.11.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.10.0-rc1",
+            "client_python_version": "3.11.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-rc1",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.9.0",
+            "client_python_version": "3.9.10",
+            "images_tag": None,
+            # no -py suffix as 1.9 has no dual python support
+            "expected_output": "mlrun/mlrun-kfp:1.9.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp:1.10.0-rc37",
+            "client_version": "1.10.0-rc37",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-rc37-py39",
+            "images_to_enrich_registry": "",
         },
     ],
 )
@@ -1604,95 +1652,140 @@ def test_format_datetime(dt, expected):
 
 
 @pytest.mark.parametrize(
-    "project_name, end_date, start_date, expected_filter",
+    "input_start_date,"
+    "input_end_date,"
+    "input_existing_filter_json,"
+    "input_experiment_id,"
+    "expected_filter_object",
     [
-        # Specific project, end date only
+        # End date only, no existing filter
         (
-            "test-project",
+            None,
             "2024-11-05T15:30:00Z",
-            "",
-            json.dumps(
-                {
-                    "predicates": [
-                        {
-                            "key": "created_at",
-                            "op": 7,
-                            "timestamp_value": "2024-11-05T15:30:00Z",
-                        },
-                        {"key": "name", "op": 9, "string_value": "test-project"},
-                    ]
-                }
-            ),
+            None,
+            None,
+            {
+                "predicates": [
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
+                        "timestamp_value": "2024-11-05T15:30:00Z",
+                    }
+                ]
+            },
         ),
-        # Wildcard project, end date only
+        # Start and end dates, no existing filter
         (
-            "*",
-            "2024-11-05T15:30:00Z",
-            "",
-            json.dumps(
-                {
-                    "predicates": [
-                        {
-                            "key": "created_at",
-                            "op": 7,
-                            "timestamp_value": "2024-11-05T15:30:00Z",
-                        },
-                    ]
-                }
-            ),
-        ),
-        # Specific project with both start and end dates
-        (
-            "test-project",
-            "2024-11-05T15:30:00Z",
             "2024-10-01T00:00:00Z",
-            json.dumps(
-                {
-                    "predicates": [
-                        {
-                            "key": "created_at",
-                            "op": 7,
-                            "timestamp_value": "2024-11-05T15:30:00Z",
-                        },
-                        {"key": "name", "op": 9, "string_value": "test-project"},
-                        {
-                            "key": "created_at",
-                            "op": 5,
-                            "timestamp_value": "2024-10-01T00:00:00Z",
-                        },
-                    ]
-                }
-            ),
-        ),
-        # Wildcard project with both start and end dates
-        (
-            "*",
             "2024-11-05T15:30:00Z",
-            "2024-10-01T00:00:00Z",
+            None,
+            None,
+            {
+                "predicates": [
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
+                        "timestamp_value": "2024-11-05T15:30:00Z",
+                    },
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.GREATER_THAN_EQUALS.value,
+                        "timestamp_value": "2024-10-01T00:00:00Z",
+                    },
+                ]
+            },
+        ),
+        # Existing filter with a 'name' predicate should be dropped; other predicates preserved
+        (
+            None,
+            "2024-11-05T15:30:00Z",
             json.dumps(
                 {
                     "predicates": [
                         {
-                            "key": "created_at",
-                            "op": 7,
-                            "timestamp_value": "2024-11-05T15:30:00Z",
+                            "key": "name",
+                            "op": mlrun_pipelines.models.FilterOperations.IS_SUBSTRING.value,
+                            "string_value": "test-project",
                         },
                         {
-                            "key": "created_at",
-                            "op": 5,
-                            "timestamp_value": "2024-10-01T00:00:00Z",
+                            "key": "status",
+                            "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
+                            "string_value": "Succeeded",
                         },
                     ]
                 }
             ),
+            None,
+            {
+                "predicates": [
+                    # 'status' preserved
+                    {
+                        "key": "name",
+                        "op": 9,
+                        "string_value": "test-project",
+                    },
+                    {
+                        "key": "status",
+                        "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
+                        "string_value": "Succeeded",
+                    },
+                    # end_date added
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
+                        "timestamp_value": "2024-11-05T15:30:00Z",
+                    },
+                ]
+            },
+        ),
+        # Experiment ID filter added alongside dates
+        (
+            "2024-10-01T00:00:00Z",
+            "2024-11-05T15:30:00Z",
+            None,
+            "721ff4f8-d465-455e-bdab-a79857a62136",
+            {
+                "predicates": [
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.LESS_THAN_EQUALS.value,
+                        "timestamp_value": "2024-11-05T15:30:00Z",
+                    },
+                    {
+                        "key": "created_at",
+                        "op": mlrun_pipelines.models.FilterOperations.GREATER_THAN_EQUALS.value,
+                        "timestamp_value": "2024-10-01T00:00:00Z",
+                    },
+                    {
+                        "key": "experiment_id",
+                        "op": mlrun_pipelines.models.FilterOperations.IN.value,
+                        "string_values": {
+                            "values": ["721ff4f8-d465-455e-bdab-a79857a62136"]
+                        },
+                    },
+                ]
+            },
         ),
     ],
 )
-def test_get_list_runs_filter(project_name, end_date, start_date, expected_filter):
-    generated_filter = mlrun.utils.helpers.get_kfp_list_runs_filter(
-        project_name, end_date, start_date
+def test_get_kfp_list_runs_filter(
+    input_start_date: Optional[str],
+    input_end_date: Optional[str],
+    input_existing_filter_json: Optional[str],
+    input_experiment_id: Optional[str],
+    expected_filter_object: dict,
+):
+    experiment_ids = []
+    if input_experiment_id:
+        experiment_ids.append(input_experiment_id)
+    generated_filter_json: str = mlrun_pipelines.client.create_list_runs_filter(
+        start_date=input_start_date,
+        end_date=input_end_date,
+        filter_=input_existing_filter_json,
+        experiment_ids=experiment_ids,
     )
-    assert json.loads(generated_filter) == json.loads(expected_filter)
+    generated_filter_object = json.loads(generated_filter_json)
+    assert generated_filter_object == expected_filter_object
 
 
 @pytest.mark.parametrize(
@@ -1809,3 +1902,92 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
     data = {}
     with pytest.raises(exc_type, match=exc_msg):
         set_data_by_path(path, data, value)
+
+
+@pytest.mark.parametrize(
+    "priority_reqs, reqs, expected_result",
+    [
+        (None, None, []),
+        ([], ["requests"], ["requests"]),
+        (["requests"], [], ["requests"]),
+        (
+            ["requests>=1.0", "pydantic==1.0"],
+            ["requests==2.0", "pandas"],
+            ["requests>=1.0", "pydantic==1.0", "pandas"],
+        ),
+    ],
+)
+def test_merge_requirements(priority_reqs, reqs, expected_result):
+    result = merge_requirements(reqs_priority=priority_reqs, reqs_secondary=reqs)
+    assert set(result) == set(expected_result)
+
+
+# Test ensure_batch_job_suffix
+@pytest.mark.parametrize(
+    "function_name,expected_name,expected_renamed",
+    [
+        # Normal case - suffix should be added
+        ("my-function", "my-function-batch", True),
+        # Already has suffix - should not be renamed
+        ("my-function-batch", "my-function-batch", False),
+        # Edge cases
+        (None, None, False),
+        ("", "", False),
+        # Name contains "batch" but doesn't end with "-batch"
+        ("batch-processor", "batch-processor-batch", True),
+    ],
+)
+def test_ensure_batch_job_suffix(function_name, expected_name, expected_renamed):
+    """Test that ensure_batch_job_suffix correctly adds suffix when needed."""
+    modified_name, was_renamed, suffix = ensure_batch_job_suffix(function_name)
+
+    assert modified_name == expected_name
+    assert was_renamed == expected_renamed
+    assert suffix == "-batch"
+
+
+@pytest.mark.parametrize(
+    "function_name,expected",
+    [
+        # Invalid names - uppercase letters
+        ("MyFunction", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("FUNCTION", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("myFunction", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        # Invalid names - special characters
+        ("my_function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my.function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my@function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my#function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        # Invalid names - starts/ends with dash
+        ("-myfunction", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("myfunction-", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        # Empty name - allowed (returns early without validation)
+        ("", does_not_raise()),
+        # Invalid names - too long (>63 characters)
+        (
+            "a" * 64,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "my-very-long-function-name-that-exceeds-kubernetes-limit-of-sixtythree",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # Valid names
+        ("myfunction", does_not_raise()),
+        ("my-function", does_not_raise()),
+        ("my-function-2", does_not_raise()),
+        ("function123", does_not_raise()),
+        ("123function", does_not_raise()),
+        ("a", does_not_raise()),
+        ("a1", does_not_raise()),
+        ("1a", does_not_raise()),
+        # Valid names - at the limit (63 characters)
+        ("a" * 63, does_not_raise()),
+        ("my-function-" + "a" * 50, does_not_raise()),
+    ],
+)
+def test_validate_function_name(function_name, expected):
+    """Test that validate_function_name enforces DNS-1123 label requirements."""
+    with expected:
+        validate_function_name(function_name)

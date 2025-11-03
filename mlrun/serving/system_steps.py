@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import random
 from copy import copy
 from datetime import timedelta
@@ -25,8 +24,25 @@ import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store
 import mlrun.serving
+from mlrun.common.model_monitoring.helpers import (
+    get_model_endpoints_creation_task_status,
+)
 from mlrun.common.schemas import MonitoringData
 from mlrun.utils import get_data_from_path, logger
+
+
+class MatchingEndpointsState(mlrun.common.types.StrEnum):
+    all_matched = "all_matched"
+    not_all_matched = "not_all_matched"
+    no_check_needed = "no_check_needed"
+    not_yet_checked = "not_yet_matched"
+
+    @staticmethod
+    def success_states() -> list[str]:
+        return [
+            MatchingEndpointsState.all_matched,
+            MatchingEndpointsState.no_check_needed,
+        ]
 
 
 class MonitoringPreProcessor(storey.MapClass):
@@ -241,9 +257,10 @@ class MonitoringPreProcessor(storey.MapClass):
                             ].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
                             ),
-                            mm_schemas.StreamProcessingEvent.LABELS: monitoring_data[
+                            mm_schemas.StreamProcessingEvent.LABELS: event.body[
                                 model
-                            ].get(mlrun.common.schemas.MonitoringData.OUTPUTS),
+                            ].get("labels")
+                            or {},
                             mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
                             if self.server
                             else None,
@@ -285,19 +302,16 @@ class MonitoringPreProcessor(storey.MapClass):
                     mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                         model
                     ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
-                    mm_schemas.StreamProcessingEvent.LABELS: monitoring_data[model].get(
-                        mlrun.common.schemas.MonitoringData.OUTPUTS
-                    ),
+                    mm_schemas.StreamProcessingEvent.LABELS: event.body.get("labels")
+                    or {},
                     mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
                     if self.server
                     else None,
                     mm_schemas.StreamProcessingEvent.REQUEST: request,
                     mm_schemas.StreamProcessingEvent.RESPONSE: resp,
-                    mm_schemas.StreamProcessingEvent.ERROR: event.body[
+                    mm_schemas.StreamProcessingEvent.ERROR: event.body.get(
                         mm_schemas.StreamProcessingEvent.ERROR
-                    ]
-                    if mm_schemas.StreamProcessingEvent.ERROR in event.body
-                    else None,
+                    ),
                     mm_schemas.StreamProcessingEvent.METRICS: event.body[
                         mm_schemas.StreamProcessingEvent.METRICS
                     ]
@@ -317,6 +331,9 @@ class BackgroundTaskStatus(storey.MapClass):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.matching_endpoints = MatchingEndpointsState.not_yet_checked
+        self.graph_model_endpoint_uids: set = set()
+        self.listed_model_endpoint_uids: set = set()
         self.server: mlrun.serving.GraphServer = (
             getattr(self.context, "server", None) if self.context else None
         )
@@ -337,43 +354,47 @@ class BackgroundTaskStatus(storey.MapClass):
                 )
             )
         ):
-            background_task = mlrun.get_run_db().get_project_background_task(
-                self.server.project, self.server.model_endpoint_creation_task_name
-            )
-            self._background_task_check_timestamp = mlrun.utils.now_date()
-            self._log_background_task_state(background_task.status.state)
-            self._background_task_state = background_task.status.state
+            (
+                self._background_task_state,
+                self._background_task_check_timestamp,
+                self.listed_model_endpoint_uids,
+            ) = get_model_endpoints_creation_task_status(self.server)
+        if (
+            self.listed_model_endpoint_uids
+            and self.matching_endpoints == MatchingEndpointsState.not_yet_checked
+        ):
+            if not self.graph_model_endpoint_uids:
+                self.graph_model_endpoint_uids = collect_model_endpoint_uids(
+                    self.server
+                )
+
+            if self.graph_model_endpoint_uids.issubset(self.listed_model_endpoint_uids):
+                self.matching_endpoints = MatchingEndpointsState.all_matched
+        elif self.listed_model_endpoint_uids is None:
+            self.matching_endpoints = MatchingEndpointsState.no_check_needed
 
         if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
+            and self.matching_endpoints in MatchingEndpointsState.success_states()
         ):
             return event
         else:
             return None
 
-    def _log_background_task_state(
-        self, background_task_state: mlrun.common.schemas.BackgroundTaskState
-    ):
-        logger.info(
-            "Checking model endpoint creation task status",
-            task_name=self.server.model_endpoint_creation_task_name,
-        )
-        if (
-            background_task_state
-            in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-        ):
-            logger.info(
-                f"Model endpoint creation task completed with state {background_task_state}"
-            )
-        else:  # in progress
-            logger.info(
-                f"Model endpoint creation task is still in progress with the current state: "
-                f"{background_task_state}. Events will not be monitored for the next "
-                f"{mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period} seconds",
-                name=self.name,
-                background_task_check_timestamp=self._background_task_check_timestamp.isoformat(),
-            )
+
+def collect_model_endpoint_uids(server: mlrun.serving.GraphServer) -> set[str]:
+    """Collects all model endpoint UIDs from the server's graph steps."""
+    model_endpoint_uids = set()
+    for step in server.graph.steps.values():
+        if hasattr(step, "monitoring_data"):
+            for model in step.monitoring_data.keys():
+                uid = step.monitoring_data[model].get(
+                    mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+                )
+                if uid:
+                    model_endpoint_uids.add(uid)
+    return model_endpoint_uids
 
 
 class SamplingStep(storey.MapClass):

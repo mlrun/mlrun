@@ -11,7 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import pathlib
+import shutil
+import tempfile
+import typing
 import unittest.mock
 from copy import deepcopy
 from types import SimpleNamespace
@@ -23,8 +27,9 @@ import mlrun
 import mlrun.common.schemas as schemas
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
 from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
+from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results
 
@@ -196,7 +201,7 @@ class MyRemoteModel(Model):
         body["default_config"] = self.model_artifact.default_config
         return body
 
-    async def predict_async(self, body):
+    async def predict_async(self, body, **kwargs):
         body["async_triggered"] = "Async predict was triggered."
         return body
 
@@ -205,7 +210,7 @@ class MyLLM(LLModel):
     def predict(self, body, **kwargs):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
-        body["model_configuration"] = kwargs.get("model_configuration")
+        body["invocation_config"] = kwargs.get("invocation_config")
         body["prompt"] = kwargs.get("messages")
         return body
 
@@ -229,6 +234,22 @@ class MyPklModel(Model):
 
     def predict(self, body):
         body["result"] = self.model.predict(body)
+        return body
+
+
+class ModelWithoutPredict(Model):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    async def predict_async(self, body: typing.Any, **kwargs) -> typing.Any:
+        return body
+
+
+class ModelWithoutAsyncPredict(Model):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def predict(self, body: typing.Any, **kwargs) -> typing.Any:
         return body
 
 
@@ -633,19 +654,32 @@ def test_model_runner_with_gpu_allocation():
         server.wait_for_completion()
 
 
-def test_model_runner_with_remote_model():
+@pytest.mark.parametrize(
+    "execution_mechanism", ("naive", "thread_pool", "process_pool", "dedicated_process")
+)
+@pytest.mark.parametrize("notebook_usage", (False, True))
+def test_model_runner_with_remote_model(execution_mechanism, notebook_usage):
     project = mlrun.new_project("remote-model-project", save=False)
     model_artifact = project.log_model(
         "my_model",
         model_url="http://localhost:8080/v2/models/mymodel/infer",
         default_config={"model_version": "4"},
     )
-    function = mlrun.new_function("tests", kind="serving")
+
+    if notebook_usage:
+        if execution_mechanism in ["process_pool", "dedicated_process"]:
+            pytest.skip(
+                "ModelRunnerStep with notebook and process_pool / dedicated process is not supported - ML-11340"
+            )
+        filename = str(pathlib.Path(__file__).parent / "assets" / "remote_model.ipynb")
+    else:
+        filename = __file__
+    function = mlrun.code_to_function("tests", kind="serving", filename=filename)
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyRemoteModel",
-        execution_mechanism="naive",
+        execution_mechanism=execution_mechanism,
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )
@@ -680,6 +714,58 @@ def test_model_runner_with_remote_model():
         assert resp["async_triggered"] == "Async predict was triggered."
     finally:
         server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    "execution_mechanism", ("naive", "thread_pool", "process_pool", "dedicated_process")
+)
+def test_mock_server_invalid_source_path(execution_mechanism):
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    current_temp_dir = tempfile.gettempdir()
+    parent_dir = os.path.dirname(current_temp_dir)
+    new_temp_dir = os.path.join(parent_dir, "my_custom_mlrun_temp")
+    os.makedirs(new_temp_dir, exist_ok=True)
+    try:
+        file_path = os.path.join(new_temp_dir, "test_script.py")
+        with open(file_path, "w") as f:
+            f.write('print("Hello from custom temp dir!")\n')
+
+        function = mlrun.code_to_function("tests", kind="serving", filename=file_path)
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+        model_runner_step.add_model(
+            model_class="MyRemoteModel",
+            execution_mechanism=execution_mechanism,
+            endpoint_name="my_endpoint",
+            model_artifact=model_artifact,
+        )
+        async_model_runner_step = ModelRunnerStep(name="my_async_model_runner")
+        async_model_runner_step.add_model(
+            model_class="MyRemoteModel",
+            execution_mechanism="asyncio",
+            endpoint_name="my_async_endpoint",
+            model_artifact=model_artifact,
+        )
+
+        graph.to(model_runner_step).to(async_model_runner_step).respond()
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunRuntimeError,
+                match="it must be located either under the current working .* or the system temporary directory",
+            ):
+                server = function.to_mock_server()
+        except AssertionError:
+            # error was not raised, server was created
+            server.wait_for_completion()
+    finally:
+        # Clean up the custom temp directory
+        if os.path.exists(new_temp_dir):
+            shutil.rmtree(new_temp_dir)
 
 
 def test_model_runner_with_remote_shared_model():
@@ -1013,3 +1099,105 @@ def test_llm_with_missing_llm_prompt():
         )
         server.wait_for_completion()
         assert resp["prompt"] == expected_prompt
+
+
+@pytest.mark.parametrize("execution_mechanism", ("naive", "thread_pool", "asyncio"))
+def test_using_model_without_predict_implementation(execution_mechanism: str):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="model-runner")
+    model_runner_step.add_model(
+        model_class="ModelWithoutPredict"
+        if execution_mechanism != "asyncio"
+        else "ModelWithoutAsyncPredict",
+        execution_mechanism=execution_mechanism,
+        endpoint_name="model_without_predict",
+    )
+    graph.to(model_runner_step).respond()
+
+    with pytest.raises(ModelRunnerError) as exc_info:
+        function.to_mock_server()
+    method_name = "predict()" if execution_mechanism != "asyncio" else "predict_async()"
+    expected_msg = (
+        f"'model_without_predict is running with {execution_mechanism} execution_mechanism but "
+        f"{method_name} is not implemented'"
+    )
+    assert expected_msg in str(exc_info.value)
+
+
+@pytest.mark.parametrize("execution_mechanism", ("naive", "thread_pool", "asyncio"))
+def test_shared_using_model_without_predict_implementation(execution_mechanism: str):
+    project = mlrun.new_project("model-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    graph.add_shared_model(
+        name="model_without_predict_shared",
+        model_class="ModelWithoutPredict"
+        if execution_mechanism != "asyncio"
+        else "ModelWithoutAsyncPredict",
+        execution_mechanism=execution_mechanism,
+        model_artifact=model_artifact,
+    )
+    model_runner_step = ModelRunnerStep(name="model-runner")
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="model_without_predict_shared",
+        shared_model_name="model_without_predict_shared",
+        model_artifact=model_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
+    ):
+        with pytest.raises(ModelRunnerError) as exc_info:
+            function.to_mock_server()
+        method_name = (
+            "predict()" if execution_mechanism != "asyncio" else "predict_async()"
+        )
+        expected_msg = (
+            f"'model_without_predict_shared is running with {execution_mechanism} execution_mechanism but "
+            f"{method_name} is not implemented'"
+        )
+        assert expected_msg in str(exc_info.value)
+
+
+def test_model_runner_add_proxy_model_failure():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    model_artifact_1 = project.log_model(
+        "my_model_1",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    with pytest.raises(GraphError, match="Can't find shared model named my_mode"):
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my_endpoint",
+            model_artifact=model_artifact,
+            shared_model_name="my_model",
+        )
+        graph.to(model_runner_step).respond()
+    graph.add_shared_model(
+        name="my_model",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    with pytest.raises(GraphError, match="Can't find shared model named my_model_1"):
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my_endpoint_1",
+            model_artifact=model_artifact_1,
+            shared_model_name="my_model_1",
+        )
+        graph.to(model_runner_step).respond()

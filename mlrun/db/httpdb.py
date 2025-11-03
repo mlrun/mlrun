@@ -32,6 +32,7 @@ import semver
 from pydantic.v1 import parse_obj_as
 
 import mlrun
+import mlrun.auth
 import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.runtimes
@@ -45,7 +46,7 @@ import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
-from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun.secrets import get_secret_or_env
 from mlrun_pipelines.utils import compile_pipeline
@@ -125,6 +126,11 @@ class HTTPRunDB(RunDBInterface):
         r"\/?run\/.+\/.+",
     ]
 
+    NON_RETRIABLE_PATHS = [
+        # Storing user secret tokens is not idempotent — retrying the request may result inconsistent secret storage.
+        r"\/?user-secrets/tokens",
+    ]
+
     def __init__(self, url):
         self.server_version = ""
         self.session = None
@@ -157,11 +163,15 @@ class HTTPRunDB(RunDBInterface):
         self.token_provider = None
 
         if config.auth_with_client_id.enabled:
-            self.token_provider = OAuthClientIDTokenProvider(
+            self.token_provider = mlrun.auth.OAuthClientIDTokenProvider(
                 token_endpoint=get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
                 client_id=get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
                 client_secret=get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
                 timeout=config.auth_with_client_id.request_timeout,
+            )
+        elif config.auth_with_oauth_token.enabled:
+            self.token_provider = mlrun.auth.IGTokenProvider(
+                token_endpoint=config.auth_token_endpoint,
             )
         else:
             username, password, token = mlrun.platforms.add_or_refresh_credentials(
@@ -169,7 +179,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
             if token:
-                self.token_provider = StaticTokenProvider(token)
+                self.token_provider = mlrun.auth.StaticTokenProvider(token)
 
         self.user = username
         self.password = password
@@ -253,8 +263,18 @@ class HTTPRunDB(RunDBInterface):
                     }
                     kw["cookies"] = cookies
                 else:
-                    if "Authorization" not in kw.setdefault("headers", {}):
-                        kw["headers"].update({"Authorization": "Bearer " + token})
+                    if (
+                        mlrun.common.schemas.HeaderNames.authorization
+                        not in kw.setdefault("headers", {})
+                    ):
+                        kw["headers"].update(
+                            {
+                                mlrun.common.schemas.HeaderNames.authorization: (
+                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+                                    + token
+                                )
+                            }
+                        )
 
         if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
             "headers", {}
@@ -274,10 +294,13 @@ class HTTPRunDB(RunDBInterface):
                     if isinstance(dict_[key], enum.Enum):
                         dict_[key] = dict_[key].value
 
-        # if the method is POST, we need to update the session with the appropriate retry policy
-        if not self.session or method == "POST":
-            retry_on_post = self._is_retry_on_post_allowed(method, path)
-            self.session = self._init_session(retry_on_post)
+        retry_on_post = self._is_retry_on_post_allowed(method, path)
+
+        retry_on_put = self._is_retry_put_allowed(method, path)
+
+        # if the method is POST or PUT, we need to update the session with the appropriate retry policy
+        if not self.session or method in ("POST", "PUT"):
+            self.session = self._init_session(retry_on_post, retry_on_put)
 
         try:
             response = self.session.request(
@@ -393,11 +416,12 @@ class HTTPRunDB(RunDBInterface):
             data.extend(response.json().get(key, []))
         return data, page_token
 
-    def _init_session(self, retry_on_post: bool = False):
+    def _init_session(self, retry_on_post: bool = False, retry_on_put: bool = True):
         return mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=config.httpdb.retry_api_call_on_exception
             == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
             retry_on_post=retry_on_post,
+            retry_on_put=retry_on_put,
         )
 
     def _path_of(self, resource, project, uid=None):
@@ -418,6 +442,27 @@ class HTTPRunDB(RunDBInterface):
         return method == "POST" and any(
             re.match(regex, path) for regex in self.RETRIABLE_POST_PATHS
         )
+
+    def _is_retry_put_allowed(self, method: str, path: str) -> bool:
+        """
+        Determine if PUT request to the given path should be retried.
+
+        :param method: HTTP method
+        :param path: API path to check
+        :return: True if retry is allowed, False otherwise
+        """
+        if method != "PUT":
+            return True
+
+        # Strip query parameters and fragment if present
+        parsed_path = urlparse(path).path.lstrip("/")
+
+        # If the path matches a non-retriable path, do not allow retry
+        for regex in self.NON_RETRIABLE_PATHS:
+            if re.fullmatch(regex, parsed_path):
+                return False
+
+        return True
 
     def connect(self, secrets=None):
         """Connect to the MLRun API server. Must be called prior to executing any other method.
@@ -582,6 +627,10 @@ class HTTPRunDB(RunDBInterface):
                         prefix,
                         store_prefix_value,
                     )
+            config.httpdb.authentication.mode = (
+                server_cfg.get("authentication_mode")
+                or config.httpdb.authentication.mode
+            )
 
         except Exception as exc:
             logger.warning(
@@ -589,6 +638,9 @@ class HTTPRunDB(RunDBInterface):
                 exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
+
+        if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
+            mlrun.secrets.sync_secret_tokens()
         return self
 
     def store_log(self, uid, project="", body=None, append=False):
@@ -3604,40 +3656,6 @@ class HTTPRunDB(RunDBInterface):
             )
         return parsed_metrics_by_endpoint
 
-    def create_user_secrets(
-        self,
-        user: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.vault,
-        secrets: Optional[dict] = None,
-    ):
-        """Create user-context secret in Vault. Please refer to :py:func:`create_project_secrets` for more details
-        and status of this functionality.
-
-        Note:
-                This method is currently in technical preview, and requires a HashiCorp Vault infrastructure
-                properly set up and connected to the MLRun API server.
-
-        :param user: The user context for which to generate the infra and store secrets.
-        :param provider: The name of the secrets-provider to work with. Currently only ``vault`` is supported.
-        :param secrets: A set of secret values to store within the Vault.
-        """
-        path = "user-secrets"
-        secrets_creation_request = mlrun.common.schemas.UserSecretCreationRequest(
-            user=user,
-            provider=provider,
-            secrets=secrets,
-        )
-        body = secrets_creation_request.dict()
-        error_message = f"Failed creating user secrets - {user}"
-        self.api_call(
-            "POST",
-            path,
-            error_message,
-            body=dict_to_json(body),
-        )
-
     @staticmethod
     def _validate_version_compatibility(server_version, client_version) -> bool:
         try:
@@ -3770,7 +3788,9 @@ class HTTPRunDB(RunDBInterface):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
-        mode: mm_constants.EndpointMode = None,
+        modes: Optional[
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -3791,8 +3811,8 @@ class HTTPRunDB(RunDBInterface):
                                 If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                                 will be included.
         :param top_level:       Whether to return only top level model endpoints.
-        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
-                                both if set to None.
+        :param modes:           Specifies the modes of the model endpoints. Can be "real-time" (0), "batch" (1),
+                                "batch_legacy" (2). If set to None, all are included.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
         :return:                A list of model endpoints.
@@ -3801,6 +3821,13 @@ class HTTPRunDB(RunDBInterface):
         labels = self._parse_labels(labels)
         if names and isinstance(names, str):
             names = [names]
+        if modes:
+            # Ensure backward compatibility with Python 3.9 clients by converting IntEnum modes to integer values
+            modes = (
+                [modes.value]
+                if isinstance(modes, mm_constants.EndpointMode)
+                else [mode.value for mode in modes]
+            )
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
@@ -3816,7 +3843,7 @@ class HTTPRunDB(RunDBInterface):
                 "tsdb-metrics": tsdb_metrics,
                 "metric": metric_list,
                 "top-level": top_level,
-                "mode": mode,
+                "mode": modes,
                 "uid": uids,
                 "latest-only": latest_only,
             },
@@ -4079,7 +4106,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.DELETE,
             path=f"projects/{project}/model-monitoring/functions",
-            params={"functions": functions},
+            params={"function": functions},
         )
         deletion_failed = False
         if response.status_code == http.HTTPStatus.ACCEPTED:
@@ -4307,6 +4334,7 @@ class HTTPRunDB(RunDBInterface):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
+        item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.hub.IndexedHubSource]:
         """
         List hub sources in the MLRun DB.
@@ -4314,6 +4342,7 @@ class HTTPRunDB(RunDBInterface):
         :param item_name:   Sources contain this item will be returned, If not provided all sources will be returned.
         :param tag:         Item tag to filter by, supported only if item name is provided.
         :param version:     Item version to filter by, supported only if item name is provided and tag is not.
+        :param item_type:   Item type to filter by, supported only if item name is provided.
 
         :returns: List of indexed hub sources.
         """
@@ -4321,6 +4350,7 @@ class HTTPRunDB(RunDBInterface):
         params = {}
         if item_name:
             params["item-name"] = normalize_name(item_name)
+            params["item-type"] = item_type
         if tag:
             params["tag"] = tag
         if version:
@@ -4359,6 +4389,7 @@ class HTTPRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
+        object_type: HubSourceType = HubSourceType.functions,
     ):
         """
         Retrieve the item catalog for a specified hub source.
@@ -4371,6 +4402,7 @@ class HTTPRunDB(RunDBInterface):
             rather than rely on cached information which may exist from previous get requests. For example,
             if the source was re-built,
             this will make the server get the updated information. Default is ``False``.
+        :param object_type: Type of object to retrieve from the hub source (e.g: functions, modules).
         :returns: :py:class:`~mlrun.common.schemas.hub.HubCatalog` object, which is essentially a list
             of :py:class:`~mlrun.common.schemas.hub.HubItem` entries.
         """
@@ -4379,6 +4411,7 @@ class HTTPRunDB(RunDBInterface):
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
+            "object_type": object_type,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return mlrun.common.schemas.HubCatalog(**response.json())
@@ -4390,6 +4423,7 @@ class HTTPRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: str = "latest",
         force_refresh: bool = False,
+        item_type: HubSourceType = HubSourceType.functions,
     ):
         """
         Retrieve a specific hub item.
@@ -4401,6 +4435,7 @@ class HTTPRunDB(RunDBInterface):
         :param force_refresh: Make the server fetch the information from the actual hub
             source, rather than
             rely on cached information. Default is ``False``.
+        :param item_type: The type of item to retrieve from the hub source (e.g: functions, modules).
         :returns: :py:class:`~mlrun.common.schemas.hub.HubItem`.
         """
         path = (f"hub/sources/{source_name}/items/{item_name}",)
@@ -4408,6 +4443,7 @@ class HTTPRunDB(RunDBInterface):
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
+            "item_type": item_type,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return mlrun.common.schemas.HubItem(**response.json())
@@ -4419,6 +4455,7 @@ class HTTPRunDB(RunDBInterface):
         asset_name: str,
         version: Optional[str] = None,
         tag: str = "latest",
+        item_type: HubSourceType = HubSourceType.functions,
     ):
         """
         Get hub asset from item.
@@ -4428,13 +4465,14 @@ class HTTPRunDB(RunDBInterface):
         :param asset_name:  Name of the asset to retrieve.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
-
+        :param item_type: The type of item to retrieve from the hub source (e.g: functions, modules).
         :returns: http response with the asset in the content attribute
         """
         path = f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}"
         params = {
             "version": version,
             "tag": tag,
+            "item_type": item_type,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return response
@@ -5189,7 +5227,7 @@ class HTTPRunDB(RunDBInterface):
 
         :return: A ModelEndpointDriftValues object containing the drift counts over time.
         """
-        endpoint_path = f"projects/{project}/model-endpoints/drift-over-time"
+        endpoint_path = f"projects/{project}/model-monitoring/drift-over-time"
         error_message = f"Failed retrieving drift data for {project}"
         response = self.api_call(
             method="GET",
@@ -5200,6 +5238,142 @@ class HTTPRunDB(RunDBInterface):
         return mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues(
             **response.json()
         )
+
+    @mlrun.utils.iguazio_v4_only
+    def store_secret_token(
+        self,
+        secret_token: mlrun.common.schemas.SecretToken,
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        """
+        Store or update a single secret token in the MLRun backend.
+
+        Example::
+
+            from mlrun.common.schemas import SecretToken
+
+            secret = SecretToken(name="my-token", token="dummy-token")
+            db.store_secret_token(secret)
+
+        :param secret_token: A SecretToken object with name and token fields.
+        :param force: Whether to force update the token if it already exists. Defaults to False.
+        :param log_warning: Whether to log a warning about local config sync. Defaults to True.
+        :return: A structured response indicating which tokens were created, updated, or skipped.
+        """
+        if not secret_token:
+            raise MLRunInvalidArgumentError("No secret token provided")
+
+        response = self._store_secret_tokens(
+            secret_tokens=[secret_token],
+            force=force,
+            error=f"store user secret token {secret_token.name}",
+        )
+
+        # Only log if the token was created or updated
+        if log_warning and (
+            secret_token.name in response.created_tokens
+            or secret_token.name in response.updated_tokens
+        ):
+            logger.warning(
+                f"Token '{secret_token.name}' was stored in the backend, "
+                f"but the local configuration file ({mlrun.mlconf.auth_with_oauth_token.token_file}) was not "
+                "updated. Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
+            )
+        # maybe the response should not be a list?
+        return response
+
+    @mlrun.utils.iguazio_v4_only
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        """
+        Store or update multiple secret tokens in the MLRun backend.
+
+        Example::
+
+            from mlrun.common.schemas import SecretToken
+
+            tokens = [
+                SecretToken(name="token1", token="dummy-token-1"),
+                SecretToken(name="token2", token="dummy-token-2"),
+            ]
+            db.store_secret_tokens(tokens)
+
+        :param secret_tokens: List of SecretToken objects with 'name' and 'token' fields.
+        :param force: Whether to force update tokens if they already exist. Defaults to False.
+        :param log_warning: Whether to log a warning about local config file sync. Defaults to True.
+        :return: StoreSecretTokensResponse object indicating which tokens were created, updated, or skipped.
+        """
+        if not secret_tokens:
+            raise MLRunInvalidArgumentError("No secret tokens provided")
+
+        response = self._store_secret_tokens(
+            secret_tokens=secret_tokens,
+            force=force,
+            error="store multiple user secret tokens",
+        )
+
+        # Only log a warning if at least one token was actually created or updated
+        if log_warning and (response.created_tokens or response.updated_tokens):
+            affected_tokens = response.created_tokens + response.updated_tokens
+            token_names = "', '".join(affected_tokens)
+            logger.warning(
+                f"Tokens '{token_names}' were stored in the backend, "
+                f"but the local configuration file ({mlrun.mlconf.auth_with_oauth_token.token_file}) was not "
+                "updated. Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
+            )
+
+        return response
+
+    @mlrun.utils.iguazio_v4_only
+    def list_secret_tokens(
+        self,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        """
+        List all secret tokens for the current user.
+        """
+        endpoint_path = "user-secrets/tokens"
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.GET,
+            endpoint_path,
+            "list user secret tokens",
+        )
+
+        return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
+
+    @mlrun.utils.iguazio_v4_only
+    def revoke_secret_token(self, token_name: str) -> None:
+        endpoint_path = f"user-secrets/tokens/{token_name}"
+        self.api_call(
+            mlrun.common.types.HTTPMethod.DELETE,
+            endpoint_path,
+            "delete user secret token",
+        )
+
+    @mlrun.utils.iguazio_v4_only
+    def _store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        error: str,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        body = [token.dict() for token in secret_tokens]
+        params = {"force": force}  # send as query param
+        endpoint_path = "user-secrets/tokens"
+
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.PUT,
+            endpoint_path,
+            error,
+            params=params,
+            body=dict_to_json(body),
+        )
+
+        return mlrun.common.schemas.StoreSecretTokensResponse(**response.json())
 
     @staticmethod
     def _parse_labels(

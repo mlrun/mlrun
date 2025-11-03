@@ -478,9 +478,7 @@ class Service(framework.service.Service):
                 return run_uid
             try:
                 runtime_handler: services.api.runtime_handlers.BaseRuntimeHandler = (
-                    await fastapi.concurrency.run_in_threadpool(
-                        get_runtime_handler, run_kind
-                    )
+                    get_runtime_handler(run_kind)
                 )
                 object_id = runtime_handler.resolve_object_id(run)
                 label_selector = runtime_handler.resolve_label_selector(

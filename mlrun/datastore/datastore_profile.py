@@ -19,6 +19,7 @@ import typing
 from urllib.parse import ParseResult, urlparse
 
 import pydantic.v1
+from deprecated import deprecated
 from mergedeep import merge
 
 import mlrun
@@ -138,6 +139,15 @@ class ConfigProfile(DatastoreProfile):
         return res
 
 
+# TODO: Remove in 1.12.0
+@deprecated(
+    version="1.10.0",
+    reason=(
+        "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
+        "Use `DatastoreProfileKafkaStream` instead."
+    ),
+    category=FutureWarning,
+)
 class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.v1.Field("kafka_target")
     _private_attributes = "kwargs_private"
@@ -158,8 +168,8 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
         return attributes
 
 
-class DatastoreProfileKafkaSource(DatastoreProfile):
-    type: str = pydantic.v1.Field("kafka_source")
+class DatastoreProfileKafkaStream(DatastoreProfile):
+    type: str = pydantic.v1.Field("kafka_stream")
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
     brokers: typing.Union[str, list[str]]
     topics: typing.Union[str, list[str]]
@@ -198,6 +208,19 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         return attributes
 
 
+# TODO: Remove in 1.12.0
+@deprecated(
+    version="1.10.0",
+    reason=(
+        "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
+        "Use `DatastoreProfileKafkaStream` instead."
+    ),
+    category=FutureWarning,
+)
+class DatastoreProfileKafkaSource(DatastoreProfileKafkaStream):
+    type: str = pydantic.v1.Field("kafka_source")
+
+
 class DatastoreProfileV3io(DatastoreProfile):
     type: str = pydantic.v1.Field("v3io")
     v3io_access_key: typing.Optional[str] = None
@@ -232,7 +255,7 @@ class DatastoreProfileS3(DatastoreProfile):
         if self.secret_key:
             res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
         if self.endpoint_url:
-            res["S3_ENDPOINT_URL"] = self.endpoint_url
+            res["AWS_ENDPOINT_URL_S3"] = self.endpoint_url
         if self.force_non_anonymous:
             res["S3_NON_ANONYMOUS"] = self.force_non_anonymous
         if self.profile_name:
@@ -333,7 +356,9 @@ class DatastoreProfileGCS(DatastoreProfile):
             #  in gcs the path after schema is starts with bucket, wherefore it should not start with "/".
             subpath = subpath[1:]
         if self.bucket:
-            return f"gcs://{self.bucket}/{subpath}"
+            return (
+                f"gcs://{self.bucket}/{subpath}" if subpath else f"gcs://{self.bucket}"
+            )
         else:
             return f"gcs://{subpath}"
 
@@ -370,7 +395,11 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
             #  in azure the path after schema is starts with container, wherefore it should not start with "/".
             subpath = subpath[1:]
         if self.container:
-            return f"az://{self.container}/{subpath}"
+            return (
+                f"az://{self.container}/{subpath}"
+                if subpath
+                else f"az://{self.container}"
+            )
         else:
             return f"az://{subpath}"
 
@@ -456,6 +485,47 @@ class DatastoreProfileTDEngine(DatastoreProfile):
         )
 
 
+class DatastoreProfilePostgreSQL(DatastoreProfile):
+    """
+    A profile that holds the required parameters for a PostgreSQL database.
+    PostgreSQL uses standard PostgreSQL connection parameters.
+    """
+
+    type: str = pydantic.v1.Field("postgresql")
+    _private_attributes = ["password"]
+    user: str
+    # The password cannot be empty in real world scenarios. It's here just because of the profiles completion design.
+    password: typing.Optional[str]
+    host: str
+    port: int
+    database: str = pydantic.v1.Field(
+        default="postgres"
+    )  # the default maintenance database
+
+    def dsn(self) -> str:
+        """Get the Data Source Name of the configured PostgreSQL profile."""
+        return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+    @classmethod
+    def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfilePostgreSQL":
+        """
+        Construct a PostgreSQL profile from DSN (connection string) and a name for the profile.
+
+        :param dsn:          The DSN (Data Source Name) of the PostgreSQL database, e.g.: ``"postgresql://user:password@localhost:5432/mydb"``.
+        :param profile_name: The new profile's name.
+        :return:             The PostgreSQL profile.
+        """
+        parsed_url = urlparse(dsn)
+        return cls(
+            name=profile_name,
+            user=parsed_url.username,
+            password=parsed_url.password,
+            host=parsed_url.hostname,
+            port=parsed_url.port,
+            database=parsed_url.path.lstrip("/") if parsed_url.path else "postgres",
+        )
+
+
 class OpenAIProfile(DatastoreProfile):
     type: str = pydantic.v1.Field("openai")
     _private_attributes = "api_key"
@@ -518,11 +588,13 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "basic": DatastoreProfileBasic,
     "kafka_target": DatastoreProfileKafkaTarget,
     "kafka_source": DatastoreProfileKafkaSource,
+    "kafka_stream": DatastoreProfileKafkaStream,
     "dbfs": DatastoreProfileDBFS,
     "gcs": DatastoreProfileGCS,
     "az": DatastoreProfileAzureBlob,
     "hdfs": DatastoreProfileHdfs,
     "taosws": DatastoreProfileTDEngine,
+    "postgresql": DatastoreProfilePostgreSQL,
     "config": ConfigProfile,
     "openai": OpenAIProfile,
     "huggingface": HuggingFaceProfile,

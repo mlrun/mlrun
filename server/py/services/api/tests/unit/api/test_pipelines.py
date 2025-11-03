@@ -22,7 +22,6 @@ import unittest.mock
 import uuid
 
 import deepdiff
-import fastapi.concurrency
 import fastapi.testclient
 import kfp_server_api.models
 import pytest
@@ -36,6 +35,7 @@ from kfp_server_api import (
     ApiRun,
     ApiRunDetail,
 )
+from kfp_server_api.models.api_list_runs_response import ApiListRunsResponse
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -82,7 +82,9 @@ def test_list_pipelines_empty_list(
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get("projects/*/pipelines")
     expected_response = mlrun.common.schemas.PipelinesOutput(
-        runs=runs, total_size=len(runs), next_page_token=None
+        runs=runs,
+        total_size=len(runs),
+        next_page_token=None,
     )
     _assert_list_pipelines_response(expected_response, response)
 
@@ -105,7 +107,9 @@ def test_list_pipelines_formats(
             mlrun_pipelines.models.PipelineRun(run.to_dict()) for run in runs
         ]
         expected_runs = services.api.crud.Pipelines()._format_runs(
-            expected_runs, format_
+            runs=expected_runs,
+            format_=format_,
+            kfp_client=kfp_client_mock,
         )
         _mock_list_runs(kfp_client_mock, runs)
         response = client.get(
@@ -149,7 +153,7 @@ def test_get_pipeline_no_project_opa_validation(
 ) -> None:
     format_ = (mlrun.common.formatters.PipelineFormat.summary,)
     project = "project-name"
-    services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+    services.api.crud.Pipelines()._resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
     )
     framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
@@ -184,7 +188,7 @@ def test_get_pipeline_specific_project(
         project = "project-name"
         api_run_detail = _generate_get_run_mock()
         _mock_get_run(kfp_client_mock, api_run_detail)
-        services.api.crud.Pipelines().resolve_project_from_pipeline = (
+        services.api.crud.Pipelines()._resolve_project_from_pipeline = (
             unittest.mock.Mock(return_value=project)
         )
         response = client.get(
@@ -269,14 +273,14 @@ def test_list_pipelines_name_contains(
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=project_names)
     )
-    services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+    services.api.crud.Pipelines()._resolve_project_from_pipeline = unittest.mock.Mock(
         return_value="test-project"
     )
     runs = _generate_list_runs_project_name_mocks()
     _mock_list_runs(
         kfp_client_mock,
         runs,
-        expected_filter=mlrun.utils.get_kfp_list_runs_filter(project_name=project_name)
+        expected_filter=mlrun_pipelines.client.create_list_runs_filter()
         if project_name != "*"
         else "",
     )
@@ -288,14 +292,17 @@ def test_list_pipelines_name_contains(
     )
 
     expected_runs = services.api.crud.Pipelines()._format_runs(
-        [
+        runs=[
             mlrun_pipelines.models.PipelineRun(run.to_dict())
             for run in runs
             if run.id in expected_runs_ids
-        ]
+        ],
+        kfp_client=kfp_client_mock,
     )
     expected_response = mlrun.common.schemas.PipelinesOutput(
-        runs=expected_runs, total_size=len(expected_runs), next_page_token=None
+        runs=expected_runs,
+        total_size=len(expected_runs),
+        next_page_token=None,
     )
     _assert_list_pipelines_response(expected_response, response)
 
@@ -312,7 +319,7 @@ def test_list_pipelines_specific_project(
     runs = _generate_list_runs_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
-    services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+    services.api.crud.Pipelines()._resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
     )
     response = client.get(
@@ -339,6 +346,7 @@ def test_create_pipeline(
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ) -> None:
     project = "getting-started-tutorial-iguazio"
+    experiment_name = "my-experiment"
     pipeline_file_path = (
         services.api.tests.unit.conftest.tests_root_directory
         / "api"
@@ -348,15 +356,17 @@ def test_create_pipeline(
     with open(str(pipeline_file_path)) as file:
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
-
+    params = {"experiment": experiment_name}
     response = client.post(
         f"projects/{project}/pipelines",
         data=contents,
+        params=params,
         headers={"content-type": "application/yaml"},
         auth=BasicAuth(username="admin", password="mock_token"),
     )
     response_body = response.json()
     assert response_body["id"] == "some-run-id"
+    assert response_body["name"].startswith(f"{project}-{experiment_name}")
     assert k8s_secrets_mock.auth_secrets_map[
         "secret-ref-V3IO_ACCESS_KEY-some-session"
     ] == {
@@ -461,7 +471,7 @@ def test_retry(
     kfp_client_mock.get_run = unittest.mock.Mock(
         return_value=mock_api_run_detail,
     )
-    services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+    services.api.crud.Pipelines()._resolve_project_from_pipeline = unittest.mock.Mock(
         return_value="adam"
     )
     framework.utils.singletons.project_member.get_project_member().get_project = (
@@ -732,19 +742,33 @@ def _mock_list_runs_with_one_run_per_page(
     kfp_client_mock: mlrun_pipelines.client.Client,
     runs,
 ):
-    expected_page_tokens = [""]
+    expected_page_tokens = [None]
     for i in range(2, len(runs) + 1):
         expected_page_tokens.append(i)
     expected_page_tokens.append(None)
 
-    def list_runs_mock(*args, page_token=None, page_size=None, **kwargs):
-        assert expected_page_tokens.pop(0) == page_token
-        assert mlrun.common.schemas.PipelinesPagination.max_page_size == page_size
-        return kfp_server_api.models.api_list_runs_response.ApiListRunsResponse(
-            [runs.pop(0)], 1, next_page_token=expected_page_tokens[0]
+    def list_runs_mock(
+        *args,
+        project=None,
+        namespace=None,
+        sort_by=None,
+        page_token=None,
+        filter_json=None,
+        name_contains=None,
+        page_size=None,
+        **kwargs,
+    ) -> ApiListRunsResponse:
+        normalized_page_token = page_token or None
+        if page_size is not None:
+            assert page_size == mlrun.common.schemas.PipelinesPagination.max_page_size
+        assert expected_page_tokens.pop(0) == normalized_page_token
+        next_token = expected_page_tokens[0]
+        return ApiListRunsResponse(
+            runs=[runs.pop(0)],
+            next_page_token=next_token,
         )
 
-    kfp_client_mock.list_runs = list_runs_mock
+    kfp_client_mock._run_api.list_runs = list_runs_mock
 
 
 def _mock_list_runs(
@@ -756,7 +780,7 @@ def _mock_list_runs(
     expected_filter="",
 ):
     def list_runs_mock(
-        *args, page_token=None, page_size=None, sort_by=None, filter=None, **kwargs
+        *args, page_token="", page_size=None, sort_by="", filter="", **kwargs
     ):
         assert expected_page_token == page_token
         assert expected_page_size == page_size

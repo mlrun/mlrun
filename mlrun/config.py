@@ -874,8 +874,8 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
         "refresh_threshold": 0.75,
-        "auth_token_file": "~/.igz.yml",
-        "auth_token_name": "",
+        "token_file": "~/.igz.yml",
+        "token_name": "",
     },
     "auth_token_endpoint": "",
     "services": {

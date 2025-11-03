@@ -170,6 +170,6 @@ def log_background_task_state(
             f"Model endpoint creation task is still in progress with the current state: "
             f"{background_task_state}. Events will not be monitored for the next "
             f"{mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period} seconds",
-            function_name=server.function.name,
+            function_name=server.function_name,
             background_task_check_timestamp=background_task_check_timestamp.isoformat(),
         )

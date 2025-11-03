@@ -5277,6 +5277,142 @@ class HTTPRunDB(RunDBInterface):
         ):
             logger.warning(
                 f"Token '{secret_token.name}' was stored in the backend, "
+                f"but the local configuration file ({mlrun.mlconf.auth_with_oauth_token.token_file}) was not "
+                "updated. Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
+            )
+        # maybe the response should not be a list?
+        return response
+
+    @mlrun.utils.iguazio_v4_only
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        """
+        Store or update multiple secret tokens in the MLRun backend.
+
+        Example::
+
+            from mlrun.common.schemas import SecretToken
+
+            tokens = [
+                SecretToken(name="token1", token="dummy-token-1"),
+                SecretToken(name="token2", token="dummy-token-2"),
+            ]
+            db.store_secret_tokens(tokens)
+
+        :param secret_tokens: List of SecretToken objects with 'name' and 'token' fields.
+        :param force: Whether to force update tokens if they already exist. Defaults to False.
+        :param log_warning: Whether to log a warning about local config file sync. Defaults to True.
+        :return: StoreSecretTokensResponse object indicating which tokens were created, updated, or skipped.
+        """
+        if not secret_tokens:
+            raise MLRunInvalidArgumentError("No secret tokens provided")
+
+        response = self._store_secret_tokens(
+            secret_tokens=secret_tokens,
+            force=force,
+            error="store multiple user secret tokens",
+        )
+
+        # Only log a warning if at least one token was actually created or updated
+        if log_warning and (response.created_tokens or response.updated_tokens):
+            affected_tokens = response.created_tokens + response.updated_tokens
+            token_names = "', '".join(affected_tokens)
+            logger.warning(
+                f"Tokens '{token_names}' were stored in the backend, "
+                f"but the local configuration file ({mlrun.mlconf.auth_with_oauth_token.token_file}) was not "
+                "updated. Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
+            )
+
+        return response
+
+    @mlrun.utils.iguazio_v4_only
+    def list_secret_tokens(
+        self,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        """
+        List all secret tokens for the current user.
+        """
+        endpoint_path = "user-secrets/tokens"
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.GET,
+            endpoint_path,
+            "list user secret tokens",
+        )
+
+        return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
+
+    @mlrun.utils.iguazio_v4_only
+    def revoke_secret_token(self, token_name: str) -> None:
+        endpoint_path = f"user-secrets/tokens/{token_name}"
+        self.api_call(
+            mlrun.common.types.HTTPMethod.DELETE,
+            endpoint_path,
+            "delete user secret token",
+        )
+
+    @mlrun.utils.iguazio_v4_only
+    def _store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        error: str,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        body = [token.dict() for token in secret_tokens]
+        params = {"force": force}  # send as query param
+        endpoint_path = "user-secrets/tokens"
+
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.PUT,
+            endpoint_path,
+            error,
+            params=params,
+            body=dict_to_json(body),
+        )
+
+        return mlrun.common.schemas.StoreSecretTokensResponse(**response.json())
+
+    @mlrun.utils.iguazio_v4_only
+    def store_secret_token(
+        self,
+        secret_token: mlrun.common.schemas.SecretToken,
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        """
+        Store or update a single secret token in the MLRun backend.
+
+        Example::
+
+            from mlrun.common.schemas import SecretToken
+
+            secret = SecretToken(name="my-token", token="dummy-token")
+            db.store_secret_token(secret)
+
+        :param secret_token: A SecretToken object with name and token fields.
+        :param force: Whether to force update the token if it already exists. Defaults to False.
+        :param log_warning: Whether to log a warning about local config sync. Defaults to True.
+        :return: A structured response indicating which tokens were created, updated, or skipped.
+        """
+        if not secret_token:
+            raise MLRunInvalidArgumentError("No secret token provided")
+
+        response = self._store_secret_tokens(
+            secret_tokens=[secret_token],
+            force=force,
+            error=f"store user secret token {secret_token.name}",
+        )
+
+        # Only log if the token was created or updated
+        if log_warning and (
+            secret_token.name in response.created_tokens
+            or secret_token.name in response.updated_tokens
+        ):
+            logger.warning(
+                f"Token '{secret_token.name}' was stored in the backend, "
                 f"but the local configuration file ({mlrun.mlconf.auth_with_oauth_token.auth_token_file}) was not "
                 "updated. Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
             )

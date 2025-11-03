@@ -191,9 +191,7 @@ def test_refresh_token_fails_and_is_not_valid(monkeypatch):
     provider._token_expiry_time = datetime.now() - timedelta(seconds=5)
 
     monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.5)
-    monkeypatch.setattr(
-        "mlrun.mlconf.auth_with_oauth_token.auth_token_file", "not-exists"
-    )
+    monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.token_file", "not-exists")
 
     # should fail during building request, because file with token doesn't exist
     # raises error because fetch failed, token expired, hence cleaned up

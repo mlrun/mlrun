@@ -5036,8 +5036,10 @@ class MlrunProject(ModelObj):
         include_infra: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
         """Get monitoring function summaries for the specified project.
-        :param start: Start time for filtering the results (optional).
-        :param end: End time for filtering the results (optional).
+        :param start: The start time of the monitoring applications’ statistics. If not defined, the default is 24
+                      hours ago. Required timezone, applicable only when `include_stats` is set to True.
+        :param end:   The end time of the monitoring applications’ statistics. If not defined, the default is now.
+                      Required timezone, applicable only when `include_stats` is set to True.
         :param names: List of function names to filter by (optional).
         :param labels: Labels to filter by (optional).
         :param include_stats: Whether to include statistics in the response (default is False).
@@ -5071,6 +5073,10 @@ class MlrunProject(ModelObj):
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         """Get a monitoring function summary for the specified project and function name.
         :param name:                   Name of the monitoring function to retrieve the summary for.
+        :param start:                  The start time of the monitoring application’s statistics. If not defined,
+                                       the default is 24 hours ago. Required timezone.
+        :param end:                    The end time of the monitoring application’s statistics. If not defined,
+                                       the default is now. Required timezone.
         :param start:                  Start time for filtering the results (optional).
         :param end:                    End time for filtering the results (optional).
         :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).

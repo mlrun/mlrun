@@ -13,6 +13,7 @@
 # limitations under the License.
 import enum
 import http
+import os
 import re
 import typing
 import warnings
@@ -452,10 +453,22 @@ class BaseRuntime(ModelObj):
         :return: Dictionary with all the variables that could be parsed
         """
         active_project = self.metadata.project or config.active_project
+
+        # TODO: pass auth info username
+        offline_token = (
+            self._get_db()
+            .get_secret_token(authenticated_username="admin", token_name="default")
+            .token
+        )
+
         runtime_env = {
             mlrun_constants.MLRUN_ACTIVE_PROJECT: active_project,
             # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
             "MLRUN_DEFAULT_PROJECT": active_project,
+            "MLRUN_AUTH_OFFLINE_TOKEN": offline_token,
+            "MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED": "true",
+            "MLRUN_AUTH_TOKEN_ENDPOINT": "https://igz-api.moran.vmdev44ig4.lab.iguazeng.com/api/v1/refresh-access-token",
+            "MLRUN_HTTPDB__HTTP__VERIFY": "false",
         }
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(

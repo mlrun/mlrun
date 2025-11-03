@@ -1190,3 +1190,9 @@ class RunDBInterface(ABC):
     @abstractmethod
     def revoke_secret_token(self, token_name: str) -> None:
         pass
+
+    @abstractmethod
+    def get_secret_token(
+        self, authenticated_username: str, token_name: str
+    ) -> mlrun.common.schemas.SecretToken:
+        pass

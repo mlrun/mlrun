@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import enum
 import http
+import os
 import re
 import time
 import traceback
@@ -639,7 +639,11 @@ class HTTPRunDB(RunDBInterface):
                 traceback=traceback.format_exc(),
             )
 
-        if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
+        if (
+            config.is_iguazio_v4_mode()
+            and config.auth_with_oauth_token.enabled
+            and not os.getenv("MLRUN_AUTH_OFFLINE_TOKEN")
+        ):
             mlrun.secrets.sync_secret_tokens()
         return self
 
@@ -5353,6 +5357,12 @@ class HTTPRunDB(RunDBInterface):
             endpoint_path,
             "delete user secret token",
         )
+
+    @mlrun.utils.iguazio_v4_only
+    def get_secret_token(
+        self, authenticated_username: str, token_name: str
+    ) -> mlrun.common.schemas.SecretToken:
+        pass
 
     @mlrun.utils.iguazio_v4_only
     def _store_secret_tokens(

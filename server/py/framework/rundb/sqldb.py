@@ -1433,6 +1433,15 @@ class SQLRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         raise NotImplementedError
 
+    def get_secret_token(
+        self, authenticated_username: str, token_name: str
+    ) -> mlrun.common.schemas.SecretToken:
+        return self._transform_db_error(
+            services.api.crud.Secrets().get_secret_token,
+            authenticated_username,
+            token_name,
+        )
+
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)
 @containers.override(mlrun.db.factory.RunDBContainer)

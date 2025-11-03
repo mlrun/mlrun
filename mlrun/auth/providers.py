@@ -23,8 +23,9 @@ import mlrun.auth.utils
 import mlrun.errors
 import mlrun.secrets
 import mlrun.utils.helpers
-from mlrun.utils import logger
 from mlrun.config import config
+from mlrun.utils import logger
+
 
 class TokenProvider(ABC):
     @abstractmethod

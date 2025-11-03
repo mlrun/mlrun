@@ -1057,7 +1057,8 @@ class TDEngineConnector(TSDBConnector):
             ]
         ):
             metric_objects = []
-
+            mlrun.utils.logger.info(f"[DD] application_names: {application_names}") # todo: delete
+            mlrun.utils.logger.info(f"[DD] df_results: {df_results.head(5)}")  # todo: delete
             if not df_results.empty:
                 df_results.rename(
                     columns={
@@ -1066,6 +1067,7 @@ class TDEngineConnector(TSDBConnector):
                     inplace=True,
                 )
                 for _, row in df_results.iterrows():
+                    mlrun.utils.logger.info(f"[DD] end-infer-time: {row[mm_schemas.WriterEvent.END_INFER_TIME]}") # todo: delete
                     metric_objects.append(
                         mm_schemas.ApplicationResultRecord(
                             time=datetime.fromisoformat(

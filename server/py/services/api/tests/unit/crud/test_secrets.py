@@ -15,6 +15,7 @@
 import collections
 import json
 import unittest.mock
+import re
 
 import deepdiff
 import fastapi.testclient
@@ -981,7 +982,7 @@ def test_extract_and_validate_tokens_info(
 
     if should_raise:
         with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match=expected_err_msg
+            mlrun.errors.MLRunInvalidArgumentError, match=re.escape(expected_err_msg)
         ):
             services.api.crud.Secrets()._extract_and_validate_tokens_info(
                 secret_tokens, authenticated_id

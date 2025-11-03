@@ -174,7 +174,8 @@ async def enable_model_monitoring(
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
 
     """
-    commons.get_monitoring_deployment().deploy_monitoring_functions(
+    await run_in_threadpool(
+        commons.get_monitoring_deployment().deploy_monitoring_functions,
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
@@ -214,7 +215,8 @@ async def update_model_monitoring_controller(
             f"Run `project.enable_model_monitoring()` first."
         )
 
-    return commons.get_monitoring_deployment().deploy_model_monitoring_controller(
+    return await run_in_threadpool(
+        commons.get_monitoring_deployment().deploy_model_monitoring_controller,
         controller_image=image,
         base_period=base_period,
         overwrite=True,
@@ -310,7 +312,7 @@ async def delete_model_monitoring_function(
 
 
 @router.put("/credentials")
-def set_model_monitoring_credentials(
+async def set_model_monitoring_credentials(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     tsdb_profile_name: str,
     stream_profile_name: str,
@@ -326,7 +328,8 @@ def set_model_monitoring_credentials(
                                       The profile can be V3IO or KafkaSource.
     :param replace_creds:             If True, it will force the credentials update. By default, False.
     """
-    commons.get_monitoring_deployment().set_credentials(
+    await run_in_threadpool(
+        commons.get_monitoring_deployment().set_credentials,
         tsdb_profile_name=tsdb_profile_name,
         stream_profile_name=stream_profile_name,
         replace_creds=replace_creds,
@@ -521,8 +524,10 @@ async def delete_model_endpoints_metrics_values(
         auth_info=commons.auth_info,
     )
     # call delete_application_records of the tsdb connector
-    await commons.get_monitoring_deployment().delete_application_records(
-        application_name=application_name, endpoint_ids=endpoint_id
+    await run_in_threadpool(
+        commons.get_monitoring_deployment().delete_application_records,
+        application_name=application_name,
+        endpoint_ids=endpoint_id,
     )
 
 

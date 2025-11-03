@@ -5375,7 +5375,6 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.common.schemas.StoreSecretTokensResponse(**response.json())
 
-
     @staticmethod
     def _parse_labels(
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],

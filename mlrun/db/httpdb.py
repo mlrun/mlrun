@@ -639,8 +639,8 @@ class HTTPRunDB(RunDBInterface):
                 traceback=traceback.format_exc(),
             )
 
-        # if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
-        #     mlrun.secrets.sync_secret_tokens()
+        if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
+            mlrun.secrets.sync_secret_tokens()
         return self
 
     def store_log(self, uid, project="", body=None, append=False):

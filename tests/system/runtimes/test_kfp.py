@@ -16,7 +16,8 @@ import os
 import time
 
 import pytest
-from kfp import dsl
+
+dsl = pytest.importorskip("kfp.dsl")
 
 import mlrun
 import mlrun.runtimes.mounts

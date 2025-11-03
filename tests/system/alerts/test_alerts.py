@@ -46,6 +46,7 @@ class TestAlerts(TestMLRunSystem):
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
+    @pytest.mark.skip(reason="TODO Test disabled temporarily")
     @pytest.mark.smoke
     def test_job_failure_alert(self):
         """

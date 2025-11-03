@@ -1662,6 +1662,7 @@ class ModelRunnerStep(MonitoredStep):
     the default language model class (LLModel) during function deployment.
 
     Note ModelRunnerStep can only be added to a graph that has the flow topology and running with async engine.
+    For default number of threads and processes, see ModelRunnerStep:config_pool_resource() method documentation.
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
@@ -1675,7 +1676,12 @@ class ModelRunnerStep(MonitoredStep):
     """
 
     kind = "model_runner"
-    _dict_fields = MonitoredStep._dict_fields + ["_shared_proxy_mapping"]
+    _dict_fields = MonitoredStep._dict_fields + [
+        "_shared_proxy_mapping",
+        "max_processes",
+        "max_threads",
+        "pool_factor",
+    ]
 
     def __init__(
         self,
@@ -1686,6 +1692,10 @@ class ModelRunnerStep(MonitoredStep):
         raise_exception: bool = True,
         **kwargs,
     ):
+        self.max_processes = None
+        self.max_threads = None
+        self.pool_factor = None
+
         if isinstance(model_selector, ModelSelector) and model_selector_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model_selector object as argument to `model_selector` and also provide "
@@ -2093,6 +2103,23 @@ class ModelRunnerStep(MonitoredStep):
                 "Monitoring data must be a dictionary."
             )
 
+    def config_pool_resource(
+        self,
+        max_processes: Optional[int] = None,
+        max_threads: Optional[int] = None,
+        pool_factor: Optional[int] = None,
+    ) -> None:
+        """
+        Configure the resource limits for the shared models in the graph.
+        :param max_processes: Maximum number of processes to spawn (excluding dedicated processes).
+                             Defaults to the number of CPUs or 16 if undetectable.
+        :param max_threads: Maximum number of threads to spawn. Defaults to 32.
+        :param pool_factor: Multiplier to scale the number of process/thread workers per runnable. Defaults to 1.
+        """
+        self.max_processes = max_processes
+        self.max_threads = max_threads
+        self.pool_factor = pool_factor
+
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
         if not self._is_local_function(context):
@@ -2141,6 +2168,9 @@ class ModelRunnerStep(MonitoredStep):
             shared_proxy_mapping=self._shared_proxy_mapping or None,
             name=self.name,
             context=context,
+            max_processes=self.max_processes,
+            max_threads=self.max_threads,
+            pool_factor=self.pool_factor,
         )
 
 

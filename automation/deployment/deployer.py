@@ -410,10 +410,7 @@ class CommunityEditionDeployer:
             "upgrade",
             Constants.helm_release_name,
             self._chart_name,
-            "--install",
-            "--wait",
-            "--timeout",
-            "960s",
+            "--install"
         ]
 
         if self._debug:

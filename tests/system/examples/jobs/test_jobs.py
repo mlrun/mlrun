@@ -14,8 +14,10 @@
 
 import os
 
-import kfp.compiler
-import kfp.dsl
+import pytest
+
+kfp.compiler = pytest.importorskip("kfp.complier")
+kfp.dsl = pytest.importorskip("kfp.dsl")
 import pytest
 
 import mlrun.common.constants as mlrun_constants

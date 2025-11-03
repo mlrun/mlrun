@@ -23,7 +23,7 @@ from mlrun.common.runtimes.constants import RunStates
 class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
     project_name = "does-not-exist-mpijob"
 
-    @pytest.mark.smoke
+    @pytest.mark.smoke_mpijob
     def test_mpijob_run(self):
         """
         Run the `handler` function in mpijob_function.py as an OpenMPI job and validate it ran properly (see the

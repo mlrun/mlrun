@@ -614,6 +614,99 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
     assert not runs
 
 
+def test_list_completed_runs(db: Session, client: TestClient):
+    project = "some-project"
+    # Create completed and non-completed runs
+    runs = [
+        {
+            "metadata": {
+                "name": "completed-run",
+                "uid": "completed-uid",
+                "project": project,
+            },
+            "status": {"state": mlrun.common.runtimes.constants.RunStates.completed},
+        },
+        {
+            "metadata": {
+                "name": "running-run",
+                "uid": "running-uid",
+                "project": project,
+            },
+            "status": {"state": mlrun.common.runtimes.constants.RunStates.running},
+        },
+        {
+            "metadata": {"name": "error-run", "uid": "error-uid", "project": project},
+            "status": {"state": mlrun.common.runtimes.constants.RunStates.error},
+        },
+        {
+            "metadata": {
+                "name": "aborted-run",
+                "uid": "aborted-uid",
+                "project": project,
+            },
+            "status": {"state": mlrun.common.runtimes.constants.RunStates.aborted},
+        },
+    ]
+
+    # Store runs in the database
+    for run in runs:
+        services.api.crud.Runs().store_run(
+            db, run, run["metadata"]["uid"], project=project
+        )
+
+    # Query completed_runs endpoint
+    response = client.get(f"/projects/{project}/completed_runs")
+    assert response.status_code == HTTPStatus.OK.value
+    runs = response.json()["runs"]
+    assert len(runs) == 1
+    assert runs[0]["metadata"]["uid"] == "completed-uid"
+    assert (
+        runs[0]["status"]["state"]
+        == mlrun.common.runtimes.constants.RunStates.completed
+    )
+
+
+def test_completed_runs_start_time_from(db: Session, client: TestClient):
+    project = "some-project"
+    now = datetime.now(timezone.utc)
+    earlier = now - timedelta(hours=2)
+    later = now - timedelta(hours=1)
+
+    # Create two completed runs with different start times
+    run_early_dict = {
+        "metadata": {"name": "early-run", "uid": "early-uid", "project": project},
+        "status": {
+            "state": mlrun.common.runtimes.constants.RunStates.completed,
+            "start_time": earlier.isoformat(),
+        },
+    }
+    run_late_dict = {
+        "metadata": {"name": "late-run", "uid": "late-uid", "project": project},
+        "status": {
+            "state": mlrun.common.runtimes.constants.RunStates.completed,
+            "start_time": later.isoformat(),
+        },
+    }
+
+    services.api.crud.Runs().store_run(
+        db, run_early_dict, run_early_dict["metadata"]["uid"], project=project
+    )
+    services.api.crud.Runs().store_run(
+        db, run_late_dict, run_late_dict["metadata"]["uid"], project=project
+    )
+
+    # Query with start_time_from set to just after the earlier run
+    start_time_from = (earlier + timedelta(minutes=1)).isoformat()
+    response = client.get(
+        f"/projects/{project}/completed_runs",
+        params={"start_time_from": start_time_from},
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    runs = response.json()["runs"]
+    assert len(runs) == 1
+    assert runs[0]["metadata"]["uid"] == "late-uid"
+
+
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
     framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
         unittest.mock.AsyncMock()

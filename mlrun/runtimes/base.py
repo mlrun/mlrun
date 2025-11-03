@@ -76,6 +76,7 @@ spec_fields = [
     "disable_auto_mount",
     "allow_empty_resources",
     "reset_on_run",
+    "foo",
 ]
 
 
@@ -117,6 +118,7 @@ class FunctionSpec(ModelObj):
         default_handler=None,
         pythonpath=None,
         disable_auto_mount=False,
+        foo=None,
     ):
         self.command = command or ""
         self.image = image or ""
@@ -133,6 +135,7 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
+        self.foo = foo or config.function.spec.foo.default
 
     @property
     def build(self) -> ImageBuilder:
@@ -141,6 +144,12 @@ class FunctionSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    def with_foo(self, foo):
+        self.foo = foo
+
+    def enrich_function_preemption_spec(self):
+        pass
 
     def validate_service_account(self, allowed_service_accounts):
         pass

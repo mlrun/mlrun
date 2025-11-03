@@ -123,12 +123,17 @@ class RetrySpec(pydantic.v1.BaseModel):
     backoff: Backoff
 
 
+class Foo(pydantic.v1.BaseModel):
+    default: typing.Optional[str]
+
+
 class FunctionSpec(pydantic.v1.BaseModel):
     image_pull_secret: typing.Optional[ImagePullSecret]
     security_context: typing.Optional[SecurityContext]
     service_account: typing.Optional[ServiceAccount]
     state_thresholds: typing.Optional[StateThresholds]
     retry: typing.Optional[RetrySpec]
+    foo: typing.Optional[Foo]
 
     class Config:
         extra = pydantic.v1.Extra.allow

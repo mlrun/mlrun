@@ -96,6 +96,7 @@ class DaskSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -129,6 +130,7 @@ class DaskSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            foo=foo,
         )
         self.args = args
 

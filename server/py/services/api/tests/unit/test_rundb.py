@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import time
 from tempfile import mkdtemp
 
 import pytest
@@ -108,6 +108,33 @@ async def test_runs(db: RunDBInterface):
     await db.del_runs(labels=[label], project=project)
     for run in db.list_runs(project=project):
         assert label not in run["metadata"]["labels"], "del_runs"
+
+
+@pytest.mark.asyncio
+async def test_completed_runs(db: RunDBInterface):
+    initialize_logs_dir()
+    project = "some-project"
+    labels = {"l1": "v1", "l2": "v2"}
+
+    run1 = new_run("completed", labels, x=1)
+    db.store_run(run1, "uid1", project=project)
+
+    cutoff_time = run_now()
+    time.sleep(0.1)
+
+    run2 = new_run("completed", labels, x=2)
+    db.store_run(run2, "uid2", project=project)
+
+    run3 = new_run("running", labels, x=3)
+    db.store_run(run3, "uid3", project=project)
+
+    runs = db.list_completed_runs(project=project)
+    assert 2 == len(runs)
+    assert {1, 2} == {r["x"] for r in runs}
+
+    runs = db.list_completed_runs(project=project, start_time_from=cutoff_time)
+    assert 1 == len(runs)
+    assert {2} == {r["x"] for r in runs}
 
 
 def test_update_run(db: RunDBInterface):

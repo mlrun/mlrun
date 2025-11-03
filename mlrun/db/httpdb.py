@@ -903,6 +903,100 @@ class HTTPRunDB(RunDBInterface):
         error = f"del run {project}/{uid}"
         self.api_call("DELETE", path, error, params=params)
 
+    def list_completed_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, list[str]]] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        sort: bool = True,
+        iter: bool = False,
+        start_time_from: Optional[datetime] = None,
+        start_time_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+        end_time_from: Optional[datetime] = None,
+        end_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+    ) -> RunList:
+        """
+        Retrieve a list of completed runs.
+        The default returns the runs from the last week, partitioned by project/name.
+        To override the default, specify any filter.
+
+        Example::
+
+            runs = db.list_completed_runs(
+                name="download", project="iris", labels=["owner=admin", "kind=job"]
+            )
+            # If running in Jupyter, can use the .show() function to display the results
+            db.list_completed_runs(name="", project=project_name).show()
+
+
+        :param name: Name of the run to retrieve.
+        :param uid: Unique ID of the run, or a list of run UIDs.
+        :param project: Project that the runs belongs to. If not specified, the active project will be used.
+        :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
+        :param sort: Whether to sort the result according to their start time. Otherwise, results will be
+            returned by their internal order in the DB (order will not be guaranteed).
+        :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
+        :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
+        :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
+        :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
+            last_update_time_to)``.
+        :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        :param end_time_from: Filter by run end time in ``[end_time_from, end_time_to]``.
+        :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
+        :param max_partitions: Maximal number of partitions to include in the result. Default is `0` which means no
+            limit.
+        :param with_notifications: Return runs with notifications, and join them to the response. Default is `False`.
+        """
+        runs, _ = self._list_runs(
+            name=name,
+            uid=uid,
+            project=project,
+            labels=labels,
+            states=[mlrun.common.runtimes.constants.RunStates.completed],
+            sort=sort,
+            iter=iter,
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
+            end_time_from=end_time_from,
+            end_time_to=end_time_to,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
+            max_partitions=max_partitions,
+            with_notifications=with_notifications,
+            return_all=True,
+        )
+        return runs
+
     def list_runs(
         self,
         name: Optional[str] = None,
@@ -5474,8 +5568,15 @@ class HTTPRunDB(RunDBInterface):
                     max_partitions,
                 )
             )
+
+        # Use dedicated endpoint for completed runs only
+        if states == [mlrun.common.runtimes.constants.RunStates.completed]:
+            resource = "completed_runs"
+        else:
+            resource = "runs"
+
         error = "list runs"
-        _path = self._path_of("runs", project)
+        _path = self._path_of(resource, project)
 
         # Fetch the responses, either one page or all based on `return_all`
         responses = self.paginated_api_call(

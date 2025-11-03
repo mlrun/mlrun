@@ -1,32 +1,20 @@
 (use-cases-serving)=
-# Serving graph use cases
+# Examples of serving graphs
 
-Learn how serving graphs can simplify complex workflows as illustrated in these use cases.
+Learn how serving graphs can simplify complex workflows as illustrated in these examples.
 
 <!-- ## Data preparation, ## Model serving -->
 
 **In this section**
-* [Data and feature engineering](#data-and-feature-engineering-using-the-feature-store)
 * [Example of a simple model serving router](#example-of-a-simple-model-serving-router)
 * [Example of advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
 * [Example of NLP processing pipeline with real-time streaming](#example-of-an-nlp-processing-pipeline-with-real-time-streaming)
+* [Data and feature engineering](#data-and-feature-engineering-using-the-feature-store)
 
 In addition to the examples in this section, see the:
 - [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
 - [Advanced model serving graph notebook example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
 - {ref}`MLRun demos <demos>` for additional use cases and full end-to-end examples, including GenAI serving.
-
-## Data and feature engineering (using the feature store)
-
-You can build a feature set transformation using serving graphs.
-
-High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
-from any online or offline source, handle any type of structures or unstructured data, run complex computation graphs 
-and native user code. Iguazio’s solution uses a unique multi-model database, serving the computed features consistently 
-through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
-resulting in better accuracy and simpler integration.
-
-Read more in {ref}`feature-store`, and [Feature set transformations](../feature-store/transformations.md).
 
 ## Example of a simple model serving router
 
@@ -197,3 +185,14 @@ graph.plot()
 ```
 
 Currently queues support Iguazio V3IO and Kafka streams.
+## Data and feature engineering (using the feature store)
+
+You can build a feature set transformation using serving graphs.
+
+High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
+from any online or offline source, handle any type of structures or unstructured data, run complex computation graphs 
+and native user code. Iguazio’s solution uses a unique multi-model database, serving the computed features consistently 
+through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
+resulting in better accuracy and simpler integration.
+
+Read more in {ref}`feature-store`, and [Feature set transformations](../feature-store/transformations.md).

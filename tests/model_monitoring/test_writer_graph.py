@@ -18,6 +18,7 @@ import mlrun
 import mlrun.model_monitoring
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
+    DatastoreProfilePostgreSQL,
     DatastoreProfileTDEngine,
     DatastoreProfileV3io,
 )
@@ -30,6 +31,14 @@ from mlrun.model_monitoring.writer import WriterGraphFactory
         DatastoreProfileV3io(name="v3io-tsdb-test"),
         DatastoreProfileTDEngine(
             name="tdengine-test", user="root", host="localhost", port=6041
+        ),
+        DatastoreProfilePostgreSQL(
+            name="timescaledb-test",
+            user="testuser",
+            password="testpass",
+            host="localhost",
+            port=5432,
+            database="postgres",
         ),
     ],
 )

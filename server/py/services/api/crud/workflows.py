@@ -272,6 +272,9 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         # specify the user client python version
         if client_python_version:
             runner.set_env("MLRUN_PYTHON_VERSION", client_python_version)
+            labels[mlrun_constants.MLRunInternalLabels.client_python_version] = (
+                client_python_version
+            )
 
     @staticmethod
     def _enrich_runner_node_selector(

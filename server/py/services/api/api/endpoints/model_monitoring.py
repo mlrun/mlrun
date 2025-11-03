@@ -131,7 +131,7 @@ async def _common_parameters(
 
 
 @router.put("/")
-async def enable_model_monitoring(
+def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
@@ -174,8 +174,7 @@ async def enable_model_monitoring(
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
 
     """
-    await run_in_threadpool(
-        commons.get_monitoring_deployment().deploy_monitoring_functions,
+    commons.get_monitoring_deployment().deploy_monitoring_functions(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
@@ -184,7 +183,7 @@ async def enable_model_monitoring(
 
 
 @router.patch("/controller")
-async def update_model_monitoring_controller(
+def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
@@ -215,8 +214,7 @@ async def update_model_monitoring_controller(
             f"Run `project.enable_model_monitoring()` first."
         )
 
-    return await run_in_threadpool(
-        commons.get_monitoring_deployment().deploy_model_monitoring_controller,
+    return commons.get_monitoring_deployment().deploy_model_monitoring_controller(
         controller_image=image,
         base_period=base_period,
         overwrite=True,
@@ -312,7 +310,7 @@ async def delete_model_monitoring_function(
 
 
 @router.put("/credentials")
-async def set_model_monitoring_credentials(
+def set_model_monitoring_credentials(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     tsdb_profile_name: str,
     stream_profile_name: str,
@@ -328,8 +326,7 @@ async def set_model_monitoring_credentials(
                                       The profile can be V3IO or KafkaSource.
     :param replace_creds:             If True, it will force the credentials update. By default, False.
     """
-    await run_in_threadpool(
-        commons.get_monitoring_deployment().set_credentials,
+    commons.get_monitoring_deployment().set_credentials(
         tsdb_profile_name=tsdb_profile_name,
         stream_profile_name=stream_profile_name,
         replace_creds=replace_creds,

@@ -32,7 +32,7 @@ Get started with the MLRun [**Tutorials and Examples**](https://docs.mlrun.org/e
 
 This page explains how MLRun addresses the [**gen AI tasks**](#genai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#core-components).
 
-See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **https://docs.mlrun.org/en/stable/ecosystem.html**.
+See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **https://docs.mlrun.org/en/stable/ecosystem.html**. Test change
 
 ## Gen AI tasks
 

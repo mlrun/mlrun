@@ -21,7 +21,7 @@ permissions:
 on:
    pull_request:
      branches:
-       - system-tests-open-source-mvp
+       - development
    workflow_dispatch:
     inputs:
       pr_number:

@@ -298,7 +298,9 @@ def compile_nuclio_archive_config(
                 v3io_access_key = auth_info.data_session or auth_info.access_key
 
         if v3io_access_key:
-            code_entry_attributes["headers"] = {"X-V3io-Session-Key": v3io_access_key}
+            code_entry_attributes["headers"] = {
+                mlrun.common.schemas.HeaderNames.v3io_session_key: v3io_access_key
+            }
 
     # s3
     if code_entry_type == "s3":

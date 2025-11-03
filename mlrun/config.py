@@ -40,6 +40,7 @@ import yaml
 
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 
 env_prefix = "MLRUN_"
@@ -422,7 +423,7 @@ default_config = {
             "allow_local_run": False,
         },
         "authentication": {
-            "mode": "none",  # one of none, basic, bearer, iguazio
+            "mode": "none",  # one of none, basic, bearer, iguazio, iguazio-v4
             "basic": {"username": "", "password": ""},
             "bearer": {"token": ""},
             "iguazio": {
@@ -698,6 +699,7 @@ default_config = {
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
+            "user_token_secret_name": "mlrun-auth-{username}-{token_name}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
         },
@@ -868,6 +870,14 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
     },
+    "auth_with_oauth_token": {
+        "enabled": False,
+        "request_timeout": 5,
+        "refresh_threshold": 0.75,
+        "token_file": "~/.igz.yml",
+        "token_name": "",
+    },
+    "auth_token_endpoint": "",
     "services": {
         # The running service name. One of: "api", "alerts"
         "service_name": "api",
@@ -1401,6 +1411,18 @@ class Config:
         # True if the setup is in CE environment
         return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
+        )
+
+    def is_iguazio_mode(self):
+        return (
+            mlrun.mlconf.httpdb.authentication.mode
+            == mlrun.common.types.AuthenticationMode.IGUAZIO
+        )
+
+    def is_iguazio_v4_mode(self):
+        return (
+            config.httpdb.authentication.mode
+            == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 
     def is_explicit_ack_enabled(self) -> bool:

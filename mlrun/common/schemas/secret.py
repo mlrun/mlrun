@@ -49,5 +49,20 @@ class SecretKeysData(BaseModel):
     secret_keys: Optional[list] = []
 
 
-class UserSecretCreationRequest(SecretsData):
-    user: str
+class SecretToken(BaseModel):
+    name: str
+    token: str
+
+
+class StoreSecretTokensResponse(BaseModel):
+    created_tokens: list[str] = []
+    updated_tokens: list[str] = []
+
+
+class SecretTokenInfo(BaseModel):
+    name: str
+    expiration: int
+
+
+class ListSecretTokensResponse(BaseModel):
+    secret_tokens: list[SecretTokenInfo]

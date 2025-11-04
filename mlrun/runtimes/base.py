@@ -154,6 +154,7 @@ class BaseRuntime(ModelObj):
     _default_fields_to_strip = ModelObj._default_fields_to_strip + [
         "status",  # Function status describes the state rather than configuration
     ]
+    _default_token_name = "default"
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -464,7 +465,7 @@ class BaseRuntime(ModelObj):
         if config.is_iguazio_v4_mode():
             if auth_info and auth_info.username:
                 secret = self._get_db().get_secret_token(
-                    token_name="default",
+                    token_name=self._default_token_name,
                     username=auth_info.username,
                 )
                 runtime_env["MLRUN_AUTH_OFFLINE_TOKEN"] = secret.token

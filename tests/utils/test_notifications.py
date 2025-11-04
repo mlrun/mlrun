@@ -771,7 +771,7 @@ def test_slack_notification(runs, expected):
             "https://api.github.com/repos/test-repo/issues/test-issue/comments",
             {
                 "Accept": "application/vnd.github.v3+json",
-                "Authorization": "token test-token",
+                mlrun.common.schemas.HeaderNames.authorization: "token test-token",
             },
         ),
         (

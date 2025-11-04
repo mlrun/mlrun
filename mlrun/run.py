@@ -118,7 +118,25 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
         raise ValueError("nothing to run, specify command or function")
 
     command = os.path.join(workdir or "", command)
-    mod_name = mlrun.utils.helpers.get_module_name_from_path(command)
+
+    source_file_path_object, working_dir_path_object = (
+        mlrun.utils.helpers.get_source_and_working_dir_paths(command)
+    )
+    if source_file_path_object.is_relative_to(working_dir_path_object):
+        mod_name = mlrun.utils.helpers.get_relative_module_name_from_path(
+            source_file_path_object, working_dir_path_object
+        )
+    elif source_file_path_object.is_relative_to(
+        pathlib.Path(tempfile.gettempdir()).resolve()
+    ):
+        mod_name = Path(command).stem
+    else:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Cannot run source file '{command}': it must be located either under the current working "
+            f"directory ('{working_dir_path_object}') or the system temporary directory ('{tempfile.gettempdir()}'). "
+            f"This is required when running with local=True."
+        )
+
     spec = imputil.spec_from_file_location(mod_name, command)
     if spec is None:
         raise OSError(f"cannot import from {command!r}")
@@ -537,6 +555,7 @@ def new_function(
 
     # make sure function name is valid
     name = mlrun.utils.helpers.normalize_name(name)
+    mlrun.utils.helpers.validate_function_name(name)
 
     runner.metadata.name = name
     runner.metadata.project = (
@@ -576,6 +595,7 @@ def new_function(
         )
 
     runner.prepare_image_for_deploy()
+
     return runner
 
 
@@ -609,7 +629,7 @@ def code_to_function(
     code_output: Optional[str] = "",
     embed_code: bool = True,
     description: Optional[str] = "",
-    requirements: Optional[Union[str, list[str]]] = None,
+    requirements: Optional[list[str]] = None,
     categories: Optional[list[str]] = None,
     labels: Optional[dict[str, str]] = None,
     with_doc: Optional[bool] = True,
@@ -780,6 +800,9 @@ def code_to_function(
         kind=sub_kind,
         ignored_tags=ignored_tags,
     )
+
+    mlrun.utils.helpers.validate_function_name(name)
+
     spec["spec"]["env"].append(
         {
             "name": "MLRUN_HTTPDB__NUCLIO__EXPLICIT_ACK",
@@ -832,6 +855,7 @@ def code_to_function(
         runtime.spec.build.code_origin = code_origin
         runtime.spec.build.origin_filename = filename or (name + ".ipynb")
         update_common(runtime, spec)
+
         return runtime
 
     if kind is None or kind in ["", "Function"]:
@@ -845,6 +869,7 @@ def code_to_function(
 
     if not name:
         raise ValueError("name must be specified")
+
     h = get_in(spec, "spec.handler", "").split(":")
     runtime.handler = h[0] if len(h) <= 1 else h[1]
     runtime.metadata = get_in(spec, "spec.metadata")

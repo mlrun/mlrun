@@ -142,7 +142,7 @@ class GitNotification(NotificationBase):
                     issue = event["number"]
             headers = {
                 "Accept": "application/vnd.github.v3+json",
-                "Authorization": f"token {token}",
+                mlrun.common.schemas.HeaderNames.authorization: f"token {token}",
             }
             url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
 

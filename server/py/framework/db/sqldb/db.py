@@ -808,6 +808,7 @@ class SQLDB(DBInterface):
                 )
                 db_artifact = existing_artifact
                 self._update_artifact_record_from_dict(
+                    session,
                     db_artifact,
                     artifact_dict,
                     project,
@@ -871,6 +872,7 @@ class SQLDB(DBInterface):
 
         db_artifact = ArtifactV2(project=project, key=key)
         self._update_artifact_record_from_dict(
+            session,
             db_artifact,
             artifact,
             project,
@@ -879,7 +881,6 @@ class SQLDB(DBInterface):
             iteration,
             best_iteration,
             producer_id,
-            session,
         )
 
         self._upsert(session, [db_artifact])
@@ -1589,6 +1590,7 @@ class SQLDB(DBInterface):
 
     def _update_artifact_record_from_dict(
         self,
+        session: Session,
         artifact_record,
         artifact_dict: dict,
         project: str,
@@ -1597,7 +1599,6 @@ class SQLDB(DBInterface):
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         producer_id: typing.Optional[str] = None,
-        session: Session = None,
     ):
         artifact_record.project = project
         kind = artifact_dict.get("kind") or "artifact"
@@ -1905,6 +1906,8 @@ class SQLDB(DBInterface):
             # If a tag is given, we can just join (faster than outer join) and filter on the tag
             query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
             query = query.filter(ArtifactV2.Tag.name == tag)
+            if project:
+                query = query.filter(ArtifactV2.Tag.project == project)
         else:
             # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
             query = query.outerjoin(

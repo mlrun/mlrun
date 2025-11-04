@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import os
 
 import pytest
@@ -28,6 +28,17 @@ def reset_config():
     yield
     # Revert the configuration after the test
     config.secret_stores.kubernetes.env_variable_prefix = original_prefix
+
+
+@pytest.fixture(autouse=True)
+def clean_env(monkeypatch):
+    """Ensure clean environment for each test."""
+    saved = dict(os.environ)
+    for key in list(os.environ.keys()):
+        monkeypatch.delenv(key, raising=False)
+    yield
+    os.environ.clear()
+    os.environ.update(saved)
 
 
 def reverser(key):
@@ -78,3 +89,32 @@ def test_get_secret_from_env(reset_config):
         )
         == "not gibberish"
     )
+
+
+def test_json_list_used_when_no_direct_env(monkeypatch):
+    monkeypatch.setenv(
+        "SECRETS_JSON",
+        json.dumps(
+            [
+                {"name": "OTHER_KEY", "value": "IGNORED"},
+                {"name": "MY_KEY", "value": "FROM_JSON"},
+            ]
+        ),
+    )
+    assert mlrun.get_secret_or_env("MY_KEY") == "FROM_JSON"
+
+
+def test_direct_env_over_json_list(monkeypatch):
+    monkeypatch.setenv("MY_KEY", "FROM_ENV")
+    monkeypatch.setenv(
+        "SECRETS_JSON",
+        json.dumps([{"name": "MY_KEY", "value": "FROM_JSON"}]),
+    )
+    # direct env must win over JSON list
+    assert mlrun.get_secret_or_env("MY_KEY") == "FROM_ENV"
+
+
+def test_non_json_env_ignored(monkeypatch):
+    # non-JSON should not crash or match
+    monkeypatch.setenv("BAD_ENV", "not-json")
+    assert mlrun.get_secret_or_env("MY_KEY", default="DEFAULT") == "DEFAULT"

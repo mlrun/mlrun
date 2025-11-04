@@ -676,17 +676,6 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_user_secrets(
-        self,
-        user: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.vault,
-        secrets: Optional[dict] = None,
-    ):
-        pass
-
-    @abstractmethod
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
@@ -722,7 +711,9 @@ class RunDBInterface(ABC):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
-        modes: Optional[list[mm_constants.EndpointMode]] = None,
+        modes: Optional[
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -1170,4 +1161,32 @@ class RunDBInterface(ABC):
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
+        pass
+
+    @abstractmethod
+    def store_secret_token(
+        self,
+        secret_token: mlrun.common.schemas.SecretToken,
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        pass
+
+    @abstractmethod
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        pass
+
+    @abstractmethod
+    def list_secret_tokens(
+        self,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        pass
+
+    @abstractmethod
+    def revoke_secret_token(self, token_name: str) -> None:
         pass

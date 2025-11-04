@@ -14,6 +14,7 @@
 
 import datetime
 import unittest
+import uuid
 from io import StringIO
 from typing import Optional, Union
 
@@ -21,6 +22,7 @@ import pandas as pd
 import pytest
 from dateutil import parser
 
+import mlrun
 import mlrun.common.schemas
 from mlrun.datastore.datastore_profile import DatastoreProfileTDEngine
 from mlrun.model_monitoring.db.tsdb.tdengine import TDEngineConnector
@@ -550,11 +552,14 @@ class TestTDEngineSchema:
 
 class TestTDEngineConnector:
     @pytest.fixture
-    def connector(self):
+    def connector(self, monkeypatch: pytest.MonkeyPatch):
+        # Set system_id for the test to enable TDEngineConnector to construct database name
+        monkeypatch.setattr(mlrun.mlconf, "system_id", uuid.uuid4().hex)
+
         profile = DatastoreProfileTDEngine(
             name="mm-profile", host="localhost", port=6041, user="root"
         )
-        return TDEngineConnector(project="test-project", profile=profile)
+        yield TDEngineConnector(project="test-project", profile=profile)
 
     def test_get_last_request(self, connector):
         df = pd.DataFrame(

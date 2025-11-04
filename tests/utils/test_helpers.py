@@ -35,11 +35,13 @@ from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
+    ensure_batch_job_suffix,
     extend_hub_uri_if_needed,
     get_data_from_path,
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    merge_requirements,
     parse_artifact_uri,
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
@@ -49,6 +51,7 @@ from mlrun.utils.helpers import (
     template_artifact_path,
     update_in,
     validate_artifact_key_name,
+    validate_function_name,
     validate_tag_name,
     validate_v3io_stream_consumer_group,
     verify_field_regex,
@@ -858,6 +861,31 @@ def test_validate_v3io_consumer_group(value, expected):
             "client_python_version": "3.11.13",
             "images_tag": None,
             "expected_output": "mlrun/mlrun-kfp:1.10.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.10.0-rc1",
+            "client_python_version": "3.11.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-rc1",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp",
+            "client_version": "1.9.0",
+            "client_python_version": "3.9.10",
+            "images_tag": None,
+            # no -py suffix as 1.9 has no dual python support
+            "expected_output": "mlrun/mlrun-kfp:1.9.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun-kfp:1.10.0-rc37",
+            "client_version": "1.10.0-rc37",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun-kfp:1.10.0-rc37-py39",
             "images_to_enrich_registry": "",
         },
     ],
@@ -1874,3 +1902,92 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
     data = {}
     with pytest.raises(exc_type, match=exc_msg):
         set_data_by_path(path, data, value)
+
+
+@pytest.mark.parametrize(
+    "priority_reqs, reqs, expected_result",
+    [
+        (None, None, []),
+        ([], ["requests"], ["requests"]),
+        (["requests"], [], ["requests"]),
+        (
+            ["requests>=1.0", "pydantic==1.0"],
+            ["requests==2.0", "pandas"],
+            ["requests>=1.0", "pydantic==1.0", "pandas"],
+        ),
+    ],
+)
+def test_merge_requirements(priority_reqs, reqs, expected_result):
+    result = merge_requirements(reqs_priority=priority_reqs, reqs_secondary=reqs)
+    assert set(result) == set(expected_result)
+
+
+# Test ensure_batch_job_suffix
+@pytest.mark.parametrize(
+    "function_name,expected_name,expected_renamed",
+    [
+        # Normal case - suffix should be added
+        ("my-function", "my-function-batch", True),
+        # Already has suffix - should not be renamed
+        ("my-function-batch", "my-function-batch", False),
+        # Edge cases
+        (None, None, False),
+        ("", "", False),
+        # Name contains "batch" but doesn't end with "-batch"
+        ("batch-processor", "batch-processor-batch", True),
+    ],
+)
+def test_ensure_batch_job_suffix(function_name, expected_name, expected_renamed):
+    """Test that ensure_batch_job_suffix correctly adds suffix when needed."""
+    modified_name, was_renamed, suffix = ensure_batch_job_suffix(function_name)
+
+    assert modified_name == expected_name
+    assert was_renamed == expected_renamed
+    assert suffix == "-batch"
+
+
+@pytest.mark.parametrize(
+    "function_name,expected",
+    [
+        # Invalid names - uppercase letters
+        ("MyFunction", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("FUNCTION", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("myFunction", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        # Invalid names - special characters
+        ("my_function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my.function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my@function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("my#function", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        # Invalid names - starts/ends with dash
+        ("-myfunction", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("myfunction-", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        # Empty name - allowed (returns early without validation)
+        ("", does_not_raise()),
+        # Invalid names - too long (>63 characters)
+        (
+            "a" * 64,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "my-very-long-function-name-that-exceeds-kubernetes-limit-of-sixtythree",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # Valid names
+        ("myfunction", does_not_raise()),
+        ("my-function", does_not_raise()),
+        ("my-function-2", does_not_raise()),
+        ("function123", does_not_raise()),
+        ("123function", does_not_raise()),
+        ("a", does_not_raise()),
+        ("a1", does_not_raise()),
+        ("1a", does_not_raise()),
+        # Valid names - at the limit (63 characters)
+        ("a" * 63, does_not_raise()),
+        ("my-function-" + "a" * 50, does_not_raise()),
+    ],
+)
+def test_validate_function_name(function_name, expected):
+    """Test that validate_function_name enforces DNS-1123 label requirements."""
+    with expected:
+        validate_function_name(function_name)

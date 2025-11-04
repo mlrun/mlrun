@@ -20,7 +20,7 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.grafana as grafana_schemas
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils import logger
+from mlrun.utils import logger, run_in_threadpool
 
 import framework.utils.auth.verifier
 import services.api.crud
@@ -74,7 +74,8 @@ async def grafana_list_endpoints_uids(
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
-    endpoint_list = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoint_list = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         db_session=db_session,
         project=project,
         latest_only=True,
@@ -153,7 +154,8 @@ async def grafana_list_endpoints(
     # Endpoint type filter - will be used to filter the router models
     filter_router = query_parameters.get("filter_router", None)
 
-    endpoint_list = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoint_list = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         db_session=db_session,
         project=project,
         model_name=model,

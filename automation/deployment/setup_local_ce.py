@@ -21,7 +21,6 @@ import enum
 import json
 import os
 import pathlib
-import platform
 import re
 import shutil
 import subprocess
@@ -934,7 +933,6 @@ def upgrade_images(
         "--reuse-values",
         "--set",
         f"global.registry.url={registry_url}",
-
     ]
     if mlrun_ver:
         cmd.extend(
@@ -950,12 +948,14 @@ def upgrade_images(
             ]
         )
     if nuclio_ver:
-        cmd.extend([
-            "--set",
-            f"nuclio.controller.image.tag={nuclio_ver}-{nuclio_arch}",
-            "--set",
-            f"nuclio.dashboard.image.tag={nuclio_ver}-{nuclio_arch}",
-        ])
+        cmd.extend(
+            [
+                "--set",
+                f"nuclio.controller.image.tag={nuclio_ver}-{nuclio_arch}",
+                "--set",
+                f"nuclio.dashboard.image.tag={nuclio_ver}-{nuclio_arch}",
+            ]
+        )
     if docker_creds_secret_name:
         cmd.extend(
             [
@@ -1047,7 +1047,10 @@ def get_node_external_ip(
                         )
                     return addr["address"]
     except Exception as exc:
-        echo_color(f"Error fetching node IP: {exc}", err=True,)
+        echo_color(
+            f"Error fetching node IP: {exc}",
+            err=True,
+        )
     return None
 
 
@@ -1064,9 +1067,15 @@ def patch_mlrun_env(
                 break
         else:
             lines.append(new_line)
-        env_file.write_text("\n".join(lines) + "\n", encoding="utf-8",)
+        env_file.write_text(
+            "\n".join(lines) + "\n",
+            encoding="utf-8",
+        )
     else:
-        env_file.write_text(new_line + "\n", encoding="utf-8",)
+        env_file.write_text(
+            new_line + "\n",
+            encoding="utf-8",
+        )
 
 
 def install_ce(
@@ -1090,7 +1099,8 @@ def install_ce(
 ):
     if not ce_ver:
         ce_ver = get_latest_valid_version(
-            "mlrun/ce", allow_dev_versions=dev_versions,
+            "mlrun/ce",
+            allow_dev_versions=dev_versions,
         ).replace("mlrun-ce-", "")
     if use_chart_versions:
         chart_mlrun, chart_nuclio = _read_chart_image_versions(ce_dir)
@@ -1101,11 +1111,13 @@ def install_ce(
     else:
         if not mlrun_ver:
             mlrun_ver = get_latest_valid_version(
-                "mlrun/mlrun", allow_dev_versions=dev_versions,
+                "mlrun/mlrun",
+                allow_dev_versions=dev_versions,
             ).lstrip("v")
         if not nuclio_ver:
             nuclio_ver = get_latest_valid_version(
-                "nuclio/nuclio", allow_dev_versions=dev_versions,
+                "nuclio/nuclio",
+                allow_dev_versions=dev_versions,
             ).lstrip("v")
 
     for cmd in REQUIRED_COMMANDS:
@@ -1176,17 +1188,33 @@ def install(
         help="Clone destination for mlrun/ce",
     ),
     clear_k8s_namespaces: bool = typer.Option(
-        False, "--clear-namespaces", help="Delete namespace before install",
+        False,
+        "--clear-namespaces",
+        help="Delete namespace before install",
     ),
     ce_version: str = typer.Option(
-        "", "--ce-version", help="Chart version (blank → latest)",
+        "",
+        "--ce-version",
+        help="Chart version (blank → latest)",
     ),
-    mlrun_version: str = typer.Option("", "--mlrun-version", help="MLRun image tag",),
-    nuclio_version: str = typer.Option("", "--nuclio-version", help="Nuclio image tag",),
+    mlrun_version: str = typer.Option(
+        "",
+        "--mlrun-version",
+        help="MLRun image tag",
+    ),
+    nuclio_version: str = typer.Option(
+        "",
+        "--nuclio-version",
+        help="Nuclio image tag",
+    ),
     branch: str = typer.Option(
         "", "--branch", help="Git branch to checkout before upgrade"
     ),
-    namespace: str = typer.Option("mlrun", "--namespace", help="Kubernetes namespace",),
+    namespace: str = typer.Option(
+        "mlrun",
+        "--namespace",
+        help="Kubernetes namespace",
+    ),
     admin_namespace: str = typer.Option(
         "mlrun-admin",
         "--admin-namespace",
@@ -1194,13 +1222,19 @@ def install(
     ),
     debug: bool = typer.Option(False, "--debug", help="Verbose output"),
     skip_update_hosts: bool = typer.Option(
-        True, "--skip-update-hosts", help="Add hostnames to /etc/hosts",
+        True,
+        "--skip-update-hosts",
+        help="Add hostnames to /etc/hosts",
     ),
     ingress_host: str = typer.Option(
-        "", "--ingress-host", help="Ingress host suffix (e.g..platform.iguaz.io)",
+        "",
+        "--ingress-host",
+        help="Ingress host suffix (e.g..platform.iguaz.io)",
     ),
     mlrun_install_extra_values: str = typer.Option(
-        None, "--mlrun-install-extra-values", help="Extra values for mlrun installation",
+        None,
+        "--mlrun-install-extra-values",
+        help="Extra values for mlrun installation",
     ),
     dev_versions: bool = typer.Option(
         False,

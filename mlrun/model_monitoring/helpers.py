@@ -613,15 +613,6 @@ def _get_monitoring_schedules_file_user_application_path(
     )
 
 
-def _ensure_aware_utc(dt: datetime.datetime) -> datetime.datetime:
-    if dt.tzinfo is None:
-        # assume naive datetime is in UTC
-        return dt.replace(tzinfo=datetime.timezone.utc)
-    else:
-        # convert any timezone-aware datetime to UTC
-        return dt.astimezone(datetime.timezone.utc)
-
-
 def get_start_end(
     start: Union[datetime.datetime, None],
     end: Union[datetime.datetime, None],
@@ -641,6 +632,10 @@ def get_start_end(
     :return:            start datetime, end datetime
     """
 
+    if (start and start.tzinfo is None) or (end and end.tzinfo is None):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Custom start and end times must contain the timezone."
+        )
     if delta and start and end:
         # If both start and end are provided, delta is ignored
         pass
@@ -661,14 +656,14 @@ def get_start_end(
             "Both start and end must be datetime objects"
         )
 
-    start = _ensure_aware_utc(start)
-    end = _ensure_aware_utc(end)
-
     if start > end:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "The start time must be before the end time. Note that if end time is not provided, "
             "the current time is used by default"
         )
+
+    start = start.astimezone(datetime.timezone.utc)
+    end = end.astimezone(datetime.timezone.utc)
 
     return start, end
 

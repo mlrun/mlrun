@@ -53,6 +53,11 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-2714|MLRun supports Confluent Kafka 7.8.|
 
+### Deprecations
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10059| The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
+
 ### Documentation
 | NA | New tutorial: {ref}`genai-04-llm-prompt-artifact`. |
 

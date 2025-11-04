@@ -557,8 +557,6 @@ def choose_first_matching_version(
     for raw in candidates:
         name = raw or ""
         cleaned = clean_version(name)
-        echo_color(f"Name is {name}")
-        echo_color(f"cleaned is {cleaned}")
         if allow_dev_versions:
             if is_valid_semver_or_rc(cleaned):
                 return cleaned

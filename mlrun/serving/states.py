@@ -1876,14 +1876,6 @@ class ModelRunnerStep(MonitoredStep):
                 otherwise block the main event loop thread.
             * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
                 event loop to continue running while waiting for a response.
-            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
-                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
-                useful when:
-                - You want to share a heavy resource like a large model loaded onto a GPU.
-                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
-                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
-                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
-                memory and hardware accelerators.
             * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
                 It means that the runnable will not actually be run in parallel to anything else.
 

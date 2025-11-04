@@ -3026,7 +3026,7 @@ class RootFlowStep(FlowStep):
                 return model_name, model_class, model_params
         return None, None, None
 
-    def configure_pool_resource(
+    def configure_shared_pool_resource(
         self,
         max_processes: Optional[int] = None,
         max_threads: Optional[int] = None,

@@ -25,7 +25,6 @@ import pytest
 
 import mlrun
 import mlrun.common.schemas as schemas
-from mlrun import new_function
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
@@ -1218,7 +1217,7 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
         inc=1,
     )
 
-    function = new_function("tests", kind="serving")
+    function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(
         name="my_model_runner",

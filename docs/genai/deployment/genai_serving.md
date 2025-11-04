@@ -1,26 +1,105 @@
 (genai-serving)=
 # Serving gen AI models
 
-With MLRun you can serve any model, locally hosted (including pretrained models that are downloaded from the Hugging Face model hub, as well as models that are fine-tuned with MLRun) and remote models. (See [Hugging Face model hub](https://huggingface.co/docs/hub/en/models-the-hub).)
-The main differences between serving a gen AI model and any other model are the inputs and outputs: inputs in gen AI are usually unstructured (text or images), and the model is usually a transformer model. 
+With MLRun you can serve any model, including pretrained models from the Hugging Face model hub, as well as models that are fine-tuned with MLRun. (See [Hugging Face model hub](https://huggingface.co/docs/hub/en/models-the-hub).)
+The main differences between serving a gen AI model and any other model are the inputs and outputs, which in gen AI are usually unstructured (text or images), and the model is usually a transformer model. 
 
 Another common use case is to serve the model as part of an inference pipeline, where the model is used as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This is covered in the {ref}`gen AI serving graph section <genai-serving-graph>`.
 
-**In this section**
-- [Serving a local model from the MLRun hub](#serving-a-local-model-from-the-mlrun-hub)
-- [Serving using a remote model](#serving-using-a-remote-model)
-- [Implementing your own model serving function](#implementing-your-own-model-serving-function)
+## Using the ModelRunnerStep
+
+The [ModelRunnerStep](../api/mlrun.serving/index.html#mlrun.serving.ModelRunnerStep) enables running multiple models in parallel: it's the preferred step for all serving graphs, and is particularly suited for LLMs. 
+
+The `ModelRunnerStep` enables running multiple models in parallel on each event. For example, an inference graph with different models (both {ref}`local and remote models <models>`). ModelRunnerStep supports execution in a dedicated process, via process pool, thread pool, asyncio, or naively (`execution_mechanism` in {py:meth}`mlrun.serving.ModelRunnerStep.add_model`). Different execution mechanisms can be used for different models within the same step. 
+
+ModelRunnerStep is implemented with the asynchronous engine and the [flow topology](../engines.html#flow), giving better utilization of CPU/GPU.
+
+ModelRunnerSteps have model endpoints, and can therefore be monitored.The input and output of each step are user-configurable.
+
+### SDK
+- {py:class}`mlrun.serving.ModelRunner`: Runs multiple Models on each event.
+- {py:meth}`mlrun.serving.ModelRunnerStep.add_model`: adds a model to the model runner. This model is accessible to all ModelRunnerSteps in the graph.
+- {py:meth}`mlrun.serving.ModelRunnerStep.add_shared_model_proxy`: Adds a proxy model to the ModelRunnerStep. A  proxy model acts as a lightweight reference to an existing shared model within the graph. Each step can reuse the same underlying shared model without duplicating it. Each model step (a model/prompt combination) is translated to a model endpoint with its unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. 
+- {py:meth}`mlrun.serving.ModelSelector`: Select which model to run on each event, based on responses from an from LLM (for example, finanace vs. travel). Can be a class or a string.
+
+### Usage
+Preprocess steps
+    Organizes input and outputs: can be paths, dict, etc. LLM has a lot of dinfo, e.g. statistics, cost. Use preprocess to exclude unnecessary details.
 
 
-## Serving a local model from the MLRun hub
 
-The hub has a serving class called [`hugging_face_serving`](https://www.mlrun.org/hub/functions/master/hugging_face_serving/) to run Hugging Face models. The following code shows how to import the function to your project:
+
+
+
+
+
+
+        ```
+        select(event, available_models: list[Model]) → list[str] | list[Model]
+        ```            
+        Given an event, returns a list of model names or a list of model objects to run on the event. If None is returned, all models will be run.
+
+
+
+Define your function and Graph
+This is where you add the step with 2 models `model_runner_step` 
+
+    
+
+response is as dict; includes model name since there are >1 models. You can choose what the output looks like.
+Model endpoints are for the models themselves, not the steps!!
+
+
+
+
+
+
+{'my-second-model': {'outputs': {'label': [1, 1]}},
+ 'my-model': {'outputs': {'label': [1, 1]}},
+ 'timestamp': '1755083446.347165'}
+
+
+
+```
+graph = function.set_topology("flow", engine="async")
+
+model_runner_step = ModelRunnerStep(
+    name="model_runner_step", model_selector="MyModelSelector"
+)
+
+graph.add_shared_model(
+    name="shared_llm",
+    execution_mechanism="dedicated_process",
+    model_class="LLModel",
+    model_artifact=model_artifact,
+    result_path="outputs",
+)
+
+model_runner_step.add_shared_model_proxy(
+    endpoint_name="finance_endpoint",
+    model_artifact=finance_llm_prompt_artifact,
+    shared_model_name="shared_llm",
+    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
+)
+model_runner_step.add_shared_model_proxy(
+    endpoint_name="sport_endpoint",
+    model_artifact=sport_llm_prompt_artifact,
+    shared_model_name="shared_llm",
+    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
+)
+```
+graph.to(model_runner_step).respond()
+
+
+## Serving using the function hub
+
+The function hub has a serving class called [`hugging_face_serving`](https://www.mlrun.org/hub/functions/master/hugging_face_serving/) to run Hugging Face models. The following code shows how to import the function to your project:
 
 ```python
 hugging_face_serving = project.set_function("hub://hugging_face_serving")
 ```
 
-Next, add the model to the function using this code:
+Next, you can add a model to the function using this code:
 
 ```python
 hugging_face_serving.add_model(
@@ -34,8 +113,8 @@ hugging_face_serving.add_model(
     tokenizer_name="openai-community/gpt2",
 )
 ```
-### Testing the local model
 
+And test the model:
 ```python
 hugging_face_mock_server = hugging_face_serving.to_mock_server()
 result = hugging_face_mock_server.test(
@@ -44,53 +123,6 @@ result = hugging_face_mock_server.test(
 print(f"Output: {result['outputs']}")
 ```
 
-## Serving using a remote model
-
-There are two types of remote models. 
-
-- When using OpenAI models, you can send requests through the OpenAI API to perform different tasks such as text generation, embeddings, and more. For text generation usage, see the example in {ref}`deploy-openai-model`.
-- Hugging Face use Pipeline as a client; it downloads the model and loads it to the RAM.
-  - Hugging Face models might required more resources than usual.
-  - By default, in LLModel usage, metrics are calculated after invocation. These token metrics are estimates and may not be fully accurate.
-  - Hugging Face's Inference Provider is designed to handle OpenAI-style chat format (role/content) and therefore requires models that support `tokenizer.apply_chat_template`. If a model does not provide this functionality, you must implement a manual solution.
-
-### Serving the remote model
-The following code shows the basics of serving and deploying a remote model.
-
-```python
-graph = function.set_topology("flow", engine="async")
-model_runner_step = ModelRunnerStep(name="my_model_runner")
-model_runner_step.add_model(
-    model_class="LLModel",
-    endpoint_name="my_endpoint",
-    execution_mechanism=execution_mechanism,
-    model_artifact=llm_prompt_artifact,
-    result_path="output",
-)
-graph.to(model_runner_step).respond()
-
-print("Serving graph configured with dedicated_process execution mechanism")
-
-# Deploy the function
-print("Deploying function...")
-function.deploy()
-print("Function deployed successfully!")
-```
-
-### Testing the remote model
-```python
-# Test the model with the input data
-response = function.invoke(
-    f"v2/models/{mlrun_model_name}/infer",
-    json.dumps(INPUT_DATA),
-)["output"]
-
-print("Response received:")
-print(f"Response length: {len(response)}")
-print("\nResponse structure:")
-for key in response.keys():
-    print(f"  - {key}")
-```
 ## Implementing your own model serving function
 
 The following code shows how to build a simple model serving function using MLRun. The function loads a pretrained model from the Hugging Face model hub and serves it using the MLRun model server.
@@ -188,7 +220,7 @@ During load, the code above downloads a model from the Hugging Face hub and crea
 
 During prediction, the code collects all prompts, tokenizes the prompts, generates the response tokens, and decodes the output tokens to text.
 
-Save the code above to `src/onnx_genai_serving.py` and then create a model serving function with the following code:
+Save the code above to `src/onnx_genai_serving.ay` and then create a model serving functions with the following code:
 
 ``` python
 import os
@@ -232,7 +264,7 @@ A typical output would be:
 Output: [{'prediction': '\nWhat is 1+1? \n1+1 equals 2. This is a basic arithmetic addition problem where you add one unit to another unit.', 'prompt': '<|user|>\nWhat is 1+1? <|end|>\n<|assistant|>'}]
 ```
 
-To deploy the model, run:
+To deploy the model. run:
 ```python
 project.deploy_function(genai_serving)
 ```

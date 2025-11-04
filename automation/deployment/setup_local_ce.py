@@ -426,7 +426,8 @@ def get_all_releases(
     repository: str,
 ) -> list[dict]:
     """
-    Fetch every release (newest first) including prereleases; each item may include tag_name, prerelease, published_at, etc.
+    Fetch every release (newest first) including prereleases;
+    each item may include tag_name, prerelease, published_at, etc.
     """
     releases = []
     page, per_page = 1, 100

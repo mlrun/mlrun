@@ -2104,7 +2104,7 @@ class ModelRunnerStep(MonitoredStep):
                 "Monitoring data must be a dictionary."
             )
 
-    def config_pool_resource(
+    def configure_pool_resource(
         self,
         max_processes: Optional[int] = None,
         max_threads: Optional[int] = None,
@@ -3026,7 +3026,7 @@ class RootFlowStep(FlowStep):
                 return model_name, model_class, model_params
         return None, None, None
 
-    def config_pool_resource(
+    def configure_pool_resource(
         self,
         max_processes: Optional[int] = None,
         max_threads: Optional[int] = None,

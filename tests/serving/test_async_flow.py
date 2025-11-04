@@ -1231,9 +1231,9 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
         else "process_pool",
     )
     if concurrency == "max_threads":
-        model_runner_step.config_pool_resource(max_threads=48)
+        model_runner_step.configure_pool_resource(max_threads=48)
     elif concurrency == "max_processes":
-        model_runner_step.config_pool_resource(max_processes=32)
+        model_runner_step.configure_pool_resource(max_processes=32)
 
     graph.to(model_runner_step).respond()
     server = function.to_mock_server()

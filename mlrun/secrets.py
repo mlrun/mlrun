@@ -18,11 +18,9 @@ from typing import Callable, Optional, Union
 
 import mlrun.auth.utils
 import mlrun.utils.helpers
-
-from .utils import AzureVaultStore, list2dict, logger
 from mlrun.config import is_running_as_api
 
-from .utils import AzureVaultStore, list2dict
+from .utils import AzureVaultStore, list2dict, logger
 
 
 class SecretsStore:

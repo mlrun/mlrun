@@ -24,6 +24,7 @@ import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
 import urllib3
 import yaml
 from kubernetes import client, config
+from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -1601,7 +1602,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             ) from exc
 
 
-class BasePod:
+class Pod:
     def __init__(
         self,
         task_name="",
@@ -1623,7 +1624,7 @@ class BasePod:
         self.args = args
         self._volumes = []
         self._mounts = []
-        self.env = None
+        self.env: list[client.V1EnvVar] = []
         self.node_selector = None
         self.project = project
         self._labels = {
@@ -1677,6 +1678,9 @@ class BasePod:
     def add_annotation(self, key, value):
         self._annotations[key] = str(value)
 
+    def add_env_var(self, env_var: client.V1EnvVar):
+        self.env.append(env_var)
+
     def add_volume(self, volume: client.V1Volume, mount_path, name=None, sub_path=None):
         self._mounts.append(
             client.V1VolumeMount(
@@ -1724,6 +1728,26 @@ class BasePod:
     def set_node_selector(self, node_selector: typing.Optional[dict[str, str]]):
         self.node_selector = node_selector
 
+    def replace_env_vars_with_secrets(
+        self,
+        env_var_names: list[str],
+    ):
+        """
+        Helper function to replace environment variables with secrets.
+        """
+        k8s_helper = get_k8s_helper()
+        for index, env_var in enumerate(self.env):
+            if env_var.name in env_var_names:
+                if env_var.value is None:
+                    logger.warning("Skipping empty secret value")
+                    continue
+                secret_env_var = self._create_secret_for_env_var(
+                    name=env_var.name,
+                    value=env_var.value,
+                    k8s_helper=k8s_helper,
+                )
+                self.env[index] = secret_env_var
+
     def _get_spec(self, template=False):
         pod_obj = client.V1PodTemplate if template else client.V1Pod
 
@@ -1767,6 +1791,30 @@ class BasePod:
             spec=pod_spec,
         )
         return pod
+
+    def _create_secret_for_env_var(
+        self,
+        name: str,
+        value: str,
+        k8s_helper: K8sHelper,
+    ) -> V1EnvVar:
+        secret_name, _ = k8s_helper.store_auth_secret(
+            username=name,
+            access_key=value,
+        )
+        env_var = V1EnvVar(
+            name=name,
+            value_from=V1EnvVarSource(
+                secret_key_ref=V1SecretKeySelector(
+                    name=secret_name,
+                    key=mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                        "access_key"
+                    ),
+                )
+            ),
+        )
+
+        return env_var
 
 
 def kube_resource_spec_to_pod_spec(

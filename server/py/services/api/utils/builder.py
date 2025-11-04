@@ -22,6 +22,7 @@ from os import path
 from urllib.parse import urlparse
 
 from kubernetes import client
+from kubernetes.client.models.v1_env_var import V1EnvVar
 
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
@@ -236,7 +237,7 @@ def make_kaniko_pod(
         if gpu_resources:
             resources["limits"] = gpu_resources
 
-    kpod = framework.utils.singletons.k8s.BasePod(
+    kpod = framework.utils.singletons.k8s.Pod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
         args=args,
@@ -247,7 +248,8 @@ def make_kaniko_pod(
         labels=extra_labels,
     )
     envs = (builder_env or []) + (project_secrets or [])
-    kpod.env = envs or None
+    for env in envs:
+        kpod.add_env_var(env)
 
     if config.is_pip_ca_configured():
         items = [
@@ -413,9 +415,19 @@ def build_image(
             )
 
     extra_args = extra_args or {}
-    builder_env = builder_env or {}
+    builder_envs = []
+    access_key = auth_info.data_session or auth_info.access_key
+    if builder_env and isinstance(builder_env, dict):
+        for key, value in builder_env.items():
+            builder_envs.append(V1EnvVar(name=key, value=value))
+            if key == "V3IO_ACCESS_KEY":
+                access_key = value or access_key
+            elif key == "V3IO_USERNAME":
+                username = value
+    if runtime_builder_env and isinstance(runtime_builder_env, dict):
+        for key, value in runtime_builder_env.items():
+            builder_envs.append(V1EnvVar(name=key, value=value))
 
-    builder_env = runtime_builder_env | builder_env or {}
     # no need to enrich extra args because we get them from the build anyway
     _validate_extra_args(extra_args)
 
@@ -425,22 +437,18 @@ def build_image(
     )
 
     if force_build:
-        mlrun.utils.logger.info("Forcefully building image")
+        mlrun.utils.helpers.logger.info("Forcefully building image")
     elif not inline_code and not source and not commands and not requirements:
-        mlrun.utils.logger.info("Skipping build, nothing to add")
+        mlrun.utils.helpers.logger.info("Skipping build, nothing to add")
         return "skipped"
 
     context = "/context"
     to_mount = False
-    is_v3io_source, is_http_source = False, False
+    is_v3io_source, is_s3_source, is_http_source = False, False, False
     if source:
         is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
         is_http_source = source.startswith("http")
-
-    access_key = builder_env.get(
-        "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
-    )
-    username = builder_env.get("V3IO_USERNAME", auth_info.username)
+        is_s3_source = source.startswith("s3://")
 
     builder_env_list, project_secrets = _generate_builder_env(project, builder_env)
 
@@ -455,7 +463,7 @@ def build_image(
         source_to_copy = source
 
     # source is remote
-    elif source and "://" in source and not is_v3io_source:
+    elif source and "://" in source and not (is_v3io_source or is_s3_source):
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
@@ -466,13 +474,15 @@ def build_image(
         context = source
         source_to_copy = "."
 
-    # source is local / v3io
+    # source is local / v3io / s3
     else:
         if is_v3io_source:
             source = parsed_url.path
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)
             source_dir_to_mount = path.normpath(source_dir_to_mount)
+        elif is_s3_source:
+            source = parsed_url.path
 
         # source is a path without a scheme, we allow to copy absolute paths assuming they are valid paths
         # in the image, however, it is recommended to use `workdir` instead in such cases
@@ -526,7 +536,11 @@ def build_image(
         project_secrets=project_secrets,
         extra_args=extra_args,
     )
-
+    if is_s3_source:
+        _enrich_kaniko_env_for_s3_context(
+            source_url=source,
+            env_vars=builder_env_list,
+        )
     kpod = make_kaniko_pod(
         project,
         context,
@@ -559,6 +573,15 @@ def build_image(
             access_key=access_key,
             user=username,
         )
+    if is_s3_source:
+        for env in builder_env_list:
+            kpod.add_env_var(env)
+        kpod.replace_env_vars_with_secrets(
+            env_var_names=[
+                "AWS_ACCESS_KEY_ID",
+                "AWS_SECRET_ACCESS_KEY",
+            ],
+        )
 
     k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
     kpod.namespace = k8s.resolve_namespace(namespace)
@@ -567,7 +590,7 @@ def build_image(
         return k8s.run_job(kpod)
     else:
         pod, ns = k8s.create_pod(kpod)
-        mlrun.utils.logger.info(
+        mlrun.utils.helpers.logger.info(
             "Build started", pod=pod, namespace=ns, project=project, image=image_target
         )
         return f"build:{pod}"
@@ -696,7 +719,7 @@ def build_runtime(
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
     if skip_deployed and runtime.is_deployed():
-        mlrun.utils.logger.info(
+        mlrun.utils.helpers.logger.info(
             "Skipping build, runtime is already deployed",
             runtime_name=runtime.metadata.name,
             project=project,
@@ -717,7 +740,7 @@ def build_runtime(
         with_mlrun = False
 
     if force_build:
-        mlrun.utils.logger.info("Forcefully building image")
+        mlrun.utils.helpers.logger.info("Forcefully building image")
     elif (
         not build.source
         and not build.commands
@@ -763,7 +786,7 @@ def build_runtime(
     if mlrun_image and build.requirements:
         add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier)
 
-    mlrun.utils.logger.info(
+    mlrun.utils.helpers.logger.info(
         "Building runtime image",
         base_image=enriched_base_image,
         image=build.image,
@@ -810,7 +833,7 @@ def build_runtime(
         runtime.spec.build.base_image = base_image
         return False
 
-    mlrun.utils.logger.info("Build completed", status=status)
+    mlrun.utils.helpers.logger.info("Build completed", status=status)
     if status in ["failed", "error"]:
         runtime.status.state = mlrun.common.schemas.FunctionState.error
         return False
@@ -831,7 +854,7 @@ def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifie
         installed_mlrun_version_command = resolve_mlrun_install_command_version(
             mlrun_version_specifier, client_version=image_tag
         )
-        mlrun.utils.logger.debug(
+        mlrun.utils.helpers.logger.debug(
             "Enriching build requirements with mlrun package",
             enriched_base_image=enriched_base_image,
             installed_mlrun_version_command=installed_mlrun_version_command,
@@ -841,7 +864,7 @@ def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifie
         build.requirements.insert(0, installed_mlrun_version_command)
 
     else:
-        mlrun.utils.logger.warning(
+        mlrun.utils.helpers.logger.warning(
             "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
             base_image=enriched_base_image,
         )
@@ -901,24 +924,27 @@ def resolve_image_target(
 
 
 def _generate_builder_env(
-    project: str, builder_env: dict
+    project: str,
+    builder_env: list[dict[str, str]],
 ) -> (list[client.V1EnvVar], list[client.V1EnvVar]):
     k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
 
     # generate env list from builder env and project secrets
+    existing_envs = [env["name"] for env in builder_env]
     project_secrets = []
     for key in existing_secret_keys:
-        if key not in builder_env:
+        if key not in existing_envs:
             value_from = client.V1EnvVarSource(
                 secret_key_ref=client.V1SecretKeySelector(name=secret_name, key=key)
             )
             project_secrets.append(client.V1EnvVar(name=key, value_from=value_from))
-    env = []
-    for key, value in builder_env.items():
-        env.append(client.V1EnvVar(name=key, value=value))
-    return env, project_secrets
+    envs = []
+    envs.extend(
+        [client.V1EnvVar(name=env["name"], value=env["value"]) for env in builder_env]
+    )
+    return envs, project_secrets
 
 
 def _add_kaniko_args_with_all_build_args(
@@ -1176,3 +1202,49 @@ def _resolve_function_image_secret(
         ):
             secret = config.httpdb.builder.docker_registry_secret
     return secret
+
+
+def _enrich_kaniko_env_for_s3_context(
+    source_url: str,
+    env_vars: list[client.V1EnvVar],
+) -> None:
+    """
+    If the build context is s3:// and no AWS_REGION was supplied,
+    assume MinIO/S3-compatibility and add S3_FORCE_PATH_STYLE=true
+    and a default AWS_REGION=us-east-1.
+    """
+    mlrun.utils.helpers.logger.debug("environ", env=os.environ)
+    mlrun.utils.helpers.logger.debug(
+        "source_context_url", source_context_url=source_url
+    )
+    mlrun.utils.helpers.logger.debug(
+        "kaniko_environment_variables",
+        kaniko_environment_variables=env_vars,
+    )
+    if not isinstance(source_url, str):
+        return
+    if not source_url.startswith("s3://"):
+        return
+    if not env_vars:
+        return
+
+    region_defined = any(env.name == "AWS_REGION" and env.value for env in env_vars)
+    if not region_defined:
+        env_vars.append(
+            client.V1EnvVar(
+                name="AWS_REGION",
+                value="us-east-1",
+            )
+        )
+
+        # MinIO requires path-style URLs
+        already_has_path_style = any(
+            env.name == "S3_FORCE_PATH_STYLE" and env.value for env in env_vars
+        )
+        if not already_has_path_style:
+            env_vars.append(
+                client.V1EnvVar(
+                    name="S3_FORCE_PATH_STYLE",
+                    value="true",
+                )
+            )

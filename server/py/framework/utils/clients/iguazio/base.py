@@ -83,7 +83,7 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         if retry_on_post and self._retry_on_post_session:
             http_session = self._retry_on_post_session
         response = http_session.request(
-            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
+            method, url, verify=mlrun.mlconf.iguazio_api_ssl_verify, **kwargs
         )
         if not response.ok:
             try:
@@ -242,7 +242,7 @@ class BaseAsyncClient(BaseClient):
             response = await self._async_session.request(
                 method,
                 url,
-                verify_ssl=mlrun.mlconf.httpdb.http.verify,
+                verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
                 retry_options=retry_options,
                 **kwargs,
             )

@@ -5362,7 +5362,7 @@ class HTTPRunDB(RunDBInterface):
     def get_secret_token(
         self, authenticated_username: str, token_name: str
     ) -> mlrun.common.schemas.SecretToken:
-        pass
+        raise NotImplementedError
 
     @mlrun.utils.iguazio_v4_only
     def _store_secret_tokens(

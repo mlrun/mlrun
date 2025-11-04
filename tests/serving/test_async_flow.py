@@ -25,6 +25,7 @@ import pytest
 
 import mlrun
 import mlrun.common.schemas as schemas
+from mlrun import new_function
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
@@ -1201,3 +1202,49 @@ def test_model_runner_add_proxy_model_failure():
             shared_model_name="my_model_1",
         )
         graph.to(model_runner_step).respond()
+
+
+@pytest.mark.parametrize(
+    "concurrency",
+    (
+        "max_threads",
+        "max_processes",
+    ),
+)
+def test_configure_model_runner_step_max_threads_processes(concurrency: str):
+    m1 = MyModel(
+        name="m1",
+        execution_mechanism="naive",
+        inc=1,
+    )
+
+    function = new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner",
+    )
+    model_runner_step.add_model(
+        endpoint_name=m1.name,
+        model_class=m1,
+        execution_mechanism="thread_pool"
+        if concurrency == "max_threads"
+        else "process_pool",
+    )
+    if concurrency == "max_threads":
+        model_runner_step.config_pool_resource(max_threads=48)
+    elif concurrency == "max_processes":
+        model_runner_step.config_pool_resource(max_processes=32)
+
+    graph.to(model_runner_step).respond()
+    server = function.to_mock_server()
+
+    if concurrency == "max_processes":
+        assert (
+            server.graph["my_model_runner"]._async_object.max_processes == 32
+        ), "Max processes not configured properly"
+    elif concurrency == "max_threads":
+        assert (
+            server.graph["my_model_runner"]._async_object.max_threads == 48
+        ), "Max threads not configured properly"
+    server.test(body={"n": 1})
+    server.wait_for_completion()

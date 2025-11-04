@@ -29,6 +29,7 @@ from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
 from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
+from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results
 
@@ -1163,3 +1164,40 @@ def test_shared_using_model_without_predict_implementation(execution_mechanism: 
             f"{method_name} is not implemented'"
         )
         assert expected_msg in str(exc_info.value)
+
+
+def test_model_runner_add_proxy_model_failure():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    model_artifact_1 = project.log_model(
+        "my_model_1",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    with pytest.raises(GraphError, match="Can't find shared model named my_mode"):
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my_endpoint",
+            model_artifact=model_artifact,
+            shared_model_name="my_model",
+        )
+        graph.to(model_runner_step).respond()
+    graph.add_shared_model(
+        name="my_model",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    with pytest.raises(GraphError, match="Can't find shared model named my_model_1"):
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my_endpoint_1",
+            model_artifact=model_artifact_1,
+            shared_model_name="my_model_1",
+        )
+        graph.to(model_runner_step).respond()

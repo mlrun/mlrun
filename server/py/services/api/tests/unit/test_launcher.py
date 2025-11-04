@@ -25,9 +25,10 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
+from mlrun.common.types import AuthenticationMode
 from mlrun.config import Config
 
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import services.api.launcher
 import services.api.tests.unit.api.utils
 
@@ -60,9 +61,9 @@ def test_enrich_runtime_with_auth_info(
     monkeypatch, k8s_secrets_mock, client: TestClient
 ):
     project = "some-project"
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     monkeypatch.setattr(
-        framework.utils.clients.iguazio,
+        framework.utils.clients.iguazio.v3,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )

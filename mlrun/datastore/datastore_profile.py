@@ -485,6 +485,47 @@ class DatastoreProfileTDEngine(DatastoreProfile):
         )
 
 
+class DatastoreProfilePostgreSQL(DatastoreProfile):
+    """
+    A profile that holds the required parameters for a PostgreSQL database.
+    PostgreSQL uses standard PostgreSQL connection parameters.
+    """
+
+    type: str = pydantic.v1.Field("postgresql")
+    _private_attributes = ["password"]
+    user: str
+    # The password cannot be empty in real world scenarios. It's here just because of the profiles completion design.
+    password: typing.Optional[str]
+    host: str
+    port: int
+    database: str = pydantic.v1.Field(
+        default="postgres"
+    )  # the default maintenance database
+
+    def dsn(self) -> str:
+        """Get the Data Source Name of the configured PostgreSQL profile."""
+        return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+    @classmethod
+    def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfilePostgreSQL":
+        """
+        Construct a PostgreSQL profile from DSN (connection string) and a name for the profile.
+
+        :param dsn:          The DSN (Data Source Name) of the PostgreSQL database, e.g.: ``"postgresql://user:password@localhost:5432/mydb"``.
+        :param profile_name: The new profile's name.
+        :return:             The PostgreSQL profile.
+        """
+        parsed_url = urlparse(dsn)
+        return cls(
+            name=profile_name,
+            user=parsed_url.username,
+            password=parsed_url.password,
+            host=parsed_url.hostname,
+            port=parsed_url.port,
+            database=parsed_url.path.lstrip("/") if parsed_url.path else "postgres",
+        )
+
+
 class OpenAIProfile(DatastoreProfile):
     type: str = pydantic.v1.Field("openai")
     _private_attributes = "api_key"
@@ -553,6 +594,7 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "az": DatastoreProfileAzureBlob,
     "hdfs": DatastoreProfileHdfs,
     "taosws": DatastoreProfileTDEngine,
+    "postgresql": DatastoreProfilePostgreSQL,
     "config": ConfigProfile,
     "openai": OpenAIProfile,
     "huggingface": HuggingFaceProfile,

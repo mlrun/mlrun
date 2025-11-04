@@ -155,7 +155,8 @@ class DynamicTokenProvider(TokenProvider):
             # Token fetch failed and there is no existing token - cannot proceed
             if not self._token:
                 raise mlrun.errors.MLRunRuntimeError(
-                    f"Failed to fetch a valid access token. Authentication procedure stopped.") from exc
+                    "Failed to fetch a valid access token. Authentication procedure stopped."
+                ) from exc
 
         finally:
             self._post_fetch_hook()

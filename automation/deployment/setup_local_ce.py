@@ -373,7 +373,7 @@ def _github_auth_headers() -> dict[str, str]:
 
 def _github_get_json(
     url: str,
-    params: typing.Optional[dict] = None,
+    params: dict | None = None,
 ) -> tuple[int, object]:
     resp = requests.get(
         url,
@@ -481,7 +481,7 @@ def _normalize_prerelease_for_numeric_order(
     lowered = prerelease_part.lower()
     normalized = prerelease_part
 
-    def split_label_and_number(prefix: str) -> typing.Optional[tuple[str, str]]:
+    def split_label_and_number(prefix: str) -> tuple[str, str] | None:
         if lowered.startswith(prefix):
             suffix = prerelease_part[len(prefix) :]
             if suffix.isdigit():
@@ -502,7 +502,7 @@ def _normalize_prerelease_for_numeric_order(
 
 def _to_semver_version_or_none(
     raw_tag_text: str,
-) -> typing.Optional[semver.Version]:
+) -> semver.Version | None:
     if not raw_tag_text:
         return None
     stripped = _strip_v_prefix(raw_tag_text)
@@ -547,7 +547,7 @@ def choose_first_matching_version(
     candidates: collections.abc.Iterable[str],
     *,
     allow_dev_versions: bool,
-) -> typing.Optional[str]:
+) -> str | None:
     """
     Scan candidates and return the first version matching the policy:
     - allow_dev_versions=True → X.Y.Z or X.Y.Z-rcN
@@ -570,7 +570,7 @@ def choose_first_matching_version(
 def resolve_from_releases(
     repo_name: str,
     allow_dev_versions: bool,
-) -> typing.Optional[str]:
+) -> str | None:
     tag = get_latest_release_tag(
         repo_name,
         include_prereleases=allow_dev_versions,
@@ -596,7 +596,7 @@ def resolve_from_releases(
 def resolve_from_tags(
     repo_name: str,
     allow_dev_versions: bool,
-) -> typing.Optional[str]:
+) -> str | None:
     all_tags = get_all_tags(
         repository=repo_name,
     )
@@ -720,7 +720,7 @@ def update_helm_repos(
 
 def _read_chart_image_versions(
     ce_dir: pathlib.Path,
-) -> tuple[typing.Optional[str], typing.Optional[str]]:
+) -> tuple[str | None, str | None]:
     """
     Read MLRun and Nuclio image tags from the mlrun-ce chart values.
     Returns (mlrun_version, nuclio_version) without architecture suffixes and without leading 'v'.

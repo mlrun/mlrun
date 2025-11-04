@@ -158,7 +158,7 @@ async def patch_model_endpoint(
     )
     attributes = {key: model_endpoint.get(key) for key in attributes_keys}
 
-    return run_in_threadpool(
+    return await run_in_threadpool(
         services.api.crud.ModelEndpoints().patch_model_endpoint,
         name=model_endpoint.metadata.name,
         project=project,

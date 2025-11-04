@@ -11,10 +11,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 import typing
 from abc import ABC, abstractmethod
 
 import mlrun.common.schemas
+from mlrun.config import config as mlconf
+
+_AUTH_SECRET_NAME_TEMPLATE = re.escape(
+    mlconf.secret_stores.kubernetes.auth_secret_name.format(
+        hashed_access_key="",
+    )
+)
+AUTH_SECRET_PATTERN = re.compile(f"^{_AUTH_SECRET_NAME_TEMPLATE}.*")
+
+
+def validate_not_forbidden_secret(secret_name: str) -> None:
+    """
+    Forbid client-supplied references to internal MLRun auth/project secrets.
+    No-op when running inside the API server (API enrichments are allowed).
+    """
+    if not secret_name or mlrun.config.is_running_as_api():
+        return
+    if AUTH_SECRET_PATTERN.match(secret_name):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
+        )
 
 
 class SecretProviderInterface(ABC):

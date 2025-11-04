@@ -384,10 +384,6 @@ class IGTokenProvider(DynamicTokenProvider):
                 "Failed to fetch a new token. Using the existing token, which remains valid but is close to expiring."
             )
 
-        if not self._token:
-            raise mlrun.errors.MLRunRuntimeError(
-                "Failed to fetch access token, the requested token does not exist or is invalid."
-            )
 
     @staticmethod
     def _get_token_lifetime_and_expiry(

@@ -37,6 +37,7 @@ from storey import MapClass
 from storey.dtypes import V3ioError
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.datastore.utils
 import mlrun.feature_store as fstore
 import mlrun.runtimes.mounts
@@ -3537,7 +3538,8 @@ class TestFeatureStore(TestMLRunSystem):
             },
         }
         headers = {
-            "Cookie": "session=j:" + json.dumps({"sid": os.getenv("V3IO_ACCESS_KEY")})
+            mlrun.common.schemas.HeaderNames.cookie: f"{mlrun.common.schemas.CookieNames.iguazio}=j:"
+            + json.dumps({"sid": os.getenv("V3IO_ACCESS_KEY")})
         }
         response = requests.patch(
             request_url,

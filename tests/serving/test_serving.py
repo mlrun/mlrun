@@ -930,3 +930,61 @@ def test_execute_graph_dataitem_parameter_validation():
         match=r".*data.*DataItem.*inputs.*params.*",
     ):
         execute_graph(context, data=123, batching=False)
+
+
+class _StubAzureVaultStore:
+    """
+    Minimal stub for mlrun.secrets.AzureVaultStore so tests never touch Azure.
+    Only needs to be constructible and expose add_source; behavior is irrelevant
+    for these validation tests since we assert before any real call is needed.
+    """
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def add_source(self, *args, **kwargs):
+        return None
+
+
+def test_function_with_secrets_azure_vault_blocks_auth_secret_name(monkeypatch):
+    # Ensure we never touch the real Azure implementation
+    monkeypatch.setattr(mlrun.secrets, "AzureVaultStore", _StubAzureVaultStore)
+
+    serving_function_under_test = mlrun.new_function("tests", kind="serving")
+
+    forbidden_k8s_secret_name = "mlrun-auth-secrets.anything"
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as raised_exception_info:
+        serving_function_under_test.with_secrets(
+            "azure_vault",
+            {
+                "name": "vault1",
+                "k8s_secret": forbidden_k8s_secret_name,
+                "tenant_id": "t",
+                "vault_url": "https://x",
+                "secrets": [],  # required by secrets store path
+            },
+        )
+
+    raised_exception_text = str(raised_exception_info.value)
+    assert "Forbidden secret" in raised_exception_text
+    assert forbidden_k8s_secret_name in raised_exception_text
+
+
+def test_function_with_secrets_azure_vault_allows_non_auth_secret(monkeypatch):
+    # Stub Azure so we don't require tenant/client_id config
+    monkeypatch.setattr(mlrun.secrets, "AzureVaultStore", _StubAzureVaultStore)
+
+    serving_function_under_test = mlrun.new_function("tests", kind="serving")
+
+    allowed_k8s_secret_name = "regular-k8s-secret-name"
+    # Should not raise
+    serving_function_under_test.with_secrets(
+        "azure_vault",
+        {
+            "name": "vault1",
+            "k8s_secret": allowed_k8s_secret_name,
+            "tenant_id": "t",
+            "vault_url": "https://x",
+            "secrets": [],  # minimal valid payload for add_source
+        },
+    )

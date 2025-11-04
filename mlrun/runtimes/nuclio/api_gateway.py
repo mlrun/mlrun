@@ -692,7 +692,7 @@ class APIGateway(ModelObj):
     @staticmethod
     def _generate_basic_auth(username: str, password: str):
         token = base64.b64encode(f"{username}:{password}".encode()).decode()
-        return f"Basic {token}"
+        return f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.basic}{token}"
 
     @staticmethod
     def _resolve_canary(

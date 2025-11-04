@@ -68,6 +68,7 @@ class HTTPSessionWithRetry(requests.Session):
         retry_on_exception=True,
         retry_on_status=True,
         retry_on_post=False,
+        retry_on_put=True,
         verbose=False,
     ):
         """
@@ -77,6 +78,8 @@ class HTTPSessionWithRetry(requests.Session):
         :param retry_on_exception:      Retry on the HTTP_RETRYABLE_EXCEPTIONS. defaults to True.
         :param retry_on_status:         Retry on error status codes. defaults to True.
         :param retry_on_post:           Retry on POST requests. defaults to False.
+        :param retry_on_put:            Whether to allow retries on PUT requests. Actual behavior may exclude specific
+                                        paths from retrying. defaults to True.
         :param verbose:                 Print debug messages.
         """
         super().__init__()
@@ -86,7 +89,7 @@ class HTTPSessionWithRetry(requests.Session):
         self.retry_on_exception = retry_on_exception
         self.verbose = verbose
         self._logger = logger.get_child("http-client")
-        self._retry_methods = self._resolve_retry_methods(retry_on_post)
+        self._retry_methods = self._resolve_retry_methods(retry_on_post, retry_on_put)
 
         if retry_on_status:
             self._http_adapter = requests.adapters.HTTPAdapter(
@@ -200,9 +203,13 @@ class HTTPSessionWithRetry(requests.Session):
     def _method_retryable(self, method: str):
         return method in self._retry_methods
 
-    def _resolve_retry_methods(self, retry_on_post: bool = False) -> frozenset[str]:
+    def _resolve_retry_methods(
+        self, retry_on_post: bool = False, retry_on_put: bool = True
+    ) -> frozenset[str]:
         methods = urllib3.util.retry.Retry.DEFAULT_ALLOWED_METHODS
         methods = methods.union({"PATCH"})
+        if not retry_on_put:
+            methods = methods.difference({"PUT"})
         if retry_on_post:
             methods = methods.union({"POST"})
         return frozenset(methods)

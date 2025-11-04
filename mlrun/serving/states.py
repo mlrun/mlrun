@@ -1856,17 +1856,24 @@ class ModelRunnerStep(MonitoredStep):
                                     (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
                                     outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
-            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
-                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
-                Lock (GIL).
-            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
-                tasks that also require significant Runnable-specific initialization (e.g. a large model).
-            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
-                otherwise block the main event loop thread.
-            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
-                event loop to continue running while waiting for a response.
-            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
-                It means that the runnable will not actually be run in parallel to anything else.
+
+                            * **process_pool**: To run in a separate process from a process pool. This is appropriate
+                              for CPU or GPU intensive tasks as they would otherwise block the main process by holding
+                              Python's Global Interpreter Lock (GIL).
+
+                            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU
+                              or GPU intensive tasks that also require significant Runnable-specific initialization
+                              (e.g. a large model).
+
+                            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks,
+                              as they would otherwise block the main event loop thread.
+
+                            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use
+                              asyncio, allowing the event loop to continue running while waiting for a response.
+
+                            * **naive**: To run in the main event loop. This is appropriate only for trivial computation
+                              and/or file I/O. It means that the runnable will not actually be run in parallel to
+                              anything else.
 
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param labels:              model endpoint labels, should be list of str or mapping of str:str

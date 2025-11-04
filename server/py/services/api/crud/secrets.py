@@ -623,9 +623,8 @@ class Secrets(
                 token_sub = decoded_token.get("sub")
                 if token_sub != authenticated_id:
                     mlrun.utils.logger.warning(
-                        f"Offline token '{token_name}' subject {token_sub} does not match the authenticated user ID:"
-                        f" {authenticated_id}."
-                    )
+                        "Offline token subject does not match the authenticated user", token_name=token_name,
+                        token_sub=token_sub, user_id=authenticated_id)
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"Offline token '{token_name}' does not match the authenticated user ID. "
                         "Stored tokens can only belong to the authenticated user."
@@ -633,7 +632,6 @@ class Secrets(
 
                 # Store token info
                 token_values[secret_token.name] = {
-                    "token_sub": decoded_token.get("sub"),
                     "token_exp": decoded_token.get("exp"),
                     "token": secret_token.token,
                 }

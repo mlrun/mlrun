@@ -1966,7 +1966,7 @@ class MonitoringDeployment:
         delete_background_task: fastapi.BackgroundTasks,
     ):
         async with semaphore:
-            result = await framework.db.session.run_function_with_new_db_session(
+            result = framework.db.session.run_function_with_new_db_session(
                 func=services.api.crud.ModelEndpoints().create_model_endpoints,
                 model_endpoints_instructions=model_endpoints_instructions,
                 project=project,

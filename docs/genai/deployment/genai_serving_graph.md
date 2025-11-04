@@ -5,7 +5,7 @@ Learn how to create a serving graph using multiple LLMs, including specific prom
 Take a project, for example, of an insurance company customer service chatbot that receives customers' requests and gives the best answer according to the customer’s specific data and the company’s procedures.
 This would require a few calls for LLMs, each with its purpose, potemtially using different prompts and different LLMs. 
 The first step is classification: receiving the user’s request and trying to classify it into the pre-defined flow.
-This step will use a specific prompt instructing the LLM to classify the request. The LLM's answer can be a short text or a number specifying the classified path. The LLM that will be used will not require the creation of sophisticated answers, and the generation configuration can allow only very short answers. 
+This step uses a specific prompt instructing the LLM to classify the request. The LLM's answer can be a short text or a number specifying the classified path. The LLM used at this stage would not require the creation of sophisticated answers, and the invocation configuration can allow only very short answers. 
 After the relevant flows are understood, the system can ask the user for their ID and answer the question based on the user’s data, such as the status of their claim. In this case, the LLM and prompt are different.
 
 This page guides you through the basic steps to generate a serving graph using LLMs. For a full example, see the tutorial
@@ -14,18 +14,25 @@ This page guides you through the basic steps to generate a serving graph using L
 
 ![llm-flow-chart](../../_static/images/llm-flowchart.png)
 
-In this section
-- [Define the LLM prompt template]
-- Log the LLM prompt artifacts
-- Serve the graph
+**In this section**
+- [Guidelines](#guidelines)
+- [Define the LLM prompt template](#define-the-llm-prompt-template)
+- [Log the LLM prompt artifacts](#log-the-llm-prompt-artifacts)
+- [Serve the graph](#serve-the-graph)
 
 See also
 [MLRun fine-tuning demo](https://github.com/mlrun/demo-llm-tuning)
 
+## Guidelines
+
+- One LLM can be used by multiple LLM prompts 
+- The `invocation-config` is specific per LLM prompt. For example, you can limit the tokens in a classification step, while other steps do not have a token limitation.
+- When the graph is deployed, each model step, which represents a model/prompt combination, is translated to a model endpoint and can be monitored individually.
+
 
 ## Define the LLM prompt template 
 
-Prompt templates guide the LLM to generate responses based on user queries. They
+Prompt templates guide the LLM to generate responses based on user queries and the role of this specific LLM call in the workflow. They
 use variables to define the format of the prompt. 
 The name of the template is important, since you will use it subsequently in filters and searches.
 
@@ -45,12 +52,12 @@ prompt_template = [
 
 
 
-## Logging LLM prompt artifacts
+## Log the LLM prompt artifacts
 
 LLM prompt artifacts capture a prompt definition for LLM interactions. You can log prompt artifacts (to your project) with an inline prompt template, or from a file, and with optional metadata like generation parameters, a legend for variable injection, and references to a parent model artifact. 
 Prompt artifacts are uniquely defined by their LLM, prompt template, and the model generation configuration.
 
-See the parameters and examples in {py:class}`~mlrun.projects.MlrunProject.log_llm_prompt`. 
+See the parameters and examples in {py:meth}`~mlrun.projects.MlrunProject.log_llm_prompt`. 
 
 ```
 project/context.log_llm_prompt(
@@ -127,7 +134,7 @@ project.log_llm_prompt(
 ## Serve the graph
 
 Models can be either local or remote. See {ref}`genai-serving`.
-The graph uses the {py:class}`mlrun.serving.ModelRunnerStepmodelRunnerStep`, enabling the running of multiple models on each event.
+The graph uses the {py:class}`mlrun.serving.ModelRunnerStep`, enabling the running of multiple models on each event.
 When the graph is deployed, each model step, which represents a model/prompt combination, is translated to a model endpoint.
 
 ```
@@ -138,7 +145,7 @@ class Model():
     def load():
         # load the model from the artifact.
 
-    # The predict method will expect the body to contain a propmt.
+    # The predict method expects the body to contain a propmt.
     def predict(body):
         prompt = self.extract_prompt_from_body(body)
         # predict locally.
@@ -164,8 +171,8 @@ class ModelProxy(Model):
 
 
 model = ModelArtifact("hugging_face://model1")
-# Behind the scenes this will create a Model class instance with the model provided.
-# The graph will keep a mapping of the model path (hugging_face://model1) to the model name (m1).
+# Behind the scenes this create a Model class instance with the model provided.
+# The graph keeps a mapping of the model path (hugging_face://model1) to the model name (m1).
 graph.add_model("m1", model)
 
 # Two different prompts for the same model.
@@ -182,61 +189,12 @@ model_runner_step = ModelRunnerStep(
     model_selector="MyModelSelector",
 )
 
-# These models will actually just invoke the model step. They will be tracked separately
+# These models actually just invoke the model step. They are tracked separately
 # by Model Monitoring, though.
 model_runner_step.add_model(m1)
 model_runner_step.add_model(m2)
 graph.to(model_runner_step)
 ```
-
-## A basic graph
-
-The following code shows how to set up a simple pipeline that includes a single step. This example calls an OpenAI ChatGPT model:
-
-```python
-class QueryLLM:
-    def __init__(self):
-        config = AppConfig()
-        self.agent = build_agent(config=config)
-
-    def do(self, event):
-        try:
-            agent_resp = self.agent(
-                {
-                    "input": event.body["question"],
-                    "chat_history": messages_from_dict(event.body["chat_history"]),
-                }
-            )
-            event.body["output"] = parse_agent_output(agent_resp=agent_resp)
-        except ValueError as e:
-            response = str(e)
-            if not response.startswith("Could not parse LLM output: `"):
-                raise e
-            event.body["output"] = response.removeprefix(
-                "Could not parse LLM output: `"
-            ).removesuffix("`")
-        return event
-```
-
-To run a model as part of a larger pipeline, you can use the {py:meth}`mlrun.runtimes.ServingRuntime.set_topology` method of the serving function. 
-Store the code above to `src/serve-llm.py`. Then, to create the serving function, run the following code:
-
-```python
-serving_fn = project.set_function(
-    name="serve-llm",
-    func="src/serve_llm.py",
-    kind="serving",
-    image=image,
-)
-graph = serving_fn.set_topology("flow", engine="async")
-graph.add_step(
-    name="llm",
-    class_name="src.serve_llm.QueryLLM",
-    full_event=True,
-).respond()
-```
-
-You can now use a similar approach to add more steps to the pipeline.
 
 ## Distributed pipelines
 

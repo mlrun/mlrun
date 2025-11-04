@@ -5,7 +5,6 @@ LLM prompt artifacts are defined by their prompt template, the model, and the ge
 
 **In this section**
 - [SDK](#sdk)
-- [Prompt artifacts](#prompt-artifacts)
 - [Logging LLM prompt artifacts](#logging-llm-prompt-artifacts)
 - [Deleting prompt artifacts](#deleting-prompt-artifacts-using-the-sdk)
 - [Viewing LLM-prompt artifacts using the SDK](#viewing-llm-prompt-artifacts-using-the-sdk)
@@ -15,6 +14,37 @@ LLM prompt artifacts are defined by their prompt template, the model, and the ge
 - {py:class}`~mlrun.projects.MlrunProject.log_llm_prompt`: Logs an LLM prompt artifact to the current project.
 - {py:class}`~mlrun.projects.MlrunProject.list_llm_prompts`: Lists LLM prompt artifacts in the current project with support for filtering.
 - {py:class}`~mlrun.projects.MlrunProject.paginated_list_llm_prompts`: Retrieves a paginated list of LLM prompt artifacts in the current project.
+
+## Logging LLM prompt artifacts
+LLM prompt artifacts capture a prompt definition for LLM interactions. You can log prompt artifacts (to your project) with an inline prompt template, or from a file, and with optional metadata like generation parameters, a legend for variable injection, and references to a parent model artifact. 
+Prompt artifacts:
+-Are uniquely defined by their LLM, prompt template, and the model generation configuration. 
+- Support {ref}`local and remote models<genai-serving>`.
+- Support [inline prompt templates and templates from a file](..//genai/deployment/genai_serving_graph.html#logging-llm-prompt-artifacts).
+
+Use {py:meth}`~mlrun.projects.MlrunProject.log_llm_prompt` to log prompt artifacts as part of a project.
+
+The basic usage is: 
+
+```
+project/context.log_llm_prompt(
+  key,
+  description: str = "", # User-provided description for this prompt template.
+
+  prompt: str,       # Prompt text, with possible template params.
+  template_params: dict = None, # Configurations for the template params.
+
+  model_artifact: Union[ModelArtifact, str] = None,
+  model_config: dict = None,
+
+  # General artifact identification and metadata params.
+  artifact_path=None,
+  tag = None,
+  labels: Union[list[str], str] = None, # A single label or a list of labels. Each of format key[=value]
+  **kwargs,
+)
+```
+
 
 
 ## Deleting prompt artifacts using the SDK

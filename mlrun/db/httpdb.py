@@ -20,7 +20,7 @@ import traceback
 import typing
 import warnings
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from os import environ, path, remove
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
@@ -4174,7 +4174,10 @@ class HTTPRunDB(RunDBInterface):
 
         :return: A list of FunctionSummary objects containing information about the monitoring functions.
         """
-
+        if start:
+            start = start.astimezone(timezone.utc)
+        if end:
+            end = end.astimezone(timezone.utc)
         path = f"projects/{project}/model-monitoring/function-summaries"
         labels = self._parse_labels(labels)
         if names and isinstance(names, str):

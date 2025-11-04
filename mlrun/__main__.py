@@ -203,7 +203,6 @@ def main():
 @click.option(
     "--allow-cross-project",
     is_flag=True,
-    default=True,  # TODO: remove this default in 1.11
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
@@ -513,7 +512,6 @@ def run(
 @click.option(
     "--allow-cross-project",
     is_flag=True,
-    default=True,  # TODO: remove this default in 1.11
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
@@ -672,7 +670,6 @@ def build(
 @click.option(
     "--allow-cross-project",
     is_flag=True,
-    default=True,  # TODO: remove this default in 1.11
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
@@ -1008,7 +1005,6 @@ def logs(uid, project, offset, db):
 @click.option(
     "--allow-cross-project",
     is_flag=True,
-    default=True,  # TODO: remove this default in 1.11
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )

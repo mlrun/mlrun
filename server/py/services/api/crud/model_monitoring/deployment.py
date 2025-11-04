@@ -1677,14 +1677,18 @@ class MonitoringDeployment:
         ):
             if mlrun.mlconf.is_ce_mode():
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "MLRun CE supports only TDEngine TSDB, received a V3IO profile for the TSDB"
+                    "MLRun CE supports only TDEngine and TimescaleDB TSDB, received a V3IO profile for the TSDB"
                 )
         elif not isinstance(
-            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
+            tsdb_profile,
+            (
+                mlrun.datastore.datastore_profile.DatastoreProfileTDEngine,
+                mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+            ),
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io` or `DatastoreProfileTDEngine`."
+                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfilePostgreSQL`."
             )
 
         return tsdb_profile

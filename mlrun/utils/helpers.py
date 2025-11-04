@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import asyncio
 import base64
 import enum
+import functools
 import gzip
 import hashlib
 import inspect
@@ -2552,3 +2552,27 @@ def get_relative_module_name_from_path(
         working_dir_path_object
     )
     return ".".join(relative_path_to_source_file.with_suffix("").parts)
+
+
+def iguazio_v4_only(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        if not mlrun.mlconf.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
+            )
+        return function(*args, **kwargs)
+
+    return wrapper
+
+
+def raise_or_log_error(message: str, raise_on_error: bool = True):
+    """
+    Handle errors by either raising an exception or logging a warning.
+
+    :param message: The error message.
+    :param raise_on_error: If True, raises an exception. Otherwise, logs a warning.
+    """
+    if raise_on_error:
+        raise mlrun.errors.MLRunRuntimeError(message)
+    logger.warning(message)

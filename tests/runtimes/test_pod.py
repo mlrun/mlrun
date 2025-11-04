@@ -23,6 +23,7 @@ import pytest
 from deepdiff import DeepDiff
 
 import mlrun
+import mlrun.common.secrets
 import mlrun.runtimes.databricks_job.databricks_runtime
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
@@ -539,3 +540,26 @@ def test_set_env_blocks_top_level_secret_key_ref_dict():
     }
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         fn.set_env(name="MY_ENV", value_from=payload)
+
+
+@pytest.mark.parametrize(
+    "is_api_server,should_raise",
+    [
+        ("false", True),
+        ("true", False),
+    ],
+)
+def test_validate_not_forbidden_secret(monkeypatch, is_api_server, should_raise):
+    def _forbidden_name():
+        base = mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=""
+        )
+        return f"{base}x"
+
+    monkeypatch.setenv("MLRUN_IS_API_SERVER", is_api_server)
+
+    if should_raise:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())
+    else:
+        mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())

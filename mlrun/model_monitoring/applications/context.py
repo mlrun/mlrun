@@ -249,6 +249,7 @@ class MonitoringApplicationContext:
                 project=self.project_name,
                 endpoint_id=self.endpoint_id,
                 feature_analysis=True,
+                tsdb_metrics=False,
             )
         return self._model_endpoint
 

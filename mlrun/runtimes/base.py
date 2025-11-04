@@ -455,7 +455,6 @@ class BaseRuntime(ModelObj):
         :return: Dictionary with all the variables that could be parsed
         """
         active_project = self.metadata.project or config.active_project
-
         runtime_env = {
             mlrun_constants.MLRUN_ACTIVE_PROJECT: active_project,
             # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore

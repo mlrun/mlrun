@@ -5362,7 +5362,6 @@ class HTTPRunDB(RunDBInterface):
         Retrieve a specific secret token for the authenticated user.
 
         :param token_name: The name of the token to retrieve.
-        :param username: The username of the currently authenticated user.
         :return: A SecretToken schema object with the token's details.
         """
         endpoint_path = f"user-secrets/tokens/{token_name}"

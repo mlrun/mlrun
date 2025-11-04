@@ -366,7 +366,9 @@ with warnings.catch_warnings():
             Index("idx_project_kind_key", "project", "kind", "key"),
             # Used explicitly in list_artifacts, as most of the queries request best_iteration, and all always sort by
             # updated. See https://iguazio.atlassian.net/browse/ML-9189
-            Index("idx_project_bi_updated", "project", "best_iteration", "updated"),
+            Index(
+                "idx_project_bi_updated", "project", "best_iteration", "kind", "updated"
+            ),
         )
 
         id = Column(Integer, primary_key=True)

@@ -328,25 +328,26 @@ class MLRunPatcher:
             cmd = ["make"]
             cmd.extend(targets)
             self._exec_local(cmd, live=True, env=env)
-            python_39_targets_to_build = []
-            for python_39_target in Constants.python_39_targets:
-                if python_39_target in targets:
-                    target_to_image[
-                        f"{python_39_target}`{Constants.python_39_suffix}"
-                    ] = (
-                        f"{mlrun_docker_registry}/{Constants.targets_to_image_name[python_39_target]}:"
-                        f"{image_tag}{Constants.python_39_suffix}"
-                    )
-                    python_39_targets_to_build.append(python_39_target)
-            self._exec_local(
-                ["make", *python_39_targets_to_build],
-                live=True,
-                env={
-                    **env,
-                    "MLRUN_PYTHON_VERSION": "3.9",
-                    "INCLUDE_PYTHON_VERSION_SUFFIX": "true",
-                },
-            )
+            if self._build_py39:
+                python_39_targets_to_build = []
+                for python_39_target in Constants.python_39_targets:
+                    if python_39_target in targets:
+                        target_to_image[
+                            f"{python_39_target}`{Constants.python_39_suffix}"
+                        ] = (
+                            f"{mlrun_docker_registry}/{Constants.targets_to_image_name[python_39_target]}:"
+                            f"{image_tag}{Constants.python_39_suffix}"
+                        )
+                        python_39_targets_to_build.append(python_39_target)
+                self._exec_local(
+                    ["make", *python_39_targets_to_build],
+                    live=True,
+                    env={
+                        **env,
+                        "MLRUN_PYTHON_VERSION": "3.9",
+                        "INCLUDE_PYTHON_VERSION_SUFFIX": "true",
+                    },
+                )
 
         return target_to_image
 

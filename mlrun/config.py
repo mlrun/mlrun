@@ -100,7 +100,7 @@ default_config = {
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     "ipython_widget": True,
-    "log_level": "DEBUG",
+    "log_level": "INFO",
     # log formatter (options: human | human_extended | json)
     "log_formatter": "human",
     # custom logger format, workes only with log_formatter: custom
@@ -381,7 +381,7 @@ default_config = {
         "http": {
             # when True, the client will verify the server's TLS
             # set to False for backwards compatibility.
-            "verify": False,
+            "verify": True,
         },
         "db": {
             "commit_retry_timeout": 30,

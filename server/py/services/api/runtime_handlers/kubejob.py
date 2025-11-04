@@ -48,8 +48,9 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         runtime: mlrun.runtimes.KubejobRuntime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        command, args, extra_env = self._get_cmd_args(runtime, run)
+        command, args, extra_env = self._get_cmd_args(runtime, run, auth_info)
         run_node_selector = run.spec.node_selector
         run_tolerations = run.spec.tolerations
         run_affinity = run.spec.affinity
@@ -99,8 +100,9 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         self,
         runtime: mlrun.runtimes.KubejobRuntime,
         run: mlrun.run.RunObject,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        extra_env = runtime._generate_runtime_env(run)
+        extra_env = runtime._generate_runtime_env(run, auth_info)
         if runtime.spec.pythonpath:
             extra_env["PYTHONPATH"] = runtime.spec.pythonpath
         args = []

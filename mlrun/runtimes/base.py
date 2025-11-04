@@ -13,7 +13,6 @@
 # limitations under the License.
 import enum
 import http
-import os
 import re
 import typing
 import warnings
@@ -444,22 +443,33 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _generate_runtime_env(self, runobj: RunObject = None) -> dict:
+    def _generate_runtime_env(
+        self, runobj: RunObject = None, auth_info: mlrun.common.schemas.AuthInfo = None
+    ) -> dict:
         """
         Prepares all available environment variables for usage on a runtime
         Data will be extracted from several sources and most of them are not guaranteed to be available
 
         :param runobj: Run context object (RunObject) with run metadata and status
+        :param auth_info: Optional authentication information.
         :return: Dictionary with all the variables that could be parsed
         """
         active_project = self.metadata.project or config.active_project
 
-        # TODO: pass auth info username
-        offline_token = (
-            self._get_db()
-            .get_secret_token(authenticated_username="admin", token_name="default")
-            .token
-        )
+        offline_token = None
+        if auth_info and auth_info.username:
+            try:
+                secret = self._get_db().get_secret_token(
+                    authenticated_username=auth_info.username,
+                    token_name="default",
+                )
+                offline_token = secret.token if secret else None
+            except Exception as exc:
+                mlrun.utils.logger.warning(
+                    "Failed to retrieve offline token for user",
+                    username=auth_info.username,
+                    error=err_to_str(exc),
+                )
 
         runtime_env = {
             mlrun_constants.MLRUN_ACTIVE_PROJECT: active_project,

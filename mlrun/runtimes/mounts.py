@@ -414,12 +414,8 @@ def mount_secret(
                          the specified paths, and unlisted keys will not be
                          present."""
 
-    if secret_name and mlrun.common.secrets.AUTH_SECRET_PATTERN.match(
-        secret_name.strip()
-    ):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
-        )
+    if secret_name:
+        mlrun.common.secrets.validate_not_forbidden_secret(secret_name.strip())
 
     def _mount_secret(runtime: "KubeResource"):
         # Define the secret volume source

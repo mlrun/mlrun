@@ -3455,11 +3455,9 @@ class MlrunProject(ModelObj):
         # Block using mlrun-auth-secrets.* via azure_vault's k8s_secret param (client-side only)
         if kind == "azure_vault" and isinstance(source, dict):
             candidate_secret_name = (source.get("k8s_secret") or "").strip()
-            if candidate_secret_name and mlrun.common.secrets.AUTH_SECRET_PATTERN.match(
-                candidate_secret_name
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Forbidden secret '{candidate_secret_name}' matches MLRun auth-secret pattern."
+            if candidate_secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(
+                    candidate_secret_name
                 )
 
         if kind == "vault" and isinstance(source, list):
@@ -3928,6 +3926,7 @@ class MlrunProject(ModelObj):
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileTDEngine`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL`
 
                                           You need to register one of them, and pass the profile's name.
         :param stream_profile_name:       The datastore profile name of the stream to be used in model monitoring.

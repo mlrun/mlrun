@@ -27,6 +27,7 @@ import kubernetes.client as k8s_client
 from kubernetes.client import V1Volume, V1VolumeMount
 
 import mlrun.common.constants
+import mlrun.common.secrets
 import mlrun.errors
 import mlrun.runtimes.mounts
 import mlrun.utils.regex
@@ -35,7 +36,6 @@ from mlrun.common.schemas import (
     SecurityContextEnrichmentModes,
 )
 
-from ..common.secrets import AUTH_SECRET_PATTERN
 from ..config import config as mlconf
 from ..k8s_utils import (
     generate_preemptible_nodes_affinity_terms,
@@ -716,21 +716,16 @@ class KubeResource(BaseRuntime):
         secret: Optional[str] = None,
         secret_key: Optional[str] = None,
     ):
-        """Set env var from secret; block auth-secret usage on client side."""
-        self._validate_no_auth_secret(
-            secret_name=secret,
-        )
-        secret_key = secret_key or name
+        """
+        Set an environment variable from a Kubernetes Secret.
+        Client-side guard forbids MLRun internal auth/project secrets; no-op on API.
+        """
+        mlrun.common.secrets.validate_not_forbidden_secret(secret)
+        key = secret_key or name
         value_from = k8s_client.V1EnvVarSource(
-            secret_key_ref=k8s_client.V1SecretKeySelector(
-                name=secret,
-                key=secret_key,
-            )
+            secret_key_ref=k8s_client.V1SecretKeySelector(name=secret, key=key)
         )
-        return self._set_env(
-            name=name,
-            value_from=value_from,
-        )
+        return self._set_env(name=name, value_from=value_from)
 
     def set_env(
         self,
@@ -738,16 +733,22 @@ class KubeResource(BaseRuntime):
         value: Optional[str] = None,
         value_from: Optional[typing.Any] = None,
     ):
-        """Set env var; block auth-secret usage when coming from a secret."""
+        """
+        Set an environment variable.
+        If value comes from a Secret, validate on client-side only.
+        """
         if value_from is not None:
             secret_name = self._extract_secret_name_from_value_from(
-                value_from=value_from,
+                value_from=value_from
             )
-            self._validate_no_auth_secret(
-                secret_name=secret_name,
-            )
-            return self._set_env(name, value_from=value_from)
-        return self._set_env(name, value=str(value) if value is not None else None)
+            if secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(secret_name)
+            return self._set_env(name=name, value_from=value_from)
+
+        # Plain literal value path
+        return self._set_env(
+            name=name, value=(str(value) if value is not None else None)
+        )
 
     def with_annotations(self, annotations: dict):
         """set a key/value annotations in the metadata of the pod"""
@@ -1392,16 +1393,6 @@ class KubeResource(BaseRuntime):
                     offset += len(text)
 
         return self.status.state
-
-    @staticmethod
-    def _validate_no_auth_secret(
-        secret_name: Optional[str],
-    ):
-        """Raise if secret name matches MLRun auth-secret pattern."""
-        if secret_name and AUTH_SECRET_PATTERN.match(secret_name):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
-            )
 
     @staticmethod
     def _extract_secret_name_from_value_from(

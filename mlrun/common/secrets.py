@@ -26,6 +26,19 @@ _AUTH_SECRET_NAME_TEMPLATE = re.escape(
 AUTH_SECRET_PATTERN = re.compile(f"^{_AUTH_SECRET_NAME_TEMPLATE}.*")
 
 
+def validate_not_forbidden_secret(secret_name: str) -> None:
+    """
+    Forbid client-supplied references to internal MLRun auth/project secrets.
+    No-op when running inside the API server (API enrichments are allowed).
+    """
+    if not secret_name or mlrun.config.is_running_as_api():
+        return
+    if AUTH_SECRET_PATTERN.match(secret_name):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Forbidden secret '{secret_name}' matches MLRun auth-secret pattern."
+        )
+
+
 class SecretProviderInterface(ABC):
     @abstractmethod
     def store_auth_secret(

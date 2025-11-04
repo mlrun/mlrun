@@ -33,6 +33,10 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # mainly used for mlrun and mlrun-gpu. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.11
 PYTHON_VERSION ?= $(shell python --version)
+
+# TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
+IGUAZIO_PACKAGE_VERSION ?= 0.0.1a15
+
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 25.0.0
@@ -168,11 +172,11 @@ install-requirements: ## Install all requirements needed for development
 .PHONY: install-iguazio-sdk
 install-iguazio-sdk: ## Install iguazio package from Test PyPI only for Python 3.11
 	@if [ "$(MLRUN_PYTHON_VERSION)" = "3.11" ]; then \
-		echo "Installing iguazio package for Python $(MLRUN_PYTHON_VERSION)..."; \
+		echo "Installing iguazio package version $(IGUAZIO_PACKAGE_VERSION) for Python $(MLRUN_PYTHON_VERSION)..."; \
 		$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) \
 			--index-url https://test.pypi.org/simple/ \
 			--extra-index-url https://pypi.org/simple \
-			"iguazio~=0.0.1a14"; \
+			"iguazio~=$(IGUAZIO_PACKAGE_VERSION)"; \
 	else \
 		echo "Skipping iguazio install (Python $(MLRUN_PYTHON_VERSION))"; \
 	fi
@@ -568,6 +572,7 @@ api: common-image-3.11 compile-schemas update-version-file ## Build mlrun-api do
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--build-arg IGUAZIO_PACKAGE_VERSION=$(IGUAZIO_PACKAGE_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -600,6 +605,7 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--build-arg IGUAZIO_PACKAGE_VERSION=$(IGUAZIO_PACKAGE_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \

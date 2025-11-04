@@ -1057,7 +1057,6 @@ class TDEngineConnector(TSDBConnector):
             ]
         ):
             metric_objects = []
-
             if not df_results.empty:
                 df_results.rename(
                     columns={
@@ -1069,7 +1068,9 @@ class TDEngineConnector(TSDBConnector):
                     metric_objects.append(
                         mm_schemas.ApplicationResultRecord(
                             time=datetime.fromisoformat(
-                                row[mm_schemas.WriterEvent.END_INFER_TIME]
+                                row[mm_schemas.WriterEvent.END_INFER_TIME].replace(
+                                    " +", "+"
+                                )
                             ),
                             result_name=row[mm_schemas.ResultData.RESULT_NAME],
                             kind=row[mm_schemas.ResultData.RESULT_KIND],
@@ -1089,7 +1090,9 @@ class TDEngineConnector(TSDBConnector):
                     metric_objects.append(
                         mm_schemas.ApplicationMetricRecord(
                             time=datetime.fromisoformat(
-                                row[mm_schemas.WriterEvent.END_INFER_TIME]
+                                row[mm_schemas.WriterEvent.END_INFER_TIME].replace(
+                                    " +", "+"
+                                )
                             ),
                             metric_name=row[mm_schemas.MetricData.METRIC_NAME],
                             value=row[mm_schemas.MetricData.METRIC_VALUE],

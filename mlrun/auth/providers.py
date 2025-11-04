@@ -23,7 +23,6 @@ import mlrun.auth.utils
 import mlrun.errors
 import mlrun.secrets
 import mlrun.utils.helpers
-from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -328,7 +327,7 @@ class IGTokenProvider(DynamicTokenProvider):
 
         return (
             remaining_lifetime / self._token_total_lifetime
-            > config.auth_with_oauth_token.refresh_threshold
+            > mlrun.mlconf.auth_with_oauth_token.refresh_threshold
         )
 
     def _build_token_request(self, raise_on_error=False):
@@ -380,7 +379,7 @@ class IGTokenProvider(DynamicTokenProvider):
 
         if not self._token:
             raise mlrun.errors.MLRunRuntimeError(
-                "Failed to fetch access token, the requested token does not exist or is invalid."
+                "Failed to fetch access token, no token available after fetch"
             )
 
     @staticmethod

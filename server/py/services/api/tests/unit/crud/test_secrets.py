@@ -14,8 +14,8 @@
 
 import collections
 import json
-import unittest.mock
 import re
+import unittest.mock
 
 import deepdiff
 import fastapi.testclient
@@ -785,12 +785,24 @@ def test_store_secret_tokens_invalid_offline_token_jwt_decode(mock_iguazio_clien
 @pytest.mark.parametrize(
     "payload, expected_err_msg",
     [
-        ({"sub": "user-id-123"}, r"missing the 'exp' \(expiration\) claim"), # no exp
-        ({"sub": "user-id-123", "exp": None}, r"missing the 'exp' \(expiration\) claim"), # exp is None
-        ({"sub": "user-id-123", "exp": ""}, r"missing the 'exp' \(expiration\) claim"), # exp is empty
-        ({"exp": 9999999999}, r"missing the 'sub' \(subject\) claim"), # no sub
-        ({"sub": None, "exp": 9999999999}, r"missing the 'sub' \(subject\) claim"), # sub is None
-        ({"sub": "", "exp": 9999999999}, r"missing the 'sub' \(subject\) claim"), # sub is empty
+        ({"sub": "user-id-123"}, r"missing the 'exp' \(expiration\) claim"),  # no exp
+        (
+            {"sub": "user-id-123", "exp": None},
+            r"missing the 'exp' \(expiration\) claim",
+        ),  # exp is None
+        (
+            {"sub": "user-id-123", "exp": ""},
+            r"missing the 'exp' \(expiration\) claim",
+        ),  # exp is empty
+        ({"exp": 9999999999}, r"missing the 'sub' \(subject\) claim"),  # no sub
+        (
+            {"sub": None, "exp": 9999999999},
+            r"missing the 'sub' \(subject\) claim",
+        ),  # sub is None
+        (
+            {"sub": "", "exp": 9999999999},
+            r"missing the 'sub' \(subject\) claim",
+        ),  # sub is empty
     ],
 )
 def test_store_secret_tokens_missing_required_claims_in_offline_token(

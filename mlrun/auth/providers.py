@@ -384,7 +384,6 @@ class IGTokenProvider(DynamicTokenProvider):
                 "Failed to fetch a new token. Using the existing token, which remains valid but is close to expiring."
             )
 
-
     @staticmethod
     def _get_token_lifetime_and_expiry(
         token: str,

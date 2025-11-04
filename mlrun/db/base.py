@@ -1193,6 +1193,8 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def get_secret_token(
-        self, authenticated_username: str, token_name: str
+        self,
+        token_name: str,
+        username: Optional[str] = None,
     ) -> mlrun.common.schemas.SecretToken:
         pass

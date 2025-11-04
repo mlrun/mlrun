@@ -1434,12 +1434,14 @@ class SQLRunDB(RunDBInterface):
         raise NotImplementedError
 
     def get_secret_token(
-        self, authenticated_username: str, token_name: str
+        self,
+        token_name: str,
+        username: Optional[str] = None,
     ) -> mlrun.common.schemas.SecretToken:
         return self._transform_db_error(
             services.api.crud.Secrets().get_secret_token,
-            authenticated_username,
-            token_name,
+            token_name=token_name,
+            authenticated_username=username,
         )
 
 

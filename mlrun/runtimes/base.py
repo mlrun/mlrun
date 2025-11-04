@@ -456,30 +456,28 @@ class BaseRuntime(ModelObj):
         """
         active_project = self.metadata.project or config.active_project
 
-        offline_token = None
-        if auth_info and auth_info.username:
-            try:
-                secret = self._get_db().get_secret_token(
-                    authenticated_username=auth_info.username,
-                    token_name="default",
-                )
-                offline_token = secret.token if secret else None
-            except Exception as exc:
-                mlrun.utils.logger.warning(
-                    "Failed to retrieve offline token for user",
-                    username=auth_info.username,
-                    error=err_to_str(exc),
-                )
-
         runtime_env = {
             mlrun_constants.MLRUN_ACTIVE_PROJECT: active_project,
             # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
             "MLRUN_DEFAULT_PROJECT": active_project,
-            "MLRUN_AUTH_OFFLINE_TOKEN": offline_token,
-            "MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED": "true",
-            "MLRUN_AUTH_TOKEN_ENDPOINT": "https://igz-api.moran.vmdev44ig4.lab.iguazeng.com/api/v1/refresh-access-token",
-            "MLRUN_HTTPDB__HTTP__VERIFY": "false",
         }
+
+        if config.is_iguazio_v4_mode():
+            if auth_info and auth_info.username:
+                secret = self._get_db().get_secret_token(
+                    token_name="default",
+                    username=auth_info.username,
+                )
+                runtime_env["MLRUN_AUTH_OFFLINE_TOKEN"] = secret.token
+
+            runtime_env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
+            runtime_env["MLRUN_AUTH_TOKEN_ENDPOINT"] = (
+                config.iguazio_api_url + "/api/v1/refresh-access-token"
+            )
+            runtime_env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
+                config.iguazio_api_ssl_verify
+            ).lower()
+
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True

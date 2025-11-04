@@ -13,7 +13,6 @@
 # limitations under the License.
 import enum
 import http
-import os
 import re
 import time
 import traceback
@@ -639,11 +638,7 @@ class HTTPRunDB(RunDBInterface):
                 traceback=traceback.format_exc(),
             )
 
-        if (
-            config.is_iguazio_v4_mode()
-            and config.auth_with_oauth_token.enabled
-            and not os.getenv("MLRUN_AUTH_OFFLINE_TOKEN")
-        ):
+        if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()
         return self
 
@@ -5360,9 +5355,25 @@ class HTTPRunDB(RunDBInterface):
 
     @mlrun.utils.iguazio_v4_only
     def get_secret_token(
-        self, authenticated_username: str, token_name: str
+        self,
+        token_name: str,
     ) -> mlrun.common.schemas.SecretToken:
-        raise NotImplementedError
+        """
+        Retrieve a specific secret token for the authenticated user.
+
+        :param token_name: The name of the token to retrieve.
+        :param username: The username of the currently authenticated user.
+        :return: A SecretToken schema object with the token's details.
+        """
+        endpoint_path = f"user-secrets/tokens/{token_name}"
+
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.GET,
+            endpoint_path,
+            "get user secret token",
+        )
+
+        return mlrun.common.schemas.SecretToken(**response.json())
 
     @mlrun.utils.iguazio_v4_only
     def _store_secret_tokens(

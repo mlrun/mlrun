@@ -72,11 +72,31 @@ async def revoke_secret_token(
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
-    # TODO: Support revoking user token with System Admin
+    # TODO: Support revoking user token with System Admin (ML-10775)
 
     return await run_in_threadpool(
         services.api.crud.Secrets().revoke_secret_token,
         name,
         auth_info.username,
         auth_info.request_headers,
+    )
+
+
+@router.get(
+    "/tokens/{token_name}",
+    response_model=mlrun.common.schemas.SecretToken,
+)
+async def get_secret_token(
+    token_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
+):
+    # TODO: Support getting user token with System Admin (ML-10775)
+
+    return await run_in_threadpool(
+        services.api.crud.Secrets().get_secret_token,
+        token_name,
+        auth_info.username,
     )

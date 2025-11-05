@@ -167,7 +167,7 @@ class DynamicTokenProvider(TokenProvider):
         return self._token
 
     @abstractmethod
-    def _post_fetch_hook(self, raise_on_error = True):
+    def _post_fetch_hook(self, raise_on_error=True):
         """
         A hook that is called after fetching a new token.
         Can be used to perform additional actions, such as logging or updating state.
@@ -284,7 +284,7 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
             refresh=str(self.token_refresh_time),
         )
 
-    def _post_fetch_hook(self, raise_on_error = True):
+    def _post_fetch_hook(self, raise_on_error=True):
         """
         A hook that is called after fetching a new token.
         Can be used to perform additional actions, such as logging or updating state.
@@ -375,7 +375,7 @@ class IGTokenProvider(DynamicTokenProvider):
             self._get_token_lifetime_and_expiry(access_token)
         )
 
-    def _post_fetch_hook(self, raise_on_error = True):
+    def _post_fetch_hook(self, raise_on_error=True):
         """
         A hook that is called after every attempt to fetch a new token.
         Can be used to perform additional actions, such as logging or updating state.
@@ -393,7 +393,6 @@ class IGTokenProvider(DynamicTokenProvider):
             raise mlrun.errors.MLRunRuntimeError(
                 "Failed to fetch a valid access token. Authentication procedure stopped."
             )
-
 
     @staticmethod
     def _get_token_lifetime_and_expiry(

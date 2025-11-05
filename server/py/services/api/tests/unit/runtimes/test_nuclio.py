@@ -1412,7 +1412,9 @@ class TestNuclioRuntime(TestRuntimeBase):
                     "codeEntryType": "archive",
                     "codeEntryAttributes": {
                         "workDir": "path/inside/functions/archive",
-                        "headers": {"X-V3io-Session-Key": "ma-access-key"},
+                        "headers": {
+                            mlrun.common.schemas.HeaderNames.v3io_session_key: "ma-access-key"
+                        },
                     },
                 },
             },

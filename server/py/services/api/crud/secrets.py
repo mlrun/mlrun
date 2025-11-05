@@ -16,6 +16,9 @@ import enum
 import json
 import typing
 import uuid
+from collections import defaultdict
+
+import jwt
 
 import mlrun.common
 import mlrun.common.schemas
@@ -28,6 +31,7 @@ import mlrun.utils.vault
 from mlrun.config import config as mlconf
 from mlrun.utils import logger
 
+import framework.utils.clients.iguazio.v4
 import framework.utils.singletons.k8s
 import services.api
 import services.api.utils.events.events_factory as events_factory
@@ -418,6 +422,242 @@ class Secrets(
 
     def is_internal_project_secret_key(self, key: str) -> bool:
         return key.startswith(self.internal_secrets_key_prefix)
+
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        auth_info: mlrun.common.schemas.AuthInfo,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        """
+        Validate and store offline tokens as Kubernetes secrets.
+
+        :param secret_tokens: List of SecretToken objects to store.
+        :param force: Whether to force update existing tokens.
+        :param auth_info: Authentication information of the user storing the tokens.
+        :return: StoreSecretTokensResponse object with created, updated, and skipped tokens.
+        """
+        if not secret_tokens:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Failed to store secret tokens – no tokens provided"
+            )
+
+        logger.debug(
+            "Starting to store secret tokens",
+            username=auth_info.username,
+            token_count=len(secret_tokens),
+        )
+
+        # Extract and validate tokens info
+        tokens_values = self._extract_and_validate_tokens_info(
+            secret_tokens=secret_tokens, authenticated_id=auth_info.user_id
+        )
+
+        # TODO: move init iguazio_client (ML-11077)
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+
+        # We validate the offline tokens by sending it to Iguazio for verification.
+        iguazio_client.refresh_access_tokens(secret_tokens)
+
+        token_actions = defaultdict(list)
+
+        for token_name, token_info in tokens_values.items():
+            token = token_info["token"]
+            expiration = token_info["token_exp"]
+
+            action = self.secrets_provider.store_user_token_secret(
+                username=auth_info.username,
+                token_name=token_name,
+                token=token,
+                expiration=expiration,
+                force=force,
+            )
+            if action is not None:
+                token_actions[action].append(token_name)
+
+        logger.debug(
+            "Finished storing tokens",
+            created_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.created
+            ],
+            updated_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.updated
+            ],
+        )
+
+        return mlrun.common.schemas.StoreSecretTokensResponse(
+            created_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.created
+            ],
+            updated_tokens=token_actions[
+                mlrun.common.schemas.SecretEventActions.updated
+            ],
+        )
+
+    def list_secret_tokens(
+        self,
+        authenticated_username: str,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        """
+        List all offline tokens stored for the authenticated user.
+
+        :param authenticated_username: Username whose tokens will be listed.
+        :return: ListSecretTokensResponse containing token names and expirations.
+        """
+        logger.debug(
+            "Listing secret tokens for user",
+            username=authenticated_username,
+        )
+
+        secret_tokens = self.secrets_provider.list_user_token_secrets(
+            username=authenticated_username,
+        )
+
+        logger.debug(
+            "Finished listing secret tokens",
+            username=authenticated_username,
+            token_count=len(secret_tokens),
+        )
+
+        return mlrun.common.schemas.ListSecretTokensResponse(
+            secret_tokens=secret_tokens
+        )
+
+    def revoke_secret_token(
+        self,
+        token_name: str,
+        authenticated_username: str,
+        request_headers: typing.Optional[dict[str, str]] = None,
+    ):
+        """
+        Revoke a stored offline token for a user and delete its corresponding Kubernetes secret.
+
+        This method performs two actions:
+        1. Calls the Iguazio management service to revoke the offline token.
+        2. Removes the Kubernetes secret named `mlrun-auth-<username>-<token_name>`
+           associated with the token.
+
+        :param token_name:
+            Logical name of the token to revoke (used in the Kubernetes secret name).
+        :param authenticated_username:
+            The username of the authenticated user who owns the token.
+        :param request_headers:
+            Optional request headers (e.g., containing the user's access token)
+            to authenticate with the Iguazio management service.
+        """
+        logger.debug(
+            "Revoking secret token for user",
+            username=authenticated_username,
+            token_name=token_name,
+        )
+
+        try:
+            # Get the offline token string
+            token = self.secrets_provider.get_user_token_secret_value(
+                username=authenticated_username,
+                token_name=token_name,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            logger.warning(
+                "Token not found, nothing to revoke",
+                username=authenticated_username,
+                token_name=token_name,
+            )
+            return
+
+        # Revoke via Iguazio
+        # TODO: move init iguazio_client (ML-11077)
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        iguazio_client.revoke_offline_token(token, request_headers)
+
+        # Delete the Kubernetes secret
+        try:
+            self.secrets_provider.delete_user_token_secret(
+                username=authenticated_username,
+                token_name=token_name,
+            )
+        except Exception as exc:
+            logger.error(
+                "Token revoked but failed to delete associated secret",
+                username=authenticated_username,
+                token_name=token_name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Token '{token_name}' revoked, but failed to delete associated secret"
+            ) from exc
+
+        logger.debug(
+            "Finished revoking secret token for user",
+            username=authenticated_username,
+            token_name=token_name,
+        )
+
+    def _extract_and_validate_tokens_info(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        authenticated_id: str,
+    ):
+        token_values = {}
+        for secret_token in secret_tokens:
+            token_name = secret_token.name
+
+            # Validate name is provided and not duplicate
+            if secret_token.name and secret_token.name not in token_values:
+                decoded_token = self._decode_offline_token(
+                    secret_token.name, secret_token.token
+                )
+
+                # Validate token expiration existence
+                if not decoded_token.get("exp"):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
+                    )
+                # Validate token subject existence
+                if not decoded_token.get("sub"):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
+                    )
+
+                # Validate token belongs to the authenticated user
+                token_sub = decoded_token.get("sub")
+                if token_sub != authenticated_id:
+                    mlrun.utils.logger.warning(
+                        "Offline token subject does not match the authenticated user",
+                        token_name=token_name,
+                        token_sub=token_sub,
+                        user_id=authenticated_id,
+                    )
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' does not match the authenticated user ID. "
+                        "Stored tokens can only belong to the authenticated user."
+                    )
+
+                # Store token info
+                token_values[secret_token.name] = {
+                    "token_exp": decoded_token.get("exp"),
+                    "token": secret_token.token,
+                }
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid or duplicate token name '{secret_token.name}' found in request payload"
+                )
+        return token_values
+
+    @staticmethod
+    def _decode_offline_token(token_name: str, token: str) -> dict:
+        try:
+            # The token is expected to be a JWT. We don't verify its signature here, because it has already been
+            # verified earlier during the refresh_access_token call.
+            return jwt.decode(token, options={"verify_signature": False})
+        except jwt.DecodeError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Failed to decode offline token '{token_name}'"
+            ) from exc
+        except Exception as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected error decoding token '{token_name}'"
+            ) from exc
 
     def _resolve_project_secret_key(
         self,

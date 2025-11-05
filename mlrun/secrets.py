@@ -265,8 +265,10 @@ def sync_secret_tokens() -> None:
     # TODO: Runtime Context Check - Avoid sending a backend request when running inside a runtime, where secrets
     #  are already injected via Kubernetes and syncing is unnecessary
 
-    # Skip syncing secrets when running inside a job,
-    # since the offline token is already provided via the environment variable
+    # Do not sync tokens from the file when using the offline token environment variable.
+    # The offline token from the env var takes precedence over the file.
+    # Using the env var is not the recommended approach, and tokens from the env var
+    # will not be saved as secrets in the backend.
     if os.getenv("MLRUN_AUTH_OFFLINE_TOKEN"):
         return
 

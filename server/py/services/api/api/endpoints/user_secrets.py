@@ -44,7 +44,7 @@ async def store_secret_tokens(
     return await run_in_threadpool(
         services.api.crud.Secrets().store_secret_tokens,
         secret_tokens,
-        auth_info.username,
+        auth_info,
         force,
     )
 

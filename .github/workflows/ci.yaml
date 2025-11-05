@@ -184,7 +184,6 @@ jobs:
       run: pip install -r automation/requirements.txt
 
     - name: Set RUN_COVERAGE environment variable
-      if: matrix.python-version == '3.9'
       run: echo "RUN_COVERAGE=true" >> $GITHUB_ENV
 
     - name: Run Dockerized tests

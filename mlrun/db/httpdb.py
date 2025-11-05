@@ -4228,6 +4228,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> FunctionSummary:
         """
         Get a monitoring function summary for the specified project and function.
+
         :param project: The name of the project.
         :param function_name: The name of the function.
         :param start: The start time of the monitoring application’s statistics. If not defined,

@@ -331,11 +331,11 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
     - name: Install requirements ${{ matrix.python-version }}
-      run: make install-requirements
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make install-requirements
     - name: Install Complete Requirements ${{ matrix.python-version }}
-      run: make install-complete-requirements
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make install-complete-requirements
     - name: Install All Requirements ${{ matrix.python-version }}
-      run: make install-all-requirements
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make install-all-requirements
 
   coverage:
     name: Full coverage

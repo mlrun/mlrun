@@ -417,13 +417,14 @@ def build_image(
     extra_args = extra_args or {}
     builder_envs = []
     access_key = auth_info.data_session or auth_info.access_key
-    if builder_env and isinstance(builder_env, dict):
-        for key, value in builder_env.items():
-            builder_envs.append(V1EnvVar(name=key, value=value))
-            if key == "V3IO_ACCESS_KEY":
-                access_key = value or access_key
-            elif key == "V3IO_USERNAME":
-                username = value
+    username = None
+    if builder_env and isinstance(builder_env, list):
+        for env in builder_env:
+            builder_envs.append(env)
+            if env.name == "V3IO_ACCESS_KEY":
+                access_key = env.value
+            elif env.name == "V3IO_USERNAME":
+                username = env.value
     if runtime_builder_env and isinstance(runtime_builder_env, dict):
         for key, value in runtime_builder_env.items():
             builder_envs.append(V1EnvVar(name=key, value=value))
@@ -930,7 +931,7 @@ def _generate_builder_env(
     k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
-
+    builder_env = builder_env or []
     # generate env list from builder env and project secrets
     existing_envs = [env["name"] for env in builder_env]
     project_secrets = []

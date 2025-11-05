@@ -410,7 +410,7 @@ class CommunityEditionDeployer:
             "upgrade",
             Constants.helm_release_name,
             self._chart_name,
-            "--install"
+            "--install",
         ]
 
         if self._debug:

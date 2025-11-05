@@ -19,9 +19,6 @@ import string
 
 import pytest
 
-kfp = pytest.importorskip("kfp")
-kfp.compiler = pytest.importorskip("kfp.complier")
-
 import mlrun.common.constants as mlrun_constants
 import mlrun.utils
 from mlrun import (
@@ -33,6 +30,9 @@ from mlrun import (
 from mlrun.runtimes.mounts import mount_v3io
 from mlrun_pipelines.common.models import RunStatuses
 from tests.system.base import TestMLRunSystem
+
+kfp = pytest.importorskip("kfp")
+kfp.compiler = pytest.importorskip("kfp.complier")
 
 
 # Marked as enterprise because of v3io mount and pipelines

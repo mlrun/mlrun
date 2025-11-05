@@ -16,10 +16,6 @@ import os
 
 import pytest
 
-kfp.compiler = pytest.importorskip("kfp.complier")
-kfp.dsl = pytest.importorskip("kfp.dsl")
-import pytest
-
 import mlrun.common.constants as mlrun_constants
 import mlrun.utils.helpers
 from mlrun import (
@@ -30,6 +26,10 @@ from mlrun import (
 )
 from mlrun.runtimes.mounts import mount_v3io
 from tests.system.base import TestMLRunSystem
+
+kfp = pytest.importorskip("kfp")
+kfp.compiler = pytest.importorskip("kfp.complier")
+kfp.dsl = pytest.importorskip("kfp.dsl")
 
 
 # Marked as enterprise because of v3io mount and pipelines

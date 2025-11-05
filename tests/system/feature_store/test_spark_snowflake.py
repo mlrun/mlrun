@@ -20,8 +20,6 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import pytest
-
-pytest.skip(allow_module_level=True, reason="")
 import snowflake.connector
 
 import mlrun.errors
@@ -39,6 +37,8 @@ from tests.system.feature_store.utils import (
     get_snowflake_spark_parameters,
     sort_df,
 )
+
+pytest.skip(allow_module_level=True, reason="")
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

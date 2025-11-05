@@ -17,13 +17,13 @@ import time
 
 import pytest
 
-dsl = pytest.importorskip("kfp.dsl")
-
 import mlrun
 import mlrun.runtimes.mounts
 import tests.system.base
 from mlrun import mlconf
 from mlrun_pipelines.common.models import RunStatuses
+
+dsl = pytest.importorskip("kfp.dsl")
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

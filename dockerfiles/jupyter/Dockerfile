@@ -63,6 +63,7 @@ COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/align_mlrun.sh $HOME
 COPY --chown=$NB_UID:$NB_GID ./automation/scripts/get_demos.py $HOME
 COPY --chown=$NB_UID:$NB_GID ./automation/scripts/demos_config.json $HOME
 

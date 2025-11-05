@@ -125,4 +125,4 @@ RUN mkdir data && tar -cvf /tmp/basehome.tar $HOME
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
 
-CMD echo "1" > "${HOME}/.intdata" && /usr/local/bin/mlce-start.sh
+CMD /usr/local/bin/mlce-start.sh

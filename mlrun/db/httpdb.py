@@ -4183,8 +4183,8 @@ class HTTPRunDB(RunDBInterface):
 
         :param project: The name of the project.
         param start: The start time of the monitoring applications’ statistics.
-                     If not defined, the default is 24 hours ago.
-                     Required timezone, applicable only when `include_stats` is set to True.
+                        If not defined, the default is 24 hours ago.
+                        Required timezone, applicable only when `include_stats` is set to True.
         :param end: The end time of the monitoring applications’ statistics.
                     If not defined, the default is now.
                     Required timezone, applicable only when `include_stats` is set to True.
@@ -4231,9 +4231,9 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project.
         :param function_name: The name of the function.
         :param start: The start time of the monitoring application’s statistics.
-                      If not defined, the default is 24 hours ago. Required timezone.
+                        If not defined, the default is 24 hours ago. Required timezone.
         :param end: The end time of the monitoring application’s statistics.
-                    If not defined, the default is now. Required timezone.
+                        If not defined, the default is now. Required timezone.
         :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
 
         :return: A FunctionSummary object containing information about the monitoring function.

@@ -5053,8 +5053,8 @@ class MlrunProject(ModelObj):
         Get monitoring function summaries for the specified project.
 
         :param start: The start time of the monitoring applications’ statistics.
-                      If not defined, the default is 24 hours ago. Required timezone,
-                      applicable only when `include_stats` is set to True.
+                        If not defined, the default is 24 hours ago. Required timezone,
+                        applicable only when `include_stats` is set to True.
         :param end: The end time of the monitoring applications’ statistics.
                     If not defined, the default is now. Required timezone,
                     applicable only when `include_stats` is set to True.
@@ -5094,7 +5094,7 @@ class MlrunProject(ModelObj):
 
         :param name: Name of the monitoring function to retrieve the summary for.
         :param start: The start time of the monitoring applications’ statistics.
-                      If not defined, the default is 24 hours ago. Required timezone.
+                        If not defined, the default is 24 hours ago. Required timezone.
         :param end: The end time of the monitoring applications’ statistics.
                     If not defined, the default is now. Required timezone.
         :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).

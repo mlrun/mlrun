@@ -145,6 +145,8 @@ class DynamicTokenProvider(TokenProvider):
 
         :return: The refreshed access token.
         """
+        raise_on_error = True
+
         # Check if there is an existing access token and if it is within the refresh threshold
         if self._token and self._is_token_valid(cleanup_if_expired=True):
             return self._token
@@ -152,6 +154,7 @@ class DynamicTokenProvider(TokenProvider):
         try:
             self.fetch_token()
         except Exception as exc:
+            raise_on_error = False
             # Token fetch failed and there is no existing token - cannot proceed
             if not self._token:
                 raise mlrun.errors.MLRunRuntimeError(
@@ -159,12 +162,12 @@ class DynamicTokenProvider(TokenProvider):
                 ) from exc
 
         finally:
-            self._post_fetch_hook()
+            self._post_fetch_hook(raise_on_error)
 
         return self._token
 
     @abstractmethod
-    def _post_fetch_hook(self):
+    def _post_fetch_hook(self, raise_on_error = True):
         """
         A hook that is called after fetching a new token.
         Can be used to perform additional actions, such as logging or updating state.
@@ -281,7 +284,7 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
             refresh=str(self.token_refresh_time),
         )
 
-    def _post_fetch_hook(self):
+    def _post_fetch_hook(self, raise_on_error = True):
         """
         A hook that is called after fetching a new token.
         Can be used to perform additional actions, such as logging or updating state.
@@ -372,7 +375,7 @@ class IGTokenProvider(DynamicTokenProvider):
             self._get_token_lifetime_and_expiry(access_token)
         )
 
-    def _post_fetch_hook(self):
+    def _post_fetch_hook(self, raise_on_error = True):
         """
         A hook that is called after every attempt to fetch a new token.
         Can be used to perform additional actions, such as logging or updating state.
@@ -383,6 +386,14 @@ class IGTokenProvider(DynamicTokenProvider):
             logger.warning(
                 "Failed to fetch a new token. Using the existing token, which remains valid but is close to expiring."
             )
+
+        # Perform a secondary validation that token fetch succeeded.
+        # We enter this block if token fetch failed and did not raise an error
+        if not self._token and raise_on_error:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Failed to fetch a valid access token. Authentication procedure stopped."
+            )
+
 
     @staticmethod
     def _get_token_lifetime_and_expiry(

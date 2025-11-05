@@ -4230,10 +4230,10 @@ class HTTPRunDB(RunDBInterface):
         Get a monitoring function summary for the specified project and function.
         :param project: The name of the project.
         :param function_name: The name of the function.
-        :param start: The start time of the monitoring application’s statistics.
-                            If not defined, the default is 24 hours ago. Required timezone.
-        :param end: The end time of the monitoring application’s statistics.
-                            If not defined, the default is now. Required timezone.
+        :param start: The start time of the monitoring application’s statistics. If not defined,
+            the default is 24 hours ago. Required timezone.
+        :param end: The end time of the monitoring application’s statistics. If not defined,
+            the default is now. Required timezone.
         :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
 
         :return: A FunctionSummary object containing information about the monitoring function.

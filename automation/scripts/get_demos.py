@@ -263,7 +263,7 @@ def get_demos(mlrun_version):
     #     with Path(CONFIG_PATH).open("r", encoding="utf-8") as f:
     #         config = json.load(f)
 
-    config_url = "https://raw.githubusercontent.com/mlrun/demos/refs/heads/1.7.x/demos_config.json"
+    config_url = "https://raw.githubusercontent.com/mlrun/mlrun/refs/heads/development/automation/scripts/demos_config.json"
     try:
         response = requests.get(config_url, timeout=10)
         response.raise_for_status()  # raise HTTPError if not 200

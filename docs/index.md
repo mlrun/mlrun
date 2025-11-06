@@ -117,7 +117,7 @@ inferring results using one or more models, and driving actions.
 {bdg-link-info}`GPU utilization <./genai/deployment/gpu_utilization.html>`
 {bdg-link-info}`Gen AI realtime serving graph <./genai/deployment/genai_serving_graph.html>`
 <br> {octicon}`code-square` **Tutorial:**
-{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
+{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai-01-basic-tutorial.html>`
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
@@ -135,7 +135,7 @@ Collect production data, metadata, and metrics to tune the model and application
 {bdg-link-info}`Model monitoring <./concepts/model-monitoring.html>`
 {bdg-link-info}`Alerts and notifications <./concepts/alerts-notifications.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Deploy an LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
+{bdg-link-primary}`Deploy an LLM using MLRun <./tutorials/genai-01-basic-tutorial.html>`
 {bdg-link-primary}`Model monitoring using LLM  <./tutorials/-02-model-monitor-llm.html>`
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 <br> {octicon}`code-square` **Demo:**

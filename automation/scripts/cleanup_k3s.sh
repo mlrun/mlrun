@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e
-
 echo "=== Checking for previous K3S installation ==="
 
 # Check if K3S is installed or running
@@ -67,3 +65,5 @@ if [ "$K3S_INSTALLED" = true ]; then
   
   echo "=== Cleanup completed ==="
 fi
+
+exit 0

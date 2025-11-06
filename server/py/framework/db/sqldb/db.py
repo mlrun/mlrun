@@ -1906,6 +1906,8 @@ class SQLDB(DBInterface):
             # If a tag is given, we can just join (faster than outer join) and filter on the tag
             query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
             query = query.filter(ArtifactV2.Tag.name == tag)
+            if project:
+                query = query.filter(ArtifactV2.Tag.project == project)
         else:
             # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
             query = query.outerjoin(

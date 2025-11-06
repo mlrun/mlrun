@@ -302,7 +302,12 @@ class TestDatastoreProfile(TestMLRunSystem):
         collection.col.drop()
 
     def make_milvus_connection(self, collection_name, auto_id):
-        from langchain.embeddings import FakeEmbeddings
+        # Try new langchain 1.0+ import path first
+        try:
+            from langchain_core.embeddings import FakeEmbeddings
+        except ImportError:
+            # Fall back to old langchain <1.0 import path
+            from langchain.embeddings import FakeEmbeddings
         from langchain_community.vectorstores import Milvus
 
         embedding_model = FakeEmbeddings(size=3)
@@ -334,7 +339,12 @@ class TestDatastoreProfile(TestMLRunSystem):
         return vectorstore
 
     def test_vectorstore_splitter_and_ids(self):
-        from langchain.text_splitter import CharacterTextSplitter
+        # Try new langchain 1.0+ import path first
+        try:
+            from langchain_text_splitters import CharacterTextSplitter
+        except ImportError:
+            # Fall back to old langchain <1.0 import path
+            from langchain.text_splitter import CharacterTextSplitter
 
         splitter = CharacterTextSplitter(
             separator="",  # Empty string means split by pure character count

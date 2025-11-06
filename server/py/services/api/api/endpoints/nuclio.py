@@ -331,7 +331,7 @@ async def deploy_status(
     if fn.get("kind") not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
+            reason=f"Runtime kind `{fn.get('kind')}` is not a nuclio runtime",
         )
     api_gateways_urls = await _get_api_gateways_urls_for_function(
         auth_info, project, name, tag

@@ -201,7 +201,19 @@ class _V3IORecordsChecker:
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
-        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+        if cls._tsdb_storage.type == mm_constants.TSDBTarget.TimescaleDB:
+            table = cls._tsdb_storage._metrics_queries.tables[
+                mm_constants.TimescaleDBTables.PREDICTIONS
+            ]
+            full_query = table._get_records_query(
+                start=datetime.min, end=datetime.now().astimezone()
+            )
+            query_result = cls._tsdb_storage._connection.run(
+                query=full_query,
+            )
+            df_columns = query_result.fields
+            predictions_df = pd.DataFrame(query_result.data, columns=df_columns)
+        elif cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
@@ -893,6 +905,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             apps_data=self.apps_data,
             error_count=self.error_count,
         )
+
         self._test_predictions_table(mep.metadata.uid)
         self._test_artifacts(ep_id=mep.metadata.uid)
         self._test_api(ep_id=mep.metadata.uid, apps_data=self.apps_data)
@@ -2346,7 +2359,19 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
     def _test_predictions_table(
         self, ep_id_with_sample: str, ep_id_without_sample: str
     ) -> None:
-        if self._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+        if self._tsdb_storage.type == mm_constants.TSDBTarget.TimescaleDB:
+            table = self._tsdb_storage._metrics_queries.tables[
+                mm_constants.TimescaleDBTables.PREDICTIONS
+            ]
+            full_query = table._get_records_query(
+                start=datetime.min, end=datetime.now().astimezone()
+            )
+            query_result = self._tsdb_storage._connection.run(
+                query=full_query,
+            )
+            df_columns = query_result.fields
+            predictions_df = pd.DataFrame(query_result.data, columns=df_columns)
+        elif self._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
                 table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )

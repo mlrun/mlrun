@@ -87,6 +87,7 @@ default_config = {
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
+    "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
@@ -878,8 +879,8 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
         "refresh_threshold": 0.75,
-        "auth_token_file": "~/.igz.yml",
-        "auth_token_name": "",
+        "token_file": "~/.igz.yml",
+        "token_name": "",
     },
     "auth_token_endpoint": "",
     "services": {

@@ -60,6 +60,7 @@ class BaseRuntimeHandler(ABC):
         runtime: mlrun.runtimes.BaseRuntime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         pass
 

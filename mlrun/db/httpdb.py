@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import enum
 import http
 import re
@@ -5352,6 +5351,16 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.types.HTTPMethod.DELETE,
             endpoint_path,
             "delete user secret token",
+        )
+
+    @mlrun.utils.iguazio_v4_only
+    def get_secret_token(
+        self,
+        token_name: str,
+        username: Optional[str] = None,
+    ) -> mlrun.common.schemas.SecretToken:
+        raise NotImplementedError(
+            "Getting secret token is not supported for security reasons."
         )
 
     @mlrun.utils.iguazio_v4_only

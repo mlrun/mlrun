@@ -34,7 +34,7 @@ from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.utils import logger
 
 import framework.utils.clients.async_nuclio
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.singletons.k8s
 import services.api.crud.runtimes.nuclio.helpers
 import services.api.runtime_handlers
@@ -185,7 +185,7 @@ async def delete_nuclio_functions_in_batches(
     function_names: list[str],
 ):
     async def delete_function(
-        nuclio_client: framework.utils.clients.iguazio.AsyncClient,
+        nuclio_client: framework.utils.clients.iguazio.v3.AsyncClient,
         project: str,
         function: str,
         _semaphore: asyncio.Semaphore,

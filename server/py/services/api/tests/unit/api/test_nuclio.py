@@ -23,9 +23,10 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes.nuclio
 from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
+from mlrun.common.types import AuthenticationMode
 
 import framework.utils.clients.async_nuclio
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import services.api.crud
 import services.api.tests.unit.api.utils
 
@@ -57,8 +58,8 @@ async def test_deploy_function(
 def test_list_api_gateways(
     list_api_gateway_mocked, client: fastapi.testclient.TestClient
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    framework.utils.clients.iguazio.AsyncClient().verify_request_session = (
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
+    framework.utils.clients.iguazio.v3.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
                 mlrun.common.schemas.AuthInfo(
@@ -129,8 +130,8 @@ def test_store_api_gateway(
     get_api_gateway_mocked,
     client: fastapi.testclient.TestClient,
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    framework.utils.clients.iguazio.AsyncClient().verify_request_session = (
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
+    framework.utils.clients.iguazio.v3.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
                 mlrun.common.schemas.AuthInfo(

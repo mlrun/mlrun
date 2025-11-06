@@ -41,7 +41,9 @@ router = APIRouter()
 async def submit_job(
     request: Request,
     background_tasks: fastapi.BackgroundTasks,
-    username: Optional[str] = Header(None, alias="x-remote-user"),
+    username: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.remote_user
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     client_version: Optional[str] = Header(

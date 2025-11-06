@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import asyncio
-import contextlib
-import copy
 import datetime
 import enum
 import http
@@ -23,24 +21,21 @@ import threading
 import typing
 import urllib.parse
 
-import aiohttp
-import fastapi
 import httpx
 import humanfriendly
 import igz_mgmt.schemas.manual_events
-import requests.adapters
-from fastapi.concurrency import run_in_threadpool
+import requests
 
 import mlrun.common.schemas
-import mlrun.config
+import mlrun.common.types
 import mlrun.errors
 import mlrun.utils.helpers
-import mlrun.utils.singleton
 from mlrun.utils import get_in, logger
 
 import framework.utils.clients.helpers as clients_helpers
 import framework.utils.helpers
 import framework.utils.projects.remotes.leader as project_leader
+from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 
 class JobStates:
@@ -79,7 +74,7 @@ class SessionPlanes:
         ]
 
 
-class JobCache:
+class _JobCache:
     """
     Cache for delete project jobs.
     This cache is used to avoid consecutive create/delete jobs for the same project,
@@ -138,8 +133,8 @@ class JobCache:
 
 
 class Client(
+    BaseClient,
     project_leader.Member,
-    metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -159,43 +154,24 @@ class Client(
                 retry_on_post=True,
                 verbose=True,
             )
-        self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds
         self._wait_for_job_completion_retry_interval = mlrun.utils.create_step_backoff(
             [[1, 10], [5, None]]
         )
-        self._wait_for_project_terminal_state_retry_interval = 5
-        self._logger = logger.get_child("iguazio-client")
         self._igz_clients = {}
 
-        self._job_cache = JobCache(
+        self._job_cache = _JobCache(
             ttl=mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl,
         )
 
-    def verify_request_session(
-        self, request: fastapi.Request
-    ) -> mlrun.common.schemas.AuthInfo:
-        """
-        Proxy the request to one of the session verification endpoints (which will verify the session of the request)
-        """
-        response = self._send_request_to_api(
-            "POST",
-            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-            "Failed verifying iguazio session",
-            headers={
-                "authorization": request.headers.get("authorization"),
-                "cookie": request.headers.get("cookie"),
-            },
-            retry_on_post=True,
-        )
-        return self._generate_auth_info_from_session_verification_response(
-            response.headers, response.json()
-        )
+    @property
+    def _verify_session_http_method(self) -> str:
+        return mlrun.common.types.HTTPMethod.POST
 
     def get_user_unix_id(self, session: str) -> str:
         response = self._send_request_to_api(
-            "GET",
+            mlrun.common.types.HTTPMethod.GET,
             "self",
             "Failed get iguazio user",
             session,
@@ -372,13 +348,6 @@ class Client(
             data=self._transform_mlrun_project_to_iguazio_project(project)["data"]
         )
 
-    @property
-    def is_sync(self):
-        """
-        False because client is synchronous
-        """
-        return True
-
     @framework.utils.helpers.lru_cache_with_ttl(maxsize=1, ttl_seconds=60 * 2)
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
         """
@@ -387,7 +356,7 @@ class Client(
         """
         self._logger.debug("Getting grafana service url from Iguazio")
         response = self._send_request_to_api(
-            "GET",
+            mlrun.common.types.HTTPMethod.GET,
             "app_services_manifests",
             "Failed getting app services manifests from Iguazio",
             session,
@@ -448,7 +417,7 @@ class Client(
         params["filter[operational_status]"] = "[$ne]deleting"
 
         response = self._send_request_to_api(
-            "GET",
+            mlrun.common.types.HTTPMethod.GET,
             "projects",
             "Failed listing projects from Iguazio",
             session,
@@ -530,7 +499,7 @@ class Client(
         }
         try:
             response = self._send_request_to_api(
-                "DELETE",
+                mlrun.common.types.HTTPMethod.DELETE,
                 "projects",
                 "Failed deleting project in Iguazio",
                 session,
@@ -558,7 +527,7 @@ class Client(
         **kwargs,
     ) -> tuple[mlrun.common.schemas.Project, str]:
         response = self._send_request_to_api(
-            "POST",
+            mlrun.common.types.HTTPMethod.POST,
             "projects",
             "Failed creating project in Iguazio",
             session,
@@ -579,7 +548,7 @@ class Client(
         **kwargs,
     ) -> mlrun.common.schemas.Project:
         response = self._send_request_to_api(
-            "PUT",
+            mlrun.common.types.HTTPMethod.PUT,
             f"projects/__name__/{name}",
             "Failed updating project in Iguazio",
             session,
@@ -596,7 +565,7 @@ class Client(
             params["enrich_owner_access_key"] = "true"
         try:
             return self._send_request_to_api(
-                "GET",
+                mlrun.common.types.HTTPMethod.GET,
                 f"projects/__name__/{name}",
                 "Failed getting project from Iguazio",
                 session,
@@ -666,38 +635,14 @@ class Client(
         )
         return response.json()
 
-    def _send_request_to_api(
-        self,
-        method,
-        path,
-        error_message: str,
-        session=None,
-        retry_on_post=False,
-        **kwargs,
-    ):
-        url = f"{self._api_url}/api/{path}"
-        self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        http_session = self._session
-        if retry_on_post and self._retry_on_post_session:
-            http_session = self._retry_on_post_session
-        response = http_session.request(
-            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
-        )
-        if not response.ok:
-            try:
-                response_body = response.json()
-            except Exception:
-                response_body = {}
-            self._handle_error_response(
-                method, path, response, response_body, error_message, kwargs
-            )
-        return response
-
     def _generate_auth_info_from_session_verification_response(
         self,
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.common.schemas.AuthInfo:
+        """
+        Extract and return AuthInfo from a valid session verification response.
+        """
         (
             username,
             session,
@@ -733,21 +678,25 @@ class Client(
     def _resolve_params_from_response_headers(
         response_headers: typing.Mapping[str, typing.Any],
     ):
-        username = response_headers.get("x-remote-user")
-        session = response_headers.get("x-v3io-session-key")
-        user_id = response_headers.get("x-user-id")
+        username = response_headers.get(mlrun.common.schemas.HeaderNames.remote_user)
+        session = response_headers.get(
+            mlrun.common.schemas.HeaderNames.v3io_session_key
+        )
+        user_id = response_headers.get(mlrun.common.schemas.HeaderNames.user_id)
 
-        gids = response_headers.get("x-user-group-ids", [])
+        gids = response_headers.get(mlrun.common.schemas.HeaderNames.user_group_ids, [])
         # "x-user-group-ids" header is a comma separated list of group ids
         if gids and not isinstance(gids, list):
             gids = gids.split(",")
 
-        planes = response_headers.get("x-v3io-session-planes")
+        planes = response_headers.get(
+            mlrun.common.schemas.HeaderNames.v3io_session_planes
+        )
         if planes:
             planes = planes.split(",")
         planes = planes or []
         user_unix_id = None
-        x_unix_uid = response_headers.get("x-unix-uid")
+        x_unix_uid = response_headers.get(mlrun.common.schemas.HeaderNames.unix_uid)
         # x-unix-uid may be 'Unknown' in case it is missing or in case of enrichment failures
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)
@@ -914,7 +863,9 @@ class Client(
             )
         return mlrun_project
 
-    def _prepare_request_kwargs(self, session, path, *, kwargs):
+    def _prepare_request_kwargs(
+        self, session: typing.Optional[str], path: str, *, kwargs: dict
+    ):
         # support session being already a cookie
         session_cookie = session
         if (
@@ -924,7 +875,7 @@ class Client(
         ):
             session_cookie = f'j:{{"sid": "{session_cookie}"}}'
         if session_cookie:
-            cookies = kwargs.get("cookies", {})
+            cookies = kwargs.get(mlrun.common.schemas.HeaderNames.cookies, {})
             # in case some dev using this function for some reason setting cookies manually through kwargs + have a
             # cookie with "session" key there + filling the session cookie - explode
             if "session" in cookies and cookies["session"] != session_cookie:
@@ -932,7 +883,7 @@ class Client(
                     "Session cookie already set"
                 )
             cookies["session"] = session_cookie
-            kwargs["cookies"] = cookies
+            kwargs[mlrun.common.schemas.HeaderNames.cookies] = cookies
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
         clients_helpers.add_project_role_headers_if_needed(path, kwargs)
@@ -944,27 +895,12 @@ class Client(
                 if isinstance(dict_[key], enum.Enum):
                     dict_[key] = dict_[key].value
 
-    def _handle_error_response(
-        self, method, path, response, response_body, error_message, kwargs
-    ):
-        log_kwargs = copy.deepcopy(kwargs)
+    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+        return response_body.get("meta", {}).get("ctx")
 
-        # this can be big and spammy
-        log_kwargs.pop("json", None)
-        log_kwargs.update({"method": method, "path": path})
-        try:
-            ctx = response_body.get("meta", {}).get("ctx")
-            errors = response_body.get("errors", [])
-        except Exception:
-            pass
-        else:
-            if errors:
-                error_message = f"{error_message}: {str(errors)}"
-            if errors or ctx:
-                log_kwargs.update({"ctx": ctx, "errors": errors})
-
-        self._logger.warning("Request to iguazio failed", **log_kwargs)
-        mlrun.errors.raise_for_status(response, error_message)
+    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
+        errors = response_body.get("errors", [])
+        return str(errors) if errors else None
 
     def _is_job_terminated(self, session: str, job_id: str) -> bool:
         """
@@ -995,128 +931,7 @@ class Client(
         )
 
 
-class AsyncClient(Client):
-    def __init__(
-        self,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self._run_in_threadpool_callback = run_in_threadpool
-        self._async_session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
+class AsyncClient(BaseAsyncClient, Client):
+    """Asynchronous implementation of the Iguazio V3 client. Inherits logic from Client and BaseAsyncClient."""
 
-    @property
-    def is_sync(self):
-        """
-        False because client is asynchronous
-        """
-        return False
-
-    def __getattribute__(self, name):
-        """
-        This method is called when trying to access an attribute of the class.
-        We override it to make sure that all *public* methods that are not async will be run in a thread pool.
-          by convention/norm - public methods are methods that don't start with an underscore.
-          If the method name starts with an underscore - it's a private method that was called from a public method,
-          which means that it's already running in a thread pool or runs asynchronously.
-        If the method is async, we don't do anything and let the async machinery handle it.
-
-        """
-        attr = super().__getattribute__(name)
-        if name.startswith("_") or not callable(attr):
-            return attr
-
-        # already a coroutine
-        if asyncio.iscoroutinefunction(attr):
-            return attr
-
-        # not a coroutine, run in threadpool
-        def wrapper(*args, **kwargs):
-            return self._run_in_threadpool_callback(attr, *args, **kwargs)
-
-        return wrapper
-
-    async def verify_request_session(
-        self, request: fastapi.Request
-    ) -> mlrun.common.schemas.AuthInfo:
-        """
-        Proxy the request to one of the session verification endpoints (which will verify the session of the request)
-        """
-        headers = {
-            "authorization": request.headers.get("authorization"),
-            "cookie": request.headers.get("cookie"),
-            "x-request-id": request.state.request_id,
-        }
-        async with (
-            self._send_request_to_api_async(
-                "POST",
-                mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-                "Failed verifying iguazio session",
-                retry_options_override=mlrun.utils.async_http.ExponentialRetryOverride(
-                    blacklisted_methods=[],  # iguazio session verification endpoint is idempotent
-                    # 1, 2, 4, 8, ...
-                    start_timeout=1,
-                    max_timeout=30.0,
-                    factor=2.0,
-                ),
-                headers=headers,
-            ) as response
-        ):
-            return self._generate_auth_info_from_session_verification_response(
-                response.headers, await response.json()
-            )
-
-    @contextlib.asynccontextmanager
-    async def _send_request_to_api_async(
-        self,
-        method,
-        path: str,
-        error_message: str,
-        session: typing.Optional[str] = None,
-        retry_options_override: typing.Optional[
-            mlrun.utils.async_http.ExponentialRetryOverride
-        ] = None,
-        **kwargs,
-    ) -> typing.AsyncGenerator[aiohttp.ClientResponse, None]:
-        url = f"{self._api_url}/api/{path}"
-        self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        await self._ensure_async_session()
-
-        # take the session default
-        retry_options = copy.deepcopy(self._async_session.retry_options)
-
-        # override with cherry-picked options
-        if retry_options_override:
-            if retry_options_override.blacklisted_methods is not None:
-                retry_options.blacklisted_methods = (
-                    retry_options_override.blacklisted_methods
-                )
-            retry_options._start_timeout = retry_options_override._start_timeout
-            retry_options._max_timeout = retry_options_override._max_timeout
-            retry_options._factor = retry_options_override._factor
-
-        response = None
-        try:
-            response = await self._async_session.request(
-                method, url, verify_ssl=False, retry_options=retry_options, **kwargs
-            )
-            if not response.ok:
-                try:
-                    response_body = await response.json()
-                except Exception:
-                    response_body = {}
-                self._handle_error_response(
-                    method, path, response, response_body, error_message, kwargs
-                )
-            yield response
-        finally:
-            if response:
-                response.release()
-
-    async def _ensure_async_session(self):
-        if not self._async_session:
-            self._async_session = mlrun.utils.AsyncClientWithRetry(
-                retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
-                logger=logger,
-            )
+    pass

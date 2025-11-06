@@ -858,11 +858,14 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		bash -c 'make install-docs-requirements && make html-docs'
 
-.PHONY: fmt
-fmt: ## Format the code using Ruff and blacken-docs
+.PHONY: fmt-ruff
+fmt-ruff: ## Format the code using Ruff
 	@echo "Running ruff checks and fixes..."
-	python -m ruff check --fix-only
-	python -m ruff format
+	ruff check --fix-only
+	ruff format
+
+.PHONY: fmt
+fmt: fmt-ruff ## Format the code using Ruff and blacken-docs
 	@echo "Formatting the code blocks with blacken-docs..."
 	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)"
 
@@ -880,14 +883,14 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: lint-check lint-imports ## Run lint on the code
+lint: lint-ruff lint-imports ## Run lint on the code
 
-.PHONY: lint-check
-lint-check: ## Check the code (using ruff)
+.PHONY: lint-ruff
+lint-ruff: ## Check the code (using ruff)
 	@echo "Running ruff checks..."
-	python -m ruff check --exit-non-zero-on-fix
-	python -m ruff check --preview --select=CPY001 --exit-non-zero-on-fix
-	python -m ruff format --check
+	ruff check --exit-non-zero-on-fix
+	ruff check --preview --select=CPY001 --exit-non-zero-on-fix
+	ruff format --check
 
 .PHONY: lint-go
 lint-go:

@@ -125,4 +125,5 @@ RUN mkdir data && tar -cvf /tmp/basehome.tar $HOME
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
 
-CMD /usr/local/bin/mlce-start.sh
+#This CMD only executes when running directly on docker, not k8s
+CMD echo "1" > "${HOME}/.intdata" && /usr/local/bin/mlce-start.sh

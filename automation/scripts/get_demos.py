@@ -270,12 +270,14 @@ def get_demos(mlrun_version):
         response = requests.get(config_url, timeout=10)
         response.raise_for_status()  # raise HTTPError if not 200
         config = json.loads(response.text)
-        if mlrun_version not in config.keys():
+
+        version_to_use = VERSION_PATTERN.match(mlrun_version).group(1)
+        if version_to_use not in config.keys():
             config = config.get("development")
             log(f"Using development tag for demos list", "get_demos")
         else:
-            config = config.get(mlrun_version)
-            log(f"Using {mlrun_version} tag for demos list", "get_demos")
+            config = config.get(version_to_use)
+            log(f"Using {version_to_use} tag for demos list", "get_demos")
 
     except json.JSONDecodeError as e:
         raise RuntimeError(f"Invalid JSON in configuration file {config_url}: {e}")

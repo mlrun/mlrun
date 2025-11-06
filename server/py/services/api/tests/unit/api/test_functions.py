@@ -764,7 +764,7 @@ def test_build_function_force_build(
         ),
         unittest.mock.patch(
             "services.api.utils.builder.make_kaniko_pod",
-            return_value=framework.utils.singletons.k8s.Pod(),
+            return_value=framework.utils.singletons.k8s.BasePod(),
         ),
         unittest.mock.patch(
             "services.api.utils.builder.resolve_image_target",

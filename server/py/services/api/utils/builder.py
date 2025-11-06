@@ -22,7 +22,6 @@ from os import path
 from urllib.parse import urlparse
 
 from kubernetes import client
-from kubernetes.client.models.v1_env_var import V1EnvVar
 
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
@@ -237,7 +236,7 @@ def make_kaniko_pod(
         if gpu_resources:
             resources["limits"] = gpu_resources
 
-    kpod = framework.utils.singletons.k8s.Pod(
+    kpod = framework.utils.singletons.k8s.BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
         args=args,
@@ -248,8 +247,7 @@ def make_kaniko_pod(
         labels=extra_labels,
     )
     envs = (builder_env or []) + (project_secrets or [])
-    for env in envs:
-        kpod.add_env_var(env)
+    kpod.env = envs or None
 
     if config.is_pip_ca_configured():
         items = [
@@ -415,20 +413,9 @@ def build_image(
             )
 
     extra_args = extra_args or {}
-    builder_envs = []
-    access_key = auth_info.data_session or auth_info.access_key
-    username = None
-    if builder_env and isinstance(builder_env, list):
-        for env in builder_env:
-            builder_envs.append(env)
-            if env.name == "V3IO_ACCESS_KEY":
-                access_key = env.value
-            elif env.name == "V3IO_USERNAME":
-                username = env.value
-    if runtime_builder_env and isinstance(runtime_builder_env, dict):
-        for key, value in runtime_builder_env.items():
-            builder_envs.append(V1EnvVar(name=key, value=value))
+    builder_env = builder_env or {}
 
+    builder_env = runtime_builder_env | builder_env or {}
     # no need to enrich extra args because we get them from the build anyway
     _validate_extra_args(extra_args)
 
@@ -449,7 +436,11 @@ def build_image(
     if source:
         is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
         is_http_source = source.startswith("http")
-        is_s3_source = source.startswith("s3://")
+
+    access_key = builder_env.get(
+        "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
+    )
+    username = builder_env.get("V3IO_USERNAME", auth_info.username)
 
     builder_env_list, project_secrets = _generate_builder_env(project, builder_env)
 
@@ -573,15 +564,6 @@ def build_image(
             mount_path="/context",
             access_key=access_key,
             user=username,
-        )
-    if is_s3_source:
-        for env in builder_env_list:
-            kpod.add_env_var(env)
-        kpod.replace_env_vars_with_secrets(
-            env_var_names=[
-                "AWS_ACCESS_KEY_ID",
-                "AWS_SECRET_ACCESS_KEY",
-            ],
         )
 
     k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
@@ -1214,20 +1196,11 @@ def _enrich_kaniko_env_for_s3_context(
     assume MinIO/S3-compatibility and add S3_FORCE_PATH_STYLE=true
     and a default AWS_REGION=us-east-1.
     """
-    mlrun.utils.helpers.logger.debug("environ", env=os.environ)
-    mlrun.utils.helpers.logger.debug(
-        "source_context_url", source_context_url=source_url
-    )
-    mlrun.utils.helpers.logger.debug(
-        "kaniko_environment_variables",
-        kaniko_environment_variables=env_vars,
-    )
     if not isinstance(source_url, str):
         return
     if not source_url.startswith("s3://"):
         return
-    if not env_vars:
-        return
+    env_vars = env_vars or []
 
     region_defined = any(env.name == "AWS_REGION" and env.value for env in env_vars)
     if not region_defined:

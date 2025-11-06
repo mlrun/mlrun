@@ -355,7 +355,6 @@ def build_function(
             overwrite=overwrite_build_params,
             extra_args=extra_args,
         )
-        function.try_auto_mount_based_on_config()
         ready = function.deploy(
             watch=True,
             with_mlrun=with_mlrun,

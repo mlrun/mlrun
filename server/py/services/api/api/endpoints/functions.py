@@ -287,7 +287,7 @@ async def build_function(
         with_mlrun,
         skip_deployed,
         mlrun_version_specifier,
-        data.get("builder_env") or function.get("spec", {}).get("env", {}),
+        data.get("builder_env"),
         client_version,
         client_python_version,
         force_build,

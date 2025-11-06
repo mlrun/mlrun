@@ -19,6 +19,7 @@ import re
 import shutil
 import sys
 import tarfile
+import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
@@ -257,24 +258,40 @@ def create_manifest(mlrun_version, demo_versions):
 
 
 def get_demos(mlrun_version):
-    if not os.path.exists(CONFIG_PATH):
-        raise RuntimeError(f"Configuration file not found: {CONFIG_PATH}")
+    # Ignoring given demos_config path
+    # if not os.path.exists(CONFIG_PATH):
+    #     raise RuntimeError(f"Configuration file not found: {CONFIG_PATH}")
+    # try:
+    #     with Path(CONFIG_PATH).open("r", encoding="utf-8") as f:
+    #         config = json.load(f)
+
+    config_url = "https://raw.githubusercontent.com/mlrun/demos/refs/heads/1.7.x/demos_config.json"
     try:
-        with Path(CONFIG_PATH).open("r", encoding="utf-8") as f:
-            config = json.load(f)
+        response = requests.get(config_url, timeout=10)
+        response.raise_for_status()  # raise HTTPError if not 200
+        config = json.loads(response.text)
+        if mlrun_version not in config.keys():
+            config = config.get("development")
+            log(f"Using development tag for demos list", "get_demos")
+        else:
+            config = config.get(mlrun_version)
+            log(f"Using {mlrun_version} tag for demos list", "get_demos")
+
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"Invalid JSON in configuration file {CONFIG_PATH}: {e}")
+        raise RuntimeError(f"Invalid JSON in configuration file {config_url}: {e}")
+    except requests.RequestException as e:
+        raise RuntimeError(f"Failed to download configuration file {config_url}: {e}")
     except Exception as e:
-        raise RuntimeError(f"Failed to read configuration file {CONFIG_PATH}: {e}")
+        raise RuntimeError(f"Failed to read configuration file {config_url}: {e}")
 
     os.makedirs(DEST_DIR, exist_ok=True)
     repositories = config.get("demos")
     if not repositories:
-        raise RuntimeError(f"No 'demos' key found in {CONFIG_PATH}")
+        raise RuntimeError(f"No 'demos' key found in {config_url}")
     if not isinstance(repositories, list):
-        raise RuntimeError(f"'demos' must be a list in {CONFIG_PATH}")
+        raise RuntimeError(f"'demos' must be a list in {config_url}")
     if not all(isinstance(r, str) for r in repositories):
-        raise RuntimeError(f"All demo entries must be strings in {CONFIG_PATH}")
+        raise RuntimeError(f"All demo entries must be strings in {config_url}")
 
     errors = []
     demo_versions = {}

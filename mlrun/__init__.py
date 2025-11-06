@@ -24,6 +24,7 @@ __all__ = [
     "v3io_cred",
     "auto_mount",
     "VolumeMount",
+    "sync_secret_tokens",
 ]
 
 from os import environ, path
@@ -68,7 +69,7 @@ from .run import (
     wait_for_pipeline_completion,
 )
 from .runtimes import mounts, new_model_server
-from .secrets import get_secret_or_env
+from .secrets import get_secret_or_env, sync_secret_tokens
 from .utils.version import Version
 
 __version__ = Version().get()["version"]

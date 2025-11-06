@@ -173,7 +173,10 @@ async def async_client(app) -> typing.Iterator[ThreadedAsyncClient]:
         response = result.result()
     """
     app.include_router(test_router, prefix="/test")
-    async with ThreadedAsyncClient(app=app, base_url="https://mlrun") as client:
+    transport = httpx.ASGITransport(app=app)
+    async with ThreadedAsyncClient(
+        transport=transport, base_url="https://mlrun"
+    ) as client:
         yield client
 
 

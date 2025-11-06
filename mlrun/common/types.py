@@ -37,3 +37,11 @@ class HTTPMethod(StrEnum):
 class Operation(StrEnum):
     ADD = "add"
     REMOVE = "remove"
+
+
+class AuthenticationMode(StrEnum):
+    NONE = "none"
+    BASIC = "basic"
+    BEARER = "bearer"
+    IGUAZIO = "iguazio"
+    IGUAZIO_V4 = "iguazio-v4"

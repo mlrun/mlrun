@@ -169,6 +169,7 @@ def test_post_fetch_hook_warns_near_expiry(monkeypatch, encoded_jwt_token):
     provider._post_fetch_hook()
     assert provider._token == token
 
+
 def test_post_fetch_hook_raises_if_no_token(monkeypatch):
     provider = IGTokenProvider.__new__(IGTokenProvider)
     provider._token = None

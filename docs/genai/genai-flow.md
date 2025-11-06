@@ -30,7 +30,7 @@ apportion your resources appropriately. (See {ref}`mlops-dev-flow` for more deta
 and assets that are optimized and tested to simplify and accelerate the move to production.
 
 **See also**
-- {ref}`genai_01_basic_tutorial`
+- {ref}`genai-01-basic-tutorial`
 - {ref}`genai-02-mm-llm`
 - {ref}`realtime-monitor-drift-tutor`
 - {ref}`model-monitoring-overview`

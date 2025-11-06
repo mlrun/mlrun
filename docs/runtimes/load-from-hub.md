@@ -109,8 +109,7 @@ print(f"Project path: {project_path}\nProject name: {project_name}")
 The artifact path is the default path for saving all the artifacts that the functions generate:
 
 ```python
-import mlconf
-
+from mlrun import mlconf
 # Target location for storing pipeline artifacts
 artifact_path = path.abspath("jobs")
 
@@ -201,6 +200,7 @@ my_describe.run(name="describe", inputs={"table": DATA_URL}, output_path=artifac
 ### Saving the artifacts in a unique folder for each run  <!-- omit in toc -->
 
 ```python
+from mlrun import mlconf
 out = mlconf.artifact_path or path.abspath("./data")
 my_describe.run(
     name="describe",

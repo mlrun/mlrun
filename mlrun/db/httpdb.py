@@ -4182,7 +4182,7 @@ class HTTPRunDB(RunDBInterface):
         Get monitoring function summaries for the specified project.
 
         :param project: The name of the project.
-        param start: The start time of the monitoring applications’ statistics.
+        :param start: The start time of the monitoring applications’ statistics.
             If not defined, the default is 24 hours ago.
             Required timezone, applicable only when `include_stats` is set to True.
         :param end: The end time of the monitoring applications’ statistics.

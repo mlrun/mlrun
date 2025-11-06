@@ -19,10 +19,8 @@ import re
 import shutil
 import sys
 import tarfile
-import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from pathlib import Path
 from time import sleep
 
 import requests
@@ -274,7 +272,7 @@ def get_demos(mlrun_version):
         version_to_use = VERSION_PATTERN.match(mlrun_version).group(1)
         if version_to_use not in config.keys():
             config = config.get("development")
-            log(f"Using development tag for demos list", "get_demos")
+            log("Using development tag for demos list", "get_demos")
         else:
             config = config.get(version_to_use)
             log(f"Using {version_to_use} tag for demos list", "get_demos")

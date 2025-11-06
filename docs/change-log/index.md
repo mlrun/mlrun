@@ -39,15 +39,14 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|
+|ML-9817|You can now run a model monitoring application as a batch application on existing model endpoint data. See {ref}`mm-running-applications`.|
 
 
 ### Serving
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-10725|This version introduces a default, out of the box LLM implementation, using your selected provider (e.g., OpenAI or Hugging Face), and includes monitoring results and collecting usage statistics. See {ref}`genai-04-llm-prompt-artifact` and {ref}`genai-serving-graph`.|
-|   |The new ModelRunnerStep gives you an advanced way to run
-multiple models with control over how they atr executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.\
+|   |The new ModelRunnerStep gives you an advanced way to run multiple models with control over how they atr executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.\
 |ML-6344|This version introduces a new artifacts type: LLM prompt artifacts. This enables using LLMs, including specific prompt templates, inside your workflow. See {ref}`llm-prompt-artifact`.|
 
 ### Runtimes
@@ -57,7 +56,10 @@ multiple models with control over how they atr executed in terms of concurrency 
 |ML-5986|You can now retry MLRun functions of type `job`. See {ref}`job-function` and {py:class}`mlrun.projects.MlrunProject.run_function`.|
 |ML-10274|MLRun applies scheduling constraints to the run object at execution time (and does not modify the function definition). Your original scheduling constraints appear on the function, but the actual run may have different constraints applied dynamically when it executes.|
 
-
+### UI
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-8004|You can now terminate a workflow from the IO.|
 
 ### Breaking Changes
 | ID    |Description                                                                 |
@@ -69,11 +71,7 @@ multiple models with control over how they atr executed in terms of concurrency 
 |-------|----------------------------------------------------------------------------|
 |ML-2714|MLRun supports Confluent Kafka 7.8.|
 
-### Deprecations
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-10059| The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
-||Python 3.9 is deprectaed and will be removed in MLRun 1.11.0|
+
 
 
 
@@ -82,7 +80,8 @@ multiple models with control over how they atr executed in terms of concurrency 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 | NA | New tutorial: {ref}`genai-04-llm-prompt-artifact`. |
- | NA |Refreshed the [Real-time serving pipelines (graphs)](..//serving/serving-graph.md) documentation.|
+|NA |Refreshed the [Real-time serving pipelines (graphs)](..//serving/serving-graph.md) documentation.|
+|ML-8094|Improved the `set_function` documentation. See {ref}`create-and-use-functions`.|
 
 
 ### Closed issues
@@ -520,7 +519,7 @@ To upgrade the MLRun server:
 |----------|---------------------------------------------------------------------------|
 |ML-5799|The artifact `db_key` is not overwritten after upgrade.|
 
-## v1.6.0 (22 February 2024)
+### v1.6.0 (22 February 2024)
 
 ### Data store
 | ID      | Description                                                                                                                                                                      |
@@ -528,18 +527,18 @@ To upgrade the MLRun server:
 | ML-3618 | Integrate MLflow: seamlessly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.ipynb).                           |
 | ML-4343 | Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using data store profiles](../store/datastore.md#data-store-profiles). |
 
-### Feature store
+#### Feature store
 | ID      | Description                                                                                                                                                         |
 |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-4622 | Feature set and feature vector APIs are now class methods. See examples in {ref}`feature-sets` and {ref}`create-use-feature-vectors`.                               | 
 | ML-5109 | You can set `min_replicas` and `max_replicas` for `KafkaSource`. See [Consumer function configuration](../serving/graph-ha-cfg.md#consumer-function-configuration). |
 
-### Model monitoring 
+#### Model monitoring 
 | ID      | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-4620 | Model monitoring is now based on monitoring apps that are run on a set of model end-points, see {ref}`model-monitoring-overview`. The Grafana Model Monitoring Applications dashboard now includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Application summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../model-monitoring/monitoring-models.ipynb). |
 
-### Runtimes
+#### Runtimes
 
 | ID           | Description                                                                                                                                                                                                                      |
 |--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -549,7 +548,7 @@ To upgrade the MLRun server:
 | ML-4182      | Support for notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.md#configuring-notifications-for-pipelines).                                                              |
 | ML-4623      | You can now [Log a Databricks response as an artifact](../runtimes/databricks.ipynb#logging-a-databricks-response-as-an-artifact).                                                                                               |
 
-### UI
+#### UI
 | ID      | Description                                                                                                                                                       |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-1855 | New **Train Model** wizard.                                                                                                                                       |
@@ -558,14 +557,14 @@ To upgrade the MLRun server:
 | ML-4667 | **Project monitoring** is now the default project view. The previous default page is now named **Quick actions**, and is the second tab in the **Projects** page. |
 | ML-4916 | You can now add a tag when registering an artifact in the Register Artifact, Register Dataset, and Register Model dialogs.                                        |
 
-### Infrastructure
+#### Infrastructure
 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-3921|The Docker image for installation of mlrun was modified, resulting in better compatibility with external packages.|
 |ML-5193|Support for Pandas 2.0.                                                                               |
 
-### Documentation
+#### Documentation
 | ID     | Description                                                                                                                                                                                                                   |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3663| New: How to build a docker image externally using a Dockerfile and then use it. See [Building a docker image using a Dockerfile and then using it](../runtimes/images.md#building-a-docker-image-using-a-dockerfile-and-then-using-it). |
@@ -575,12 +574,12 @@ To upgrade the MLRun server:
 |NA| New: {ref}`project-setup`.                                                                                                                                                                                                    |
 |NA| Improved serving function example, and new example of a serving function with Git integration. See {ref}`serving-function`.                                                                                                   
 
-### Breaking Changes
+#### Breaking Changes
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-4741 | The default `target_dir` path of `with_source_archive` is now `/home/mlrun_code`. It was previously `/tmp`, which could be randomly deleted. If you are running a Spark job, and cloning the git repo, with mlrun <1.6.0, run `sj.with_source_archive(source=project.source, pull_at_runtime=False)`, then run: `sj.spec.image_pull_policy = "Always"`, `sj.spec.build.commands = ["mkdir -p /mlrun"]`, `sj.with_source_archive(source=project.source, pull_at_runtime=False, target_dir="/mlrun")`|
 
-###  Closed issues
+####  Closed issues
 | ID      | Description                                                                                                                                                                                       |
 |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-76   | Artifacts submitted from a git based project can now be received (after changing the HEAD git commit of the project between different log_artifact calls) .                                       |
@@ -1389,6 +1388,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+|1.10.0| The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
+|1.10.0|Python 3.9 is deprectaed and will be removed in MLRun 1.11.0|
 | v1.6.0 |ML-5137|The Create/edit function pane was removed from the UI.|
 | v1.5.0 |ML-4075|Python 3.7                                                     |
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`   |

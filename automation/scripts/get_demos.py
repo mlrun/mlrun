@@ -284,8 +284,12 @@ def get_demos(mlrun_version):
     except Exception as e:
         raise RuntimeError(f"Failed to read configuration file {config_url}: {e}")
 
-    os.makedirs(DEST_DIR, exist_ok=True)
-    repositories = config.get("demos")
+    try:
+        os.makedirs(DEST_DIR, exist_ok=True)
+        repositories = config.get("demos")
+    except AttributeError:
+        raise AttributeError("Failed to read configuration file")
+
     if not repositories:
         raise RuntimeError(f"No 'demos' key found in {config_url}")
     if not isinstance(repositories, list):

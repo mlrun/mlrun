@@ -5062,6 +5062,7 @@ class MlrunProject(ModelObj):
         :param labels: Labels to filter by (optional).
         :param include_stats: Whether to include statistics in the response (default is False).
         :param include_infra: Whether to include model monitoring infrastructure functions (default is True).
+
         :return: A list of FunctionSummary objects containing information about the monitoring functions.
         """
 

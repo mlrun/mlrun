@@ -1016,9 +1016,9 @@ class TDEngineConnector(TSDBConnector):
                 ].super_table
                 columns += [
                     mm_schemas.ResultData.RESULT_NAME,
-                    mm_schemas.ResultData.RESULT_VALUE,
                     mm_schemas.ResultData.RESULT_STATUS,
                     mm_schemas.ResultData.RESULT_KIND,
+                    mm_schemas.ResultData.RESULT_VALUE,
                 ]
                 agg_column = mm_schemas.ResultData.RESULT_VALUE
             else:
@@ -1037,7 +1037,7 @@ class TDEngineConnector(TSDBConnector):
                 filter_query=filter_query,
                 timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
                 # Aggregate per application/metric pair regardless of timestamp
-                group_by=columns[1:],
+                group_by=columns[1:-1],
                 preform_agg_columns=[agg_column],
                 agg_funcs=["last"],
             )

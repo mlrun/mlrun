@@ -72,14 +72,14 @@ def test_with_empty_endpoint():
     "threshold, total_lifetime, remaining_seconds, expected",
     [
         # Threshold None -> default 0.75
-        (None, 100, 80, True),
-        (None, 100, 60, False),
+        (None, 100, 30, True),
+        (None, 100, 20, False),
         # Threshold 0.5
         (0.5, 100, 60, True),
         (0.5, 100, 40, False),
         # Threshold 0.9
-        (0.9, 100, 95, True),
-        (0.9, 100, 85, False),
+        (0.9, 100, 15, True),
+        (0.9, 100, 5, False),
     ],
 )
 def test_is_access_token_valid(
@@ -97,7 +97,7 @@ def test_is_access_token_valid(
         )
     # if threshold is None -> we don't patch, expect default 0.75
 
-    assert provider._is_token_valid() is expected
+    assert provider._is_token_within_refresh_threshold() is expected
 
 
 @pytest.mark.parametrize(
@@ -149,7 +149,7 @@ def test_token_cleanup_when_expired(encoded_jwt_token, monkeypatch):
 
     monkeypatch.setattr("mlrun.mlconf.auth_with_oauth_token.refresh_threshold", 0.5)
 
-    assert not provider._is_token_valid(cleanup_if_expired=True)
+    assert not provider._is_token_within_refresh_threshold(cleanup_if_expired=True)
     assert provider._token is None
     assert provider._token_expiry_time is None
 

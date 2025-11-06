@@ -23,6 +23,7 @@ import mlrun.auth.utils
 import mlrun.errors
 import mlrun.secrets
 import mlrun.utils.helpers
+from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -112,7 +113,7 @@ class DynamicTokenProvider(TokenProvider):
                 "url": self._token_endpoint,
                 "timeout": self._timeout,
                 "headers": headers,
-                "verify": mlrun.mlconf.httpdb.http.verify,
+                "verify": config.httpdb.http.verify,
             }
             if body_type == "json":
                 request_kwargs["json"] = request_body
@@ -148,7 +149,9 @@ class DynamicTokenProvider(TokenProvider):
         raise_on_error = True
 
         # Check if there is an existing access token and if it is within the refresh threshold
-        if self._token and self._is_token_valid(cleanup_if_expired=True):
+        if self._token and self._is_token_within_refresh_threshold(
+            cleanup_if_expired=True
+        ):
             return self._token
 
         try:
@@ -175,7 +178,7 @@ class DynamicTokenProvider(TokenProvider):
         pass
 
     @abstractmethod
-    def _is_token_valid(self, cleanup_if_expired=True) -> bool:
+    def _is_token_within_refresh_threshold(self, cleanup_if_expired=True) -> bool:
         """
         Check if the current access token is valid.
 
@@ -227,7 +230,7 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
     def _cleanup(self):
         self._token = self.token_expiry_time = self.token_refresh_time = None
 
-    def _is_token_valid(self, cleanup_if_expired=True) -> bool:
+    def _is_token_within_refresh_threshold(self, cleanup_if_expired=True) -> bool:
         """
         Check if the current access token is valid.
 
@@ -311,7 +314,7 @@ class IGTokenProvider(DynamicTokenProvider):
         self._token_total_lifetime = 0
         self._token_expiry_time = None
 
-    def _is_token_valid(self, cleanup_if_expired=True) -> bool:
+    def _is_token_within_refresh_threshold(self, cleanup_if_expired=True) -> bool:
         """
         Check if the current access token is valid and has sufficient lifetime remaining.
 
@@ -332,8 +335,9 @@ class IGTokenProvider(DynamicTokenProvider):
             return False
 
         return (
-            remaining_lifetime / self._token_total_lifetime
-            > mlrun.mlconf.auth_with_oauth_token.refresh_threshold
+            self._token_total_lifetime - remaining_lifetime
+            < self._token_total_lifetime
+            * config.auth_with_oauth_token.refresh_threshold
         )
 
     def _build_token_request(self, raise_on_error=False):
@@ -376,13 +380,11 @@ class IGTokenProvider(DynamicTokenProvider):
         )
 
     def _post_fetch_hook(self, raise_on_error=True):
-        """
-        A hook that is called after every attempt to fetch a new token.
-        Can be used to perform additional actions, such as logging or updating state.
-        """
-        # if we reach this point and the token is non-empty but invalid, it means we couldn't fetch a new token,
-        # the refresh threshold has been reached and the token will expire soon.
-        if self._token and not self._is_token_valid(cleanup_if_expired=True):
+        # if we reach this point and the token is non-empty but invalid,
+        # it means the refresh threshold has been reached and the token will expire soon.
+        if self._token and not self._is_token_within_refresh_threshold(
+            cleanup_if_expired=True
+        ):
             logger.warning(
                 "Failed to fetch a new token. Using the existing token, which remains valid but is close to expiring."
             )

@@ -402,8 +402,8 @@ MinIO service.
 
 For storing data in S3 when using MinIO and Spark, use:
 ```
-sj.spec.spark_conf[f"spark.hadoop.fs.s3a.bucket.naipi-artifacts.endpoint"] = 'http://minio.mlrun.svc.cluster.local:9000'
-sj.spec.spark_conf[f"spark.hadoop.fs.s3a.bucket.naipi-artifacts.path.style.access"] = 'true'
+sj.spec.spark_conf[f"spark.hadoop.fs.s3a.bucket.<your-bucket-name>.endpoint"] = 'http://minio.mlrun.svc.cluster.local:9000'
+sj.spec.spark_conf[f"spark.hadoop.fs.s3a.bucket.<your-bucket-name>.path.style.access"] = 'true'
 ```
 
 To store artifacts in AWS S3 buckets instead of the local MinIO service, these configurations need to be overridden to 

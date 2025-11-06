@@ -1124,5 +1124,46 @@ def test_revoke_secret_token_delete_failure(mock_iguazio_client):
         )
 
 
+def test_get_secret_token_success():
+    username = "dummy-user"
+    token_name = "my-token"
+    fake_token_value = "jwt-fake-token"
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.get_user_token_secret_value.return_value = fake_token_value
+
+    result = services.api.crud.Secrets().get_secret_token(
+        token_name=token_name,
+        authenticated_username=username,
+    )
+
+    mock_secrets_provider.get_user_token_secret_value.assert_called_once_with(
+        username=username,
+        token_name=token_name,
+    )
+
+    assert isinstance(result, mlrun.common.schemas.SecretToken)
+    assert result.name == token_name
+    assert result.token == fake_token_value
+
+
+def test_get_secret_token_not_found():
+    username = "dummy-user"
+    token_name = "missing-token"
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.get_user_token_secret_value.side_effect = (
+        mlrun.errors.MLRunNotFoundError("Token not found")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Token not found"):
+        services.api.crud.Secrets().get_secret_token(
+            token_name=token_name,
+            authenticated_username=username,
+        )
+
+
 def _generate_token(payload: dict) -> str:
     return jwt.encode(payload, key="dummy", algorithm="HS256")

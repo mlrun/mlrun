@@ -1207,9 +1207,9 @@ class MonitoringDeployment:
 
     async def _get_function_summary_applications(
         self,
-        start: datetime,
-        end: datetime,
         base_period: typing.Optional[float] = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
         names: typing.Optional[list[str]] = None,
         labels: typing.Optional[list[str]] = None,
         include_stats: bool = True,
@@ -1235,6 +1235,10 @@ class MonitoringDeployment:
 
         detection_stats_dict = {}
         processed_model_endpoints_dict = {}
+
+        now = mlrun.utils.datetime_now()
+        start = start or (now - timedelta(hours=24))
+        end = end or now
 
         if include_stats:
             # enrich func stats with #detections and #possible_detections

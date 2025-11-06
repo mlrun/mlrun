@@ -110,6 +110,7 @@ The artifact path is the default path for saving all the artifacts that the func
 
 ```python
 from mlrun import mlconf
+
 # Target location for storing pipeline artifacts
 artifact_path = path.abspath("jobs")
 

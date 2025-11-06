@@ -2557,7 +2557,7 @@ def get_relative_module_name_from_path(
 def iguazio_v4_only(function):
     @functools.wraps(function)
     def wrapper(*args, **kwargs):
-        if not mlrun.mlconf.is_iguazio_v4_mode():
+        if not config.is_iguazio_v4_mode():
             raise mlrun.errors.MLRunRuntimeError(
                 "This method is only supported in an Iguazio V4 system."
             )

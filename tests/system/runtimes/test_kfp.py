@@ -23,7 +23,11 @@ import tests.system.base
 from mlrun import mlconf
 from mlrun_pipelines.common.models import RunStatuses
 
-dsl = pytest.importorskip("kfp.dsl")
+# Conditionally import kfp.dsl based on test mode
+if pytest.config.getoption("--system-test-open-source", default=False):
+    dsl = pytest.importorskip("kfp.dsl")
+else:
+    import kfp.dsl as dsl
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

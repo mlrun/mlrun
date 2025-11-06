@@ -38,7 +38,9 @@ from tests.system.feature_store.utils import (
     sort_df,
 )
 
-pytest.skip(allow_module_level=True, reason="")
+# Skip this test module if running in open source mode
+if pytest.config.getoption("--system-test-open-source", default=False):
+    pytest.skip(allow_module_level=True, reason="Skipped in open source system tests")
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

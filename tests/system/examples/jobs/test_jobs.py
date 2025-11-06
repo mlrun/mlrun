@@ -27,9 +27,15 @@ from mlrun import (
 from mlrun.runtimes.mounts import mount_v3io
 from tests.system.base import TestMLRunSystem
 
-kfp = pytest.importorskip("kfp")
-kfp.compiler = pytest.importorskip("kfp.complier")
-kfp.dsl = pytest.importorskip("kfp.dsl")
+# Conditionally import kfp based on test mode
+if pytest.config.getoption("--system-test-open-source", default=False):
+    kfp = pytest.importorskip("kfp")
+    kfp.compiler = pytest.importorskip("kfp.complier")
+    kfp.dsl = pytest.importorskip("kfp.dsl")
+else:
+    import kfp
+    import kfp.compiler
+    import kfp.dsl
 
 
 # Marked as enterprise because of v3io mount and pipelines

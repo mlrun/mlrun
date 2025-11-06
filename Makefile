@@ -797,6 +797,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		--disable-warnings \
 		--durations=100 \
 		-rf \
+		--system-test-open-source \
 		-m $(if $(MLRUN_SYSTEM_TEST_MARKERS),"$(MLRUN_SYSTEM_TEST_MARKERS)","not enterprise") \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 

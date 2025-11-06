@@ -222,8 +222,7 @@ jobs:
         # uv pip install cryptography bcrypt paramiko
 
     - name: Check and cleanup any previous K3S installation
-      run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/cleanup_k3s.sh"
+      uses: ./.github/actions/cleanup-k3s
 
     - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
       name: "Start a local k8s cluster"
@@ -521,5 +520,4 @@ jobs:
 
     - name: Final clean up
       if: always()
-      run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/cleanup_k3s.sh"
+      uses: ./.github/actions/cleanup-k3s

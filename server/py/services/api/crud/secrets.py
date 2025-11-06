@@ -593,6 +593,31 @@ class Secrets(
             token_name=token_name,
         )
 
+    def get_secret_token(
+        self,
+        token_name: str,
+        authenticated_username: str,
+    ) -> mlrun.common.schemas.SecretToken:
+        """
+        Get a specific offline token stored for the authenticated user by token name.
+
+        :param token_name: Name of the token to retrieve.
+        :param authenticated_username: Username whose token will be retrieved.
+        :return: SecretToken object containing the token name and token value.
+        :raises mlrun.errors.MLRunNotFoundError: If the token does not exist for the user.
+        :raises mlrun.errors.MLRunRuntimeError: If reading or decoding the token fails.
+        """
+
+        token_value = self.secrets_provider.get_user_token_secret_value(
+            username=authenticated_username,
+            token_name=token_name,
+        )
+
+        return mlrun.common.schemas.SecretToken(
+            name=token_name,
+            token=token_value,
+        )
+
     def _extract_and_validate_tokens_info(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],

@@ -200,7 +200,6 @@ my_describe.run(name="describe", inputs={"table": DATA_URL}, output_path=artifac
 ### Saving the artifacts in a unique folder for each run  <!-- omit in toc -->
 
 ```python
-from mlrun import mlconf
 out = mlconf.artifact_path or path.abspath("./data")
 my_describe.run(
     name="describe",

@@ -5357,22 +5357,11 @@ class HTTPRunDB(RunDBInterface):
     def get_secret_token(
         self,
         token_name: str,
+        username: Optional[str] = None,
     ) -> mlrun.common.schemas.SecretToken:
-        """
-        Retrieve a specific secret token for the authenticated user.
-
-        :param token_name: The name of the token to retrieve.
-        :return: A SecretToken schema object with the token's details.
-        """
-        endpoint_path = f"user-secrets/tokens/{token_name}"
-
-        response = self.api_call(
-            mlrun.common.types.HTTPMethod.GET,
-            endpoint_path,
-            "get user secret token",
+        raise NotImplementedError(
+            "Getting secret token is not supported for security reasons."
         )
-
-        return mlrun.common.schemas.SecretToken(**response.json())
 
     @mlrun.utils.iguazio_v4_only
     def _store_secret_tokens(

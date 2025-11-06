@@ -24,7 +24,8 @@ from mlrun import mlconf
 from mlrun_pipelines.common.models import RunStatuses
 
 # Conditionally import kfp.dsl based on test mode
-if pytest.config.getoption("--system-test-open-source", default=False):
+# Check environment variable or use importorskip to gracefully skip if not available
+if os.getenv("MLRUN_SYSTEM_TEST_OPEN_SOURCE", "false").lower() == "true":
     dsl = pytest.importorskip("kfp.dsl")
 else:
     import kfp.dsl as dsl

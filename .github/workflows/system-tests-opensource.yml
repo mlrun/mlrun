@@ -31,7 +31,6 @@ on:
       pytest_markers:
         description: 'Pytest markers to run'
         required: false
-        # TODO revert back to default: 'not enterprise and smoke'
         default: 'not enterprise and smoke'
       clean_resources_in_teardown:
         description: 'Clean test resources upon test teardown'
@@ -43,14 +42,6 @@ on:
           - 'false'
       debug_enabled:
         description: 'Allow SSH debugging'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
-      on_failure_dump_k8_kogs:
-        description: 'On failure dump K8 logs'
         required: false
         default: 'false'
         type: choice
@@ -196,7 +187,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # 6.7.0
+      uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"

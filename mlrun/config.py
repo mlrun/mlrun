@@ -876,6 +876,8 @@ default_config = {
         "request_timeout": 5,
         "refresh_threshold": 0.75,
         "token_file": "~/.igz.yml",
+        # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
+        # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
     },
     "auth_token_endpoint": "",

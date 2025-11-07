@@ -375,8 +375,7 @@ jobs:
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
             --set jupyterNotebook.enabled=false \
-            --set kube-prometheus-stack.enabled=false \
-            --set kafka.enabled=false
+            --set kube-prometheus-stack.enabled=false
         
           # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
           echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."

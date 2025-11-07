@@ -1877,7 +1877,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
         def _validate_masked_trigger(masked_trigger):
-            if nuclio_version >= "1.14.15":
+            if nuclio_version == "1.14.15":
                 assert (
                     masked_trigger["url"]
                     == "amqp://my-rabbitmq.default-tenant.svc.cluster.local:5672"

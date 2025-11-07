@@ -182,6 +182,8 @@ jobs:
 
     - name: Install automation scripts dependencies
       run: |
+        uv venv venv --seed
+        source venv/bin/activate
         make install-automation-requirements
 
     - name: Extract git hashes from upstream and latest version
@@ -386,6 +388,8 @@ jobs:
         # https://github.com/git/git/commit/8959555cee7ec045958f9b6dd62e541affb7e7d9
         # ensure mlrun git is safe to use
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        uv venv venv --seed
+        source venv/bin/activate
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
           make install-requirements install-complete-kfp-requirements update-version-file
 

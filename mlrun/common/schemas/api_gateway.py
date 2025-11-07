@@ -27,6 +27,7 @@ class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
     basic = "basicAuth"
     none = "none"
     access_key = "accessKey"
+    iguazio = "iguazio"
 
     @classmethod
     def from_str(cls, authentication_mode: str):
@@ -36,6 +37,8 @@ class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
             return cls.basic
         elif authentication_mode == "accessKey":
             return cls.access_key
+        elif authentication_mode == "iguazio":
+            return cls.iguazio
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Authentication mode `{authentication_mode}` is not supported",

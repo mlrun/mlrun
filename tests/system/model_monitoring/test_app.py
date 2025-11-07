@@ -722,7 +722,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         function_summaries = self.project.get_monitoring_function_summaries()
         assert len(function_summaries) == 3 + len(self.apps_data)
         function_summaries = self.project.get_monitoring_function_summaries(
-            include_infra=False, start=datetime(2020, 1, 1)
+            include_infra=False, start=datetime(2020, 1, 1, tzinfo=timezone.utc)
         )
         assert len(function_summaries) == len(self.apps_data)
 

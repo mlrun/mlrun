@@ -114,6 +114,7 @@ jobs:
       uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # 7.1.2
       with:
         enable-cache: true
+        python-version: 3.11
         cache-dependency-glob: |
           **/*requirements*.txt
 
@@ -356,6 +357,7 @@ jobs:
       uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # 7.1.2
       with:
         enable-cache: true
+        python-version: 3.11
         cache-dependency-glob: |
           **/*requirements*.txt
 

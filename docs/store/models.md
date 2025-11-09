@@ -23,6 +23,12 @@ You can also store any related metrics by providing a dictionary in the `metrics
 
 A convenient utility method, `eval_model_v2`, which calculates mode metrics is available in `mlrun.utils`.
 
+**In this section**
+- [Example of model trained with scikit-learn](#example-of-model-trained-with-scikit-learn)
+- [Example model using `models_path` and `test_set`](#example-model-using-models_path-and-test_set)
+
+## Example of model trained with scikit-learn
+
 See example below for a simple model trained using scikit-learn (normally, you would send the data as input to the function). The last 2 lines evaluate the model and log the model.
 
 ``` python
@@ -31,11 +37,11 @@ from sklearn import datasets
 from sklearn.model_selection import train_test_split
 from pickle import dumps
 
-from mlrun.execution import MLClientCtx
-from mlrun.mlutils import eval_model_v2
+import mlrun.execution
+import mlrun.mlutils
 
 
-def train_iris(context: MLClientCtx):
+def train_iris(context: mlrun.execution.MLClientCtx):
 
     # Basic scikit-learn iris SVM model
     X, y = datasets.load_iris(return_X_y=True)
@@ -60,14 +66,16 @@ def train_iris(context: MLClientCtx):
     )
 ```
 
-Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See the [quick-start page](../cheat-sheet.md#mlrun-setup) to learn how to create the project and set the artifact path. 
+Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See [Artifact path](../store/artifacts.md#artifact-path) to learn how to set the artifact path.
 
 ``` python
-from mlrun import code_to_function
+import mlrun
 
-gen_func = code_to_function(
+project = mlrun.get_or_create_project("myproj")
+
+gen_func = project.set_function(
     name="train_iris",
-    filename="train_iris.py",
+    func="<path to train_iris.py>",
     handler="train_iris",
     kind="job",
     image="mlrun/mlrun",
@@ -80,6 +88,7 @@ train_iris = train_iris_func.run(
 )
 ```
 
+## Example model using `models_path` and `test_set`
 You can now use `get_model` to read the model and run it. This function gets the model file, metadata, and extra data. The input can be either the path of the model, or the directory where the model resides. If you provide a directory, the function searches for the model file (by default it searches for `.pkl` files).
 
 The following example gets the model from `models_path` and gets test data in `test_set` with the expected label provided as a column of the test data. The name of the column containing the expected label is provided in `label_column`. The example then retrieves the models, runs the model with the test data and updates the model with the metrics and results of the test data.
@@ -87,10 +96,10 @@ The following example gets the model from `models_path` and gets test data in `t
 ``` python
 from pickle import load
 
-from mlrun.execution import MLClientCtx
-from mlrun.datastore import DataItem
-from mlrun.artifacts import get_model, update_model
-from mlrun.mlutils import eval_model_v2
+import mlrun.execution
+import mlrun.datastore
+import mlrun.artifacts
+import mlrun.mlutils
 
 
 def test_model(
@@ -117,11 +126,11 @@ def test_model(
 To run the code, place the code above in `test_model.py` and use the following snippet. The model from the previous step is provided as the `models_path`:
 
 ``` python
-from mlrun.platforms import auto_mount
+import mlrun.platforms
 
-gen_func = code_to_function(
+gen_func = project.set_function(
     name="test_model",
-    filename="test_model.py",
+    func="<path to test_model.py>",
     handler="test_model",
     kind="job",
     image="mlrun/mlrun",

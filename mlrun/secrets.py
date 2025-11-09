@@ -273,10 +273,11 @@ def sync_secret_tokens() -> None:
         return
 
     secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
+    from mlrun.db import get_run_db
 
     # The log_warning=False flag ensures the SDK doesn’t log unnecessary warnings about local file updates, since
     # this method reads from the file, not updates it.
-    response = mlrun.get_run_db().store_secret_tokens(secret_tokens, log_warning=False)
+    response = get_run_db().store_secret_tokens(secret_tokens, log_warning=False)
 
     if response.updated_tokens:
         logger.warning(

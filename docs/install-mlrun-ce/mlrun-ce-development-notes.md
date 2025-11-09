@@ -1,14 +1,15 @@
-# MLRun CE Development Notes
+# MLRun CE development notes
 
-This page contains development notes for configure your developemt system.
+This page contains notes for configuring your development system (after installtion).
 
 **In this section**
 
-- [Change Deployment and Jobs default PVC](#change-deployemnt-and-jobs-default-pvc)
+- [Change the deployment and jobs default PVC](#change-the-deployment-and-jobs-default-pvc)
 - [Configuring the user Jupyter conda environment](#configuring-the-user-jupyter-conda-environment)
 - [Configuring TDengine and Kafka for model monitoring](#configuring-tdengine-and-kafka-for-model-monitoring)
+- [Running local Spark jobs](#running-local-spark-jobs)
 
-## Change Deployemnt and Jobs default PVC
+## Change the deployment and jobs default PVC
 - A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC by running this after importing MLRun:
     ```
     import mlrun
@@ -74,6 +75,6 @@ project.set_model_monitoring_credentials(
 
 See more details, including additional configuration options, in {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 
-## Running local spark jobs
+## Running local Spark jobs
 To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
 `pip install pyspark`

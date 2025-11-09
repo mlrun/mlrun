@@ -1,4 +1,4 @@
-# MLRun CE Installation Notes
+# MLRun CE installation notes
 
 This page lists additional steps or configuration options you may need to follow for non-default MLRun CE installations.
 

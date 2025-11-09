@@ -1,6 +1,6 @@
-# Storing Artifact in AWS S3 Storage
+# Storing artifacts in AWS S3 storage
 
-MLRun CE uses a MinIO service as shared storage for artifacts, and accesses it using S3 protocol. This means that
+MLRun CE uses a MinIO service as a shared storage for artifacts, and accesses it using S3 protocol. This means that
 any path that begins with `s3://` is automatically directed by MLRun to the MinIO service. The default artifact
 path is also configured as `s3://mlrun/projects/{{run.project}}/artifacts` which is a path on the `mlrun` bucket in the
 MinIO service.

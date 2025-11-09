@@ -18,17 +18,17 @@ These instructions install the community edition, which currently includes MLRun
 
 ## Prerequisites
 
-- Access to a Kubernetes cluster. To install MLRun on your cluster, you must have administrator permissions. 
+- Access to a Kubernetes cluster, version >=1.31. To install MLRun on your cluster, you must have administrator permissions. 
 For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. 
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-- Helm >=3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+- Helm version >=3.16 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret. If using docker hub, the registry server is `https://registry.hub.docker.com/`. See the [Docker ID documentation](https://docs.docker.com/docker-id/) for details about creating a user with login that you will configure in the secret.
 - Storage: 
   - 8Gi
   - Set a default storage class for the kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
 - RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
-- Please review the [MLRun CE Installation Notes](./mlrun-ce-installation-notes.md) for any additional installation steps you may need to consider.
+- Review the [MLRun CE installation notes](./mlrun-ce-installation-notes.md) for any additional installation steps you may need to consider.
 
 ``` {admonition} Note
 The MLRun Community Edition resources are configured initially with the default cluster/namespace resource limits. You can modify the resources from outside if needed.

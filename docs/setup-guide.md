@@ -1,8 +1,7 @@
 (Setup Guide)=
-# Setup Guide <!-- omit in toc -->
+# Setup guide <!-- omit in toc -->
 
-Essential information for MLRun developers and operators
-Learn about MLRun deployment options and version compatibility requirements.
+Learn about MLRun non root user support and version compatibility requirements, essential information for MLRun developers and operators.
 
 **In this section**
 - [MLRun client backward compatibility](#MLRun-client-backward-compatibility)
@@ -10,7 +9,7 @@ Learn about MLRun deployment options and version compatibility requirements.
 
 
 (MLRun-client-backward-compatibility)=
-## MLRun client backward compatibility  
+## MLRun client backward compatibility 
 
 Starting from MLRun v1.3.0, the MLRun server is compatible with the client and images of the previous two minor MLRun releases. When you upgrade to v1.3.0, for example, you can continue to use your v1.1- and v1.2-based images, but v1.0-based images are not compatible.
 
@@ -23,12 +22,12 @@ For example, when running this command `pip install mlrun==1.8.0` you must updat
 - The feature store is not backward compatible. 
 - When you upgrade the platform, for example from 3.2 to 3.3, the clients should be upgraded. There is no guaranteed compatibility with an older MLRun client after a platform upgrade. 
 ```
-(Non-root-user)=
+
 ## Non root user support
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, which is implemented by Iguazio during installation, and applied system-wide:
 
-- **Override**: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1.
+- **Override**: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1 and higher.
 - **Disabled**: Security context is not auto applied (the system applies the root user). (default)
 
 See also {ref}`images-usage`.

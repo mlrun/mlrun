@@ -1,10 +1,10 @@
 (view-mm-applications)=
 # View the model monitoring applications status in the UI
 
-The Monitoring Application view provides you with a comprehensive overview of your model monitoring applications. You can view the existing applications and their their status. You can choose the time period for the statistics. The default time period is 24 hours. The maximum time period is one month. The selected period operates as a sliding window of 24 hours, updated every hour.
+The Monitoring Application view provides you with a comprehensive overview of your model monitoring applications. You can view the existing applications and their status. You can choose the time period for the statistics. The default time period is 24 hours. The maximum time period is one month. The selected period operates as a sliding window of 24 hours, updated every hour.
 
 **In this section**
-- [Monitoring App view](#Monitoring-app-view)
+- [Monitoring App view](#monitoring-app-view)
 - [Application page](#application-page)
 - [Application metrics](#application-metrics)
 

@@ -519,8 +519,13 @@ def get_latest_release_tag(
     include_prereleases: bool,
 ) -> str | None:
     """
-    Return the *greatest semantic* release tag, optionally excluding prereleases.
+    Return the greatest semver-valid release tag, optionally excluding prereleases.
+
+    Uses the /releases endpoint instead of /releases/latest because GitHub's "latest"
+    only returns the most recently published stable release and can skip newer RCs
+    or higher semantic versions. Fetching all releases ensures accurate semver ordering.
     """
+
     releases = get_all_releases(repository)
     if not releases:
         return None
@@ -918,8 +923,6 @@ def upgrade_images(
         debug=debug,
     )
 
-    # Always use arm64 for Nuclio images regardless of provided arch
-    nuclio_arch = "arm64"
     mlrun_ver = (mlrun_ver or "").lstrip("v")
 
     cmd = [
@@ -950,9 +953,9 @@ def upgrade_images(
         cmd.extend(
             [
                 "--set",
-                f"nuclio.controller.image.tag={nuclio_ver}-{nuclio_arch}",
+                f"nuclio.controller.image.tag={nuclio_ver}",
                 "--set",
-                f"nuclio.dashboard.image.tag={nuclio_ver}-{nuclio_arch}",
+                f"nuclio.dashboard.image.tag={nuclio_ver}",
             ]
         )
     if docker_creds_secret_name:

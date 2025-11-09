@@ -60,11 +60,13 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-8004|You can now terminate a job from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the kebab menu, depending on the page you are in. |
-
+(1.10.0-breaking)+
 ### Breaking Changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9838|The default project (`project="default"`) is no longer supported. This also affects the CE. All functions must have an explicit project. You can name a project default, but it will not have any pre-ordained permissions. Existing systems can keep pre-existing default projects, but they are no longer enriched .|
+|ML-9838|The default project (`project="default"`) is no longer supported. This also affects the CE. All functions must have an explicit project. You can name a project default, but it will not have any pre-ordained permissions. Existing systems can keep pre-existing default projects, but they are no longer enriched. For example, this code:<br>import mlrun
+mlrun.get_or_create_ctx("my-context") should be replaced by:mlrun.get_or_create_ctx("my-context", project="my-project")<br>
+mlrun.get_or_create_ctx("my-context") should be replaced by:<br>|
 
 ### Infrastructure
 | ID    |Description                                                                 |
@@ -1403,6 +1405,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1.10.0 | default project is deprecated. See [Breaking changes](#1.10.0-breaking).
 | 1.10.0 | |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
 | 1.10.0 | |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
 | v1.6.0 |ML-5137|The Create/edit function pane was removed from the UI.|

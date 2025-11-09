@@ -14,6 +14,7 @@ The images are:
 * `mlrun/mlrun-ui` - The image used for running the MLRun UI
 
 **Deprecated images:** 
+
 Image removed in MLRun 1.10.0:
 * `mlrun/ml-base` - Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities. In v1.10.0 replaced by `mlrun/mlrun`.
 

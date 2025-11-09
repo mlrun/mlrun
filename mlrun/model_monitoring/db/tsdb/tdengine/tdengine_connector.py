@@ -925,7 +925,7 @@ class TDEngineConnector(TSDBConnector):
         # Convert DataFrame to a dictionary
         return {
             (
-                row[mm_schemas.WriterEvent.APPLICATION_NAME],
+                row[mm_schemas.WriterEvent.APPLICATION_NAME].lower(),
                 row[mm_schemas.ResultData.RESULT_STATUS],
             ): row["count(result_value)"]
             for _, row in df.iterrows()

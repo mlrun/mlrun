@@ -45,21 +45,21 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Serving
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10725|This version introduces a default, out of the box LLM implementation, using your selected provider (e.g., OpenAI or Hugging Face), and includes monitoring results and collecting usage statistics. See {ref}`genai-04-llm-prompt-artifact` and {ref}`genai-serving-graph`.|
-|   |The new ModelRunnerStep gives you an advanced way to run multiple models with control over how they atr executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.\
+|ML-10725|This version introduces a default, out of the box, LLM implementation using your selected provider (e.g., OpenAI or Hugging Face), and includes monitoring results and collecting usage statistics. See {ref}`genai-04-llm-prompt-artifact` and {ref}`genai-serving-graph`.|
+|   |The new ModelRunnerStep gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.\
 |ML-6344|This version introduces a new artifacts type: LLM prompt artifacts. This enables using LLMs, including specific prompt templates, inside your workflow. See {ref}`llm-prompt-artifact`.|
 
 ### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|   |You can now run a serving graph as a job. See???|
-|ML-5986|You can now retry MLRun functions of type `job`. See {ref}`job-function` and {py:class}`mlrun.projects.MlrunProject.run_function`.|
+|ML-9681|You can now deploy a serving graph as a job. See {ref}`serving-graph-as-job`.|
+|ML-5986|You can now retry MLRun functions of type `job`. There is a new <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table. See more details in {ref}`job-function` and {py:class}`mlrun.projects.MlrunProject.run_function`.|
 |ML-10274|MLRun applies scheduling constraints to the run object at execution time (and does not modify the function definition). Your original scheduling constraints appear on the function, but the actual run may have different constraints applied dynamically when it executes.|
 
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-8004|You can now terminate a workflow from the IO.|
+|ML-8004|You can now terminate a job from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the kebab menu, depending on the page you are in. |
 
 ### Breaking Changes
 | ID    |Description                                                                 |
@@ -70,7 +70,9 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2714|MLRun supports Confluent Kafka 7.8.|
-
+|ML-10799|MLRun supports Python 3.11 with the Kubeflow Pipelines (KFP) 1.8.23.
+|ML-981|You can now import python modules from the MLRun hub or your own private hub. See ???|
+|ML-9564|You can now import monitoring apps from the MLRun hub, and import Python modules from the MLRun hub or your own private hub. See ???.|
 
 
 
@@ -80,15 +82,28 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 | NA | New tutorial: {ref}`genai-04-llm-prompt-artifact`. |
-|NA |Refreshed the [Real-time serving pipelines (graphs)](..//serving/serving-graph.md) documentation.|
+|NA |Improved the [Real-time serving pipelines (graphs)](..//serving/serving-graph.md) documentation.|
 |ML-8094|Improved the `set_function` documentation. See {ref}`create-and-use-functions`.|
 
 
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-4309|You can now run predict on selected models in parallel using the ModelRunnerStep. See {ref}`modelrunnerstep`.|
+|ML-7771| Updated message when user tries to create a project but does not have developer permission: "Permission denied: Unable to create a project. Contact your system administrator to review user policy and data access permissions."|
 |ML-8601|Default spot labels node selector are no longer removed.|
 |ML-8740|Notifications are now issued when retrying pipelines.|
+|ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent`’` or `allow` MLRun now warns that this node selector might get removed.|
+|ML-9573|Resolved workflow step failures due to "Read timed out" error from mlrun-api.|
+ML-9876|Resolved isue of DB probes failing when the concurrent connections are maxed out.|
+|ML-10289|When using the `project.delete_artifact()` that gets an `mlrun.artifacts.base.Artifact` object, if the object doesn’t have the “latest” tag, now only the specific UID artifacts are deleted.|
+|ML-10293|Scheduled workflow jobs now use the values in the `run` method.|
+|ML-10612|The `mlrun.get_current_project() function` now also works from within a Nuclio function that has been deployed on Iguazio or from a job.|
+|ML-10622|The remote and schedule workflow owner labels now show the username.|
+|ML-10655|<b>Monitoring>Workflows</b> now shows the correct number of workflows. Previously it occasionally reported 0.|
+
+
+
 
 (v192)=
 ## v1.9.2 (July 2025)
@@ -1388,9 +1403,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-
-|1.10.0| The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
-|1.10.0|Python 3.9 is deprectaed and will be removed in MLRun 1.11.0|
+| 1.10.0 | |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
+| 1.10.0 | |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
 | v1.6.0 |ML-5137|The Create/edit function pane was removed from the UI.|
 | v1.5.0 |ML-4075|Python 3.7                                                     |
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`   |
@@ -1401,58 +1415,67 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.11.0      | v1.8.0 |`get_cached_artifact` of MLClientCtx                                                    |`get_artifact`|
-| v1.11.0      | v1.8.0 |`remove_function` of MLrunProject                                  |`delete_function`|
-| v1.11.0      | v1.8.0 |`batch` of `ServingRuntime.set_tracking`                         |NA|
-| v1.11.0      | v1.8.0 |`limit` in `MLrunProject.list_artifacts`                                     |`page` and `page_size`|
-| v1.11.0      | v1.8.0 |`limit` in `HTTPRunDB.list_artifacts`                                        |`page` and `page_size`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.VolumeMount`                                                 |`mlrun.runtimes.mounts.VolumeMount`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.auto_mount`                                                  |`.mounts.auto_mount`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_configmap`                                                  |`.mounts.mount_configmap`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_hostpath`                                                  |`.mounts.mount_hostpath`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_pvc`                                                  |`.mounts.mount_pvc`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_s3`                                                  |`.mounts.mount_s3`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_secret`                                                  |`.mounts.mount_secret`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_v3io`                                                  |`.mounts.mount_v3io`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.set_env_variables`                                                  |`.mounts.set_env_variables`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |`.mounts.v3io_cred`|
-| v1.10.0      | v1.7.0 |`labels` in`get_or_create_ctx` |`spec` |
-| v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
-| v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
-| v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_image` |Default value changed to `True` |
-| v1.10.0      | v1.7.0 |`overwrite_build_params` in `mlrun.projects.operations.build_function` |Default value changed to `True` |
-| v1.10.0      | v1.7.0 |`overwrite` in `KubejobRuntime.build_config` |Default value changed to `True` |
-| v1.10.0      | v1.7.0 |`mlrun.utils.helpers.is_legacy_artifact`                                       |NA|
-| v1.10.0      | v1.7.0 |`mlrun.artifacts.base.convert_legacy_artifact_to_new_format`                 |NA. Make sure to save the artifact/project in the new format.|
-| v1.10.0      | v1.7.0 |`allow_cross_project` in `mlrun.load_project`                                 |Project name differs from the name specified in the context's project YAML. This functionality is no longer supported. If you want to enable this behavior, take one of the following actions:<ul><li>Set `allow_cross_project=True` when loading the project. (Previously, when `allow_cross_project` was not set (`None`), it implicitly behaved as if it were `True`, with a warning. Now, if you want this functionality, you must explicitly set `allow_cross_project=True`.)</li><li>Delete the existing project YAML, or ensure its `name` field matches the actual project name.</li><li>Use a different project context directory.</li></ul>
-| v1.10.0      | v1.7.0 |`bootstrap_servers` in `mlrun.datastore.targets.KafkaTarget`                  |`brokers`|
-| v1.10.0      | v1.7.0 |`schema` in `mlrun.datastore.sources.SnowflakeSource`                         |`db_schema`|
-| v1.10.0      | v1.7.0 |`credentials_prefix` in `mlrun.datastore.targets.BaseStoreTarget`             |Use datastore profiles for managing credentials|
-| v1.10.0      | v1.7.0 |`kafka_bootstrap_servers` in `get_kafka_brokers_from_dict()`                |`kafka_brokers`|
-| v1.10.0      | v1.7.0 |`drift_threshold`, `possible_drift_threshold` and `trigger_monitoring_job` in `mlrun.model_monitoring.api.record_results`|Enable the default histogram data drift application with `project.enable_model_monitoring()`|
-| v1.10.0      | v1.7.0 |`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
-| v1.10.0      | v1.7.0 |`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                                |NA| 
-| v1.10.0      | v1.7.0 |`default_controller_image` in `MlrunProject.enable_model_monitoring()`                  |`image`|
-| v1.10.0      | v1.7.0 |`MlrunProject.remove_model_monitoring_function()`                                     |`MlrunProject.delete_model_monitoring_function()`|
-| v1.10.0      | v1.7.0 |`tracking_policy` in `mlrun.runtimes.nuclio.serving.set_tracking`                      |Set the model monitoring time window and schedule with the `base_period` argument in `project.enable_model_monitoring()`|
-| v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
-| v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
-| v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
-| v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
-| v1.10.0       | v1.7.0 |Datastore redis:`credentials_prefix`                                                 |Use datastore profiles for managing credentials|
-| v1.10.0       | v1.7.0 |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
-| v1.10.0       | v1.7.0 |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
-| v1.10.0       | v1.7.0 |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
-| v1.10.0       | v1.7.0 |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
-| v1.10.0       | v1.7.0 |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
-| v1.10.0       | v1.7.0 |`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|
-| v1.10.0       | v1.6.3 |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`|
+| v1.12.0| v1.10.0 |key name `S3_ENDPOINT_URL`                                             |`AWS_ENDPOINT_URL_S3`|
+| v1.12.0| v1.10.0 |Datastore class: DatastoreProfileKafkaSource, DatastoreProfileKafkaTarget    |DatastoreProfileKafkaStream`|
+| v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
+| v1.12.0| v1.10.0 |`fetch_credentials_from_sys_config`                                       |NA|
+| v1.11.0| v1.8.0 |`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
+| v1.11.0| v1.8.0 |`remove_function` of MLrunProject                            |`delete_function`|
+| v1.11.0| v1.8.0 |`batch` of `ServingRuntime.set_tracking`                   |NA|
+| v1.11.0| v1.8.0 |`limit` in `MLrunProject.list_artifacts`                               |`page` and `page_size`|
+| v1.11.0| v1.8.0 |`limit` in `HTTPRunDB.list_artifacts`                                  |`page` and `page_size`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.VolumeMount`                                           |`mlrun.runtimes.mounts.VolumeMount`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.auto_mount`                                            |`.mounts.auto_mount`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.mount_configmap`                                            |`.mounts.mount_configmap`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.mount_hostpath`                                            |`.mounts.mount_hostpath`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.mount_pvc`                                            |`.mounts.mount_pvc`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.mount_s3`                                            |`.mounts.mount_s3`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.mount_secret`                                            |`.mounts.mount_secret`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.mount_v3io`                                            |`.mounts.mount_v3io`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.set_env_variables`                                            |`.mounts.set_env_variables`|
+| v1.11.0| v1.8.0 |`mlrun.platforms.v3io_cred`                                            |`.mounts.v3io_cred`|
+
 
 
 ## Removed APIs
 
 | Version|API                                                    |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
+| v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
+| v1.10.0 |Function: `get_or_create_model_endpoint() in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
+| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints. See {ref}`serving-graph-as-job`.}
+| v1.10.0|`labels` in`get_or_create_ctx` |`spec` |
+| v1.10.0|`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
+| v1.10.0|`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
+| v1.10.0|`overwrite_build_params` in `MlrunProject.build_image` |Default value changed to `True` |
+| v1.10.0|`overwrite_build_params` in `mlrun.projects.operations.build_function` |Default value changed to `True` |
+| v1.10.0|`overwrite` in `KubejobRuntime.build_config` |Default value changed to `True` |
+| v1.10.0|`mlrun.utils.helpers.is_legacy_artifact`                                 |NA|
+| v1.10.0|`mlrun.artifacts.base.convert_legacy_artifact_to_new_format`           |NA. Make sure to save the artifact/project in the new format.|
+| v1.10.0|`allow_cross_project` in `mlrun.load_project`                           |Project name differs from the name specified in the context's project YAML. This functionality is no longer supported. If you want to enable this behavior, take one of the following actions:<ul><li>Set `allow_cross_project=True` when loading the project. (Previously, when `allow_cross_project` was not set (`None`), it implicitly behaved as if it were `True`, with a warning. Now, if you want this functionality, you must explicitly set `allow_cross_project=True`.)</li><li>Delete the existing project YAML, or ensure its `name` field matches the actual project name.</li><li>Use a different project context directory.</li></ul>
+| v1.10.0|`bootstrap_servers` in `mlrun.datastore.targets.KafkaTarget`            |`brokers`|
+| v1.10.0|`schema` in `mlrun.datastore.sources.SnowflakeSource`                   |`db_schema`|
+| v1.10.0|`credentials_prefix` in `mlrun.datastore.targets.BaseStoreTarget`       |Use datastore profiles for managing credentials|
+| v1.10.0|`kafka_bootstrap_servers` in `get_kafka_brokers_from_dict()`          |`kafka_brokers`|
+| v1.10.0|`drift_threshold`, `possible_drift_threshold` and `trigger_monitoring_job` in `mlrun.model_monitoring.api.record_results`|Enable the default histogram data drift application with `project.enable_model_monitoring()`|
+| v1.10.0|`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
+| v1.10.0|`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                          |NA| 
+| v1.10.0|`default_controller_image` in `MlrunProject.enable_model_monitoring()`            |`image`|
+| v1.10.0|`MlrunProject.remove_model_monitoring_function()`                               |`MlrunProject.delete_model_monitoring_function()`|
+| v1.10.0|`tracking_policy` in `mlrun.runtimes.nuclio.serving.set_tracking`                |Set the model monitoring time window and schedule with the `base_period` argument in `project.enable_model_monitoring()`|
+| v1.10.0|Class: `mlrunn.common.schemas.RunsFormat`                                 |`mlrun.common.formatters.RunFormat`          |
+| v1.10.0|Class: `mlrunn.common.schemas.ArtifactsFormat`                            |`mlrun.common.formatters.ArtifactFormat`          |
+| v1.10.0|Class: `mlrunn.common.schemas.ProjectsFormat`                            |`mlrun.common.formatters.ProjectFormat`          |
+| v1.10.0|Class: `mlrunn.common.schemas.PipelinesFormat`                            |`mlrun.common.formatters.PipelineFormat`          |
+| v1.10.0|Datastore redis:`credentials_prefix`                                           |Use datastore profiles for managing credentials|
+| v1.10.0|Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`   | NA. Was not used.|
+| v1.10.0|Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                     |`states`      |
+| v1.10.0|Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                       |`states`      |
+| v1.10.0|Class: `mlrun.common.runtimes.constants.RunLabels`                             |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
+| v1.10.0|Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                              |MLRUN_DBPATH environment variable |
+| v1.10.0|`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|
+| v1.10.0|`FunctionSpec.clone_target_dir`                                                |`ImageBuilder.source_code_target_dir`|
 | v1.8.0 |`--watch` parameter of `mlrun logs`                                                        |NA|
 | v1.8.0 |datastore `get_filesystem`                                                                 |`filesystem` property|
 | v1.8.0 |`dashboard` of `RemoteRuntime.invoke`                                                      |NA|
@@ -1462,7 +1485,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.8.0 |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
 | v1.8.0 |Feature store: `preview`                                                             |`FeatureSet.preview()`|
 | v1.8.0 |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
-| v1.8.0 |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
+| v1.8.0 |Artifacts: `uid` parameter of `store_artifact`                                       |`tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
 | v1.8.0 |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
 | v1.7.0 |Function: `mlrun.utils.helpers.parse_versioned_object_uri`                                  |`mlrun.common.helpers.parse_versioned_object_uri`         |
 | v1.7.0 |`func_info`                                                                       |`ast_func_info`                                                |

@@ -609,6 +609,8 @@ class ApplicationRuntime(RemoteRuntime):
             api_gateway.with_access_key_auth()
         elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
             api_gateway.with_basic_auth(*authentication_creds)
+        elif authentication_mode == schemas.APIGatewayAuthenticationMode.iguazio:
+            api_gateway.with_iguazio_auth()
 
         db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(

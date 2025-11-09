@@ -1979,6 +1979,7 @@ def test_load_project_from_yaml_with_function(context):
         mlrun.common.schemas.APIGatewayAuthenticationMode.none,
         mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
         mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
+        mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio,
     ],
 )
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "store_api_gateway")
@@ -2048,6 +2049,10 @@ def test_create_api_gateway_valid(
         == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
     ):
         api_gateway.with_access_key_auth()
+    elif (
+        authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio
+    ):
+        api_gateway.with_iguazio_auth()
 
     gateway = project.store_api_gateway(api_gateway=api_gateway)
 
@@ -2063,6 +2068,10 @@ def test_create_api_gateway_valid(
         == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
     ):
         assert gateway.authentication.authentication_mode == "accessKey"
+    elif (
+        authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio
+    ):
+        assert gateway.authentication.authentication_mode == "iguazio"
     else:
         assert gateway.authentication.authentication_mode == "none"
 

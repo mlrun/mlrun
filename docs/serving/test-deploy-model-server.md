@@ -12,7 +12,9 @@ Use MLRun's mock server to test your model before deploying it.
 MLRun provides a mock server as part of the `serving` runtime. This gives you the ability to deploy your serving function in your local environment for testing purposes.
 
 ```python
-serving_fn = code_to_function(name="myService", kind="serving", image="mlrun/mlrun")
+project = mlrun.get_or_create_project("myproj")
+
+serving_fn = set_function(name="myService", kind="serving", image="mlrun/mlrun")
 serving_fn.add_model("my_model", model_path=model_file_path)
 server = serving_fn.to_mock_server()
 ```
@@ -39,14 +41,16 @@ To review the mock server api, see {py:meth}`mlrun.runtimes.ServingRuntime.to_mo
 
 ## Deploying the model 
 
-Deploying models in MLRun uses a special function type `serving`. You can create a `serving` function using the `code_to_function()` call from a notebook. You can also import an existing serving function/template from the Function Hub.
+Deploying models in MLRun uses a special function type `serving`. You can create a `serving` function using the {py:meth}`~mlrun.projects.MlrunProject.set_function` call from a notebook. You can also import an existing serving function/template from the function hub.
 
 This example converts a notebook to a serving function and adds a model to it:
 
 ```python
-from mlrun import code_to_function
+import mlrun
 
-fn = code_to_function("my-function", kind="serving")
+project = mlrun.get_or_create_project("myproj")
+
+fn = set_function("my-function", kind="serving")
 fn.add_model("m1", model_path="<model-artifact/dir>", class_name="MyClass", x=100)
 ``` 
 

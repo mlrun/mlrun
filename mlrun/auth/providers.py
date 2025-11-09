@@ -23,6 +23,7 @@ import mlrun.auth.utils
 import mlrun.errors
 import mlrun.secrets
 import mlrun.utils.helpers
+from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -118,7 +119,7 @@ class DynamicTokenProvider(TokenProvider):
                 "url": self._token_endpoint,
                 "timeout": self._timeout,
                 "headers": headers,
-                "verify": mlrun.mlconf.httpdb.http.verify,
+                "verify": config.httpdb.http.verify,
             }
             if body_type == "json":
                 request_kwargs["json"] = request_body
@@ -330,7 +331,7 @@ class IGTokenProvider(DynamicTokenProvider):
         return (
             self._token_total_lifetime - remaining_lifetime
             < self._token_total_lifetime
-            * mlrun.mlconf.auth_with_oauth_token.refresh_threshold
+            * config.auth_with_oauth_token.refresh_threshold
         )
 
     def _build_token_request(self, raise_on_error=False):

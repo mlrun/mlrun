@@ -55,6 +55,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         runtime: mlrun.runtimes.BaseRuntime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         raise NotImplementedError(
             "Execution of dask jobs is done locally by the dask client"

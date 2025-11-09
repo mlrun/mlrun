@@ -95,11 +95,11 @@ The first step for each project is to set the project name and path:
 
 ```python
 from os import path, getenv
-from mlrun import new_project
+import mlrun
 
 project_name = "load-func"
 project_path = path.abspath("conf")
-project = new_project(project_name, project_path, init_git=True)
+project = mlrun.new_project(project_name, project_path, init_git=True)
 
 print(f"Project path: {project_path}\nProject name: {project_name}")
 ```

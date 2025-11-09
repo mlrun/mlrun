@@ -1651,6 +1651,8 @@ class ModelRunnerStep(MonitoredStep):
 
     Note ModelRunnerStep can only be added to a graph that has the flow topology and running with async engine.
 
+    Note see config_pool_resource method documentation for default number of max threads and max processes.
+
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
@@ -1664,7 +1666,12 @@ class ModelRunnerStep(MonitoredStep):
     """
 
     kind = "model_runner"
-    _dict_fields = MonitoredStep._dict_fields + ["_shared_proxy_mapping"]
+    _dict_fields = MonitoredStep._dict_fields + [
+        "_shared_proxy_mapping",
+        "max_processes",
+        "max_threads",
+        "pool_factor",
+    ]
 
     def __init__(
         self,
@@ -1675,6 +1682,10 @@ class ModelRunnerStep(MonitoredStep):
         raise_exception: bool = True,
         **kwargs,
     ):
+        self.max_processes = None
+        self.max_threads = None
+        self.pool_factor = None
+
         if isinstance(model_selector, ModelSelector) and model_selector_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model_selector object as argument to `model_selector` and also provide "
@@ -1859,20 +1870,6 @@ class ModelRunnerStep(MonitoredStep):
 
                             * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use
                               asyncio, allowing the event loop to continue running while waiting for a response.
-
-                            * **shared_executor**: Reuses an external executor (typically managed by the flow or
-                              context) to execute the runnable. Should be used only if you have multiple
-                              `ParallelExecution` in the same flow and especially useful when:
-
-                              - You want to share a heavy resource like a large model loaded onto a GPU.
-
-                              - You want to centralize task scheduling or coordination for multiple lightweight tasks.
-
-                              - You aim to minimize overhead from creating new executors or processes/threads per
-                                runnable.
-
-                                The runnable is expected to be pre-initialized and reused across events, enabling
-                                efficient use of memory and hardware accelerators.
 
                             * **naive**: To run in the main event loop. This is appropriate only for trivial computation
                               and/or file I/O. It means that the runnable will not actually be run in parallel to
@@ -2095,6 +2092,24 @@ class ModelRunnerStep(MonitoredStep):
                 "Monitoring data must be a dictionary."
             )
 
+    def configure_pool_resource(
+        self,
+        max_processes: Optional[int] = None,
+        max_threads: Optional[int] = None,
+        pool_factor: Optional[int] = None,
+    ) -> None:
+        """
+        Configure the resource limits for the shared models in the graph.
+
+        :param max_processes: Maximum number of processes to spawn (excluding dedicated processes).
+            Defaults to the number of CPUs or 16 if undetectable.
+        :param max_threads: Maximum number of threads to spawn. Defaults to 32.
+        :param pool_factor: Multiplier to scale the number of process/thread workers per runnable. Defaults to 1.
+        """
+        self.max_processes = max_processes
+        self.max_threads = max_threads
+        self.pool_factor = pool_factor
+
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
         if not self._is_local_function(context):
@@ -2143,6 +2158,9 @@ class ModelRunnerStep(MonitoredStep):
             shared_proxy_mapping=self._shared_proxy_mapping or None,
             name=self.name,
             context=context,
+            max_processes=self.max_processes,
+            max_threads=self.max_threads,
+            pool_factor=self.pool_factor,
         )
 
 
@@ -3000,7 +3018,7 @@ class RootFlowStep(FlowStep):
                 return model_name, model_class, model_params
         return None, None, None
 
-    def config_pool_resource(
+    def configure_shared_pool_resource(
         self,
         max_processes: Optional[int] = None,
         max_threads: Optional[int] = None,

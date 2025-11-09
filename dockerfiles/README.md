@@ -6,7 +6,6 @@ All images are published to [DockerHub](https://hub.docker.com/u/mlrun) and [qua
 The images are:
 * `mlrun/mlrun` - An MLRun image includes preinstalled OpenMPI and other ML packages. Useful as a base image for simple jobs.
 * `mlrun/mlrun-gpu` - Same as `mlrun/mlrun` but for GPUs, including `OPMI` (Available for MLRun >= 1.5.0)
-* `mlrun/ml-base` - Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities.
 * `mlrun/jupyter` - An image with [Jupyter](https://jupyter.org/) giving a playground to use MLRun in the open source.
   Built on top of [`jupyter/scipy-notebook`](
   https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-scipy-notebook), with the addition
@@ -15,9 +14,10 @@ The images are:
 * `mlrun/mlrun-ui` - The image used for running the MLRun UI
 
 **Deprecated images:** 
+Image removed in MLRun 1.10.0:
+* `mlrun/ml-base` - Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities. In v1.10.0 replaced by `mlrun/mlrun`.
 
-> NOTE - Images were removed in MLRun 1.5.0
-
+Image removed in MLRun 1.5.0:
 * `mlrun/ml-models` - Image for analyzing data, model training and deep learning on CPUs. Built on top of 
   `mlrun/ml-base` with the addition of [Open MPI](https://www.open-mpi.org/), [PyTorch](https://pytorch.org/), 
   [TensorFlow](https://www.tensorflow.org/), [Horovod](https://horovod.ai/) and other [python packages](

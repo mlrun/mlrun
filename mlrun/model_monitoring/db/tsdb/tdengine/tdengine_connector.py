@@ -925,7 +925,7 @@ class TDEngineConnector(TSDBConnector):
         # Convert DataFrame to a dictionary
         return {
             (
-                row[mm_schemas.WriterEvent.APPLICATION_NAME],
+                row[mm_schemas.WriterEvent.APPLICATION_NAME].lower(),
                 row[mm_schemas.ResultData.RESULT_STATUS],
             ): row["count(result_value)"]
             for _, row in df.iterrows()
@@ -1010,26 +1010,34 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.WriterEvent.END_INFER_TIME,
                 mm_schemas.WriterEvent.APPLICATION_NAME,
             ]
+            agg_columns = [mm_schemas.WriterEvent.END_INFER_TIME]
+            group_by_columns = [mm_schemas.WriterEvent.APPLICATION_NAME]
             if record_type == "results":
                 table = self.tables[
                     mm_schemas.TDEngineSuperTables.APP_RESULTS
                 ].super_table
                 columns += [
                     mm_schemas.ResultData.RESULT_NAME,
+                    mm_schemas.ResultData.RESULT_KIND,
+                    mm_schemas.ResultData.RESULT_STATUS,
+                    mm_schemas.ResultData.RESULT_VALUE,
+                ]
+                agg_columns += [
                     mm_schemas.ResultData.RESULT_VALUE,
                     mm_schemas.ResultData.RESULT_STATUS,
                     mm_schemas.ResultData.RESULT_KIND,
                 ]
-                agg_column = mm_schemas.ResultData.RESULT_VALUE
+                group_by_columns += [mm_schemas.ResultData.RESULT_NAME]
             else:
                 table = self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table
                 columns += [
                     mm_schemas.MetricData.METRIC_NAME,
                     mm_schemas.MetricData.METRIC_VALUE,
                 ]
-                agg_column = mm_schemas.MetricData.METRIC_VALUE
+                agg_columns += [mm_schemas.MetricData.METRIC_VALUE]
+                group_by_columns += [mm_schemas.MetricData.METRIC_NAME]
 
-            return self._get_records(
+            df = self._get_records(
                 table=table,
                 start=start,
                 end=end,
@@ -1037,10 +1045,17 @@ class TDEngineConnector(TSDBConnector):
                 filter_query=filter_query,
                 timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
                 # Aggregate per application/metric pair regardless of timestamp
-                group_by=columns[1:],
-                preform_agg_columns=[agg_column],
+                group_by=group_by_columns,
+                preform_agg_columns=agg_columns,
                 agg_funcs=["last"],
             )
+            if not df.empty:
+                for column in agg_columns:
+                    df.rename(
+                        columns={f"last({column})": column},
+                        inplace=True,
+                    )
+            return df
 
         df_results = get_latest_metrics_records(record_type="results")
         df_metrics = get_latest_metrics_records(record_type="metrics")
@@ -1058,12 +1073,6 @@ class TDEngineConnector(TSDBConnector):
         ):
             metric_objects = []
             if not df_results.empty:
-                df_results.rename(
-                    columns={
-                        f"last({mm_schemas.ResultData.RESULT_VALUE})": mm_schemas.ResultData.RESULT_VALUE,
-                    },
-                    inplace=True,
-                )
                 for _, row in df_results.iterrows():
                     metric_objects.append(
                         mm_schemas.ApplicationResultRecord(
@@ -1080,12 +1089,6 @@ class TDEngineConnector(TSDBConnector):
                     )
 
             if not df_metrics.empty:
-                df_metrics.rename(
-                    columns={
-                        f"last({mm_schemas.MetricData.METRIC_VALUE})": mm_schemas.MetricData.METRIC_VALUE,
-                    },
-                    inplace=True,
-                )
                 for _, row in df_metrics.iterrows():
                     metric_objects.append(
                         mm_schemas.ApplicationMetricRecord(

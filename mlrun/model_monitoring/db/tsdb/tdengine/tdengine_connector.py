@@ -1010,7 +1010,7 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.WriterEvent.END_INFER_TIME,
                 mm_schemas.WriterEvent.APPLICATION_NAME,
             ]
-            agg_column = [mm_schemas.WriterEvent.END_INFER_TIME]
+            agg_columns = [mm_schemas.WriterEvent.END_INFER_TIME]
             group_by_columns = [mm_schemas.WriterEvent.APPLICATION_NAME]
             if record_type == "results":
                 table = self.tables[
@@ -1022,7 +1022,7 @@ class TDEngineConnector(TSDBConnector):
                     mm_schemas.ResultData.RESULT_STATUS,
                     mm_schemas.ResultData.RESULT_VALUE,
                 ]
-                agg_column += [
+                agg_columns += [
                     mm_schemas.ResultData.RESULT_VALUE,
                     mm_schemas.ResultData.RESULT_STATUS,
                     mm_schemas.ResultData.RESULT_KIND,
@@ -1034,7 +1034,7 @@ class TDEngineConnector(TSDBConnector):
                     mm_schemas.MetricData.METRIC_NAME,
                     mm_schemas.MetricData.METRIC_VALUE,
                 ]
-                agg_column += [mm_schemas.MetricData.METRIC_VALUE]
+                agg_columns += [mm_schemas.MetricData.METRIC_VALUE]
                 group_by_columns += [mm_schemas.MetricData.METRIC_NAME]
 
             df = self._get_records(
@@ -1046,11 +1046,11 @@ class TDEngineConnector(TSDBConnector):
                 timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
                 # Aggregate per application/metric pair regardless of timestamp
                 group_by=group_by_columns,
-                preform_agg_columns=agg_column,
+                preform_agg_columns=agg_columns,
                 agg_funcs=["last"],
             )
             if not df.empty:
-                for column in agg_column:
+                for column in agg_columns:
                     df.rename(
                         columns={f"last({column})": column},
                         inplace=True,

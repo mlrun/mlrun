@@ -67,7 +67,6 @@ For example, running `MLRUN_VERSION=x.y.z make docker-images` generates these im
 - mlrun/mlrun-kfp:x.y.z
 - mlrun/mlrun-gpu:x.y.z
 - mlrun/jupyter:x.y.z
-- mlrun/ml-base:x.y.z
 
 You can build specific images. The typical images to build are the common client-side images that you actually use to run your code: `mlrun`, `mlrun-gpu` and `mlrun-kfp`.
 

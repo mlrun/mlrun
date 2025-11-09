@@ -58,7 +58,7 @@ class FunctionReference(ModelObj):
         return True
 
     def fullname(self, parent):
-        return mlrun.utils.helpers.normalize_name(f"{parent.metadata.name}-{self.name}")
+        return f"{parent.metadata.name}-{self.name}"
 
     def uri(self, parent, tag=None, hash_key=None, fullname=True):
         name = self.fullname(parent) if fullname else self.name

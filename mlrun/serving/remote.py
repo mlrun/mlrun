@@ -553,7 +553,7 @@ class RemoteFunctionStep(RemoteStep):
         self.fn = fn
         self.project_name = project_name
 
-    def post_init(self, mode="sync", **kwargs):
+    def post_init(self, mode="sync", **kwargs) -> None:
         self.rundb = mlrun.get_run_db()
         if not isinstance(self.fn, (mlrun.runtimes.RemoteRuntime, str)):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
@@ -562,16 +562,17 @@ class RemoteFunctionStep(RemoteStep):
 
         if not self.fn:
             raise mlrun.errors.MLRunRuntimeError(
-                "Parameter 'fn' can not be an empty string.\n"
+                "Parameter 'fn' have to be initialized."
             )
 
         if isinstance(self.fn, str):
             project, uri, tag, hash_key = parse_versioned_object_uri(self.fn)
 
             if self.project_name and project:
-                raise mlrun.errors.MLRunRuntimeError(
-                    "Project name can only be set once: either in 'project_name' or in the function URI."
-                )
+                if self.project_name != project:
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Project name can only be set once: either in 'project_name' or in the function URI."
+                    )
 
             project = project or self.project_name or mlrun.mlconf.active_project
 
@@ -582,11 +583,8 @@ class RemoteFunctionStep(RemoteStep):
                 if isinstance(self.fn, dict):
                     self.fn = mlrun.runtimes.RemoteRuntime.from_dict(self.fn)
 
-            except mlrun.MLRunNotFoundError:
-                raise mlrun.MLRunNotFoundError(
-                    f"Cannot find function '{self.fn}' in the MLRun DB.\n"
-                    "Verify that the function URI is correct and that the function is stored properly."
-                )
+            except mlrun.MLRunNotFoundError as e:
+                raise e
 
         if not isinstance(self.fn, mlrun.runtimes.RemoteRuntime):
             raise mlrun.errors.MLRunRuntimeError(

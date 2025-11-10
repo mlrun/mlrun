@@ -46,7 +46,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-10725|This version introduces a default, out of the box, LLM implementation using your selected provider (e.g., OpenAI or Hugging Face), and includes monitoring results and collecting usage statistics. See {ref}`genai-04-llm-prompt-artifact` and {ref}`genai-serving-graph`.|
-|   |The new ModelRunnerStep gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.\
+|   |The new ModelRunnerStep gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.|
 |ML-6344|This version introduces a new artifacts type: LLM prompt artifacts. This enables using LLMs, including specific prompt templates, inside your workflow. See {ref}`llm-prompt-artifact`.|
 
 ### Runtimes

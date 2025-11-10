@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 from datetime import datetime, timezone
 from typing import Optional
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -225,15 +223,10 @@ class TestTimescaleDBCrossQueries:
 
     def test_add_basic_metrics_empty_data(self, connector, sample_model_endpoints):
         """Test add_basic_metrics with no data in database."""
-        mock_run_in_threadpool = AsyncMock()
 
         # Run the async method
-        result = asyncio.run(
-            connector.add_basic_metrics(
-                model_endpoint_objects=sample_model_endpoints,
-                project=connector.project,
-                run_in_threadpool=mock_run_in_threadpool,
-            )
+        result = connector.add_basic_metrics(
+            model_endpoint_objects=sample_model_endpoints,
         )
 
         # Verify all endpoints are returned with empty data using helper
@@ -259,15 +252,9 @@ class TestTimescaleDBCrossQueries:
         self._write_test_predictions_data(connector, endpoint_ids)
         self._write_test_results_data(connector, endpoint_ids)
 
-        mock_run_in_threadpool = AsyncMock()
-
         # Run the async method
-        result = asyncio.run(
-            connector.add_basic_metrics(
-                model_endpoint_objects=sample_model_endpoints,
-                project=connector.project,
-                run_in_threadpool=mock_run_in_threadpool,
-            )
+        result = connector.add_basic_metrics(
+            model_endpoint_objects=sample_model_endpoints,
         )
 
         # Verify all endpoints are returned with data using helpers
@@ -297,16 +284,10 @@ class TestTimescaleDBCrossQueries:
         self._write_test_predictions_data(connector, endpoint_ids)
         self._write_test_results_data(connector, endpoint_ids)
 
-        mock_run_in_threadpool = AsyncMock()
-
         # Run with filtered metrics - only error_count and last_request
-        result = asyncio.run(
-            connector.add_basic_metrics(
-                model_endpoint_objects=sample_model_endpoints,
-                project=connector.project,
-                run_in_threadpool=mock_run_in_threadpool,
-                metric_list=["error_count", "last_request"],
-            )
+        result = connector.add_basic_metrics(
+            model_endpoint_objects=sample_model_endpoints,
+            metric_list=["error_count", "last_request"],
         )
 
         # Verify filtered metrics using helper - only error_count and last_request should be set

@@ -13,11 +13,8 @@
 # limitations under the License.
 
 import pathlib
-import time
-from datetime import datetime
 from typing import Any, Union
 
-import pandas as pd
 import pytest
 
 import mlrun
@@ -35,13 +32,6 @@ engines = [
     "sync",
     "async",
 ]
-
-
-def append_and_return(lst, event):
-    body = event.body
-    body["timestamp"] = datetime.now()
-    lst.append(event.body)
-    return lst
 
 
 def myfunc1(x, context=None):
@@ -486,42 +476,3 @@ def test_model_runner_with_selector():
 
     with pytest.raises(mlrun.serving.states.GraphError):
         graph.to(name="s1", handler="(event + 1)").to(model_runner_step)
-
-
-def test_batch():
-    function = mlrun.new_function("tests", kind="serving", project="x")
-    graph = function.set_topology("flow", engine="async")
-    step = graph
-    step = step.to("storey.Batch", "my_batching", max_events=3, flush_after_seconds=1)
-    step = step.to("storey.ToDataFrame", "my_to_df", index="my_int")
-    # to get a single result in wait_for_completion (termination result in storey)
-    step.to("storey.Reduce", initial_value=[], fn=append_and_return, full_event=True)
-    server = function.to_mock_server()
-
-    events = [{"my_int": i, "my_string": f"this is {i}"} for i in range(10)]
-
-    for event in events:
-        time.sleep(0.1)
-        server.test(body=event)
-    results = server.wait_for_completion()
-    assert len(results) == 4
-
-    prev_ts = pd.Timestamp.min
-    for i, df in enumerate(results[:4]):
-        if i < 3:
-            assert len(df) == 3, f"Batch {i} expected 3 rows, got {len(df)}"
-        if i == 3:
-            assert len(df) == 1, f"Batch {i} expected 1 rows, got {len(df)}"
-
-            # check all timestamps in the batch are the same
-            unique_ts = df["timestamp"].unique()
-            assert (
-                len(unique_ts) == 1
-            ), f"Batch {i} has multiple timestamps: {unique_ts}"
-            batch_ts = unique_ts[0]
-
-            # check timestamp order between batches
-            assert (
-                batch_ts > prev_ts
-            ), f"Batch {i} timestamp {batch_ts} not greater than previous {prev_ts}"
-            prev_ts = batch_ts

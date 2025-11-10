@@ -396,8 +396,6 @@ class BaseRuntime(ModelObj):
             )
         output_path = output_path or out_path or artifact_path
 
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
-
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )

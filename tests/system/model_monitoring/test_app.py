@@ -846,7 +846,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             len(drift_over_time.values) == 0
         ), "No drift over time should be detected in the past"
 
-    @pytest.mark.smoke_mm
     @pytest.mark.parametrize("with_training_set", [True, False])
     @pytest.mark.parametrize("with_model_runner", [True, False])
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:

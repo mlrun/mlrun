@@ -16,9 +16,6 @@ import datetime
 import os
 import random
 import string
-
-# Conditionally import kfp based on test mode
-# Check environment variable or use importorskip to gracefully skip if not available
 import kfp
 import kfp.compiler
 import pytest

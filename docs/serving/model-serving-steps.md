@@ -20,7 +20,7 @@ ModelRunnerStep is the preferred step for all serving graphs, and is particularl
 Typical use cases:
 For example, an inference graph with different models (both {ref}`local and remote models <models>`). 
 
-ModelRunnerStep is implemented with the asynchronous engine and the [flow topology](../engines.html#flow), giving better utilization of CPU/GPU.
+ModelRunnerStep is implemented with the asynchronous engine and the [flow topology](../serving/deploying-graphs.ipynb#flow), giving better utilization of CPU/GPU.
 
 ModelRunnerSteps have model endpoints, and can therefore be monitored.The input and output of each step are user-configurable.
 

@@ -59,8 +59,12 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-9952|The new Monitoring Application view provides you with a comprehensive overview of your model monitoring applications and their status. See {ref}`view-mm-applications`.
 |ML-8004|You can now terminate a job from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the kebab menu, depending on the page you are in. |
-(1.10.0-breaking)+
+
+
+
+(1.10.0-breaking)=
 ### Breaking Changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|

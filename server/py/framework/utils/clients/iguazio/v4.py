@@ -89,7 +89,7 @@ class Client(BaseClient, project_follower.Member):
         return self._try_callback_with_httpx_exceptions(
             _refresh_access_token,
             mlrun.errors.MLRunUnauthorizedError,
-            "Failed to refresh access token from Iguazio",
+            f"Failed to refresh access token '{secret_token.name}' from Iguazio",
         )
 
     def refresh_access_tokens(
@@ -118,7 +118,7 @@ class Client(BaseClient, project_follower.Member):
             "Refreshing multiple access tokens via Iguazio", token_names=token_names
         )
 
-        try:
+        def _refresh_access_tokens():
             options = RefreshAccessTokensOptionsV1(refresh_tokens=token_values)
             # Call Iguazio batch refresh
             self._client.refresh_access_tokens(options=options)
@@ -128,29 +128,11 @@ class Client(BaseClient, project_follower.Member):
                 token_names=token_names,
             )
 
-        except httpx.HTTPStatusError as exc:
-            error_message, ctx = self._extract_response_error(exc.response)
-            self._logger.warning(
-                "Failed to refresh multiple access tokens from Iguazio",
-                token_names=token_names,
-                status_code=exc.response.status_code,
-                error_message=error_message,
-                ctx=ctx,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to refresh tokens '{', '.join(token_names)}' from Iguazio: {error_message}, ctx={ctx}"
-            ) from exc
-        except Exception as exc:
-            exc_str = mlrun.errors.err_to_str(exc)
-            self._logger.warning(
-                "Failed to refresh multiple access tokens from Iguazio (unexpected error)",
-                token_names=token_names,
-                exc=exc_str,
-            )
-            raise mlrun.errors.MLRunUnauthorizedError(
-                f"Failed to refresh tokens '{', '.join(token_names)}' from Iguazio: {exc_str}"
-            ) from exc
+        return self._try_callback_with_httpx_exceptions(
+            _refresh_access_tokens,
+            mlrun.errors.MLRunUnauthorizedError,
+            f"Failed to refresh tokens '{', '.join(token_names)}' from Iguazio",
+        )
 
     def revoke_offline_token(
         self, token: str, request_headers: typing.Optional[dict[str, str]] = None
@@ -191,19 +173,19 @@ class Client(BaseClient, project_follower.Member):
         project: mlrun.common.schemas.Project,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        self._logger.debug("Creating default project policies in Iguazio V4")
+        self._logger.debug("Creating default project policies in Iguazio")
 
         def _create_default_project_policies():
             self._client.set_override_auth_headers(auth_info.request_headers)
             self._client.create_default_project_policies(project=project.metadata.name)
             self._logger.info(
-                "Successfully created default project policies in Iguazio V4"
+                "Successfully created default project policies in Iguazio"
             )
 
         self._try_callback_with_httpx_exceptions(
             _create_default_project_policies,
             mlrun.errors.MLRunInternalServerError,
-            "Failed to create default project policies in Iguazio V4",
+            "Failed to create default project policies in Iguazio",
         )
 
     def store_project(
@@ -214,7 +196,7 @@ class Client(BaseClient, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug(
-            "Storing project owner or creating default policies in Iguazio V4"
+            "Storing project owner or creating default policies in Iguazio"
         )
 
         def _update_owner_or_create_policies():
@@ -227,7 +209,7 @@ class Client(BaseClient, project_follower.Member):
         self._try_callback_with_httpx_exceptions(
             _update_owner_or_create_policies,
             mlrun.errors.MLRunInternalServerError,
-            "Failed to store project owner or create default policies in Iguazio V4",
+            "Failed to store project owner or create default policies in Iguazio",
         )
 
     def patch_project(
@@ -238,7 +220,7 @@ class Client(BaseClient, project_follower.Member):
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        self._logger.debug("Updating project owner in Iguazio V4")
+        self._logger.debug("Updating project owner in Iguazio")
 
         def _update_project_owner():
             owner = project.get("spec", {}).get("owner")
@@ -249,12 +231,12 @@ class Client(BaseClient, project_follower.Member):
             options = UpdateProjectOwnerOptionsV1(owner=owner)
             self._client.set_override_auth_headers(auth_info.request_headers)
             self._client.update_project_owner(project=name, options=options)
-            self._logger.info("Successfully updated project owner in Iguazio V4")
+            self._logger.info("Successfully updated project owner in Iguazio")
 
         self._try_callback_with_httpx_exceptions(
             _update_project_owner,
             mlrun.errors.MLRunInternalServerError,
-            "Failed to update project owner in Iguazio V4",
+            "Failed to update project owner in Iguazio",
         )
 
     def delete_project(
@@ -264,17 +246,17 @@ class Client(BaseClient, project_follower.Member):
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        self._logger.debug("Deleting project policies in Iguazio V4")
+        self._logger.debug("Deleting project policies in Iguazio")
 
         def _delete_project_policies():
             self._client.set_override_auth_headers(auth_info.request_headers)
             self._client.delete_project_policies(project=name)
-            self._logger.info("Successfully deleted project policies in Iguazio V4")
+            self._logger.info("Successfully deleted project policies in Iguazio")
 
         self._try_callback_with_httpx_exceptions(
             _delete_project_policies,
             mlrun.errors.MLRunInternalServerError,
-            "Failed to delete project policies in Iguazio V4",
+            "Failed to delete project policies in Iguazio",
         )
 
     def get_project(
@@ -328,7 +310,7 @@ class Client(BaseClient, project_follower.Member):
             error_message, ctx = self._extract_response_error(exc.response)
             if exc.response.status_code == httpx.codes.NOT_FOUND:
                 self._logger.info(
-                    "Project policies do not exist in Iguazio V4",
+                    "Project policies do not exist in Iguazio",
                     project=project,
                     error_message=error_message,
                     ctx=ctx,
@@ -336,12 +318,12 @@ class Client(BaseClient, project_follower.Member):
                 return False
         except Exception as exc:
             self._logger.warning(
-                "Failed to check if project policies exist in Iguazio V4",
+                "Failed to check if project policies exist in Iguazio",
                 project=project,
                 exc=mlrun.errors.err_to_str(exc),
             )
             raise mlrun.errors.MLRunInternalServerError(
-                "Failed to check if project policies exist in Iguazio V4"
+                "Failed to check if project policies exist in Iguazio"
             ) from exc
 
         return True

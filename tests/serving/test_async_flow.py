@@ -186,11 +186,10 @@ def test_push_error():
 def test_batch():
     function = mlrun.new_function("tests", kind="serving", project="x")
     graph = function.set_topology("flow", engine="async")
-    step = graph
-    step = step.to("storey.Batch", "my_batching", max_events=3, flush_after_seconds=1)
-    step = step.to("storey.ToDataFrame", "my_to_df", index="my_int")
-    # to get a single result in wait_for_completion (termination result in storey)
-    step.to("storey.Reduce", initial_value=[], fn=append_and_return, full_event=True)
+    graph.to("storey.Batch", "my_batching", max_events=3, flush_after_seconds=1).to(
+        "storey.ToDataFrame", "my_to_df", index="my_int"
+    ).to("storey.Reduce", initial_value=[], fn=append_and_return, full_event=True) 
+    # Reduce is used to get a single result in wait_for_completion (termination result in storey)
     server = function.to_mock_server()
 
     events = [{"my_int": i, "my_string": f"this is {i}"} for i in range(10)]

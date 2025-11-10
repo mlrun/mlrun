@@ -181,7 +181,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     runtime_handler = services.api.runtime_handlers.get_runtime_handler(
                         runtime.kind
                     )
-                    runtime_handler.run(runtime, run, execution)
+                    runtime_handler.run(runtime, run, execution, self._auth_info)
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 

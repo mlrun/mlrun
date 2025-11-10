@@ -17,6 +17,10 @@ import os
 import random
 import string
 
+# Conditionally import kfp based on test mode
+# Check environment variable or use importorskip to gracefully skip if not available
+import kfp
+import kfp.compiler
 import pytest
 
 import mlrun.common.constants as mlrun_constants
@@ -30,15 +34,6 @@ from mlrun import (
 from mlrun.runtimes.mounts import mount_v3io
 from mlrun_pipelines.common.models import RunStatuses
 from tests.system.base import TestMLRunSystem
-
-# Conditionally import kfp based on test mode
-# Check environment variable or use importorskip to gracefully skip if not available
-if os.getenv("MLRUN_SYSTEM_TEST_OPEN_SOURCE", "false").lower() == "true":
-    kfp = pytest.importorskip("kfp")
-    kfp.compiler = pytest.importorskip("kfp.complier")
-else:
-    import kfp
-    import kfp.compiler
 
 
 # Marked as enterprise because of v3io mount and pipelines

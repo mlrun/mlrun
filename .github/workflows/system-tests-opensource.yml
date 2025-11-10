@@ -19,6 +19,9 @@ permissions:
   packages: write
 
 on:
+   pull_request:
+     branches:
+       - development
    workflow_dispatch:
     inputs:
       pr_number:
@@ -198,7 +201,8 @@ jobs:
         sudo apt-get install --yes build-essential libpq-dev libffi-dev libssl-dev python3-dev pkg-config curl jq make
         uv venv venv --seed
         source venv/bin/activate
-        make install-requirements install-complete-requirements
+        make install-requirements install-complete-requirements install-complete-kfp-requirements
+
         uv pip install -r automation/requirements.txt
 
         # Pin cffi below 2.0.0 to avoid wheels without _cffi_backend on the runner

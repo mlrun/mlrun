@@ -15,6 +15,7 @@
 import os
 import time
 
+import kfp.dsl as dsl
 import pytest
 
 import mlrun
@@ -22,13 +23,6 @@ import mlrun.runtimes.mounts
 import tests.system.base
 from mlrun import mlconf
 from mlrun_pipelines.common.models import RunStatuses
-
-# Conditionally import kfp.dsl based on test mode
-# Check environment variable or use importorskip to gracefully skip if not available
-if os.getenv("MLRUN_SYSTEM_TEST_OPEN_SOURCE", "false").lower() == "true":
-    dsl = pytest.importorskip("kfp.dsl")
-else:
-    import kfp.dsl as dsl
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

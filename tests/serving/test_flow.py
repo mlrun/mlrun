@@ -498,7 +498,6 @@ def test_batch():
     step.to("storey.Reduce", initial_value=[], fn=append_and_return, full_event=True)
     server = function.to_mock_server()
 
-    # Example: sending events to the graph
     events = [{"my_int": i, "my_string": f"this is {i}"} for i in range(10)]
 
     for event in events:

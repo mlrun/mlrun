@@ -188,7 +188,7 @@ def test_batch():
     graph = function.set_topology("flow", engine="async")
     graph.to("storey.Batch", "my_batching", max_events=3, flush_after_seconds=1).to(
         "storey.ToDataFrame", "my_to_df", index="my_int"
-    ).to("storey.Reduce", initial_value=[], fn=append_and_return, full_event=True) 
+    ).to("storey.Reduce", initial_value=[], fn=append_and_return, full_event=True)
     # Reduce is used to get a single result in wait_for_completion (termination result in storey)
     server = function.to_mock_server()
 
@@ -1295,3 +1295,38 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
         ), "Max threads not configured properly"
     server.test(body={"n": 1})
     server.wait_for_completion()
+
+
+def test_mrs_batch():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_1",
+        inc=1,
+    )
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_2",
+        inc=2,
+    )
+    graph.to(
+        name="echo",
+        class_name="Echo",
+        model_endpoint_creation_strategy=schemas.ModelEndpointCreationStrategy.SKIP,
+    ).to(model_runner_step).respond()
+
+    assert set(graph.model_endpoints_names) == {
+        "my_model_1",
+        "my_model_2",
+    }, "model endpoints name not in graph"
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={"n": 1})
+        assert resp == {"my_model_1": {"n": 2}, "my_model_2": {"n": 3}}
+    finally:
+        server.wait_for_completion()

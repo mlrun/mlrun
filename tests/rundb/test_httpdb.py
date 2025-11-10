@@ -442,17 +442,12 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
         == expected_auth
     )
 
-    # Now let the token expire, and verify commands still go out, only without auth
+    # Now let the token expire, expecting a failure
     time.sleep(2)
     requests_mock.reset_mock()
 
-    db.trigger_migrations()
-    assert len(requests_mock.request_history) == 2
-    assert (
-        mlrun.common.schemas.HeaderNames.authorization
-        not in requests_mock.last_request.headers
-    )
-    assert db.token_provider.get_token() is None
+    with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        db.trigger_migrations()
 
 
 def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:

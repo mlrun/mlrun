@@ -318,6 +318,7 @@ class TestProject(TestMLRunSystem):
             "-u",
             "git://github.com/mlrun/project-demo.git",
             project_dir,
+            "--allow-cross-project",
         ]
         out = exec_project(args)
         self._logger.debug("executed project", out=out)
@@ -358,6 +359,7 @@ class TestProject(TestMLRunSystem):
             "--url",
             "git://github.com/mlrun/project-demo.git",
             project_dir,
+            "--allow-cross-project",
         ]
         out = exec_project(args)
         self._logger.debug("Loaded project", out=out)
@@ -829,6 +831,7 @@ class TestProject(TestMLRunSystem):
             "--watch",
             "--timeout 1",
             project_dir,
+            "--allow-cross-project",
         ]
         out = exec_project(args)
 

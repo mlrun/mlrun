@@ -333,34 +333,6 @@ def test_mount_v3io():
             )
 
 
-# TODO: Remove in 1.11.0
-@pytest.mark.parametrize(
-    "mount, args, kwargs",
-    [
-        (mlrun.platforms.VolumeMount, ("", ""), {}),
-        (mlrun.platforms.auto_mount, (), {"pvc_name": "a", "volume_mount_path": "b"}),
-        (
-            mlrun.platforms.mount_configmap,
-            (),
-            {"configmap_name": "a", "mount_path": "b"},
-        ),
-        (mlrun.platforms.mount_hostpath, (), {"host_path": "a", "mount_path": "b"}),
-        (mlrun.platforms.mount_pvc, (), {"pvc_name": "a"}),
-        (mlrun.platforms.mount_s3, (), {}),
-        (mlrun.platforms.mount_secret, (), {"secret_name": "b", "mount_path": "c"}),
-        (mlrun.platforms.mount_v3io, (), {"access_key": "bb", "user": "cc"}),
-        (mlrun.platforms.set_env_variables, (), {}),
-        (mlrun.platforms.v3io_cred, (), {}),
-    ],
-)
-def test_mount_import_backwards_compatibility(mount, args, kwargs):
-    """Test that the deprecated mlrun.platforms.mount_* functions import the new mlrun.runtimes.mounts.* functions."""
-    assert isinstance(mount, mlrun.platforms._DeprecationHelper)
-    assert type(mount(*args, **kwargs)) is type(
-        getattr(mlrun.runtimes.mounts, mount._new_target)(*args, **kwargs)
-    )
-
-
 def _auth_prefix() -> str:
     # Matches how the code builds the pattern: format(hashed_access_key="")
     return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(

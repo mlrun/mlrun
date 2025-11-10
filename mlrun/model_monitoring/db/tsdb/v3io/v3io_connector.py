@@ -14,7 +14,7 @@
 import math
 from datetime import datetime, timedelta, timezone
 from io import StringIO
-from typing import Callable, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 import pandas as pd
 import v3io_frames
@@ -1230,11 +1230,9 @@ class V3IOTSDBConnector(TSDBConnector):
             )
         return df.reset_index(drop=True)
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
@@ -1242,8 +1240,6 @@ class V3IOTSDBConnector(TSDBConnector):
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                        be filled with the relevant basic metrics.
-        :param project:                The name of the project.
-        :param run_in_threadpool:      A function that runs another function in a thread pool.
         :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
@@ -1272,8 +1268,7 @@ class V3IOTSDBConnector(TSDBConnector):
             function,
             _,
         ) in metric_name_to_function_and_column_name.items():
-            metric_name_to_result[metric_name] = await run_in_threadpool(
-                function,
+            metric_name_to_result[metric_name] = function(
                 endpoint_ids=uids,
                 get_raw=True,
             )

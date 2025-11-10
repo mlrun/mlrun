@@ -643,8 +643,6 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.tag = tag
 
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
-
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()
         self._fill_credentials()

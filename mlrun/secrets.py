@@ -273,6 +273,8 @@ def sync_secret_tokens() -> None:
         return
 
     secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
+
+    # The import is needed here to prevent a circular import, since this method is called from the mlrun.db connection.
     from mlrun.db import get_run_db
 
     # The log_warning=False flag ensures the SDK doesn’t log unnecessary warnings about local file updates, since

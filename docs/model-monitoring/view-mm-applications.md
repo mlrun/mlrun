@@ -36,6 +36,6 @@ From the main view, press an app name to open the App view. The tiles show the a
 <img src="../_static/images/app-page.png">
 
 ## Application metrics
-Access the application metrics either with the Application monitoring button in the Application page or from the row of the app in the Monitoring Apps view. Select a metric and optionally modify the timeframe. By default, the first model endpoint is selected. You can select an model endpoint from a list. When switching model endpoints, the previously selected metrics and results remain (if applicable).
+Access the application metrics either with the Application metrics button in the Application page or from the row of the app in the Monitoring Apps view. Select a metric and optionally modify the timeframe. By default, the first model endpoint is selected. You can select an model endpoint from a list. When switching model endpoints, the previously selected metrics and results remain (if applicable).
 
 <img src="../_static/images/app-metrics.png">

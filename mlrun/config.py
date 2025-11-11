@@ -728,7 +728,7 @@ default_config = {
             # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
             "name": "default",
-            "description": "MLRun global function hub",
+            "description": "MLRun hub",
             "url": "https://mlrun.github.io/marketplace",
             "channel": "master",
         },

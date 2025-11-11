@@ -23,8 +23,6 @@ azure-core~=1.24
 # function in Azure Blob File System functions (such as _ls and more).
 adlfs==2024.12.0
 azure-identity~=1.5
-# Pin to avoid PyNaCl 1.6.1 which requires cffi>=2.0.0 and breaks adlfs/azure-datalake-store
-PyNaCl==1.6.0
 azure-keyvault-secrets~=4.2
 # cryptography>=39, which is required by azure, needs this, or else we get
 # AttributeError: module 'lib' has no attribute 'OpenSSL_add_all_algorithms' (ML-3471)

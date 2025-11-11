@@ -35,7 +35,7 @@ MLRUN_PYTHON_VERSION ?= 3.11
 PYTHON_VERSION ?= $(shell python --version)
 
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
-IGUAZIO_PACKAGE_VERSION ?= 0.0.1a15
+IGUAZIO_PACKAGE_VERSION ?= 0.0.1a16
 
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=

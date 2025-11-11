@@ -18,6 +18,7 @@ import fastapi
 import semver
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.runtimes
 import mlrun.runtimes.utils
 import mlrun.utils.helpers
@@ -129,7 +130,7 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.disabled
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
         project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.enabled
-    authentication = mlrun.common.schemas.AuthenticationFeatureFlag(
+    authentication = mlrun.common.types.AuthenticationMode(
         mlrun.mlconf.httpdb.authentication.mode
     )
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled

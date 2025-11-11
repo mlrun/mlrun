@@ -113,7 +113,6 @@ from .feature_store import (
 )
 from .frontend_spec import (
     ArtifactLimits,
-    AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
     NuclioStreamsFeatureFlag,

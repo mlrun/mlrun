@@ -23,6 +23,7 @@ from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas as schemas
+import mlrun.common.secrets
 import mlrun.datastore.datastore_profile as ds_profile
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
@@ -636,7 +637,12 @@ class ServingRuntime(RemoteRuntime):
 
         :returns: The Runtime (function) object
         """
-
+        if kind == "azure_vault" and isinstance(source, dict):
+            candidate_secret_name = (source.get("k8s_secret") or "").strip()
+            if candidate_secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(
+                    candidate_secret_name
+                )
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.project, "secrets": source}
 
@@ -660,8 +666,6 @@ class ServingRuntime(RemoteRuntime):
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
-        # Validate function name before deploying to k8s
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
 
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:

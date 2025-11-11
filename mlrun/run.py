@@ -801,8 +801,6 @@ def code_to_function(
         ignored_tags=ignored_tags,
     )
 
-    mlrun.utils.helpers.validate_function_name(name)
-
     spec["spec"]["env"].append(
         {
             "name": "MLRUN_HTTPDB__NUCLIO__EXPLICIT_ACK",

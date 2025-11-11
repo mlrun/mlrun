@@ -103,7 +103,8 @@ async def create_model_endpoint(
         _,
         _,
         _,
-    ) = await services.api.crud.ModelEndpoints().create_model_endpoint(
+    ) = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().create_model_endpoint,
         db_session=db_session,
         model_endpoint=model_endpoint,
         creation_strategy=creation_strategy,
@@ -157,7 +158,8 @@ async def patch_model_endpoint(
     )
     attributes = {key: model_endpoint.get(key) for key in attributes_keys}
 
-    return await services.api.crud.ModelEndpoints().patch_model_endpoint(
+    return await run_in_threadpool(
+        services.api.crud.ModelEndpoints().patch_model_endpoint,
         name=model_endpoint.metadata.name,
         project=project,
         function_name=model_endpoint.spec.function_name,
@@ -215,7 +217,8 @@ async def delete_model_endpoint(
         )
     )
 
-    await services.api.crud.ModelEndpoints().delete_model_endpoint(
+    await run_in_threadpool(
+        services.api.crud.ModelEndpoints().delete_model_endpoint,
         project=project,
         name=name,
         function_name=function_name,
@@ -281,7 +284,8 @@ async def list_model_endpoints(
         auth_info=auth_info,
     )
 
-    endpoints = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoints = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         project=project,
         names=names,
         model_name=model_name,
@@ -445,7 +449,8 @@ async def get_metrics_by_multiple_endpoints(
     await asyncio.gather(*permissions_tasks)
 
     # verify all endpoints exist in the project
-    endpoints_data = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoints_data = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         project=project,
         uids=endpoint_ids,
         db_session=db_session,
@@ -548,7 +553,8 @@ async def get_model_endpoint(
         project=project, name_or_uid=name, auth_info=auth_info
     )
 
-    return await services.api.crud.ModelEndpoints().get_model_endpoint(
+    return await run_in_threadpool(
+        services.api.crud.ModelEndpoints().get_model_endpoint,
         name=name,
         project=project,
         function_name=function_name,

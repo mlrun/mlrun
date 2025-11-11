@@ -18,7 +18,7 @@ hf-model-image-classification
 ```
 
 **See also**
-- {ref}`genai_01_basic_tutorial`
+- {ref}`genai-01-basic-tutorial`
 - {ref}`genai-02-mm-llm`
 - {ref}`realtime-monitor-drift-tutor`
 - {ref}`model-monitoring-overview`

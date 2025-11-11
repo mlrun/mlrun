@@ -20,6 +20,7 @@ import fastapi.testclient
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.runtimes
 from mlrun.config import config as mlconf
@@ -44,6 +45,9 @@ def test_get_frontend_spec(
     mlrun.mlconf.default_function_pod_resources = default_function_pod_resources
     mlrun.mlconf.httpdb.allowed_file_paths = "s3://some/s3/path"
     mlrun.mlconf.httpdb.real_path = "/some/real/path"
+    mlrun.mlconf.httpdb.authentication.mode = (
+        mlrun.common.types.AuthenticationMode.BASIC
+    )
 
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
@@ -61,7 +65,7 @@ def test_get_frontend_spec(
     )
     assert (
         frontend_spec.feature_flags.authentication
-        == mlrun.common.schemas.AuthenticationFeatureFlag.none
+        == mlrun.common.types.AuthenticationMode.BASIC
     )
     assert (
         frontend_spec.feature_flags.nuclio_streams

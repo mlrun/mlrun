@@ -1,7 +1,7 @@
 (configuring-job-resources)=
 # Configuring runs and functions
 
-MLRun orchestrates serverless functions over Kubernetes: you can specify the resource requirements (CPU, memory, GPUs), preferences, and pod priorities in the logical function ßobject. You can also configure how MLRun prevents stuck pods.
+MLRun orchestrates serverless functions over Kubernetes: you can specify the resource requirements (CPU, memory, GPUs), preferences, and pod priorities in the logical function object. You can also configure how MLRun prevents stuck pods.
 All of these are used during the function deployment.
 
 Configuring runs and functions is relevant for all supported cloud platforms.
@@ -140,7 +140,7 @@ Configure volumes attached to a function by using the `apply` function modifier 
 
 For example, using v3io storage:
 ```
-# import the training function from the Function Hub (hub://)
+# import the training function from the MLRun Hub (hub://)
 train = mlrun.import_function('hub://sklearn_classifier')# Import the function:
 open_archive_function = mlrun.import_function("hub://open_archive")
 
@@ -172,7 +172,7 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 
 ## Preemption mode: Spot vs. On-demand nodes
-
+ß
 You can control whether to run your MLRun functions on spot nodes or on-demand nodes. 
 - **Spot (preemptible)** nodes give you access to spare computing capacity from your cloud environment. 
 With spot instances, you request capacity from specific availability zones, dependent on spare computing capacity. This is a good choice if you can be flexible about when your application runs,

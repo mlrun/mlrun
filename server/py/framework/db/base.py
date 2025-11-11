@@ -18,7 +18,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
 import sqlalchemy
-from deprecated import deprecated
 from sqlalchemy.orm import Session
 
 import mlrun.alerts

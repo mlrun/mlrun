@@ -39,13 +39,15 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-9577|You can use the new ModelRunnerStep in model monitoring. See the example in {ref}`genai-serving-graph`.|
 |ML-9817|You can now run a model monitoring application as a batch application on existing model endpoint data. See {ref}`mm-running-applications`.|
+
 
 
 ### Serving
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10725|This version introduces a default, out of the box, LLM implementation using your selected provider (e.g., OpenAI or Hugging Face), and includes monitoring results and collecting usage statistics. See {ref}`genai-04-llm-prompt-artifact` and {ref}`genai-serving-graph`.|
+|ML-10725|This version introduces a default, out of the box, LLM implementation using your selected provider (e.g., OpenAI or Hugging Face), and includes monitoring results and collecting usage statistics. See [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb) and {ref}`genai-serving-graph`.|
 |   |The new ModelRunnerStep gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.|
 |ML-6344|This version introduces a new artifacts type: LLM prompt artifacts. This enables using LLMs, including specific prompt templates, inside your workflow. See {ref}`llm-prompt-artifact`.|
 
@@ -53,14 +55,14 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9681|You can now deploy a serving graph as a job. See {ref}`serving-graph-as-job`.|
-|ML-5986|You can now retry MLRun functions of type `job`. There is a new <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table. See more details in {ref}`job-function` and {py:class}`mlrun.projects.MlrunProject.run_function`.|
-|ML-10274|MLRun applies scheduling constraints to the run object at execution time (and does not modify the function definition). Your original scheduling constraints appear on the function, but the actual run may have different constraints applied dynamically when it executes.|
+|ML-5986|You can now retry MLRun functions of type `job` using the API. There is a new <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table showing the retry status. See more details in {ref}`job-function` and {py:class}`~mlrun.projects.MlrunProject.run_function`.|
+|ML-10274|MLRun applies scheduling constraints to the run object at execution time (and does not modify the function definition). Your original scheduling constraints appear on the function, but the actual run may have different constraints applied dynamically when it executes. This ensures that each run reflects the current preemption mode configuration.|
 
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9952|The new Monitoring Application view provides you with a comprehensive overview of your model monitoring applications and their status. See {ref}`view-mm-applications`.
-|ML-8004|You can now terminate a job from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the kebab menu, depending on the page you are in. |
+|ML-9613|The new Monitoring Application view provides you with a comprehensive overview of your model monitoring applications and their status. See {ref}`view-mm-applications`.|
+|ML-9350|You can now terminate a job from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the kebab menu, depending on the page you are in. |
 
 
 
@@ -68,27 +70,28 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Breaking Changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9838|The default project (`project="default"`) is no longer supported. This also affects the CE. All functions must have an explicit project. You can name a project default, but it will not have any pre-ordained permissions. Existing systems can keep pre-existing default projects, but they are no longer enriched. For example, this code:<br>import mlrun
-mlrun.get_or_create_ctx("my-context") should be replaced by:mlrun.get_or_create_ctx("my-context", project="my-project")<br>
-mlrun.get_or_create_ctx("my-context") should be replaced by:<br>|
+|ML-10279|The default project (`project="default"`) is no longer supported. This also affects the CE. All functions must have an explicit project. You can name a project default, but it will not have any pre-ordained permissions. Existing systems can keep pre-existing default projects, but they are no longer enriched. For example, this code:<br><br>`mlrun.get_or_create_ctx("my-context")`<br><br> should be replaced by:<br><br>`mlrun.get_or_create_ctx("my-context", project="my-project")`>`|
+
 
 ### Infrastructure
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2714|MLRun supports Confluent Kafka 7.8.|
 |ML-10799|MLRun supports Python 3.11 with the Kubeflow Pipelines (KFP) 1.8.23.
-|ML-981|You can now import python modules from the MLRun hub or your own private hub. See ???|
-|ML-9564|You can now import monitoring apps from the MLRun hub, and import Python modules from the MLRun hub or your own private hub. See ???.|
+|ML-9564|You can now import monitoring apps from the MLRun hub, and import Python modules from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#model-monitoring-modules).|
 
-
+### Upcoming changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+| NA |The default `--allow-cross-project` CLI flag in `run`, `build`, `deploy`, and `project` CLI commands will change to `False` in v1.11.0.|.
 
 
 ### Documentation
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-| NA | New tutorial: {ref}`genai-04-llm-prompt-artifact`. |
-|NA |Improved the [Real-time serving pipelines (graphs)](..//serving/serving-graph.md) documentation.|
+| NA | New tutorial: [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb). |
+|NA |Improved the [Real-time serving pipelines (graphs)](../serving/serving-graph.md) documentation.|
 |ML-8094|Improved the `set_function` documentation. See {ref}`create-and-use-functions`.|
 
 
@@ -100,6 +103,7 @@ mlrun.get_or_create_ctx("my-context") should be replaced by:<br>|
 |ML-8601|Default spot labels node selector are no longer removed.|
 |ML-8740|Notifications are now issued when retrying pipelines.|
 |ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent`’` or `allow` MLRun now warns that this node selector might get removed.|
+|ML-9338|`latest` tag: If the same project+key were created from both a hyper-param run and single run, and the user removed the latest tag from everything, then `latest` is assigned to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results, and it may not actually be the latest run.|
 |ML-9573|Resolved workflow step failures due to "Read timed out" error from mlrun-api.|
 ML-9876|Resolved isue of DB probes failing when the concurrent connections are maxed out.|
 |ML-10289|When using the `project.delete_artifact()` that gets an `mlrun.artifacts.base.Artifact` object, if the object doesn’t have the “latest” tag, now only the specific UID artifacts are deleted.|
@@ -1376,7 +1380,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8754|The default spot-labels node-selector are removed when configuring the `allow` preemption mode with one of the node selectors defined in `mlconf.get_preemptible_node_selector()`.|Use a non-default label.|v1.7.1|
 |ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. | NA   |v1.7.1|
 |ML-8874|Documents that are added to different vectorstores with the same collection name cannot be differentiated.|Avoid using same collection name over different vectorstores.|v1.8.0|
-|ML-9235|If in v1.7 there was one untagged artifact and another artifact with the same artifact key, project, iteration, that was logged earlier and includes the `latest` tag (meaning the latest tag does not actually point to the real latest artifact), then after migration to version 1.8, both artifacts have the `latest` tag. If such an artifact is used in a job with the latest tag and key, the job fails with the error 'multiple rows were found.' This is because there are two artifacts with the same key and tag but different UIDs.|NA|v1.8.0|
 |ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
 |ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
 |ML-9913|UI: There may be a discrepancy in the artifact count between the Project monitoring page and the Artifacts page when running hyper-param jobs without a best-iteration. |Always provide a selection criteria for `best-iteration`.|v1.8.0|
@@ -1409,9 +1412,10 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1.10.0 | default project is deprecated. See [Breaking changes](#1.10.0-breaking).
-| 1.10.0 | |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
-| 1.10.0 | |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
+| v1.11.0 |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
+| v1.10.0 | default project is deprecated. See [Breaking changes](#1.10.0-breaking).
+| v1.10.0 | |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
+| v1.10.0 | |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
 | v1.6.0 |ML-5137|The Create/edit function pane was removed from the UI.|
 | v1.5.0 |ML-4075|Python 3.7                                                     |
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`   |
@@ -1422,10 +1426,18 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.12.0| v1.10.0 |`GET /projects/{project}/runs?state` | `states` |
+| v1.12.0| v1.10.0 |`artifact_path` in `MlrunProject.run_function`| `output path`|
+| v1.12.0| v1.10.0 |`artifact_path` in `mlrun.projects.operations.run_function`| `output path`|
+| v1.12.0| v1.10.0 |`artifact_path` and `out_path` in `BaseRuntime.run`| `output path`|
+| v1.12.0| v1.10.0 |`auth_info` in `RemoteRuntime.get_url`|NA|
+| v1.12.0| v1.10.0 |When using underscores as a name, the code no longer replaces them with dashes. |Use dashes|
+| v1.12.0| v1.10.0 |`any `mlrun.api.schemas.*`  import |`mlrun.common.schemas.*`| 
 | v1.12.0| v1.10.0 |key name `S3_ENDPOINT_URL`                                             |`AWS_ENDPOINT_URL_S3`|
 | v1.12.0| v1.10.0 |Datastore class: DatastoreProfileKafkaSource, DatastoreProfileKafkaTarget    |DatastoreProfileKafkaStream`|
 | v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
 | v1.12.0| v1.10.0 |`fetch_credentials_from_sys_config`                                       |NA|
+| v1.11.0| v1.11.0|TDEngine support will be removed in v1.11.0. Data will not be migrated.|MLRun will support TimescaleDB.|
 | v1.11.0| v1.8.0 |`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
 | v1.11.0| v1.8.0 |`remove_function` of MLrunProject                            |`delete_function`|
 | v1.11.0| v1.8.0 |`batch` of `ServingRuntime.set_tracking`                   |NA|
@@ -1451,7 +1463,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
 | v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
 | v1.10.0 |Function: `get_or_create_model_endpoint() in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
-| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints. See {ref}`serving-graph-as-job`.}
+| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints. See {ref}`serving-graph-as-job`.|
 | v1.10.0|`labels` in`get_or_create_ctx` |`spec` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
@@ -1477,12 +1489,15 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|Class: `mlrunn.common.schemas.PipelinesFormat`                            |`mlrun.common.formatters.PipelineFormat`          |
 | v1.10.0|Datastore redis:`credentials_prefix`                                           |Use datastore profiles for managing credentials|
 | v1.10.0|Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`   | NA. Was not used.|
+| v1.10.0|Parameter: `mlrun.runtimes.nuclio.serving.ServingRuntime.deploy` `auth_info`   | NA. Was not used.|
 | v1.10.0|Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                     |`states`      |
 | v1.10.0|Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                       |`states`      |
 | v1.10.0|Class: `mlrun.common.runtimes.constants.RunLabels`                             |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
 | v1.10.0|Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                              |MLRUN_DBPATH environment variable |
 | v1.10.0|`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|
 | v1.10.0|`FunctionSpec.clone_target_dir`                                                |`ImageBuilder.source_code_target_dir`|
+| v1.10.0|
+| v1.10.0|
 | v1.8.0 |`--watch` parameter of `mlrun logs`                                                        |NA|
 | v1.8.0 |datastore `get_filesystem`                                                                 |`filesystem` property|
 | v1.8.0 |`dashboard` of `RemoteRuntime.invoke`                                                      |NA|

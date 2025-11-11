@@ -655,7 +655,7 @@ default_config = {
         "writer_graph": {
             "max_events": 1000,
             "flush_after_seconds": 30,
-            "writer_version": "v1",  # v1 is the sync version while v2 is async
+            "writer_version": "v2",  # v1 is the sync version while v2 is async
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },

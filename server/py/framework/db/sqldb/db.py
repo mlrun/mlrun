@@ -1858,7 +1858,6 @@ class SQLDB(DBInterface):
             partition_order,
             parent_uri,
         ):
-            # query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
             query = query.with_hint(
                 ArtifactV2,
                 "USE INDEX (idx_project_bi_updated)",

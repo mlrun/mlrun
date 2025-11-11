@@ -2078,17 +2078,7 @@ class SQLDB(DBInterface):
             "partition_sort_by": partition_sort_by,
             "partition_order": partition_order,
         }
-        non_default_params = {
-            key: value
-            for key, value in current_params.items()
-            if default_list_params.get(key) != value
-        }
 
-        if non_default_params:
-            logger.debug(
-                "Non-default list_artifacts parameters detected: %s",
-                non_default_params,
-            )
         # Check if all current parameters match their default values
         return all(
             default_list_params[key] == value

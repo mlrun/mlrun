@@ -1858,7 +1858,12 @@ class SQLDB(DBInterface):
             partition_order,
             parent_uri,
         ):
-            query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
+            # query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
+            query = query.with_hint(
+                ArtifactV2,
+                "USE INDEX (idx_project_bi_updated)",
+                dialect_name="mysql",
+            )
 
         if project:
             query = query.filter(ArtifactV2.project == project)
@@ -2074,10 +2079,22 @@ class SQLDB(DBInterface):
             "partition_sort_by": partition_sort_by,
             "partition_order": partition_order,
         }
+        non_default_params = {
+            key: value
+            for key, value in current_params.items()
+            if default_list_params.get(key) != value
+        }
 
+        if non_default_params:
+            logger.debug(
+                "Non-default list_artifacts parameters detected: %s",
+                non_default_params,
+            )
         # Check if all current parameters match their default values
         return all(
-            default_list_params[key] == value for key, value in current_params.items()
+            default_list_params[key] == value
+            or (default_list_params[key] is None and value in (None, [], {}, ()))
+            for key, value in current_params.items()
         )
 
     def _find_artifacts_for_producer_id(

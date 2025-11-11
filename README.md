@@ -78,7 +78,7 @@ inferring results using one or more models, and driving actions.
 **Docs:**
 [Serving gen AI models](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving.html), [GPU utilization](https://docs.mlrun.org/en/stable/genai/deployment/gpu_utilization.html), [Gen AI realtime serving graph](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving_graph.html)
 **Tutorial:**
-[Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai_01_basic_tutorial.html)
+[Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai-01-basic-tutorial.html)
 **Demos:**
 [Call center demo](https://github.com/mlrun/demo-call-center), [Build & deploy custom(fine-tuned)LLM models and applications](https://github.com/mlrun/demo-llm-tuning/blob/main), [Interactive bot demo using LLMs](https://github.com/mlrun/demo-llm-bot/blob/main)
 **Video:**
@@ -93,7 +93,7 @@ Collect production data, metadata, and metrics to tune the model and application
 **Docs:**
 [Model monitoring <monitoring](https://docs.mlrun.org/en/stable/concepts/monitoring.html), [Alerts and notifications](https://docs.mlrun.org/en/stable/concepts/alerts-notifications.html)
 **Tutorials:**
-[Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai_01_basic_tutorial.html), [Model monitoring using LLM](https://docs.mlrun.org/en/stable/tutorials/genai-02-monitoring-llm.html)
+[Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai-01-basic-tutorial.html), [Model monitoring using LLM](https://docs.mlrun.org/en/stable/tutorials/genai-02-monitoring-llm.html)
 **Demo:**
 [Build & deploy custom (fine-tuned) LLM models and applications](https://github.com/mlrun/demo-llm-tuning/blob/main)
 

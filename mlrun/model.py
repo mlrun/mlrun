@@ -29,6 +29,7 @@ import pydantic.v1.error_wrappers
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.notification
+import mlrun.common.secrets
 import mlrun.utils.regex
 
 from .utils import (
@@ -1616,7 +1617,12 @@ class RunTemplate(ModelObj):
 
         :returns: The RunTemplate object
         """
-
+        if kind == "azure_vault" and isinstance(source, dict):
+            candidate_secret_name = (source.get("k8s_secret") or "").strip()
+            if candidate_secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(
+                    candidate_secret_name
+                )
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.project, "secrets": source}
 

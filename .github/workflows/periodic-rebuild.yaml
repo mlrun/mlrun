@@ -37,13 +37,14 @@ jobs:
           # take last 2 elements (aka last 2 versions)
           # wrap each name with "" and join with ,
           # join with development
+          # output would be like - 1.3.x,1.4.x,development
           branches=$(curl --retry 3 --retry-all-errors --silent https://api.github.com/repos/mlrun/mlrun/branches \
-            | jq -r 'map(select(.name | test("^\\d+.\\d+.x$"))) | sort_by(.name) | .[-2:] | map(.name | tostring | "\"" + . + "\"") | join(",")' \
-          )
-          # output would be like
-          # 1.3.x,1.4.x,development
-          branches="$branches,\"development\""
-
+            | jq -r '.[].name | select(test("^\\d+\\.\\d+\\.x$"))' \
+            | sort -Vr \
+            | head -2 \
+            | tr '\n' ',' \
+            | sed 's/,$//' \
+            | awk '{print $0",development"}')
           matrix="{\"repo\": [\"mlrun\",\"ui\"], \"branch\": [$branches]}"
           echo "matrix=$(echo $matrix)" >> $GITHUB_OUTPUT
 

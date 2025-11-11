@@ -10,7 +10,6 @@ The Monitoring Application view provides you with a comprehensive overview of yo
 
 ## Monitoring App view
 
-
 <img src="../_static/images/monitor-apps.png">
 
 The <b>tiles</b> at the top present:
@@ -32,11 +31,11 @@ The <b>graph</b> shows the model endpoints with suspected/detected issues. The g
 - Click the Nucio function name to see the function code, etc.
 
 ## Application page
-From the main view, press an app name to open the App view. The tiles show  the app status, number of enddoints processed by the app during the timeframe, possible/detections, lag, and committed offset. The following tables include: a List of all artifacts, the monitoring app results, metrics, and status of all the shards. 
+From the main view, press an app name to open the App view. The tiles show the app status, number of enpdoints processed by the app during the timeframe, possible/detections, lag, and committed offset. The following tables include: a list of all artifacts, the monitoring app results, metrics, and status of all the shards. 
 
 <img src="../_static/images/app-page.png">
 
 ## Application metrics
-Access the application metrics either from the Application monitoring button in the Application metrics page or from the row of the app in the Monitoring Apps view. Select a metric and optionally modify the timeframe. By default, the first model endpoint is selected. You can select an model endpoint from a list. When switching model endpoints, the previously selected metrics and results remain (if applicable).
+Access the application metrics either with the Application monitoring button in the Application page or from the row of the app in the Monitoring Apps view. Select a metric and optionally modify the timeframe. By default, the first model endpoint is selected. You can select an model endpoint from a list. When switching model endpoints, the previously selected metrics and results remain (if applicable).
 
 <img src="../_static/images/app-metrics.png">

@@ -16,7 +16,7 @@ import json
 import sys
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
-from datetime import datetime, timezone
+from datetime import datetime
 from types import TracebackType
 from typing import TYPE_CHECKING, Final, Optional
 
@@ -162,19 +162,29 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
             endpoint_id=model_endpoint.metadata.uid,
         )
 
-    def get_application_time(self, application: str) -> Optional[int]:
+    def get_application_time(self, application: str) -> Optional[float]:
         self._check_open_schedules()
         return self._schedules.get(application)
 
-    def update_application_time(self, application: str, timestamp: int) -> None:
+    def update_application_time(self, application: str, timestamp: float) -> None:
         self._check_open_schedules()
-        self._schedules[application] = timestamp
+        self._schedules[application] = float(timestamp)
+
+    def delete_application_time(self, application: str) -> None:
+        self._check_open_schedules()
+        if application in self._schedules:
+            logger.debug(
+                "Deleting application time from schedules",
+                application=application,
+                endpoint_id=self._endpoint_id,
+            )
+            del self._schedules[application]
 
     def get_application_list(self) -> set[str]:
         self._check_open_schedules()
         return set(self._schedules.keys())
 
-    def get_min_timestamp(self) -> Optional[int]:
+    def get_min_timestamp(self) -> Optional[float]:
         self._check_open_schedules()
         return min(self._schedules.values(), default=None)
 
@@ -198,7 +208,7 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
             project=self._project
         )
 
-    def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[int]:
+    def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[float]:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
             return self._schedules[endpoint_uid].get(
@@ -208,15 +218,19 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
             return None
 
     def update_endpoint_timestamps(
-        self, endpoint_uid: str, last_request: int, last_analyzed: int
+        self, endpoint_uid: str, last_request: float, last_analyzed: float
     ) -> None:
         self._check_open_schedules()
         self._schedules[endpoint_uid] = {
-            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST: last_request,
-            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED: last_analyzed,
+            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST: float(
+                last_request
+            ),
+            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED: float(
+                last_analyzed
+            ),
         }
 
-    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[int]:
+    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[float]:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
             return self._schedules[endpoint_uid].get(
@@ -267,9 +281,18 @@ class ModelMonitoringSchedulesFileApplication(ModelMonitoringSchedulesFileBase):
         self, endpoint_uid: str, last_analyzed: datetime
     ) -> None:
         self._check_open_schedules()
-        self._schedules[endpoint_uid] = last_analyzed.astimezone(
-            timezone.utc
-        ).isoformat()
+        self._schedules[endpoint_uid] = last_analyzed.isoformat()
+
+    def delete_endpoints_last_analyzed(self, endpoint_uids: list[str]) -> None:
+        self._check_open_schedules()
+        for endpoint_uid in endpoint_uids:
+            if endpoint_uid in self._schedules:
+                logger.debug(
+                    "Deleting endpoint last analyzed from schedules",
+                    endpoint_uid=endpoint_uid,
+                    application=self._application,
+                )
+                del self._schedules[endpoint_uid]
 
 
 def _delete_folder(folder: str) -> None:

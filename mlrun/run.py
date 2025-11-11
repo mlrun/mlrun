@@ -17,6 +17,7 @@ import json
 import os
 import pathlib
 import socket
+import sys
 import tempfile
 import time
 import typing
@@ -117,14 +118,31 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
         raise ValueError("nothing to run, specify command or function")
 
     command = os.path.join(workdir or "", command)
-    path = Path(command)
-    mod_name = path.name
-    if path.suffix:
-        mod_name = mod_name[: -len(path.suffix)]
+
+    source_file_path_object, working_dir_path_object = (
+        mlrun.utils.helpers.get_source_and_working_dir_paths(command)
+    )
+    if source_file_path_object.is_relative_to(working_dir_path_object):
+        mod_name = mlrun.utils.helpers.get_relative_module_name_from_path(
+            source_file_path_object, working_dir_path_object
+        )
+    elif source_file_path_object.is_relative_to(
+        pathlib.Path(tempfile.gettempdir()).resolve()
+    ):
+        mod_name = Path(command).stem
+    else:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Cannot run source file '{command}': it must be located either under the current working "
+            f"directory ('{working_dir_path_object}') or the system temporary directory ('{tempfile.gettempdir()}'). "
+            f"This is required when running with local=True."
+        )
+
     spec = imputil.spec_from_file_location(mod_name, command)
     if spec is None:
         raise OSError(f"cannot import from {command!r}")
     mod = imputil.module_from_spec(spec)
+    # add to system modules, which can be necessary when running in a MockServer (ML-10937)
+    sys.modules[mod_name] = mod
     spec.loader.exec_module(mod)
 
     return mod
@@ -141,7 +159,7 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
         else:
             is_remote = "://" in command
             data = get_object(command, secrets)
-            runtime = yaml.load(data, Loader=yaml.FullLoader)
+            runtime = yaml.safe_load(data)
             runtime = new_function(runtime=runtime)
 
         command = runtime.spec.command or ""
@@ -222,7 +240,8 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:  project to initiate the context in (by default `mlrun.mlconf.active_project`)
+    :param project:  project to initiate the context in (by default `mlrun.mlconf.active_project`).
+                              If not set, an active project must exist.
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
     :return: execution context
@@ -276,6 +295,16 @@ def get_or_create_ctx(
 
     if newspec and not isinstance(newspec, dict):
         newspec = json.loads(newspec)
+
+    if (
+        not newspec.get("metadata", {}).get("project")
+        and not project
+        and not mlconf.active_project
+    ):
+        raise mlrun.errors.MLRunMissingProjectError(
+            """No active project found. Make sure to set an active project using: mlrun.get_or_create_project()
+            You can verify the active project with: mlrun.mlconf.active_project"""
+        )
 
     if not newspec:
         newspec = {}
@@ -362,10 +391,13 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     return function
 
 
-def import_function_to_dict(url, secrets=None):
+def import_function_to_dict(
+    url: str,
+    secrets: Optional[dict] = None,
+) -> dict:
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
-    runtime = yaml.load(obj, Loader=yaml.FullLoader)
+    runtime = yaml.safe_load(obj)
     remote = "://" in url
 
     code = get_in(runtime, "spec.build.functionSourceCode")
@@ -388,20 +420,40 @@ def import_function_to_dict(url, secrets=None):
                 raise ValueError("exec path (spec.command) must be relative")
             url = url[: url.rfind("/") + 1] + code_file
             code = get_object(url, secrets)
+            code_file = _ensure_path_confined_to_base_dir(
+                base_directory=".",
+                relative_path=code_file,
+                error_message_on_escape="Path traversal detected in spec.command",
+            )
             dir = path.dirname(code_file)
             if dir:
                 makedirs(dir, exist_ok=True)
             with open(code_file, "wb") as fp:
                 fp.write(code)
         elif cmd:
-            if not path.isfile(code_file):
-                # look for the file in a relative path to the yaml
-                slash = url.rfind("/")
-                if slash >= 0 and path.isfile(url[: url.rfind("/") + 1] + code_file):
-                    raise ValueError(
-                        f"exec file spec.command={code_file} is relative, change working dir"
-                    )
+            slash_index = url.rfind("/")
+            if slash_index < 0:
                 raise ValueError(f"no file in exec path (spec.command={code_file})")
+            base_dir = os.path.normpath(url[: slash_index + 1])
+
+            # Validate and resolve the candidate path before checking existence
+            candidate_path = _ensure_path_confined_to_base_dir(
+                base_directory=base_dir,
+                relative_path=code_file,
+                error_message_on_escape=(
+                    f"exec file spec.command={code_file} is outside of allowed directory"
+                ),
+            )
+
+            # Only now it's safe to check file existence
+            if not path.isfile(candidate_path):
+                raise ValueError(f"no file in exec path (spec.command={code_file})")
+
+            # Check that the path is absolute
+            if not os.path.isabs(code_file):
+                raise ValueError(
+                    f"exec file spec.command={code_file} is relative, it must be absolute. Change working dir"
+                )
         else:
             raise ValueError("command or code not specified in function spec")
 
@@ -503,6 +555,7 @@ def new_function(
 
     # make sure function name is valid
     name = mlrun.utils.helpers.normalize_name(name)
+    mlrun.utils.helpers.validate_function_name(name)
 
     runner.metadata.name = name
     runner.metadata.project = (
@@ -542,6 +595,7 @@ def new_function(
         )
 
     runner.prepare_image_for_deploy()
+
     return runner
 
 
@@ -575,7 +629,7 @@ def code_to_function(
     code_output: Optional[str] = "",
     embed_code: bool = True,
     description: Optional[str] = "",
-    requirements: Optional[Union[str, list[str]]] = None,
+    requirements: Optional[list[str]] = None,
     categories: Optional[list[str]] = None,
     labels: Optional[dict[str, str]] = None,
     with_doc: Optional[bool] = True,
@@ -746,6 +800,7 @@ def code_to_function(
         kind=sub_kind,
         ignored_tags=ignored_tags,
     )
+
     spec["spec"]["env"].append(
         {
             "name": "MLRUN_HTTPDB__NUCLIO__EXPLICIT_ACK",
@@ -798,6 +853,7 @@ def code_to_function(
         runtime.spec.build.code_origin = code_origin
         runtime.spec.build.origin_filename = filename or (name + ".ipynb")
         update_common(runtime, spec)
+
         return runtime
 
     if kind is None or kind in ["", "Function"]:
@@ -811,6 +867,7 @@ def code_to_function(
 
     if not name:
         raise ValueError("name must be specified")
+
     h = get_in(spec, "spec.handler", "").split(":")
     runtime.handler = h[0] if len(h) <= 1 else h[1]
     runtime.metadata = get_in(spec, "spec.metadata")
@@ -1258,3 +1315,21 @@ def wait_for_runs_completion(
         runs = running
 
     return completed
+
+
+def _ensure_path_confined_to_base_dir(
+    base_directory: str,
+    relative_path: str,
+    error_message_on_escape: str,
+) -> str:
+    """
+    Join `user_supplied_relative_path` to `allowed_base_directory`, normalise the result,
+    and guarantee it stays inside `allowed_base_directory`.
+    """
+    absolute_base_directory = path.abspath(base_directory)
+    absolute_candidate_path = path.abspath(
+        path.join(absolute_base_directory, relative_path)
+    )
+    if not absolute_candidate_path.startswith(absolute_base_directory + path.sep):
+        raise ValueError(error_message_on_escape)
+    return absolute_candidate_path

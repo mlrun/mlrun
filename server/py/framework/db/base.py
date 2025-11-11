@@ -641,24 +641,6 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.FeatureSet:
         pass
 
-    # TODO: remove in 1.10.0
-    @deprecated(
-        version="1.7.0",
-        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_features(
-        self,
-        session,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
-        pass
-
     @abstractmethod
     def list_features_v2(
         self,
@@ -1342,7 +1324,7 @@ class DBInterface(ABC):
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
-        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: typing.Optional[list[mlrun.common.schemas.EndpointMode]] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime.datetime] = None,
         end: typing.Optional[datetime.datetime] = None,
@@ -1367,8 +1349,8 @@ class DBInterface(ABC):
         :param model_name:      The model name.
         :param model_tag:       The model tag.
         :param top_level:       Whether to return only top level model endpoints (1,2,4).
-        :param mode:            Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set
-                                to None.
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1), or
+                                both if set to None.
         :param labels:          The labels to filter by.
         :param start:           The start time to filter by.
         :param end:             The end time to filter by.
@@ -1377,7 +1359,9 @@ class DBInterface(ABC):
         :param offset:          SQL query offset.
         :param limit:           SQL query limit.
         :param order_by:        Name of column to order by it (in ascending order).
-        :param as_dict:         Allow returning endpoints as list of framework.db.sqldb.models.ModelEndpoint dictionary.
+        :param as_dict:         When True, the result will be returned as a dictionary of str in the structure of
+                                "<project name>-<function_name>-<function_tag>-<endpoint_name>" map to model
+                                endpoint uid.
         :return:                A list of model endpoints.
         """
         pass

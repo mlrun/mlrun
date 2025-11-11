@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import ModelMonitoringApplicationBase
+from .base import ExistingDataHandling, ModelMonitoringApplicationBase
 from .context import MonitoringApplicationContext
 from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult

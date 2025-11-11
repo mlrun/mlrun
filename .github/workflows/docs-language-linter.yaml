@@ -33,7 +33,7 @@ jobs:
     permissions:
       pull-requests: write  # This is needed for Vale's reviewdog reporter to annotate PRs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: |
           venv="$HOME/.local/share/venv"
           python3 -m venv "$venv"
@@ -48,9 +48,9 @@ jobs:
       matrix:
         python-version: [ "3.11" ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -70,9 +70,9 @@ jobs:
         python-version: [ "3.11" ]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip

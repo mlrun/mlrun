@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import json
-import pathlib
 from collections.abc import Iterator
+from contextlib import AbstractContextManager
+from contextlib import nullcontext as does_not_raise
+from pathlib import Path
 from time import sleep
 from typing import Union, cast
 
@@ -25,18 +27,21 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.common.schemas import ModelEndpointCreationStrategy
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaSource,
+    DatastoreProfile,
+    DatastoreProfileKafkaStream,
+    DatastoreProfileRedis,
+    DatastoreProfileV3io,
     register_temporary_client_datastore_profile,
     remove_temporary_client_datastore_profile,
 )
-from mlrun.platforms.iguazio import KafkaOutputStream
+from mlrun.platforms.iguazio import KafkaOutputStream, OutputStream
 from mlrun.runtimes import ServingRuntime
 from mlrun.serving import Model, ModelRunnerStep, ModelSelector
-from mlrun.serving.states import RootFlowStep, RouterStep
+from mlrun.serving.states import RootFlowStep, RouterStep, StepKinds
 from mlrun.serving.system_steps import MonitoringPreProcessor
 from tests.serving.test_serving import _log_model
 
-assets_path = str(pathlib.Path(__file__).parent / "assets")
+assets_path = str(Path(__file__).parent / "assets")
 testdata = '{"inputs": [[5, 6]]}'
 
 
@@ -196,6 +201,41 @@ def test_child_function_tracking(
             )
 
 
+def test_child_function_tracking_with_model_runner(rundb_mock):
+    project = mlrun.new_project("test-child", save=False)
+    fn = mlrun.new_function("test-fn", kind="serving", project=project.name)
+    graph = fn.set_topology("flow")
+    model_runner_step = ModelRunnerStep(name="my_model_runner_0", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_0",
+        input_path="n",
+        result_path="n",
+        raise_error=False,
+        inc=1,
+    )
+    graph.to(">>", name="in", path="dummy://in").to(
+        model_runner_step, function="c1"
+    ).to(">>", name="out", path="dummy://out")
+    fn.set_tracking()
+    fn.add_child_function("c1", f"{assets_path}/child_function.py", "mlrun/mlrun")
+    server = fn.to_mock_server()
+    server.test("/", {"n": 1})
+    server.wait_for_completion()
+
+    assert server.graph.steps["my_model_runner_0_error_raise"].function == "c1"
+    assert server.graph.steps["my_model_runner_0"].function == "c1"
+
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
+
+    output_stream = graph.steps["out"].async_object
+    assert len(output_stream.event_list) == 1
+
+
 def rec_to_data(rec):
     data = json.loads(rec["data"])
     inputs = data["request"]["inputs"]
@@ -209,24 +249,42 @@ def project() -> mlrun.MlrunProject:
 
 
 @pytest.fixture
-def _register_stream_profile(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def serving_output_stream(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Iterator[Union[type[OutputStream], type[KafkaOutputStream]]]:
+    """Register the serving stream"""
     stream_profile_name = "special-stream"
     monkeypatch.setenv(
         mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME, stream_profile_name
     )
-    profile = DatastoreProfileKafkaSource(
-        name=stream_profile_name,
-        brokers=["localhost"],
-        topics=[],
-        kwargs_public={"api_version": (3, 9)},
-    )
+
+    if request.param == "v3io":
+        profile = DatastoreProfileV3io(
+            name=stream_profile_name, v3io_access_key="v3io-key"
+        )
+        expected_stream_type = OutputStream
+    elif request.param == "kafka":
+        profile = DatastoreProfileKafkaStream(
+            name=stream_profile_name,
+            brokers=["localhost"],
+            topics=[],
+            kwargs_public={"api_version": (3, 9)},
+        )
+        expected_stream_type = KafkaOutputStream
+    else:
+        raise ValueError(f"Unsupported stream type {request.param}")
+
     register_temporary_client_datastore_profile(profile)
-    yield
+    yield expected_stream_type
     remove_temporary_client_datastore_profile(stream_profile_name)
 
 
-@pytest.mark.usefixtures("rundb_mock", "_register_stream_profile")
-def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
+@pytest.mark.usefixtures("rundb_mock")
+@pytest.mark.parametrize("serving_output_stream", ["v3io", "kafka"], indirect=True)
+def test_tracking_datastore_profile(
+    project: mlrun.MlrunProject,
+    serving_output_stream: Union[type[OutputStream], type[KafkaOutputStream]],
+) -> None:
     fn = cast(
         ServingRuntime,
         project.set_function(
@@ -246,11 +304,19 @@ def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
         "/v2/models/model1/predict", body=json.dumps({"inputs": [[0, -0.1], [0.4, 0]]})
     )
 
-    output_stream = cast(KafkaOutputStream, server.context.stream.output_stream)
+    output_stream = server.context.stream.output_stream
+    assert isinstance(
+        output_stream, serving_output_stream
+    ), f"The output stream is of unexpected type {type(output_stream)}"
     mocked_stream = output_stream._mock_queue
     assert len(mocked_stream) == 2
 
-    event = mocked_stream[1]
+    if isinstance(output_stream, KafkaOutputStream):
+        event = mocked_stream[1]
+    else:
+        # V3IO OutputStream
+        event = json.loads(mocked_stream[1]["data"])
+
     assert event["class"] == "ModelTestingClass"
     assert event["model"] == "model1"
     assert event["effective_sample_count"] == 2
@@ -317,6 +383,23 @@ class StrDictOutputModel(Model):
         return body
 
 
+class SubDictOutputModel(Model):
+    def predict(self, body, **kwargs):
+        body["outputs"] = {}
+        for key, value in body["inputs"][self.name].items():
+            if isinstance(value, list):
+                body["outputs"][key.replace("f", "o")] = []
+                for single_value in value:
+                    body["outputs"][key.replace("f", "o")].append(
+                        {f"key_{single_value}": f"value_{single_value}"}
+                    )
+            else:
+                body["outputs"][key.replace("f", "o")] = {
+                    f"key_{value}": f"value_{value}"
+                }
+        return body
+
+
 def _test_monitoring_system_steps_structure(
     graph: RootFlowStep, model_runners_names: list[str]
 ):
@@ -363,9 +446,7 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
         inc=1,
     )
     graph.to(model_runner_step).respond()
-    function.set_tracking(
-        "dummy://", enable_tracking=enable_tracking, stream_args={"mock": True}
-    )
+    function.set_tracking("dummy://", enable_tracking=enable_tracking)
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -436,7 +517,7 @@ def test_tracked_model_runner_dict(rundb_mock, with_schema):
     )
     graph.to(model_runner_step).respond()
 
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     inputs_model = (
         {"f1": [1, 2], "f2": ["hi", "bye"], "f3": [3, 4], "f4": [4, 5]}
@@ -545,7 +626,7 @@ def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
     )
     graph.to(model_runner_step).respond()
 
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     inputs_model = (
         {"f1": ["1", "2"], "f2": ["2", "3"], "f3": ["3", "4"], "f4": ["4", "5"]}
@@ -581,6 +662,19 @@ def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
         ["1_output", "2_output", "3_output", "4_output"],
         ["2_output", "3_output", "4_output", "5_output"],
     ]
+    assert dummy_stream.event_list[0].get("request", {}).get("input_schema") == [
+        "f1",
+        "f2",
+        "f3",
+        "f4",
+    ]
+    assert dummy_stream.event_list[0].get("resp", {}).get("output_schema") == [
+        "o1",
+        "o2",
+        "o3",
+        "o4",
+    ]
+
     assert dummy_stream.event_list[1].get("request", {}).get("inputs") == ["1", "2"]
     assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [
         "1_output",
@@ -600,6 +694,69 @@ def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
     ]
     assert dummy_stream.event_list[4].get("request", {}).get("inputs") == ["1"]
     assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == ["1_output"]
+    assert dummy_stream.event_list[4].get("request", {}).get("input_schema") == ["f1"]
+    assert dummy_stream.event_list[4].get("resp", {}).get("output_schema") == ["o1"]
+
+
+@pytest.mark.parametrize("with_schema", [True, False])
+def test_tracked_subdict(rundb_mock, with_schema):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="SubDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model",
+        input_path="inputs.dict_model",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"] if with_schema else None,
+        outputs=["o1", "o2", "o3", "o4"] if with_schema else None,
+        raise_error=False,
+    )
+    graph.to(model_runner_step).respond()
+    function.set_tracking()
+    server = function.to_mock_server()
+    inputs_model = (
+        {"f1": ["1", "2"], "f2": ["2", "3"], "f3": ["3", "4"], "f4": ["4", "5"]}
+        if not with_schema
+        else {"f4": ["4", "5"], "f2": ["2", "3"], "f1": ["1", "2"], "f3": ["3", "4"]}
+    )
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "dict_model": inputs_model,
+                "dict_model_2": {"f1": ["1", "2"]},
+                "dict_model_single_event": {"f1": "1", "f2": "2", "f3": "3", "f4": "4"},
+                "dict_model_single_event_wrapped": {
+                    "f1": ["1"],
+                    "f2": ["2"],
+                    "f3": ["3"],
+                    "f4": ["4"],
+                },
+                "dict_model_scalar": {"f1": "1"},
+            }
+        },
+    )
+    server.wait_for_completion()
+    dummy_stream = server.context.stream.output_stream
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [
+        ["1", "2", "3", "4"],
+        ["2", "3", "4", "5"],
+    ]
+    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs")[0] == [
+        {"key_1": "value_1"},
+        {"key_2": "value_2"},
+        {"key_3": "value_3"},
+        {"key_4": "value_4"},
+    ]
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs")[1] == [
+        {"key_2": "value_2"},
+        {"key_3": "value_3"},
+        {"key_4": "value_4"},
+        {"key_5": "value_5"},
+    ]
 
 
 def test_tracked_model_runner_multiple_steps(rundb_mock):
@@ -632,9 +789,7 @@ def test_tracked_model_runner_multiple_steps(rundb_mock):
     graph.to(model_runner_step_0).respond()
     graph.to(model_runner_step_1)
 
-    function.set_tracking(
-        "dummy://",
-    )
+    function.set_tracking()
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -683,11 +838,7 @@ def test_tracked_model_runner_multiple_models(rundb_mock):
 
     graph.to(model_runner_step_0).respond()
     graph.to(model_runner_step_1)
-    function.set_tracking(stream_args={"mock": True})
-
-    function.set_tracking(
-        "dummy://",
-    )
+    function.set_tracking()
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -716,9 +867,8 @@ def test_set_untracked_with_model_runner(rundb_mock):
         inc=1,
     )
     graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
+    function.set_tracking()
 
-    function.set_tracking("dummy://", enable_tracking=True)
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -755,7 +905,7 @@ def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
     )
     graph.to(model_runner_step).respond()
 
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     server.wait_for_completion()
     model_runner_step_1 = ModelRunnerStep(
@@ -852,23 +1002,20 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
         name="shared-model",
         execution_mechanism="naive",
         model_artifact=model_artifact,
+        input_path="n",
+        result_path="n",
     )
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_model",
-        input_path="n",
-        result_path="n",
         shared_model_name="shared-model",
         model_artifact=model_artifact,
     )
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_model-2",
-        input_path="n",
-        result_path="n",
         model_artifact=model_artifact,
     )
     graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
 
     function.set_tracking("dummy://", enable_tracking=enable_tracking)
     server = function.to_mock_server()
@@ -915,12 +1062,12 @@ def test_shared_model_invalid_usage():
         name="shared-model",
         execution_mechanism="naive",
         model_artifact=model_artifact,
+        input_path="n",
+        result_path="n",
     )
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_model",
-        input_path="n",
-        result_path="n",
         shared_model_name="shared-model-2",
         model_artifact=model_artifact,
     )
@@ -929,8 +1076,6 @@ def test_shared_model_invalid_usage():
 
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_model-2",
-        input_path="n",
-        result_path="n",
         model_artifact=model_artifact_2,
     )
     with pytest.raises(mlrun.serving.states.GraphError):
@@ -941,16 +1086,12 @@ def test_shared_model_invalid_usage():
     with pytest.raises(mlrun.serving.states.GraphError):
         model_runner_step_2.add_shared_model_proxy(
             endpoint_name="my_model",
-            input_path="n",
-            result_path="n",
             shared_model_name="shared-model-2",
             model_artifact=model_artifact,
         )
 
     model_runner_step_2.add_shared_model_proxy(
         endpoint_name="my_model",
-        input_path="n",
-        result_path="n",
         model_artifact=model_artifact,
     )
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -959,6 +1100,8 @@ def test_shared_model_invalid_usage():
             name="shared-model",
             execution_mechanism="naive",
             model_artifact=model_artifact,
+            input_path="n",
+            result_path="n",
         )
     graph.add_shared_model(
         model_class=MyModel(name="shared-model", raise_exception=False, inc=1),
@@ -966,6 +1109,8 @@ def test_shared_model_invalid_usage():
         execution_mechanism="naive",
         override=True,
         model_artifact=model_artifact,
+        input_path="n",
+        result_path="n",
     )
 
 
@@ -984,8 +1129,7 @@ def test_tracked_model_runner_background_task(rundb_mock):
     )
     rundb_mock._get_background_task_calls = 0
     graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
-    function.set_tracking("dummy://", enable_tracking=True)
+    function.set_tracking()
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     dummy_stream = server.context.stream.output_stream
@@ -1033,9 +1177,7 @@ def test_tracked_model_runner_with_error_handler(
         graph.error_handler("echo_error", handler="handle_error")
     else:
         step.error_handler("echo_error", handler="handle_error")
-    function.set_tracking(
-        "dummy://", enable_tracking=enable_tracking, stream_args={"mock": True}
-    )
+    function.set_tracking("dummy://", enable_tracking=enable_tracking)
     server = function.to_mock_server()
     resp = server.test("/", {"n": "1"})
     server.wait_for_completion()
@@ -1047,7 +1189,7 @@ def test_tracked_model_runner_with_error_handler(
             dummy_stream.event_list[0].get("error")
             == 'TypeError: can only concatenate str (not "int") to str'
         )
-        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == "1"
+        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == ["1"]
     elif not enable_tracking and as_responder:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
         assert resp == {
@@ -1065,10 +1207,11 @@ def test_transpose_by_key_with_str():
         "extra": 123,
         "time": "2020-01-01T01:00:00Z",
     }
-    result = MonitoringPreProcessor.transpose_by_key(data)
+    result, new_schema = MonitoringPreProcessor.transpose_by_key(data)
     expected_result = [[30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"]]
 
     assert result == expected_result
+    assert new_schema == ["Price", "Product", "Stock", "extra", "time"]
 
     data = {
         "Price": [30.0, 6.0],
@@ -1077,10 +1220,130 @@ def test_transpose_by_key_with_str():
         "extra": [123, 80],
         "time": ["2020-01-01T01:00:00Z", "2020-01-01T02:00:00Z"],
     }
-    result = MonitoringPreProcessor.transpose_by_key(data)
+    result, new_schema = MonitoringPreProcessor.transpose_by_key(data)
 
     expected_result = [
         [30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"],
         [6.0, "Mouse", 200, 80, "2020-01-01T02:00:00Z"],
     ]
     assert result == expected_result
+    assert new_schema == ["Price", "Product", "Stock", "extra", "time"]
+
+
+def test_negative_schema_with_dict_model(rundb_mock):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="DictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="my_dict_model",
+        input_path="inputs.my_dict_model",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"],
+        raise_error=False,
+    )
+    graph.to(model_runner_step).respond()
+
+    function.set_tracking()
+    server = function.to_mock_server()
+    # bad key right length
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": 1, "f2": 2, "f3": 3, "f4": 4},
+            }
+        },
+    )
+    # missing keys
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": 1, "f1": 2, "f2": 3},
+            }
+        },
+    )
+    # wrong lengthes
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model": {"f0": [1, 2], "f1": 2, "f2": 3, "f4": 4},
+            }
+        },
+    )
+
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 0, "expected stream to get zero messages"
+
+
+@pytest.fixture
+def serving_fn(tmp_path: Path) -> ServingRuntime:
+    project = mlrun.get_or_create_project(
+        "test-auto-mock", save=False, context=str(tmp_path)
+    )
+    fn = cast(
+        ServingRuntime, project.set_function(name="test-fn", kind=ServingRuntime.kind)
+    )
+    graph = fn.set_topology(StepKinds.flow)
+    model_runner_step = ModelRunnerStep(name="my_model_runner_0", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_0",
+        input_path="n",
+        result_path="n",
+        raise_error=False,
+        inc=1,
+    )
+    graph.to(model_runner_step).respond()
+    return fn
+
+
+def test_stream_is_set(serving_fn: ServingRuntime) -> None:
+    """Test that a dummy stream is set automatically"""
+    serving_fn.set_tracking()  # Without any custom arguments
+    server = serving_fn.to_mock_server()
+    server.test("/", {"n": 1})
+    server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    ("stream_profile", "expectation"),
+    [
+        (
+            DatastoreProfileKafkaStream(
+                name="kafka-profile",
+                brokers=["localhost"],
+                topics=[],
+            ),
+            does_not_raise(KafkaOutputStream),
+        ),
+        (DatastoreProfileV3io(name="v3io-profile"), does_not_raise(OutputStream)),
+        (
+            DatastoreProfileRedis(
+                name="redis-profile", endpoint_url="redis://localhost:6379"
+            ),
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`",
+            ),
+        ),
+    ],
+)
+def test_serving_stream_profile(
+    serving_fn: ServingRuntime,
+    stream_profile: DatastoreProfile,
+    expectation: AbstractContextManager,
+) -> None:
+    """Test directly passing stream profile to `to_mock_server`"""
+    serving_fn.set_tracking(stream_args={"mock": True})
+    with expectation as output_stream_type:
+        server = serving_fn.to_mock_server(stream_profile=stream_profile)
+        assert isinstance(server.context.stream.output_stream, output_stream_type)
+        server.test("/", {"n": 1})
+        server.wait_for_completion()

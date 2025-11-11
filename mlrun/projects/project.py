@@ -45,6 +45,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.secrets
 import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
@@ -166,7 +167,7 @@ def new_project(
     in the project root dir, it will be executed upon project creation or loading.
 
 
-    example::
+    Example::
 
         # create a project with local and hub functions, a workflow, and an artifact
         project = mlrun.new_project(
@@ -183,7 +184,7 @@ def new_project(
         # run the "main" workflow (watch=True to wait for run completion)
         project.run("main", watch=True)
 
-    example (load from template)::
+    Example (load from template)::
 
         # create a new project from a zip template (can also use yaml/git templates)
         # initialize a local git, and register the git remote path
@@ -197,7 +198,7 @@ def new_project(
         project.run("main", watch=True)
 
 
-    example using project_setup.py to init the project objects::
+    Example using project_setup.py to init the project objects::
 
             def setup(project):
                 project.set_function(
@@ -1281,7 +1282,7 @@ class MlrunProject(ModelObj):
     ) -> str:
         """return the project artifact uri (store://..) from the artifact key
 
-        example::
+        Example::
 
             uri = project.get_artifact_uri("my_model", category="model", tag="prod", iter=0)
 
@@ -1459,7 +1460,7 @@ class MlrunProject(ModelObj):
     ):
         """add/set an artifact in the project spec (will be registered on load)
 
-        example::
+        Example::
 
             # register a simple file artifact
             project.set_artifact("data", target_path=data_url)
@@ -1610,7 +1611,7 @@ class MlrunProject(ModelObj):
 
         If the artifact already exists with the same key and tag, it will be overwritten.
 
-        example::
+        Example::
 
             project.log_artifact(
                 "some-data",
@@ -1714,7 +1715,7 @@ class MlrunProject(ModelObj):
 
         If the dataset already exists with the same key and tag, it will be overwritten.
 
-        example::
+        Example::
 
             raw_data = {
                 "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
@@ -1801,7 +1802,7 @@ class MlrunProject(ModelObj):
 
         If the model already exists with the same key and tag, it will be overwritten.
 
-        example::
+        Example::
 
             project.log_model(
                 "model",
@@ -1888,7 +1889,7 @@ class MlrunProject(ModelObj):
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         description: Optional[str] = None,
         target_path: Optional[str] = None,
         artifact_path: Optional[str] = None,
@@ -1908,13 +1909,51 @@ class MlrunProject(ModelObj):
 
         Examples::
 
+            # Log directly with an inline prompt template
+            project.log_llm_prompt(
+                key="customer_support_prompt",
+                prompt_template=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful customer support assistant.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "The customer reports: {issue_description}",
+                    },
+                ],
+                prompt_legend={
+                    "issue_description": {
+                        "field": "user_issue",
+                        "description": "Detailed description of the customer's issue",
+                    },
+                    "solution": {
+                        "field": "proposed_solution",
+                        "description": "Suggested fix for the customer's issue",
+                    },
+                },
+                model_artifact=model,
+                invocation_config={"temperature": 0.5, "max_tokens": 200},
+                description="Prompt for handling customer support queries",
+                tag="support-v1",
+                labels={"domain": "support"},
+            )
+
             # Log a prompt from file
             project.log_llm_prompt(
-                key="qa-prompt",
-                prompt_path="prompts/qa_template.txt",
-                prompt_legend={"question": "user_question"},
+                key="qa_prompt",
+                prompt_path="prompts/template.json",
+                prompt_legend={
+                    "question": {
+                        "field": "user_question",
+                        "description": "The actual question asked by the user",
+                    }
+                },
                 model_artifact=model,
+                invocation_config={"temperature": 0.7, "max_tokens": 256},
+                description="Q&A prompt template with user-provided question",
                 tag="v2",
+                labels={"task": "qa", "stage": "experiment"},
             )
 
         :param key: Unique key for the prompt artifact.
@@ -1923,18 +1962,23 @@ class MlrunProject(ModelObj):
          "role": "user", "content": "I need your help with {profession}"]. only "role" and "content" keys allow in any
          str format (upper/lower case), keys will be modified to lower case.
          Cannot be used with `prompt_path`.
-        :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
+        :param prompt_path: Path to a JSON file containing the prompt template.
+                            Cannot be used together with `prompt_template`.
+                            The file should define a list of dictionaries in the same format
+                            supported by `prompt_template`.
         :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
                and the value is a dictionary holding two keys, "field", "description". "field" points to the field in
                the event where the value of the place-holder inside the event, if None or not exist will be replaced
                with the place-holder name. "description" will point to explanation of what that placeholder represents.
                Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
-        :param model_configuration: Configuration dictionary for model generation parameters
+        :param invocation_config: Configuration dictionary for model generation parameters
                (e.g., temperature, max tokens).
-        :param description: Optional description of the prompt.
-        :param target_path: Optional local target path for saving prompt content.
-        :param artifact_path: Storage path for the logged artifact.
+        :param description:   Optional description of the prompt.
+        :param target_path:   Absolute target path (instead of using artifact_path + local_path)
+        :param artifact_path: Target artifact path (when not using the default)
+                              To define a subpath under the default location use:
+                              `artifact_path=context.artifact_subpath('data')`
         :param tag: Version tag for the artifact (e.g., "v1", "latest").
         :param labels: Labels to tag the artifact for filtering and organization.
         :param upload: Whether to upload the artifact to a remote datastore. Defaults to True.
@@ -1955,7 +1999,7 @@ class MlrunProject(ModelObj):
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             model_artifact=model_artifact,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             target_path=target_path,
             description=description,
             **kwargs,
@@ -2000,11 +2044,12 @@ class MlrunProject(ModelObj):
                                 This wrapper provides both access to the original vector
                                 store's capabilities and additional MLRun functionality.
 
-        Example:
-            >>> vector_store = Chroma(embedding_function=embeddings)
-            >>> collection = project.get_vector_store_collection(
-            ...     vector_store, collection_name="my_collection"
-            ... )
+        Example::
+
+            vector_store = Chroma(embedding_function=embeddings)
+            collection = project.get_vector_store_collection(
+                vector_store, collection_name="my_collection"
+            )
         """
         return VectorStoreCollection(
             self,
@@ -2055,16 +2100,17 @@ class MlrunProject(ModelObj):
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
 
-        Example:
-            >>> # Log a PDF document with custom loader
-            >>> project.log_document(
-            ...     local_path="path/to/doc.pdf",
-            ...     document_loader=DocumentLoaderSpec(
-            ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
-            ...         src_name="file_path",
-            ...         kwargs={"extract_images": True},
-            ...     ),
-            ... )
+        Example::
+
+            # Log a PDF document with custom loader
+            project.log_document(
+                local_path="path/to/doc.pdf",
+                document_loader=DocumentLoaderSpec(
+                    loader_class_name="langchain_community.document_loaders.PDFLoader",
+                    src_name="file_path",
+                    kwargs={"extract_images": True},
+                ),
+            )
 
         """
         if not key and not local_path and not target_path:
@@ -2343,8 +2389,9 @@ class MlrunProject(ModelObj):
         handler: Optional[str] = None,
         with_repo: Optional[bool] = None,
         tag: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
+        requirements: Optional[list[str]] = None,
         requirements_file: str = "",
+        local_path: Optional[str] = None,
         **application_kwargs,
     ) -> mlrun.runtimes.RemoteRuntime:
         """
@@ -2359,7 +2406,8 @@ class MlrunProject(ModelObj):
             )
 
         :param func:                    Remote function object or spec/code URL. :code:`None` refers to the current
-                                        notebook.
+                                        notebook. May also be a hub URL of a module of kind model-monitoring-app in the
+                                        format: hub://[{source}/]{name}[:{tag}].
         :param name:                    Name of the function (under the project), can be specified with a tag to support
                                         versions (e.g. myfunc:v1).
         :param image:                   Docker image to be used, can also be specified in
@@ -2374,6 +2422,8 @@ class MlrunProject(ModelObj):
         :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
+        :param local_path:              Path to a local directory to save the downloaded monitoring-app code files in,
+                                        in case 'func' is a hub URL (defaults to current working directory).
         :returns:                       The model monitoring remote function object.
         """
         (
@@ -2390,6 +2440,7 @@ class MlrunProject(ModelObj):
             tag,
             requirements,
             requirements_file,
+            local_path,
             **application_kwargs,
         )
         # save to project spec
@@ -2468,8 +2519,9 @@ class MlrunProject(ModelObj):
         handler: typing.Optional[str] = None,
         with_repo: typing.Optional[bool] = None,
         tag: typing.Optional[str] = None,
-        requirements: typing.Union[str, list[str], None] = None,
+        requirements: typing.Union[list[str], None] = None,
         requirements_file: str = "",
+        local_path: typing.Optional[str] = None,
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.RemoteRuntime, dict]:
         import mlrun.model_monitoring.api
@@ -2486,6 +2538,7 @@ class MlrunProject(ModelObj):
                 tag=tag,
                 requirements=requirements,
                 requirements_file=requirements_file,
+                local_path=local_path,
                 **application_kwargs,
             )
         elif isinstance(func, str) and isinstance(handler, str):
@@ -2531,7 +2584,7 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
-        fetch_credentials_from_sys_config: bool = False,
+        fetch_credentials_from_sys_config: bool = False,  # deprecated
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2566,14 +2619,20 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
                                                   Otherwise, deploy the model monitoring infrastructure on the
                                                   background, including the histogram data drift app if selected.
-        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
+                                                  configuration.
         """
+        if fetch_credentials_from_sys_config:
+            warnings.warn(
+                "`fetch_credentials_from_sys_config` is deprecated in 1.10.0 and will be removed in 1.12.0.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
         if base_period < 10:
             logger.warn(
                 "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
                 project=self.name,
             )
-
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,
@@ -2706,16 +2765,18 @@ class MlrunProject(ModelObj):
         | Creating a function with non project source is done by specifying a module ``handler`` and on the
          returned function set the source with ``function.with_source_archive(<source>)``.
 
-        Support URL prefixes:
+        Supported URL prefixes:
 
-            | Object (s3://, v3io://, ..)
-            | MLRun DB e.g. db://project/func:ver
-            | Functions hub/market: e.g. hub://auto-trainer:master
+        - Object: s3://, v3io://, etc.
+        - MLRun DB: e.g db://project/func:ver
+        - Function hub/market: e.g. hub://auto-trainer:master
 
         Examples::
 
             proj.set_function(func_object)
-            proj.set_function("http://.../mynb.ipynb", "train")
+            proj.set_function(
+                "http://.../mynb.ipynb", "train", kind="job", image="mlrun/mlrun"
+            )
             proj.set_function("./func.yaml")
             proj.set_function("hub://get_toy_data", "getdata")
 
@@ -2742,18 +2803,6 @@ class MlrunProject(ModelObj):
             # By providing a path to a pip requirements file
             proj.set_function("my.py", requirements="requirements.txt")
 
-        One of the most important parameters is 'kind', used to specify the chosen runtime. The options are:
-           - local: execute a local python or shell script
-           - job: insert the code into a Kubernetes pod and execute it
-           - nuclio: insert the code into a real-time serverless nuclio function
-           - serving: insert code into orchestrated nuclio function(s) forming a DAG
-           - dask: run the specified python code / script as Dask Distributed job
-           - mpijob: run distributed Horovod jobs over the MPI job operator
-           - spark: run distributed Spark job using Spark Kubernetes Operator
-           - remote-spark: run distributed Spark job on remote Spark service
-           - databricks: run code on Databricks cluster (python scripts, Spark etc.)
-           - application: run a long living application (e.g. a web server, UI, etc.)
-
         Learn more about :doc:`../../concepts/functions-overview`.
 
         :param func:                Function object or spec/code url, None refers to current Notebook
@@ -2761,8 +2810,20 @@ class MlrunProject(ModelObj):
                                     Versions (e.g. myfunc:v1). If the `tag` parameter is provided, the tag in the name
                                     must match the tag parameter.
                                     Specifying a tag in the name will update the project's tagged function (myfunc:v1)
-        :param kind:                Runtime kind e.g. job, nuclio, spark, dask, mpijob
-                                    Default: job
+        :param kind:                Default: job. One of
+
+                          - local: execute a local python or shell script
+                          - job: insert the code into a Kubernetes pod and execute it
+                          - nuclio: insert the code into a real-time serverless nuclio function
+                          - serving: insert code into orchestrated nuclio function(s) forming a DAG
+                          - dask: run the specified python code / script as Dask Distributed job
+                          - mpijob: run distributed Horovod jobs over the MPI job operator
+                          - spark: run distributed Spark job using Spark Kubernetes Operator
+                          - remote-spark: run distributed Spark job on remote Spark service
+                          - databricks: run code on Databricks cluster (python scripts, Spark etc.)
+                          - application: run a long living application (e.g. a web server, UI, etc.)
+                          - handler: execute a python handler (used automatically in notebooks or for debug)
+
         :param image:               Docker image to be used, can also be specified in the function object/yaml
         :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in
@@ -3360,7 +3421,12 @@ class MlrunProject(ModelObj):
         self._initialized = True
         return self.spec._function_objects
 
-    def with_secrets(self, kind, source, prefix=""):
+    def with_secrets(
+        self,
+        kind,
+        source,
+        prefix="",
+    ):
         """register a secrets source (file, env or dict)
 
         read secrets from a source provider to be used in workflows, example::
@@ -3382,12 +3448,19 @@ class MlrunProject(ModelObj):
 
         This will enable access to all secrets in vault registered to the current project.
 
-        :param kind:   secret type (file, inline, env, vault)
+        :param kind:   secret type (file, inline, env, vault, azure_vault)
         :param source: secret data or link (see example)
         :param prefix: add a prefix to the keys in this source
 
         :returns: project object
         """
+        # Block using mlrun-auth-secrets.* via azure_vault's k8s_secret param (client-side only)
+        if kind == "azure_vault" and isinstance(source, dict):
+            candidate_secret_name = (source.get("k8s_secret") or "").strip()
+            if candidate_secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(
+                    candidate_secret_name
+                )
 
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.name, "secrets": source}
@@ -3414,7 +3487,7 @@ class MlrunProject(ModelObj):
         when using a secrets file it should have lines in the form KEY=VALUE, comment line start with "#"
         V3IO paths/credentials and MLrun service API address are dropped from the secrets
 
-        example secrets file:
+        Example secrets file:
 
         .. code-block:: shell
 
@@ -3771,7 +3844,7 @@ class MlrunProject(ModelObj):
 
             import mlrun
             from mlrun.datastore.datastore_profile import (
-                DatastoreProfileKafkaSource,
+                DatastoreProfileKafkaStream,
                 DatastoreProfileTDEngine,
             )
 
@@ -3788,7 +3861,7 @@ class MlrunProject(ModelObj):
             project.register_datastore_profile(tsdb_profile)
 
             # Create and register stream profile
-            stream_profile = DatastoreProfileKafkaSource(
+            stream_profile = DatastoreProfileKafkaStream(
                 name="my-kafka",
                 brokers=["<kafka-broker-ip-address>:9094"],
                 topics=[],  # Keep the topics list empty
@@ -3830,9 +3903,9 @@ class MlrunProject(ModelObj):
 
         .. code-block:: python
 
-            from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+            from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
 
-            stream_profile = DatastoreProfileKafkaSource(
+            stream_profile = DatastoreProfileKafkaStream(
                 name="confluent-kafka",
                 brokers=["<server-domain-start>.confluent.cloud:9092"],
                 topics=[],
@@ -3855,13 +3928,14 @@ class MlrunProject(ModelObj):
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileTDEngine`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL`
 
                                           You need to register one of them, and pass the profile's name.
         :param stream_profile_name:       The datastore profile name of the stream to be used in model monitoring.
                                           The supported profiles are:
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
-                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream`
 
                                           You need to register one of them, and pass the profile's name.
         :param replace_creds:             If ``True`` - override the existing credentials.
@@ -3901,7 +3975,9 @@ class MlrunProject(ModelObj):
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         top_level: bool = False,
-        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: Optional[
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         tsdb_metrics: bool = False,
@@ -3917,7 +3993,7 @@ class MlrunProject(ModelObj):
         5) function_tag
         6) labels
         7) top level
-        8) mode
+        8) modes
         9) uids
         10) start and end time, corresponding to the `created` field.
         By default, when no filters are applied, all available endpoints for the given project will be listed.
@@ -3939,8 +4015,8 @@ class MlrunProject(ModelObj):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
-        :param mode:            Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set
-                                to None.
+        :param modes:           Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+                                "batch_legacy" (2). If set to None, all are included.
         :param uids:            If passed will return a list `ModelEndpoint` object with uid in uids.
         :param tsdb_metrics:    When True, the time series metrics will be added to the output
                                 of the resulting.
@@ -3962,7 +4038,7 @@ class MlrunProject(ModelObj):
             start=start,
             end=end,
             top_level=top_level,
-            mode=mode,
+            modes=modes,
             uids=uids,
             latest_only=latest_only,
             tsdb_metrics=tsdb_metrics,
@@ -3998,7 +4074,7 @@ class MlrunProject(ModelObj):
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
-        example (use with project)::
+        Example (use with project)::
 
             # create a project with two functions (local and from hub)
             project = mlrun.new_project(project_name, "./proj")
@@ -4057,7 +4133,12 @@ class MlrunProject(ModelObj):
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.
         :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
-        :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
+        :param retry:           Retry configuration for the run, can be a dict or an instance of
+                                :py:class:`~mlrun.model.Retry`.
+                                The `count` field in the `Retry` object specifies the number of retry attempts.
+                                If `count=0`, the run will not be retried.
+                                The `backoff` field specifies the retry backoff strategy between retry attempts.
+                                If not provided, the default backoff delay is 30 seconds.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         if artifact_path:
@@ -4832,7 +4913,7 @@ class MlrunProject(ModelObj):
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
-        example::
+        Example::
 
             functions = project.list_functions(tag="latest")
 
@@ -4970,21 +5051,27 @@ class MlrunProject(ModelObj):
         include_stats: bool = False,
         include_infra: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
-        """Get monitoring function summaries for the specified project.
-        :param start: Start time for filtering the results (optional).
-        :param end: End time for filtering the results (optional).
+        """
+        Get monitoring function summaries for the specified project.
+
+        :param start: The start time of the monitoring applications’ statistics.
+            If not defined, the default is 24 hours ago.
+            Required timezone, applicable only when `include_stats` is set to True.
+        :param end: The end time of the monitoring applications’ statistics.
+            If not defined, the default is now.
+            Required timezone, applicable only when `include_stats` is set to True.
         :param names: List of function names to filter by (optional).
         :param labels: Labels to filter by (optional).
         :param include_stats: Whether to include statistics in the response (default is False).
-        :param include_infra: whether to include model monitoring infrastructure functions (default is True).
+        :param include_infra: Whether to include model monitoring infrastructure functions (default is True).
+
         :return: A list of FunctionSummary objects containing information about the monitoring functions.
         """
 
-        if start is not None and end is not None:
-            if start.tzinfo is None or end.tzinfo is None:
-                raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                    "Custom start and end times must contain the timezone."
-                )
+        if (start and start.tzinfo is None) or (end and end.tzinfo is None):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Custom start and end times must contain the timezone."
+            )
 
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_monitoring_function_summaries(
@@ -5004,10 +5091,14 @@ class MlrunProject(ModelObj):
         end: Optional[datetime.datetime] = None,
         include_latest_metrics: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
-        """Get a monitoring function summary for the specified project and function name.
-        :param name:                   Name of the monitoring function to retrieve the summary for.
-        :param start:                  Start time for filtering the results (optional).
-        :param end:                    End time for filtering the results (optional).
+        """
+        Get a monitoring function summary for the specified project and function name.
+
+        :param name: Name of the monitoring function to retrieve the summary for.
+        :param start: The start time of the monitoring applications’ statistics.
+            If not defined, the default is 24 hours ago. Required timezone.
+        :param end: The end time of the monitoring applications’ statistics.
+            If not defined, the default is now. Required timezone.
         :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
 
         :return: A FunctionSummary object containing information about the monitoring function.

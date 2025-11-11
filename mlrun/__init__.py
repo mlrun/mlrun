@@ -24,6 +24,7 @@ __all__ = [
     "v3io_cred",
     "auto_mount",
     "VolumeMount",
+    "sync_secret_tokens",
 ]
 
 from os import environ, path
@@ -31,11 +32,13 @@ from typing import Optional
 
 import dotenv
 
+from .common.constants import MLRUN_ACTIVE_PROJECT
 from .config import config as mlconf
 from .datastore import DataItem, ModelProvider, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
+from .hub import get_hub_module, import_module
 from .model import RunObject, RunTemplate, new_task
 from .package import ArtifactType, DefaultPackager, Packager, handler
 from .projects import (
@@ -66,7 +69,7 @@ from .run import (
     wait_for_pipeline_completion,
 )
 from .runtimes import mounts, new_model_server
-from .secrets import get_secret_or_env
+from .secrets import get_secret_or_env, sync_secret_tokens
 from .utils.version import Version
 
 __version__ = Version().get()["version"]
@@ -167,11 +170,29 @@ def set_environment(
 
 
 def get_current_project(silent: bool = False) -> Optional[MlrunProject]:
-    if not pipeline_context.project and not silent:
+    if pipeline_context.project:
+        return pipeline_context.project
+
+    project_name = environ.get(MLRUN_ACTIVE_PROJECT, None)
+    if not project_name:
+        if not silent:
+            raise MLRunInvalidArgumentError(
+                "No current project is initialized. Use new, get or load project functions first."
+            )
+        return None
+
+    project = load_project(
+        name=project_name,
+        url=project_name,
+        save=False,
+        sync_functions=False,
+    )
+
+    if not project and not silent:
         raise MLRunInvalidArgumentError(
             "No current project is initialized. Use new, get or load project functions first."
         )
-    return pipeline_context.project
+    return project
 
 
 def get_sample_path(subpath=""):

@@ -453,6 +453,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     async def test_monitor_run_debouncing_non_terminal_state(
         self, db: Session, client: TestClient
     ):
+        # This test verifies that a run in a non-terminal state is not updated if it was already updated recently
+        # (i.e., within the debounce interval).
+        # It ensures the debounce logic correctly skips redundant updates for active runs.
+
         # set monitoring interval so debouncing will be active
         config.monitoring.runs.interval = 100
 
@@ -508,6 +512,57 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.running
         )
 
+    @pytest.mark.asyncio
+    async def test_monitor_run_debouncing_terminal_state(
+        self, db: Session, client: TestClient
+    ):
+        # This test verifies the debounce logic when the runtime has reached a terminal state but the DB still shows a
+        # recent non-terminal update. Initially, the update should be debounced.
+
+        # Set monitoring interval so debouncing will be active
+        config.monitoring.runs.interval = 100
+
+        # Simulate record still in non-terminal state ("running")
+        self.run["status"]["state"] = RunStates.running
+        original_update_run_updated_time = (
+            framework.utils.singletons.db.get_db()._update_run_updated_time
+        )
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
+            tests.conftest.freeze(original_update_run_updated_time, now=now_date())
+        )
+        services.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
+            original_update_run_updated_time
+        )
+
+        # Simulate runtime already in terminal state (extra one for the log collection)
+        self._mock_list_namespaced_pods([[self.running_job_pod]])
+
+        # Trigger monitoring - this should be debounced and not overwrite DB "running"
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        # Verify that debounce happened: state in DB should still be "running"
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.running
+        )
+
+        # Now simulate that debounce window has passed (simulate old update)
+        debounce_period = config.monitoring.runs.interval
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
+            tests.conftest.freeze(
+                original_update_run_updated_time,
+                now=now_date() - timedelta(seconds=2 * debounce_period),
+            )
+        )
+        services.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
+            original_update_run_updated_time
+        )
+
         # Mocking pod that is in terminal state (extra one for the log collection)
         self._mock_list_namespaced_pods(
             [[self.completed_job_pod], [self.completed_job_pod]]
@@ -516,10 +571,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # Mocking read log calls
         log = self._mock_read_namespaced_pod_log()
 
-        # Triggering monitor cycle
+        # Re-run monitor (now update should go through)
         self.runtime_handler.monitor_runs(get_db(), db)
 
-        # verifying monitoring was not debounced
+        # DB should now reflect the terminal state
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
@@ -831,6 +886,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     @pytest.mark.asyncio
     async def test_monitor_run_retry_exhausted(self, db: Session, client: TestClient):
+        # label the pods with the retry attempt (3). Without this, the pods would remain unlabeled and the monitor
+        # logic would treat them as outdated, causing them to be skipped.
+        for pod in [self.pending_job_pod, self.running_job_pod, self.failed_job_pod]:
+            pod.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] = "3"
+
         list_namespaced_pods_calls = [
             [self.pending_job_pod],
             [self.running_job_pod],
@@ -865,6 +925,87 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "reason": "Some reason",
                 "status_text": "Run failed after 4 attempts with error: Failed message",
             },
+        )
+
+    @pytest.mark.asyncio
+    async def test_retry_pod_deleted_before_first_attempt(
+        self, db: Session, client: TestClient
+    ):
+        # Test that a run still retries if the pod is deleted before the first retry attempt starts.
+        list_namespaced_pods_calls = [
+            [self.pending_job_pod],
+            [self.running_job_pod],
+            # simulate deleted pod
+            [],
+            [self.failed_job_pod],
+            # additional time for the get_logger_pods
+            [self.failed_job_pod],
+        ]
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_read_namespaced_pod_log()
+
+        # Simulate that no runtime resources are found
+        self.runtime_handler._get_runtime_resources = unittest.mock.Mock(
+            return_value=[]
+        )
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_pods_calls - 1
+        )
+
+        # Store the run with retry spec
+        self._store_run(
+            db,
+            retry_spec={"count": 3},
+        )
+
+        for _ in range(expected_monitor_cycles_to_reach_expected_state):
+            self.runtime_handler.monitor_runs(get_db(), db)
+
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, expected_number_of_list_pods_calls
+        )
+
+        self._assert_run_reached_state(
+            db,
+            self.project,
+            self.run_uid,
+            RunStates.pending_retry,
+            expected_status_attrs={
+                "reason": "Some reason",
+                "status_text": "Run failed attempt 1 of 4 with error: Failed message",
+            },
+        )
+
+    @pytest.mark.parametrize(
+        "pod_retry_label, run_retry_count, expected_result",
+        [
+            # first run, no retry label means pod is valid and not outdated
+            (None, 0, False),
+            # retry count > 0 and no retry label is present, pod is outdated
+            (None, 1, True),
+            # pod attempt is older than current run retry, pod is outdated
+            ("1", 2, True),
+            # pod attempt equals current run retry, pod is still valid
+            ("2", 2, False),
+            # edge case: pod attempt label is ahead of the run's retry count.
+            # this situation shouldn't normally occur, but if it does (e.g. due to a transient state or race condition),
+            # we treat the pod as valid (not outdated) to avoid skipping an active attempt.
+            ("3", 2, False),
+        ],
+    )
+    def test_is_pod_from_outdated_retry(
+        self, pod_retry_label, run_retry_count, expected_result
+    ):
+        pod = self._generate_pod("pod", self.job_labels, PodPhases.pending)
+        if pod_retry_label is not None:
+            pod.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] = (
+                pod_retry_label
+            )
+        self.run["status"]["retry_count"] = run_retry_count
+        assert (
+            self.runtime_handler._is_pod_from_outdated_retry(pod.to_dict(), self.run)
+            is expected_result
         )
 
     def _mock_list_resources_pods(self, pod=None):

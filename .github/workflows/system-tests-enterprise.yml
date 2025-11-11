@@ -17,6 +17,9 @@ name: System Tests Enterprise
 permissions:
   contents: read
 
+env:
+  MLRUN_PYTHON_PACKAGE_INSTALLER: uv
+
 on:
   push:
     branches:
@@ -53,13 +56,13 @@ jobs:
     name: System Test Cleanup
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: ubuntu:latest
+      image: gcr.io/iguazio/ubuntu:latest
     timeout-minutes: 10
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass
@@ -94,19 +97,27 @@ jobs:
     name: Prepare System Tests Enterprise
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: python:3.9
+      image: gcr.io/iguazio/python:3.11
     needs: [system-test-cleanup]
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass jq curl gnupg nodejs
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v6
       with:
         node-version: 18
+    - name: Install uv
+      uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # 7.1.2
+      with:
+        enable-cache: true
+        python-version: 3.11
+        cache-dependency-glob: |
+          **/*requirements*.txt
+
     - name: Copy state branch file from remote
       run: |
         sshpass \
@@ -167,11 +178,13 @@ jobs:
       # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
       # before merging the changes to upstream.
     - name: Checkout base branch
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install automation scripts dependencies
       run: |
-        python -m pip install -r automation/requirements.txt
+        uv venv venv --seed
+        . venv/bin/activate
+        make install-automation-requirements
 
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
@@ -182,7 +195,7 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
+          git rev-list --until="3 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
 
@@ -191,7 +204,7 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
+          git rev-list --until="3 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
 
@@ -231,6 +244,7 @@ jobs:
         IP_ADDR_PREFIX: ${{ secrets.IP_ADDR_PREFIX }}
       timeout-minutes: 50
       run: |
+        . venv/bin/activate
         python automation/system_test/prepare.py run \
           --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
@@ -249,6 +263,7 @@ jobs:
     - name: Prepare System Test env.yml and MLRun installation from current branch
       timeout-minutes: 5
       run: |
+        . venv/bin/activate
         python automation/system_test/prepare.py env \
           --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
@@ -258,6 +273,8 @@ jobs:
           --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}" \
           --save-to-path "$GITHUB_WORKSPACE/env.yml" \
           --kubeconfig-content "${{ secrets.LATEST_SYSTEM_TEST_KUBECONFIG }}"
 
@@ -275,7 +292,7 @@ jobs:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Upload env file
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: env
         path: "${{ steps.encrypt_file.outputs.env_file_path }}"
@@ -294,7 +311,7 @@ jobs:
     needs: [prepare-system-tests-enterprise-ci]
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
-      image: python:3.9
+      image: gcr.io/iguazio/python:3.11
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
     strategy:
@@ -329,18 +346,26 @@ jobs:
             gcc \
             make
 
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v6
       with:
         node-version: 18
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
       # the system tests of the branch that triggered the system tests as it might be in a different version
       # than the mlrun version we deployed on the previous job (can have features that the resolved branch doesn't have)
       with:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
 
-    - uses: actions/download-artifact@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # 7.1.2
+      with:
+        enable-cache: true
+        python-version: 3.11
+        cache-dependency-glob: |
+          **/*requirements*.txt
+
+    - uses: actions/download-artifact@v6
       with:
         name: env
         path: /tmp
@@ -365,11 +390,14 @@ jobs:
         # https://github.com/git/git/commit/8959555cee7ec045958f9b6dd62e541affb7e7d9
         # ensure mlrun git is safe to use
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        uv venv venv --seed
+        . venv/bin/activate
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
           make install-requirements install-complete-kfp-requirements update-version-file
 
     - name: Run System Tests
       run: |
+        . venv/bin/activate
         MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \

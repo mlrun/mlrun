@@ -16,7 +16,11 @@ from collections.abc import Awaitable
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import mlrun
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    ModelProvider,
+    UsageResponseKeys,
+)
 from mlrun.datastore.utils import accepts_param
 
 if TYPE_CHECKING:
@@ -38,6 +42,7 @@ class OpenAIProvider(ModelProvider):
     """
 
     support_async = True
+    response_class = None
 
     def __init__(
         self,
@@ -62,7 +67,31 @@ class OpenAIProvider(ModelProvider):
             default_invoke_kwargs=default_invoke_kwargs,
         )
         self.options = self.get_client_options()
-        self.load_client()
+
+    @classmethod
+    def _import_response_class(cls) -> None:
+        if not cls.response_class:
+            try:
+                from openai.types.chat.chat_completion import ChatCompletion
+            except ImportError as exc:
+                raise ImportError("openai package is not installed") from exc
+            cls.response_class = ChatCompletion
+
+    @staticmethod
+    def _extract_string_output(response: "ChatCompletion") -> str:
+        """
+        Extracts the text content of the first choice from an OpenAI ChatCompletion response.
+        Only supports responses with a single choice. Raises an error if multiple choices exist.
+
+        :param response: The ChatCompletion response from OpenAI.
+        :return: The text content of the first message in the response.
+        :raises MLRunInvalidArgumentError: If the response contains more than one choice.
+        """
+        if len(response.choices) != 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "OpenAIProvider: extracting string from response is only supported for single-response outputs"
+            )
+        return response.choices[0].message.content
 
     @classmethod
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
@@ -72,24 +101,57 @@ class OpenAIProvider(ModelProvider):
             subpath = ""
         return endpoint, subpath
 
+    @property
+    def client(self) -> Any:
+        """
+        Lazily return the synchronous OpenAI client.
+
+        If the client has not been initialized yet, it will be created
+        by calling `load_client`.
+        """
+        self.load_client()
+        return self._client
+
     def load_client(self) -> None:
         """
-        Initializes the OpenAI SDK client using the provided options.
+        Lazily initialize the synchronous OpenAI client.
 
-        This method imports the `OpenAI` class from the `openai` package, instantiates
-        a client with the given keyword arguments (`self.options`), and assigns it to
-        `self._client` and `self._async_client`.
-
-        Raises:
-            ImportError: If the `openai` package is not installed.
+        The client is created only if it does not already exist.
+        Raises ImportError if the openai package is not installed.
         """
+        if self._client:
+            return
         try:
-            from openai import OpenAI, AsyncOpenAI  # noqa
+            from openai import OpenAI  # noqa
 
             self._client = OpenAI(**self.options)
-            self._async_client = AsyncOpenAI(**self.options)
         except ImportError as exc:
             raise ImportError("openai package is not installed") from exc
+
+    def load_async_client(self) -> None:
+        """
+        Lazily initialize the asynchronous OpenAI client.
+
+        The client is created only if it does not already exist.
+        Raises ImportError if the openai package is not installed.
+        """
+        if not self._async_client:
+            try:
+                from openai import AsyncOpenAI  # noqa
+
+                self._async_client = AsyncOpenAI(**self.options)
+            except ImportError as exc:
+                raise ImportError("openai package is not installed") from exc
+
+    @property
+    def async_client(self) -> Any:
+        """
+        Return the asynchronous OpenAI client, creating it on first access.
+
+        The client is lazily initialized via `load_async_client`.
+        """
+        self.load_async_client()
+        return self._async_client
 
     def get_client_options(self) -> dict:
         res = dict(
@@ -106,25 +168,37 @@ class OpenAIProvider(ModelProvider):
         self, operation: Optional[Callable] = None, **invoke_kwargs
     ) -> Union["ChatCompletion", "BaseModel"]:
         """
-        OpenAI-specific implementation of `ModelProvider.custom_invoke`.
+        Invokes a model operation from the OpenAI client with the given keyword arguments.
 
-        Invokes an OpenAI model operation using the sync client. For full details, see
-        `ModelProvider.custom_invoke`.
+        This method provides flexibility to either:
+        - Call a specific OpenAI client operation (e.g., `client.images.generate`).
+        - Default to `chat.completions.create` when no operation is provided.
+
+        The operation must be a callable that accepts keyword arguments. If the callable
+        does not accept a `model` parameter, it will be omitted from the call.
 
         Example:
             ```python
-            result = openai_model_provider.invoke(
+            result = openai_model_provider.custom_invoke(
                 openai_model_provider.client.images.generate,
                 prompt="A futuristic cityscape at sunset",
                 n=1,
                 size="1024x1024",
             )
             ```
-        :param      operation:      Same as ModelProvider.custom_invoke.
-        :param      invoke_kwargs:  Same as ModelProvider.custom_invoke.
-        :return:                    Same as ModelProvider.custom_invoke.
 
+        :param operation:       A callable representing the OpenAI operation to invoke.
+                                If not provided, defaults to `client.chat.completions.create`.
+
+        :param invoke_kwargs:   Additional keyword arguments to pass to the operation.
+                                These are merged with `default_invoke_kwargs` and may
+                                include parameters such as `temperature`, `max_tokens`,
+                                or `messages`.
+
+        :return:                The full response returned by the operation, typically
+                                an OpenAI `ChatCompletion` or other OpenAI SDK model.
         """
+
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
 
@@ -145,24 +219,35 @@ class OpenAIProvider(ModelProvider):
         **invoke_kwargs,
     ) -> Union["ChatCompletion", "BaseModel"]:
         """
-        OpenAI-specific implementation of `ModelProvider.async_custom_invoke`.
+        Asynchronously invokes a model operation from the OpenAI client with the given keyword arguments.
 
-        Invokes an OpenAI model operation using the async client. For full details, see
-        `ModelProvider.async_custom_invoke`.
+        This method provides flexibility to either:
+        - Call a specific async OpenAI client operation (e.g., `async_client.images.generate`).
+        - Default to `chat.completions.create` when no operation is provided.
+
+        The operation must be an async callable that accepts keyword arguments.
+        If the callable does not accept a `model` parameter, it will be omitted from the call.
 
         Example:
-        ```python
-            result = openai_model_provider.invoke(
+            ```python
+            result = await openai_model_provider.async_custom_invoke(
                 openai_model_provider.async_client.images.generate,
                 prompt="A futuristic cityscape at sunset",
                 n=1,
                 size="1024x1024",
             )
-        ```
+            ```
 
-        :param operation:       Same as ModelProvider.async_custom_invoke.
-        :param invoke_kwargs:   Same as ModelProvider.async_custom_invoke.
-        :return:                Same as ModelProvider.async_custom_invoke.
+        :param operation:       An async callable representing the OpenAI operation to invoke.
+                                If not provided, defaults to `async_client.chat.completions.create`.
+
+        :param invoke_kwargs:   Additional keyword arguments to pass to the operation.
+                                These are merged with `default_invoke_kwargs` and may
+                                include parameters such as `temperature`, `max_tokens`,
+                                or `messages`.
+
+        :return:                The full response returned by the awaited operation,
+                                typically an OpenAI `ChatCompletion` or other OpenAI SDK model.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -180,60 +265,133 @@ class OpenAIProvider(ModelProvider):
                 **invoke_kwargs, **model_kwargs
             )
 
+    def _response_handler(
+        self,
+        response: "ChatCompletion",
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **kwargs,
+    ) -> ["ChatCompletion", str, dict[str, Any]]:
+        if InvokeResponseFormat.is_str_response(invoke_response_format.value):
+            str_response = self._extract_string_output(response)
+            if invoke_response_format == InvokeResponseFormat.STRING:
+                return str_response
+            if invoke_response_format == InvokeResponseFormat.USAGE:
+                usage = response.to_dict()["usage"]
+                response = {
+                    UsageResponseKeys.ANSWER: str_response,
+                    UsageResponseKeys.USAGE: usage,
+                }
+        return response
+
     def invoke(
         self,
-        messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        messages: list[dict],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, "ChatCompletion"]:
+    ) -> Union[dict[str, Any], str, "ChatCompletion"]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
-        Invokes an OpenAI model operation using the sync client.
-        For full details, see `ModelProvider.invoke`.
+        Invokes an OpenAI model operation using the synchronous client.
 
-        :param messages:    Same as ModelProvider.invoke.
+        :param messages:
+            A list of dictionaries representing the conversation history or input messages.
+            Each dictionary should follow the format::
+                {
+                    "role": "system" | "user" | "assistant",
+                    "content": "Message content as a string",
+                }
 
-        :param as_str: bool
-                            If `True`, returns only the main content of the first response
-                            (`response.choices[0].message.content`).
-                            If `False`, returns the full response object, whose type depends on
-                            the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
+            Example:
+
+            .. code-block:: json
+
+                [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "What is the capital of France?"}
+                ]
+
+            Defaults to None if no messages are provided.
+
+        :param invoke_response_format:
+            Specifies the format of the returned response. Options:
+
+            - "string": Returns only the generated text content, taken from a single response.
+            - "usage": Combines the generated text with metadata (e.g., token usage), returning a dictionary::
+
+                .. code-block:: json
+                   {
+                       "answer": "<generated_text>",
+                       "usage": <ChatCompletion>.to_dict()["usage"]
+                   }
+
+            - "full": Returns the full OpenAI `ChatCompletion` object.
 
         :param invoke_kwargs:
-                            Same as ModelProvider.invoke.
-        :return:            Same as ModelProvider.invoke.
+            Additional keyword arguments passed to the OpenAI client.
 
+        :return:
+            A string, dictionary, or `ChatCompletion` object, depending on `invoke_response_format`.
         """
+
         response = self.custom_invoke(messages=messages, **invoke_kwargs)
-        if as_str:
-            return response.choices[0].message.content
-        return response
+        return self._response_handler(
+            messages=messages,
+            invoke_response_format=invoke_response_format,
+            response=response,
+        )
 
     async def async_invoke(
         self,
-        messages: Optional[list[dict]] = None,
-        as_str: bool = False,
+        messages: list[dict],
+        invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, "ChatCompletion"]:
+    ) -> Union[str, "ChatCompletion", dict]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
-        Invokes an OpenAI model operation using the async client.
-        For full details, see `ModelProvider.async_invoke`.
+        Invokes an OpenAI model operation using the asynchronous client.
 
-        :param messages:    Same as ModelProvider.async_invoke.
+        :param messages:
+            A list of dictionaries representing the conversation history or input messages.
+            Each dictionary should follow the format::
+                {
+                    "role": "system" | "user" | "assistant",
+                    "content": "Message content as a string",
+                }
 
-        :param as_str: bool
-                            If `True`, returns only the main content of the first response
-                            (`response.choices[0].message.content`).
-                            If `False`, returns the full awaited response object, whose type depends on
-                            the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
+            Example:
+
+            .. code-block:: json
+
+                [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "What is the capital of France?"}
+                ]
+
+            Defaults to None if no messages are provided.
+
+        :param invoke_response_format:
+            Specifies the format of the returned response. Options:
+
+            - "string": Returns only the generated text content, taken from a single response.
+            - "usage": Combines the generated text with metadata (e.g., token usage), returning a dictionary::
+
+                .. code-block:: json
+                   {
+                       "answer": "<generated_text>",
+                       "usage": <ChatCompletion>.to_dict()["usage"]
+                   }
+
+            - "full": Returns the full OpenAI `ChatCompletion` object.
 
         :param invoke_kwargs:
-                            Same as ModelProvider.async_invoke.
-        :returns            Same as ModelProvider.async_invoke.
+            Additional keyword arguments passed to the OpenAI client.
 
+        :return:
+            A string, dictionary, or `ChatCompletion` object, depending on `invoke_response_format`.
         """
         response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
-        if as_str:
-            return response.choices[0].message.content
-        return response
+        return self._response_handler(
+            messages=messages,
+            invoke_response_format=invoke_response_format,
+            response=response,
+        )

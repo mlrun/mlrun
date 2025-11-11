@@ -1,7 +1,7 @@
 (mm-applications)=
 # Writing a model monitoring application
 
-Learn how to create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the ModelMonitoringApplicationBase class. 
+Learn how to create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the `ModelMonitoringApplicationBase` class.
 
 **In this section**
 - [Basics](#basics)
@@ -48,6 +48,7 @@ The application class may implement a custom `__init__` constructor with argumen
 
 To register and deploy the application see {ref}`register-model-monitoring-app`.
 
+(testing-application-evaluate)=
 ## Testing your application before deploying it
 
 You can run and debug your application as a job with data, but without a model endpoint or datastore profiles. This reduces
@@ -181,5 +182,4 @@ It is recommended to specify the exact version of the `evidently` package for re
 `from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION`.
 ```
 
-See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.ipynb#deploying-evidently-based-app).
-
+See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.ipynb#deploying-an-evidently-based-app).

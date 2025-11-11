@@ -16,8 +16,10 @@ import asyncio
 import copy
 import json
 import typing
+import warnings
 from datetime import datetime
 from time import sleep
+from urllib.parse import urlparse, urlunparse
 
 import inflection
 import nuclio
@@ -29,6 +31,7 @@ from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.common.constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
@@ -298,29 +301,16 @@ class RemoteRuntime(KubeResource):
             return {}
 
         raw_config = copy.deepcopy(self.spec.config)
-
         for key, value in self.spec.config.items():
             if key.startswith("spec.triggers"):
-                trigger_name = key.split(".")[-1]
-
-                for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
-                    # Handle nested keys
-                    nested_keys = path.split("/")
-                    target = value
-                    for sub_key in nested_keys[:-1]:
-                        target = target.get(sub_key, {})
-
-                    last_key = nested_keys[-1]
-                    if last_key in target:
-                        sensitive_field = target[last_key]
-                        if sensitive_field.startswith(
-                            mlrun.model.Credentials.secret_reference_prefix
-                        ):
-                            # already masked
-                            continue
-                        target[last_key] = (
-                            f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
-                        )
+                # support both types depending on the way how it was set
+                # sometimes trigger name is in the same key, sometimes it's nested in the value dict
+                if key == "spec.triggers":
+                    for trigger_name, trigger_config in value.items():
+                        self._mask_trigger_config(trigger_name, trigger_config)
+                else:
+                    trigger_name = key.split(".")[-1]
+                    self._mask_trigger_config(trigger_name, value)
 
         return raw_config
 
@@ -422,6 +412,18 @@ class RemoteRuntime(KubeResource):
                 )
         """
         self.spec.build.source = source
+
+        code = (
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        )
+        if code:
+            # Warn and clear any inline code so the archive is actually used
+            logger.warning(
+                "Cannot specify both code and source archive. Removing the code so the provided "
+                "source archive will be used instead."
+            )
+            self.spec.build.functionSourceCode = None
+
         # update handler in function_handler if needed
         if handler:
             self.spec.function_handler = handler
@@ -830,7 +832,8 @@ class RemoteRuntime(KubeResource):
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
         runtime_env = {
-            "MLRUN_ACTIVE_PROJECT": self.metadata.project or mlconf.active_project,
+            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
+            or mlconf.active_project,
         }
         if mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url
@@ -966,24 +969,6 @@ class RemoteRuntime(KubeResource):
         self._mock_server = None
 
         if "://" not in path:
-            if not self.status.address:
-                # here we check that if default http trigger is disabled, function contains a custom http trigger
-                # Otherwise, the function is not invokable, so we raise an error
-                if (
-                    not self._trigger_of_kind_exists(kind="http")
-                    and self.spec.disable_default_http_trigger
-                ):
-                    raise mlrun.errors.MLRunPreconditionFailedError(
-                        "Default http trigger creation is disabled and there is no any other custom http trigger, "
-                        "so function can not be invoked via http. Either enable default http trigger creation or "
-                        "create custom http trigger"
-                    )
-                state, _, _ = self._get_state()
-                if state not in ["ready", "scaledToZero"]:
-                    logger.warning(f"Function is in the {state} state")
-                if not self.status.address:
-                    raise ValueError("no function address first run .deploy()")
-
             path = self._resolve_invocation_url(path, force_external_address)
 
         if headers is None:
@@ -1043,6 +1028,9 @@ class RemoteRuntime(KubeResource):
             sidecar["image"] = image
 
         ports = mlrun.utils.helpers.as_list(ports)
+        if len(ports) > 1:
+            mlrun.runtimes.nuclio.multiple_port_sidecar_is_supported()
+
         # according to RFC-6335, port name should be less than 15 characters,
         # so we truncate it if needed and leave room for the index
         port_name = name[:13].rstrip("-_") if len(name) > 13 else name
@@ -1077,6 +1065,79 @@ class RemoteRuntime(KubeResource):
 
         sidecars.append({"name": name})
         return sidecars[-1]
+
+    def _mask_trigger_config(self, trigger_name, trigger_config):
+        self._mask_rabbitmq_url(trigger=trigger_config)
+        for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
+            # Handle nested keys
+            nested_keys = path.split("/")
+            target = trigger_config
+            for sub_key in nested_keys[:-1]:
+                target = target.get(sub_key, {})
+
+            last_key = nested_keys[-1]
+            if last_key in target:
+                sensitive_field = target[last_key]
+                if sensitive_field.startswith(
+                    mlrun.model.Credentials.secret_reference_prefix
+                ):
+                    # already masked
+                    continue
+                target[last_key] = (
+                    f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
+                )
+
+    @staticmethod
+    def _mask_rabbitmq_url(trigger):
+        """
+        Extract credentials from RabbitMQ URL and move them to attributes dict.
+        This ensures credentials are not exposed in the URL.
+        """
+
+        # supported only for nuclio higher than 1.14.15
+        if not validate_nuclio_version_compatibility("1.14.15"):
+            return
+        if not isinstance(trigger, dict):
+            return
+
+        if trigger.get("kind") != "rabbit-mq":
+            return
+
+        url = trigger.get("url")
+        if not url or not isinstance(url, str):
+            return
+
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            raise mlrun.errors.MLRunValueError("invalid URL format")
+
+        # Only process if credentials are present in the URL
+        if not (parsed.username or parsed.password):
+            return
+
+        # Extract credentials
+        username = parsed.username or ""
+        password = parsed.password or ""
+
+        # Reconstruct clean URL
+        hostname = parsed.hostname or ""
+        netloc = f"{hostname}:{parsed.port}" if parsed.port else hostname
+
+        clean_url = urlunparse(
+            (
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment,
+            )
+        )
+
+        # Update trigger safely
+        trigger["url"] = clean_url
+        trigger.update({"username": username, "password": password})
 
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:
@@ -1223,19 +1284,54 @@ class RemoteRuntime(KubeResource):
         # internal / external invocation urls is a nuclio >= 1.6.x feature
         # try to infer the invocation url from the internal and if not exists, use external.
         # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc.)
+
+        # if none of urls is set, function was deployed with watch=False
+        # and status wasn't fetched with Nuclio
+        # _get_state fetches the state and updates url
+        if (
+            not self.status.address
+            and not self.status.internal_invocation_urls
+            and not self.status.external_invocation_urls
+        ):
+            state, _, _ = self._get_state()
+            if state not in ["ready", "scaledToZero"]:
+                logger.warning(f"Function is in the {state} state")
+
+        # prefer internal invocation url if running inside k8s cluster
         if (
             not force_external_address
             and self.status.internal_invocation_urls
             and mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
         ):
-            return mlrun.utils.helpers.join_urls(
+            url = mlrun.utils.helpers.join_urls(
                 f"http://{self.status.internal_invocation_urls[0]}", path
             )
+            logger.debug(
+                f"Using internal invocation url {url}. Make sure you have network access to the k8s cluster. "
+                f"Otherwise, set force_external_address to True"
+            )
+            return url
 
         if self.status.external_invocation_urls:
             return mlrun.utils.helpers.join_urls(
                 f"http://{self.status.external_invocation_urls[0]}", path
             )
+
+        if not self.status.address:
+            # if there is no address
+            # here we check that if default http trigger is disabled, function contains a custom http trigger
+            # Otherwise, the function is not invokable, so we raise an error
+            if (
+                not self._trigger_of_kind_exists(kind="http")
+                and self.spec.disable_default_http_trigger
+            ):
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    "Default http trigger creation is disabled and there is no any other custom http trigger, "
+                    "so function can not be invoked via http. Either enable default http trigger creation or "
+                    "create custom http trigger"
+                )
+            else:
+                raise ValueError("no function address first run .deploy()")
         else:
             return mlrun.utils.helpers.join_urls(f"http://{self.status.address}", path)
 
@@ -1289,6 +1385,8 @@ class RemoteRuntime(KubeResource):
     def get_url(
         self,
         force_external_address: bool = False,
+        # leaving auth_info for BC
+        # TODO: remove in 1.12.0
         auth_info: AuthInfo = None,
     ):
         """
@@ -1299,13 +1397,12 @@ class RemoteRuntime(KubeResource):
 
         :return: returns function's url
         """
-        if not self.status.address:
-            state, _, _ = self._get_state(auth_info=auth_info)
-            if state != "ready" or not self.status.address:
-                raise ValueError(
-                    "no function address or not ready, first run .deploy()"
-                )
-
+        if auth_info:
+            warnings.warn(
+                "'auth_info' is deprecated in 1.10.0 and will be removed in 1.12.0.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
         return self._resolve_invocation_url("", force_external_address)
 
     @staticmethod
@@ -1456,3 +1553,10 @@ def enrich_nuclio_function_from_headers(
         else []
     )
     func.status.container_image = headers.get("x-mlrun-container-image", "")
+
+
+@min_nuclio_versions("1.14.14")
+def multiple_port_sidecar_is_supported():
+    # multiple ports are supported from nuclio version 1.14.14
+    # this method exists only for running the min_nuclio_versions decorator
+    return True

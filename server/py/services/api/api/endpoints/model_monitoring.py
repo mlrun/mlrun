@@ -15,21 +15,31 @@
 import http
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 
 import fastapi
 import semver
-from fastapi import APIRouter, Depends, Header, Path, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
+import mlrun.model_monitoring.helpers
+from mlrun.utils import logger
 
 import framework.api.utils
 import framework.utils.auth.verifier
+import services.api.api.endpoints.model_endpoints
+import services.api.common.constants as api_constants
 from framework.api import deps
 from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api.endpoints.nuclio import process_model_monitoring_secret
 from services.api.crud.model_monitoring.deployment import MonitoringDeployment
+
+ProjectAnnotation = api_constants.ProjectAnnotation
+EndpointIDAnnotation = api_constants.EndpointIDAnnotation
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
 
@@ -49,8 +59,17 @@ class _CommonParams:
             self.model_monitoring_access_key = process_model_monitoring_secret(
                 self.db_session,
                 self.project,
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                mm_constants.ProjectSecretKeys.ACCESS_KEY,
             )
+
+    def get_monitoring_deployment(self) -> MonitoringDeployment:
+        """Get the MonitoringDeployment instance for the current project"""
+        return MonitoringDeployment(
+            project=self.project,
+            auth_info=self.auth_info,
+            db_session=self.db_session,
+            model_monitoring_access_key=self.model_monitoring_access_key,
+        )
 
 
 async def _verify_authorization(
@@ -61,7 +80,8 @@ async def _verify_authorization(
 ) -> None:
     """Verify project authorization"""
     if (
-        semver.Version.parse(client_version)
+        client_version
+        and semver.Version.parse(client_version)
         < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
         and "unstable" not in client_version
     ):
@@ -70,20 +90,19 @@ async def _verify_authorization(
             reason=f"Model monitoring is supported from client version {MINIMUM_CLIENT_VERSION_FOR_MM}. "
             f"Please upgrade your client accordingly.",
         )
-    await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project_name=project,
-        resource_name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        action=action,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
+            project_name=project,
+            resource_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            action=action,
+            auth_info=auth_info,
+        )
     )
 
 
 async def _common_parameters(
-    project: Annotated[
-        str,
-        Path(pattern=mlrun.common.schemas.model_monitoring.constants.PROJECT_PATTERN),
-    ],
+    project: ProjectAnnotation,
     auth_info: Annotated[
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
@@ -112,7 +131,7 @@ async def _common_parameters(
 
 
 @router.put("/")
-async def enable_model_monitoring(
+def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
@@ -127,7 +146,13 @@ async def enable_model_monitoring(
             "then send a PUT request to the same endpoint with the updated image."
         ),
     ),
-    fetch_credentials_from_sys_config: bool = False,
+    fetch_credentials_from_sys_config: bool = Query(
+        False,
+        deprecated=True,
+        description=(
+            "`fetch_credentials_from_sys_config` is deprecated as of 1.10.0 and will be removed in 1.12.0."
+        ),
+    ),
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -146,15 +171,10 @@ async def enable_model_monitoring(
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
     :param rebuild_images:                    Deprecated. If true, force rebuild of model monitoring infrastructure
                                               images (controller, writer & stream).
-    :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+    :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
 
     """
-    MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).deploy_monitoring_functions(
+    commons.get_monitoring_deployment().deploy_monitoring_functions(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
@@ -163,7 +183,7 @@ async def enable_model_monitoring(
 
 
 @router.patch("/controller")
-async def update_model_monitoring_controller(
+def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
@@ -182,7 +202,7 @@ async def update_model_monitoring_controller(
     try:
         # validate that the model monitoring stream has not yet been deployed
         mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-            name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             project=commons.project,
             tag="",
             auth_info=commons.auth_info,
@@ -190,16 +210,11 @@ async def update_model_monitoring_controller(
 
     except mlrun.errors.MLRunNotFoundError:
         raise mlrun.errors.MLRunNotFoundError(
-            f"{mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER} does not exist. "
+            f"{mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} does not exist. "
             f"Run `project.enable_model_monitoring()` first."
         )
 
-    return MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).deploy_model_monitoring_controller(
+    return commons.get_monitoring_deployment().deploy_model_monitoring_controller(
         controller_image=image,
         base_period=base_period,
         overwrite=True,
@@ -248,12 +263,7 @@ async def disable_model_monitoring(
                                                 in order to delete the desired application.
 
     """
-    tasks = await MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).disable_model_monitoring(
+    tasks = await commons.get_monitoring_deployment().disable_model_monitoring(
         delete_resources=delete_resources,
         delete_stream_function=delete_stream_function,
         delete_histogram_data_drift_app=delete_histogram_data_drift_app,
@@ -287,12 +297,7 @@ async def delete_model_monitoring_function(
     :param response:                            The response.
     :param functions:                           List of the user's model monitoring application to delete.
     """
-    tasks = await MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).disable_model_monitoring(
+    tasks = await commons.get_monitoring_deployment().disable_model_monitoring(
         delete_resources=False,
         delete_stream_function=False,
         delete_histogram_data_drift_app=False,
@@ -321,12 +326,7 @@ def set_model_monitoring_credentials(
                                       The profile can be V3IO or KafkaSource.
     :param replace_creds:             If True, it will force the credentials update. By default, False.
     """
-    MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).set_credentials(
+    commons.get_monitoring_deployment().set_credentials(
         tsdb_profile_name=tsdb_profile_name,
         stream_profile_name=stream_profile_name,
         replace_creds=replace_creds,
@@ -343,10 +343,7 @@ class _FunctionSummariesParams:
 
 
 async def _common_function_parameters(
-    project: Annotated[
-        str,
-        Path(pattern=mlrun.common.schemas.model_monitoring.constants.PROJECT_PATTERN),
-    ],
+    project: api_constants.ProjectAnnotation,
     auth_info: Annotated[
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
@@ -372,24 +369,19 @@ async def _common_function_parameters(
         client_version=client_version,
         action=mlrun.common.schemas.AuthorizationAction.read,
     )
+    if (start and start.tzinfo is None) or (end and end.tzinfo is None):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Custom start and end times must contain the timezone."
+        )
     if start is None and end is None:
         end = mlrun.utils.helpers.datetime_now()
         start = end - timedelta(days=1)
     elif start is not None and end is not None:
-        if start.tzinfo is None or end.tzinfo is None:
-            raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                "Custom start and end times must contain the timezone."
-            )
         if start > end:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The start time must be before the end time. Note that if end time is not provided, "
                 "the current time is used by default."
             )
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Provided only one of start time, end time. Please provide both or neither."
-        )
-
     return _FunctionSummariesParams(
         project=project,
         auth_info=auth_info,
@@ -458,3 +450,124 @@ async def get_model_monitoring_function_summary(
         name=function_name,
         include_latest_metrics=include_latest_metrics,
     )
+
+
+@router.get(
+    "/metrics",
+    response_model=dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
+)
+async def get_model_endpoints_metrics_values(
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
+    type: Literal["results", "metrics", "all"] = "all",
+    endpoint_ids: list[api_constants.EndpointIDAnnotation] = Query(
+        [], alias="endpoint-id"
+    ),
+    events_format: mm_constants.GetEventsFormat = Query(None, alias="events-format"),
+) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
+    """
+    :param commons:          The common parameters of the request.
+    :param type:          The type of the metrics to return. "all" means "results"
+                          and "metrics".
+    :param endpoint_ids:  The unique id of the model endpoint. Can be a single id or a list of ids.
+    :param events_format: response format:
+                          separation: {"mep_id1":[...], "mep_id2":[...]}
+                          intersection {"intersect_metrics":[], "intersect_results":[]}
+    :returns:             A dictionary of application metrics and/or results for the model endpoints,
+                          formatted by events_format.
+    """
+    return await services.api.api.endpoints.model_endpoints.get_metrics_by_multiple_endpoints(
+        project=commons.project,
+        auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        type=type,
+        endpoint_ids=endpoint_ids,
+        events_format=events_format,
+    )
+
+
+@router.delete("/metrics", status_code=http.HTTPStatus.NO_CONTENT)
+async def delete_model_endpoints_metrics_values(
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
+    application_name: Annotated[
+        str,
+        Query(pattern=mm_constants.APP_NAME_REGEX.pattern, alias="application-name"),
+    ],
+    endpoint_id: Annotated[
+        Optional[list[str]],
+        Query(
+            pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN,
+            alias="endpoint-id",
+            description=(
+                "The unique id of the model endpoint. If none is provided, the metrics "
+                "values will be deleted from all project's model endpoints."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """
+    Delete model endpoints metrics values.
+
+    :param commons:          The common parameters of the request.
+    :param application_name: The name of the application.
+    :param endpoint_id:      The unique IDs of the model endpoint to delete metrics values from. If none is
+                             provided, the metrics values will be deleted from all project's model endpoints.
+    """
+    await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_monitoring,
+        project_name=commons.project,
+        resource_name=application_name,
+        action=mlrun.common.schemas.AuthorizationAction.delete,
+        auth_info=commons.auth_info,
+    )
+    # call delete_application_records of the tsdb connector
+    await run_in_threadpool(
+        commons.get_monitoring_deployment().delete_application_records,
+        application_name=application_name,
+        endpoint_ids=endpoint_id,
+    )
+
+
+@router.get(
+    "/drift-over-time",
+    status_code=http.HTTPStatus.OK.value,
+    response_model=mlrun.common.schemas.ModelEndpointDriftValues,
+)
+async def get_model_endpoint_drift_over_time(
+    project: ProjectAnnotation,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        framework.api.deps.authenticate_request
+    ),
+) -> mlrun.common.schemas.ModelEndpointDriftValues:
+    """
+    Get drift counts over time for the project.
+
+    :param project:     The name of the project.
+    :param start:       Start time of the range to retrieve drift counts from.
+    :param end:         End time of the range to retrieve drift counts from.
+    :param auth_info:   The auth info of the request.
+
+    :return: A ModelEndpointDriftValues object containing the drift counts over time.
+    """
+    start, end = mlrun.model_monitoring.helpers.validate_time_range(start, end)
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    try:
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=project,
+            secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                project=project
+            ),
+        )
+    except mlrun.errors.MLRunNotFoundError as e:
+        logger.debug(
+            "Failed to retrieve model endpoint metrics-values because the TSDB datastore profile was not found. "
+            "Returning an empty list of metric-values",
+            error=mlrun.errors.err_to_str(e),
+        )
+        return mlrun.common.schemas.ModelEndpointDriftValues(values=[])
+    return await run_in_threadpool(tsdb_connector.get_drift_data, start, end)

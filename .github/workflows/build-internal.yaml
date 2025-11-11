@@ -64,7 +64,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: set-matrix
         uses: ./.github/actions/image-matrix-prep
         with:
@@ -78,10 +78,10 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       if: github.event.inputs.pr_number == ''
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       if: github.event.inputs.pr_number != ''
       with:
         fetch-depth: 0
@@ -135,7 +135,7 @@ jobs:
         INPUT_DOCKER_REGISTRIES: ${{ inputs.docker_registries }}
 
     - name: Docker login (ghcr)
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # 3.4.0
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
@@ -144,7 +144,7 @@ jobs:
     - name: Docker login (quay.io)
       continue-on-error: true
       if: github.event.inputs.pr_number == ''
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # 3.4.0
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
@@ -153,7 +153,7 @@ jobs:
     - name: Docker login (docker.com)
       if: github.event.inputs.pr_number == ''
       continue-on-error: true
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # 3.4.0
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
         registry: registry.hub.docker.com
         username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}

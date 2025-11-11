@@ -14,6 +14,7 @@
 
 import unittest.mock
 import uuid
+from datetime import datetime
 
 import deepdiff
 import pytest
@@ -935,6 +936,21 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         iter=0,
         run_format: mlrun.common.formatters.RunFormat = None,
     ):
+        def normalize_datetime_fields(artifact):
+            "Normalize 'created' and 'updated' datetime fields in artifact metadata to a standard format."
+            for field in ["created", "updated"]:
+                value = artifact.get("metadata", {}).get(field)
+                if value:
+                    # Parse and format to "YYYY-MM-DD HH:MM:SS+00:00"
+                    try:
+                        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                        artifact["metadata"][field] = dt.strftime(
+                            "%Y-%m-%d %H:%M:%S%z"
+                        ).replace("+0000", "+00:00")
+
+                    except Exception:
+                        pass  # If parsing fails, leave as is
+
         run = services.api.crud.Runs().get_run(
             db,
             run_uid,
@@ -957,6 +973,8 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         enriched_artifacts.sort(key=sort_by_key)
         artifacts.sort(key=sort_by_key)
         for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):
+            normalize_datetime_fields(artifact)
+            normalize_datetime_fields(enriched_artifact)
             assert (
                 deepdiff.DeepDiff(
                     artifact,

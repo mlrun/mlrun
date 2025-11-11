@@ -184,6 +184,7 @@ class TestAlerts(TestMLRunSystem):
         nuclio_function_url = notification_helpers.deploy_notification_nuclio(
             self.project, self.image
         )
+        # generate a new model-endpoint
         model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=self.project.metadata.name,
             model_endpoint_name="test-endpoint",
@@ -211,8 +212,10 @@ class TestAlerts(TestMLRunSystem):
                 model_endpoint.metadata.uid, result_name, model_endpoint.metadata.name
             )
         )
-
-        time.sleep(5)
+        # wait for the event to be processed, changed as part of adding tsdb target (writer) with flush configuration
+        time.sleep(
+            5 + mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+        )
         # generate alerts for the different result kind and return text from the expected notifications that will be
         # used later to validate that the notifications were sent as expected
         expected_notifications = self._generate_alerts(

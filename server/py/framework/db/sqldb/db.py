@@ -828,6 +828,7 @@ class SQLDB(DBInterface):
                 )
                 db_artifact = existing_artifact
                 self._update_artifact_record_from_dict(
+                    session,
                     db_artifact,
                     artifact_dict,
                     project,
@@ -893,6 +894,7 @@ class SQLDB(DBInterface):
 
         db_artifact = ArtifactV2(project=project, key=key)
         self._update_artifact_record_from_dict(
+            session,
             db_artifact,
             artifact,
             project,
@@ -901,7 +903,6 @@ class SQLDB(DBInterface):
             iteration,
             best_iteration,
             producer_id,
-            session,
         )
 
         self._upsert(session, [db_artifact])
@@ -1611,6 +1612,7 @@ class SQLDB(DBInterface):
 
     def _update_artifact_record_from_dict(
         self,
+        session: Session,
         artifact_record,
         artifact_dict: dict,
         project: str,
@@ -1619,7 +1621,6 @@ class SQLDB(DBInterface):
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         producer_id: typing.Optional[str] = None,
-        session: Session = None,
     ):
         artifact_record.project = project
         kind = artifact_dict.get("kind") or "artifact"
@@ -1713,7 +1714,6 @@ class SQLDB(DBInterface):
     def _set_parent_uri(
         self, artifact: dict, parent: ArtifactV2, parent_uri: Optional[str] = None
     ):
-        _, uri = mlrun.datastore.parse_store_uri(parent_uri)
         (
             _,
             _,
@@ -1721,7 +1721,7 @@ class SQLDB(DBInterface):
             parent_tag,
             _,
             _,
-        ) = parse_artifact_uri(uri)
+        ) = self._get_parent_artifact_params_from_uri(parent_uri)
         artifact_spec = artifact.setdefault("spec", {})
         if parent:
             artifact_spec["parent_uri"] = mlrun.datastore.get_store_uri(
@@ -1732,8 +1732,10 @@ class SQLDB(DBInterface):
                     iter=parent.iteration,
                     tree=parent.producer_id,
                     uid=parent.uid,
-                    tag=parent_tag
-                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or []),
+                    tag=self._get_obj_tag_prioritizing_user_tag(
+                        parent.tags or [], parent_tag
+                    )
+                    or None,
                 ),
             )
         else:
@@ -1915,11 +1917,19 @@ class SQLDB(DBInterface):
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
 
+        # Order the results before applying the limit to ensure that the limit is applied to the correctly
+        # ordered results.
+        # If the updated fields are the same, we need a secondary field to sort by.
+        # Default sorting criteria is by updated first and ID second
+        order_criteria = [ArtifactV2.updated.desc(), ArtifactV2.id.desc()]
+
         # join on tags
         if tag and tag != "*":
             # If a tag is given, we can just join (faster than outer join) and filter on the tag
             query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
             query = query.filter(ArtifactV2.Tag.name == tag)
+            if project:
+                query = query.filter(ArtifactV2.Tag.project == project)
         else:
             # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
             query = query.outerjoin(
@@ -1946,25 +1956,24 @@ class SQLDB(DBInterface):
             query = self._add_artifact_parent_query(query=query, parent_uri=parent_uri)
 
         if limit:
-            # Order the results before applying the limit to ensure that the limit is applied to the correctly
-            # ordered results.
-            # If the updated fields are the same, we need a secondary field to sort by.
-            # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
-            # Put "latest" tag first, then others by tag_id desc
-            latest_first_case = case(
-                (text(f"{tag_name_alias} = 'latest'"), 0),
-                else_=1,
-            )
+            # When specific tag is not given - we need a consistent way to sort artifacts that have multiple tags.
+            # Therefore, we add sorting by latest tag first, then by tag ID as the last criteria.
+            if tag == "*" or not tag:
+                # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
+                # Put "latest" tag first, then others by tag_id desc
+                latest_first_case = case(
+                    (text(f"{tag_name_alias} = 'latest'"), 0),
+                    else_=1,
+                )
+
+                order_criteria.append(latest_first_case)
+                # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
+                # This is necessary because SQLAlchemy does not allow direct reference
+                # to aliased columns (like "tag_id") in order_by() using ORM column objects.
+                order_criteria.append(text(f"{tag_id_alias} DESC"))
+
             query = self._paginate_query(
-                query.order_by(
-                    ArtifactV2.updated.desc(),
-                    ArtifactV2.id.desc(),
-                    latest_first_case,
-                    # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
-                    # This is necessary because SQLAlchemy does not allow direct reference
-                    # to aliased columns (like "tag_id") in order_by() using ORM column objects.
-                    text(f"{tag_id_alias} DESC"),
-                ),
+                query.order_by(*order_criteria),
                 offset,
                 limit,
             )
@@ -1979,22 +1988,25 @@ class SQLDB(DBInterface):
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
-        # Put "latest" tag first, then others by tag_id desc
-        latest_first_case = case(
-            (subquery.c.tag_name == "latest", 0),
-            else_=1,
-        )
+        # Join may lose order, make sure order is applied on outer as well
+        # When specific tag is not given - we need a consistent way to sort artifacts that have multiple tags.
+        # Therefore, we add sorting by latest tag first, then by tag ID as the last criteria.
+        if tag == "*" or not tag:
+            # Put "latest" tag first, then others by tag_id desc
+            latest_first_case = case(
+                (subquery.c.tag_name == "latest", 0),
+                else_=1,
+            )
 
-        # join may lose order, make sure order is applied on outer as well
-        # If the updated fields are the same, we need a secondary field to sort by.
-        # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
-        outer_query = outer_query.order_by(
-            ArtifactV2.updated.desc(),
-            ArtifactV2.id.desc(),
-            latest_first_case,
+            # Reset order criteria to default values
+            if limit:
+                order_criteria = [ArtifactV2.updated.desc(), ArtifactV2.id.desc()]
+
+            order_criteria.append(latest_first_case)
             # Safe ordering by tag_id alias
-            subquery.c[tag_id_alias].desc(),
-        )
+            order_criteria.append(subquery.c[tag_id_alias].desc())
+
+        outer_query = outer_query.order_by(*order_criteria)
 
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)
@@ -2178,22 +2190,7 @@ class SQLDB(DBInterface):
             parent_tag,
             parent_tree,
             parent_uid,
-        ) = [None] * 6
-        if mlrun.datastore.is_store_uri(parent_uri):
-            # Parse the parent URI to extract project, key, iteration, tag, tree, and uid
-            _, uri = mlrun.datastore.parse_store_uri(parent_uri)
-            (
-                parent_project,
-                parent_key,
-                parent_iteration,
-                parent_tag,
-                parent_tree,
-                parent_uid,
-            ) = parse_artifact_uri(uri)
-        elif ":" in parent_uri:
-            parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
-        else:
-            parent_key = parent_uri
+        ) = self._get_parent_artifact_params_from_uri(parent_uri)
 
         ref_alias = aliased(ArtifactV2)
 
@@ -2229,6 +2226,50 @@ class SQLDB(DBInterface):
                 column=ref_tag.name,
             )
         return query
+
+    @staticmethod
+    def _get_parent_artifact_params_from_uri(
+        parent_uri: str,
+    ) -> tuple[
+        Optional[str],
+        Optional[str],
+        Optional[int],
+        Optional[str],
+        Optional[str],
+        Optional[str],
+    ]:
+        (
+            parent_project,
+            parent_key,
+            parent_iteration,
+            parent_tag,
+            parent_tree,
+            parent_uid,
+        ) = [None] * 6
+        if mlrun.datastore.is_store_uri(parent_uri):
+            # Parse the parent URI to extract project, key, iteration, tag, tree, and uid
+            _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+            (
+                parent_project,
+                parent_key,
+                parent_iteration,
+                parent_tag,
+                parent_tree,
+                parent_uid,
+            ) = parse_artifact_uri(uri)
+        elif parent_uri and ":" in parent_uri:
+            parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
+        else:
+            parent_key = parent_uri
+
+        return (
+            parent_project,
+            parent_key,
+            parent_iteration,
+            parent_tag,
+            parent_tree,
+            parent_uid,
+        )
 
     @staticmethod
     def _add_artifact_category_query(category, query):
@@ -3884,8 +3925,22 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
+        """
+        Calculate per-project run counters for recent activity and current status.
+
+        This method counts only top-level runs (``iteration == 0``), excluding child runs
+        from hyperparameter tuning, which are not considered separate jobs.
+
+        :param session: The active DB session used to query the runs.
+
+        :return: A tuple containing:
+            - A dictionary of recently completed runs (last 24h) per project.
+            - A dictionary of recently failed or aborted runs (last 24h) per project.
+            - A dictionary of currently running runs (non-terminal states) per project.
+        """
         running_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     mlrun.common.runtimes.constants.RunStates.non_terminal_states()
@@ -3894,6 +3949,7 @@ class SQLDB(DBInterface):
             .group_by(Run.project)
             .all()
         )
+
         project_to_running_runs_count = {
             result[0]: result[1] for result in running_runs_count_per_project
         }
@@ -3901,6 +3957,8 @@ class SQLDB(DBInterface):
         one_day_ago = datetime.now() - timedelta(hours=24)
         recent_failed_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.start_time >= one_day_ago)
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     [
@@ -3909,7 +3967,6 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
-            .filter(Run.start_time >= one_day_ago)
             .group_by(Run.project)
             .all()
         )
@@ -3919,6 +3976,8 @@ class SQLDB(DBInterface):
 
         recent_completed_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.start_time >= one_day_ago)
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     [
@@ -3926,7 +3985,6 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
-            .filter(Run.start_time >= one_day_ago)
             .group_by(Run.project)
             .all()
         )
@@ -4395,72 +4453,6 @@ class SQLDB(DBInterface):
             query = query.filter(FeatureSet.id.in_(feature_set_keys))
 
         return query
-
-    def list_features(
-        self,
-        session,
-        project: str,
-        name: typing.Optional[str] = None,
-        tag: typing.Optional[str] = None,
-        entities: typing.Optional[list[str]] = None,
-        labels: typing.Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
-        # We don't filter by feature-set name here, as the name parameter refers to features
-        feature_set_id_tags = self._get_records_to_tags_map(
-            session, FeatureSet, project, tag, name=None
-        )
-
-        query = self._generate_feature_or_entity_list_query(
-            session, Feature, project, feature_set_id_tags.keys(), name, tag, labels
-        )
-
-        if entities:
-            query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
-
-        features_results = []
-        transform_feature_set_model_to_schema = MemoizationCache(
-            self._transform_feature_set_model_to_schema
-        ).memoize
-        generate_feature_set_digest = MemoizationCache(
-            self._generate_feature_set_digest
-        ).memoize
-
-        for row in query:
-            feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
-            feature_name = feature_record.name
-
-            feature_sets = self._generate_records_with_tags_assigned(
-                row.FeatureSet,
-                transform_feature_set_model_to_schema,
-                feature_set_id_tags,
-                tag,
-            )
-
-            for feature_set in feature_sets:
-                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
-                # in the DB)
-                feature = next(
-                    (
-                        feature
-                        for feature in feature_set.spec.features
-                        if feature.name == feature_name
-                    ),
-                    None,
-                )
-                if not feature:
-                    raise mlrun.errors.MLRunInternalServerError(
-                        "Inconsistent data in DB - features in DB not in feature-set document"
-                    )
-
-                feature_set_digest = generate_feature_set_digest(feature_set)
-
-                features_results.append(
-                    mlrun.common.schemas.FeatureListOutput(
-                        feature=feature,
-                        feature_set_digest=feature_set_digest,
-                    )
-                )
-        return mlrun.common.schemas.FeaturesOutput(features=features_results)
 
     @staticmethod
     def _dedup_and_append_feature_set(
@@ -5833,7 +5825,7 @@ class SQLDB(DBInterface):
         model_name: Optional[str] = None,
         model_tag: Optional[str] = None,
         top_level: Optional[bool] = None,
-        mode: Optional[EndpointMode] = None,
+        modes: Optional[list[EndpointMode]] = None,
         labels: Optional[list[str]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -5854,7 +5846,8 @@ class SQLDB(DBInterface):
         :param model_name: The model name of the model endpoint.
         :param model_tag: The model tag associated with the model endpoint.
         :param top_level: If True, filters for top-level model endpoints.
-        :param mode: Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set to None.
+        :param modes: Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+                      "batch_legacy" (2). If set to None, all are included.
         :param labels: The labels to filter model endpoints.
         :param start: Start date-time filter.
         :param end: End date-time filter.
@@ -5904,17 +5897,36 @@ class SQLDB(DBInterface):
             query = query.filter(
                 ModelEndpoint.endpoint_type.in_(EndpointType.top_level_list())
             )
-        if mode:
-            if mode == EndpointMode.REAL_TIME:
-                # Real Time EP
+        if modes is not None:
+            batch_legacy = EndpointMode.BATCH_LEGACY in modes
+            real_time = EndpointMode.REAL_TIME in modes
+
+            if batch_legacy and real_time:
                 query = query.filter(
-                    ModelEndpoint.endpoint_type.in_(EndpointType.real_time_list())
+                    or_(
+                        ModelEndpoint.mode.in_(modes),
+                        ModelEndpoint.mode.is_(None),
+                    )
+                )
+            elif batch_legacy:
+                query = query.filter(
+                    or_(
+                        ModelEndpoint.mode.in_(modes),
+                        and_(
+                            ModelEndpoint.mode.is_(None),
+                            ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
+                        ),
+                    )
+                )
+            elif real_time:
+                query = query.filter(
+                    or_(
+                        ModelEndpoint.mode.in_(modes),
+                        ModelEndpoint.endpoint_type != EndpointType.BATCH_EP,
+                    )
                 )
             else:
-                # Batch EP
-                query = query.filter(
-                    ModelEndpoint.endpoint_type.in_(EndpointType.batch_list())
-                )
+                query = query.filter(ModelEndpoint.mode.in_(modes))
 
         # Apply function-related filters
         if function_name or function_tag:
@@ -6166,18 +6178,35 @@ class SQLDB(DBInterface):
         return model_endpoint_full_dict
 
     @staticmethod
-    def _get_obj_tag_prioritizing_user_tag(function_tag_list):
+    def _get_obj_tag_prioritizing_user_tag(obj_tag_list, desired_tag=None) -> str:
         """
-        Used by model endpoints, this extracts the function/model tag from the list,
-        prioritizing the user tag over the system's latest tag if available.
-        If neither exists, it returns an empty string.
+        Determine which tag to use from a list of function/model tags.
+
+        Args:
+            obj_tag_list (list): List of tag objects (with `.name`).
+            desired_tag (str, optional): Specific tag name to prioritize.
+
+        Returns:
+            str: The selected tag name, or an empty string if no match is found.
         """
+        obj_tag_list_names = [tag.name for tag in obj_tag_list]
+
+        # Case 1: desired tag is explicitly in the list
+        if desired_tag and desired_tag in obj_tag_list_names:
+            return desired_tag
+
         latest = False
-        for tag in function_tag_list:
-            if tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
+        first_tag = None
+        for tag_name in obj_tag_list_names:
+            if tag_name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
                 latest = True
-            else:
-                return tag.name
+            elif not first_tag:
+                first_tag = tag_name
+            if desired_tag and desired_tag in tag_name:
+                return tag_name
+
+        if first_tag:
+            return first_tag
         if latest:
             return mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         return ""
@@ -7965,6 +7994,7 @@ class SQLDB(DBInterface):
             function_id=function_record.id if function_record else None,
             model_id=model_endpoint.spec._model_id or None,
             endpoint_type=model_endpoint.metadata.endpoint_type.value,
+            mode=model_endpoint.metadata.mode.value,
             created=current_time,
             updated=current_time,
         )
@@ -8083,7 +8113,7 @@ class SQLDB(DBInterface):
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
-        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: typing.Optional[list[mlrun.common.schemas.EndpointMode]] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
@@ -8093,13 +8123,13 @@ class SQLDB(DBInterface):
         limit: typing.Optional[int] = None,
         order_by: typing.Optional[str] = None,
         as_dict: bool = False,
-    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict[str, ModelEndpoint]]:
+    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict[str, str]]:
         if not as_dict:
             model_endpoints: mlrun.common.schemas.ModelEndpointList = (
                 mlrun.common.schemas.ModelEndpointList(endpoints=[])
             )
         else:
-            model_endpoints: dict[str, ModelEndpoint] = {}
+            model_endpoints: dict[str, str] = {}
         for mep_record in self._find_model_endpoints(
             session=session,
             names=names,
@@ -8110,7 +8140,7 @@ class SQLDB(DBInterface):
             model_name=model_name,
             model_tag=model_tag,
             top_level=top_level,
-            mode=mode,
+            modes=modes,
             start=start,
             end=end,
             uids=uids,
@@ -8129,7 +8159,7 @@ class SQLDB(DBInterface):
                         f"{mep_record.project}-{mep_record.function.name}-"
                         f"{self._get_obj_tag_prioritizing_user_tag(mep_record.function.tags)}-{mep_record.name}"
                     )
-                ] = mep_record
+                ] = mep_record.uid
         return model_endpoints
 
     def delete_model_endpoint(

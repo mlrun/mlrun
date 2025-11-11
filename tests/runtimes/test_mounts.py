@@ -96,7 +96,7 @@ def test_mount_s3():
     )
     env_dict = {var["name"]: var["value"] for var in function.spec.env}
     assert env_dict == {
-        "S3_ENDPOINT_URL": "a.b",
+        "AWS_ENDPOINT_URL_S3": "a.b",
         "AWS_ACCESS_KEY_ID": "xx",
         "AWS_SECRET_ACCESS_KEY": "yy",
     }
@@ -109,7 +109,7 @@ def test_mount_s3():
         var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
     }
     assert env_dict == {
-        "S3_ENDPOINT_URL": "a.b",
+        "AWS_ENDPOINT_URL_S3": "a.b",
         "AWS_ACCESS_KEY_ID": {
             "secretKeyRef": {"key": "AWS_ACCESS_KEY_ID", "name": "s"}
         },
@@ -117,6 +117,48 @@ def test_mount_s3():
             "secretKeyRef": {"key": "AWS_SECRET_ACCESS_KEY", "name": "s"}
         },
     }
+
+
+# TODO: Remove this in 1.12.0
+def test_mount_s3_backward_compatibility():
+    """Test backward compatibility for S3_ENDPOINT_URL environment variable"""
+    import os
+    import warnings
+
+    # Set up deprecated environment variable
+    os.environ["S3_ENDPOINT_URL"] = "s3.deprecated.com"
+
+    # Ensure AWS_ENDPOINT_URL_S3 is not set so we test the fallback
+    os.environ.pop("AWS_ENDPOINT_URL_S3", None)
+
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    # Capture deprecation warning
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        # Use credentials so that the mount function actually sets environment variables
+        function.apply(
+            mlrun.runtimes.mounts.mount_s3(
+                aws_access_key="test-key", aws_secret_key="test-secret"
+            )
+        )
+
+        # Check that deprecation warning was issued
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
+        assert "S3_ENDPOINT_URL is deprecated" in str(w[0].message)
+
+    env_dict = {var["name"]: var["value"] for var in function.spec.env}
+    assert env_dict == {
+        "AWS_ENDPOINT_URL_S3": "s3.deprecated.com",
+        "AWS_ACCESS_KEY_ID": "test-key",
+        "AWS_SECRET_ACCESS_KEY": "test-secret",
+    }
+
+    # Clean up
+    os.environ.pop("S3_ENDPOINT_URL", None)
 
 
 def test_set_env_variables():
@@ -291,6 +333,7 @@ def test_mount_v3io():
             )
 
 
+# TODO: Remove in 1.11.0
 @pytest.mark.parametrize(
     "mount, args, kwargs",
     [
@@ -315,4 +358,70 @@ def test_mount_import_backwards_compatibility(mount, args, kwargs):
     assert isinstance(mount, mlrun.platforms._DeprecationHelper)
     assert type(mount(*args, **kwargs)) is type(
         getattr(mlrun.runtimes.mounts, mount._new_target)(*args, **kwargs)
+    )
+
+
+def _auth_prefix() -> str:
+    # Matches how the code builds the pattern: format(hashed_access_key="")
+    return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+        hashed_access_key=""
+    )
+
+
+def test_mount_secret_blocks_auth_secret_name():
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    forbidden = _auth_prefix() + "anything"
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        function.apply(
+            mlrun.runtimes.mounts.mount_secret(
+                secret_name=forbidden,
+                mount_path="/mnt/secret",
+                volume_name="my-secret-vol",
+            )
+        )
+    assert "Forbidden secret" in str(exc.value)
+    assert forbidden in str(exc.value)
+
+
+def test_mount_secret_allows_regular_secret_and_sets_volume():
+    expected_volume = {
+        "secret": {
+            "secretName": "my-secret",
+            "items": [{"key": "k", "path": "p"}],
+        },
+        "name": "my-volume",
+    }
+    expected_volume_mount = {"mountPath": "/mnt/secret", "name": "my-volume"}
+
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_secret(
+            secret_name="my-secret",
+            mount_path="/mnt/secret",
+            volume_name="my-volume",
+            items=[{"key": "k", "path": "p"}],
+        )
+    )
+
+    assert (
+        deepdiff.DeepDiff(
+            [expected_volume],
+            function.spec.volumes,
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            [expected_volume_mount],
+            function.spec.volume_mounts,
+            ignore_order=True,
+        )
+        == {}
     )

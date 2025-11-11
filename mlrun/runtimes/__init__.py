@@ -222,6 +222,24 @@ class RuntimeKinds:
         return False
 
     @staticmethod
+    def requires_k8s_name_validation(kind: str) -> bool:
+        """
+        Returns True if the runtime kind creates Kubernetes resources that use the function name.
+
+        Function names for k8s-deployed runtimes must conform to DNS-1123 label requirements:
+        - Lowercase alphanumeric characters or '-'
+        - Start and end with an alphanumeric character
+        - Maximum 63 characters
+
+        Local runtimes (local, handler) run on the local machine and don't create k8s resources,
+        so they don't require k8s naming validation.
+
+        :param kind: Runtime kind string (job, spark, serving, local, etc.)
+        :return: True if function name needs k8s DNS-1123 validation, False otherwise
+        """
+        return not RuntimeKinds.is_local_runtime(kind)
+
+    @staticmethod
     def requires_absolute_artifacts_path(kind):
         """
         Returns True if the runtime kind requires absolute artifacts' path (i.e. is local), False otherwise.

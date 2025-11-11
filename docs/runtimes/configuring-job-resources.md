@@ -39,7 +39,9 @@ fn.set_envs(file_path="env.txt")
 
 Some runtimes can scale horizontally, configured either as a number of replicas:
 ```python
-training_function = mlrun.set_function(
+project = mlrun.get_or_create_project("myproj")
+
+training_function = project.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -79,7 +81,9 @@ See more details in the [Kubernetes documentation: Resource Management for Pods 
 Examples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
 ```python
-training_function = mlrun.set_function(
+project = mlrun.get_or_create_project("myproj")
+
+training_function = project.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -188,6 +192,9 @@ MLRun aims to hide this complexity from the user by creating a standard interfac
 it to the underlying Kubernetes constructs per the deployment type.<br>
 You still have the option of manually setting these low-level configurations, given that you know the specific configurations that are needed.
 
+MLRun applies preemptible-related scheduling constraints to the run object at execution time without modifying the function definition.
+Original scheduling constraints remain on the function, but actual execution may use different constraints based on the function's preemption mode.
+
 ### Choosing the node type
 
 When deploying your MLRun jobs to specific nodes, take into consideration that on-demand 
@@ -235,8 +242,9 @@ And another function that can only be scheduled on preemptible nodes:
 ```
 import mlrun
 import os
+project = mlrun.get_or_create_project("myproj")
 
-train_fn = mlrun.set_function('training', 
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_preemption_mode(mode="constrain") 
@@ -250,7 +258,9 @@ the pod/function runs only on non-preemptible (on-demand) nodes:
 ```
 import mlrun
 import os
-train_fn = mlrun.set_function('training', 
+project = mlrun.get_or_create_project("myproj")
+
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name="default-priority")
@@ -284,7 +294,9 @@ For example:
 ```
 import mlrun
 import os
-train_fn = mlrun.set_function('training', 
+project = mlrun.get_or_create_project("myproj")
+
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name={value})

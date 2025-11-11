@@ -50,8 +50,11 @@ import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
-from mlrun.model_monitoring.writer import ModelMonitoringWriter
+from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFileChief,
+    ModelMonitoringSchedulesFileEndpoint,
+)
+from mlrun.model_monitoring.writer import ModelMonitoringWriter, WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
@@ -60,9 +63,8 @@ import framework.db.session
 import framework.utils.background_tasks
 import framework.utils.clients.async_nuclio
 import framework.utils.singletons.k8s
+import services.api.crud
 import services.api.crud.model_monitoring.helpers
-import services.api.utils.functions
-from framework.db.sqldb.models import ModelEndpoint
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
@@ -151,6 +153,21 @@ class MonitoringDeployment:
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
             self.set_credentials()
+        # reject the request if controller and/or writer pods are already deployed.
+        # stream-pod is not checked since by default it is not deleted by disable_model_monitoring.
+        if deployed_functions := [
+            function_name
+            for function_name in self.get_deployed_model_monitoring_functions()
+            if function_name != mm_constants.MonitoringFunctionNames.STREAM
+        ]:
+            raise mlrun.errors.MLRunConflictError(
+                "The following model-montioring infrastructure functions are already deployed, aborting: "
+                f"{deployed_functions}\n"
+                "If you want to redeploy the model-monitoring controller (maybe with different base-period), "
+                "use update_model_monitoring_controller."
+                "If you want to redeploy all of model-monitoring infrastructure, call disable_model_monitoring"
+                "before calling enable_model_monitoring again."
+            )
         self.check_if_credentials_are_set()
 
         self.deploy_model_monitoring_controller(
@@ -338,7 +355,7 @@ class MonitoringDeployment:
         profile = self._stream_profile
         # Note: explicit_ack_mode = "explicitOnly" while working with 'async' engine
         if isinstance(
-            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream
         ):
             self._apply_and_create_kafka_source(
                 kafka_profile=profile,
@@ -376,7 +393,7 @@ class MonitoringDeployment:
     def _apply_and_create_kafka_source(
         self,
         *,
-        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
         stream_args: mlrun.config.Config,
@@ -702,12 +719,30 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
-        graph.to(
-            ModelMonitoringWriter(
-                project=self.project, secret_provider=self._secret_provider
+        if config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
+            logger.info("Using writer graph v1")
+            graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
+            graph.to(
+                ModelMonitoringWriter(
+                    project=self.project, secret_provider=self._secret_provider
+                )
             )
-        )  # writer
+        else:
+            logger.info("Using writer graph v2")
+            parquet_target = (
+                services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
+                    db_session=self.db_session,
+                    project=self.project,
+                    kind="parquet_stats",
+                )
+            )
+            writer_factory = WriterGraphFactory(
+                parquet_path=parquet_target,
+            )
+            writer_factory.apply_writer_graph(
+                fn=function,
+                tsdb_connector=self._tsdb_connector,
+            )
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -923,7 +958,7 @@ class MonitoringDeployment:
             infra_function_summaries_list + application_function_summaries_list
         )
 
-        if include_stats:
+        if function_summaries and include_stats:
             await self._enrich_with_stream_stats(
                 function_summaries=function_summaries, agg_stats=agg_stream_stats
             )
@@ -1188,13 +1223,14 @@ class MonitoringDeployment:
             labels=labels, format_=mlrun.common.formatters.FunctionFormat.minimal
         )
         function_summaries_list = []
-
         if not mm_functions_list:
             logger.info("No model monitoring applications found")
             return []
         if names:
+            # generate a list of lowercase names for filtering
+            lower_names = [name.lower() for name in names]
             mm_functions_list = [
-                fn for fn in mm_functions_list if fn["metadata"]["name"] in names
+                fn for fn in mm_functions_list if fn["metadata"]["name"] in lower_names
             ]
 
         detection_stats_dict = {}
@@ -1214,6 +1250,7 @@ class MonitoringDeployment:
                     mm_constants.ResultStatusApp.detected.value,
                     mm_constants.ResultStatusApp.potential_detection.value,
                 ],
+                application_names=names,
             )
 
         if include_processed_model_endpoints:
@@ -1235,14 +1272,14 @@ class MonitoringDeployment:
                 function_summary.stats = {
                     mm_constants.ResultStatusApp.detected.name: detection_stats_dict.get(
                         (
-                            function_summary.name,
+                            function_summary.name.lower(),
                             mm_constants.ResultStatusApp.detected.value,
                         ),
                         0,
                     ),
                     mm_constants.ResultStatusApp.potential_detection.name: detection_stats_dict.get(
                         (
-                            function_summary.name,
+                            function_summary.name.lower(),
                             mm_constants.ResultStatusApp.potential_detection.value,
                         ),
                         0,
@@ -1554,7 +1591,7 @@ class MonitoringDeployment:
                         f"Failed to delete v3io stream {stream_path}"
                     ) from exc
         elif isinstance(
-            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream
         ):
             # Delete Kafka topics
             topics = [
@@ -1616,8 +1653,7 @@ class MonitoringDeployment:
 
         raise mlrun.errors.MLRunBadRequestError(
             "Model monitoring credentials are not set. "
-            "Please set them using the set_model_monitoring_credentials API/SDK "
-            "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
+            "Please set them using the set_model_monitoring_credentials API/SDK."
         )
 
     def _validate_and_get_tsdb_profile(
@@ -1641,14 +1677,18 @@ class MonitoringDeployment:
         ):
             if mlrun.mlconf.is_ce_mode():
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "MLRun CE supports only TDEngine TSDB, received a V3IO profile for the TSDB"
+                    "MLRun CE supports only TDEngine and TimescaleDB TSDB, received a V3IO profile for the TSDB"
                 )
         elif not isinstance(
-            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
+            tsdb_profile,
+            (
+                mlrun.datastore.datastore_profile.DatastoreProfileTDEngine,
+                mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+            ),
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io` or `DatastoreProfileTDEngine`."
+                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfilePostgreSQL`."
             )
 
         return tsdb_profile
@@ -1668,7 +1708,7 @@ class MonitoringDeployment:
             )
         if isinstance(
             stream_profile,
-            mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+            mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
         ):
             self._validate_kafka_stream(stream_profile)
         elif isinstance(
@@ -1678,12 +1718,12 @@ class MonitoringDeployment:
         else:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring stream profile is of an unexpected type: '{type(stream_profile)}'\n"
-                "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+                "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
             )
 
     def _validate_kafka_stream(
         self,
-        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
     ) -> None:
         if kafka_profile.topics:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
@@ -1693,7 +1733,7 @@ class MonitoringDeployment:
 
     @staticmethod
     def _verify_kafka_access(
-        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
     ) -> None:
         import kafka.errors
 
@@ -1930,7 +1970,7 @@ class MonitoringDeployment:
         delete_background_task: fastapi.BackgroundTasks,
     ):
         async with semaphore:
-            result = await framework.db.session.run_async_function_with_new_db_session(
+            result = framework.db.session.run_function_with_new_db_session(
                 func=services.api.crud.ModelEndpoints().create_model_endpoints,
                 model_endpoints_instructions=model_endpoints_instructions,
                 project=project,
@@ -1980,7 +2020,18 @@ class MonitoringDeployment:
             ]
         ]
         function_tag = function.metadata.tag or "latest"
-        model_endpoints_dict: dict[str, ModelEndpoint] = await run_in_threadpool(
+        parent_function_name = function.metadata.labels.get("mlrun/parent-function")
+        user_function_name = (
+            None  # This indicates that the function is not a child of another function
+        )
+        if parent_function_name:
+            user_function_name = (
+                function_name[len(f"{parent_function_name}-") :]
+                if function_name.startswith(f"{parent_function_name}-")
+                else None
+            )
+
+        model_endpoints_dict: dict[str, str] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
             function_name=function_name,
@@ -2002,6 +2053,7 @@ class MonitoringDeployment:
                 model_endpoints_dict=model_endpoints_dict,
                 project=project,
                 override_type=mm_constants.EndpointType.BATCH_EP if is_batch else None,
+                user_function_name=user_function_name,
             )
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
@@ -2016,9 +2068,10 @@ class MonitoringDeployment:
             mlrun.serving.states.RouterStep, mlrun.serving.states.RootFlowStep
         ],
         sampling_percentage: float,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> tuple[
         list[
             tuple[
@@ -2041,6 +2094,7 @@ class MonitoringDeployment:
                     sampling_percentage=sampling_percentage,
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
+                    user_function_name=user_function_name,
                 )
             )
         elif isinstance(graph, mlrun.serving.states.RootFlowStep):
@@ -2054,6 +2108,7 @@ class MonitoringDeployment:
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
                     override_type=override_type,
+                    user_function_name=user_function_name,
                 )
             )
         return model_endpoints_instructions, graph
@@ -2065,9 +2120,10 @@ class MonitoringDeployment:
         track_models: bool,
         router_step: mlrun.serving.states.RouterStep,
         sampling_percentage: float,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2081,6 +2137,10 @@ class MonitoringDeployment:
             if (
                 route.model_endpoint_creation_strategy
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
+                and (
+                    (not route.function and not user_function_name)
+                    or route.function == user_function_name
+                )
             ):
                 uid = self._get_or_create_uid(
                     project=project,
@@ -2121,6 +2181,10 @@ class MonitoringDeployment:
         if (
             router_step.model_endpoint_creation_strategy
             != mm_constants.ModelEndpointCreationStrategy.SKIP
+            and (
+                (not router_step.function and not user_function_name)
+                or router_step.function == user_function_name
+            )
         ):
             uid = self._get_or_create_uid(
                 project=project,
@@ -2152,7 +2216,6 @@ class MonitoringDeployment:
                     router_step.model_endpoint_creation_strategy,
                 )
             )
-
         return model_endpoints_instructions
 
     def _extract_meps_from_root_flow_step(
@@ -2162,9 +2225,10 @@ class MonitoringDeployment:
         track_models: bool,
         root_flow_step: mlrun.serving.states.RootFlowStep,
         sampling_percentage: float,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2184,6 +2248,7 @@ class MonitoringDeployment:
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
                         override_type=override_type,
+                        user_function_name=user_function_name,
                     )
                 )
             elif isinstance(step, mlrun.serving.states.ModelRunnerStep):
@@ -2197,12 +2262,17 @@ class MonitoringDeployment:
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
                         override_type=override_type,
+                        user_function_name=user_function_name,
                     )
                 )
             else:
                 if (
                     step.model_endpoint_creation_strategy
                     != mm_constants.ModelEndpointCreationStrategy.SKIP
+                    and (
+                        (not user_function_name and not step.function)
+                        or step.function == user_function_name
+                    )
                 ):
                     uid = self._get_or_create_uid(
                         project=project,
@@ -2241,16 +2311,16 @@ class MonitoringDeployment:
         project: str,
         function_name: str,
         function_tag: str,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         creation_strategy: str,
         endpoint_name: str,
     ) -> str:
-        old_model_endpoint = model_endpoints_dict.get(
+        old_model_endpoint_uid = model_endpoints_dict.get(
             f"{project}-{function_name}-{function_tag}-{endpoint_name}"
         )
         uid = (
-            old_model_endpoint.uid
-            if old_model_endpoint
+            old_model_endpoint_uid
+            if old_model_endpoint_uid
             and creation_strategy == mm_constants.ModelEndpointCreationStrategy.INPLACE
             else uuid.uuid4().hex
         )
@@ -2270,20 +2340,39 @@ class MonitoringDeployment:
         sampling_percentage: typing.Optional[float] = None,
         label_names: typing.Optional[list[str]] = None,
         model_path: typing.Optional[str] = None,
+        feature_names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
+        feature_names = (
+            [fstore.api.norm_column_name(name) for name in feature_names]
+            if feature_names
+            else []
+        )
+        label_names = (
+            [fstore.api.norm_column_name(name) for name in label_names]
+            if label_names
+            else []
+        )
         return mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                project=self.project, name=name, endpoint_type=endpoint_type, uid=uid
+                project=self.project,
+                name=name,
+                endpoint_type=endpoint_type,
+                uid=uid,
+                mode=mlrun.common.schemas.model_monitoring.EndpointMode.BATCH
+                if endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP
+                else mlrun.common.schemas.model_monitoring.EndpointMode.REAL_TIME,
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=function_name,
                 function_tag=function_tag,
-                label_names=label_names or [],
+                label_names=label_names,
                 model_class=model_class,
                 children=children_names,
                 children_uids=children_uids,
                 model_path=model_path,
+                feature_names=feature_names,
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
@@ -2344,9 +2433,10 @@ class MonitoringDeployment:
         track_models: bool,
         model_runner: mlrun.serving.states.ModelRunnerStep,
         sampling_percentage: float,
-        model_endpoints_dict: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, str],
         project: str,
         override_type: typing.Optional[mm_constants.EndpointType] = None,
+        user_function_name: typing.Optional[str] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2361,11 +2451,11 @@ class MonitoringDeployment:
             mlrun.common.schemas.ModelRunnerStepData.MODELS, {}
         ).keys():
             monitoring_data[endpoint_name] = monitoring_data[endpoint_name] or {}
-            if (
-                monitoring_data[endpoint_name].get(
-                    mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
-                )
-                != mm_constants.ModelEndpointCreationStrategy.SKIP
+            if monitoring_data[endpoint_name].get(
+                mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
+            ) != mm_constants.ModelEndpointCreationStrategy.SKIP and (
+                (not user_function_name and not model_runner.function)
+                or model_runner.function == user_function_name
             ):
                 uid = self._get_or_create_uid(
                     project=project,
@@ -2404,6 +2494,9 @@ class MonitoringDeployment:
                             model_path=monitoring_data[endpoint_name].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_PATH, ""
                             ),
+                            feature_names=monitoring_data[endpoint_name].get(
+                                mlrun.common.schemas.MonitoringData.INPUTS, []
+                            ),
                         ),
                         monitoring_data[endpoint_name].get(
                             mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
@@ -2411,6 +2504,83 @@ class MonitoringDeployment:
                     )
                 )
         return model_endpoints_instructions
+
+    def _delete_app_from_schedules_files(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete the application from the schedules file.
+        """
+        logger.debug(
+            "Deleting application from the schedules file",
+            application_name=application_name,
+        )
+        if endpoint_ids:
+            endpoint_id_list = endpoint_ids
+        else:
+            endpoints_data = (
+                framework.utils.singletons.db.get_db().list_model_endpoints(
+                    project=self.project,
+                    uids=endpoint_ids,
+                    db_session=self.db_session,
+                )
+            )
+            endpoint_id_list = [
+                endpoint.metadata.uid for endpoint in endpoints_data.endpoints
+            ]
+        logger.debug(
+            "Deleting the last_analyzed time of the application from the schedules files",
+            application_name=application_name,
+            endpoint_id_list=endpoint_id_list,
+        )
+        for endpoint_id in endpoint_id_list:
+            with ModelMonitoringSchedulesFileEndpoint(
+                endpoint_id=endpoint_id, project=self.project
+            ) as schedules_file:
+                schedules_file.delete_application_time(application=application_name)
+
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+    ) -> None:
+        """
+        Deletes the application records from the model monitoring database.
+        This method is used to delete the records of a specific application.
+
+        :param application_name: The name of the application to delete records for.
+        :param endpoint_ids:     List of endpoint IDs to delete records for. If ``None``, all the project's
+                                 endpoints will be deleted.
+        """
+        logger.debug(
+            "Deleting application records from the TSDB",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        self._tsdb_connector.delete_application_records(
+            application_name=application_name, endpoint_ids=endpoint_ids
+        )
+
+        if not application_name.endswith(mlrun_constants.RESERVED_BATCH_JOB_SUFFIX):
+            # The schedules file of "batch" applications is handled on the user side
+            self._delete_app_from_schedules_files(
+                application_name=application_name, endpoint_ids=endpoint_ids
+            )
+
+        logger.info(
+            "Deleted application records",
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+
+    def get_deployed_model_monitoring_functions(self) -> list[str]:
+        """
+        Check which model monitoring functions are already deployed in the project.
+        :return: list of deployed model monitoring functions.
+        """
+        deployed_functions = []
+        for function_name in mm_constants.MonitoringFunctionNames.list():
+            if not self._should_deploy_function(function_name=function_name):
+                deployed_functions.append(function_name)
+        return deployed_functions
 
 
 def get_endpoint_features(

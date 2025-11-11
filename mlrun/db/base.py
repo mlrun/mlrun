@@ -16,8 +16,6 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Literal, Optional, Union
 
-from deprecated import deprecated
-
 import mlrun.alerts
 import mlrun.common
 import mlrun.common.formatters
@@ -445,23 +443,6 @@ class RunDBInterface(ABC):
     ) -> dict:
         pass
 
-    # TODO: remove in 1.10.0
-    @deprecated(
-        version="1.7.0",
-        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_features(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
-        pass
-
     @abstractmethod
     def list_features_v2(
         self,
@@ -695,17 +676,6 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_user_secrets(
-        self,
-        user: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.vault,
-        secrets: Optional[dict] = None,
-    ):
-        pass
-
-    @abstractmethod
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
@@ -741,7 +711,9 @@ class RunDBInterface(ABC):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
-        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
+        modes: Optional[
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -793,6 +765,7 @@ class RunDBInterface(ABC):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
+        item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         pass
 
@@ -811,6 +784,7 @@ class RunDBInterface(ABC):
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
+        object_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         pass
 
@@ -822,6 +796,19 @@ class RunDBInterface(ABC):
         version: Optional[str] = None,
         tag: str = "latest",
         force_refresh: bool = False,
+        item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
+    ):
+        pass
+
+    @abstractmethod
+    def get_hub_asset(
+        self,
+        source_name: str,
+        item_name: str,
+        asset_name: str,
+        version: Optional[str] = None,
+        tag: str = "latest",
+        item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         pass
 
@@ -1131,6 +1118,15 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        pass
+
+    @abstractmethod
     def get_monitoring_function_summaries(
         self,
         project: str,
@@ -1165,4 +1161,40 @@ class RunDBInterface(ABC):
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
+        pass
+
+    @abstractmethod
+    def store_secret_token(
+        self,
+        secret_token: mlrun.common.schemas.SecretToken,
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        pass
+
+    @abstractmethod
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        pass
+
+    @abstractmethod
+    def list_secret_tokens(
+        self,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        pass
+
+    @abstractmethod
+    def revoke_secret_token(self, token_name: str) -> None:
+        pass
+
+    @abstractmethod
+    def get_secret_token(
+        self,
+        token_name: str,
+        username: Optional[str] = None,
+    ) -> mlrun.common.schemas.SecretToken:
         pass

@@ -371,7 +371,9 @@ with warnings.catch_warnings():
             Index("idx_project_kind_key", "project", "kind", "key"),
             # Used explicitly in list_artifacts, as most of the queries request best_iteration, and all always sort by
             # updated. See https://iguazio.atlassian.net/browse/ML-9189
-            Index("idx_project_bi_updated", "project", "best_iteration", "updated"),
+            Index(
+                "idx_project_bi_updated", "project", "best_iteration", "kind", "updated"
+            ),
         )
 
         id = Column(Integer, primary_key=True)
@@ -1009,6 +1011,9 @@ with warnings.catch_warnings():
         )
         name = Column(framework.db.sqldb.sql_types.Utf8BinText)
         endpoint_type = Column(Integer, nullable=False)
+        mode = Column(
+            Integer, default=mlrun.common.schemas.EndpointMode.REAL_TIME.value
+        )
         project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         body = Column(framework.db.sqldb.sql_types.Blob)
         created = Column(

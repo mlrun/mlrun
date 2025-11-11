@@ -29,6 +29,10 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    UsageResponseKeys,
+)
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
@@ -58,7 +62,12 @@ class TestBasicHuggingFaceProvider:
     @classmethod
     def setup_class(cls):
         cls.basic_llm_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        cls.image_classification_model = "microsoft/resnet-50"
         cls.system_prompt_llm_model = "microsoft/Phi-3-mini-4k-instruct"
+
+        # cat.jpg – free for personal & commercial use (Unsplash license):
+        # https://unsplash.com/photos/brown-tabby-cat-on-white-stairs-mJaD10XeD7w
+        # https://unsplash.com/license
         cls.image_path = os.path.join(os.path.dirname(__file__), "cat.jpg")
 
     @classmethod
@@ -110,16 +119,19 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         )
         model_provider = cast(HuggingFaceProvider, model_provider)
         assert model_provider.model == model_name
-        result = model_provider.invoke(messages=messages, as_str=True)
+        result = model_provider.invoke(
+            messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+        )
         assert isinstance(result, str)
         assert EXPECTED_RESULTS[0] in result.lower()
         if expected_torch_dtype:
             assert model_provider.client.model.dtype == expected_torch_dtype
 
         token_count = len(model_provider.client.tokenizer.encode(result))
-        # Extra token is due to the EOS token, which signals end of generation.
-        assert token_count in (100, 101)
-        # checking as_str = False
+        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
+        # due to internal EOS or tokenizer behavior, so we assert within this range.
+        assert 95 <= token_count <= 101
+        # checking invoke_response_format=InvokeResponseFormat.FULL
         response = model_provider.invoke(
             messages=messages,
             max_new_tokens=50,
@@ -131,7 +143,30 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         result = assistant_response["content"]
         token_count = len(model_provider.client.tokenizer.encode(result))
         assert assistant_response["role"] == "assistant"
-        assert token_count in (50, 51)
+        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
+        # due to internal EOS or tokenizer behavior, so we assert within this range.
+        assert 45 <= token_count <= 51
+
+        # checking invoke_response_format=InvokeResponseFormat.USAGE
+        response = model_provider.invoke(
+            messages=messages,
+            max_new_tokens=50,
+            invoke_response_format=InvokeResponseFormat.USAGE,
+        )
+        assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
+        assert isinstance(response, dict)
+        assert 45 <= response[UsageResponseKeys.USAGE]["completion_tokens"] <= 51
+
+        prompt = model_provider.client.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        prompt_tokens = len(model_provider.client.tokenizer.encode(prompt))
+        assert response[UsageResponseKeys.USAGE]["prompt_tokens"] == prompt_tokens
+        assert (
+            response[UsageResponseKeys.USAGE]["total_tokens"]
+            == response[UsageResponseKeys.USAGE]["prompt_tokens"]
+            + response[UsageResponseKeys.USAGE]["completion_tokens"]
+        )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     def test_basic_invoke(self, cred_mode):
@@ -189,7 +224,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_new_tokens": 200}
         )
-        result = model_provider.invoke(messages=messages, as_str=True)
+        result = model_provider.invoke(
+            messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+        )
         assert isinstance(result, str)
         result = result.strip()
         assert result
@@ -197,7 +234,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
     @pytest.mark.parametrize("use_datastore_profile", [True, False])
     def test_custom_invoke(self, use_datastore_profile):
-        model_name = "microsoft/resnet-50"
+        model_name = self.image_classification_model
         task = "image-classification"
         secrets = None
         top_k = 2
@@ -231,11 +268,18 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
 
 class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
-    def test_hf_model_runner(self):
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_hf_model_runner(self, execution_mechanism):
         project = mlrun.new_project("test-hf-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-            project, model_url, default_config={"max_new_tokens": 100}
+            project,
+            model_url,
+            default_config={"max_new_tokens": 100},
+            execution_mechanism=execution_mechanism,
         )
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.
@@ -256,11 +300,71 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         ):
             server = function.to_mock_server()
         try:
-            result = server.test(body=INPUT_DATA[0])["result"]
-            assert EXPECTED_RESULTS[0] in result.lower()
+            response = server.test(body=INPUT_DATA[0])["output"]
+
+            assert len(response) == 2
+            answer = response[UsageResponseKeys.ANSWER]
+            assert EXPECTED_RESULTS[0] in answer.lower()
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
-            token_count = len(tokenizer.encode(result))
-            # Extra token is due to the EOS token, which signals end of generation.
-            assert token_count in (100, 101)
+            token_count = len(tokenizer.encode(answer))
+            # Token count may be lower due to early stopping or slightly higher (e.g., 101)
+            # due to internal EOS or tokenizer behavior, so we assert within this range.
+            assert 95 <= token_count <= 101
+
+            stats = response[UsageResponseKeys.USAGE]
+            assert stats["completion_tokens"] == token_count
+            assert stats["prompt_tokens"] > 0
+            assert (
+                stats["total_tokens"]
+                == stats["completion_tokens"] + stats["prompt_tokens"]
+            )
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_hf_custom_model_runner(self, execution_mechanism):
+        project = mlrun.new_project("test-hf-model", save=False)
+        self.setup_datastore_profile(task="image-classification")
+        model_url = self.url_prefix + self.image_classification_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            model_class="tests.datastore.remote_model.remote_model_utils.MyHuggingFaceCustom",
+            default_config={"top_k": 2},
+            include_llm_artifact=False,
+        )
+        # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+        # # Mocked function used to verify artifact URI is passed correctly.
+        #
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            results = server.test(body={"input": self.image_path})["result"]
+            # Verify we got the expected number of results
+            assert len(results) == 2
+            # # Verify the top result contains 'cat' (assuming the test image is a cat)
+            assert "cat" in results[0]["label"].lower()
+            # Verify each result has the expected structure
+            for result in results:
+                assert "label" in result
+                assert "score" in result
+                assert isinstance(result["score"], float)
+                assert 0 <= result["score"] <= 1
         finally:
             server.wait_for_completion()

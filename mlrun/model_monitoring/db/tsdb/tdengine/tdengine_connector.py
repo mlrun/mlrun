@@ -14,7 +14,7 @@
 
 import threading
 from datetime import datetime, timedelta
-from typing import Callable, Final, Literal, Optional, Union
+from typing import Final, Literal, Optional, Union
 
 import pandas as pd
 import taosws
@@ -22,7 +22,7 @@ import taosws
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.types
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
-import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
+from mlrun.config import config
 from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
@@ -55,14 +55,12 @@ class TDEngineConnector(TSDBConnector):
     """
 
     type: str = mm_schemas.TSDBTarget.TDEngine
-    database = f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
 
     def __init__(
         self,
         project: str,
         profile: DatastoreProfile,
         timestamp_precision: TDEngineTimestampPrecision = TDEngineTimestampPrecision.MICROSECOND,
-        **kwargs,
     ):
         super().__init__(project=project)
 
@@ -72,6 +70,15 @@ class TDEngineConnector(TSDBConnector):
             timestamp_precision
         )
 
+        if not mlrun.mlconf.system_id:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "system_id is not set in mlrun.mlconf. "
+                "TDEngineConnector requires system_id to be configured for database name construction. "
+                "Please ensure MLRun configuration is properly loaded before creating TDEngineConnector."
+            )
+        self.database = (
+            f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
+        )
         self._init_super_tables()
 
     @property
@@ -205,7 +212,7 @@ class TDEngineConnector(TSDBConnector):
     @staticmethod
     def _generate_filter_query(
         filter_column: str, filter_values: Union[str, list[Union[str, int]]]
-    ) -> Optional[str]:
+    ) -> str:
         """
         Generate a filter query for TDEngine based on the provided column and values.
 
@@ -213,15 +220,14 @@ class TDEngineConnector(TSDBConnector):
         :param filter_values: A single value or a list of values to filter by.
 
         :return: A string representing the filter query.
-        :raise: MLRunInvalidArgumentError if the filter values are not of type string or list.
+        :raise: ``MLRunValueError`` if the filter values are not of type string or list.
         """
-
         if isinstance(filter_values, str):
             return f"{filter_column}='{filter_values}'"
         elif isinstance(filter_values, list):
             return f"{filter_column} IN ({', '.join(repr(v) for v in filter_values)}) "
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunValueError(
                 f"Invalid filter values {filter_values}: must be a string or a list, "
                 f"got {type(filter_values).__name__}; filter values: {filter_values}"
             )
@@ -279,6 +285,65 @@ class TDEngineConnector(TSDBConnector):
             after="ProcessBeforeTDEngine",
         )
 
+    def add_pre_writer_steps(self, graph, after):
+        return graph.add_step(
+            "mlrun.model_monitoring.db.tsdb.tdengine.writer_graph_steps.ProcessBeforeTDEngine",
+            name="ProcessBeforeTDEngine",
+            after=after,
+        )
+
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
+        graph.add_step(
+            "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
+            name="tsdb_metrics",
+            after=after,
+            url=f"ds://{self._tdengine_connection_profile.name}",
+            supertable=self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table,
+            table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            database=self.database,
+            graph_shape="cylinder",
+            columns=[
+                mm_schemas.WriterEvent.START_INFER_TIME,
+                mm_schemas.MetricData.METRIC_VALUE,
+            ],
+            tag_cols=[
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.MetricData.METRIC_NAME,
+            ],
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
+        )
+
+        graph.add_step(
+            "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
+            name="tsdb_app_results",
+            after=after,
+            url=f"ds://{self._tdengine_connection_profile.name}",
+            supertable=self.tables[
+                mm_schemas.TDEngineSuperTables.APP_RESULTS
+            ].super_table,
+            table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
+            time_col=mm_schemas.WriterEvent.END_INFER_TIME,
+            database=self.database,
+            graph_shape="cylinder",
+            columns=[
+                mm_schemas.WriterEvent.START_INFER_TIME,
+                mm_schemas.ResultData.RESULT_VALUE,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_EXTRA_DATA,
+            ],
+            tag_cols=[
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.ResultData.RESULT_NAME,
+                mm_schemas.ResultData.RESULT_KIND,
+            ],
+            max_events=config.model_endpoint_monitoring.writer_graph.max_events,
+            flush_after_seconds=config.model_endpoint_monitoring.writer_graph.flush_after_seconds,
+        )
+
     def handle_model_error(
         self,
         graph,
@@ -311,10 +376,7 @@ class TDEngineConnector(TSDBConnector):
             flush_after_seconds=tsdb_batching_timeout_secs,
         )
 
-    def delete_tsdb_records(
-        self,
-        endpoint_ids: list[str],
-    ):
+    def delete_tsdb_records(self, endpoint_ids: list[str]) -> None:
         """
         To delete subtables within TDEngine, we first query the subtables names with the provided endpoint_ids.
         Then, we drop each subtable.
@@ -332,9 +394,7 @@ class TDEngineConnector(TSDBConnector):
                 get_subtable_query = self.tables[table]._get_subtables_query_by_tag(
                     filter_tag="endpoint_id", filter_values=endpoint_ids
                 )
-                subtables_result = self.connection.run(
-                    query=get_subtable_query,
-                )
+                subtables_result = self.connection.run(query=get_subtable_query)
                 subtables.extend([subtable[0] for subtable in subtables_result.data])
         except Exception as e:
             logger.warning(
@@ -346,15 +406,13 @@ class TDEngineConnector(TSDBConnector):
             )
 
         # Prepare the drop statements
-        drop_statements = []
-        for subtable in subtables:
-            drop_statements.append(
-                self.tables[table].drop_subtable_query(subtable=subtable)
-            )
+        drop_statements = [
+            self.tables[table].drop_subtable_query(subtable=subtable)
+            for subtable in subtables
+        ]
         try:
-            self.connection.run(
-                statements=drop_statements,
-            )
+            logger.debug("Dropping subtables", drop_statements=drop_statements)
+            self.connection.run(statements=drop_statements)
         except Exception as e:
             logger.warning(
                 "Failed to delete model endpoint resources. You may need to delete them manually. "
@@ -368,6 +426,48 @@ class TDEngineConnector(TSDBConnector):
             project=self.project,
             number_of_endpoints_to_delete=len(endpoint_ids),
         )
+
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete application records from the TSDB for the given model endpoints or all if ``endpoint_ids`` is ``None``.
+        """
+        logger.debug(
+            "Deleting application records",
+            project=self.project,
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        tables = [
+            self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS],
+            self.tables[mm_schemas.TDEngineSuperTables.METRICS],
+        ]
+
+        filter_query = self._generate_filter_query(
+            filter_column=mm_schemas.ApplicationEvent.APPLICATION_NAME,
+            filter_values=application_name,
+        )
+        if endpoint_ids:
+            endpoint_ids_filter = self._generate_filter_query(
+                filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
+                filter_values=endpoint_ids,
+            )
+            filter_query += f" AND {endpoint_ids_filter}"
+
+        drop_statements: list[str] = []
+        for table in tables:
+            get_subtable_query = table._get_tables_query_by_condition(filter_query)
+            subtables_result = self.connection.run(query=get_subtable_query)
+            drop_statements.extend(
+                [
+                    table.drop_subtable_query(subtable=subtable[0])
+                    for subtable in subtables_result.data
+                ]
+            )
+
+        logger.debug("Dropping application records", drop_statements=drop_statements)
+        self.connection.run(statements=drop_statements)
 
     def delete_tsdb_resources(self):
         """
@@ -688,7 +788,9 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, dict[str, float]]:
+        if not endpoint_ids:
+            return {}
         filter_query = self._generate_filter_query(
             filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
             filter_values=endpoint_ids,
@@ -823,7 +925,7 @@ class TDEngineConnector(TSDBConnector):
         # Convert DataFrame to a dictionary
         return {
             (
-                row[mm_schemas.WriterEvent.APPLICATION_NAME],
+                row[mm_schemas.WriterEvent.APPLICATION_NAME].lower(),
                 row[mm_schemas.ResultData.RESULT_STATUS],
             ): row["count(result_value)"]
             for _, row in df.iterrows()
@@ -908,26 +1010,34 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.WriterEvent.END_INFER_TIME,
                 mm_schemas.WriterEvent.APPLICATION_NAME,
             ]
+            agg_columns = [mm_schemas.WriterEvent.END_INFER_TIME]
+            group_by_columns = [mm_schemas.WriterEvent.APPLICATION_NAME]
             if record_type == "results":
                 table = self.tables[
                     mm_schemas.TDEngineSuperTables.APP_RESULTS
                 ].super_table
                 columns += [
                     mm_schemas.ResultData.RESULT_NAME,
+                    mm_schemas.ResultData.RESULT_KIND,
+                    mm_schemas.ResultData.RESULT_STATUS,
+                    mm_schemas.ResultData.RESULT_VALUE,
+                ]
+                agg_columns += [
                     mm_schemas.ResultData.RESULT_VALUE,
                     mm_schemas.ResultData.RESULT_STATUS,
                     mm_schemas.ResultData.RESULT_KIND,
                 ]
-                agg_column = mm_schemas.ResultData.RESULT_VALUE
+                group_by_columns += [mm_schemas.ResultData.RESULT_NAME]
             else:
                 table = self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table
                 columns += [
                     mm_schemas.MetricData.METRIC_NAME,
                     mm_schemas.MetricData.METRIC_VALUE,
                 ]
-                agg_column = mm_schemas.MetricData.METRIC_VALUE
+                agg_columns += [mm_schemas.MetricData.METRIC_VALUE]
+                group_by_columns += [mm_schemas.MetricData.METRIC_NAME]
 
-            return self._get_records(
+            df = self._get_records(
                 table=table,
                 start=start,
                 end=end,
@@ -935,10 +1045,17 @@ class TDEngineConnector(TSDBConnector):
                 filter_query=filter_query,
                 timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
                 # Aggregate per application/metric pair regardless of timestamp
-                group_by=columns[1:],
-                preform_agg_columns=[agg_column],
+                group_by=group_by_columns,
+                preform_agg_columns=agg_columns,
                 agg_funcs=["last"],
             )
+            if not df.empty:
+                for column in agg_columns:
+                    df.rename(
+                        columns={f"last({column})": column},
+                        inplace=True,
+                    )
+            return df
 
         df_results = get_latest_metrics_records(record_type="results")
         df_metrics = get_latest_metrics_records(record_type="metrics")
@@ -955,19 +1072,14 @@ class TDEngineConnector(TSDBConnector):
             ]
         ):
             metric_objects = []
-
             if not df_results.empty:
-                df_results.rename(
-                    columns={
-                        f"last({mm_schemas.ResultData.RESULT_VALUE})": mm_schemas.ResultData.RESULT_VALUE,
-                    },
-                    inplace=True,
-                )
                 for _, row in df_results.iterrows():
                     metric_objects.append(
                         mm_schemas.ApplicationResultRecord(
                             time=datetime.fromisoformat(
-                                row[mm_schemas.WriterEvent.END_INFER_TIME]
+                                row[mm_schemas.WriterEvent.END_INFER_TIME].replace(
+                                    " +", "+"
+                                )
                             ),
                             result_name=row[mm_schemas.ResultData.RESULT_NAME],
                             kind=row[mm_schemas.ResultData.RESULT_KIND],
@@ -977,17 +1089,13 @@ class TDEngineConnector(TSDBConnector):
                     )
 
             if not df_metrics.empty:
-                df_metrics.rename(
-                    columns={
-                        f"last({mm_schemas.MetricData.METRIC_VALUE})": mm_schemas.MetricData.METRIC_VALUE,
-                    },
-                    inplace=True,
-                )
                 for _, row in df_metrics.iterrows():
                     metric_objects.append(
                         mm_schemas.ApplicationMetricRecord(
                             time=datetime.fromisoformat(
-                                row[mm_schemas.WriterEvent.END_INFER_TIME]
+                                row[mm_schemas.WriterEvent.END_INFER_TIME].replace(
+                                    " +", "+"
+                                )
                             ),
                             metric_name=row[mm_schemas.MetricData.METRIC_NAME],
                             value=row[mm_schemas.MetricData.METRIC_VALUE],
@@ -1146,11 +1254,9 @@ class TDEngineConnector(TSDBConnector):
             df.dropna(inplace=True)
         return df
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
@@ -1158,8 +1264,6 @@ class TDEngineConnector(TSDBConnector):
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
-        :param project:                The name of the project.
-        :param run_in_threadpool:      A function that runs another function in a thread pool.
         :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.

@@ -26,10 +26,11 @@ import mlrun
 import mlrun.common.schemas.model_monitoring
 import mlrun.utils
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
+from mlrun.common.types import AuthenticationMode
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.v3io_clients import get_frames_client
 
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 from services.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
     validate_query_parameters,
@@ -51,8 +52,8 @@ def _is_env_params_dont_exist() -> bool:
 def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    framework.utils.clients.iguazio.AsyncClient().verify_request_session = (
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
+    framework.utils.clients.iguazio.v3.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
                 mlrun.common.schemas.AuthInfo(
@@ -84,7 +85,9 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
 
     response = client.post(
         url="grafana-proxy/model-endpoints/query",
-        headers={"X-V3io-Session-Key": mlrun.mlconf.get_v3io_access_key()},
+        headers={
+            mlrun.common.schemas.HeaderNames.v3io_session_key: mlrun.mlconf.get_v3io_access_key()
+        },
         json={
             "targets": [
                 {"target": f"project={TEST_PROJECT};target_endpoint=list_endpoints"}

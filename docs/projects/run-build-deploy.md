@@ -94,7 +94,6 @@ import mlrun
 
 project = mlrun.get_or_create_project("example-project")
 
-from mlrun import RunTemplate, new_task, mlconf
 from os import path
 
 artifact_path = path.join(mlconf.artifact_path, "{{run.uid}}")

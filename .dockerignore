@@ -12,6 +12,7 @@
 .ruff_cache
 
 # Build
+.build/
 build/
 mlrun.egg-info
 
@@ -29,7 +30,7 @@ playground/
 
 # Virtual environment
 .venv*/
-venv*/
+*venv*/
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

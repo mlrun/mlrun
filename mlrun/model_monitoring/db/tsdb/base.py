@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Callable, ClassVar, Literal, Optional, Union
+from typing import ClassVar, Literal, Optional, Union
 
 import pandas as pd
 import pydantic.v1
@@ -60,6 +60,16 @@ class TSDBConnector(ABC):
         """
         pass
 
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
+        """
+        Apply TSDB steps on the provided writer graph. Throughout these steps, the graph stores metrics / results.
+        This data is being used by mlrun UI and the monitoring dashboards in grafana.
+        There are 2 different key metric dictionaries that are being generated throughout these steps:
+        - metrics (user-defined metrics) - model monitoring application metrics
+        - results (user-defined results) - model monitoring application results
+        """
+        pass
+
     @abstractmethod
     def handle_model_error(self, graph, **kwargs) -> None:
         """
@@ -96,14 +106,23 @@ class TSDBConnector(ABC):
         """
 
     @abstractmethod
-    def delete_tsdb_records(
-        self,
-        endpoint_ids: list[str],
-    ) -> None:
+    def delete_tsdb_records(self, endpoint_ids: list[str]) -> None:
         """
         Delete model endpoint records from the TSDB connector.
+
         :param endpoint_ids: List of model endpoint unique identifiers.
-        :param delete_timeout: The timeout in seconds to wait for the deletion to complete.
+        """
+        pass
+
+    @abstractmethod
+    def delete_application_records(
+        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+    ) -> None:
+        """
+        Delete application records from the TSDB for the given model endpoints or all if ``None``.
+
+        :param application_name: The name of the application to delete records for.
+        :param endpoint_ids:     List of model endpoint unique identifiers.
         """
         pass
 
@@ -425,11 +444,9 @@ class TSDBConnector(ABC):
                                    ]
         """
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         raise NotImplementedError()
@@ -774,3 +791,6 @@ class TSDBConnector(ABC):
             )
         )
         return mm_schemas.ModelEndpointDriftValues(values=values)
+
+    def add_pre_writer_steps(self, graph, after):
+        return None

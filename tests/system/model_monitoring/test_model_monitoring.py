@@ -44,7 +44,7 @@ import mlrun.runtimes.mounts
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
-from mlrun.common.schemas import EndpointType
+from mlrun.common.schemas import EndpointMode, EndpointType
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpoint,
     ModelEndpointList,
@@ -67,6 +67,7 @@ def mock_random_endpoint(
     model_path: Optional[str] = None,
     add_labels=True,
     endpoint_type: EndpointType = EndpointType.NODE_EP,
+    mode: Optional[EndpointMode] = None,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
@@ -77,6 +78,7 @@ def mock_random_endpoint(
             project=project_name,
             labels=random_labels() if add_labels else {},
             endpoint_type=endpoint_type,
+            mode=mode,
         ),
         spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
             function_name=function_name,
@@ -276,13 +278,18 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         number_of_real_time_eps = 2
         number_of_batch_eps = 3
         real_time_eps = [
-            mock_random_endpoint(self.project_name, f"real-time-{i}")
+            mock_random_endpoint(
+                self.project_name, f"real-time-{i}", mode=EndpointMode.REAL_TIME
+            )
             for i in range(number_of_real_time_eps)
         ]
 
         batch_eps = [
             mock_random_endpoint(
-                self.project_name, f"batch-{i}", endpoint_type=EndpointType.BATCH_EP
+                self.project_name,
+                f"batch-{i}",
+                endpoint_type=EndpointType.BATCH_EP,
+                mode=EndpointMode.BATCH,
             )
             for i in range(number_of_batch_eps)
         ]
@@ -294,14 +301,20 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert len(eps) == number_of_real_time_eps + number_of_batch_eps
 
         real_time_eps = self.project.list_model_endpoints(
-            mode=mm_constants.EndpointMode.REAL_TIME
+            modes=EndpointMode.REAL_TIME
         ).endpoints
+
         assert len(real_time_eps) == number_of_real_time_eps
 
         batch_eps = self.project.list_model_endpoints(
-            mode=mm_constants.EndpointMode.BATCH
+            modes=EndpointMode.BATCH
         ).endpoints
         assert len(batch_eps) == number_of_batch_eps
+
+        real_time_and_batch = self.project.list_model_endpoints(
+            modes=[EndpointMode.REAL_TIME, EndpointMode.BATCH]
+        ).endpoints
+        assert len(real_time_and_batch) == number_of_real_time_eps + number_of_batch_eps
 
     def test_labels(self):
         db = mlrun.get_run_db()
@@ -702,12 +715,19 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
     def test_mep_with_remote_model(self):
         model_name = "my_model"
-        model_url = "http://localhost:8080/v2/models/mymodel/infer"
+        model_url = "mock://my-model-url"
         default_config = {"model_version": "4"}
         model_artifact = self.project.log_model(
             model_name,
             model_url=model_url,
             default_config=default_config,
+        )
+        llm_prompt = self.project.log_llm_prompt(
+            "my-llm-prompt",
+            prompt_template=[
+                {"role": "user", "content": "What is the capital of France?"}
+            ],
+            model_artifact=model_artifact,
         )
         function = mlrun.code_to_function(
             name="function_with_model",
@@ -718,6 +738,13 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             image=self.image,
         )
         graph = function.set_topology("flow", engine="async")
+        graph.add_shared_model(
+            model_class="LLModel",
+            execution_mechanism="naive",
+            result_path="result",
+            name="shared-model",
+            model_artifact=model_artifact,
+        )
         model_runner_step = mlrun.serving.states.ModelRunnerStep(
             name="model-runner-step"
         )
@@ -725,20 +752,64 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             model_class="MyRemoteModel",
             execution_mechanism="naive",
             endpoint_name="my-model-1",
-            model_artifact=model_artifact.uri,
+            model_artifact=model_artifact,
+        )
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my-model-2",
+            model_artifact=llm_prompt.uri,
+        )
+        model_runner_step.add_model(
+            model_class="LLModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model-3",
+            model_artifact=llm_prompt.uri,
         )
         graph.to(model_runner_step, "runner").respond()
 
-        function.set_tracking()
         function.deploy()
 
         response = function.invoke(
             f"v2/models/{model_name}/infer",
             json.dumps({"prompt": "What is the capital of france?"}),
         )
-        assert response["default_config"] == default_config
-        assert response["url"] == model_url
-        assert response["prompt"] == "What is the capital of france?"
+
+        assert response["my-model-1"]["default_config"] == default_config
+        assert response["my-model-1"]["url"] == model_url
+        assert response["my-model-1"]["prompt"] == "What is the capital of france?"
+
+        assert (
+            response["my-model-2"]["result"]["answer"]
+            == "You are using a mock model provider, no actual inference is performed."
+        )
+        assert response["my-model-2"]["result"]["usage"] == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        assert (
+            response["my-model-3"]["answer"]
+            == "You are using a mock model provider, no actual inference is performed."
+        )
+        assert response["my-model-3"]["usage"] == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        meps = self.project.list_model_endpoints()
+        assert (
+            len(meps.endpoints) == 3
+        ), f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        mep_2: ModelEndpoint = self.project.list_model_endpoints(
+            names="my-model-2"
+        ).endpoints[0]
+        assert mep_2.spec.label_names == ["answer", "usage"]
+        assert mep_2.spec.model_class == "LLModel"
+
+        mep_3: ModelEndpoint = self.project.list_model_endpoints(
+            names="my-model-3"
+        ).endpoints[0]
+        assert mep_3.spec.label_names == ["answer", "usage"]
+        assert mep_3.spec.model_class == "LLModel"
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -859,6 +930,114 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             result_name=metrics[0].name,
         )
         assert metric_fqn == expected_metric_fqn
+
+    @pytest.mark.parametrize("with_training_set", [False, True])
+    def test_monitoring_with_model_runner_dict_infer(self, with_training_set: bool):
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        self.set_mm_credentials()
+
+        # Log a model artifact
+        train_set = None
+        if with_training_set:
+            iris = load_iris()
+            train_set = pd.DataFrame(
+                data=np.c_[iris["data"], iris["target"]],
+                columns=iris.feature_names + ["label"],
+            )
+        model_name = "sklearn_RandomForestClassifier"
+        # Upload the model through the projects API so that it is available to the serving function
+        model = self.project.log_model(
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=train_set,
+            artifact_path=f"v3io:///projects/{self.project.name}",
+            label_column="label" if with_training_set else None,
+        )
+        function.save(versioned=False)
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
+        model_runner_step.add_model(
+            model_class="MyDictModel",
+            endpoint_name="model",
+            execution_mechanism="naive",
+            input_path="dict_inputs",
+            result_path="dict_outputs",
+            model_artifact=model.uri,
+        )
+        model_runner_step.add_model(
+            model_class="MyModel",
+            endpoint_name="model-1",
+            input_path="inputs",
+            result_path="outputs",
+            execution_mechanism="naive",
+            model_artifact=model.uri,
+        )
+        graph.to(model_runner_step, "runner").respond()
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False, image=self.image
+        )
+        function.deploy()
+        function.invoke(
+            "/",
+            body={
+                "dict_inputs": {
+                    "sepal length (cm)": 0.5,
+                    "sepal width (cm)": 1.2,
+                    "petal length (cm)": 0.5,
+                    "petal width (cm)": 1.1,
+                },
+                "inputs": [[0.5, 1.2, 0.5, 1.1]],
+            },
+        )
+        sleep(5)
+        model_endpoints = (
+            mlrun.get_run_db()
+            .list_model_endpoints(
+                self.project_name,
+            )
+            .endpoints
+        )
+
+        assert model_endpoints[0].metadata.name == "model"
+        assert model_endpoints[0].spec.feature_names == [
+            "sepal_length_cm",
+            "sepal_width_cm",
+            "petal_length_cm",
+            "petal_width_cm",
+        ]
+        assert model_endpoints[0].spec.label_names == ["label"]
+
+        assert model_endpoints[1].metadata.name == "model-1"
+        assert (
+            model_endpoints[1].spec.feature_names
+            == [
+                "f0",
+                "f1",
+                "f2",
+                "f3",
+            ]
+            if not with_training_set
+            else [
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ]
+        )
+        assert (
+            model_endpoints[1].spec.label_names == ["p0"]
+            if not with_training_set
+            else ["label"]
+        )
 
     def _assert_model_endpoint_tags_and_labels(
         self,
@@ -1377,8 +1556,10 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
                 "p0": [0, 0],
             }
         )
+        # Add 20 seconds because the batch window is determined using datetime.now later in _generate_model_endpoint
+        # ML-11276
         infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            mlrun.utils.datetime_now()
+            mlrun.utils.datetime_now() + timedelta(seconds=20)
         )
 
         model_path = project.get_artifact_uri(
@@ -1425,7 +1606,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
         )
 
         # Wait for the controller, app and writer to complete
-        sleep(180)
+        sleep(300)
 
         model_endpoint_batch = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,
@@ -1582,6 +1763,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
     def custom_setup_class(cls) -> None:
         cls.classif = SVC()
         cls.model_name = "classif_model"
+        cls.function_name = "classif-function"
         cls.columns = ["feat 1", "b (C)", "Last   for df "]
         cls.y_name = "class (0-4) "
         cls.num_rows = 20
@@ -1658,6 +1840,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
             model_path=self.project.get_artifact_uri(
                 key=self.model_name, category="model", tag="latest"
             ),
+            function_name=self.function_name,
             model_endpoint_name=self.model_endpoint_name,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
@@ -1693,6 +1876,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             ],
         )
         cls.model_name = "clf_model"
+        cls.function_name = "clf_function"
 
         cls.infer_results_df = cls.train_set.copy()
 
@@ -1748,6 +1932,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             project=self.project_name,
             infer_results_df=self.infer_results_df,
             model_path=model_uri,
+            function_name=self.function_name,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             # TODO: activate ad-hoc mode when ML-5792 is done
@@ -1793,7 +1978,6 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystemModelMonitoring):
         out_model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,
             model_path=model_obj.uri,
-            endpoint_id=model_obj.metadata.uid,
             function_name="dummy_func",
             model_endpoint_name="dummy_ep",
             feature_analysis=True,

@@ -34,6 +34,7 @@ class ModelEndpointSchema(MonitoringStrEnum):
     UID = "uid"
     PROJECT = "project"
     ENDPOINT_TYPE = "endpoint_type"
+    MODE = "mode"
     NAME = "name"
     CREATED = "created"
     UPDATED = "updated"
@@ -195,6 +196,10 @@ class WriterEventKind(MonitoringStrEnum):
     RESULT = "result"
     STATS = "stats"
 
+    @classmethod
+    def user_app_outputs(cls):
+        return [cls.METRIC, cls.RESULT]
+
 
 class ControllerEvent(MonitoringStrEnum):
     KIND = "kind"
@@ -270,6 +275,7 @@ class EventKeyMetrics:
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
+    TimescaleDB = "postgresql"
 
 
 class ProjectSecretKeys:
@@ -303,6 +309,7 @@ class FileTargetKind:
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"
     STATS = "stats"
+    PARQUET_STATS = "parquet_stats"
     LAST_REQUEST = "last_request"
 
 
@@ -326,18 +333,11 @@ class EndpointType(IntEnum):
     def top_level_list(cls):
         return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP]
 
-    @classmethod
-    def real_time_list(cls):
-        return [cls.NODE_EP, cls.ROUTER, cls.LEAF_EP]
 
-    @classmethod
-    def batch_list(cls):
-        return [cls.BATCH_EP]
-
-
-class EndpointMode(StrEnum):
-    REAL_TIME = "real_time"
-    BATCH = "batch"
+class EndpointMode(IntEnum):
+    REAL_TIME = 0
+    BATCH = 1
+    BATCH_LEGACY = 2  # legacy batch mode, used for endpoints created through the batch inference job
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):
@@ -355,6 +355,13 @@ class V3IOTSDBTables(MonitoringStrEnum):
 
 
 class TDEngineSuperTables(MonitoringStrEnum):
+    APP_RESULTS = "app_results"
+    METRICS = "metrics"
+    PREDICTIONS = "predictions"
+    ERRORS = "errors"
+
+
+class TimescaleDBTables(MonitoringStrEnum):
     APP_RESULTS = "app_results"
     METRICS = "metrics"
     PREDICTIONS = "predictions"
@@ -486,8 +493,6 @@ class ModelMonitoringLabels:
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
-
-_RESERVED_EVALUATE_FUNCTION_SUFFIX = "-batch"
 
 
 class ModelEndpointMonitoringMetricType(StrEnum):

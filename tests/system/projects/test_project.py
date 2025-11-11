@@ -20,14 +20,17 @@ import sys
 import time
 from sys import executable
 
+import git.exc
 import igz_mgmt
 import pandas as pd
 import pytest
+from kubernetes import client as k8s_client
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.runtimes.mounts
 import mlrun.utils
 import mlrun.utils.logger
 import mlrun_pipelines.common.models
@@ -69,6 +72,7 @@ def pipe_test():
 @pytest.mark.enterprise
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
+    image: str = "mlrun/mlrun"
     _logger_redirected = False
 
     def custom_setup(self):
@@ -314,6 +318,7 @@ class TestProject(TestMLRunSystem):
             "-u",
             "git://github.com/mlrun/project-demo.git",
             project_dir,
+            "--allow-cross-project",
         ]
         out = exec_project(args)
         self._logger.debug("executed project", out=out)
@@ -354,6 +359,7 @@ class TestProject(TestMLRunSystem):
             "--url",
             "git://github.com/mlrun/project-demo.git",
             project_dir,
+            "--allow-cross-project",
         ]
         out = exec_project(args)
         self._logger.debug("Loaded project", out=out)
@@ -578,16 +584,10 @@ class TestProject(TestMLRunSystem):
         self.custom_project_names_to_delete.append(project_name)
         project = mlrun.new_project(project_name, context=str(self.assets_path))
 
-        code_path = str(self.assets_path / "sleep.py")
         workflow_path = str(self.assets_path / "pipeline_with_resource_param.py")
+        function_name = "func-1"
+        self._get_sleep_job(project=project, function_name=function_name)
 
-        project.set_function(
-            name="func-1",
-            func=code_path,
-            kind="job",
-            image="mlrun/mlrun",
-            handler="handler",
-        )
         # set and run a two-step workflow in the project
         project.set_workflow("paramflow", workflow_path)
 
@@ -598,7 +598,7 @@ class TestProject(TestMLRunSystem):
         assert pipeline_status.workflow.args == arguments
 
         # get the function from the db
-        function = project.get_function("func-1", ignore_cache=True)
+        function = project.get_function(function_name, ignore_cache=True)
         assert function.spec.resources["requests"]["memory"] == arguments["memory"]
 
     def test_remote_pipeline_with_workflow_runner_node_selector(self):
@@ -831,6 +831,7 @@ class TestProject(TestMLRunSystem):
             "--watch",
             "--timeout 1",
             project_dir,
+            "--allow-cross-project",
         ]
         out = exec_project(args)
 
@@ -911,6 +912,12 @@ class TestProject(TestMLRunSystem):
         assert (
             res["run"]["status"] == mlrun_pipelines.common.models.RunStatuses.succeeded
         )
+        original_run_result = project.list_runs(
+            labels=[
+                f"{mlrun_constants.MLRunInternalLabels.workflow_id}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER}",
+            ]
+        )
         runner_run_result = project.list_runs(
             labels=[
                 f"{mlrun_constants.MLRunInternalLabels.original_workflow_id}={run_id.run_id}",
@@ -925,6 +932,17 @@ class TestProject(TestMLRunSystem):
         assert runner_run_result.to_objects()[0].metadata.labels[
             mlrun_constants.MLRunInternalLabels.rerun_index
         ] == str(1)
+
+        # Check if the runner's owner label matches the original workflow's owner label
+        assert (
+            original_run_result.to_objects()[0].metadata.labels[
+                mlrun_constants.MLRunInternalLabels.owner
+            ]
+            == runner_run_result.to_objects()[0].metadata.labels[
+                mlrun_constants.MLRunInternalLabels.owner
+            ]
+        )
+
         # in order to trigger the periodic monitor runs function
         time.sleep(35)
 
@@ -1332,10 +1350,24 @@ class TestProject(TestMLRunSystem):
     def _create_and_validate_project_function_with_node_selector(
         self, project: mlrun.projects.MlrunProject
     ):
+        """
+        Create a function with node selector, tolerations and affinity, enable `prevent`
+        preemption mode, run it, and assert that:
+          1) The job's nodeSelector is pruned of preemptible labels (function is not mutated).
+          2) The job's preemptible toleration is removed; user tolerations remain.
+          3) The job's preemptible node-affinity rule is pruned (function is not mutated).
+        """
         function_name = "test-func"
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
         function_override_label, function_override_val = "kubernetes.io/hostname", ""
 
+        # Same preemptible nodes defined in the system test enviorment
+        function_preemptible_nodes_label, preemptible_val = (
+            "app.iguazio.com/lifecycle",
+            "preemptible",
+        )
+        non_preemptible_key = "some-key"
+        # Create a function with node selector
         code_path = str(self.assets_path / "sleep.py")
         func = project.set_function(
             name=function_name,
@@ -1347,7 +1379,46 @@ class TestProject(TestMLRunSystem):
         func.spec.node_selector = {
             function_label_name: function_label_val,
             function_override_label: function_override_val,
+            function_preemptible_nodes_label: preemptible_val,
         }
+        tolerations = [
+            k8s_client.V1Toleration(
+                key=function_preemptible_nodes_label,
+                operator="Equal",
+                value="preemptible",
+                effect="NoSchedule",
+            ),
+            k8s_client.V1Toleration(
+                key=non_preemptible_key,
+                operator="Equal",
+                value="true",
+                effect="NoSchedule",
+            ),
+        ]
+        affinity = k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=[
+                        k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key=function_preemptible_nodes_label,
+                                    operator="In",
+                                    values=["preemptible"],
+                                )
+                            ]
+                        )
+                    ]
+                )
+            )
+        )
+        func.with_node_selection(
+            tolerations=tolerations,
+            affinity=affinity,
+        )
+        # set the preemption mode to prevent preemption
+        func.with_preemption_mode("prevent")
+        func.save()
 
         # We run the function to ensure node selector enrichment, which doesn't occur during function build,
         # but at runtime.
@@ -1366,7 +1437,26 @@ class TestProject(TestMLRunSystem):
         assert result_func.spec.node_selector == {
             function_label_name: function_label_val,
             function_override_label: function_override_val,
+            function_preemptible_nodes_label: preemptible_val,
         }
+
+        # function object must not be mutated
+        assert result_func.spec.tolerations == tolerations
+        assert result_func.spec.affinity == affinity
+
+        # Verify that preemptible tolerations and affinity are pruned on job object
+        assert all(
+            t.get("key") != function_preemptible_nodes_label
+            for t in job.spec.tolerations
+        ), "Preemptible toleration should be removed on the job in prevent mode"
+
+        assert any(
+            t.get("key") == non_preemptible_key for t in job.spec.tolerations
+        ), "User toleration should remain on the job"
+
+        assert (
+            not job.spec.affinity
+        ), "Preemptible node-affinity should be pruned on the job in prevent mode"
 
     def _create_and_validate_mpi_function_with_node_selector(
         self, project: mlrun.projects.MlrunProject
@@ -1756,14 +1846,17 @@ class TestProject(TestMLRunSystem):
         save_secrets,
     ):
         self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
         db = self._run_db
-        state = db.load_project(
+        project = mlrun.load_project(
+            project_dir,
             name=name,
             url="git://github.com/mlrun/project-demo.git",
-            secrets={"secret1": "1234"},
-            save_secrets=save_secrets,
+            allow_cross_project=True,
         )
-        assert state == "completed"
+
+        if save_secrets:
+            project.set_secrets({"secret1": "1234"})
 
         secrets = db.list_project_secret_keys(name)
 
@@ -1775,14 +1868,16 @@ class TestProject(TestMLRunSystem):
     def test_load_project_remotely_with_secrets_failed(self):
         name = "failed-to-load"
         self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
         db = self._run_db
-        state = db.load_project(
-            name=name,
-            url="git://github.com/some/wrong/uri.git",
-            secrets={"secret1": "1234"},
-            save_secrets=False,
-        )
-        assert state == "error"
+        with pytest.raises(git.exc.GitCommandError):
+            mlrun.load_project(
+                project_dir,
+                name=name,
+                url="git://github.com/some/wrong/uri.git",
+                secrets={"secret1": "1234"},
+                allow_cross_project=True,
+            )
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             db.get_project(name)
 
@@ -1875,6 +1970,80 @@ class TestProject(TestMLRunSystem):
         assert (
             len(notifications) == 2
         ), f"Expected 2 notifications, got {len(notifications)}"
+
+    @pytest.mark.parametrize("kind", ["nuclio", "job", "mpijob"])
+    def test_deploy_function_with_mounted_project_secret(self, kind):
+        # create a secret in another project
+        project_with_secret_name = "project-with-secret"
+        self.custom_project_names_to_delete.append(project_with_secret_name)
+
+        project_with_secret = mlrun.get_or_create_project(
+            project_with_secret_name, context="./project-with-secret"
+        )
+        # define a secret in this project
+        project_with_secret.set_secrets({"key": "secret-1"})
+        secret_name = f"mlrun-project-secrets-{project_with_secret_name}"
+        # mount the secret of the other project
+        fn = self._get_simple_function(kind=kind)
+        fn.apply(mlrun.runtimes.mounts.mount_secret(secret_name, "./secrets/"))
+        with pytest.raises(OSError, match="it belongs to a different project"):
+            if kind == "nuclio":
+                fn.deploy()
+            else:
+                fn.run()
+
+        # set env from the secret of the other project
+        fn = self._get_simple_function(kind=kind)
+        fn.set_env_from_secret(name="key", secret=secret_name)
+        with pytest.raises(OSError, match="it belongs to a different project"):
+            if kind == "nuclio":
+                fn.deploy()
+            else:
+                fn.run()
+
+    def _get_simple_function(self, kind="job"):
+        if kind == "job":
+            return self._get_sleep_job()
+        if kind == "nuclio":
+            return self._get_new_nuclio_function_object()
+        if kind == "mpijob":
+            return self._get_new_mpijob_function()
+        else:
+            raise ValueError(f"Unsupported function kind: {kind}")
+
+    def _get_new_nuclio_function_object(self, function_name="nuclio-func"):
+        return mlrun.code_to_function(
+            filename=str(self.assets_path / "nuclio_handler.py"),
+            name=function_name,
+            kind="nuclio",
+            image=self.image,
+            project=self.project_name,
+        )
+
+    def _get_sleep_job(self, project=None, function_name="sleep-job"):
+        if project is None:
+            project = self.project
+        code_path = str(self.assets_path / "sleep.py")
+
+        function = project.set_function(
+            name=function_name,
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        return function
+
+    def _get_new_mpijob_function(self, function_name="mpijob-func"):
+        code_path = str(self.assets_path / "mpijob_function.py")
+        return mlrun.code_to_function(
+            name=function_name,
+            kind="mpijob",
+            handler="handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
 
     @staticmethod
     def _generate_pipeline_notifications(

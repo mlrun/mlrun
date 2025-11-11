@@ -82,6 +82,23 @@ class TestApplicationRuntime(TestRuntimeBase):
             == "'Application Runtime' function requires Nuclio v1.13.1 or higher"
         )
 
+    def test_http_trigger_configuration(self):
+        runtime = self._generate_runtime(self.runtime_kind)
+        assert (
+            runtime.spec.config.get("spec.triggers.application-http", {}).get(
+                "maxWorkers"
+            )
+            == mlrun.mlconf.function.application.default_worker_number
+        )
+        # replace an http trigger name to simulate custom http trigger
+        runtime.spec.config["spec.triggers.application-http-copy"] = (
+            runtime.spec.config.get("spec.triggers.application-http")
+        )
+        runtime.spec.config.pop("spec.triggers.application-http")
+        runtime._ensure_reverse_proxy_configurations()
+        # ensure default application-http is not added as part of enrichment
+        assert runtime.spec.config.get("spec.triggers.application-http") is None
+
     def _execute_run(self, runtime, **kwargs):
         # deploy_nuclio_function doesn't accept watch, so we need to remove it
         kwargs.pop("watch", None)
@@ -97,6 +114,6 @@ class TestApplicationRuntime(TestRuntimeBase):
             project=self.project,
             kind=kind or self.runtime_kind,
         )
-        runtime._ensure_reverse_proxy_configurations(runtime)
+        runtime._ensure_reverse_proxy_configurations()
         runtime._configure_application_sidecar()
         return runtime

@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional, Union, cast
 
 import pandas as pd
@@ -27,6 +27,7 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.types
 import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.errors
 import mlrun.model_monitoring.api as mm_api
@@ -37,6 +38,12 @@ import mlrun.model_monitoring.helpers as mm_helpers
 import mlrun.utils
 from mlrun.serving.utils import MonitoringApplicationToDict
 from mlrun.utils import logger
+
+
+class ExistingDataHandling(mlrun.common.types.StrEnum):
+    fail_on_overlap = "fail_on_overlap"
+    skip_overlap = "skip_overlap"
+    delete_all = "delete_all"
 
 
 def _serialize_context_and_result(
@@ -226,7 +233,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         try:
             yield endpoints_output, application_schedules.__enter__()
         finally:
-            if write_output:
+            if write_output and any(endpoints_output.values()):
                 logger.debug(
                     "Pushing model monitoring application job data to the writer stream",
                     passed_stream_profile=str(stream_profile),
@@ -288,7 +295,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[str] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
-        fail_on_overlap: bool = True,
+        existing_data_handling: ExistingDataHandling = ExistingDataHandling.fail_on_overlap,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ):
         """
@@ -325,21 +332,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             project=project,
         ) as (endpoints_output, application_schedules):
 
-            def call_do_tracking(event: Optional[dict] = None):
+            def call_do_tracking(
+                monitoring_context: mm_context.MonitoringApplicationContext,
+            ):
                 nonlocal endpoints_output
 
-                if event is None:
-                    event = {}
-                monitoring_context = (
-                    mm_context.MonitoringApplicationContext._from_ml_ctx(
-                        event=event,
-                        application_name=application_name,
-                        context=context,
-                        project=project,
-                        sample_df=sample_data,
-                        feature_stats=feature_stats,
-                    )
-                )
                 result = self.do_tracking(monitoring_context)
                 endpoints_output[monitoring_context.endpoint_id].append(
                     (monitoring_context, result)
@@ -347,98 +344,183 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 return result
 
             if endpoints is not None:
-                resolved_endpoints = self._handle_endpoints_type_evaluate(
+                resolved_endpoints = self._normalize_and_validate_endpoints(
                     project=project, endpoints=endpoints
                 )
+                if (
+                    write_output
+                    and existing_data_handling == ExistingDataHandling.delete_all
+                ):
+                    endpoint_ids = [
+                        endpoint_id for _, endpoint_id in resolved_endpoints
+                    ]
+                    context.logger.info(
+                        "Deleting all the application data before running the application",
+                        application_name=application_name,
+                        endpoint_ids=endpoint_ids,
+                    )
+                    self._delete_application_data(
+                        project_name=project.name,
+                        application_name=application_name,
+                        endpoint_ids=endpoint_ids,
+                        application_schedules=application_schedules,
+                    )
                 for endpoint_name, endpoint_id in resolved_endpoints:
-                    for window_start, window_end in self._window_generator(
+                    for monitoring_ctx in self._window_generator(
                         start=start,
                         end=end,
                         base_period=base_period,
                         application_schedules=application_schedules,
                         endpoint_id=endpoint_id,
+                        endpoint_name=endpoint_name,
                         application_name=application_name,
-                        fail_on_overlap=fail_on_overlap,
+                        existing_data_handling=existing_data_handling,
+                        sample_data=sample_data,
+                        context=context,
+                        project=project,
                     ):
-                        result = call_do_tracking(
-                            event={
-                                mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
-                                mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
-                                mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
-                                mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
-                            }
-                        )
+                        result = call_do_tracking(monitoring_ctx)
                         result_key = (
-                            f"{endpoint_name}-{endpoint_id}_{window_start.isoformat()}_{window_end.isoformat()}"
-                            if window_start and window_end
+                            f"{endpoint_name}-{endpoint_id}_{monitoring_ctx.start_infer_time.isoformat()}_{monitoring_ctx.end_infer_time.isoformat()}"
+                            if monitoring_ctx.start_infer_time
+                            and monitoring_ctx.end_infer_time
                             else f"{endpoint_name}-{endpoint_id}"
                         )
 
                         context.log_result(
                             result_key, self._flatten_data_result(result)
                         )
+                # Check if no result was produced for any endpoint (e.g., due to no data in all windows)
+                if not any(endpoints_output.values()):
+                    context.logger.warning(
+                        "No data was found for any of the specified endpoints. "
+                        "No results were produced",
+                        application_name=application_name,
+                        endpoints=endpoints,
+                        start=start,
+                        end=end,
+                    )
             else:
-                return self._flatten_data_result(call_do_tracking())
+                result = call_do_tracking(
+                    mm_context.MonitoringApplicationContext._from_ml_ctx(
+                        context=context,
+                        project=project,
+                        application_name=application_name,
+                        event={},
+                        sample_df=sample_data,
+                        feature_stats=feature_stats,
+                    )
+                )
+                return self._flatten_data_result(result)
 
     @staticmethod
-    def _handle_endpoints_type_evaluate(
+    def _check_endpoints_first_request(
+        endpoints: list[mlrun.common.schemas.ModelEndpoint],
+    ) -> None:
+        """Make sure that all the endpoints have had at least one request"""
+        endpoints_no_requests = [
+            (endpoint.metadata.name, endpoint.metadata.uid)
+            for endpoint in endpoints
+            if not endpoint.status.first_request
+        ]
+        if endpoints_no_requests:
+            raise mlrun.errors.MLRunValueError(
+                "The following model endpoints have not had any requests yet and "
+                "have no data, cannot run the model monitoring application on them: "
+                f"{endpoints_no_requests}"
+            )
+
+    @classmethod
+    def _normalize_and_validate_endpoints(
+        cls,
         project: "mlrun.MlrunProject",
         endpoints: Union[
             list[tuple[str, str]], list[list[str]], list[str], Literal["all"]
         ],
-    ) -> Union[list[tuple[str, str]], list[list[str]]]:
-        if not endpoints:
-            raise mlrun.errors.MLRunValueError(
-                "The endpoints list cannot be empty. If you want to run on all the endpoints, "
-                'use `endpoints="all"`.'
-            )
+    ) -> list[tuple[str, str]]:
+        if isinstance(endpoints, list):
+            if all(
+                isinstance(endpoint, (tuple, list)) and len(endpoint) == 2
+                for endpoint in endpoints
+            ):
+                # A list of [(name, uid), ...] / [[name, uid], ...] tuples/lists
+                endpoint_uids_to_names = {
+                    endpoint[1]: endpoint[0] for endpoint in endpoints
+                }
+                endpoints_list = project.list_model_endpoints(
+                    uids=list(endpoint_uids_to_names.keys()), latest_only=True
+                ).endpoints
 
-        if isinstance(endpoints, list) and isinstance(endpoints[0], (tuple, list)):
-            return endpoints
-
-        if not (isinstance(endpoints, list) and isinstance(endpoints[0], str)):
-            if isinstance(endpoints, str):
-                if endpoints != "all":
-                    raise mlrun.errors.MLRunValueError(
-                        'A string input for `endpoints` can only be "all" for all the model endpoints in '
-                        "the project. If you want to select a single model endpoint with the given name, "
-                        f'use a list: `endpoints=["{endpoints}"]`.'
+                # Check for missing endpoint uids or name/uid mismatches
+                for endpoint in endpoints_list:
+                    if (
+                        endpoint_uids_to_names[cast(str, endpoint.metadata.uid)]
+                        != endpoint.metadata.name
+                    ):
+                        raise mlrun.errors.MLRunNotFoundError(
+                            "Could not find model endpoint with name "
+                            f"'{endpoint_uids_to_names[cast(str, endpoint.metadata.uid)]}' "
+                            f"and uid '{endpoint.metadata.uid}'"
+                        )
+                missing = set(endpoint_uids_to_names.keys()) - {
+                    cast(str, endpoint.metadata.uid) for endpoint in endpoints_list
+                }
+                if missing:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        "Could not find model endpoints with the following uids: "
+                        f"{missing}"
                     )
-            else:
-                raise mlrun.errors.MLRunValueError(
-                    f"Could not resolve endpoints as list of [(name, uid)], {endpoints=}"
-                )
 
-        if endpoints == "all":
-            endpoint_names = None
-        else:
-            endpoint_names = endpoints
+            elif all(isinstance(endpoint, str) for endpoint in endpoints):
+                # A list of [name, ...] strings
+                endpoint_names = cast(list[str], endpoints)
+                endpoints_list = project.list_model_endpoints(
+                    names=endpoint_names, latest_only=True
+                ).endpoints
 
-        endpoints_list = project.list_model_endpoints(
-            names=endpoint_names, latest_only=True
-        ).endpoints
-        if endpoints_list:
-            list_endpoints_result = [
-                (endpoint.metadata.name, endpoint.metadata.uid)
-                for endpoint in endpoints_list
-            ]
-            if endpoints != "all":
+                # Check for missing endpoint names
                 missing = set(endpoints) - {
-                    endpoint[0] for endpoint in list_endpoints_result
+                    endpoint.metadata.name for endpoint in endpoints_list
                 }
                 if missing:
                     logger.warning(
                         "Could not list all the required endpoints",
-                        missing_endpoint=missing,
-                        endpoints=list_endpoints_result,
+                        missing_endpoints=missing,
+                        endpoints_list=endpoints_list,
                     )
-            return list_endpoints_result
-        else:
-            if endpoints != "all":
-                err_msg_suffix = f" named '{endpoints}'"
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Did not find any model endpoints {err_msg_suffix}"
+            else:
+                raise mlrun.errors.MLRunValueError(
+                    "Could not resolve the following list as a list of endpoints:\n"
+                    f"{endpoints}\n"
+                    "The list must be either a list of (name, uid) tuples/lists or a list of names."
+                )
+        elif endpoints == "all":
+            endpoints_list = project.list_model_endpoints(latest_only=True).endpoints
+        elif isinstance(endpoints, str):
+            raise mlrun.errors.MLRunValueError(
+                'A string input for `endpoints` can only be "all" for all the model endpoints in '
+                "the project. If you want to select a single model endpoint with the given name, "
+                f'use a list: `endpoints=["{endpoints}"]`.'
             )
+        else:
+            raise mlrun.errors.MLRunValueError(
+                "Could not resolve the `endpoints` parameter. The parameter must be either:\n"
+                "- a list of (name, uid) tuples/lists\n"
+                "- a list of names\n"
+                '- the string "all" for all the model endpoints in the project.'
+            )
+
+        if not endpoints_list:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Did not find any model endpoints {endpoints=}"
+            )
+
+        cls._check_endpoints_first_request(endpoints_list)
+
+        return [
+            (endpoint.metadata.name, cast(str, endpoint.metadata.uid))
+            for endpoint in endpoints_list
+        ]
 
     @staticmethod
     def _validate_and_get_window_length(
@@ -481,7 +563,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end_dt: datetime,
         base_period: Optional[int],
         application_name: str,
-        fail_on_overlap: bool,
+        existing_data_handling: ExistingDataHandling,
     ) -> datetime:
         """Make sure that the (app, endpoint) pair doesn't write output before the last analyzed window"""
         if application_schedules:
@@ -490,7 +572,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
             if last_analyzed:
                 if start_dt < last_analyzed:
-                    if not fail_on_overlap:
+                    if existing_data_handling == ExistingDataHandling.skip_overlap:
                         if last_analyzed < end_dt and base_period is None:
                             logger.warn(
                                 "Setting the start time to last_analyzed since the original start time precedes "
@@ -504,15 +586,17 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         else:
                             raise mlrun.errors.MLRunValueError(
                                 "The start time for the application and endpoint precedes the last analyzed time: "
-                                f"{start_dt=}, {last_analyzed=}, {application_name=}, {endpoint_id=}. "
+                                f"start_dt='{start_dt}', last_analyzed='{last_analyzed}', {application_name=}, "
+                                f"{endpoint_id=}. "
                                 "Writing data out of order is not supported, and the start time could not be "
                                 "dynamically reset, as last_analyzed is later than the given end time or that "
-                                f"base_period was specified ({end_dt=}, {base_period=})."
+                                f"base_period was specified (end_dt='{end_dt}', {base_period=})."
                             )
                     else:
                         raise mlrun.errors.MLRunValueError(
                             "The start time for the application and endpoint precedes the last analyzed time: "
-                            f"{start_dt=}, {last_analyzed=}, {application_name=}, {endpoint_id=}. "
+                            f"start_dt='{start_dt}', last_analyzed='{last_analyzed}', {application_name=}, "
+                            f"{endpoint_id=}. "
                             "Writing data out of order is not supported. You should change the start time to "
                             f"'{last_analyzed}' or later."
                         )
@@ -525,6 +609,25 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
         return start_dt
 
+    @staticmethod
+    def _delete_application_data(
+        project_name: str,
+        application_name: str,
+        endpoint_ids: list[str],
+        application_schedules: Optional[
+            mm_schedules.ModelMonitoringSchedulesFileApplication
+        ],
+    ) -> None:
+        mlrun.get_run_db().delete_model_monitoring_metrics(
+            project=project_name,
+            application_name=application_name,
+            endpoint_ids=endpoint_ids,
+        )
+        if application_schedules:
+            application_schedules.delete_endpoints_last_analyzed(
+                endpoint_uids=endpoint_ids
+            )
+
     @classmethod
     def _window_generator(
         cls,
@@ -535,34 +638,79 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         application_schedules: Optional[
             mm_schedules.ModelMonitoringSchedulesFileApplication
         ],
+        endpoint_name: str,
         endpoint_id: str,
         application_name: str,
-        fail_on_overlap: bool,
-    ) -> Iterator[tuple[Optional[datetime], Optional[datetime]]]:
+        existing_data_handling: ExistingDataHandling,
+        context: "mlrun.MLClientCtx",
+        project: "mlrun.MlrunProject",
+        sample_data: Optional[pd.DataFrame],
+    ) -> Iterator[mm_context.MonitoringApplicationContext]:
+        def yield_monitoring_ctx(
+            window_start: Optional[datetime], window_end: Optional[datetime]
+        ) -> Iterator[mm_context.MonitoringApplicationContext]:
+            ctx = mm_context.MonitoringApplicationContext._from_ml_ctx(
+                event={
+                    mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+                    mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
+                    mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
+                    mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
+                },
+                application_name=application_name,
+                context=context,
+                project=project,
+                sample_df=sample_data,
+            )
+
+            if ctx.sample_df.empty:
+                # The current sample is empty
+                context.logger.debug(
+                    "No sample data available for tracking",
+                    application_name=application_name,
+                    endpoint_id=ctx.endpoint_id,
+                    start_time=ctx.start_infer_time,
+                    end_time=ctx.end_infer_time,
+                )
+                return
+
+            yield ctx
+
+            if application_schedules and window_end:
+                application_schedules.update_endpoint_last_analyzed(
+                    endpoint_uid=endpoint_id, last_analyzed=window_end
+                )
+
         if start is None or end is None:
             # A single window based on the `sample_data` input - see `_handler`.
-            yield None, None
+            yield from yield_monitoring_ctx(None, None)
             return
 
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)
 
-        start_dt = cls._validate_monotonically_increasing_data(
-            application_schedules=application_schedules,
-            endpoint_id=endpoint_id,
-            start_dt=start_dt,
-            end_dt=end_dt,
-            base_period=base_period,
-            application_name=application_name,
-            fail_on_overlap=fail_on_overlap,
-        )
+        # If `start_dt` and `end_dt` do not include time zone information - change them to UTC
+        if (start_dt.tzinfo is None) and (end_dt.tzinfo is None):
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        elif (start_dt.tzinfo is None) or (end_dt.tzinfo is None):
+            raise mlrun.errors.MLRunValueError(
+                "The start and end times must either both include time zone information or both be naive (no time "
+                f"zone). Asserting the above failed, aborting the evaluate request: start={start}, end={end}."
+            )
+
+        if existing_data_handling != ExistingDataHandling.delete_all:
+            start_dt = cls._validate_monotonically_increasing_data(
+                application_schedules=application_schedules,
+                endpoint_id=endpoint_id,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                base_period=base_period,
+                application_name=application_name,
+                existing_data_handling=existing_data_handling,
+            )
 
         if base_period is None:
-            yield start_dt, end_dt
-            if application_schedules:
-                application_schedules.update_endpoint_last_analyzed(
-                    endpoint_uid=endpoint_id, last_analyzed=end_dt
-                )
+            yield from yield_monitoring_ctx(start_dt, end_dt)
             return
 
         window_length = cls._validate_and_get_window_length(
@@ -572,11 +720,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         current_start_time = start_dt
         while current_start_time < end_dt:
             current_end_time = min(current_start_time + window_length, end_dt)
-            yield current_start_time, current_end_time
-            if application_schedules:
-                application_schedules.update_endpoint_last_analyzed(
-                    endpoint_uid=endpoint_id, last_analyzed=current_end_time
-                )
+            yield from yield_monitoring_ctx(current_start_time, current_end_time)
             current_start_time = current_end_time
 
     @classmethod
@@ -647,7 +791,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             else:
                 class_name = handler_to_class.split(".")[-1].split("::")[0]
 
-            job_name = mlrun.utils.normalize_name(class_name, verbose=False)
+            job_name = mlrun.utils.normalize_name(class_name)
 
         if not mm_constants.APP_NAME_REGEX.fullmatch(job_name):
             raise mlrun.errors.MLRunValueError(
@@ -655,10 +799,13 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 f"`{mm_constants.APP_NAME_REGEX.pattern}`. "
                 "Please choose another `func_name`."
             )
-        if not job_name.endswith(mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX):
-            job_name += mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+        job_name, was_renamed, suffix = mlrun.utils.helpers.ensure_batch_job_suffix(
+            job_name
+        )
+        if was_renamed:
             mlrun.utils.logger.info(
-                'Changing function name - adding `"-batch"` suffix', func_name=job_name
+                f'Changing function name - adding `"{suffix}"` suffix',
+                func_name=job_name,
             )
 
         return job_name
@@ -702,7 +849,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``end``, ``datetime``
         * ``base_period``, ``int``
         * ``write_output``, ``bool``
-        * ``fail_on_overlap``, ``bool``
+        * ``existing_data_handling``, ``str``
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -788,7 +935,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
-        fail_on_overlap: bool = True,
+        existing_data_handling: ExistingDataHandling = ExistingDataHandling.fail_on_overlap,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ) -> "mlrun.RunObject":
         """
@@ -796,7 +943,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
         model monitoring logic as a :py:class:`~mlrun.runtimes.KubejobRuntime`, which is an MLRun function.
 
-        This function has default values for all of its arguments. You should be change them when you want to pass
+        This function has default values for all of its arguments. You should change them when you want to pass
         data to the application.
 
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
@@ -813,6 +960,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param reference_data:    Pandas data-frame or :py:class:`~mlrun.artifacts.dataset.DatasetArtifact` URI as
                                   the reference dataset.
                                   When set, its statistics override the model endpoint's feature statistics.
+                                  You do not need to have a model endpoint to use this option.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
         :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
@@ -833,8 +981,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param start:             The start time of the endpoint's data, not included.
                                   If you want the model endpoint's data at ``start`` included, you need to subtract a
                                   small ``datetime.timedelta`` from it.
-                                  Make sure to include the time zone when constructing `datetime.datetime` objects
-                                  manually.
+                                  Make sure to include the time zone when constructing ``datetime.datetime`` objects
+                                  manually. When both ``start`` and ``end`` times do not include a time zone, they will
+                                  be treated as UTC.
         :param end:               The end time of the endpoint's data, included.
                                   Please note: when ``start`` and ``end`` are set, they create a left-open time interval
                                   ("window") :math:`(\\operatorname{start}, \\operatorname{end}]` that excludes the
@@ -856,11 +1005,18 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param write_output:      Whether to write the results and metrics to the time-series DB. Can be ``True`` only
                                   if ``endpoints`` are passed.
                                   Note: the model monitoring infrastructure must be up for the writing to work.
-        :param fail_on_overlap:   Relevant only when ``write_output=True``. When ``True``, and the
-                                  requested ``start`` time precedes the ``end`` time of a previous run that also
-                                  wrote to the database - an error is raised.
-                                  If ``False``, when the previously described situation occurs, the relevant time
-                                  window is cut so that it starts at the earliest possible time after ``start``.
+        :param existing_data_handling:
+                                  How to handle the existing application data for the model endpoints when writing
+                                  new data whose requested ``start`` time precedes the ``end`` time of a previous run
+                                  that also wrote to the database. Relevant only when ``write_output=True``.
+                                  The options are:
+
+                                  - ``"fail_on_overlap"``: Default. An error is raised.
+                                  - ``"skip_overlap"``:  the overlapping data is ignored and the
+                                    time window is cut so that it starts at the earliest possible time after ``start``.
+                                  - ``"delete_all"``: delete all the data that was written by the application to the
+                                    model endpoints, regardless of the time window, and write the new data.
+
         :param stream_profile:    The stream datastore profile. It should be provided only when running locally and
                                   writing the outputs to the database (i.e., when both ``run_local`` and
                                   ``write_output`` are set to ``True``).
@@ -899,18 +1055,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
                 params["end"] = end.isoformat() if isinstance(end, datetime) else end
                 params["base_period"] = base_period
-                params["write_output"] = write_output
-                params["fail_on_overlap"] = fail_on_overlap
-                if stream_profile:
-                    if not run_local:
-                        raise mlrun.errors.MLRunValueError(
-                            "Passing a `stream_profile` is relevant only when running locally"
-                        )
-                    if not write_output:
-                        raise mlrun.errors.MLRunValueError(
-                            "Passing a `stream_profile` is relevant only when writing the outputs"
-                        )
-                params["stream_profile"] = stream_profile
         elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(
                 "Custom `start` and `end` times or base_period are supported only with endpoints data"
@@ -919,6 +1063,19 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             raise mlrun.errors.MLRunValueError(
                 "Writing the application output or passing `stream_profile` are supported only with endpoints data"
             )
+
+        params["write_output"] = write_output
+        params["existing_data_handling"] = existing_data_handling
+        if stream_profile:
+            if not run_local:
+                raise mlrun.errors.MLRunValueError(
+                    "Passing a `stream_profile` is relevant only when running locally"
+                )
+            if not write_output:
+                raise mlrun.errors.MLRunValueError(
+                    "Passing a `stream_profile` is relevant only when writing the outputs"
+                )
+        params["stream_profile"] = stream_profile
 
         inputs: dict[str, str] = {}
         for data, identifier in [

@@ -95,6 +95,20 @@ headers_prefix = "x-mlrun-"
 
 class HeaderNames:
     projects_role = "x-projects-role"
+    remote_user = "x-remote-user"
+    forwarded_host = "x-forwarded-host"
+    data_session_override = "x-data-session-override"
+    user_id = "x-user-id"
+    user_group_ids = "x-user-group-ids"
+    unix_uid = "x-unix-uid"
+    v3io_session_key = "x-v3io-session-key"
+    v3io_access_key = "x-v3io-access-key"
+    v3io_user_id = "x-v3io-user-id"
+    v3io_session_planes = "x-v3io-session-planes"
+    authorization = "authorization"
+    cookies = "cookies"
+    cookie = "cookie"
+    x_request_id = "x-request-id"
     patch_mode = f"{headers_prefix}patch-mode"
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"
@@ -104,6 +118,16 @@ class HeaderNames:
     backend_version = f"{headers_prefix}be-version"
     ui_version = f"{headers_prefix}ui-version"
     ui_clear_cache = f"{headers_prefix}ui-clear-cache"
+
+
+class AuthorizationHeaderPrefixes:
+    basic = "Basic "
+    bearer = "Bearer "
+
+
+class CookieNames:
+    oauth2_proxy = "_oauth2_proxy"
+    iguazio = "session"
 
 
 class FeatureStorePartitionByField(mlrun.common.types.StrEnum):

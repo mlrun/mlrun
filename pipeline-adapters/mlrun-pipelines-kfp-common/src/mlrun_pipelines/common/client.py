@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
@@ -181,5 +182,20 @@ class AbstractClient(ABC):
         :param pipeline_name:         An optional name to assign to the pipeline.
         :param description:           An optional description for the pipeline.
         :return: An ApiPipeline object representing the uploaded pipeline.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def _get_candidate_experiments_for_projects(
+        self,
+        project_names: typing.Union[list[str], str],
+    ):
+        """
+        Retrieve an experiment by project name.
+        This method searches for an experiment whose name matches the project name,
+        allowing for a dash-prefixed match (e.g., "myproject-").
+        :param project_names: The name of the project or projects to search for.
+        :return: An ApiExperiment object representing the found experiment.
+        :raises ValueError: If no experiment is found with the specified project name.
         """
         raise NotImplementedError

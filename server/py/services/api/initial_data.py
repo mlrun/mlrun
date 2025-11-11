@@ -24,9 +24,11 @@ import alembic
 import alembic.command
 import alembic.config
 import pymysql.err
+import sqlalchemy.engine
 import sqlalchemy.exc
 import sqlalchemy.orm
 import sqlalchemy_utils
+from sqlalchemy import and_, exists, not_
 
 import mlrun.artifacts
 import mlrun.artifacts.base
@@ -56,38 +58,56 @@ from framework.utils.db.utils import DBUtil
 def init_data(
     perform_migrations_if_needed: bool = False,
 ) -> None:
+    """
+    This function initializes the database with the necessary data.
+    It checks if the database exists and if it has any tables,
+    and if not, it creates the database and initializes it from scratch.
+    """
     mlrun.utils.logger.info("Initializing DB data")
 
     engine = framework.db.sqldb.sql_session.get_engine()
-    url = engine.url
-    from_scratch = False
-    if not sqlalchemy_utils.database_exists(url):
-        mlrun.utils.logger.info(
-            "Database does not exist, initializing from scratch",
-            database_url=url,
-        )
-        sqlalchemy_utils.create_database(url)
-        from_scratch = True
-    else:
-        has_tables = bool(sqlalchemy.inspect(engine).get_table_names())
-        if not has_tables:
-            mlrun.utils.logger.info(
-                "No tables found in the database, initializing from scratch",
-                database_url=url,
-            )
-            from_scratch = True
+    db_initialized = _initialize_db_if_needed(engine)
 
-    if from_scratch:
-        _initialize_db_from_scratch(engine, url)
+    if db_initialized:
+        mlrun.utils.logger.info("Creating database from scratch")
+        _initialize_db_from_scratch(engine)
     else:
+        mlrun.utils.logger.info("Migrating existing data")
         _migrate_existing_data(
             engine,
             perform_migrations_if_needed,
         )
-    # initialize system id
-    framework.db.session.run_function_with_new_db_session(func=_init_system_id)
 
     mlrun.utils.logger.info("Initial data created")
+
+
+def _initialize_db_if_needed(engine: sqlalchemy.engine.Engine) -> bool:
+    """
+    Checks if the database instance exists and is initialized.
+    Returns True if the database needs to be created or initialized from scratch (i.e.,
+    if the database does not exist or exists but has no tables).
+    Returns False if the database exists and has tables (i.e., is set up and ready).
+    """
+    url = engine.url
+    if not sqlalchemy_utils.database_exists(url):
+        mlrun.utils.logger.info(
+            "Database does not exist, creating",
+            database_url=url,
+        )
+        sqlalchemy_utils.create_database(url)
+        return True
+
+    # db exists, lets see if it has some tables
+    has_tables = bool(sqlalchemy.inspect(engine).get_table_names())
+    if not has_tables:
+        mlrun.utils.logger.info(
+            "No tables found in the database",
+            database_url=url,
+        )
+        return True
+
+    # db exists and have tables. nothing to ensure
+    return False
 
 
 def _create_schema(
@@ -100,9 +120,9 @@ def _create_schema(
 
 
 def _initialize_db_from_scratch(
-    engine: typing.Optional[sqlalchemy.engine.Engine],
-    url: sqlalchemy.engine.URL,
+    engine: sqlalchemy.engine.Engine,
 ):
+    url = engine.url
     _create_schema(
         engine=engine,
     )
@@ -118,6 +138,8 @@ def _initialize_db_from_scratch(
         version=str(latest_data_version),
     )
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
+    # initialize system id
+    framework.db.session.run_function_with_new_db_session(func=_init_system_id)
 
 
 def _migrate_existing_data(
@@ -189,7 +211,7 @@ def _migrate_existing_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 9
+latest_data_version = 10
 
 
 def update_default_configuration_data():
@@ -282,6 +304,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_8_data_migrations(db, db_session)
             if current_data_version < 9:
                 _perform_version_9_data_migrations(db, db_session)
+            if current_data_version < 10:
+                _perform_version_10_data_migrations(db, db_session)
 
             db.create_data_version(db_session, str(latest_data_version))
 
@@ -289,6 +313,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
     db = framework.db.sqldb.db.SQLDB()
     _add_data_version(db, db_session)
+    # initialize system id
+    framework.db.session.run_function_with_new_db_session(func=_init_system_id)
 
 
 def _add_default_hub_source_if_needed(
@@ -305,14 +331,15 @@ def _add_default_hub_source_if_needed(
         index=mlrun.common.schemas.hub.last_source_index,
         raise_on_not_found=False,
     )
-
-    # update the default hub if configured url has changed
-    hub_source_path = hub_source.source.spec.path if hub_source else None
-    if not hub_source_path or hub_source_path != default_hub_source.spec.path:
+    if not hub_source:
+        # create the default hub source if it does not exist
+        _update_default_hub_source(db, db_session, default_hub_source)
+        return
+    # update the default hub if configuration has changed
+    if difference := default_hub_source.diff(hub_source.source):
         mlrun.utils.logger.debug(
             "Updating default hub source",
-            hub_source_path=hub_source_path,
-            default_hub_source_path=default_hub_source.spec.path,
+            difference=difference,
         )
         _update_default_hub_source(db, db_session, default_hub_source)
 
@@ -581,6 +608,65 @@ def _migrate_artifact_labels(
     return labels
 
 
+def _migrate_monitoring_functions_labels(
+    db: framework.db.sqldb.db.SQLDB, db_session, chunk_size: int = 500
+):
+    """
+    Update labels for model monitoring infra functions.
+    """
+    mm_infra_function_names = (
+        mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.list()
+    )
+
+    def filter_infra_func():
+        # filter model monitoring functions which doesn't have the label yet
+        functions = framework.db.sqldb.models.Function
+        functions_labels = functions.Label  # dynamically generated by the LabelMixin
+        return and_(
+            functions.name.in_(mm_infra_function_names),
+            not_(
+                exists().where(
+                    and_(
+                        functions_labels.parent == functions.id,
+                        functions_labels.name
+                        == mlrun.common.schemas.ModelMonitoringInfraLabel.KEY,
+                    )
+                )
+            ),
+        )
+
+    def add_infra_label(record):
+        function_dict = record.struct
+        function_metadata_labels_dict = function_dict.get("metadata", {}).get(
+            "labels", {}
+        )
+        # Add a new label to the function metadata
+        function_metadata_labels_dict[
+            mlrun.common.schemas.ModelMonitoringInfraLabel.KEY
+        ] = mlrun.common.schemas.ModelMonitoringInfraLabel.VAL
+        function_dict["metadata"]["labels"] = function_metadata_labels_dict
+
+        record.struct = function_dict
+
+        # Generate a new label object
+        new_label = framework.db.sqldb.models.Function.Label(
+            name=mlrun.common.schemas.ModelMonitoringInfraLabel.KEY,
+            value=mlrun.common.schemas.ModelMonitoringInfraLabel.VAL,
+            parent=record.id,
+        )
+
+        return record, new_label
+
+    return _migrate_data(
+        db=db,
+        db_session=db_session,
+        model=framework.db.sqldb.models.Function,
+        filter_func=filter_infra_func,
+        handle_field_record_func=add_infra_label,
+        chunk_size=chunk_size,
+    )
+
+
 def _migrate_artifact_tags(
     db_session: sqlalchemy.orm.Session,
     old_id_to_artifact: dict[typing.Any, framework.db.sqldb.models.ArtifactV2],
@@ -758,6 +844,12 @@ def _perform_version_9_data_migrations(
     _ensure_latest_tag_for_artifacts(db_session)
 
 
+def _perform_version_10_data_migrations(
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _migrate_monitoring_functions_labels(db, db_session)
+
+
 def _ensure_function_kind_and_state(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
@@ -836,7 +928,13 @@ def _migrate_data(
     )
 
     while records:
-        to_commit = [handle_field_record_func(record) for record in records]
+        to_commit = []
+        for record in records:
+            result = handle_field_record_func(record)
+            if isinstance(result, (list, tuple, set)):
+                to_commit.extend(result)
+            elif result is not None:
+                to_commit.append(result)
 
         # Commit if there are records to migrate
         if to_commit:

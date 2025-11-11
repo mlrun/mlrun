@@ -48,6 +48,7 @@ def test_prompt_target_paths(generate_target_path_from_artifact_hash, from_file)
             artifact_path=artifact_path,
             prompt_path=str(llm_file),
             description="best-prompt",
+            invocation_config={"temperature": 0.7},
         )
     else:
         llm_prompt = context.log_llm_prompt(
@@ -58,8 +59,10 @@ def test_prompt_target_paths(generate_target_path_from_artifact_hash, from_file)
                 {"role": "user", "content": "question"},
             ],
             description="best-prompt",
+            invocation_config={"temperature": 0.7},
         )
     assert llm_prompt.target_path.startswith(str(artifact_path))
+    assert llm_prompt.spec.invocation_config == {"temperature": 0.7}
 
     prompt_template = llm_prompt.read_prompt()
     assert prompt_template == [
@@ -86,6 +89,7 @@ def test_prompt_limitation():
 
     prompt_template = llm_prompt.read_prompt()
     assert prompt_template == [{"role": "user", "content": "A" * 2000}]
+    assert llm_prompt.target_path.endswith(f"{llm_key}.json")
 
 
 @pytest.mark.parametrize(
@@ -94,6 +98,8 @@ def test_prompt_limitation():
         [{"role": "user", "content": "A", "should_not_be_prompted": "I am here"}],
         "just a regular str",
         {"role": "user", "content": "A"},
+        [{"role": "user"}],
+        [{"content": "A"}],
     ],
 )
 def test_prompt_template_verification(prompt_template):

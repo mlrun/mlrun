@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.constants as mlrun_constants
 from mlrun.common.schemas import AuthInfo
+from mlrun.common.types import AuthenticationMode
 from mlrun.config import config as mlconf
 
 import framework.utils.auth.verifier
@@ -154,7 +155,7 @@ def test_submit_job_auto_mount(
 def test_submit_job_ensure_function_has_auth_set(
     db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     project = "my-proj1"
     services.api.tests.unit.api.utils.create_project(client, project)
 

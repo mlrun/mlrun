@@ -31,6 +31,10 @@ from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
     register_temporary_client_datastore_profile,
 )
+from mlrun.datastore.model_provider.model_provider import (
+    InvokeResponseFormat,
+    UsageResponseKeys,
+)
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
@@ -79,6 +83,7 @@ class TestBasicOpenAIProvider:
     @classmethod
     def setup_class(cls):
         cls.basic_llm_model = "gpt-4o-mini"
+        cls.embedding_model = "text-embedding-3-small"
 
     @classmethod
     def reset_env(cls):
@@ -124,16 +129,20 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
         if run_async:
-            result = await model_provider.async_invoke(messages=messages, as_str=True)
+            result = await model_provider.async_invoke(
+                messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+            )
         else:
-            result = model_provider.invoke(messages=messages, as_str=True)
+            result = model_provider.invoke(
+                messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+            )
         assert isinstance(result, str)
         assert EXPECTED_RESULTS[0] in result.lower()
 
         encoding = tiktoken.encoding_for_model(model_name)
         token_count = len(encoding.encode(result))
         assert token_count == 100
-        # checking as_str = False
+        # checking invoke_response_format=InvokeResponseFormat.FULL
         if run_async:
             response = await model_provider.async_invoke(
                 messages=messages,
@@ -145,8 +154,30 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 max_tokens=50,
             )
         assert isinstance(response, openai.types.chat.ChatCompletion)
-        token_count = response.usage.completion_tokens
-        assert token_count == 50
+        assert EXPECTED_RESULTS[0] in response.choices[0].message.content.lower()
+        assert response.usage.completion_tokens == 50
+
+        if run_async:
+            response = await model_provider.async_invoke(
+                messages=messages,
+                max_tokens=50,
+                invoke_response_format=InvokeResponseFormat.USAGE,
+            )
+        else:
+            response = model_provider.invoke(
+                messages=messages,
+                max_tokens=50,
+                invoke_response_format=InvokeResponseFormat.USAGE,
+            )
+
+        assert isinstance(response, dict)
+        completion_tokens = response[UsageResponseKeys.USAGE]["completion_tokens"]
+        prompt_tokens = response[UsageResponseKeys.USAGE]["prompt_tokens"]
+        total_tokens = response[UsageResponseKeys.USAGE]["total_tokens"]
+        assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
+        assert completion_tokens == 50
+        assert prompt_tokens > 0
+        assert total_tokens == prompt_tokens + completion_tokens
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     @pytest.mark.parametrize("run_async", [True, False])
@@ -196,7 +227,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_tokens": 200}
         )
-        result = model_provider.invoke(messages=messages, as_str=True)
+        result = model_provider.invoke(
+            messages=messages, invoke_response_format=InvokeResponseFormat.STRING
+        )
         assert isinstance(result, str)
         result = result.strip()
         assert result
@@ -205,8 +238,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
     @pytest.mark.asyncio
     @pytest.mark.parametrize("run_async", [True, False])
     async def test_custom_invoke(self, run_async):
-        model_name = "text-embedding-3-small"
-        model_url = self.url_prefix + model_name
+        model_url = self.url_prefix + self.embedding_model
         model_provider = mlrun.get_model_provider(url=model_url)
         prompt = "OpenAI is amazing"
         client: OpenAI = model_provider.client
@@ -232,7 +264,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 match="OpenAI custom_invoke " "operation must be a callable",
             ):
                 _ = await model_provider.custom_invoke(operation="test", input=prompt)
-        encoding = tiktoken.encoding_for_model(model_name)
+        encoding = tiktoken.encoding_for_model(self.embedding_model)
         token_count = len(encoding.encode(prompt))
         assert embeddings.data[0].embedding is not None
         assert len(embeddings.data[0].embedding) > 0
@@ -241,7 +273,10 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
-    @pytest.mark.parametrize("execution_mechanism", ["naive", "asyncio"])
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
     def test_model_runner_with_openai(self, execution_mechanism):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
@@ -270,10 +305,20 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            result = server.test(body=INPUT_DATA[0])["result"]
-            assert EXPECTED_RESULTS[0] in result.lower()
+            response = server.test(body=INPUT_DATA[0])["output"]
+            assert len(response) == 2
+            answer = response[UsageResponseKeys.ANSWER]
+            assert EXPECTED_RESULTS[0] in answer.lower()
             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            assert len(encoding.encode(result)) == 100
+            assert len(encoding.encode(answer)) == 100
+
+            stats = response[UsageResponseKeys.USAGE]
+            assert stats["completion_tokens"] == 100
+            assert stats["prompt_tokens"] > 0
+            assert (
+                stats["total_tokens"]
+                == stats["completion_tokens"] + stats["prompt_tokens"]
+            )
         finally:
             server.wait_for_completion()
 
@@ -316,5 +361,49 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
                 model_name=self.basic_llm_model,
                 total_duration=total_duration,
             )
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_open_ai_custom(self, execution_mechanism):
+        project = mlrun.new_project("test-openai-custom", save=False)
+        model_url = self.url_prefix + self.embedding_model
+        # Using full path as a model class is a workaround for ML-10937
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            model_class="tests.datastore.remote_model.remote_model_utils.MyOpenAICustom",
+            default_config={"dimensions": 256},
+        )
+        # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+        # # Mocked function used to verify artifact URI is passed correctly.
+        #
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        prompt = "Hello GPT"
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            results_with_times = server.test(body={"input": prompt})["result"]
+            encoding = tiktoken.encoding_for_model(self.embedding_model)
+            token_count = len(encoding.encode(prompt))
+            assert len(results_with_times["data"][0]["embedding"]) == 256
+            assert results_with_times["usage"]["total_tokens"] == token_count
+
         finally:
             server.wait_for_completion()

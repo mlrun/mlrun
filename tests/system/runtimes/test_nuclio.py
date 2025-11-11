@@ -32,12 +32,14 @@ from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.serving import ModelRunnerStep
+from mlrun.serving.remote import MLRunAPIRemoteStep
+from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
 from tests.system.runtimes.assets.function_with_llm import MyLLM
-from tests.system.runtimes.assets.function_with_model import DummyModel
+from tests.system.runtimes.assets.function_with_model import DummyModel, MyModelSelector
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
-class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
+class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     project_name = "test-nuclio-runtime"
 
     image: str = "mlrun/mlrun"
@@ -62,6 +64,20 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         deployment = function.deploy()
 
         assert deployment == function.get_url()  # check function url
+
+    def test_mlrun_project_accessibility(self):
+        fn = mlrun.code_to_function(
+            filename=str(self.assets_path / "nuclio_mlrun_function.py"),
+            name="nuclio-mlrun",
+            kind="nuclio",
+            image=self.image,
+            handler="my_func",
+            project=self.project_name,
+        )
+        fn.deploy()
+        response = fn.invoke(path="/")
+        response_body = json.loads(response.decode("utf-8"))
+        assert response_body.get("metadata", {}).get("name") == self.project_name
 
     @pytest.mark.parametrize("raise_exception", [True, False])
     @pytest.mark.parametrize("with_object", [True, False])
@@ -100,6 +116,73 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         resp = function.invoke("/", {"x": "y"})
         assert resp == {"x": "y", "extra": 123}
+
+    @pytest.mark.parametrize("with_object", [True, False])
+    def test_deploy_function_with_model_runner_with_selector(self, with_object):
+        code_path = str(self.assets_path / "function_with_model.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        if with_object:
+            dummy_model = DummyModel(name="my-model")
+            dummy_model_2 = DummyModel(name="another-model")
+            model_selector = MyModelSelector(models=["my-model", "another-model"])
+        else:
+            dummy_model = "DummyModel"
+            dummy_model_2 = "DummyModel"
+            model_selector = "MyModelSelector"
+        model_runner_step = ModelRunnerStep(
+            name="model-runner",
+            model_selector=model_selector,
+            model_selector_parameters={"models": ["my-model", "another-model"]}
+            if not with_object
+            else None,
+        )
+
+        model_runner_step.add_model(
+            model_class=dummy_model,
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+        )
+        model_runner_step.add_model(
+            model_class=dummy_model_2,
+            execution_mechanism="naive",
+            endpoint_name="another-model",
+        )
+
+        graph.to(model_runner_step).respond()
+
+        self._logger.debug("Deploying nuclio function with model selector")
+        deployment = function.deploy()
+
+        assert deployment == function.get_url()  # check function url
+
+        resp = function.invoke("/", {"x": "y", "models": ["my-model"]})
+        assert resp == {"my-model": {"extra": 123, "x": "y"}}
+
+    def test_set_function_llmodel_without_py(self):
+        function = self.project.set_function(
+            name="llmodel-without-py",
+            image=self.image,
+            kind="serving",
+        )
+        graph = function.set_topology("flow")
+        model_runner = ModelRunnerStep(name="model-runner")
+        model_runner.add_model("my_llm", "mlrun.serving.states.LLModel", "naive")
+        graph.to(model_runner).respond()
+        deployment = function.deploy()
+        assert deployment == function.get_url()  # check function url
+
+        resp = function.invoke("/", {"something_with_meaning": "life"})
+        assert resp == {"something_with_meaning": "life"}
 
     def test_model_runner_with_llm_and_shared_models(self):
         code_path = str(self.assets_path / "function_with_llm.py")
@@ -177,19 +260,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
         model_artifact = self.project.log_model(
             "my_model",
             model_url="http://localhost:8080/v2/models/mymodel/infer",
-            default_config={"model_version": "4"},
-            tag="v1",
-        )
-
-        # stole the tag from the model artifact above
-        _ = self.project.log_model(
-            "my_model",
-            model_url="http://localhost:8080/v2/models/mymodel/infer-2",
             default_config={"model_version": "4"},
             tag="v1",
         )
@@ -210,6 +285,13 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
                     "description": "great legend are small",
                 }
             },
+        )
+        # stole the tag from the model artifact above
+        _ = self.project.log_model(
+            "my_model",
+            model_url="http://localhost:8080/v2/models/mymodel/infer-2",
+            default_config={"model_version": "4"},
+            tag="v1",
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -245,6 +327,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         ]
 
     def test_deploy_function_with_model_runner_with_child_function(self):
+        self.set_mm_credentials()
         code_path = str(self.assets_path / "function_with_model.py")
         child_code_path = str(self.assets_path / "child_function.py")
         self._logger.debug("Creating nuclio function")
@@ -265,6 +348,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         )
         step = graph.to(model_runner_step).respond()
         step.to(name="inc", handler="inc", function="child")
+        function.set_tracking()
         function.add_child_function(
             "child",
             child_code_path,
@@ -272,6 +356,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         )
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
+
+        assert len(self.project.list_model_endpoints().endpoints) == 1
 
         assert deployment == function.get_url()  # check function url
 
@@ -405,6 +491,53 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         serving_func_deploy = self.project.deploy_function("serving-handler-func")
 
         serving_func_deploy.function.invoke("/")
+
+    @pytest.mark.parametrize("async_mode", [True, False])
+    async def test_list_mep_through_api_step(self, async_mode: bool):
+        code_path = str(self.assets_path / "nuclio_function.py")
+
+        # Create serving function with MLRunAPIRemoteStep
+        function = mlrun.code_to_function(
+            name="api-list-meps-function",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+
+        # Set up graph with MLRunAPIRemoteStep
+        graph = function.set_topology("flow", engine="async" if async_mode else "sync")
+        endpoint_path = f"projects/{self.project_name}/model-endpoints"
+        graph.to(
+            MLRunAPIRemoteStep(
+                method=mlrun.common.types.HTTPMethod.GET,
+                path=endpoint_path,
+            ),
+        ).respond()
+
+        # # Deploy the function
+        function.deploy()
+
+        # Test event generation with sample event data
+        event_data = {
+            "params": {
+                "function-name": "api-event-function",
+                "function-tag": "latest",
+                "tsdb-metrics": "False",
+                "top-level": "False",
+                "latest-only": "False",
+            }
+        }
+
+        # Invoke function with event data
+        resp = function.invoke("/", event_data)
+        print(resp)
+
+        # Verify event was generated by checking response
+        assert resp is not None
+        assert isinstance(resp, dict)
+        assert "endpoints" in resp
+        assert isinstance(resp["endpoints"], list)
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

@@ -40,6 +40,7 @@ import yaml
 
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 
 env_prefix = "MLRUN_"
@@ -86,6 +87,7 @@ default_config = {
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
+    "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
@@ -107,7 +109,11 @@ default_config = {
     "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
-    "background_task_cleanup_interval": "86400",  # 24 hours in seconds
+    # disabled by default due to an internal bug in serving functions
+    # relying on a background task to hold the status for its model endpoints
+    # TODO: need to refine what/when we can delete the background tasks
+    # e.g: use labels or naming convention.
+    "background_task_cleanup_interval": "0",
     "background_task_max_age": "21600",  # 6 hours in seconds
     "monitoring": {
         "runs": {
@@ -251,7 +257,8 @@ default_config = {
             },
             "runtimes": {
                 "dask": "600",
-                "dask_cluster_start": "300",
+                # cluster start might take some time in case k8s needs to spin up new nodes
+                "dask_cluster_start": "600",
             },
             "push_notifications": "60",
         },
@@ -299,6 +306,7 @@ default_config = {
         "application": {
             "default_sidecar_internal_port": 8050,
             "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
+            "default_worker_number": 10000,
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -416,7 +424,7 @@ default_config = {
             "allow_local_run": False,
         },
         "authentication": {
-            "mode": "none",  # one of none, basic, bearer, iguazio
+            "mode": "none",  # one of none, basic, bearer, iguazio, iguazio-v4
             "basic": {"username": "", "password": ""},
             "bearer": {"token": ""},
             "iguazio": {
@@ -644,6 +652,13 @@ default_config = {
                 "max_replicas": 1,
             },
         },
+        "writer_graph": {
+            "max_events": 1000,
+            "flush_after_seconds": 30,
+            "writer_version": "v1",  # v1 is the sync version while v2 is async
+            "parquet_batching_max_events": 10,
+            "parquet_batching_timeout_secs": 30,
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -685,6 +700,7 @@ default_config = {
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
+            "user_token_secret_name": "mlrun-auth-{username}-{token_name}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
         },
@@ -714,7 +730,6 @@ default_config = {
             "name": "default",
             "description": "MLRun global function hub",
             "url": "https://mlrun.github.io/marketplace",
-            "object_type": "functions",
             "channel": "master",
         },
     },
@@ -856,6 +871,16 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
     },
+    "auth_with_oauth_token": {
+        "enabled": False,
+        "request_timeout": 5,
+        "refresh_threshold": 0.75,
+        "token_file": "~/.igz.yml",
+        # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
+        # for a token named "default", if "default" does not exist, it will use the first token in the file
+        "token_name": "",
+    },
+    "auth_token_endpoint": "",
     "services": {
         # The running service name. One of: "api", "alerts"
         "service_name": "api",
@@ -996,9 +1021,9 @@ class Config:
         )
 
     @staticmethod
-    def get_default_hub_source() -> str:
+    def get_default_hub_source_url_prefix(object_type) -> str:
         default_source = config.hub.default_source
-        return f"{default_source.url}/{default_source.object_type}/{default_source.channel}/"
+        return f"{default_source.url}/{object_type}/{default_source.channel}/"
 
     @staticmethod
     def decode_base64_config_and_load_to_object(
@@ -1389,6 +1414,18 @@ class Config:
         # True if the setup is in CE environment
         return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
+        )
+
+    def is_iguazio_mode(self):
+        return (
+            mlrun.mlconf.httpdb.authentication.mode
+            == mlrun.common.types.AuthenticationMode.IGUAZIO
+        )
+
+    def is_iguazio_v4_mode(self):
+        return (
+            config.httpdb.authentication.mode
+            == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 
     def is_explicit_ack_enabled(self) -> bool:

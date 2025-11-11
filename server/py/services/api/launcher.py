@@ -181,7 +181,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     runtime_handler = services.api.runtime_handlers.get_runtime_handler(
                         runtime.kind
                     )
-                    runtime_handler.run(runtime, run, execution)
+                    runtime_handler.run(runtime, run, execution, self._auth_info)
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 
@@ -404,6 +404,10 @@ class ServerSideLauncher(launcher.BaseLauncher):
             getattr(run.spec, "node_selector", None),
             getattr(runtime.spec, "tolerations", None),
             getattr(runtime.spec, "affinity", None),
+        )
+
+        tolerations, affinity = mlrun.k8s_utils.sanitize_scheduling_configuration(
+            tolerations, affinity
         )
         self._set_run_spec_with_enriched_params(
             run,

@@ -18,7 +18,7 @@ def handler_chroma(
     context: MLClientCtx,
     df: pd.DataFrame,
     cache_dir: str,
-    chunk_size: int = 500,
+    chunk_size: int = 1000,
     chunk_overlap: int = 0,
     collection_name: str = "my_news",
 ):

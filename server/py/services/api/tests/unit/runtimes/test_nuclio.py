@@ -1863,6 +1863,75 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     @pytest.mark.parametrize(
+        "nuclio_version",
+        [
+            "1.14.15",
+            "1.14.11",
+        ],
+    )
+    def test_masking_rabbitmq_url(self, nuclio_version):
+        """Test that RabbitMQ URL credentials are extracted and masked properly."""
+        password = "rabbit123"
+        url = (
+            f"amqp://user:{password}@my-rabbitmq.default-tenant.svc.cluster.local:5672"
+        )
+
+        def _validate_masked_trigger(masked_trigger):
+            if nuclio_version == "1.14.15":
+                assert (
+                    masked_trigger["url"]
+                    == "amqp://my-rabbitmq.default-tenant.svc.cluster.local:5672"
+                )
+
+                # Assert: Password is masked in attributes
+                assert masked_trigger["password"] != password
+
+                # Assert: Username is in attributes
+                assert masked_trigger["username"] == "user"
+            else:
+                # should not mask for versions less than 1.14.15
+                assert masked_trigger["url"] == url
+
+            # should not be masked in raw_config (this is config we send to nuclio)
+            if "spec.triggers" in raw_config:
+                assert (
+                    raw_config.get("spec.triggers").get("rabbit-trigger").get("url")
+                    == url
+                )
+            else:
+                assert raw_config.get("spec.triggers.rabbit-trigger").get("url") == url
+
+        mlconf.nuclio_version = nuclio_version
+        function = self._generate_runtime(self.runtime_kind)
+        attributes = {
+            "exchangeName": "input_ex",
+            "queueName": "input_queue",
+        }
+
+        # Option 1: set trigger via add_trigger
+        function.add_trigger(
+            "rabbit-trigger",
+            {"kind": "rabbit-mq", "url": url, "attributes": attributes},
+        )
+
+        raw_config = function.mask_sensitive_data_in_config()
+        masked_trigger = function.spec.config.get("spec.triggers.rabbit-trigger")
+        _validate_masked_trigger(masked_trigger)
+
+        # Option 2: set trigger via set_config
+        triggers = {
+            "rabbit-trigger": {
+                "kind": "rabbit-mq",
+                "url": url,
+                "attributes": attributes,
+            },
+        }
+        function.set_config("spec.triggers", triggers)
+        raw_config = function.mask_sensitive_data_in_config()
+        masked_trigger = function.spec.config.get("spec.triggers").get("rabbit-trigger")
+        _validate_masked_trigger(masked_trigger)
+
+    @pytest.mark.parametrize(
         "inside_k8s,force_external,internal_urls,external_urls,address,expected_url,expected_exception,disable_default_http_trigger",
         [
             # Prefer internal when inside k8s and not forcing external

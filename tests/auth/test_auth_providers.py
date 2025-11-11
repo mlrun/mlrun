@@ -175,7 +175,7 @@ def test_post_fetch_hook_raises_if_no_token(monkeypatch):
     provider._token = None
     provider._max_retries = 3
     monkeypatch.setattr("mlrun.secrets.sync_secret_tokens", MagicMock())
-    # should detect empty token and raise error
+    # should detect empty token in post fetch hook and raise error
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         provider._post_fetch_hook()
 

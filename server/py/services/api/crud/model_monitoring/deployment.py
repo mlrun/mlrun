@@ -1970,7 +1970,7 @@ class MonitoringDeployment:
         delete_background_task: fastapi.BackgroundTasks,
     ):
         async with semaphore:
-            result = await framework.db.session.run_async_function_with_new_db_session(
+            result = framework.db.session.run_function_with_new_db_session(
                 func=services.api.crud.ModelEndpoints().create_model_endpoints,
                 model_endpoints_instructions=model_endpoints_instructions,
                 project=project,
@@ -2505,7 +2505,7 @@ class MonitoringDeployment:
                 )
         return model_endpoints_instructions
 
-    async def _delete_app_from_schedules_files(
+    def _delete_app_from_schedules_files(
         self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
     ) -> None:
         """
@@ -2519,7 +2519,7 @@ class MonitoringDeployment:
             endpoint_id_list = endpoint_ids
         else:
             endpoints_data = (
-                await services.api.crud.ModelEndpoints().list_model_endpoints(
+                framework.utils.singletons.db.get_db().list_model_endpoints(
                     project=self.project,
                     uids=endpoint_ids,
                     db_session=self.db_session,
@@ -2539,7 +2539,7 @@ class MonitoringDeployment:
             ) as schedules_file:
                 schedules_file.delete_application_time(application=application_name)
 
-    async def delete_application_records(
+    def delete_application_records(
         self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
     ) -> None:
         """
@@ -2561,7 +2561,7 @@ class MonitoringDeployment:
 
         if not application_name.endswith(mlrun_constants.RESERVED_BATCH_JOB_SUFFIX):
             # The schedules file of "batch" applications is handled on the user side
-            await self._delete_app_from_schedules_files(
+            self._delete_app_from_schedules_files(
                 application_name=application_name, endpoint_ids=endpoint_ids
             )
 

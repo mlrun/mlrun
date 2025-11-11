@@ -35,7 +35,7 @@ MLRUN_PYTHON_VERSION ?= 3.11
 PYTHON_VERSION ?= $(shell python --version)
 
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
-IGUAZIO_PACKAGE_VERSION ?= 0.0.1a15
+IGUAZIO_PACKAGE_VERSION ?= 0.0.1a16
 
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
@@ -191,6 +191,17 @@ install-dev-requirements: ## Install dev-requirements relevant for pytest and co
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r dev-requirements.txt
+
+.PHONY: install-dev-requirements
+install-automation-requirements: ## Install automation-requirements relevant for CI and automation scripts
+	# relevant for pip package installer only
+	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
+		$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION); \
+	fi
+
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
+		$(MLRUN_PIP_NO_CACHE_FLAG) \
+		-r automation/requirements.txt
 
 .PHONY: install-docs-requirements
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
@@ -792,11 +803,14 @@ test-system: ## Run mlrun system tests
 
 .PHONY: test-system-open-source
 test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration
-	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
+	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
+	MLRUN_SYSTEM_TEST_OPEN_SOURCE=true \
+	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
+		--system-test-open-source \
 		-m $(if $(MLRUN_SYSTEM_TEST_MARKERS),"$(MLRUN_SYSTEM_TEST_MARKERS)","not enterprise") \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 

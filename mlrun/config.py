@@ -659,7 +659,7 @@ default_config = {
         "writer_graph": {
             "max_events": 1000,
             "flush_after_seconds": 30,
-            "writer_version": "v1",  # v1 is the sync version while v2 is async
+            "writer_version": "v2",  # v1 is the sync version while v2 is async
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
@@ -732,7 +732,7 @@ default_config = {
             # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
             "name": "default",
-            "description": "MLRun global function hub",
+            "description": "MLRun hub",
             "url": "https://mlrun.github.io/marketplace",
             "channel": "master",
         },
@@ -880,6 +880,8 @@ default_config = {
         "request_timeout": 5,
         "refresh_threshold": 0.75,
         "token_file": "~/.igz.yml",
+        # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
+        # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
     },
     "auth_token_endpoint": "",

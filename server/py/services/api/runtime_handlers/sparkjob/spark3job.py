@@ -23,6 +23,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.regex
 from mlrun.common.runtimes.constants import RunStates, SparkApplicationStates
@@ -89,6 +90,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
         runtime: mlrun.runtimes.sparkjob.Spark3Runtime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         self._validate_sparkjob(runtime, run)
 
@@ -190,7 +192,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             runtime, project_name=run.metadata.project
         )
 
-        command, args, extra_env = self._get_cmd_args(runtime, run)
+        command, args, extra_env = self._get_cmd_args(runtime, run, auth_info=auth_info)
         code = None
         if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:
             code = f"""

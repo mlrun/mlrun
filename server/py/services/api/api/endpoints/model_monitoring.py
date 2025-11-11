@@ -131,7 +131,7 @@ async def _common_parameters(
 
 
 @router.put("/")
-async def enable_model_monitoring(
+def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
@@ -183,7 +183,7 @@ async def enable_model_monitoring(
 
 
 @router.patch("/controller")
-async def update_model_monitoring_controller(
+def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
@@ -369,20 +369,19 @@ async def _common_function_parameters(
         client_version=client_version,
         action=mlrun.common.schemas.AuthorizationAction.read,
     )
+    if (start and start.tzinfo is None) or (end and end.tzinfo is None):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Custom start and end times must contain the timezone."
+        )
     if start is None and end is None:
         end = mlrun.utils.helpers.datetime_now()
         start = end - timedelta(days=1)
     elif start is not None and end is not None:
-        if start.tzinfo is None or end.tzinfo is None:
-            raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                "Custom start and end times must contain the timezone."
-            )
         if start > end:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The start time must be before the end time. Note that if end time is not provided, "
                 "the current time is used by default."
             )
-
     return _FunctionSummariesParams(
         project=project,
         auth_info=auth_info,
@@ -521,8 +520,10 @@ async def delete_model_endpoints_metrics_values(
         auth_info=commons.auth_info,
     )
     # call delete_application_records of the tsdb connector
-    await commons.get_monitoring_deployment().delete_application_records(
-        application_name=application_name, endpoint_ids=endpoint_id
+    await run_in_threadpool(
+        commons.get_monitoring_deployment().delete_application_records,
+        application_name=application_name,
+        endpoint_ids=endpoint_id,
     )
 
 

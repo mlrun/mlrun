@@ -105,8 +105,6 @@ def read_secret_tokens_file(
     If the file does not exist or cannot be parsed, it either raises an error or logs a warning based on the
     `raise_on_error` parameter.
 
-    - Supports both ``.yaml`` and ``.yml`` extensions and will attempt to use the
-      alternate extension if the file with the configured extension does not exist.
     - The configured path may use ``~`` to represent the user’s home directory, which
       will be expanded automatically.
 
@@ -115,28 +113,11 @@ def read_secret_tokens_file(
     """
     token_file = os.path.expanduser(mlrun.mlconf.auth_with_oauth_token.token_file)
 
-    # If the file doesn't exist, try the alternative extension
     if not os.path.exists(token_file):
-        base, ext = os.path.splitext(token_file)
-        if ext in [".yml", ".yaml"]:
-            alt_ext = ".yaml" if ext == ".yml" else ".yml"
-            alt_file = base + alt_ext
-            if os.path.exists(alt_file):
-                token_file = alt_file
-            else:
-                mlrun.utils.helpers.raise_or_log_error(
-                    (
-                        f"Configured token file not found: {token_file}. "
-                        f"Tried alternative extension: {alt_file}, also not found."
-                    ),
-                    raise_on_error,
-                )
-                return None
-        else:
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Configured token file not found: {token_file}", raise_on_error
-            )
-            return None
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Configured token file not found: {token_file}", raise_on_error
+        )
+        return None
 
     try:
         with open(token_file) as token_file_io:

@@ -2767,9 +2767,9 @@ class MlrunProject(ModelObj):
 
         Supported URL prefixes:
 
-        - Object: s3://, v3io://, etc.
-        - MLRun DB: e.g db://project/func:ver
-        - Function hub/market: e.g. hub://auto-trainer:master
+            | Object (s3://, v3io://, ..)
+            | MLRun DB e.g. db://project/func:ver
+            | Hub/market: e.g. hub://auto-trainer:master
 
         Examples::
 

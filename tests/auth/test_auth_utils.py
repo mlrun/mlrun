@@ -300,7 +300,10 @@ def test_read_secret_tokens_file_non_existent(tmp_path, monkeypatch):
         # 2. Non-dict YAML (list at root)
         ("tokens.yaml", "- just-a-list-item", True, True, None),
         ("tokens.yaml", "- just-a-list-item", False, False, None),
-        # 3. Valid YAML regardless of extension
+        # 3. Malformed YAML → yaml.safe_load will throw error
+        ("tokens.yaml", "::: bad yaml :::", True, True, None),
+        ("tokens.yaml", "::: bad yaml :::", False, False, None),
+        # 4. Valid YAML regardless of extension
         (
             "tokens.txt",
             {"secretTokens": [{"name": "n1", "token": "t1"}]},
@@ -310,7 +313,7 @@ def test_read_secret_tokens_file_non_existent(tmp_path, monkeypatch):
         ),
     ],
 )
-def test_read_secret_tokens_file_edge_cases(
+def test_read_secret_tokens_file(
     tmp_path,
     monkeypatch,
     file_name,
@@ -330,22 +333,6 @@ def test_read_secret_tokens_file_edge_cases(
     else:
         result = mlrun.auth.utils.read_secret_tokens_file(raise_on_error=raise_on_error)
         assert result == expected_result
-
-
-def test_read_secret_tokens_file_invalid_yaml(tmp_path, monkeypatch):
-    # Create a malformed YAML file
-    invalid_yaml_content = "::: invalid yaml :::"
-    file_path = tmp_path / "invalid_tokens.yaml"
-    file_path.write_text(invalid_yaml_content)
-
-    # Point config to the invalid file
-    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", str(file_path))
-
-    result = mlrun.auth.utils.read_secret_tokens_file(raise_on_error=False)
-    assert result is None
-
-    with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        mlrun.auth.utils.read_secret_tokens_file(raise_on_error=True)
 
 
 def _write_file(tmp_path, name: str, content) -> str:

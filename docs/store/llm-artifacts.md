@@ -20,7 +20,7 @@ LLM prompt artifacts capture a prompt definition for LLM interactions. You can l
 Prompt artifacts:
 -Are uniquely defined by their LLM, prompt template, and the model generation configuration. 
 - Support {ref}`local and remote models<genai-serving>`.
-- Support [inline prompt templates and templates from a file](..//genai/deployment/genai_serving_graph.html#logging-llm-prompt-artifacts).
+- Support [inline prompt templates and templates from a file](..//genai/deployment/genai_serving_graph.md#log-the-llm-prompt-artifacts).
 
 Use {py:meth}`~mlrun.projects.MlrunProject.log_llm_prompt` to log prompt artifacts as part of a project.
 

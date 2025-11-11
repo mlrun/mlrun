@@ -3,13 +3,13 @@
 Learn how to create a serving graph using multiple LLMs, including specific prompt templates, inside your complete workflow.
 
 Take a project, for example, of an insurance company customer service chatbot that receives customers' requests and gives the best answer according to the customer’s specific data and the company’s procedures.
-This would require a few calls for LLMs, each with its purpose, potemtially using different prompts and different LLMs. 
+This would require a few calls for LLMs, each with its purpose, potentially using different prompts and different LLMs. 
 The first step is classification: receiving the user’s request and trying to classify it into the pre-defined flow.
 This step uses a specific prompt instructing the LLM to classify the request. The LLM's answer can be a short text or a number specifying the classified path. The LLM used at this stage would not require the creation of sophisticated answers, and the invocation configuration can allow only very short answers. 
 After the relevant flows are understood, the system can ask the user for their ID and answer the question based on the user’s data, such as the status of their claim. In this case, the LLM and prompt are different.
 
 This page guides you through the basic steps to generate a serving graph using LLMs. For a full example, see the tutorial
-[Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb).
+[Using LLM prompt templates and artifacts](../../tutorials/genai-04-llm-prompt-artifact.ipynb).
 
 
 ![llm-flow-chart](../../_static/images/llm-flowchart.png)
@@ -21,7 +21,7 @@ This page guides you through the basic steps to generate a serving graph using L
 - [Serve the graph](#serve-the-graph)
 
 See also
-[MLRun fine-tuning demo](https://github.com/mlrun/demo-llm-tuning)
+[MLRun fine-tuning demo](https://github.com/mlrun/demo-llm-tuning).
 
 ## Guidelines
 

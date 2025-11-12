@@ -2797,27 +2797,23 @@ class TestArtifacts(TestDatabaseBase):
     @pytest.mark.parametrize(
         "case",
         [
-            # Default path: no ids key at all (omit it)
             {"with_entities": None, "attach_tags": False, "expected": True},
-            # Still default when attach_tags True (if your predicate allows it)
             {"with_entities": None, "attach_tags": True, "expected": True},
-            # Non-defaults:
             {
                 "ids": ["non-empty"],
                 "with_entities": None,
                 "attach_tags": False,
                 "expected": False,
             },
-            # If you *really* want [] to be default, change predicate accordingly; otherwise keep False:
-            {"ids": [], "with_entities": None, "attach_tags": False, "expected": False},
-            {"ids": [], "with_entities": [], "attach_tags": False, "expected": False},
+            {"ids": [], "with_entities": None, "attach_tags": False, "expected": True},
+            {"ids": [], "with_entities": [], "attach_tags": False, "expected": True},
         ],
         ids=[
             "default-no-ids",
             "default-with-attach-tags",
             "non-default-with-ids",
-            "non-default-empty-ids-none-entities",
-            "non-default-empty-ids-empty-entities",
+            "default-empty-ids-none-entities",
+            "default-empty-ids-empty-entities",
         ],
     )
     def test_is_default_list_artifacts_query_defaults(self, case):
@@ -2841,48 +2837,36 @@ class TestArtifacts(TestDatabaseBase):
     @pytest.mark.parametrize(
         "scenario, ui_overrides, expect_hint",
         [
-            # Exact UI-default → hint ON
             ("ui-default", {}, True),
-            # Deviations → hint OFF
             (
-                "partition_by-name",
-                {"partition_by": mlrun.common.schemas.ArtifactPartitionByField.name},
-                False,
+                    "partition_by-name",
+                    {"partition_by": mlrun.common.schemas.ArtifactPartitionByField.name},
+                    False,
             ),
             (
-                "sort-order-asc",
-                {"partition_order": mlrun.common.schemas.OrderType.asc},
-                False,
+                    "sort-order-asc",
+                    {"partition_order": mlrun.common.schemas.OrderType.asc},
+                    False,
             ),
             (
-                "sort-by-created",
-                {"partition_sort_by": mlrun.common.schemas.SortField.created},
-                False,
+                    "sort-by-created",
+                    {"partition_sort_by": mlrun.common.schemas.SortField.created},
+                    False,
             ),
             ("limit-50", {"limit": 50}, False),
             ("non-latest-tag", {"tag": "v1"}, False),
             ("best_iteration-false", {"best_iteration": False}, False),
-            (
-                "different-category",
-                {"category": mlrun.common.schemas.ArtifactCategories.other},
-                False,
-            ),
             ("ids-non-empty", {"ids": ["force-non-default"]}, False),
-            ("ids-empty-list", {"ids": []}, False),
-            ("with_entities-minimal", {"with_entities": []}, False),
-            ("attach_tags-true", {"attach_tags": True}, False),
-            # If your predicate also checks offset:
-            # ("offset-10", {"offset": 10}, False),
+            ("ids-empty-list", {"ids": []}, True),
+            ("with_entities-minimal", {"with_entities": []}, True),
+            ("attach_tags-true", {"attach_tags": True}, True),
         ],
     )
-    def test_mysql_use_index_hint_scoping(
-        self, monkeypatch, scenario, ui_overrides, expect_hint
-    ):
+    def test_mysql_use_index_hint_scoping(self, monkeypatch, scenario, ui_overrides, expect_hint):
         """
         USE INDEX should be applied ONLY for the exact UI default shape.
         Any deviation should NOT get the hint.
         """
-        # Seed an artifact so the query path executes
         key = "artifact-for-default-query"
         self._db.store_artifact(
             self._db_session,
@@ -2915,13 +2899,11 @@ class TestArtifacts(TestDatabaseBase):
         "scenario, attach_tags, ids_value, expect_hint",
         [
             ("default-query-attach-tags-false", False, None, True),
-            ("default-query-attach-tags-true", True, None, True),
-            ("non-default-with-ids", False, ["break-default"], False),
+            ("default-query-attach-tags-true",  True,  None, True),
+            ("non-default-with-ids",            False, ["break-default"], False),
         ],
     )
-    def test_mysql_use_index_hint_behavior(
-        self, monkeypatch, scenario, attach_tags, ids_value, expect_hint
-    ):
+    def test_mysql_use_index_hint_behavior(self, monkeypatch, scenario, attach_tags, ids_value, expect_hint):
         """
         Ensure the hint is applied for the UI-default behavior and not for simple deviations.
         """

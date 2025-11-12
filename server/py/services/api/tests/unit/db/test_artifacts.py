@@ -2799,10 +2799,34 @@ class TestArtifacts(TestDatabaseBase):
         [
             {"kind": "hint", "attach_tags": False},
             {"kind": "hint", "attach_tags": True},
-            {"kind": "default-check", "ids": [], "with_entities": None, "attach_tags": False, "expected": True},
-            {"kind": "default-check", "ids": [], "with_entities": [], "attach_tags": False, "expected": True},
-            {"kind": "default-check", "ids": ["non-empty"], "with_entities": None, "attach_tags": False, "expected": False},
-            {"kind": "default-check", "ids": None, "with_entities": None, "attach_tags": True, "expected": True},
+            {
+                "kind": "default-check",
+                "ids": [],
+                "with_entities": None,
+                "attach_tags": False,
+                "expected": True,
+            },
+            {
+                "kind": "default-check",
+                "ids": [],
+                "with_entities": [],
+                "attach_tags": False,
+                "expected": True,
+            },
+            {
+                "kind": "default-check",
+                "ids": ["non-empty"],
+                "with_entities": None,
+                "attach_tags": False,
+                "expected": False,
+            },
+            {
+                "kind": "default-check",
+                "ids": None,
+                "with_entities": None,
+                "attach_tags": True,
+                "expected": True,
+            },
         ],
         ids=[
             "mysql-hint-default-query",
@@ -2813,7 +2837,9 @@ class TestArtifacts(TestDatabaseBase):
             "attach-tags-still-default",
         ],
     )
-    def test_default_query_mysql_hint_and_defaults_with_attach_tags(self, monkeypatch, case):
+    def test_default_query_mysql_hint_and_defaults_with_attach_tags(
+        self, monkeypatch, case
+    ):
         if case["kind"] == "hint":
             artifact_key = "dummy-artifact-for-default-query"
             self._db.store_artifact(
@@ -2830,7 +2856,9 @@ class TestArtifacts(TestDatabaseBase):
             def with_hint_spy(self_query_obj, selectable, text, dialect_name=None):
                 if dialect_name == "mysql" and "USE INDEX" in str(text):
                     hint_called_flag["value"] = True
-                return original_with_hint(self_query_obj, selectable, text, dialect_name=dialect_name)
+                return original_with_hint(
+                    self_query_obj, selectable, text, dialect_name=dialect_name
+                )
 
             monkeypatch.setattr(Query, "with_hint", with_hint_spy, raising=True)
 
@@ -2861,7 +2889,9 @@ class TestArtifacts(TestDatabaseBase):
                 parent_uri=None,
             )
 
-            assert hint_called_flag["value"], "Expected MySQL USE INDEX hint to be applied on the ORM Query"
+            assert hint_called_flag[
+                "value"
+            ], "Expected MySQL USE INDEX hint to be applied on the ORM Query"
             return
 
         ids_value = case.get("ids")
@@ -2896,7 +2926,6 @@ class TestArtifacts(TestDatabaseBase):
         )
 
         assert is_default_actual == expected_is_default
-
 
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""

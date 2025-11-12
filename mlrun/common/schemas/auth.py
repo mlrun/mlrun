@@ -178,10 +178,10 @@ class NuclioAuthInfoWithHeaders(NuclioAuthInfo):
     def to_requests_auth(self):
         # Return custom auth handler that applies headers
         base_auth = super().to_requests_auth()
-        return CustomAuthWithHeaders(base_auth, self._headers)
+        return _CustomAuthWithHeaders(base_auth, self._headers)
 
 
-class CustomAuthWithHeaders:
+class _CustomAuthWithHeaders:
     """
     Custom requests auth handler that applies additional headers to the request
     """
@@ -190,9 +190,9 @@ class CustomAuthWithHeaders:
         self.base_auth = base_auth
         self.headers = headers
 
-    def __call__(self, r):
+    def __call__(self, request):
         if self.base_auth:
-            r = self.base_auth(r)
-        for k, v in self.headers.items():
-            r.headers[k] = v
-        return r
+            request = self.base_auth(request)
+        for key, value in self.headers.items():
+            request.headers[key] = value
+        return request

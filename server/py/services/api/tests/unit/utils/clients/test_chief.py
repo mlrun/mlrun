@@ -300,12 +300,16 @@ async def test_do_not_escape_cookie(
 ):
     async def handler(request):
         assert (
-            request.headers["cookie"] == f"session={expected_cookie_header}"
+            request.headers[mlrun.common.schemas.HeaderNames.cookie]
+            == f"session={expected_cookie_header}"
         ), "Cookie header escaping is malfunctioning"
         assert (
             request.cookies["session"] == expected_cookie_header
         ), "Cookie session escaping is malfunctioning"
-        assert request.headers["x-request-id"] == "test-request-id"
+        assert (
+            request.headers[mlrun.common.schemas.HeaderNames.x_request_id]
+            == "test-request-id"
+        )
         return aiohttp.web.Response(status=200)
 
     fastapi_app = unittest.mock.Mock()

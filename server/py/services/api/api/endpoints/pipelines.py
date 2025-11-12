@@ -163,7 +163,7 @@ async def retry_pipeline(
             framework.utils.singletons.project_member.get_project_member().get_project,
             db_session=db_session,
             name=project,
-            leader_session=auth_info.session,
+            auth_info=auth_info,
         )
     )
 
@@ -435,6 +435,10 @@ async def _create_pipeline(
     run_name: str,
     project: typing.Optional[str] = None,
 ):
+    # Prefix the experiment name with the project name - required for pipelines listing
+    if experiment_name != project and not experiment_name.startswith(f"{project}"):
+        experiment_name = f"{project}-{experiment_name}"
+
     run_name = run_name or experiment_name + " " + datetime.datetime.now().strftime(
         "%Y-%m-%d %H-%M-%S"
     )

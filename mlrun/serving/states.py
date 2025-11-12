@@ -377,20 +377,14 @@ class BaseStep(ModelObj):
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
-                            * **overwrite**:
+                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                              create a new model endpoint entry and set it as `latest`.
 
-                            1. If model endpoints with the same name exist, delete the `latest` one.
-                            2. Create a new model endpoint entry and set it as `latest`.
+                            * **inplace** (default): If model endpoints with the same name exist, update the `latest`
+                              entry; otherwise, create a new entry.
 
-                            * **inplace** (default):
-
-                            1. If model endpoints with the same name exist, update the `latest` entry.
-                            2. Otherwise, create a new entry.
-
-                            * **archive**:
-
-                            1. If model endpoints with the same name exist, preserve them.
-                            2. Create a new model endpoint with the same name and set it to `latest`.
+                            * **archive**: If model endpoints with the same name exist, preserve them;
+                              create a new model endpoint with the same name and set it to `latest`.
 
         :param class_args:  class init arguments
         """
@@ -522,7 +516,9 @@ class BaseStep(ModelObj):
 
         root = self._extract_root_step()
 
-        if not isinstance(root, RootFlowStep):
+        if not isinstance(root, RootFlowStep) or (
+            isinstance(root, RootFlowStep) and root.engine != "async"
+        ):
             raise GraphError(
                 "ModelRunnerStep can be added to 'Flow' topology graph only"
             )
@@ -589,15 +585,14 @@ class BaseStep(ModelObj):
                 root.get_shared_model_by_artifact_uri(model_artifact_uri)
             )
 
-            if not shared_runnable_name:
-                if not actual_shared_name:
-                    raise GraphError(
-                        f"Can't find shared model for {name} model endpoint"
-                    )
-                else:
-                    step.class_args[schemas.ModelRunnerStepData.MODELS][name][
-                        schemas.ModelsData.MODEL_PARAMETERS.value
-                    ]["shared_runnable_name"] = actual_shared_name
+            if not actual_shared_name:
+                raise GraphError(
+                    f"Can't find shared model named {shared_runnable_name}"
+                )
+            elif not shared_runnable_name:
+                step.class_args[schemas.ModelRunnerStepData.MODELS][name][
+                    schemas.ModelsData.MODEL_PARAMETERS.value
+                ]["shared_runnable_name"] = actual_shared_name
             elif actual_shared_name != shared_runnable_name:
                 raise GraphError(
                     f"Model endpoint {name} shared runnable name mismatch: "
@@ -1041,20 +1036,14 @@ class RouterStep(TaskStep):
         :param function:   function this step should run in
         :param creation_strategy: Strategy for creating or updating the model endpoint:
 
-                           * **overwrite**:
+                           * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                             create a new model endpoint entry and set it as `latest`.
 
-                           1. If model endpoints with the same name exist, delete the `latest` one.
-                           2. Create a new model endpoint entry and set it as `latest`.
+                           * **inplace** (default): If model endpoints with the same name exist, update the `latest`
+                             entry;otherwise, create a new entry.
 
-                           * **inplace** (default):
-
-                           1. If model endpoints with the same name exist, update the `latest` entry.
-                           2. Otherwise, create a new entry.
-
-                           * **archive**:
-
-                           1. If model endpoints with the same name exist, preserve them.
-                           2. Create a new model endpoint with the same name and set it to `latest`.
+                           * **archive**: If model endpoints with the same name exist, preserve them;
+                             create a new model endpoint with the same name and set it to `latest`.
 
         """
         if len(self.routes.keys()) >= MAX_MODELS_PER_ROUTER and key not in self.routes:
@@ -1148,6 +1137,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         "artifact_uri",
         "shared_runnable_name",
         "shared_proxy_mapping",
+        "execution_mechanism",
     ]
     kind = "model"
 
@@ -1170,6 +1160,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.model_artifact: Optional[ModelArtifact] = None
         self.model_provider: Optional[ModelProvider] = None
         self._artifact_were_loaded = False
+        self._execution_mechanism = None
 
     def __init_subclass__(cls):
         super().__init_subclass__()
@@ -1188,6 +1179,20 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
                 default_invoke_kwargs=self.model_artifact.default_config,
                 raise_missing_schema_exception=False,
             )
+
+        # Check if the relevant predict method is implemented when trying to initialize the model
+        if self._execution_mechanism == storey.ParallelExecutionMechanisms.asyncio:
+            if self.__class__.predict_async is Model.predict_async:
+                raise mlrun.errors.ModelRunnerError(
+                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict_async() "
+                    f"is not implemented"
+                )
+        else:
+            if self.__class__.predict is Model.predict:
+                raise mlrun.errors.ModelRunnerError(
+                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict() "
+                    f"is not implemented"
+                )
 
     def _load_artifacts(self) -> None:
         if not self._artifact_were_loaded:
@@ -1219,11 +1224,11 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
     def predict(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
-        return body
+        raise NotImplementedError("predict() method not implemented")
 
     async def predict_async(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic if the logic requires asyncio."""
-        return body
+        raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         return self.predict(body)
@@ -1338,7 +1343,7 @@ class LLModel(Model):
         self,
         body: Any,
         messages: Optional[list[dict]] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
         llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
@@ -1349,12 +1354,12 @@ class LLModel(Model):
                 "Invoking model provider",
                 model_name=self.name,
                 messages=messages,
-                model_configuration=model_configuration,
+                invocation_config=invocation_config,
             )
             response_with_stats = self.model_provider.invoke(
                 messages=messages,
                 invoke_response_format=InvokeResponseFormat.USAGE,
-                **(model_configuration or {}),
+                **(invocation_config or {}),
             )
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
@@ -1378,7 +1383,7 @@ class LLModel(Model):
         self,
         body: Any,
         messages: Optional[list[dict]] = None,
-        model_configuration: Optional[dict] = None,
+        invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
         llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
@@ -1389,12 +1394,12 @@ class LLModel(Model):
                 "Async invoking model provider",
                 model_name=self.name,
                 messages=messages,
-                model_configuration=model_configuration,
+                invocation_config=invocation_config,
             )
             response_with_stats = await self.model_provider.async_invoke(
                 messages=messages,
                 invoke_response_format=InvokeResponseFormat.USAGE,
-                **(model_configuration or {}),
+                **(invocation_config or {}),
             )
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
@@ -1416,7 +1421,7 @@ class LLModel(Model):
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
-        messages, model_configuration = self.enrich_prompt(
+        messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
         )
         logger.info(
@@ -1428,7 +1433,7 @@ class LLModel(Model):
         return self.predict(
             body,
             messages=messages,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             llm_prompt_artifact=llm_prompt_artifact,
         )
 
@@ -1436,7 +1441,7 @@ class LLModel(Model):
         self, body: Any, path: str, origin_name: Optional[str] = None
     ) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
-        messages, model_configuration = self.enrich_prompt(
+        messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
         )
         logger.info(
@@ -1448,7 +1453,7 @@ class LLModel(Model):
         return await self.predict_async(
             body,
             messages=messages,
-            model_configuration=model_configuration,
+            invocation_config=invocation_config,
             llm_prompt_artifact=llm_prompt_artifact,
         )
 
@@ -1472,11 +1477,11 @@ class LLModel(Model):
                 artifact_type=type(llm_prompt_artifact).__name__,
                 llm_prompt_artifact=llm_prompt_artifact,
             )
-            prompt_legend, prompt_template, model_configuration = {}, [], {}
+            prompt_legend, prompt_template, invocation_config = {}, [], {}
         else:
             prompt_legend = llm_prompt_artifact.spec.prompt_legend
             prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
-            model_configuration = llm_prompt_artifact.spec.model_configuration
+            invocation_config = llm_prompt_artifact.spec.invocation_config
         input_data = copy(get_data_from_path(self._input_path, body))
         if isinstance(input_data, dict) and prompt_template:
             kwargs = (
@@ -1512,7 +1517,7 @@ class LLModel(Model):
                 model_name=self.name,
                 input_data_type=type(input_data).__name__,
             )
-        return prompt_template, model_configuration
+        return prompt_template, invocation_config
 
     def _get_invocation_artifact(
         self, origin_name: Optional[str] = None
@@ -1644,19 +1649,29 @@ class ModelRunnerStep(MonitoredStep):
     Note when ModelRunnerStep is used in a graph, MLRun automatically imports
     the default language model class (LLModel) during function deployment.
 
+    Note ModelRunnerStep can only be added to a graph that has the flow topology and running with async engine.
+
+    Note see config_pool_resource method documentation for default number of max threads and max processes.
+
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
       an error. If False, the error will appear in the output event.
 
-    :raise ModelRunnerError - when a model raise an error the ModelRunnerStep will handle it, collect errors and outputs
-                              from added models, If raise_exception is True will raise ModelRunnerError Else will add
-                              the error msg as part of the event body mapped by model name if more than one model was
-                              added to the ModelRunnerStep
+    raise ModelRunnerError -
+                              when a model raises an error the ModelRunnerStep will handle it, collect errors and
+                              outputs from added models. If raise_exception is True will raise ModelRunnerError. Else
+                              will add the error msg as part of the event body mapped by model name if more than
+                              one model was added to the ModelRunnerStep
     """
 
     kind = "model_runner"
-    _dict_fields = MonitoredStep._dict_fields + ["_shared_proxy_mapping"]
+    _dict_fields = MonitoredStep._dict_fields + [
+        "_shared_proxy_mapping",
+        "max_processes",
+        "max_threads",
+        "pool_factor",
+    ]
 
     def __init__(
         self,
@@ -1667,6 +1682,10 @@ class ModelRunnerStep(MonitoredStep):
         raise_exception: bool = True,
         **kwargs,
     ):
+        self.max_processes = None
+        self.max_threads = None
+        self.pool_factor = None
+
         if isinstance(model_selector, ModelSelector) and model_selector_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model_selector object as argument to `model_selector` and also provide "
@@ -1717,17 +1736,18 @@ class ModelRunnerStep(MonitoredStep):
         :param shared_model_name:   str, the name of the shared model that is already defined within the graph
         :param labels:              model endpoint labels, should be list of str or mapping of str:str
         :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
-          * **overwrite**:
-          1. If model endpoints with the same name exist, delete the `latest` one.
-          2. Create a new model endpoint entry and set it as `latest`.
-          * **inplace** (default):
-          1. If model endpoints with the same name exist, update the `latest` entry.
-          2. Otherwise, create a new entry.
-          * **archive**:
-          1. If model endpoints with the same name exist, preserve them.
-          2. Create a new model endpoint with the same name and set it to `latest`.
+
+                 * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                   create a new model endpoint entry and set it as `latest`.
+
+                 * **inplace** (default): If model endpoints with the same name exist, update the `latest` entry;
+                   otherwise, create a new entry.
+
+                 * **archive**: If model endpoints with the same name exist, preserve them;
+                   create a new model endpoint with the same name and set it to `latest`.
 
         :param override:            bool allow override existing model on the current ModelRunnerStep.
+        :raise GraphError:  when the shared model is not found in the root flow step shared models.
         """
         model_class, model_params = (
             "mlrun.serving.Model",
@@ -1836,49 +1856,48 @@ class ModelRunnerStep(MonitoredStep):
                                     (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
                                     outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
-            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
-                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
-                Lock (GIL).
-            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
-                tasks that also require significant Runnable-specific initialization (e.g. a large model).
-            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
-                otherwise block the main event loop thread.
-            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
-                event loop to continue running while waiting for a response.
-            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
-                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
-                useful when:
-                - You want to share a heavy resource like a large model loaded onto a GPU.
-                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
-                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
-                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
-                memory and hardware accelerators.
-            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
-                It means that the runnable will not actually be run in parallel to anything else.
 
-            :param model_artifact:      model artifact or mlrun model artifact uri
-            :param labels:              model endpoint labels, should be list of str or mapping of str:str
-            :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
-              * **overwrite**:
-              1. If model endpoints with the same name exist, delete the `latest` one.
-              2. Create a new model endpoint entry and set it as `latest`.
-              * **inplace** (default):
-              1. If model endpoints with the same name exist, update the `latest` entry.
-              2. Otherwise, create a new entry.
-              * **archive**:
-              1. If model endpoints with the same name exist, preserve them.
-              2. Create a new model endpoint with the same name and set it to `latest`.
+                            * **process_pool**: To run in a separate process from a process pool. This is appropriate
+                              for CPU or GPU intensive tasks as they would otherwise block the main process by holding
+                              Python's Global Interpreter Lock (GIL).
 
-          :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
+                            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU
+                              or GPU intensive tasks that also require significant Runnable-specific initialization
+                              (e.g. a large model).
+
+                            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks,
+                              as they would otherwise block the main event loop thread.
+
+                            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use
+                              asyncio, allowing the event loop to continue running while waiting for a response.
+
+                            * **naive**: To run in the main event loop. This is appropriate only for trivial computation
+                              and/or file I/O. It means that the runnable will not actually be run in parallel to
+                              anything else.
+
+        :param model_artifact:      model artifact or mlrun model artifact uri
+        :param labels:              model endpoint labels, should be list of str or mapping of str:str
+        :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
+
+                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                              create a new model endpoint entry and set it as `latest`.
+
+                            * **inplace** (default): If model endpoints with the same name exist, update the `latest`
+                              entry; otherwise, create a new entry.
+
+                            * **archive**: If model endpoints with the same name exist, preserve them;
+                              create a new model endpoint with the same name and set it to `latest`.
+
+        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
                                       that been configured in the model artifact, please note that those inputs need to
                                       be equal in length and order to the inputs that model_class predict method expects
-          :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
+        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
 
                                       When using LLModel, the output will be overridden with UsageResponseKeys.fields().
 
-          :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
+        :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
                                       this require that the event body will behave like a dict, expects scopes to be
                                       defined by dot notation (e.g "data.d").
                                       examples: input_path="data.b"
@@ -1888,7 +1907,7 @@ class ModelRunnerStep(MonitoredStep):
                                       be {"f0": [1, 2]}.
                                       if a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the input schema.
-          :param result_path:         when specified selects the key/path in the output event to use as model monitoring
+        :param result_path:         when specified selects the key/path in the output event to use as model monitoring
                                       outputs this require that the output event body will behave like a dict,
                                       expects scopes to be defined by dot notation (e.g "data.d").
                                       examples: result_path="out.b"
@@ -1899,8 +1918,8 @@ class ModelRunnerStep(MonitoredStep):
                                       if a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the output schema.
 
-          :param override:            bool allow override existing model on the current ModelRunnerStep.
-          :param model_parameters:    Parameters for model instantiation
+        :param override:            bool allow override existing model on the current ModelRunnerStep.
+        :param model_parameters:    Parameters for model instantiation
         """
         if isinstance(model_class, Model) and model_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -2073,6 +2092,24 @@ class ModelRunnerStep(MonitoredStep):
                 "Monitoring data must be a dictionary."
             )
 
+    def configure_pool_resource(
+        self,
+        max_processes: Optional[int] = None,
+        max_threads: Optional[int] = None,
+        pool_factor: Optional[int] = None,
+    ) -> None:
+        """
+        Configure the resource limits for the shared models in the graph.
+
+        :param max_processes: Maximum number of processes to spawn (excluding dedicated processes).
+            Defaults to the number of CPUs or 16 if undetectable.
+        :param max_threads: Maximum number of threads to spawn. Defaults to 32.
+        :param pool_factor: Multiplier to scale the number of process/thread workers per runnable. Defaults to 1.
+        """
+        self.max_processes = max_processes
+        self.max_threads = max_threads
+        self.pool_factor = pool_factor
+
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
         if not self._is_local_function(context):
@@ -2091,24 +2128,28 @@ class ModelRunnerStep(MonitoredStep):
             )
         model_objects = []
         for model, model_params in models.values():
+            model_name = model_params.get("name")
             model_params[schemas.MonitoringData.INPUT_PATH] = (
                 self.class_args.get(
                     mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
                 )
-                .get(model_params.get("name"), {})
+                .get(model_name, {})
                 .get(schemas.MonitoringData.INPUT_PATH)
             )
             model_params[schemas.MonitoringData.RESULT_PATH] = (
                 self.class_args.get(
                     mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
                 )
-                .get(model_params.get("name"), {})
+                .get(model_name, {})
                 .get(schemas.MonitoringData.RESULT_PATH)
             )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True
             )
             model._raise_exception = False
+            model._execution_mechanism = execution_mechanism_by_model_name.get(
+                model_name
+            )
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,
@@ -2117,6 +2158,9 @@ class ModelRunnerStep(MonitoredStep):
             shared_proxy_mapping=self._shared_proxy_mapping or None,
             name=self.name,
             context=context,
+            max_processes=self.max_processes,
+            max_threads=self.max_threads,
+            pool_factor=self.pool_factor,
         )
 
 
@@ -2336,20 +2380,14 @@ class FlowStep(BaseStep):
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
-                            * **overwrite**:
+                             * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                              create a new model endpoint entry and set it as `latest`.
 
-                            1. If model endpoints with the same name exist, delete the `latest` one.
-                            2. Create a new model endpoint entry and set it as `latest`.
+                            * **inplace** (default): If model endpoints with the same name exist, update the `latest`
+                            entry; otherwise, create a new entry.
 
-                            * **inplace** (default):
-
-                            1. If model endpoints with the same name exist, update the `latest` entry.
-                            2. Otherwise, create a new entry.
-
-                            * **archive**:
-
-                            1. If model endpoints with the same name exist, preserve them.
-                            2. Create a new model endpoint with the same name and set it to `latest`.
+                            * **archive**: If model endpoints with the same name exist, preserve them;
+                              create a new model endpoint with the same name and set it to `latest`.
 
         :param class_args:  class init arguments
         """
@@ -2858,25 +2896,35 @@ class RootFlowStep(FlowStep):
                                     (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
                                     outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
-            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
+
+            * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
                 intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
                 Lock (GIL).
-            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
-                tasks that also require significant Runnable-specific initialization (e.g. a large model).
-            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+
+            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU
+            intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
+
+            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
                 otherwise block the main event loop thread.
-            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
+
+            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
                 event loop to continue running while waiting for a response.
-            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
+
+            * **shared_executor":  Reuses an external executor (typically managed by the flow or context) to execute the
                 runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
                 useful when:
+
                 - You want to share a heavy resource like a large model loaded onto a GPU.
+
                 - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+
                 - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+
                 The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
                 memory and hardware accelerators.
-            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
-                It means that the runnable will not actually be run in parallel to anything else.
+
+            * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or file
+                I/O. It means that the runnable will not actually be run in parallel to anything else.
 
             :param model_artifact:      model artifact or mlrun model artifact uri
             :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
@@ -2959,7 +3007,7 @@ class RootFlowStep(FlowStep):
 
     def get_shared_model_by_artifact_uri(
         self, artifact_uri: str
-    ) -> Optional[tuple[str, str, dict]]:
+    ) -> Union[tuple[str, str, dict], tuple[None, None, None]]:
         """
         Get a shared model by its artifact URI.
         :param artifact_uri: The artifact URI of the model.
@@ -2968,9 +3016,9 @@ class RootFlowStep(FlowStep):
         for model_name, (model_class, model_params) in self.shared_models.items():
             if model_params.get("artifact_uri") == artifact_uri:
                 return model_name, model_class, model_params
-        return None
+        return None, None, None
 
-    def config_pool_resource(
+    def configure_shared_pool_resource(
         self,
         max_processes: Optional[int] = None,
         max_threads: Optional[int] = None,
@@ -3018,6 +3066,7 @@ class RootFlowStep(FlowStep):
                     model_params, init_with_params=True
                 )
                 model._raise_exception = False
+                model._execution_mechanism = self._shared_models_mechanism[model.name]
                 self.context.executor.add_runnable(
                     model, self._shared_models_mechanism[model.name]
                 )

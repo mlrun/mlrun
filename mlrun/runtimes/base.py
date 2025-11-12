@@ -154,6 +154,8 @@ class BaseRuntime(ModelObj):
     _default_fields_to_strip = ModelObj._default_fields_to_strip + [
         "status",  # Function status describes the state rather than configuration
     ]
+    # TODO: Remove this once we implement secret token mounting in jobs (ML-11292)
+    _default_token_name = "default"
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -381,7 +383,7 @@ class BaseRuntime(ModelObj):
                                The `count` field in the `Retry` object specifies the number of retry attempts.
                                If `count=0`, the run will not be retried.
                                The `backoff` field specifies the retry backoff strategy between retry attempts.
-                               If not provided, no backoff is applied.
+                               If not provided, the default backoff delay is 30 seconds.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         if artifact_path or out_path:
@@ -393,6 +395,7 @@ class BaseRuntime(ModelObj):
                 FutureWarning,
             )
         output_path = output_path or out_path or artifact_path
+
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )
@@ -440,12 +443,15 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _generate_runtime_env(self, runobj: RunObject = None) -> dict:
+    def _generate_runtime_env(
+        self, runobj: RunObject = None, auth_info: mlrun.common.schemas.AuthInfo = None
+    ) -> dict:
         """
         Prepares all available environment variables for usage on a runtime
         Data will be extracted from several sources and most of them are not guaranteed to be available
 
         :param runobj: Run context object (RunObject) with run metadata and status
+        :param auth_info: Optional authentication information.
         :return: Dictionary with all the variables that could be parsed
         """
         active_project = self.metadata.project or config.active_project
@@ -454,6 +460,23 @@ class BaseRuntime(ModelObj):
             # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
+
+        if config.is_iguazio_v4_mode():
+            if auth_info and auth_info.username:
+                secret = self._get_db().get_secret_token(
+                    token_name=self._default_token_name,
+                    username=auth_info.username,
+                )
+                runtime_env["MLRUN_AUTH_OFFLINE_TOKEN"] = secret.token
+
+            runtime_env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
+            runtime_env["MLRUN_AUTH_TOKEN_ENDPOINT"] = (
+                config.iguazio_api_url + "/api/v1/refresh-access-token"
+            )
+            runtime_env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
+                config.iguazio_api_ssl_verify
+            ).lower()
+
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True

@@ -1,11 +1,6 @@
 [
   {
     "image-name":"mlrun",
-    "python-version":"3.9",
-    "include-suffix":"true"
-  },
-  {
-    "image-name":"mlrun",
     "python-version":"3.11",
     "include-suffix":""
   },
@@ -13,11 +8,6 @@
     "image-name":"mlrun-kfp",
     "python-version":"3.11",
     "include-suffix":""
-  },
-  {
-    "image-name":"mlrun-kfp",
-    "python-version":"3.9",
-    "include-suffix":"true"
   },
   {
     "image-name":"api",
@@ -26,22 +16,12 @@
   },
   {
     "image-name": "mlrun-gpu",
-    "python-version":"3.9",
-    "include-suffix":"true"
-  },
-    {
-    "image-name": "mlrun-gpu",
     "python-version":"3.11",
     "include-suffix":""
   },
   {
     "image-name":"jupyter",
     "python-version":"3.11",
-    "include-suffix":""
-  },
-  {
-    "image-name":"test",
-    "python-version":"3.9",
     "include-suffix":""
   },
   {

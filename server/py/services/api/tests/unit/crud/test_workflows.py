@@ -68,7 +68,7 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
                         )
                     ],
                 ),
-                auth_info=mlrun.common.schemas.AuthInfo(),
+                auth_info=mlrun.common.schemas.AuthInfo(username="test-user"),
             )
             assert list(k8s_secrets_mock.project_secrets_map["project-name"].keys())[
                 0
@@ -133,7 +133,7 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
                     )
                 ],
             ),
-            auth_info=mlrun.common.schemas.AuthInfo(),
+            auth_info=mlrun.common.schemas.AuthInfo(username="test-user"),
         )
 
         assert run.metadata.name == run_name
@@ -158,6 +158,7 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             .startswith("mlrun.notifications.")
         )
         assert run.spec.handler == "mlrun.projects.load_and_run"
+        assert run.metadata.labels.get("owner") == "test-user"
 
     @pytest.mark.parametrize(
         "runner_class, source, expected_save",
@@ -211,3 +212,59 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             )
         run = runner_class().run(**params)
         assert run.spec.parameters["save"] == expected_save
+
+    def test_schedule_workflow_with_custom_source(
+        self,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock,
+    ):
+        # This test verifies that if a custom source is provided in the workflow request,
+        # it is used for the scheduled workflow instead of the project's source.
+
+        project = mlrun.common.schemas.ProjectOut(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+            spec=mlrun.common.schemas.ProjectSpecOut(
+                source="git://github.com/mlrun/project-demo.git"
+            ),
+        )
+        services.api.crud.Projects().create_project(db, project)
+
+        run_name = "scheduled-run"
+        runner = services.api.crud.WorkflowRunners().create_runner(
+            run_name=run_name,
+            project=project.metadata.name,
+            db_session=db,
+            auth_info=mlrun.common.schemas.AuthInfo(),
+            image="mlrun/mlrun",
+        )
+
+        custom_source = "v3io:///users/testuser/custom_project/project.zip"
+
+        with unittest.mock.patch(
+            "services.api.utils.singletons.scheduler.get_scheduler"
+        ) as scheduler_mock:
+            services.api.crud.WorkflowRunners().schedule(
+                runner=runner,
+                project=project,
+                workflow_request=mlrun.common.schemas.WorkflowRequest(
+                    spec=mlrun.common.schemas.WorkflowSpec(
+                        name=run_name,
+                        engine="remote",
+                        image="mlrun/mlrun",
+                    ),
+                    source=custom_source,
+                ),
+                auth_info=mlrun.common.schemas.AuthInfo(),
+            )
+
+            scheduler_mock.return_value.store_schedule.assert_called_once()
+            scheduled_call_kwargs = (
+                scheduler_mock.return_value.store_schedule.call_args.kwargs
+            )
+
+            assert (
+                scheduled_call_kwargs["scheduled_object"]["task"]["spec"]["parameters"][
+                    "url"
+                ]
+                == custom_source
+            )

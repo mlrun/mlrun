@@ -260,7 +260,7 @@ mpijob.run()
 
 ```python
 project = mlrun.get_or_create_project("dask")
-dask = project.set_function(name="my-dask", kind="dask", image="mlrun/ml-base")
+dask = project.set_function(name="my-dask", kind="dask", image="mlrun/mlrun")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = "NodePort"
@@ -1084,7 +1084,7 @@ feature_service = fvec.get_online_feature_service().feature_service.get(
 ```
 
 ## Real-time pipelines
-Docs: [Real-time serving pipelines](./serving/serving-graph.md), [Real-time pipeline use cases](./serving/use-cases.md), [Graph concepts and state machine](./serving/realtime-pipelines.ipynb), [Model serving graph](./serving/model-serving-get-started.ipynb), [Writing custom steps](./serving/writing-custom-steps.ipynb)
+Docs: {ref}`serving-graph`, {ref}`model-serve-get-started`, {ref}`use-cases-serving`, {ref}`building-graphs`, {ref}`deploying-graphs`, {ref}`demos-serving`, {ref}`advanced-graph-cfg`.
 
 ### Definitions
 
@@ -1167,7 +1167,7 @@ fn.invoke("/v2/models/model1/infer", body={"inputs": [5]})
 
 ### Custom model serving class
 
-Docs: [Model serving graph](./serving/model-serving-get-started.ipynb)
+Docs: {ref}`writing-custom-steps`
 
 ```python
 from cloudpickle import load
@@ -1292,7 +1292,7 @@ Docs: [Running the workers using Dask](./hyper-params.ipynb#running-the-workers-
 # Create Dask cluster
 project = mlrun.get_or_create_project(dask - cluster)
 dask_cluster = project.set_function(
-    name="dask-cluster", kind="dask", image="mlrun/ml-base"
+    name="dask-cluster", kind="dask", image="mlrun/mlrun"
 )
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard

@@ -25,6 +25,7 @@ def client(monkeypatch):
     client_klass = mlrun_pipelines.client.Client
     client_klass.get_kfp_healthz = unittest.mock.MagicMock()
     monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
+    monkeypatch.setattr(client_klass, "_determine_server_major_version", lambda self: 2)
     return client_klass(logger=mlrun.utils.logger)
 
 

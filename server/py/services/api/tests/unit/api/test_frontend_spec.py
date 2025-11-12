@@ -20,12 +20,13 @@ import fastapi.testclient
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.runtimes
 from mlrun.config import config as mlconf
 
 import framework.api.utils
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.runtimes.nuclio
 import services.api.utils.builder
 
@@ -33,7 +34,7 @@ import services.api.utils.builder
 def test_get_frontend_spec(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    framework.utils.clients.iguazio.Client().try_get_grafana_service_url = (
+    framework.utils.clients.iguazio.v3.Client().try_get_grafana_service_url = (
         unittest.mock.Mock()
     )
     default_function_pod_resources = {
@@ -44,6 +45,9 @@ def test_get_frontend_spec(
     mlrun.mlconf.default_function_pod_resources = default_function_pod_resources
     mlrun.mlconf.httpdb.allowed_file_paths = "s3://some/s3/path"
     mlrun.mlconf.httpdb.real_path = "/some/real/path"
+    mlrun.mlconf.httpdb.authentication.mode = (
+        mlrun.common.types.AuthenticationMode.BASIC
+    )
 
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
@@ -61,7 +65,7 @@ def test_get_frontend_spec(
     )
     assert (
         frontend_spec.feature_flags.authentication
-        == mlrun.common.schemas.AuthenticationFeatureFlag.none
+        == mlrun.common.types.AuthenticationMode.BASIC
     )
     assert (
         frontend_spec.feature_flags.nuclio_streams
@@ -114,7 +118,7 @@ def test_get_frontend_spec(
 def test_get_frontend_spec_jobs_dashboard_url_resolution(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    framework.utils.clients.iguazio.Client().try_get_grafana_service_url = (
+    framework.utils.clients.iguazio.v3.Client().try_get_grafana_service_url = (
         unittest.mock.Mock()
     )
     # no cookie so no url
@@ -122,11 +126,11 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
-    framework.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_not_called()
+    framework.utils.clients.iguazio.v3.Client().try_get_grafana_service_url.assert_not_called()
 
     # no grafana (None returned) so no url
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    framework.utils.clients.iguazio.AsyncClient().verify_request_session = (
+    framework.utils.clients.iguazio.v3.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
                 mlrun.common.schemas.AuthInfo(
@@ -139,7 +143,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
             )
         )
     )
-    framework.utils.clients.iguazio.Client().try_get_grafana_service_url = (
+    framework.utils.clients.iguazio.v3.Client().try_get_grafana_service_url = (
         unittest.mock.Mock(return_value=None)
     )
     response = client.get("frontend-spec")
@@ -147,13 +151,13 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
     assert (
-        framework.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
+        framework.utils.clients.iguazio.v3.Client().try_get_grafana_service_url.call_count
         == 2
     )
 
     # happy scenario - grafana url found, verify returned correctly
     grafana_url = "some-url.com"
-    framework.utils.clients.iguazio.Client().try_get_grafana_service_url = (
+    framework.utils.clients.iguazio.v3.Client().try_get_grafana_service_url = (
         unittest.mock.Mock(return_value=grafana_url)
     )
 
@@ -171,7 +175,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
         + "/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}&var-MODELENDPOINT={model_endpoint}"
     )
     assert (
-        framework.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
+        framework.utils.clients.iguazio.v3.Client().try_get_grafana_service_url.call_count
         == 2
     )
 

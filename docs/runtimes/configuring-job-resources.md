@@ -39,7 +39,9 @@ fn.set_envs(file_path="env.txt")
 
 Some runtimes can scale horizontally, configured either as a number of replicas:
 ```python
-training_function = mlrun.set_function(
+project = mlrun.get_or_create_project("myproj")
+
+training_function = project.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -79,7 +81,9 @@ See more details in the [Kubernetes documentation: Resource Management for Pods 
 Examples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
 ```python
-training_function = mlrun.set_function(
+project = mlrun.get_or_create_project("myproj")
+
+training_function = project.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -136,7 +140,7 @@ Configure volumes attached to a function by using the `apply` function modifier 
 
 For example, using v3io storage:
 ```
-# import the training function from the Function Hub (hub://)
+# import the training function from the MLRun Hub (hub://)
 train = mlrun.import_function('hub://sklearn_classifier')# Import the function:
 open_archive_function = mlrun.import_function("hub://open_archive")
 
@@ -168,7 +172,7 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 
 ## Preemption mode: Spot vs. On-demand nodes
-
+ß
 You can control whether to run your MLRun functions on spot nodes or on-demand nodes. 
 - **Spot (preemptible)** nodes give you access to spare computing capacity from your cloud environment. 
 With spot instances, you request capacity from specific availability zones, dependent on spare computing capacity. This is a good choice if you can be flexible about when your application runs,
@@ -238,8 +242,9 @@ And another function that can only be scheduled on preemptible nodes:
 ```
 import mlrun
 import os
+project = mlrun.get_or_create_project("myproj")
 
-train_fn = mlrun.set_function('training', 
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_preemption_mode(mode="constrain") 
@@ -253,7 +258,9 @@ the pod/function runs only on non-preemptible (on-demand) nodes:
 ```
 import mlrun
 import os
-train_fn = mlrun.set_function('training', 
+project = mlrun.get_or_create_project("myproj")
+
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name="default-priority")
@@ -287,7 +294,9 @@ For example:
 ```
 import mlrun
 import os
-train_fn = mlrun.set_function('training', 
+project = mlrun.get_or_create_project("myproj")
+
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name={value})

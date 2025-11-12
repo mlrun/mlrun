@@ -17,6 +17,7 @@ import json
 import os
 import pathlib
 import socket
+import sys
 import tempfile
 import time
 import typing
@@ -117,14 +118,31 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
         raise ValueError("nothing to run, specify command or function")
 
     command = os.path.join(workdir or "", command)
-    path = Path(command)
-    mod_name = path.name
-    if path.suffix:
-        mod_name = mod_name[: -len(path.suffix)]
+
+    source_file_path_object, working_dir_path_object = (
+        mlrun.utils.helpers.get_source_and_working_dir_paths(command)
+    )
+    if source_file_path_object.is_relative_to(working_dir_path_object):
+        mod_name = mlrun.utils.helpers.get_relative_module_name_from_path(
+            source_file_path_object, working_dir_path_object
+        )
+    elif source_file_path_object.is_relative_to(
+        pathlib.Path(tempfile.gettempdir()).resolve()
+    ):
+        mod_name = Path(command).stem
+    else:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Cannot run source file '{command}': it must be located either under the current working "
+            f"directory ('{working_dir_path_object}') or the system temporary directory ('{tempfile.gettempdir()}'). "
+            f"This is required when running with local=True."
+        )
+
     spec = imputil.spec_from_file_location(mod_name, command)
     if spec is None:
         raise OSError(f"cannot import from {command!r}")
     mod = imputil.module_from_spec(spec)
+    # add to system modules, which can be necessary when running in a MockServer (ML-10937)
+    sys.modules[mod_name] = mod
     spec.loader.exec_module(mod)
 
     return mod
@@ -327,7 +345,7 @@ def get_or_create_ctx(
 def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
-    Functions can be imported from function repositories (mlrun Function Hub (formerly Marketplace) or local db),
+    Functions can be imported from function repositories (MLRun Hub) or local db),
     or be read from a remote URL (http(s), s3, git, v3io, ..) containing the function YAML
 
     special URLs::
@@ -343,7 +361,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
             "https://raw.githubusercontent.com/org/repo/func.yaml"
         )
 
-    :param url: path/url to Function Hub, db or function YAML file
+    :param url: path/url to MLRun Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
@@ -413,21 +431,29 @@ def import_function_to_dict(
             with open(code_file, "wb") as fp:
                 fp.write(code)
         elif cmd:
-            if not path.isfile(code_file):
-                slash_index = url.rfind("/")
-                if slash_index < 0:
-                    raise ValueError(f"no file in exec path (spec.command={code_file})")
-                base_dir = os.path.normpath(url[: slash_index + 1])
-                candidate_path = _ensure_path_confined_to_base_dir(
-                    base_directory=base_dir,
-                    relative_path=code_file,
-                    error_message_on_escape=f"exec file spec.command={code_file} is outside of allowed directory",
-                )
-                if path.isfile(candidate_path):
-                    raise ValueError(
-                        f"exec file spec.command={code_file} is relative, change working dir"
-                    )
+            slash_index = url.rfind("/")
+            if slash_index < 0:
                 raise ValueError(f"no file in exec path (spec.command={code_file})")
+            base_dir = os.path.normpath(url[: slash_index + 1])
+
+            # Validate and resolve the candidate path before checking existence
+            candidate_path = _ensure_path_confined_to_base_dir(
+                base_directory=base_dir,
+                relative_path=code_file,
+                error_message_on_escape=(
+                    f"exec file spec.command={code_file} is outside of allowed directory"
+                ),
+            )
+
+            # Only now it's safe to check file existence
+            if not path.isfile(candidate_path):
+                raise ValueError(f"no file in exec path (spec.command={code_file})")
+
+            # Check that the path is absolute
+            if not os.path.isabs(code_file):
+                raise ValueError(
+                    f"exec file spec.command={code_file} is relative, it must be absolute. Change working dir"
+                )
         else:
             raise ValueError("command or code not specified in function spec")
 
@@ -529,6 +555,7 @@ def new_function(
 
     # make sure function name is valid
     name = mlrun.utils.helpers.normalize_name(name)
+    mlrun.utils.helpers.validate_function_name(name)
 
     runner.metadata.name = name
     runner.metadata.project = (
@@ -568,6 +595,7 @@ def new_function(
         )
 
     runner.prepare_image_for_deploy()
+
     return runner
 
 
@@ -601,7 +629,7 @@ def code_to_function(
     code_output: Optional[str] = "",
     embed_code: bool = True,
     description: Optional[str] = "",
-    requirements: Optional[Union[str, list[str]]] = None,
+    requirements: Optional[list[str]] = None,
     categories: Optional[list[str]] = None,
     labels: Optional[dict[str, str]] = None,
     with_doc: Optional[bool] = True,
@@ -664,7 +692,7 @@ def code_to_function(
     :param description:  short function description, defaults to ''
     :param requirements: a list of python packages
     :param requirements_file: path to a python requirements file
-    :param categories:   list of categories for mlrun Function Hub, defaults to None
+    :param categories:   list of categories for MLRun Hub, defaults to None
     :param labels:       name/value pairs dict to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
@@ -772,6 +800,7 @@ def code_to_function(
         kind=sub_kind,
         ignored_tags=ignored_tags,
     )
+
     spec["spec"]["env"].append(
         {
             "name": "MLRUN_HTTPDB__NUCLIO__EXPLICIT_ACK",
@@ -824,6 +853,7 @@ def code_to_function(
         runtime.spec.build.code_origin = code_origin
         runtime.spec.build.origin_filename = filename or (name + ".ipynb")
         update_common(runtime, spec)
+
         return runtime
 
     if kind is None or kind in ["", "Function"]:
@@ -837,6 +867,7 @@ def code_to_function(
 
     if not name:
         raise ValueError("name must be specified")
+
     h = get_in(spec, "spec.handler", "").split(":")
     runtime.handler = h[0] if len(h) <= 1 else h[1]
     runtime.metadata = get_in(spec, "spec.metadata")

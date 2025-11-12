@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Callable, ClassVar, Literal, Optional, Union
+from typing import ClassVar, Literal, Optional, Union
 
 import pandas as pd
 import pydantic.v1
@@ -57,6 +57,16 @@ class TSDBConnector(ABC):
         - base_metrics (average latency and predictions over time)
         - endpoint_features (Prediction and feature names and values)
         - custom_metrics (user-defined metrics)
+        """
+        pass
+
+    def apply_writer_steps(self, graph, after, **kwargs) -> None:
+        """
+        Apply TSDB steps on the provided writer graph. Throughout these steps, the graph stores metrics / results.
+        This data is being used by mlrun UI and the monitoring dashboards in grafana.
+        There are 2 different key metric dictionaries that are being generated throughout these steps:
+        - metrics (user-defined metrics) - model monitoring application metrics
+        - results (user-defined results) - model monitoring application results
         """
         pass
 
@@ -434,11 +444,9 @@ class TSDBConnector(ABC):
                                    ]
         """
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         raise NotImplementedError()
@@ -783,3 +791,6 @@ class TSDBConnector(ABC):
             )
         )
         return mm_schemas.ModelEndpointDriftValues(values=values)
+
+    def add_pre_writer_steps(self, graph, after):
+        return None

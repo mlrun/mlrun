@@ -16,8 +16,10 @@ import asyncio
 import copy
 import json
 import typing
+import warnings
 from datetime import datetime
 from time import sleep
+from urllib.parse import urlparse, urlunparse
 
 import inflection
 import nuclio
@@ -299,29 +301,16 @@ class RemoteRuntime(KubeResource):
             return {}
 
         raw_config = copy.deepcopy(self.spec.config)
-
         for key, value in self.spec.config.items():
             if key.startswith("spec.triggers"):
-                trigger_name = key.split(".")[-1]
-
-                for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
-                    # Handle nested keys
-                    nested_keys = path.split("/")
-                    target = value
-                    for sub_key in nested_keys[:-1]:
-                        target = target.get(sub_key, {})
-
-                    last_key = nested_keys[-1]
-                    if last_key in target:
-                        sensitive_field = target[last_key]
-                        if sensitive_field.startswith(
-                            mlrun.model.Credentials.secret_reference_prefix
-                        ):
-                            # already masked
-                            continue
-                        target[last_key] = (
-                            f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
-                        )
+                # support both types depending on the way how it was set
+                # sometimes trigger name is in the same key, sometimes it's nested in the value dict
+                if key == "spec.triggers":
+                    for trigger_name, trigger_config in value.items():
+                        self._mask_trigger_config(trigger_name, trigger_config)
+                else:
+                    trigger_name = key.split(".")[-1]
+                    self._mask_trigger_config(trigger_name, value)
 
         return raw_config
 
@@ -423,6 +412,18 @@ class RemoteRuntime(KubeResource):
                 )
         """
         self.spec.build.source = source
+
+        code = (
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        )
+        if code:
+            # Warn and clear any inline code so the archive is actually used
+            logger.warning(
+                "Cannot specify both code and source archive. Removing the code so the provided "
+                "source archive will be used instead."
+            )
+            self.spec.build.functionSourceCode = None
+
         # update handler in function_handler if needed
         if handler:
             self.spec.function_handler = handler
@@ -1065,6 +1066,79 @@ class RemoteRuntime(KubeResource):
         sidecars.append({"name": name})
         return sidecars[-1]
 
+    def _mask_trigger_config(self, trigger_name, trigger_config):
+        self._mask_rabbitmq_url(trigger=trigger_config)
+        for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
+            # Handle nested keys
+            nested_keys = path.split("/")
+            target = trigger_config
+            for sub_key in nested_keys[:-1]:
+                target = target.get(sub_key, {})
+
+            last_key = nested_keys[-1]
+            if last_key in target:
+                sensitive_field = target[last_key]
+                if sensitive_field.startswith(
+                    mlrun.model.Credentials.secret_reference_prefix
+                ):
+                    # already masked
+                    continue
+                target[last_key] = (
+                    f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
+                )
+
+    @staticmethod
+    def _mask_rabbitmq_url(trigger):
+        """
+        Extract credentials from RabbitMQ URL and move them to attributes dict.
+        This ensures credentials are not exposed in the URL.
+        """
+
+        # supported only for nuclio higher than 1.14.15
+        if not validate_nuclio_version_compatibility("1.14.15"):
+            return
+        if not isinstance(trigger, dict):
+            return
+
+        if trigger.get("kind") != "rabbit-mq":
+            return
+
+        url = trigger.get("url")
+        if not url or not isinstance(url, str):
+            return
+
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            raise mlrun.errors.MLRunValueError("invalid URL format")
+
+        # Only process if credentials are present in the URL
+        if not (parsed.username or parsed.password):
+            return
+
+        # Extract credentials
+        username = parsed.username or ""
+        password = parsed.password or ""
+
+        # Reconstruct clean URL
+        hostname = parsed.hostname or ""
+        netloc = f"{hostname}:{parsed.port}" if parsed.port else hostname
+
+        clean_url = urlunparse(
+            (
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment,
+            )
+        )
+
+        # Update trigger safely
+        trigger["url"] = clean_url
+        trigger.update({"username": username, "password": password})
+
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:
             return False
@@ -1211,10 +1285,17 @@ class RemoteRuntime(KubeResource):
         # try to infer the invocation url from the internal and if not exists, use external.
         # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc.)
 
-        # check function state before invocation
-        state, _, _ = self._get_state()
-        if state not in ["ready", "scaledToZero"]:
-            logger.warning(f"Function is in the {state} state")
+        # if none of urls is set, function was deployed with watch=False
+        # and status wasn't fetched with Nuclio
+        # _get_state fetches the state and updates url
+        if (
+            not self.status.address
+            and not self.status.internal_invocation_urls
+            and not self.status.external_invocation_urls
+        ):
+            state, _, _ = self._get_state()
+            if state not in ["ready", "scaledToZero"]:
+                logger.warning(f"Function is in the {state} state")
 
         # prefer internal invocation url if running inside k8s cluster
         if (
@@ -1317,8 +1398,10 @@ class RemoteRuntime(KubeResource):
         :return: returns function's url
         """
         if auth_info:
-            logger.warning(
-                "Deprecated parameter 'auth_info' was provided, but will be ignored. Will be removed in 1.12.0."
+            warnings.warn(
+                "'auth_info' is deprecated in 1.10.0 and will be removed in 1.12.0.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
             )
         return self._resolve_invocation_url("", force_external_address)
 

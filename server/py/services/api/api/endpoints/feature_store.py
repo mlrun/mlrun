@@ -370,7 +370,7 @@ async def ingest_feature_set(
     ingest_parameters: Optional[
         mlrun.common.schemas.FeatureSetIngestInput
     ] = mlrun.common.schemas.FeatureSetIngestInput(),
-    username: str = Header(None, alias="x-remote-user"),
+    username: str = Header(None, alias=mlrun.common.schemas.HeaderNames.remote_user),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

@@ -459,14 +459,15 @@ class MonitoringApplicationController:
                         base_period_minutes, current_min_last_analyzed, current_time
                     )
                     and (
-                        # Check if there's unprocessed data (fixes deadlock for batch inference)
+                        # Check if there's unprocessed data
                         (
                             endpoint.status.last_request
                             and current_min_last_analyzed
-                            and endpoint.status.last_request.timestamp() > current_min_last_analyzed
+                            and endpoint.status.last_request.timestamp()
+                            > current_min_last_analyzed
                         )
-                        # Preserve existing behavior (continuous inference support)
-                        or endpoint.status.last_request.timestamp() != last_timestamp_sent
+                        or endpoint.status.last_request.timestamp()
+                        != last_timestamp_sent
                         or current_min_last_analyzed != last_analyzed_sent
                     )
                 ):

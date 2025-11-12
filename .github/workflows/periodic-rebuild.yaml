@@ -43,7 +43,7 @@ jobs:
             | sort -Vr \
             | head -2 \
             | jq -R -s -c 'split("\n") | map(select(length > 0)) | . + ["development"]')
-          matrix=$(jq -n --argjson branches "$branches" '{"repo": ["mlrun","ui"], "branch": $branches}')
+          matrix=$(jq --compact-output --null-input --argjson branches "$branches" '{"repo": ["mlrun","ui"], "branch": $branches}')
           echo "matrix=$(echo $matrix)" >> $GITHUB_OUTPUT
 
   re-build-images:

@@ -2802,7 +2802,12 @@ class TestArtifacts(TestDatabaseBase):
             # Still default when attach_tags True (if your predicate allows it)
             {"with_entities": None, "attach_tags": True, "expected": True},
             # Non-defaults:
-            {"ids": ["non-empty"], "with_entities": None, "attach_tags": False, "expected": False},
+            {
+                "ids": ["non-empty"],
+                "with_entities": None,
+                "attach_tags": False,
+                "expected": False,
+            },
             # If you *really* want [] to be default, change predicate accordingly; otherwise keep False:
             {"ids": [], "with_entities": None, "attach_tags": False, "expected": False},
             {"ids": [], "with_entities": [], "attach_tags": False, "expected": False},
@@ -2839,13 +2844,29 @@ class TestArtifacts(TestDatabaseBase):
             # Exact UI-default → hint ON
             ("ui-default", {}, True),
             # Deviations → hint OFF
-            ("partition_by-name", {"partition_by": mlrun.common.schemas.ArtifactPartitionByField.name}, False),
-            ("sort-order-asc", {"partition_order": mlrun.common.schemas.OrderType.asc}, False),
-            ("sort-by-created", {"partition_sort_by": mlrun.common.schemas.SortField.created}, False),
+            (
+                "partition_by-name",
+                {"partition_by": mlrun.common.schemas.ArtifactPartitionByField.name},
+                False,
+            ),
+            (
+                "sort-order-asc",
+                {"partition_order": mlrun.common.schemas.OrderType.asc},
+                False,
+            ),
+            (
+                "sort-by-created",
+                {"partition_sort_by": mlrun.common.schemas.SortField.created},
+                False,
+            ),
             ("limit-50", {"limit": 50}, False),
             ("non-latest-tag", {"tag": "v1"}, False),
             ("best_iteration-false", {"best_iteration": False}, False),
-            ("different-category", {"category": mlrun.common.schemas.ArtifactCategories.other}, False),
+            (
+                "different-category",
+                {"category": mlrun.common.schemas.ArtifactCategories.other},
+                False,
+            ),
             ("ids-non-empty", {"ids": ["force-non-default"]}, False),
             ("ids-empty-list", {"ids": []}, False),
             ("with_entities-minimal", {"with_entities": []}, False),
@@ -2854,7 +2875,9 @@ class TestArtifacts(TestDatabaseBase):
             # ("offset-10", {"offset": 10}, False),
         ],
     )
-    def test_mysql_use_index_hint_scoping(self, monkeypatch, scenario, ui_overrides, expect_hint):
+    def test_mysql_use_index_hint_scoping(
+        self, monkeypatch, scenario, ui_overrides, expect_hint
+    ):
         """
         USE INDEX should be applied ONLY for the exact UI default shape.
         Any deviation should NOT get the hint.
@@ -2884,7 +2907,9 @@ class TestArtifacts(TestDatabaseBase):
         if expect_hint:
             assert hint_called["value"], f"{scenario}: expected USE INDEX hint"
         else:
-            assert not hint_called["value"], f"{scenario}: did NOT expect USE INDEX hint"
+            assert not hint_called[
+                "value"
+            ], f"{scenario}: did NOT expect USE INDEX hint"
 
     @pytest.mark.parametrize(
         "scenario, attach_tags, ids_value, expect_hint",
@@ -2894,7 +2919,9 @@ class TestArtifacts(TestDatabaseBase):
             ("non-default-with-ids", False, ["break-default"], False),
         ],
     )
-    def test_mysql_use_index_hint_behavior(self, monkeypatch, scenario, attach_tags, ids_value, expect_hint):
+    def test_mysql_use_index_hint_behavior(
+        self, monkeypatch, scenario, attach_tags, ids_value, expect_hint
+    ):
         """
         Ensure the hint is applied for the UI-default behavior and not for simple deviations.
         """
@@ -2927,7 +2954,9 @@ class TestArtifacts(TestDatabaseBase):
         if expect_hint:
             assert hint_called["value"], f"{scenario}: expected USE INDEX hint"
         else:
-            assert not hint_called["value"], f"{scenario}: did not expect USE INDEX hint"
+            assert not hint_called[
+                "value"
+            ], f"{scenario}: did not expect USE INDEX hint"
 
     @staticmethod
     def _ui_defaults():

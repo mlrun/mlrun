@@ -92,7 +92,7 @@ async def submit_workflow(
         framework.utils.singletons.project_member.get_project_member().get_project,
         db_session=db_session,
         name=project,
-        leader_session=auth_info.session,
+        auth_info=auth_info,
     )
 
     # check permission CREATE run

@@ -327,6 +327,7 @@ class MockedProjectFollowerIguazioClient(
         self,
         session: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         services.api.crud.Projects().create_project(self._db_session, project)
@@ -337,6 +338,7 @@ class MockedProjectFollowerIguazioClient(
         session: str,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         pass
 
@@ -344,6 +346,7 @@ class MockedProjectFollowerIguazioClient(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
@@ -366,6 +369,7 @@ class MockedProjectFollowerIguazioClient(
     def list_projects(
         self,
         session: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         updated_after: typing.Optional[datetime] = None,
     ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime]]:
         return [], None
@@ -374,6 +378,7 @@ class MockedProjectFollowerIguazioClient(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -386,6 +391,7 @@ class MockedProjectFollowerIguazioClient(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectOwner:
         pass
 

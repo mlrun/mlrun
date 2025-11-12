@@ -2839,19 +2839,19 @@ class TestArtifacts(TestDatabaseBase):
         [
             ("ui-default", {}, True),
             (
-                    "partition_by-name",
-                    {"partition_by": mlrun.common.schemas.ArtifactPartitionByField.name},
-                    False,
+                "partition_by-name",
+                {"partition_by": mlrun.common.schemas.ArtifactPartitionByField.name},
+                False,
             ),
             (
-                    "sort-order-asc",
-                    {"partition_order": mlrun.common.schemas.OrderType.asc},
-                    False,
+                "sort-order-asc",
+                {"partition_order": mlrun.common.schemas.OrderType.asc},
+                False,
             ),
             (
-                    "sort-by-created",
-                    {"partition_sort_by": mlrun.common.schemas.SortField.created},
-                    False,
+                "sort-by-created",
+                {"partition_sort_by": mlrun.common.schemas.SortField.created},
+                False,
             ),
             ("limit-50", {"limit": 50}, False),
             ("non-latest-tag", {"tag": "v1"}, False),
@@ -2862,7 +2862,9 @@ class TestArtifacts(TestDatabaseBase):
             ("attach_tags-true", {"attach_tags": True}, True),
         ],
     )
-    def test_mysql_use_index_hint_scoping(self, monkeypatch, scenario, ui_overrides, expect_hint):
+    def test_mysql_use_index_hint_scoping(
+        self, monkeypatch, scenario, ui_overrides, expect_hint
+    ):
         """
         USE INDEX should be applied ONLY for the exact UI default shape.
         Any deviation should NOT get the hint.
@@ -2899,11 +2901,13 @@ class TestArtifacts(TestDatabaseBase):
         "scenario, attach_tags, ids_value, expect_hint",
         [
             ("default-query-attach-tags-false", False, None, True),
-            ("default-query-attach-tags-true",  True,  None, True),
-            ("non-default-with-ids",            False, ["break-default"], False),
+            ("default-query-attach-tags-true", True, None, True),
+            ("non-default-with-ids", False, ["break-default"], False),
         ],
     )
-    def test_mysql_use_index_hint_behavior(self, monkeypatch, scenario, attach_tags, ids_value, expect_hint):
+    def test_mysql_use_index_hint_behavior(
+        self, monkeypatch, scenario, attach_tags, ids_value, expect_hint
+    ):
         """
         Ensure the hint is applied for the UI-default behavior and not for simple deviations.
         """

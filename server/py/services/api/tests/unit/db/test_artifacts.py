@@ -1498,9 +1498,9 @@ class TestArtifacts(TestDatabaseBase):
                 for call in mock_execute.call_args_list
                 if str(call[0][0]).startswith("DELETE")
             ]
-            assert (
-                len(delete_calls) == 3
-            ), f"Expected 3 batch deletions, got {len(delete_calls)}"
+            assert len(delete_calls) == 3, (
+                f"Expected 3 batch deletions, got {len(delete_calls)}"
+            )
 
         # Validate that all artifacts were deleted
         assert deleted_count == 15
@@ -1841,9 +1841,9 @@ class TestArtifacts(TestDatabaseBase):
         )
 
         expected_count = limit or number_of_artifacts
-        assert (
-            len(artifacts) == expected_count
-        ), f"Expected {expected_count} results, got {len(artifacts)}"
+        assert len(artifacts) == expected_count, (
+            f"Expected {expected_count} results, got {len(artifacts)}"
+        )
 
         start_index = number_of_artifacts - 1
         expected_names = [
@@ -1853,9 +1853,9 @@ class TestArtifacts(TestDatabaseBase):
 
         for artifact, expected_name in zip(artifacts, expected_names):
             artifact_name = artifact["metadata"]["key"]
-            assert (
-                artifact_name == expected_name
-            ), f"Expected {expected_name}, got {artifact_name}"
+            assert artifact_name == expected_name, (
+                f"Expected {expected_name}, got {artifact_name}"
+            )
 
     @pytest.mark.parametrize("limit", [None, 6])
     def test_list_artifacts_orders_by_id_when_updated_is_identical(self, limit):
@@ -1893,9 +1893,9 @@ class TestArtifacts(TestDatabaseBase):
         )
 
         expected_count = limit or number_of_artifacts
-        assert (
-            len(artifacts) == expected_count
-        ), f"Expected {expected_count} results, got {len(artifacts)}"
+        assert len(artifacts) == expected_count, (
+            f"Expected {expected_count} results, got {len(artifacts)}"
+        )
 
         start_index = number_of_artifacts - 1
         expected_names = [
@@ -1905,9 +1905,9 @@ class TestArtifacts(TestDatabaseBase):
 
         for artifact, expected_name in zip(artifacts, expected_names):
             artifact_name = artifact["metadata"]["key"]
-            assert (
-                artifact_name == expected_name
-            ), f"Expected {expected_name}, got {artifact_name}"
+            assert artifact_name == expected_name, (
+                f"Expected {expected_name}, got {artifact_name}"
+            )
 
     @pytest.mark.parametrize("limit", [None, 3])
     @pytest.mark.parametrize("tag", [None, "*"])
@@ -1948,9 +1948,9 @@ class TestArtifacts(TestDatabaseBase):
         expected_tags = expected_tags[:expected_count]
 
         actual_tags = [artifact["metadata"]["tag"] for artifact in artifacts]
-        assert (
-            actual_tags == expected_tags
-        ), f"Expected tags {expected_tags}, got {actual_tags}"
+        assert actual_tags == expected_tags, (
+            f"Expected tags {expected_tags}, got {actual_tags}"
+        )
 
         # Verify the case of listing artifacts by a specific tag, which should result in an inner join and
         # return only the matching tagged artifact
@@ -2004,13 +2004,13 @@ class TestArtifacts(TestDatabaseBase):
         )
 
         assert len(artifacts) == 2, f"Expected 2 artifacts, but found {len(artifacts)}"
-        assert (
-            artifacts[0]["spec"]["producer"]["uri"] == second_producer_uri
-        ), f"Expected producer URI {second_producer_uri}, but got {artifacts[0]['spec']['producer']['uri']}"
+        assert artifacts[0]["spec"]["producer"]["uri"] == second_producer_uri, (
+            f"Expected producer URI {second_producer_uri}, but got {artifacts[0]['spec']['producer']['uri']}"
+        )
 
-        assert (
-            artifacts[1]["spec"]["producer"]["uri"] == first_producer_uri
-        ), f"Expected producer URI {first_producer_uri}, but got {artifacts[1]['spec']['producer']['uri']}"
+        assert artifacts[1]["spec"]["producer"]["uri"] == first_producer_uri, (
+            f"Expected producer URI {first_producer_uri}, but got {artifacts[1]['spec']['producer']['uri']}"
+        )
 
     def test_iterations_with_latest_tag(self):
         artifact_key = "artifact_key"
@@ -2797,135 +2797,119 @@ class TestArtifacts(TestDatabaseBase):
     @pytest.mark.parametrize(
         "case",
         [
-            {"kind": "hint", "attach_tags": False},
-            {"kind": "hint", "attach_tags": True},
+            {"ids": [], "with_entities": None, "attach_tags": False, "expected": True},
+            {"ids": [], "with_entities": [], "attach_tags": False, "expected": True},
             {
-                "kind": "default-check",
-                "ids": [],
-                "with_entities": None,
-                "attach_tags": False,
-                "expected": True,
-            },
-            {
-                "kind": "default-check",
-                "ids": [],
-                "with_entities": [],
-                "attach_tags": False,
-                "expected": True,
-            },
-            {
-                "kind": "default-check",
                 "ids": ["non-empty"],
                 "with_entities": None,
                 "attach_tags": False,
                 "expected": False,
             },
-            {
-                "kind": "default-check",
-                "ids": None,
-                "with_entities": None,
-                "attach_tags": True,
-                "expected": True,
-            },
+            {"ids": None, "with_entities": None, "attach_tags": True, "expected": True},
         ],
         ids=[
-            "mysql-hint-default-query",
-            "mysql-hint-with-attach-tags",
             "empty-ids-is-default",
-            "empty-ids-and-with-entities-are-default",
+            "empty-ids-and-empty-with-entities-are-default",
             "non-empty-ids-breaks-default",
-            "attach-tags-still-default",
+            "attach-tags-true-still-default",
         ],
     )
-    def test_default_query_mysql_hint_and_defaults_with_attach_tags(
-        self, monkeypatch, case
+    def test_is_default_list_artifacts_query_defaults(
+        self,
+        case,
     ):
-        if case["kind"] == "hint":
-            artifact_key = "dummy-artifact-for-default-query"
-            self._db.store_artifact(
-                self._db_session,
-                key=artifact_key,
-                artifact=self._generate_artifact(artifact_key, project=self.project),
-                project=self.project,
-            )
+        """
+        Verify the predicate returns True for the UI default list-artifacts query.
+        We pass only caller-side UI defaults (not encoded in function defaults)
+        plus the specific fields under test.
+        """
+        ui_defaults = {
+            "tag": mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            "best_iteration": True,
+            "partition_sort_by": mlrun.common.schemas.SortField.updated,
+            "partition_order": mlrun.common.schemas.OrderType.desc,
+            "limit": 1001,
+        }
 
-            hint_called_flag = {"value": False}
+        kwargs = {}
+        for key in ("ids", "with_entities", "attach_tags"):
+            if key in case:
+                kwargs[key] = case[key]
 
-            original_with_hint = Query.with_hint
-
-            def with_hint_spy(self_query_obj, selectable, text, dialect_name=None):
-                if dialect_name == "mysql" and "USE INDEX" in str(text):
-                    hint_called_flag["value"] = True
-                return original_with_hint(
-                    self_query_obj, selectable, text, dialect_name=dialect_name
-                )
-
-            monkeypatch.setattr(Query, "with_hint", with_hint_spy, raising=True)
-
-            _ = self._db._find_artifacts(
-                self._db_session,
-                project=self.project,
-                ids=None,
-                tag=mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-                labels=None,
-                since=None,
-                until=None,
-                name=None,
-                kind=None,
-                category=None,
-                iter=None,
-                uid=None,
-                producer_id=None,
-                producer_uri=None,
-                best_iteration=True,
-                most_recent=False,
-                attach_tags=case["attach_tags"],
-                offset=None,
-                limit=1001,
-                with_entities=None,
-                partition_by=None,
-                partition_sort_by=mlrun.common.schemas.SortField.updated,
-                partition_order=mlrun.common.schemas.OrderType.desc,
-                parent_uri=None,
-            )
-
-            assert hint_called_flag[
-                "value"
-            ], "Expected MySQL USE INDEX hint to be applied on the ORM Query"
-            return
-
-        ids_value = case.get("ids")
-        with_entities_value = case.get("with_entities")
-        attach_tags_value = case.get("attach_tags", False)
-        expected_is_default = case["expected"]
-
-        is_default_actual = self._db._is_default_list_artifacts_query(
+        result = self._db._is_default_list_artifacts_query(
             project=self.project,
-            ids=ids_value,
-            tag=mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-            labels=None,
-            since=None,
-            until=None,
-            name=None,
-            kind=None,
-            category=None,
-            iter=None,
-            uid=None,
-            producer_id=None,
-            producer_uri=None,
-            best_iteration=True,
-            most_recent=False,
-            attach_tags=attach_tags_value,
-            offset=None,
-            limit=1001,
-            with_entities=with_entities_value,
-            partition_by=None,
-            partition_sort_by=mlrun.common.schemas.SortField.updated,
-            partition_order=mlrun.common.schemas.OrderType.desc,
-            parent_uri=None,
+            **ui_defaults,
+            **kwargs,
         )
 
-        assert is_default_actual == expected_is_default
+        assert result == case["expected"], f"Unexpected result for case {case}"
+
+    @pytest.mark.parametrize(
+        "scenario, attach_tags, ids_value, expect_hint",
+        [
+            ("default-query-attach-tags-false", False, None, True),
+            ("default-query-attach-tags-true", True, None, True),
+            ("non-default-with-ids", False, ["break-default"], False),
+        ],
+    )
+    def test_mysql_use_index_hint_behavior(
+        self,
+        monkeypatch,
+        scenario,
+        attach_tags,
+        ids_value,
+        expect_hint,
+    ):
+        """
+        Ensure the MySQL USE INDEX hint is applied only for the true default query.
+        Pass only the caller-side UI defaults that are NOT function defaults.
+        """
+        # Seed one artifact so the listing path executes meaningfully
+        key = "artifact-for-default-query"
+        self._db.store_artifact(
+            self._db_session,
+            key=key,
+            artifact=self._generate_artifact(key, project=self.project),
+            project=self.project,
+        )
+
+        hint_called = {"value": False}
+        original_with_hint = Query.with_hint
+
+        def with_hint_spy(
+            q,
+            selectable,
+            text,
+            dialect_name=None,
+        ):
+            if dialect_name == "mysql" and "USE INDEX" in str(text):
+                hint_called["value"] = True
+            return original_with_hint(q, selectable, text, dialect_name=dialect_name)
+
+        monkeypatch.setattr(Query, "with_hint", with_hint_spy, raising=True)
+
+        ui_defaults = {
+            "tag": mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            "best_iteration": True,
+            "partition_sort_by": mlrun.common.schemas.SortField.updated,
+            "partition_order": mlrun.common.schemas.OrderType.desc,
+            "limit": 1001,
+        }
+
+        kwargs = {"project": self.project, **ui_defaults}
+        if attach_tags:
+            kwargs["attach_tags"] = True
+        if ids_value is not None:
+            kwargs["ids"] = ids_value
+
+        _ = self._db._find_artifacts(self._db_session, **kwargs)
+
+        if expect_hint:
+            assert hint_called["value"], f"{scenario}: expected MySQL USE INDEX hint"
+        else:
+            assert not hint_called["value"], (
+                f"{scenario}: did not expect MySQL USE INDEX hint"
+            )
 
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""

@@ -19,18 +19,7 @@ permissions:
   packages: write
 
 on:
-  push:
-    branches:
-      - '.+-os-system-tests'
-
-# disabled until we have a proper schedule definition
-#  schedule:
-#
-#    # * is a special character in YAML so you have to quote this string
-#    # Run the system tests every 3 hours
-#    - cron:  '0 */3 * * *'
-
-  workflow_dispatch:
+   workflow_dispatch:
     inputs:
       pr_number:
         description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
@@ -61,41 +50,17 @@ env:
   NAMESPACE: mlrun
   MLRUN_API_NODE_PORT: 30070
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
+  MLRUN_PYTHON_VERSION: 3.11
+  # Default values for inputs (used when running on PR)
+  DEFAULT_PYTEST_MARKERS: 'not enterprise and smoke'
+  DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN: 'true'
+  DEFAULT_DEBUG_ENABLED: 'false'
+  DEFAULT_ON_FAILURE_DUMP_K8_LOGS: 'false'
 
 jobs:
 
-# Uncomment this job and make all other jobs depending on it
-# to restrict usage of self-hosted runners for org members only
-# This requires adding a secret with permissions to read org members
-
-#  verify-caller:
-#    runs-on: [ self-hosted ]
-#    steps:
-#      - name: Check if actor is member of org
-#        continue-on-error: false
-#        env:
-#          GH_ACTOR: ${{ github.actor }}
-#          GH_ORG: ${{ github.repository_owner }}
-#          ML_ORG_READ_TOKEN: ${{ secrets.ML_ORG_READ_TOKEN }}  # or a personal token if needed
-#        run: |
-#          echo "Caller = $GH_ACTOR"
-#          echo "ORG = $GH_ORG"
-#          response=$(curl -s -L -o /dev/null -w "%{http_code}" \
-#            -H "Authorization: token $ML_ORG_READ_TOKEN" \
-#            https://api.github.com/orgs/$GH_ORG/members/$GH_ACTOR)
-#          echo "Response = $response"
-#
-#          if [ "$response" != "204" ]; then
-#            echo "User $GH_ACTOR is not a member of $GH_ORG"
-#            exit 1
-#          else
-#            echo "User $GH_ACTOR is a verified member"
-#          fi
-
   prepare-inputs:
     name: Prepare inputs
-# Uncomment if veify-caller job is used
-#    needs: verify-caller
     runs-on:
       group: mlrun-ce
     outputs:
@@ -112,9 +77,16 @@ jobs:
       - name: Extract git hashes from upstream and latest version
         id: git_upstream_info
         run: |
+          # Determine PR number - use input if available, otherwise extract from PR context
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUM="${{ github.event.pull_request.number }}"
+          else
+            PR_NUM="$PR_NUMBER"
+          fi
+          
           # if the action is running on a PR, we need to get the latest commit hash from the PR branch
-          if [ -n "$PR_NUMBER" ]; then
-            echo "mlrun_hash=pr$PR_NUMBER" >> $GITHUB_OUTPUT
+          if [ -n "$PR_NUM" ]; then
+            echo "mlrun_hash=pr$PR_NUM" >> $GITHUB_OUTPUT
           else
             echo "mlrun_hash=$( \
               cd /tmp && \
@@ -124,6 +96,7 @@ jobs:
               cd .. && \
               rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
           fi
+
           
           # NOTE: for now, always take the latest commit hash from the development branch
           # TODO: take from relevant branch [pr head branch]
@@ -150,9 +123,16 @@ jobs:
           echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
           echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
           
+          # Determine PR number for version specifier
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUM="${{ github.event.pull_request.number }}"
+          else
+            PR_NUM="$PR_NUMBER"
+          fi
+          
           export mlrun_version_specifier=$mlrun_hash
-          if [ -n "$PR_NUMBER" ]; then
-            mlrun_version_specifier="refs/pull/${PR_NUMBER}/merge"
+          if [ -n "$PR_NUM" ]; then
+            mlrun_version_specifier="refs/pull/${PR_NUM}/merge"
           fi
           echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
           
@@ -163,11 +143,15 @@ jobs:
             input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
             echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         env:
-          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
+          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown || env.DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN }}
           PR_NUMBER: ${{ github.event.inputs.pr_number }}
 
+      - name: Print mlrun_hash value
+        run: |
+          echo "mlrun_hash value: ${{ steps.computed_params.outputs.mlrun_hash }}"
+
   build-mlrun:
-    if : github.event.inputs.pr_number != ''
+    if: github.event_name == 'pull_request' || github.event.inputs.pr_number != ''
     name: Build MLRun
     uses: ./.github/workflows/build-internal.yaml
     needs: prepare-inputs
@@ -198,21 +182,43 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # 7.1.2
+      uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Set up Python
-      run: uv python install 3.9
+      run: uv python install ${MLRUN_PYTHON_VERSION}
 
     - name: Install automation scripts dependencies
       run: |
-        sudo apt-get install curl jq make
+        sudo apt-get update
+        sudo apt-get install --yes build-essential libpq-dev libffi-dev libssl-dev python3-dev pkg-config curl jq make
         uv venv venv --seed
         source venv/bin/activate
-        make install-requirements install-complete-requirements
-        uv pip install -r automation/requirements.txt
+        make install-requirements install-complete-requirements install-complete-kfp-requirements
+
+        make install-automation-requirements
+
+        # Pin cffi below 2.0.0 to avoid wheels without _cffi_backend on the runner
+        # python -m pip install --upgrade --force-reinstall "cffi<2.0.0" cryptography bcrypt paramiko orjson
+        # python - <<'PY'
+        # import cffi
+        # import _cffi_backend  # noqa: F401
+        # import orjson
+
+        # orjson.dumps({"probe": 1})
+        # print("cffi runtime ok", cffi.__version__)
+        # print("orjson runtime ok", orjson.__version__)
+        # PY
+
+        # helps to resovler missing cffi_backend but test_spark_snowflake.py still fails
+        # uv pip uninstall cryptography bcrypt paramiko
+        # uv pip -vvv install --upgrade --force-reinstall cffi
+        # uv pip install cryptography bcrypt paramiko
+
+    - name: Check and cleanup any previous K3S installation
+      uses: ./.github/actions/cleanup-k3s
 
     - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
       name: "Start a local k8s cluster"
@@ -221,10 +227,35 @@ jobs:
         k3s-version: v1.32.3+k3s1
         # - helm versions at https://github.com/helm/helm/tags
         helm-version: v3.17.2
+        # Simple disk eviction config: Reserve 5% = 95% allocatable ephemeral storage
+        # Change the 5% value to increase/decrease allocatable storage
+        extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5%'
+
+    - name: Verify K3S kubelet configuration
+      run: |
+        echo "=== Waiting for node to be ready ==="
+        sleep 10
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s || echo "Node not ready yet"
+        
+        echo "=== Checking node allocatable resources (including ephemeral-storage) ==="
+        kubectl get nodes -o json | jq -r '.items[] | {
+          name: .metadata.name,
+          allocatable_ephemeral_storage: .status.allocatable."ephemeral-storage",
+          capacity_ephemeral_storage: .status.capacity."ephemeral-storage"
+        }' || true
+        
+        echo "=== Checking for disk pressure conditions ==="
+        kubectl describe nodes | grep -A 10 "Conditions:" || echo "Node not ready yet"
+        
+        echo "=== Disk usage ==="
+        df -h /
+        
+        echo "=== Checking for taints (disk-pressure should not be present) ==="
+        kubectl get nodes -o json | jq -r '.items[].spec.taints' || echo "No taints found"
 
     - name: Setup tmate session
-      uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # 3.23
-      if: ${{ github.event.inputs.debug_enabled == 'true' }}
+      uses: mxschmitt/action-tmate@7b6a61a73bbb9793cb80ad69b8dd8ac19261834c # 3.22
+      if: ${{ (github.event.inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true' }}
       with:
 
         # run in detach mode to allow the workflow to continue running while session is active
@@ -254,10 +285,78 @@ jobs:
         # restart coredns to apply the changes
         kubectl -n kube-system rollout restart deployment coredns
 
+    - name: Setup K3S storage and check cluster health
+      run: |
+        echo "=== Checking K3S storage configuration ==="
+        
+        # Check if default storage class exists
+        kubectl get storageclass
+        
+        # If no default storage class, create one using local-path (K3S default)
+        if ! kubectl get storageclass local-path >/dev/null 2>&1; then
+          echo "Creating local-path storage class..."
+          kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.24/deploy/local-path-storage.yaml
+          sleep 5
+        fi
+        
+        # Set local-path as default storage class if no default exists
+        if ! kubectl get storageclass | grep "(default)" >/dev/null 2>&1; then
+          echo "Setting local-path as default storage class..."
+          kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+        fi
+        
+        echo "=== Storage classes after setup ==="
+        kubectl get storageclass
+        
+        echo "=== Checking cluster nodes and resources ==="
+        kubectl get nodes -o wide
+        kubectl get pods -A
+        
+        echo "=== Listing all Helm releases before cleanup ==="
+        helm list --all-namespaces
+
+        echo "Deleting all Helm releases in all namespaces:"
+        for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name"); do
+          for release in $(helm list -n "$ns" --short); do
+            echo "Deleting Helm release '$release' in namespace '$ns'..."
+            helm uninstall "$release" -n "$ns" || true
+          done
+        done
+
+        echo "Listing Helm releases after cleanup:"
+        helm list --all-namespaces
+
+    - name: Prepare system tests env
+      run: |
+        # Define get_host_ip function
+        get_host_ip() {
+            case "$(uname -s)" in
+                "Darwin") ipconfig getifaddr en0 2>/dev/null ;;
+                "Linux") hostname -I 2>/dev/null | awk '{print $1}' ;;
+                *) echo "localhost" ;;  # fallback
+            esac
+        }
+        
+        # Get the host IP
+        HOST_IP=$(get_host_ip)
+        echo "Detected host IP: $HOST_IP"
+        
+        # Export MLRUN_DBPATH before running prepare.py to avoid warnings
+        export MLRUN_DBPATH="http://${HOST_IP}:${MLRUN_API_NODE_PORT}"
+        echo "MLRUN_DBPATH set to: $MLRUN_DBPATH"
+        
+        source venv/bin/activate
+        python automation/system_test/prepare.py env \
+          --mlrun-dbpath "$MLRUN_DBPATH" \
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"  
+
     - name: Install MLRun CE helm chart
       run: |
         # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
         source venv/bin/activate
+        
         python automation/deployment/ce.py deploy \
             --verbose \
             --registry-url="registry.localhost" \
@@ -269,42 +368,151 @@ jobs:
             --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
+            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
+            --set jupyterNotebook.enabled=false \
+            --set kube-prometheus-stack.enabled=false
+        
+          # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
+          echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
 
-    - name: Prepare system tests env
-      run: |
-        source venv/bin/activate
-        python automation/system_test/prepare.py env \
-          --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
-          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
+          # Wait up to 30 minutes (1800 seconds) for all pods to be ready
+          timeout=1800
+          interval=60
+          elapsed=0
+
+          while true; do
+            not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
+            if [ "$not_ready" -eq 0 ]; then
+              echo "All pods in namespace ${NAMESPACE} are ready."
+              break
+            fi
+            if [ "$elapsed" -ge "$timeout" ]; then
+              echo "Timeout reached waiting for pods to be ready."
+              kubectl get pods -n ${NAMESPACE}
+              exit 1
+            fi
+            echo "Waiting for pods to be ready... (${elapsed}/${timeout}s)"
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
 
     - name: Run system tests
       run: |
+        # Define get_host_ip function
+        get_host_ip() {
+            case "$(uname -s)" in
+                "Darwin") ipconfig getifaddr en0 2>/dev/null ;;
+                "Linux") hostname -I 2>/dev/null | awk '{print $1}' ;;
+                *) echo "localhost" ;;  # fallback
+            esac
+        }
+        
+        # Get the host IP
+        HOST_IP=$(get_host_ip)
+        echo "Detected host IP: $HOST_IP"
+        
+        # Export environment variables for tests
+        export MLRUN_DBPATH="http://${HOST_IP}:${MLRUN_API_NODE_PORT}"
+        export MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS"
+        export MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}"
+        export MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}"
+        
+        echo "Running tests with MLRUN_DBPATH=$MLRUN_DBPATH"
+        
         source venv/bin/activate
-        MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS" \
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}" \
-        MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}" \
-          make test-system-open-source
+        make test-system-open-source
       env:
-        PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers }}
+        PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
 
-    - name: Output some logs in case of failure
-      if: ${{ failure() }}
+    - name: Output  logs
+      if: always()
       # add set -x to print commands before executing to make logs reading easier
       run: |
         set -x
-        kubectl --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
-        kubectl --namespace ${NAMESPACE} get all
-        kubectl --namespace ${NAMESPACE} get all -o yaml
+        echo "=================================="
+        echo "==== KUBERNETES CLUSTER STATE ===="
+        echo "=================================="
+        
+        echo "=== Nodes ==="
+        kubectl get nodes -o wide
+        kubectl describe nodes
+        
+        echo "=== Events (all namespaces) ==="
+        kubectl get events --all-namespaces --sort-by='.lastTimestamp' | tail -100
+        
+        echo "=== Events in ${NAMESPACE} ==="
+        kubectl get events -n ${NAMESPACE} --sort-by='.lastTimestamp'
+        
+        echo "=================================="
+        echo "=== NAMESPACE: ${NAMESPACE} ==="
+        echo "=================================="
+        
+        echo "=== All Resources ==="
+        kubectl --namespace ${NAMESPACE} get all -o wide
+        
+        echo "=== Pods Status ==="
+        kubectl --namespace ${NAMESPACE} get pods -o wide
+        
+        echo "=== Pods Descriptions ==="
         kubectl --namespace ${NAMESPACE} describe pods
-        kubectl --namespace ${NAMESPACE} get cm
-        kubectl --namespace ${NAMESPACE} get cm -o yaml
-        kubectl --namespace ${NAMESPACE} get secrets
-        kubectl --namespace ${NAMESPACE} get secrets -o yaml
+        
+        echo "=== PVC and PV ==="
         kubectl --namespace ${NAMESPACE} get pvc
-        kubectl --namespace ${NAMESPACE} get pv
+        kubectl get pv
+        kubectl --namespace ${NAMESPACE} describe pvc
+        kubectl describe pv
+        
+        echo "=== ConfigMaps (names only) ==="
+        kubectl --namespace ${NAMESPACE} get cm
+        
+        echo "=== Secrets (names only) ==="
+        kubectl --namespace ${NAMESPACE} get secrets
+        
+        echo "=== Deployments ==="
+        kubectl --namespace ${NAMESPACE} get deployments -o wide
+        kubectl --namespace ${NAMESPACE} describe deployments
+        
+        echo "=== StatefulSets ==="
+        kubectl --namespace ${NAMESPACE} get statefulsets -o wide
+        kubectl --namespace ${NAMESPACE} describe statefulsets
+        
+        echo "=== Services ==="
+        kubectl --namespace ${NAMESPACE} get svc -o wide
+        
+        echo "=================================="
+        echo "=== POD LOGS ==="
+        echo "=================================="
+        
+        # Get logs from ALL pods
+        for pod in $(kubectl get pods -n ${NAMESPACE} -o jsonpath='{.items[*].metadata.name}'); do
+          echo "========================================"
+          echo "=== Logs for pod: $pod ==="
+          echo "========================================"
+          
+          # Get current logs
+          kubectl logs -n ${NAMESPACE} $pod --all-containers=true --tail=500 || echo "Failed to get current logs for $pod"
+          
+          # Get previous logs if pod restarted
+          if kubectl logs -n ${NAMESPACE} $pod --all-containers=true --previous &>/dev/null; then
+            echo "=== Previous logs for $pod (pod restarted) ==="
+            kubectl logs -n ${NAMESPACE} $pod --all-containers=true --previous --tail=500 || echo "Failed to get previous logs"
+          fi
+        done
+        
+        echo "=================================="
+        echo "=== HELM RELEASES ==="
+        echo "=================================="
+        helm list -n ${NAMESPACE} --all
+        helm status mlrun-ce -n ${NAMESPACE} || echo "Helm release status unavailable"
+        
+        echo "=================================="
+        echo "=== DISK USAGE ==="
+        echo "=================================="
+        df -h
+        
         set +x
+
+    - name: Final clean up
+      if: always()
+      uses: ./.github/actions/cleanup-k3s

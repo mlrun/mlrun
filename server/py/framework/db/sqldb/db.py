@@ -2070,7 +2070,6 @@ class SQLDB(DBInterface):
             "producer_uri": producer_uri,
             "best_iteration": best_iteration,
             "most_recent": most_recent,
-            "attach_tags": attach_tags,
             "limit": limit,
             "with_entities": with_entities,
             "partition_by": partition_by,

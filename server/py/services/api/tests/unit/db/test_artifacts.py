@@ -18,6 +18,7 @@ import unittest.mock
 
 import deepdiff
 import pytest
+from sqlalchemy.orm import Query
 
 import mlrun.common.constants
 import mlrun.common.schemas
@@ -2792,6 +2793,110 @@ class TestArtifacts(TestDatabaseBase):
 
         artifacts = self._db.list_artifacts(session=self._db_session, project=project)
         assert artifacts == []
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            {"kind": "hint", "attach_tags": False},
+            {"kind": "hint", "attach_tags": True},
+            {"kind": "default-check", "ids": [], "with_entities": None, "attach_tags": False, "expected": True},
+            {"kind": "default-check", "ids": [], "with_entities": [], "attach_tags": False, "expected": True},
+            {"kind": "default-check", "ids": ["non-empty"], "with_entities": None, "attach_tags": False, "expected": False},
+            {"kind": "default-check", "ids": None, "with_entities": None, "attach_tags": True, "expected": True},
+        ],
+        ids=[
+            "mysql-hint-default-query",
+            "mysql-hint-with-attach-tags",
+            "empty-ids-is-default",
+            "empty-ids-and-with-entities-are-default",
+            "non-empty-ids-breaks-default",
+            "attach-tags-still-default",
+        ],
+    )
+    def test_default_query_mysql_hint_and_defaults_with_attach_tags(self, monkeypatch, case):
+        if case["kind"] == "hint":
+            artifact_key = "dummy-artifact-for-default-query"
+            self._db.store_artifact(
+                self._db_session,
+                key=artifact_key,
+                artifact=self._generate_artifact(artifact_key, project=self.project),
+                project=self.project,
+            )
+
+            hint_called_flag = {"value": False}
+
+            original_with_hint = Query.with_hint
+
+            def with_hint_spy(self_query_obj, selectable, text, dialect_name=None):
+                if dialect_name == "mysql" and "USE INDEX" in str(text):
+                    hint_called_flag["value"] = True
+                return original_with_hint(self_query_obj, selectable, text, dialect_name=dialect_name)
+
+            monkeypatch.setattr(Query, "with_hint", with_hint_spy, raising=True)
+
+            _ = self._db._find_artifacts(
+                self._db_session,
+                project=self.project,
+                ids=None,
+                tag=mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                labels=None,
+                since=None,
+                until=None,
+                name=None,
+                kind=None,
+                category=None,
+                iter=None,
+                uid=None,
+                producer_id=None,
+                producer_uri=None,
+                best_iteration=True,
+                most_recent=False,
+                attach_tags=case["attach_tags"],
+                offset=None,
+                limit=1001,
+                with_entities=None,
+                partition_by=None,
+                partition_sort_by=mlrun.common.schemas.SortField.updated,
+                partition_order=mlrun.common.schemas.OrderType.desc,
+                parent_uri=None,
+            )
+
+            assert hint_called_flag["value"], "Expected MySQL USE INDEX hint to be applied on the ORM Query"
+            return
+
+        ids_value = case.get("ids")
+        with_entities_value = case.get("with_entities")
+        attach_tags_value = case.get("attach_tags", False)
+        expected_is_default = case["expected"]
+
+        is_default_actual = self._db._is_default_list_artifacts_query(
+            project=self.project,
+            ids=ids_value,
+            tag=mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            labels=None,
+            since=None,
+            until=None,
+            name=None,
+            kind=None,
+            category=None,
+            iter=None,
+            uid=None,
+            producer_id=None,
+            producer_uri=None,
+            best_iteration=True,
+            most_recent=False,
+            attach_tags=attach_tags_value,
+            offset=None,
+            limit=1001,
+            with_entities=with_entities_value,
+            partition_by=None,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
+            parent_uri=None,
+        )
+
+        assert is_default_actual == expected_is_default
+
 
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""

@@ -92,3 +92,5 @@ model_runner_step.add_shared_model_proxy(
 graph.to(model_runner_step).respond()
 
 ## Router step
+
+{py:class}~`mlrun.serving.RouterStep`

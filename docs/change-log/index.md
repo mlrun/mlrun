@@ -38,7 +38,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9564|You can now import monitoring apps from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#model-monitoring-modules).|
-|ML-9564|You can now python modules from the MLRun hubMLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#model-monitoring-modules).|
+|ML-9564|You can now import python modules from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#model-monitoring-modules).|
 
 ### Serving
 | ID    |Description                                                                 |
@@ -58,7 +58,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 ### Batch run
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5986|You can now configure jobs to be retried on failure using the API. See {py:meth}`~mlrun.projects.MlrunProject.run_function`. The retry status is shown in the new <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table showing the retry status.|
+|ML-5986|You can now configure to retry jobs that fail using the API. See {py:meth}`~mlrun.projects.MlrunProject.run_function`. The retry status is shown in the new <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table showing the retry status.|
 |ML-9681|You can now deploy a serving graph as a job. See {ref}`serving-graph-as-job`.|
 
 ### UI
@@ -72,7 +72,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 ### Breaking Changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10279|The default project (`project="default"`) is no longer supported. This also affects the CE. All functions must have an explicit project. You can name a project default, but it will not have any pre-ordained permissions. Existing systems can keep pre-existing default projects, but they are no longer enriched. For example, this code:<br><br>`mlrun.get_or_create_ctx("my-context")`<br><br> should be replaced by:<br><br>`mlrun.get_or_create_ctx("my-context", project="my-project")`>`|
+|ML-10279|The default project (`project="default"`) is no longer supported. This also affects the CE. All functions must have an explicit project. You can name a project default, but it will not have any pre-ordained permissions. Existing systems can keep pre-existing default projects, but they are no longer enriched. For example, this code:<br><br>`mlrun.get_or_create_ctx("my-context")`<br><br> should be replaced by:<br><br>`mlrun.get_or_create_ctx("my-context", project="my-project")`|
 
 
 ### Infrastructure
@@ -107,11 +107,10 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |ML-8740|Notifications are now issued when retrying pipelines.|
 |ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
 |ML-9338|`latest` tag: If the same project+key were created from both a hyper-param run and single run, and the user removed the latest tag from everything, then `latest` is assigned to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results, and it may not actually be the latest run.|
-|ML-9430|
 |ML-9573|Resolved workflow step failures due to "Read timed out" error from mlrun-api.|
 |ML-9876|Resolved issue of DB probes failing when the concurrent connections are maxed out.|
 |ML-10289|When using the `project.delete_artifact()` that gets an `mlrun.artifacts.base.Artifact` object, if the object doesn’t have the “latest” tag, now only the specific UID artifacts are deleted.|
-|ML-10293|Scheduled workflow jobs now use the values in the `run` method, and not from the `project.spec.source` project source`` as previously.|
+|ML-10293|Scheduled workflow jobs now use the values in the `run` method, and not from the `project.spec.source` as previously.|
 |ML-10612|The `mlrun.get_current_project() function` now also works from within a Nuclio function that has been deployed on Iguazio or from a job.|
 |ML-10622|The remote and schedule workflow owner labels now show the username.|
 |ML-10655|<b>Monitoring>Workflows</b> now shows the correct number of workflows. Previously it occasionally reported 0.|

@@ -25,46 +25,48 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
-(#v1100)=
+(v1100)=
 ## v1.10.0 (November 2025)
 
-### Models
+```{admonition} Important
+**This is the last version that supports Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
+TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
+```
+
+### MLRun hub
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9685| You can now use models stored in a remote source like HuggingFace, without saving it in your datastore. See [Remote models](../store/models.md#remote-models) and [Serving using a remote model](..genai/deployment/genai_serving.md#serving-using-a-remote-model).|
+|ML-9564|You can now import monitoring apps from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#model-monitoring-modules).|
+|ML-9564|You can now python modules from the MLRun hubMLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#model-monitoring-modules).|
 
 ### Serving
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9812|This version introduces a default, out of the box, LLM implementation using your selected provider (e.g., OpenAI or Hugging Face), and includes monitoring results and collecting usage statistics. See [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb) and {ref}`genai-serving-graph`.|
-|ML-9642|The new ModelRunnerStep ensßbles running a model as part of a inference graph. It gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.|
-|ML-6344|This version introduces a new artifacts type: LLM prompt artifacts. This enables using LLMs, including specific prompt templates, inside your workflow. See {ref}`llm-prompt-artifact`.|
-
+|ML-9685| You can now use models stored in a remote source like HuggingFace, without saving it in your datastore. See [Remote models](../store/models.md#remote-models) and [Serving using a remote model](../genai/deployment/genai_serving.md#serving-using-a-remote-model).|
+|ML-9642|The new ModelRunnerStep enables running a model as part of a inference graph. It gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.|
+|ML-9812|This version introduces a default, out of the box, LLM implementation for your workflows. It includes LLM prompt templates and artifacts, monitoring results, experiment tracking on artifacts, and collecting usage statistics. You simply use your your selected provider (e.g., OpenAI or Hugging Face). See {ref}`genai-04-llm-prompt-artifact`, {ref}`genai-serving-graph`, and {ref}`llm-prompt-artifact`.|
 
 ### Model Monitoring
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9577|You can run model monitoring on the new ModelRunnerStep. See the example in {ref}`genai-serving-graph`.|
+|ML-9577|You can run model monitoring on the new ModelRunnerStep. See the example in {ref}`genai-04-llm-prompt-artifact`.|
+|ML-9613|The new Monitoring Application view, accessed with the Monitoring app icon in the menu, provides you with a comprehensive overview of your model monitoring applications and their status. See {ref}`view-mm-applications`.|
 |ML-9817|You can now run a model monitoring application as a batch application on existing model endpoint data. See {ref}`mm-running-applications`.|
 
-
-
-
-
-### Runtimes
+### Batch run
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-5986|You can now configure jobs to be retried on failure using the API. See {py:meth}`~mlrun.projects.MlrunProject.run_function`. The retry status is shown in the new <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table showing the retry status.|
 |ML-9681|You can now deploy a serving graph as a job. See {ref}`serving-graph-as-job`.|
-|ML-5986|You can now retry MLRun functions of type `job` using the API. There is a new <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table showing the retry status. See more details in {ref}`job-function` and {py:class}`~mlrun.projects.MlrunProject.run_function`.|
-|ML-10274|MLRun applies scheduling constraints to the run object at execution time (and does not modify the function definition). Your original scheduling constraints appear on the function, but the actual run may have different constraints applied dynamically when it executes. This ensures that each run reflects the current preemption mode configuration.|
 
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9613|The new Monitoring Application view, accessed with the Monitoring app icon in the menu <img src="../_static/images/monitor-mm-app.png"> provides you with a comprehensive overview of your model monitoring applications and their status. See {ref}`view-mm-applications`.|
-|ML-9350|You can now terminate a job from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the vertical ellipsis menu, depending on the page you are in. |
+|ML-9350|You can now terminate a workflow from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the vertical ellipsis menu, depending on the page you are in. |
+|ML-9430|The UI now displays run counters instead of job counters in the cross-project view and in the project monitoring page. |
+
 
 (1.10.0-breaking)=
 ### Breaking Changes
@@ -77,8 +79,9 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2714|MLRun supports Confluent Kafka 7.8.|
+|ML-7770|You can now change the context logger format.|
 |ML-10799|When using the KFP client, you can now use Kubeflow Pipelines (KFP) 1.8.23, which supports Python 3.11.
-|ML-9564|You can now import monitoring apps from the MLRun hub, and import Python modules from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#model-monitoring-modules).|
+
 
 ### Upcoming changes
 | ID    |Description                                                                 |
@@ -90,24 +93,25 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-| NA | New tutorial: [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb). |
-|NA |Improved the [Real-time serving pipelines (graphs)](../serving/serving-graph.md) documentation.|
+|NA | New tutorial: {ref}`genai-04-llm-prompt-artifact`. |
+|NA |Improved the {ref}`serving-graph` documentation.|
 |ML-8094|Improved the `set_function` documentation. See {ref}`create-and-use-functions`.|
+|NA|Updated {ref}`genai-serving-graph` with new functionalities.|
 
 
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-4309|You can now run predict on selected models in parallel using the ModelRunnerStep. See {ref}`modelrunnerstep`.|
 |ML-7771| Updated message when user tries to create a project but does not have developer permission: "Permission denied: Unable to create a project. Contact your system administrator to review user policy and data access permissions."|
 |ML-8601|Default spot labels node selector are no longer removed.|
 |ML-8740|Notifications are now issued when retrying pipelines.|
 |ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
 |ML-9338|`latest` tag: If the same project+key were created from both a hyper-param run and single run, and the user removed the latest tag from everything, then `latest` is assigned to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results, and it may not actually be the latest run.|
+|ML-9430|
 |ML-9573|Resolved workflow step failures due to "Read timed out" error from mlrun-api.|
-ML-9876|Resolved isue of DB probes failing when the concurrent connections are maxed out.|
+|ML-9876|Resolved issue of DB probes failing when the concurrent connections are maxed out.|
 |ML-10289|When using the `project.delete_artifact()` that gets an `mlrun.artifacts.base.Artifact` object, if the object doesn’t have the “latest” tag, now only the specific UID artifacts are deleted.|
-|ML-10293|Scheduled workflow jobs now use the values in the `run` method.|
+|ML-10293|Scheduled workflow jobs now use the values in the `run` method, and not from the `project.spec.source` project source`` as previously.|
 |ML-10612|The `mlrun.get_current_project() function` now also works from within a Nuclio function that has been deployed on Iguazio or from a job.|
 |ML-10622|The remote and schedule workflow owner labels now show the username.|
 |ML-10655|<b>Monitoring>Workflows</b> now shows the correct number of workflows. Previously it occasionally reported 0.|
@@ -1384,7 +1388,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
 |ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
 |ML-9913|UI: There may be a discrepancy in the artifact count between the Project monitoring page and the Artifacts page when running hyper-param jobs without a best-iteration. |Always provide a selection criteria for `best-iteration`.|v1.8.0|
-
+|ML-11463|The application graph in the model monitoring UI does not present the “dead zones” where no activity happened, and the time axis representation is not consistent.|NA|v1.10.0|
 
 ## Limitations
 

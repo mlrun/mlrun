@@ -8,21 +8,20 @@
 
 ## ModelRunnerStep
 
-The {py:class}`ModelRouter` gives you an advanced way to run
-multiple models with control over how they atr executed in terms of concurrency and parallelism. For example, it supports
+The {py:class}`ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
+over how they are executed in terms of concurrency and parallelism. For example, it supports
 running models in a multi-process or a multi-threaded paradigm, and it supports having a dedicated process for a given
 model (useful when the model has a long startup time or requires a lot of resources). Different execution mechanisms can be
-used for different models within the same step.ModelRunnerStep supports a shared
-model that is invoked from multiple steps in one graph
-
-ModelRunnerStep is the preferred step for all serving graphs, and is particularly suited for LLMs. 
-
-Typical use cases:
-For example, an inference graph with different models (both {ref}`local and remote models <models>`). 
-
-ModelRunnerStep is implemented with the asynchronous engine and the [flow topology](../serving/deploying-graphs.ipynb#flow), giving better utilization of CPU/GPU.
+used for different models within the same step. ModelRunnerStep supports a shared
+model that is invoked from multiple steps in one graph.
 
 ModelRunnerSteps have model endpoints, and can therefore be monitored.The input and output of each step are user-configurable.
+
+
+
+- When using ModelRunnerStep in a graph, MLRun automatically imports the default language model class (LLModel) during function deployment.
+- ModelRunnerStep can only be added to a graph that has the [flow topology](../serving/deploying-graphs.ipynb#flow) and running with the async engine, giving better utilization of CPU/GPU.
+!!!!!!- See config_pool_resource method documentation for default number of max threads and max processes.!!!!!!
 
 ### SDK
 - {py:class}`mlrun.serving.ModelRunner`: Runs multiple models on each event.
@@ -32,7 +31,7 @@ ModelRunnerSteps have model endpoints, and can therefore be monitored.The input 
 
 ### Usage
 Preprocess steps
-    Organizes input and outputs: can be paths, dict, etc. LLM has a lot of dinfo, e.g. statistics, cost. Use preprocess to exclude unnecessary details.
+    Organizes input and outputs: can be paths, dict, etc. LLM has a lot of info, e.g. statistics, cost. Use preprocess to exclude unnecessary details.
 
 
         ```
@@ -93,4 +92,4 @@ graph.to(model_runner_step).respond()
 
 ## Router step
 
-{py:class}~`mlrun.serving.RouterStep`
+{py:class}~`mlrun.serving.RouterStep` implements routing logic for running child routes. See the example in 

@@ -308,8 +308,9 @@ else
 fi
 
 # Fetch get_demos.py and its config
-GET_DEMOS_URL="https://raw.githubusercontent.com/mlrun/mlrun/${RAW_REF}/automation/scripts/get_demos.py"
-DEMOS_CONFIG_URL="https://raw.githubusercontent.com/mlrun/mlrun/${RAW_REF}/automation/scripts/demos_config.json"
+GET_DEMOS_URL="https://raw.githubusercontent.com/mlrun/mlrun/development/automation/scripts/get_demos.py"
+DEMOS_CONFIG_URL="https://raw.githubusercontent.com/mlrun/mlrun/development/automation/scripts/demos_config.json"
+# This demos_config_url is hard coded also in get_demos.py
 
 fetch_file() {
     local url="$1"; local out="$2"
@@ -328,7 +329,7 @@ temp_demos_dir=$(mktemp -d /tmp/demos.XXXXXXXXXX)
 
 echo "Running get_demos.py (dest=${temp_demos_dir}) ..."
 GITHUB_TOKEN="$GITHUB_TOKEN" $PYTHON_BIN "$work_dir/get_demos.py" ${mlrun_version:+"$mlrun_version"} \
-    --config_path "$work_dir/demos_config.json" \
+    # --config_path "$work_dir/demos_config.json" \
     --dest "$temp_demos_dir"
 
 if [ -z "${dry_run}" ]; then

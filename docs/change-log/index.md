@@ -26,7 +26,7 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
 (#v1100)=
-## v1.10.0
+## v1.10.0 (November 2025)
 
 ### Models
 
@@ -34,22 +34,24 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-9685| You can now use models stored in a remote source like HuggingFace, without saving it in your datastore. See [Remote models](../store/models.md#remote-models) and [Serving using a remote model](..genai/deployment/genai_serving.md#serving-using-a-remote-model).|
 
+### Serving
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9812|This version introduces a default, out of the box, LLM implementation using your selected provider (e.g., OpenAI or Hugging Face), and includes monitoring results and collecting usage statistics. See [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb) and {ref}`genai-serving-graph`.|
+|ML-9642|The new ModelRunnerStep ensßbles running a model as part of a inference graph. It gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.|
+|ML-6344|This version introduces a new artifacts type: LLM prompt artifacts. This enables using LLMs, including specific prompt templates, inside your workflow. See {ref}`llm-prompt-artifact`.|
+
 
 ### Model Monitoring
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9577|You can use the new ModelRunnerStep in model monitoring. See the example in {ref}`genai-serving-graph`.|
+|ML-9577|You can run model monitoring on the new ModelRunnerStep. See the example in {ref}`genai-serving-graph`.|
 |ML-9817|You can now run a model monitoring application as a batch application on existing model endpoint data. See {ref}`mm-running-applications`.|
 
 
 
-### Serving
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-10725|This version introduces a default, out of the box, LLM implementation using your selected provider (e.g., OpenAI or Hugging Face), and includes monitoring results and collecting usage statistics. See [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb) and {ref}`genai-serving-graph`.|
-|   |The new ModelRunnerStep gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.|
-|ML-6344|This version introduces a new artifacts type: LLM prompt artifacts. This enables using LLMs, including specific prompt templates, inside your workflow. See {ref}`llm-prompt-artifact`.|
+
 
 ### Runtimes
 | ID    |Description                                                                 |
@@ -61,10 +63,8 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9613|The new Monitoring Application view provides you with a comprehensive overview of your model monitoring applications and their status. See {ref}`view-mm-applications`.|
-|ML-9350|You can now terminate a job from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the kebab menu, depending on the page you are in. |
-
-
+|ML-9613|The new Monitoring Application view, accessed with the Monitoring app icon in the menu <img src="../_static/images/monitor-mm-app.png"> provides you with a comprehensive overview of your model monitoring applications and their status. See {ref}`view-mm-applications`.|
+|ML-9350|You can now terminate a job from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the vertical ellipsis menu, depending on the page you are in. |
 
 (1.10.0-breaking)=
 ### Breaking Changes
@@ -77,7 +77,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2714|MLRun supports Confluent Kafka 7.8.|
-|ML-10799|MLRun supports Python 3.11 with the Kubeflow Pipelines (KFP) 1.8.23.
+|ML-10799|When using the KFP client, you can now use Kubeflow Pipelines (KFP) 1.8.23, which supports Python 3.11.
 |ML-9564|You can now import monitoring apps from the MLRun hub, and import Python modules from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#model-monitoring-modules).|
 
 ### Upcoming changes
@@ -102,7 +102,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-7771| Updated message when user tries to create a project but does not have developer permission: "Permission denied: Unable to create a project. Contact your system administrator to review user policy and data access permissions."|
 |ML-8601|Default spot labels node selector are no longer removed.|
 |ML-8740|Notifications are now issued when retrying pipelines.|
-|ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent`’` or `allow` MLRun now warns that this node selector might get removed.|
+|ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
 |ML-9338|`latest` tag: If the same project+key were created from both a hyper-param run and single run, and the user removed the latest tag from everything, then `latest` is assigned to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results, and it may not actually be the latest run.|
 |ML-9573|Resolved workflow step failures due to "Read timed out" error from mlrun-api.|
 ML-9876|Resolved isue of DB probes failing when the concurrent connections are maxed out.|
@@ -1413,8 +1413,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.11.0 |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
-| v1.10.0 | default project is deprecated. See [Breaking changes](#1.10.0-breaking).
+| v1.11.0 | |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
+| v1.10.0 | |`project="default"` is deprecated. See [Breaking changes](#1.10.0-breaking).
 | v1.10.0 | |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
 | v1.10.0 | |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
 | v1.6.0 |ML-5137|The Create/edit function pane was removed from the UI.|
@@ -1435,7 +1435,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0| v1.10.0 |When using underscores as a name, the code no longer replaces them with dashes. |Use dashes|
 | v1.12.0| v1.10.0 |`any `mlrun.api.schemas.*`  import |`mlrun.common.schemas.*`| 
 | v1.12.0| v1.10.0 |key name `S3_ENDPOINT_URL`                                             |`AWS_ENDPOINT_URL_S3`|
-| v1.12.0| v1.10.0 |Datastore class: DatastoreProfileKafkaSource, DatastoreProfileKafkaTarget    |DatastoreProfileKafkaStream`|
+| v1.12.0| v1.10.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`    |`DatastoreProfileKafkaStream`|
 | v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
 | v1.12.0| v1.10.0 |`fetch_credentials_from_sys_config`                                       |NA|
 | v1.11.0| v1.11.0|TDEngine support will be removed in v1.11.0. Data will not be migrated.|MLRun will support TimescaleDB.|
@@ -1463,7 +1463,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
 | v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
 | v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
-| v1.10.0 |Function: `get_or_create_model_endpoint() in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
+| v1.10.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
 | v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints. See {ref}`serving-graph-as-job`.|
 | v1.10.0|`labels` in`get_or_create_ctx` |`spec` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |

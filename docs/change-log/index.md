@@ -65,7 +65,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9350|You can now terminate a workflow from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the vertical ellipsis menu, depending on the page you are in. |
-|ML-9430|The UI now displays run counters instead of job counters in the cross-project view and in the project monitoring page. |
+|ML-9430|The cross-project view and the project monitoring page now display run counters instead of job counters, and the "Scheduled" counter estimates upcoming runs. This provides you with more accurate data and predictive data.|
 
 
 (1.10.0-breaking)=

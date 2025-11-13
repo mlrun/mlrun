@@ -265,13 +265,6 @@ def create_manifest(mlrun_version, demo_versions):
 
 
 def get_demos(mlrun_version):
-    # Ignoring given demos_config path
-    # if not os.path.exists(CONFIG_PATH):
-    #     raise RuntimeError(f"Configuration file not found: {CONFIG_PATH}")
-    # try:
-    #     with Path(CONFIG_PATH).open("r", encoding="utf-8") as f:
-    #         config = json.load(f)
-
     config_url = "https://raw.githubusercontent.com/mlrun/mlrun/refs/heads/development/automation/scripts/demos_config.json"
     try:
         response = requests.get(config_url, timeout=10)
@@ -357,19 +350,13 @@ if __name__ == "__main__":
     # Optional argument
     parser.add_argument("--org", default="mlrun", help="GitHub org")
     parser.add_argument(
-        "--config_path", default="demos_config.json", help="Path to demos config file"
-    )
-    parser.add_argument(
         "--dest", default="demos", help="Folder name to extract demos to"
     )
 
     args = parser.parse_args()
 
     GITHUB_ORG = args.org
-    CONFIG_PATH = args.config_path
     DEST_DIR = args.dest
-
-    get_demos(args.mlrun_version)
 
     try:
         get_demos(args.mlrun_version)

@@ -34,10 +34,9 @@ DEFAULT_CONFIG = {
         "demo-fraud",
         "demo-monitoring-and-feedback-loop",
         "demo-call-center",
-        "demo-banking-agent"
-      ]
-  }
-
+        "demo-banking-agent",
+    ]
+}
 
 
 def download_with_retry(url, max_retries=3):
@@ -279,9 +278,9 @@ def get_demos(mlrun_version):
             config = config.get(version_to_use)
             log(f"Using {version_to_use} tag for demos list", "get_demos")
 
-    except Exception as e:
-        log(f"Failed getting config json, using default", "get_demos")
-        config=DEFAULT_CONFIG
+    except Exception:
+        log("Failed getting config json, using default", "get_demos")
+        config = DEFAULT_CONFIG
 
     try:
         os.makedirs(DEST_DIR, exist_ok=True)

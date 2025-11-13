@@ -300,12 +300,8 @@ except Exception:
     raise SystemExit(1)
 PY
 
-# Determine which ref to fetch scripts from (tag matching version or development)
-if [ -n "$mlrun_version" ] && echo "$mlrun_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'; then
-    RAW_REF="refs/tags/v${mlrun_version}"
-else
-    RAW_REF="development"
-fi
+# Using development to get most updated demo list
+RAW_REF="development"
 
 # Fetch get_demos.py and its config
 GET_DEMOS_URL="https://raw.githubusercontent.com/mlrun/mlrun/${RAW_REF}/automation/scripts/get_demos.py"

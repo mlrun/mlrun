@@ -155,9 +155,9 @@ class TestMLRunIntegration:
         if real_path := os.getenv("MLRUN_HTTPDB__REAL_PATH"):
             env_vars["MLRUN_HTTPDB__REAL_PATH"] = real_path
 
-        registry = os.getenv("MLRUN_DOCKER_REGISTRY", "ghcr.io/")
+        registry = os.getenv("MLRUN_DOCKER_REGISTRY", "ghcr.io/").rstrip("/")
         tag = os.getenv("MLRUN_DOCKER_CACHE_FROM_TAG", "unstable")
-        image = image or f"{registry}/mlrun/mlrun-api/{tag}"
+        image = image or f"{registry}/mlrun/mlrun-api:{tag}"
 
         client = docker.from_env()
 

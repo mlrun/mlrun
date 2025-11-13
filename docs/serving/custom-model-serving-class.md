@@ -133,7 +133,7 @@ To specify the topology, router class and class arguments use `.set_topology()` 
 ## Creating a model serving function (service)
 
 To provision a serving function, you need to create an MLRun function of type `serving`.
-This can be done by using the {py:meth}`~mlrun.projects.MlrunProject.set_function` call from a notebook. You can also import 
+Use the {py:meth}`~mlrun.projects.MlrunProject.set_function` call from a notebook. You can also import 
 an existing serving function/template from the function hub.
 
 Example (run inside a notebook): this code converts a notebook to a serving function and adds a model to it:

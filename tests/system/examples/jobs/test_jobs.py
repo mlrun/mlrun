@@ -14,6 +14,7 @@
 
 import os
 
+import kfp
 import kfp.compiler
 import kfp.dsl
 import pytest

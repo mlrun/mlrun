@@ -38,11 +38,17 @@ NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 
 class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
-        self._session = None
-        login = auth_info.username
-        self._auth = aiohttp.BasicAuth(login, auth_info.session) if login else None
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
+        self._session = None
+        self._auth_headers = None
+        self._auth = None
+
+        if mlrun.mlconf.is_iguazio_v4_mode():
+            self._auth_headers = auth_info.request_headers
+        else:
+            login = auth_info.username
+            self._auth = aiohttp.BasicAuth(login, auth_info.session) if login else None
 
     async def __aenter__(self):
         await self._ensure_async_session()
@@ -216,10 +222,10 @@ class Client:
         self, method, path="/", error_message: str = "", **kwargs
     ):
         await self._ensure_async_session()
+        self._prepare_auth_kwargs(kwargs)
         response = await self._session.request(
             method=method,
             url=urllib.parse.urljoin(self._nuclio_dashboard_url, path),
-            auth=self._auth,
             verify_ssl=False,
             **kwargs,
         )
@@ -269,6 +275,12 @@ class Client:
         self._logger.warning("Request to nuclio failed. Reason:", **log_kwargs)
 
         mlrun.errors.raise_for_status(response, error_message)
+
+    def _prepare_auth_kwargs(self, kwargs):
+        if self._auth:
+            kwargs.setdefault("auth", self._auth)
+        if self._auth_headers:
+            kwargs.setdefault("headers", {}).update(self._auth_headers)
 
     def _enrich_nuclio_api_gateway(
         self,

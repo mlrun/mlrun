@@ -22,6 +22,7 @@ from typing import Callable, Optional, Union
 import requests.exceptions
 from nuclio.build import mlrun_footer
 
+import mlrun.auth.utils
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
@@ -461,21 +462,7 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
 
-        if config.is_iguazio_v4_mode():
-            if auth_info and auth_info.username:
-                secret = self._get_db().get_secret_token(
-                    token_name=self._default_token_name,
-                    username=auth_info.username,
-                )
-                runtime_env["MLRUN_AUTH_OFFLINE_TOKEN"] = secret.token
-
-            runtime_env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
-            runtime_env["MLRUN_AUTH_TOKEN_ENDPOINT"] = (
-                config.iguazio_api_url + "/api/v1/refresh-access-token"
-            )
-            runtime_env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
-                config.iguazio_api_ssl_verify
-            ).lower()
+        mlrun.auth.utils.enrich_auth_env(runtime_env, self._get_db(), auth_info)
 
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(

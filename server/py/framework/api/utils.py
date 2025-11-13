@@ -1146,7 +1146,6 @@ async def _delete_project(
             db_session,
             project_name,
             deletion_strategy,
-            auth_info.projects_role,
             auth_info,
             wait_for_completion=True,
             background_task_name=background_task_name,
@@ -1199,7 +1198,7 @@ def verify_project_is_deleted(project_name, auth_info):
             project = framework.db.session.run_function_with_new_db_session(
                 framework.utils.singletons.project_member.get_project_member().get_project,
                 project_name,
-                auth_info.session,
+                auth_info,
             )
         except mlrun.errors.MLRunNotFoundError:
             return

@@ -22,6 +22,7 @@ import nuclio.utils
 import requests
 
 import mlrun
+import mlrun.auth.utils
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -250,7 +251,7 @@ def _compile_function_config(
     """
 
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
-    env_dict, external_source_env_dict = _resolve_env_vars(function)
+    env_dict, external_source_env_dict = _resolve_env_vars(function, auth_info)
 
     project = function.metadata.project
     tag = function.metadata.tag
@@ -361,7 +362,7 @@ def _apply_escaped_config(config, parent_key, items: dict):
         mlrun.utils.update_in(config, f"{parent_key}.\\{key}\\", value)
 
 
-def _resolve_env_vars(function):
+def _resolve_env_vars(function, auth_info=None):
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
@@ -381,6 +382,8 @@ def _resolve_env_vars(function):
         and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
     ):
         env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
+
+    mlrun.auth.utils.enrich_auth_env(env_dict, function._get_db(), auth_info)
 
     return env_dict, external_source_env_dict
 

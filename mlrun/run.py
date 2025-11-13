@@ -345,7 +345,7 @@ def get_or_create_ctx(
 def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
-    Functions can be imported from function repositories (mlrun Function Hub (formerly Marketplace) or local db),
+    Functions can be imported from function repositories (MLRun Hub) or local db),
     or be read from a remote URL (http(s), s3, git, v3io, ..) containing the function YAML
 
     special URLs::
@@ -361,7 +361,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
             "https://raw.githubusercontent.com/org/repo/func.yaml"
         )
 
-    :param url: path/url to Function Hub, db or function YAML file
+    :param url: path/url to MLRun Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
@@ -692,7 +692,7 @@ def code_to_function(
     :param description:  short function description, defaults to ''
     :param requirements: a list of python packages
     :param requirements_file: path to a python requirements file
-    :param categories:   list of categories for mlrun Function Hub, defaults to None
+    :param categories:   list of categories for MLRun Hub, defaults to None
     :param labels:       name/value pairs dict to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')

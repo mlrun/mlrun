@@ -42,10 +42,8 @@ jobs:
             | jq -r '.[].name | select(test("^\\d+\\.\\d+\\.x$"))' \
             | sort -Vr \
             | head -2 \
-            | tr '\n' ',' \
-            | sed 's/,$//' \
-            | awk '{print $0",development"}')
-          matrix="{\"repo\": [\"mlrun\",\"ui\"], \"branch\": [$branches]}"
+            | jq --raw-input --slurp --compact-output 'split("\n") | map(select(length > 0)) | . + ["development"]')
+          matrix=$(jq --compact-output --null-input --argjson branches "$branches" '{"repo": ["mlrun","ui"], "branch": $branches}')
           echo "matrix=$(echo $matrix)" >> $GITHUB_OUTPUT
 
   re-build-images:

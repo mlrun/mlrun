@@ -59,17 +59,14 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
     ExistingDataHandling,
     ModelMonitoringApplicationBase,
+    histogram_data_drift,
 )
 from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
-from mlrun.model_monitoring.applications.histogram_data_drift import (
-    HistogramDataDriftApplication,
-)
 from mlrun.utils.logger import Logger
 from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
 
 from . import TestMLRunSystemModelMonitoring
-from .assets import histogram_app_with_artifacts
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     CountApp,
@@ -101,7 +98,7 @@ class _AppData:
 
 
 _DefaultDataDriftAppData = _AppData(
-    class_=HistogramDataDriftApplication,
+    class_=histogram_data_drift.HistogramDataDriftApplication,
     rel_path="",
     deploy=False,
     results={"general_drift"},
@@ -775,7 +772,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         if _DefaultDataDriftAppData in self.apps_data:
             # test a specific function summary
             hist_function_summary = self.project.get_monitoring_function_summary(
-                name=HistogramDataDriftApplication.NAME, include_latest_metrics=True
+                name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                include_latest_metrics=True,
             )
             assert hist_function_summary.stats
             assert len(hist_function_summary.stats["metrics"]) == 4
@@ -1964,12 +1962,17 @@ class TestAppJob(TestMLRunSystem):
         ).uri
 
         # Call `.evaluate(...)`
-        run_result = histogram_app_with_artifacts.HistogramDataDriftApplicationWithArtifacts.evaluate(
-            func_path=histogram_app_with_artifacts.__file__,
+        run_result = histogram_data_drift.HistogramDataDriftApplication.evaluate(
+            func_path=histogram_data_drift.__file__,
             sample_data=sample_data,
             reference_data=reference_data_uri,
             run_local=run_local,
             image=self.image,  # Relevant for remote runs only
+            class_arguments={
+                # Produce artifacts for testing
+                "produce_json_artifact": True,
+                "produce_plotly_artifact": True,
+            },
         )
 
         # Test the state

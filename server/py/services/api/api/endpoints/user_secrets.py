@@ -72,7 +72,7 @@ async def revoke_secret_token(
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
-    # TODO: Support revoking user token with System Admin
+    # TODO: Support revoking user token with System Admin (ML-10775)
 
     return await run_in_threadpool(
         services.api.crud.Secrets().revoke_secret_token,

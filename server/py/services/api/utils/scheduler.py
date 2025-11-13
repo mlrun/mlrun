@@ -1094,7 +1094,7 @@ class Scheduler:
                 )
 
                 project_owner = framework.utils.singletons.project_member.get_project_member().get_project_owner(
-                    db_session, project_name
+                    db_session, project_name, auth_info=auth_info
                 )
                 # Update the schedule with the new auth info so we won't need to do the above again in the next run
                 scheduler.update_schedule(

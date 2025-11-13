@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import enum
 import http
 import re
@@ -4182,8 +4181,12 @@ class HTTPRunDB(RunDBInterface):
         Get monitoring function summaries for the specified project.
 
         :param project: The name of the project.
-        :param start: Start time for filtering the results (optional).
-        :param end: End time for filtering the results (optional).
+        :param start: The start time of the monitoring applications’ statistics.
+            If not defined, the default is 24 hours ago.
+            Required timezone, applicable only when `include_stats` is set to True.
+        :param end: The end time of the monitoring applications’ statistics.
+            If not defined, the default is now.
+            Required timezone, applicable only when `include_stats` is set to True.
         :param names: List of function names to filter by (optional).
         :param labels: Labels to filter by (optional).
         :param include_stats: Whether to include statistics in the response (default is False).
@@ -4224,12 +4227,14 @@ class HTTPRunDB(RunDBInterface):
     ) -> FunctionSummary:
         """
         Get a monitoring function summary for the specified project and function.
-        :param project:                The name of the project.
-        :param function_name:          The name of the function.
-        :param start:                  Start time for filtering the results (optional).
-        :param end:                    End time for filtering the results (optional).
-        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
 
+        :param project: The name of the project.
+        :param function_name: The name of the function.
+        :param start: The start time of the monitoring application's statistics.
+            If not defined, the default is 24 hours ago. Required timezone.
+        :param end: The end time of the monitoring application's statistics.
+            If not defined, the default is now. Required timezone.
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
         :return: A FunctionSummary object containing information about the monitoring function.
         """
 
@@ -5352,6 +5357,16 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.types.HTTPMethod.DELETE,
             endpoint_path,
             "delete user secret token",
+        )
+
+    @mlrun.utils.iguazio_v4_only
+    def get_secret_token(
+        self,
+        token_name: str,
+        username: Optional[str] = None,
+    ) -> mlrun.common.schemas.SecretToken:
+        raise NotImplementedError(
+            "Getting secret token is not supported for security reasons."
         )
 
     @mlrun.utils.iguazio_v4_only

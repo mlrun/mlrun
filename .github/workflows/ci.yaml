@@ -115,7 +115,7 @@ jobs:
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
 
     - name: Install automation scripts dependencies
-      run: pip install -r automation/requirements.txt
+      run: make install-automation-requirements
     - name: Set test suite
       run: |
           if [[ "${{ matrix.test-suite }}" == "server" ]]; then
@@ -181,7 +181,7 @@ jobs:
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
 
     - name: Install automation scripts dependencies
-      run: pip install -r automation/requirements.txt
+      run: make install-automation-requirements
 
     - name: Set RUN_COVERAGE environment variable
       run: echo "RUN_COVERAGE=true" >> $GITHUB_ENV
@@ -244,7 +244,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
     - name: Install automation scripts dependencies and add mlrun to dev packages
-      run: pip install -r automation/requirements.txt && pip install -e .
+      run: make install-automation-requirements && pip install -e .
       # Install KFP v2 only when the adapter is kfp-v2
     - name: Install KFP Adapter if required
       run: |

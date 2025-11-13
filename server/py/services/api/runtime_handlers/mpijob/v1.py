@@ -18,6 +18,7 @@ from datetime import datetime
 from kubernetes import client
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 from mlrun import mlconf
@@ -53,6 +54,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
         meta: client.V1ObjectMeta,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> dict:
         pod_labels = copy.deepcopy(meta.labels)
         pod_labels[mlrun_constants.MLRunInternalLabels.job] = meta.name
@@ -60,7 +62,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         # create base pod templates
         launcher_pod_template = copy.deepcopy(self._mpijob_pod_template)
         worker_pod_template = copy.deepcopy(self._mpijob_pod_template)
-        command, args, extra_env = self._get_cmd_args(runtime, run)
+        command, args, extra_env = self._get_cmd_args(runtime, run, auth_info=auth_info)
 
         # configure pod templates for both launcher and worker
         self._configure_pod_template(

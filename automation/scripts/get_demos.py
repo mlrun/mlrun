@@ -29,6 +29,15 @@ from tqdm import tqdm
 
 TIMEOUT = 30  # seconds
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+)(?:-rc\d+)?$")
+DEFAULT_CONFIG = {
+    "demos": [
+        "demo-fraud",
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent"
+      ]
+  }
+
 
 
 def download_with_retry(url, max_retries=3):
@@ -277,12 +286,9 @@ def get_demos(mlrun_version):
             config = config.get(version_to_use)
             log(f"Using {version_to_use} tag for demos list", "get_demos")
 
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Invalid JSON in configuration file {config_url}: {e}")
-    except requests.RequestException as e:
-        raise RuntimeError(f"Failed to download configuration file {config_url}: {e}")
     except Exception as e:
-        raise RuntimeError(f"Failed to read configuration file {config_url}: {e}")
+        log(f"Failed getting config json, using default", "get_demos")
+        config=DEFAULT_CONFIG
 
     try:
         os.makedirs(DEST_DIR, exist_ok=True)

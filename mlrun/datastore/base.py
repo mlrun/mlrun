@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import tempfile
 import urllib.parse
 from base64 import b64encode
@@ -158,6 +159,121 @@ class DataStore(BaseRemoteClient):
         return {}
 
     @staticmethod
+    def read_partitioned_parquet(
+        base_path,
+        start_time,
+        end_time,
+        partition_keys,
+        df_module,
+        **kwargs,
+    ):
+        """Read only the relevant partitions using pandas filters and concat."""
+        logger.info("starting urls partition process")
+        if not partition_keys:
+            raise ValueError(
+                f"No partition structure found under {base_path}, while usage requires partition keys"
+            )
+
+        def list_partitioned_urls(
+            base_path: str, partition_keys: list[str], start_time, end_time
+        ):
+            """
+            Build a list of URLs based on detected partitioning and time range.
+
+            Automatically adjusts iteration step based on deepest partition key.
+            """
+            # Determine smallest partition granularity
+            if "hour" in partition_keys:
+                step = datetime.timedelta(hours=1)
+                fmt_keys = ["year", "month", "day", "hour"]
+            elif "day" in partition_keys:
+                step = datetime.timedelta(days=1)
+                fmt_keys = ["year", "month", "day"]
+            elif "month" in partition_keys:
+                # Approximate month stepping
+                fmt_keys = ["year", "month"]
+
+                def next_step(dt):
+                    year = dt.year + (dt.month // 12)
+                    month = 1 if dt.month == 12 else dt.month + 1
+                    return dt.replace(year=year, month=month, day=1)
+            elif "year" in partition_keys:
+                fmt_keys = ["year"]
+
+                def next_step(dt):
+                    return dt.replace(year=dt.year + 1, month=1, day=1)
+            else:
+                raise ValueError("No recognized time-based partition key found")
+
+            urls = []
+            current = start_time
+
+            while current <= end_time:
+                # Build directory structure from partition keys
+                parts = []
+                for key in fmt_keys:
+                    if key == "year":
+                        parts.append(f"year={current.year}")
+                    elif key == "month":
+                        parts.append(f"month={current.month:02d}")
+                    elif key == "day":
+                        parts.append(f"day={current.day:02d}")
+                    elif key == "hour":
+                        parts.append(f"hour={current.hour:02d}")
+
+                urls.append(f"{base_path.rstrip('/')}/" + "/".join(parts))
+
+                # Advance to next period
+                if "hour" in partition_keys or "day" in partition_keys:
+                    current += step
+                else:
+                    current = next_step(current)
+
+            logger.info("Generated partitioned URLs", extra={"urls": urls})
+            return urls
+
+        def clean_filters_for_partitions(filters, partition_keys):
+            """
+            Remove partition keys from filters.
+
+            Args:
+                filters (list of list of tuples): pandas-style filters
+                    Example: [[('year','=',2025),('month','=',11),('timestamp','>',ts1)]]
+                partition_keys (list of str): partition columns handled via directory
+
+            Returns:
+                list of list of tuples: cleaned filters
+            """
+            cleaned_filters = []
+            for group in filters:
+                new_group = [f for f in group if f[0] not in partition_keys]
+                if new_group:
+                    cleaned_filters.append(new_group)
+            return cleaned_filters
+
+        urls = list_partitioned_urls(base_path, partition_keys, start_time, end_time)
+
+        dfs = []
+        for url in urls:
+            try:
+                kwargs["filters"] = clean_filters_for_partitions(
+                    kwargs["filters"], partition_keys
+                )
+                df = df_module.read_parquet(url, **kwargs)
+                logger.info("Reading DataFrame", url=url, columns=df.columns)
+                dfs.append(df)
+            except Exception as e:
+                # Skip partitions that don't exist or have no data
+                logger.info("Failed to read DataFrame", url=url, exception=e)
+                continue
+
+        if not dfs:
+            return pd.DataFrame()
+        final_df = pd.concat(dfs, ignore_index=True)
+        logger.info("Finished reading DataFrame columns", columns=final_df.columns)
+        return final_df
+
+    @staticmethod
     def _parquet_reader(
         df_module,
         url,
@@ -166,6 +282,7 @@ class DataStore(BaseRemoteClient):
         start_time,
         end_time,
         additional_filters,
+        create_partition_path,
     ):
         from storey.utils import find_filters, find_partitions
 
@@ -213,7 +330,18 @@ class DataStore(BaseRemoteClient):
                     kwargs,
                 )
                 try:
-                    return df_module.read_parquet(*args, **kwargs)
+                    if create_partition_path and partitions_time_attributes:
+                        return DataStore.read_partitioned_parquet(
+                            url,
+                            start_time,
+                            end_time,
+                            partitions_time_attributes,
+                            df_module,
+                            **kwargs,
+                        )
+
+                    else:
+                        return df_module.read_parquet(*args, **kwargs)
                 except pyarrow.lib.ArrowInvalid as ex:
                     if not str(ex).startswith(
                         "Cannot compare timestamp with timezone to timestamp without timezone"
@@ -239,7 +367,17 @@ class DataStore(BaseRemoteClient):
                         additional_filters,
                         kwargs,
                     )
-                    return df_module.read_parquet(*args, **kwargs)
+                    if create_partition_path and partitions_time_attributes:
+                        return DataStore.read_partitioned_parquet(
+                            url,
+                            start_time_inner,
+                            end_time_inner,
+                            partitions_time_attributes,
+                            df_module,
+                            **kwargs,
+                        )
+                    else:
+                        return df_module.read_parquet(*args, **kwargs)
             else:
                 return df_module.read_parquet(*args, **kwargs)
 
@@ -323,6 +461,7 @@ class DataStore(BaseRemoteClient):
                 start_time,
                 end_time,
                 additional_filters,
+                kwargs.get("create_partition_path", True),
             )
 
         elif file_url.endswith(".json") or format == "json":

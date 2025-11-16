@@ -1,13 +1,12 @@
 (llm-prompt-artifcta)=
 # LLM prompt artifacts
 
-LLM prompt artifacts are defined by their prompt template, the model, and the generation configuration.
+LLM prompt artifacts are defined by their prompt template, the model, and the invocation configuration.
 
 **In this section**
 - [SDK](#sdk)
 - [Logging LLM prompt artifacts](#logging-llm-prompt-artifacts)
 - [Deleting prompt artifacts](#deleting-prompt-artifacts-using-the-sdk)
-- [Viewing LLM-prompt artifacts using the SDK](#viewing-llm-prompt-artifacts-using-the-sdk)
 - [Viewing LLM-prompt artifacts in the UI](#viewing-llm-prompt-artifacts-in-the-ui)
 
 ## SDK
@@ -18,7 +17,7 @@ LLM prompt artifacts are defined by their prompt template, the model, and the ge
 ## Logging LLM prompt artifacts
 LLM prompt artifacts capture a prompt definition for LLM interactions. You can log prompt artifacts (to your project) with an inline prompt template, or from a file, and with optional metadata like generation parameters, a legend for variable injection, and references to a parent model artifact. 
 Prompt artifacts:
--Are uniquely defined by their LLM, prompt template, and the model generation configuration. 
+- Are uniquely defined by their LLM, prompt template, and the model generation configuration. 
 - Support {ref}`local and remote models<genai-serving>`.
 - Support [inline prompt templates and templates from a file](../genai/deployment/genai_serving_graph.ipynb#log-the-llm-prompt-artifacts).
 
@@ -52,24 +51,25 @@ project/context.log_llm_prompt(
 Delete prompt artifacts with {py:class}`~mlrun.projects.MlrunProject.delete_artifact`.
 
 Guidelines
-- You cannot delete an LLM prompt artifact if there is a MEP attached to it.
+- You cannot delete an LLM prompt artifact if there is a model endpoint attached to it.
 - You cannot delete a model if there is an LLM prompt pointing at it (whether or not this LLM prompt has a model endpoint). 
-
-## Viewing LLM-prompt artifacts using the SDK 
-View the list of LLM prompt artifacts in the current project with {py:class}`~mlrun.projects.MlrunProject.list_llm_prompts` or {py:class}`~mlrun.projects.MlrunProject.paginated_list_llm_prompts` for a paginated list. When using {py:class}`~mlrun.projects.MlrunProject.list_llm_prompts` there are multiple options for filtering.
 
 ## Viewing LLM-prompt artifacts in the UI
 
-The LLM prompts page lists all the prompt artifacts in the project. You can filter by lable, LLM prompt version tag, model name, and model version tag.
+The LLM prompts page lists all the prompt artifacts in the project. You can filter by lable, LLM prompt version tag, model name, and model version tag.<br>
+     <img src="../_static/images/llm-prompts.png" width="700" />
 
 Each prompt template has these tabs, providing further details:
 - Overview: 
   - General: Key, Description, Model name, Hash, Version tag, Original source, Iteration, URI, Path (if there is a path, the prompt template text is read from this path), UID,  Updated, Label
-  - Producer: Name, Kind, Tag, Owner, UID
+  - Producer: Name, Kind, Tag, Owner, UID<br>
+  <img src="../_static/images/llm-prompt-oview.png" width="700" />
 - Prompt template: 
   - Prompt: Searchable text displaying the roles and their content. entire prompt template with the placeholders (the {argument name}). You can minimize roles to get a better view of the other role(s).
-  - Arguments: Lists the  arguments and their descriptions.
-- Generation configuration: Displays the keys and their values, or indicates that the prompt template uses the default configuration.
+  - Arguments: Lists the  arguments and their descriptions.<br>
+  <img src="../_static/images/llm-prompt-template.png" width="700" />
+- Generation configuration: Displays the keys and their values, or indicates that the prompt template uses the default configuration.<br>
+     <img src="../_static/images/llm-prompt-cfg.png" width="700" />
 
 
 

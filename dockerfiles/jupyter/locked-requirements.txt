@@ -168,9 +168,9 @@ alembic==1.16.5 ; python_full_version < '3.10' \
     --hash=sha256:a88bb7f6e513bd4301ecf4c7f2206fe93f9913f9b48dac3b78babde2d6fe765e \
     --hash=sha256:e845dfe090c5ffa7b92593ae6687c5cb1a101e91fa53868497dbd79847f9dbe3
     # via mlflow
-alembic==1.17.1 ; python_full_version >= '3.10' \
-    --hash=sha256:8a289f6778262df31571d29cca4c7fbacd2f0f582ea0816f4c399b6da7528486 \
-    --hash=sha256:cbc2386e60f89608bb63f30d2d6cc66c7aaed1fe105bd862828600e5ad167023
+alembic==1.17.2 ; python_full_version >= '3.10' \
+    --hash=sha256:bbe9751705c5e0f14877f02d46c53d10885e377e3d90eda810a016f9baa19e8e \
+    --hash=sha256:f483dd1fe93f6c5d49217055e4d15b905b425b6af906746abb35b69c1996c4e6
     # via mlflow
 aliyun-python-sdk-core==2.16.0 \
     --hash=sha256:651caad597eb39d4fad6cf85133dffe92837d53bdf62db9d8f37dab6508bb8f9
@@ -181,9 +181,9 @@ aliyun-python-sdk-kms==2.16.5 \
     --hash=sha256:24b6cdc4fd161d2942619479c8d050c63ea9cd22b044fe33b60bbb60153786f0 \
     --hash=sha256:f328a8a19d83ecbb965ffce0ec1e9930755216d104638cd95ecd362753b813b3
     # via oss2
-annotated-doc==0.0.3 \
-    --hash=sha256:348ec6664a76f1fd3be81f43dffbee4c7e8ce931ba71ec67cc7f4ade7fbbb580 \
-    --hash=sha256:e18370014c70187422c33e945053ff4c286f453a984eba84d0dbfa0c935adeda
+annotated-doc==0.0.4 \
+    --hash=sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320 \
+    --hash=sha256:fbcda96e87e9c92ad167c2e53839e57503ecfda18804ea28102353485033faa4
     # via fastapi
 annotated-types==0.7.0 \
     --hash=sha256:1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53 \
@@ -234,9 +234,9 @@ asn1crypto==1.5.1 \
     --hash=sha256:13ae38502be632115abf8a24cbe5f4da52e3b5231990aff31123c805306ccb9c \
     --hash=sha256:db4e40728b728508912cbb3d44f19ce188f218e9eba635821bb4b68564f8fd67
     # via snowflake-connector-python
-asttokens==3.0.0 \
-    --hash=sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7 \
-    --hash=sha256:e3078351a059199dd5138cb1c706e6430c05eff2ff136af5eb4790f9d28932e2
+asttokens==3.0.1 \
+    --hash=sha256:15a3ebc0f43c2d0a50eeafea25e19046c68398e487b9f1f5b517f7c0f40f976a \
+    --hash=sha256:71a4ee5de0bde6a31d64f6b13f2293ac190344478f081c3d1bccfcf5eacb0cb7
     # via stack-data
 async-timeout==5.0.1 ; python_full_version <= '3.11.2' \
     --hash=sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c \
@@ -530,9 +530,9 @@ click==8.1.8 ; python_full_version < '3.10' \
     #   flask
     #   mlflow-skinny
     #   uvicorn
-click==8.3.0 ; python_full_version >= '3.10' \
-    --hash=sha256:9b9f285302c6e3064f4330c05f05b81945b2a39544279343e6e7c5f27a9baddc \
-    --hash=sha256:e7b8232224eba16f4ebe410c25ced9f7875cb5f3263ffc93cc3e8da705e229c4
+click==8.3.1 ; python_full_version >= '3.10' \
+    --hash=sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a \
+    --hash=sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6
     # via
     #   -r requirements.txt
     #   dask
@@ -829,9 +829,9 @@ databricks-sdk==0.20.0 \
     # via
     #   -r extras-requirements.txt
     #   mlflow-skinny
-db-dtypes==1.4.3 \
-    --hash=sha256:a1c92b819af947fae1701d80a71f2a0eac08f825ca52cf0c68aeba80577ae966 \
-    --hash=sha256:d3cb08c32939d24e05501f17694be8c1c54cfb4620d61fb56fb311e8c3d8885e
+db-dtypes==1.4.4 \
+    --hash=sha256:26f53db5df1acd746b88c5647913a1b20f731c0af1b11abcb6bec5365f31098a \
+    --hash=sha256:32c13039982656a8598a0835f25f0e07e34c9a423e471ee60c2553240b7fcf1e
     # via google-cloud-bigquery
 debugpy==1.8.17 \
     --hash=sha256:045290c010bcd2d82bc97aa2daf6837443cd52f6328592698809b4549babcee1 \
@@ -945,9 +945,9 @@ executing==2.2.1 \
     --hash=sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4 \
     --hash=sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017
     # via stack-data
-fastapi==0.121.1 \
-    --hash=sha256:2c5c7028bc3a58d8f5f09aecd3fd88a000ccc0c5ad627693264181a3c33aa1fc \
-    --hash=sha256:b6dba0538fd15dab6fe4d3e5493c3957d8a9e1e9257f56446b5859af66f32441
+fastapi==0.121.2 \
+    --hash=sha256:ca8e932b2b823ec1721c641e3669472c855ad9564a2854c9899d904c2848b8b9 \
+    --hash=sha256:f2d80b49a86a846b70cc3a03eb5ea6ad2939298bf6a7fe377aa9cd3dd079d358
     # via mlflow-skinny
 fastjsonschema==2.21.2 \
     --hash=sha256:1c797122d0a86c5cace2e54bf4e819c36223b552017172f32c5c024a6b77e463 \
@@ -3109,17 +3109,17 @@ protobuf==3.20.3 ; python_full_version < '3.11' \
     #   mlflow-skinny
     #   proto-plus
     #   v3io-frames
-protobuf==6.33.0 ; python_full_version >= '3.11' \
-    --hash=sha256:140303d5c8d2037730c548f8c7b93b20bb1dc301be280c378b82b8894589c954 \
-    --hash=sha256:25c9e1963c6734448ea2d308cfa610e692b801304ba0908d7bfa564ac5132995 \
-    --hash=sha256:35be49fd3f4fefa4e6e2aacc35e8b837d6703c37a2168a55ac21e9b1bc7559ef \
-    --hash=sha256:905b07a65f1a4b72412314082c7dbfae91a9e8b68a0cc1577515f8df58ecf455 \
-    --hash=sha256:9a031d10f703f03768f2743a1c403af050b6ae1f3480e9c140f39c45f81b13ee \
-    --hash=sha256:c963e86c3655af3a917962c9619e1a6b9670540351d7af9439d06064e3317cc9 \
-    --hash=sha256:cd33a8e38ea3e39df66e1bbc462b076d6e5ba3a4ebbde58219d777223a7873d3 \
-    --hash=sha256:d6101ded078042a8f17959eccd9236fb7a9ca20d3b0098bbcb91533a5680d035 \
-    --hash=sha256:e0697ece353e6239b90ee43a9231318302ad8353c70e6e45499fa52396debf90 \
-    --hash=sha256:e0a1715e4f27355afd9570f3ea369735afc853a6c3951a6afe1f80d8569ad298
+protobuf==6.33.1 ; python_full_version >= '3.11' \
+    --hash=sha256:023af8449482fa884d88b4563d85e83accab54138ae098924a985bcbb734a213 \
+    --hash=sha256:0f4cf01222c0d959c2b399142deb526de420be8236f22c71356e2a544e153c53 \
+    --hash=sha256:8fd7d5e0eb08cd5b87fd3df49bc193f5cfd778701f47e11d127d0afc6c39f1d1 \
+    --hash=sha256:923aa6d27a92bf44394f6abf7ea0500f38769d4b07f4be41cb52bd8b1123b9ed \
+    --hash=sha256:97f65757e8d09870de6fd973aeddb92f85435607235d20b2dfed93405d00c85b \
+    --hash=sha256:d595a9fd694fdeb061a62fbe10eb039cc1e444df81ec9bb70c7fc59ebcb1eafa \
+    --hash=sha256:df051de4fd7e5e4371334e234c62ba43763f15ab605579e04c7008c05735cd82 \
+    --hash=sha256:f8adba2e44cde2d7618996b3fc02341f03f5bc3f2748be72dc7b063319276178 \
+    --hash=sha256:f8d3fdbc966aaab1d05046d0240dd94d40f2a8c62856d41eaa141ff64a79de6b \
+    --hash=sha256:fe34575f2bdde76ac429ec7b570235bf0c788883e70aee90068e9981806f2490
     # via
     #   google-api-core
     #   google-cloud-bigquery-storage
@@ -4319,9 +4319,9 @@ taos-ws-py==0.3.2 \
     --hash=sha256:ea3a7fff25fc828e050459024e59558a925788c4fb8623af83bbcbca0f47c535 \
     --hash=sha256:f165176a20e99e44205e9693e032540a6be8125841e43d809a21b4888ac9be44
     # via -r extras-requirements.txt
-tblib==3.2.1 \
-    --hash=sha256:846e274d0aeec822953251a3cbd3d840fd0ee7a5ec844d59ffbde7b056f9cd2b \
-    --hash=sha256:aacdaffceac6c4ef6818887b15677513f16d75c68384b76b415a935d548dd172
+tblib==3.2.2 \
+    --hash=sha256:26bdccf339bcce6a88b2b5432c988b266ebbe63a4e593f6b578b1d2e723d2b76 \
+    --hash=sha256:e9a652692d91bf4f743d4a15bc174c0b76afc750fe8c7b6d195cc1c1d6d2ccec
     # via distributed
 tenacity==9.1.2 \
     --hash=sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb \

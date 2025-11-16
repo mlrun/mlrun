@@ -483,6 +483,10 @@ default_config = {
         },
         "authorization": {
             "mode": "none",  # one of none, opa
+            "namespaces": {
+                "resources": "",
+                "mgmt": "mgmt",
+            },
             "opa": {
                 "address": "",
                 "request_timeout": 10,

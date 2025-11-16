@@ -42,7 +42,7 @@ router = fastapi.APIRouter()
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
-def create_project(
+async def create_project(
     project: mlrun.common.schemas.Project,
     response: fastapi.Response,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
@@ -55,11 +55,20 @@ def create_project(
         framework.api.deps.get_db_session
     ),
 ):
-    project, is_running_in_background = get_project_member().create_project(
+    if (
+        not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+        and mlrun.mlconf.is_iguazio_v4_mode()
+    ):
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_global,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+    project, is_running_in_background = await run_in_threadpool(
+        get_project_member().create_project,
         db_session,
         project,
-        auth_info.projects_role,
-        auth_info.session,
+        auth_info,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
@@ -93,8 +102,7 @@ async def store_project(
         db_session,
         name,
         project,
-        auth_info.projects_role,
-        auth_info.session,
+        auth_info,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
@@ -131,8 +139,7 @@ def patch_project(
         name,
         project,
         patch_mode,
-        auth_info.projects_role,
-        auth_info.session,
+        auth_info,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
@@ -157,7 +164,7 @@ async def get_project(
         get_project_member().get_project,
         db_session,
         name,
-        auth_info.session,
+        auth_info,
         format_=format_,
     )
     # skip permission check if it's the leader
@@ -198,7 +205,7 @@ async def delete_project(
     # check if project exists
     try:
         project = await run_in_threadpool(
-            get_project_member().get_project, db_session, name, auth_info.session
+            get_project_member().get_project, db_session, name, auth_info
         )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
@@ -264,7 +271,6 @@ async def delete_project(
             db_session,
             name,
             deletion_strategy,
-            auth_info.projects_role,
             auth_info,
             wait_for_completion=wait_for_completion,
         )
@@ -332,12 +338,11 @@ async def list_projects(
         projects_output = await run_in_threadpool(
             get_project_member().list_projects,
             db_session,
+            auth_info,
             owner,
             mlrun.common.formatters.ProjectFormat.name_only,
             labels,
             state,
-            auth_info.projects_role,
-            auth_info.session,
         )
         allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             projects_output.projects,
@@ -346,12 +351,11 @@ async def list_projects(
     return await run_in_threadpool(
         get_project_member().list_projects,
         db_session,
+        auth_info,
         owner,
         format_,
         labels,
         state,
-        auth_info.projects_role,
-        auth_info.session,
         allowed_project_names,
     )
 
@@ -373,12 +377,11 @@ async def list_project_summaries(
     projects_output = await run_in_threadpool(
         get_project_member().list_projects,
         db_session,
+        auth_info,
         owner,
         mlrun.common.formatters.ProjectFormat.name_only,
         labels,
         state,
-        auth_info.projects_role,
-        auth_info.session,
     )
     allowed_project_names = projects_output.projects
     # skip permission check if it's the leader
@@ -396,11 +399,10 @@ async def list_project_summaries(
         )
     return await get_project_member().list_project_summaries(
         db_session,
+        auth_info,
         owner,
         labels,
         state,
-        auth_info.projects_role,
-        auth_info.session,
         allowed_project_names,
     )
 
@@ -418,7 +420,7 @@ async def get_project_summary(
     ),
 ):
     project_summary = await get_project_member().get_project_summary(
-        db_session, name, auth_info.session
+        db_session, name, auth_info
     )
     # skip permission check if it's the leader
     if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
@@ -468,8 +470,7 @@ async def load_project(
         get_project_member().create_project,
         db_session=db_session,
         project=project,
-        projects_role=auth_info.projects_role,
-        leader_session=auth_info.session,
+        auth_info=auth_info,
     )
 
     # Storing secrets in project

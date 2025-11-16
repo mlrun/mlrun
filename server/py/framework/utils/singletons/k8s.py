@@ -1296,7 +1296,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param username: Optional; the username whose tokens should be listed.
                          If not provided, tokens for all users are listed.
         :param namespace: Kubernetes namespace where the secrets are stored.
-        :return: List of SecretTokenInfo objects, each containing the username, token name and expiration.
+        :return: List of SecretTokenInfo objects, each containing the token name, expiration and username.
         """
         namespace = self.resolve_namespace(namespace)
 
@@ -1407,7 +1407,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         match = re.fullmatch(regex_pattern, secret_name)
 
         if not match:
-            logger.warning(
+            logger.debug(
                 "Skipping secret with unexpected name format",
                 secret_name=secret_name,
             )
@@ -1424,9 +1424,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             return None
 
         return mlrun.common.schemas.SecretTokenInfo(
-            username=username,
-            token_name=token_name,
+            name=token_name,
             expiration=expiration,
+            username=username,
         )
 
     def _decode_secret_expiration(self, k8s_secret) -> typing.Optional[int]:

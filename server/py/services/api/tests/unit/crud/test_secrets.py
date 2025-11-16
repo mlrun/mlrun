@@ -1014,10 +1014,10 @@ def test_list_secret_tokens_returns_tokens():
     username = "dummy-user"
     expected_tokens = [
         mlrun.common.schemas.SecretTokenInfo(
-            username=username, token_name="jupyter", expiration=1750979191
+            name="jupyter", expiration=1750979191, username=username
         ),
         mlrun.common.schemas.SecretTokenInfo(
-            username=username, token_name="my-token", expiration=1754966400
+            name="my-token", expiration=1754966400, username=username
         ),
     ]
 
@@ -1031,10 +1031,10 @@ def test_list_secret_tokens_returns_tokens():
 
     assert isinstance(response, mlrun.common.schemas.ListSecretTokensResponse)
     assert len(response.secret_tokens) == 2
-    assert response.secret_tokens[0].token_name == "jupyter"
+    assert response.secret_tokens[0].name == "jupyter"
     assert response.secret_tokens[0].expiration == 1750979191
     assert response.secret_tokens[0].username == username
-    assert response.secret_tokens[1].token_name == "my-token"
+    assert response.secret_tokens[1].name == "my-token"
     assert response.secret_tokens[1].expiration == 1754966400
     assert response.secret_tokens[1].username == username
 

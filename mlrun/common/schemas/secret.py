@@ -60,9 +60,9 @@ class StoreSecretTokensResponse(BaseModel):
 
 
 class SecretTokenInfo(BaseModel):
-    username: str
-    token_name: str
+    name: str
     expiration: int
+    username: str
 
 
 class ListSecretTokensResponse(BaseModel):

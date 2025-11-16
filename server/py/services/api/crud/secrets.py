@@ -511,19 +511,8 @@ class Secrets(
         :return: ListSecretTokensResponse containing SecretTokenInfo objects,
                  each with `username`, `token_name`, and `expiration`.
         """
-        logger.debug(
-            "Listing secret tokens for user",
-            username=username,
-        )
-
         secret_tokens = self.secrets_provider.list_user_token_secrets(
             username=username,
-        )
-
-        logger.debug(
-            "Finished listing secret tokens",
-            username=username,
-            token_count=len(secret_tokens),
         )
 
         return mlrun.common.schemas.ListSecretTokensResponse(

@@ -1182,7 +1182,7 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         inputs = {"data": input_dataset.uri}
         params = {"timestamp_column": "index"}
         self.project.run_function(job, inputs=inputs, params=params)
-        return function
+        return job
 
     def _test_batch_ep_metrics(
         self, function_name: str, input_df: pd.DataFrame

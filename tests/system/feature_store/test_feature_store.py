@@ -968,6 +968,138 @@ class TestFeatureStore(TestMLRunSystem):
         with pytest.raises(FileNotFoundError):
             result_offline_target.as_df()
 
+    @pytest.mark.parametrize(
+        "partition_keys",
+        [
+            ["year"],
+            ["year", "month"],
+            ["year", "month", "day"],
+            ["year", "month", "day", "hour"],
+        ],
+    )
+    @pytest.mark.parametrize("with_tz", [True, False])
+    @pytest.mark.parametrize("local", [True, False])
+    def test_partitioned_parquet_time_filter(self, partition_keys, with_tz, local):
+        """
+        Validate MLRun ingestion:
+          - Partitioned parquet writing via ParquetTarget
+          - Reading & filtering via start_time/end_time
+          - Empty/out-of-range case
+        """
+
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
+        key = "patient_id"
+        fs = fstore.FeatureSet(
+            "measurements",
+            entities=[Entity(key)],
+            timestamp_key="timestamp",
+        )
+
+        base_time = datetime(2020, 12, 1, 17, 0)
+        if with_tz:
+            base_time = base_time.replace(tzinfo=pytz.UTC)
+
+        df = pd.DataFrame(
+            [
+                {
+                    "patient_id": i + 1,
+                    "timestamp": base_time + timedelta(hours=i),
+                    "value": i * 10,
+                }
+                for i in range(4)
+            ]
+        )
+
+        if partition_keys == ["year"]:
+            granularity = "year"
+        elif partition_keys == ["year", "month"]:
+            granularity = "month"
+        elif partition_keys == ["year", "month", "day"]:
+            granularity = "day"
+        elif partition_keys == ["year", "month", "day", "hour"]:
+            granularity = "hour"
+        else:
+            raise ValueError("Unexpected partition_keys")
+
+        v3io_path = (
+            f"v3io:///projects/{self.project_name}/test_data_{uuid.uuid4()}.parquet"
+        )
+        df.to_parquet(v3io_path)
+
+        run_id = uuid.uuid4()
+        target_path = f"v3io:///projects/{self.project_name}/partition_test_{run_id}"
+
+        target = ParquetTarget(
+            name="parquet_target",
+            path=target_path,
+            partitioned=True,
+            time_partitioning_granularity=granularity,
+        )
+
+        start_time = base_time + timedelta(hours=1)
+        end_time = base_time + timedelta(hours=2, minutes=1)
+
+        source = ParquetSource(
+            name="my_parquet",
+            path=v3io_path,
+            start_time=start_time,
+            end_time=end_time.isoformat(),
+        )
+
+        fs.ingest(
+            source=source,
+            targets=[target],
+            run_config=run_config,
+        )
+
+        expected_df = df[
+            (df["timestamp"] > start_time) & (df["timestamp"] <= end_time)
+        ].copy()
+
+        offline = get_offline_target(fs, name="parquet_target")
+        result_df = offline.as_df()
+
+        result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(
+            "datetime64[ns]"
+        )
+        if with_tz:
+            result_df["timestamp"] = result_df["timestamp"].dt.tz_localize("UTC")
+
+        result_df = result_df.sort_values(key).reset_index(drop=False)
+        expected_df = expected_df.sort_values(key).reset_index(drop=True)
+        assert_frame_equal(result_df, expected_df)
+
+        late_start = base_time + timedelta(days=2)
+        late_end = late_start + timedelta(minutes=5)
+        target_path_2 = f"{target_path}_empty"
+
+        source_2 = ParquetSource(
+            "my_parquet",
+            path=v3io_path,
+            start_time=late_start,
+            end_time=late_end.isoformat(),
+            attributes={"partition_keys": partition_keys},
+        )
+
+        target_2 = ParquetTarget(
+            name="parquet_target_empty",
+            path=target_path_2,
+            partitioned=True,
+            time_partitioning_granularity=granularity,
+        )
+
+        # same source file
+        fs.ingest(
+            source=source_2,
+            targets=[target_2],
+            run_config=run_config,
+        )
+
+        offline2 = get_offline_target(fs, name="parquet_target_empty")
+        with pytest.raises(FileNotFoundError):
+            offline2.as_df()
+
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
     @pytest.mark.parametrize("partition_cols", [None, ["department"]])

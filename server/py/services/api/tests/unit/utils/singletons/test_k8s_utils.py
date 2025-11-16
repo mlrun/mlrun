@@ -699,10 +699,10 @@ def test_list_user_token_secrets_valid(k8s_helper):
     result = k8s_helper.list_user_token_secrets(username=username, namespace="default")
 
     assert len(result) == 2
-    assert result[0].token_name == token1_name
+    assert result[0].name == token1_name
     assert result[0].expiration == 1111
     assert result[0].username == username
-    assert result[1].token_name == token2_name
+    assert result[1].name == token2_name
     assert result[1].expiration == 2222
     assert result[1].username == username
 
@@ -750,10 +750,10 @@ def test_list_user_token_secrets_all_users(k8s_helper):
 
     # Check that both secrets are returned
     assert len(result) == 2
-    assert result[0].token_name == token1
+    assert result[0].name == token1
     assert result[0].username == user1
     assert result[0].expiration == 1111
-    assert result[1].token_name == token2
+    assert result[1].name == token2
     assert result[1].username == user2
     assert result[1].expiration == 2222
 
@@ -820,7 +820,7 @@ def test_convert_secret_to_token_info_valid_cases(
     # Verify results
     assert token_info is not None
     assert token_info.username == expected_username
-    assert token_info.token_name == expected_token_name
+    assert token_info.name == expected_token_name
     assert token_info.expiration == expected_expiration
 
 

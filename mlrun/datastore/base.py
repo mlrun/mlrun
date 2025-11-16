@@ -400,6 +400,7 @@ class DataStore(BaseRemoteClient):
         file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
         file_system = self.filesystem
+        create_partition_path = kwargs.pop("create_partition_path", True)
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
@@ -461,7 +462,7 @@ class DataStore(BaseRemoteClient):
                 start_time,
                 end_time,
                 additional_filters,
-                kwargs.get("create_partition_path", True),
+                create_partition_path,
             )
 
         elif file_url.endswith(".json") or format == "json":

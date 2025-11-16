@@ -315,6 +315,7 @@ def test_partition_filtering_year_month():
             end_time=end_time,
             time_column=time_column,
             format="parquet",
+            create_partition_path=False,
         )
 
         # Calculate expected results manually

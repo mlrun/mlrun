@@ -5337,15 +5337,48 @@ class HTTPRunDB(RunDBInterface):
     @mlrun.utils.iguazio_v4_only
     def list_secret_tokens(
         self,
+        username: Optional[str] = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List all secret tokens for the current user.
+        List secret tokens.
+
+        Regular users can only list their own secret tokens.
+        System administrators can list tokens for a specific user (by providing `username`)
+        or for all users (when `username` is not provided).
+
+        :param username: Optional; the username for which to list secret tokens.
+                         If not provided and the caller is a system administrator,
+                         tokens for all users are listed.
+                         Regular users cannot specify this parameter.
+        :return: A `ListSecretTokensResponse` object containing a list of `SecretTokenInfo`
+                 objects. Each `SecretTokenInfo` includes:
+
+                 - **username** (`str`): The owner of the token.
+                 - **token_name** (`str`): The name of the secret token.
+                 - **expiration** (`int`): The token's expiration timestamp.
+
+        Example::
+
+            # As a regular user, list your own tokens
+            tokens_response = db.list_secret_tokens()
+            for token in tokens_response.secret_tokens:
+                print(
+                    f"Username: {token.username}, Token name: {token.token_name}, Expiration: {token.expiration}"
+                )
+
+            # As a system admin, list tokens for a specific user
+            user_tokens = db.list_secret_tokens(username="john_doe")
+
+            # As a system admin, list tokens for all users
+            all_tokens = db.list_secret_tokens()
         """
         endpoint_path = "user-secrets/tokens"
+        params = {"username": username}
         response = self.api_call(
             mlrun.common.types.HTTPMethod.GET,
             endpoint_path,
             "list user secret tokens",
+            params=params,
         )
 
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())

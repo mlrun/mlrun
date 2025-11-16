@@ -496,26 +496,33 @@ class Secrets(
 
     def list_secret_tokens(
         self,
-        authenticated_username: str,
+        username: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List all offline tokens stored for the authenticated user.
+        List offline token secrets stored in Kubernetes.
 
-        :param authenticated_username: Username whose tokens will be listed.
-        :return: ListSecretTokensResponse containing token names and expirations.
+        By default, this lists tokens for the authenticated user.
+        System admins can optionally specify `username` to list tokens for a specific user
+        or for all users if `username=None`.
+
+        :param username: Optional; the username whose tokens should be listed.
+                     If not provided, tokens for the authenticated user are listed.
+                     Requires system admin privileges to list tokens for other users.
+        :return: ListSecretTokensResponse containing SecretTokenInfo objects,
+                 each with `username`, `token_name`, and `expiration`.
         """
         logger.debug(
             "Listing secret tokens for user",
-            username=authenticated_username,
+            username=username,
         )
 
         secret_tokens = self.secrets_provider.list_user_token_secrets(
-            username=authenticated_username,
+            username=username,
         )
 
         logger.debug(
             "Finished listing secret tokens",
-            username=authenticated_username,
+            username=username,
             token_count=len(secret_tokens),
         )
 

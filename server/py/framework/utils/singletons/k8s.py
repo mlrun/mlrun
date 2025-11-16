@@ -15,6 +15,7 @@ import base64
 import hashlib
 import json
 import random
+import re
 import string
 import time
 import typing
@@ -1243,7 +1244,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             return mlrun.common.schemas.SecretEventActions.updated
 
-    def _resolve_user_token_secret_name(self, username: str, token: str) -> str:
+    @staticmethod
+    def _resolve_user_token_secret_name(username: str, token: str) -> str:
         return mlrun.mlconf.secret_stores.kubernetes.user_token_secret_name.format(
             username=username, token_name=token
         )
@@ -1285,20 +1287,25 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def list_user_token_secrets(
         self,
-        username: str,
+        username: typing.Optional[str] = None,
         namespace: typing.Optional[str] = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         """
-        List all offline token secrets for a given user.
+        List all offline token secrets.
 
-        :param username: The user whose tokens should be listed.
+        :param username: Optional; the username whose tokens should be listed.
+                         If not provided, tokens for all users are listed.
         :param namespace: Kubernetes namespace where the secrets are stored.
-        :return: List of SecretTokenInfo objects, each containing the token name and expiration.
+        :return: List of SecretTokenInfo objects, each containing the username, token name and expiration.
         """
         namespace = self.resolve_namespace(namespace)
-        labels = {
-            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: username
-        }
+
+        # Apply user label only if username is provided
+        labels = None
+        if username:
+            labels = {
+                mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: username
+            }
 
         logger.debug(
             "Listing user token secrets", username=username, namespace=namespace
@@ -1309,7 +1316,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secret_tokens: list[mlrun.common.schemas.SecretTokenInfo] = []
 
         for k8s_secret in k8s_secrets:
-            token_info = self._convert_secret_to_token_info(k8s_secret, username)
+            token_info = self._convert_secret_to_token_info(k8s_secret)
             if token_info:
                 secret_tokens.append(token_info)
 
@@ -1357,35 +1364,68 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return secrets_list.items or []
 
     def _convert_secret_to_token_info(
-        self, k8s_secret, username: str
+        self, k8s_secret
     ) -> typing.Optional[mlrun.common.schemas.SecretTokenInfo]:
         """
         Convert a Kubernetes secret to a SecretTokenInfo object if valid.
 
         :param k8s_secret: Kubernetes secret object.
-        :param username: Expected username for validation.
         :return: SecretTokenInfo object or None if invalid/expired.
         """
         secret_name = k8s_secret.metadata.name
-        prefix = mlrun.mlconf.secret_stores.kubernetes.user_token_secret_name.format(
-            username=username, token_name=""
-        )
+        pattern = mlrun.mlconf.secret_stores.kubernetes.user_token_secret_name
 
-        if not secret_name.startswith(prefix):
+        # Ensure labels exist
+        labels = k8s_secret.metadata.labels
+        if not labels:
+            logger.warning(
+                "Skipping secret without labels",
+                secret_name=secret_name,
+            )
+            return None
+
+            # Get username from label
+        username_label_key = (
+            mlrun.common.constants.MLRunInternalLabels.user_token_secret_label_key
+        )
+        username = labels.get(username_label_key)
+        if not username:
+            logger.warning(
+                "Skipping secret without username label",
+                secret_name=secret_name,
+            )
+            return None
+
+        # Convert the format string to a regex to extract token_name only
+        regex_pattern = re.escape(pattern)
+
+        # Replace {username} with the actual username value (escaped)
+        regex_pattern = regex_pattern.replace(r"\{username\}", re.escape(username))
+        # Replace {token_name} with a capturing group
+        regex_pattern = regex_pattern.replace(r"\{token_name\}", r"(?P<token_name>.+)")
+
+        match = re.fullmatch(regex_pattern, secret_name)
+
+        if not match:
             logger.warning(
                 "Skipping secret with unexpected name format",
                 secret_name=secret_name,
             )
             return None
 
-        token_name = secret_name[len(prefix) :]
+        token_name = match.group("token_name")
 
         expiration = self._decode_secret_expiration(k8s_secret)
         if expiration is None:
+            logger.warning(
+                "Skipping secret with invalid or missing expiration",
+                secret_name=secret_name,
+            )
             return None
 
         return mlrun.common.schemas.SecretTokenInfo(
-            name=token_name,
+            username=username,
+            token_name=token_name,
             expiration=expiration,
         )
 

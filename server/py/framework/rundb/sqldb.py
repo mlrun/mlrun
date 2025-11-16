@@ -1430,6 +1430,7 @@ class SQLRunDB(RunDBInterface):
 
     def list_secret_tokens(
         self,
+        username: Optional[str] = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         raise NotImplementedError
 

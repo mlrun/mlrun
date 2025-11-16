@@ -14,6 +14,7 @@
 #
 
 from http import HTTPStatus
+from typing import Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -51,16 +52,29 @@ async def store_secret_tokens(
 
 @router.get("/tokens", response_model=mlrun.common.schemas.ListSecretTokensResponse)
 async def list_secret_tokens(
+    username: Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
-    # TODO: Support listing user tokens with System Admin (ML-10775)
+    # TODO: add authorization check for listing other users' tokens
+    # in case of not provided username, we list for the authenticated user unless this is a system admin and
+    # then we list for all users
+    # in case of provided username and the username is different than the authenticated user, we check if the
+    # authenticated user is a system admin
+
+    # await framework.utils.auth.verifier.AuthVerifier().query_resource_permissions(
+    #     mlrun.common.schemas.AuthorizationResourceTypes.tokens,
+    #     "",
+    #     mlrun.common.schemas.AuthorizationAction.read,
+    #     auth_info,
+    #     resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+    # )
 
     return await run_in_threadpool(
         services.api.crud.Secrets().list_secret_tokens,
-        auth_info.username,
+        username=auth_info.username,
     )
 
 

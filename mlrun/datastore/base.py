@@ -159,12 +159,12 @@ class DataStore(BaseRemoteClient):
 
     @staticmethod
     def read_partitioned_parquet(
-            base_path,
-            start_time,
-            end_time,
-            partition_keys,
-            df_module,
-            **kwargs,
+        base_path,
+        start_time,
+        end_time,
+        partition_keys,
+        df_module,
+        **kwargs,
     ):
         """Read only the relevant partitions using pandas filters and concat."""
         logger.info("starting urls partition process")
@@ -173,7 +173,9 @@ class DataStore(BaseRemoteClient):
                 f"No partition structure found under {base_path}, while usage requires partition keys"
             )
 
-        def list_partitioned_urls(base_path: str, partition_keys: list[str], start_time, end_time):
+        def list_partitioned_urls(
+            base_path: str, partition_keys: list[str], start_time, end_time
+        ):
             """
             Build a list of URLs based on detected partitioning and time range.
 
@@ -248,14 +250,14 @@ class DataStore(BaseRemoteClient):
                     cleaned_filters.append(new_group)
             return cleaned_filters
 
-        urls = list_partitioned_urls(
-            base_path, partition_keys, start_time, end_time
-        )
+        urls = list_partitioned_urls(base_path, partition_keys, start_time, end_time)
 
         dfs = []
         for url in urls:
             try:
-                kwargs["filters"] = clean_filters_for_partitions(kwargs["filters"], partition_keys)
+                kwargs["filters"] = clean_filters_for_partitions(
+                    kwargs["filters"], partition_keys
+                )
                 df = df_module.read_parquet(url, **kwargs)
                 logger.info("Reading DataFrame", url=url, columns=df.columns)
                 dfs.append(df)
@@ -377,6 +379,7 @@ class DataStore(BaseRemoteClient):
                         return df_module.read_parquet(*args, **kwargs)
             else:
                 return df_module.read_parquet(*args, **kwargs)
+
         return reader
 
     def as_df(

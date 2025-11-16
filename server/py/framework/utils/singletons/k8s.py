@@ -19,6 +19,7 @@ import re
 import string
 import time
 import typing
+from datetime import datetime, timezone
 
 import kubernetes.client.rest as k8s_client_rest
 import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
@@ -1283,7 +1284,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         if existing_exp is None:
             return True
 
-        return new_expiration > existing_exp
+        new_exp_dt = datetime.fromtimestamp(new_expiration, tz=timezone.utc)
+
+        return new_exp_dt > existing_exp
 
     def list_user_token_secrets(
         self,
@@ -1378,10 +1381,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         # Ensure labels exist
         labels = k8s_secret.metadata.labels
         if not labels:
-            logger.warning(
-                "Skipping secret without labels",
-                secret_name=secret_name,
-            )
             return None
 
             # Get username from label
@@ -1390,10 +1389,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
         username = labels.get(username_label_key)
         if not username:
-            logger.warning(
-                "Skipping secret without username label",
-                secret_name=secret_name,
-            )
             return None
 
         # Convert the format string to a regex to extract token_name only
@@ -1429,11 +1424,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             username=username,
         )
 
-    def _decode_secret_expiration(self, k8s_secret) -> typing.Optional[int]:
+    def _decode_secret_expiration(self, k8s_secret) -> typing.Optional[datetime]:
         """Decode the expiration timestamp from a Kubernetes secret.
 
         :param k8s_secret: Kubernetes secret object containing tokenExpiration.
-        :return: Expiration as int (epoch timestamp) or None if decoding fails.
+        :return: Expiration as a timezone-aware datetime object, or None if decoding fails.
         """
         if not k8s_secret.data:
             logger.warning(
@@ -1452,7 +1447,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         try:
             expiration_b64 = k8s_secret.data["tokenExpiration"]
             expiration_str = base64.b64decode(expiration_b64).decode("utf-8")
-            return int(expiration_str)
+            return mlrun.utils.datetime_from_iso(expiration_str)
         except Exception as exc:
             logger.warning(
                 "Failed to decode 'tokenExpiration' from secret",

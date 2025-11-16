@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 from typing import Optional
 
 from pydantic.v1 import BaseModel, Field
@@ -61,7 +62,7 @@ class StoreSecretTokensResponse(BaseModel):
 
 class SecretTokenInfo(BaseModel):
     name: str
-    expiration: int
+    expiration: datetime
     username: str
 
 

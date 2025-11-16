@@ -5353,9 +5353,10 @@ class HTTPRunDB(RunDBInterface):
         :return: A `ListSecretTokensResponse` object containing a list of `SecretTokenInfo`
                  objects. Each `SecretTokenInfo` includes:
 
+                 - **name** (`str`): The name of the secret token.
+                 - **expiration** (`datetime`): A timezone-aware datetime indicating
+                   when the token will expire.
                  - **username** (`str`): The owner of the token.
-                 - **token_name** (`str`): The name of the secret token.
-                 - **expiration** (`int`): The token's expiration timestamp.
 
         Example::
 

@@ -92,4 +92,4 @@ graph.to(model_runner_step).respond()
 
 ## Router step
 
-{py:class}~`mlrun.serving.RouterStep` implements routing logic for running child routes. See the example in 
+{py:class}~`mlrun.serving.RouterStep` implements routing logic for running child routes. See the example in {ref}`graph-example`.

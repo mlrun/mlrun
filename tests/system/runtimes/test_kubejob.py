@@ -45,7 +45,6 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     image: str = "mlrun/mlrun"
 
-    @pytest.mark.smoke
     def test_deploy_function(self):
         code_path = str(self.assets_path / "kubejob_function.py")
 
@@ -732,7 +731,7 @@ def print_df(df):
         inputs = {"data": input_path}
         run_object = self.project.run_function(job, inputs=inputs, local=local)
         assert run_object.status.results == {
-            "return": [{"x": "a", "y": 1, "extra": 123}],
+            "num_rows": 1,
         }
 
     @pytest.mark.parametrize("local", [True, False])
@@ -758,6 +757,18 @@ def print_df(df):
 
         job = function.to_job()
 
+        if deploy_original:
+            assert (
+                job.metadata.name != function.metadata.name
+            ), "Job should have different name than serving function to prevent DB collision"
+            assert (
+                job.metadata.name == "test-batch"
+            ), f"Job should be auto-renamed to 'test-batch', got '{job.metadata.name}'"
+            # Verify original serving function name is unchanged
+            assert (
+                function.metadata.name == "test"
+            ), f"Original serving function name should remain 'test', got '{function.metadata.name}'"
+
         with open(str(self.assets_path / "test_data.csv")) as f:
             csv_content = f.read()
 
@@ -774,6 +785,17 @@ def print_df(df):
             assert (
                 "Mickey Mouse" in read_back_df["Product"].values
             ), f"Dataframe {read_back_df} was not transformed as expected"
+
+            if deploy_original and not local:
+                # Only test invoke for deployed (non-local) functions
+                # Create a simple test input for invoke
+                test_input = {"inputs": [[1, 2, 3]]}
+                # This should succeed - the serving function should still be invokable
+                # after the job has been run with a different name
+                response = function.invoke("/", body=test_input)
+                assert (
+                    response is not None
+                ), "Invoke should succeed after running job with different name"
         finally:
             v3io_client.close()
 

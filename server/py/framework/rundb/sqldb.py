@@ -1018,16 +1018,6 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_user_secrets(
-        self,
-        user: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.vault,
-        secrets: Optional[dict] = None,
-    ):
-        raise NotImplementedError()
-
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
@@ -1418,6 +1408,41 @@ class SQLRunDB(RunDBInterface):
         end: Optional[datetime.datetime] = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         raise NotImplementedError
+
+    def store_secret_token(
+        self,
+        secret_token: mlrun.common.schemas.SecretToken,
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        raise NotImplementedError
+
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        raise NotImplementedError
+
+    def revoke_secret_token(self, token_name: str) -> None:
+        raise NotImplementedError
+
+    def list_secret_tokens(
+        self,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        raise NotImplementedError
+
+    def get_secret_token(
+        self,
+        token_name: str,
+        username: Optional[str] = None,
+    ) -> mlrun.common.schemas.SecretToken:
+        return self._transform_db_error(
+            services.api.crud.Secrets().get_secret_token,
+            token_name=token_name,
+            authenticated_username=username,
+        )
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

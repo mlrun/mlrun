@@ -151,11 +151,9 @@ class FilterAndUnpackKeys(mlrun.feature_store.steps.MapClass):
 
 
 class ErrorExtractor(mlrun.feature_store.steps.MapClass):
-    def __init__(self, **kwargs):
-        """
-        Prepare the event for insertion into the errors TSDB table.
-        """
-        super().__init__(**kwargs)
+    """
+    Prepare the event for insertion into the errors TSDB table.
+    """
 
     def do(self, event):
         error = event.get("error")

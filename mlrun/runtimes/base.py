@@ -22,6 +22,7 @@ from typing import Callable, Optional, Union
 import requests.exceptions
 from nuclio.build import mlrun_footer
 
+import mlrun.auth.utils
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
@@ -154,6 +155,8 @@ class BaseRuntime(ModelObj):
     _default_fields_to_strip = ModelObj._default_fields_to_strip + [
         "status",  # Function status describes the state rather than configuration
     ]
+    # TODO: Remove this once we implement secret token mounting in jobs (ML-11292)
+    _default_token_name = "default"
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -393,6 +396,7 @@ class BaseRuntime(ModelObj):
                 FutureWarning,
             )
         output_path = output_path or out_path or artifact_path
+
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )
@@ -440,12 +444,15 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _generate_runtime_env(self, runobj: RunObject = None) -> dict:
+    def _generate_runtime_env(
+        self, runobj: RunObject = None, auth_info: mlrun.common.schemas.AuthInfo = None
+    ) -> dict:
         """
         Prepares all available environment variables for usage on a runtime
         Data will be extracted from several sources and most of them are not guaranteed to be available
 
         :param runobj: Run context object (RunObject) with run metadata and status
+        :param auth_info: Optional authentication information.
         :return: Dictionary with all the variables that could be parsed
         """
         active_project = self.metadata.project or config.active_project
@@ -454,6 +461,9 @@ class BaseRuntime(ModelObj):
             # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
+
+        mlrun.auth.utils.enrich_auth_env(runtime_env, self._get_db(), auth_info)
+
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True

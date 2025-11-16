@@ -5,7 +5,7 @@ In order to deploy your current code (for debugging), you need the following:
 
 * Install automation/requirements.txt 
 ~~~
-pip install -r automation/requirements.txt
+make install-automation-requirements
 ~~~
 * Create a patch_env.yml based on patch_env_template.yml
 * Have a docker registry you can push to (e.g. docker.io via account on docker.com) as well as a public mlrun-api repo on it

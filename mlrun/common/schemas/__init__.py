@@ -43,6 +43,7 @@ from .artifact import (
 from .auth import (
     AuthInfo,
     AuthorizationAction,
+    AuthorizationResourceNamespace,
     AuthorizationResourceTypes,
     AuthorizationVerificationInput,
     Credentials,
@@ -65,7 +66,9 @@ from .common import ImageBuilder
 from .constants import (
     APIStates,
     ArtifactPartitionByField,
+    AuthorizationHeaderPrefixes,
     ClusterizationRole,
+    CookieNames,
     DeletionStrategy,
     FeatureStorePartitionByField,
     HeaderNames,
@@ -111,7 +114,6 @@ from .feature_store import (
 )
 from .frontend_spec import (
     ArtifactLimits,
-    AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
     NuclioStreamsFeatureFlag,
@@ -212,10 +214,13 @@ from .schedule import (
 )
 from .secret import (
     AuthSecretData,
+    ListSecretTokensResponse,
     SecretKeysData,
     SecretProviderName,
     SecretsData,
-    UserSecretCreationRequest,
+    SecretToken,
+    SecretTokenInfo,
+    StoreSecretTokensResponse,
 )
 from .serving import ModelRunnerStepData, ModelsData, MonitoringData
 from .tag import Tag, TagObjects

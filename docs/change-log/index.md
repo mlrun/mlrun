@@ -278,7 +278,7 @@ To upgrade the MLRun server:
 ### Serving graph
 | ID    | Description                                                                                                                                                                                                                                                        |
 |-------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-6015| Storey/Nuclio serving graph: supports [concurrent processing](../serving/model-serving-get-started.ipynb#concurrent-processing), typically used for serving of deep-learning models, where preparation steps and inference can be CPU/GPU heavy, or involving I/O. |
+|ML-6015| Storey/Nuclio serving graph: supports [concurrent processing](../serving/concurrent-processing.ipynb), typically used for serving of deep-learning models, where preparation steps and inference can be CPU/GPU heavy, or involving I/O. |
 
 ### Data store
 | ID      | Description                                                                             |
@@ -401,7 +401,7 @@ To upgrade the MLRun server:
 | ID      | Description                                                                                                                                                                                                         |
 |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-4620 | Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.ipynb) and {ref}`model-monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0. |
-| NA      | New {ref}`genai_01_basic_tutorial` tutorial.                                                                                                                                                                        |
+| NA      | New {ref}`genai-01-basic-tutorial` tutorial.                                                                                                                                                                        |
 | NA      | New sections describing gen AI tasks: {ref}`genai-flow`, {ref}`genai-data-mgmt`, {ref}`genai-development`, {ref}`genai-deployment`.                                                                                 |
 | NA      | New page describing {ref}`log-artifacts`.                                                                                                                                                                           |
 | NA      | New page describing {ref}`parallel-workflows`.                                                                                                                                                                      |
@@ -500,7 +500,7 @@ To upgrade the MLRun server:
 | ID     | Description                                                                                                                                                                                                                   |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3663| New: How to build a docker image externally using a Dockerfile and then use it. See [Building a docker image using a Dockerfile and then using it](../runtimes/images.md#building-a-docker-image-using-a-dockerfile-and-then-using-it). |
-|ML-4048| New: Creating and using a custom function hub. See [Private function hub](../runtimes/load-from-hub.md#custom-function-hub).                                                                                                  |
+|ML-4048| New: Creating and using a custom function hub. See [Custom hub](../runtimes/load-from-hub.md#custom-hub).                                                                                                  |
 |ML-5260| New: [Load code at runtime using a non-default source](../runtimes/create-and-use-functions.ipynb#load-code-at-runtime-using-a-non-default-source).                                                                           |
 |ML-5602, ML-5680| Improved feature store documentation including sources and targets, and partitioning. See {ref}`sources-targets`.                                                                                                             |
 |NA| New: {ref}`project-setup`.                                                                                                                                                                                                    |
@@ -857,8 +857,9 @@ conda activate python39
 
 | ID      | Description                                                                                                                                                                                                                                      |
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Graph that splits and rejoins](../serving/model-serving-get-started.ipynb#graph-that-splits-and-rejoins). |
-| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See [Queue (streaming)](../serving/model-serving-get-started.ipynb#queue-streaming).                                                                                 |
+| ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Branching and merging steps](../serving/branch-merge.md). |
+| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See 
+[Queue (streaming)](../serving/remote-execution.ipynb#queue-streaming).                                                                   |
 
 #### Storey 
 

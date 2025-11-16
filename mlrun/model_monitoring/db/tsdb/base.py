@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Callable, ClassVar, Literal, Optional, Union
+from typing import ClassVar, Literal, Optional, Union
 
 import pandas as pd
 import pydantic.v1
@@ -444,11 +444,9 @@ class TSDBConnector(ABC):
                                    ]
         """
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         raise NotImplementedError()

@@ -275,6 +275,7 @@ class EventKeyMetrics:
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
+    TimescaleDB = "postgresql"
 
 
 class ProjectSecretKeys:
@@ -354,6 +355,13 @@ class V3IOTSDBTables(MonitoringStrEnum):
 
 
 class TDEngineSuperTables(MonitoringStrEnum):
+    APP_RESULTS = "app_results"
+    METRICS = "metrics"
+    PREDICTIONS = "predictions"
+    ERRORS = "errors"
+
+
+class TimescaleDBTables(MonitoringStrEnum):
     APP_RESULTS = "app_results"
     METRICS = "metrics"
     PREDICTIONS = "predictions"
@@ -485,8 +493,6 @@ class ModelMonitoringLabels:
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
-
-_RESERVED_EVALUATE_FUNCTION_SUFFIX = "-batch"
 
 
 class ModelEndpointMonitoringMetricType(StrEnum):

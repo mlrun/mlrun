@@ -1858,7 +1858,11 @@ class SQLDB(DBInterface):
             partition_order,
             parent_uri,
         ):
-            query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
+            query = query.with_hint(
+                ArtifactV2,
+                "USE INDEX (idx_project_bi_updated)",
+                dialect_name="mysql",
+            )
 
         if project:
             query = query.filter(ArtifactV2.project == project)
@@ -1906,6 +1910,8 @@ class SQLDB(DBInterface):
             # If a tag is given, we can just join (faster than outer join) and filter on the tag
             query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
             query = query.filter(ArtifactV2.Tag.name == tag)
+            if project:
+                query = query.filter(ArtifactV2.Tag.project == project)
         else:
             # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
             query = query.outerjoin(
@@ -2064,7 +2070,6 @@ class SQLDB(DBInterface):
             "producer_uri": producer_uri,
             "best_iteration": best_iteration,
             "most_recent": most_recent,
-            "attach_tags": attach_tags,
             "limit": limit,
             "with_entities": with_entities,
             "partition_by": partition_by,
@@ -2075,7 +2080,9 @@ class SQLDB(DBInterface):
 
         # Check if all current parameters match their default values
         return all(
-            default_list_params[key] == value for key, value in current_params.items()
+            default_list_params[key] == value
+            or (default_list_params[key] is None and value in (None, [], {}, ()))
+            for key, value in current_params.items()
         )
 
     def _find_artifacts_for_producer_id(

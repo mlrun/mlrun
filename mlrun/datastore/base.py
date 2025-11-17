@@ -175,7 +175,11 @@ class DataStore(BaseRemoteClient):
             )
 
         def list_partitioned_urls(
-            base_path: str, partition_keys: list[str], start_time, end_time
+            base_path: str,
+            partition_keys: list[str],
+            start_time,
+            end_time,
+            time_partitioning_granularity: str,
         ):
             """
             Build a list of URLs based on detected partitioning and time range.
@@ -183,13 +187,20 @@ class DataStore(BaseRemoteClient):
             Automatically adjusts iteration step based on deepest partition key.
             """
             # Determine smallest partition granularity
-            if "hour" in partition_keys:
+            actual_partition_keys = []
+            for key in ["year", "month", "day", "hour"]:
+                if key in partition_keys:
+                    actual_partition_keys.append(key)
+                    if key == time_partitioning_granularity:
+                        break
+
+            if "hour" in actual_partition_keys:
                 step = datetime.timedelta(hours=1)
                 fmt_keys = ["year", "month", "day", "hour"]
-            elif "day" in partition_keys:
+            elif "day" in actual_partition_keys:
                 step = datetime.timedelta(days=1)
                 fmt_keys = ["year", "month", "day"]
-            elif "month" in partition_keys:
+            elif "month" in actual_partition_keys:
                 # Approximate month stepping
                 fmt_keys = ["year", "month"]
 
@@ -197,7 +208,7 @@ class DataStore(BaseRemoteClient):
                     year = dt.year + (dt.month // 12)
                     month = 1 if dt.month == 12 else dt.month + 1
                     return dt.replace(year=year, month=month, day=1)
-            elif "year" in partition_keys:
+            elif "year" in actual_partition_keys:
                 fmt_keys = ["year"]
 
                 def next_step(dt):
@@ -224,7 +235,7 @@ class DataStore(BaseRemoteClient):
                 urls.append(f"{base_path.rstrip('/')}/" + "/".join(parts))
 
                 # Advance to next period
-                if "hour" in partition_keys or "day" in partition_keys:
+                if "hour" in actual_partition_keys or "day" in actual_partition_keys:
                     current += step
                 else:
                     current = next_step(current)
@@ -254,6 +265,7 @@ class DataStore(BaseRemoteClient):
         urls = list_partitioned_urls(base_path, partition_keys, start_time, end_time)
 
         dfs = []
+        errors = []
         for url in urls:
             try:
                 kwargs["filters"] = clean_filters_for_partitions(
@@ -262,13 +274,21 @@ class DataStore(BaseRemoteClient):
                 df = df_module.read_parquet(url, **kwargs)
                 logger.info("Reading DataFrame", url=url, columns=df.columns)
                 dfs.append(df)
-            except Exception as e:
+            except (FileNotFoundError, pyarrow.lib.ArrowInvalid) as e:
                 # Skip partitions that don't exist or have no data
-                logger.info("Failed to read DataFrame", url=url, exception=e)
+                logger.warning("Failed to read DataFrame", url=url, exception=e)
+                errors.append(e)
                 continue
 
         if not dfs:
-            return pd.DataFrame()
+            pyarrow_errors = [
+                err for err in errors if isinstance(err, pyarrow.lib.ArrowInvalid)
+            ]
+            if pyarrow_errors:
+                raise pyarrow_errors[0]
+            else:
+                return pd.DataFrame()
+
         final_df = pd.concat(dfs, ignore_index=True)
         logger.info("Finished reading DataFrame columns", columns=final_df.columns)
         return final_df
@@ -283,6 +303,7 @@ class DataStore(BaseRemoteClient):
         end_time,
         additional_filters,
         create_partition_path,
+        time_partitioning_granularity="hour",  # TODO: Roy make sure it sent from the caller
     ):
         from storey.utils import find_filters, find_partitions
 
@@ -321,7 +342,10 @@ class DataStore(BaseRemoteClient):
                 )
 
             if start_time or end_time or additional_filters:
-                partitions_time_attributes = find_partitions(url, file_system)
+                partitions_time_attributes, partitions = find_partitions(
+                    url, file_system
+                )
+                logger.info("Partitioned parquet read", partitions=partitions)
                 set_filters(
                     partitions_time_attributes,
                     start_time,
@@ -329,8 +353,13 @@ class DataStore(BaseRemoteClient):
                     additional_filters,
                     kwargs,
                 )
+
                 try:
-                    if create_partition_path and partitions_time_attributes:
+                    if (
+                        create_partition_path
+                        and partitions_time_attributes
+                        and DataStore.verify_url_partition_level(url, partitions)
+                    ):
                         return DataStore.read_partitioned_parquet(
                             url,
                             start_time,
@@ -401,6 +430,9 @@ class DataStore(BaseRemoteClient):
         is_csv, is_json, drop_time_column = False, False, False
         file_system = self.filesystem
         create_partition_path = kwargs.pop("create_partition_path", True)
+        time_partitioning_granularity = kwargs.pop(
+            "time_partitioning_granularity", "hour"
+        )
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
@@ -463,6 +495,7 @@ class DataStore(BaseRemoteClient):
                 end_time,
                 additional_filters,
                 create_partition_path,
+                time_partitioning_granularity,
             )
 
         elif file_url.endswith(".json") or format == "json":
@@ -527,6 +560,20 @@ class DataStore(BaseRemoteClient):
             return df_module == dd
         except ImportError:
             return False
+
+    @classmethod
+    def verify_url_partition_level(cls, url: str, partitions: list[str]) -> bool:
+        if not partitions:
+            return True
+
+        url_parts = urlparse(url).path.strip("/").split("/")
+        url_parts = [part.split("=")[0] for part in url_parts if "=" in part]
+        for part in partitions:
+            if part in url_parts or part in ["year", "month", "day", "hour"]:
+                continue
+            else:
+                return False
+        return True
 
 
 class DataItem:

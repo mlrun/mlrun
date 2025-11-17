@@ -85,14 +85,16 @@ class TestResultsQueries:
         metadata_result = results_handler.get_results_metadata(
             endpoint_id="test_endpoint_1"
         )
-        # Should have at least one row for our inserted data
+        # Verify exact values from sample_results
         assert "endpoint_id" in metadata_result.columns
         test_endpoint_rows = metadata_result[
             metadata_result["endpoint_id"] == "test_endpoint_1"
         ]
-        assert (
-            len(test_endpoint_rows) == 1
-        ), "Should find exactly 1 metadata record for the endpoint"
+        assert len(test_endpoint_rows) == 1
+        # Verify exact values match sample_results
+        row = test_endpoint_rows.iloc[0]
+        assert row["application_name"] == sample_results[0][mm_schemas.WriterEvent.APPLICATION_NAME]
+        assert row["result_name"] == sample_results[0][mm_schemas.ResultData.RESULT_NAME]
 
     def test_get_results_metadata(self, query_test_helper):
         """Test get_results_metadata method."""
@@ -135,16 +137,24 @@ class TestResultsQueries:
         # Should have exactly 2 rows for our 2 test results
         assert len(result) == 2
 
-        # Verify exact result_name values
+        # Verify exact values from test_results
         result_names = sorted(result["result_name"].tolist())
-        assert result_names == ["accuracy_check", "drift_detection"]
+        expected_result_names = sorted([
+            test_results[0][mm_schemas.ResultData.RESULT_NAME],
+            test_results[1][mm_schemas.ResultData.RESULT_NAME],
+        ])
+        assert result_names == expected_result_names
 
         # Verify endpoint_id is test_endpoint for all rows
         assert (result["endpoint_id"] == "test_endpoint").all()
 
-        # Verify exact application_name values
+        # Verify exact application_name values from test_results
         app_names = sorted(result["application_name"].tolist())
-        assert app_names == ["drift_app", "performance_app"]
+        expected_app_names = sorted([
+            test_results[0][mm_schemas.WriterEvent.APPLICATION_NAME],
+            test_results[1][mm_schemas.WriterEvent.APPLICATION_NAME],
+        ])
+        assert app_names == expected_app_names
 
     def test_count_results_by_status(self, query_test_helper):
         """Test count_results_by_status method."""

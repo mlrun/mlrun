@@ -83,18 +83,21 @@ class TestMetricsQueries:
 
         assert isinstance(result, dict)
 
-        # Verify accuracy data
+        # Verify accuracy data matches test_metrics exactly
         accuracy_data = result["accuracy"]
-        assert len(accuracy_data) == 1  # One accuracy metric inserted
+        assert len(accuracy_data) == 1
         timestamp_str, value = accuracy_data[0]
-        assert "2024-01-15T12:00:00" in timestamp_str  # Should match inserted timestamp
-        assert value == 0.95  # Should match our test value
+        expected_time = test_metrics[0][mm_schemas.WriterEvent.END_INFER_TIME]
+        assert expected_time.strftime("%Y-%m-%dT%H:%M:%S") in timestamp_str
+        assert value == test_metrics[0][mm_schemas.MetricData.METRIC_VALUE]
 
-        # Verify precision data
+        # Verify precision data matches test_metrics exactly
         precision_data = result["precision"]
+        assert len(precision_data) == 1
         timestamp_str, value = precision_data[0]
-        assert "2024-01-15T12:05:00" in timestamp_str  # Should match inserted timestamp
-        assert value == 0.87  # Should match our test value
+        expected_time = test_metrics[1][mm_schemas.WriterEvent.END_INFER_TIME]
+        assert expected_time.strftime("%Y-%m-%dT%H:%M:%S") in timestamp_str
+        assert value == test_metrics[1][mm_schemas.MetricData.METRIC_VALUE]
 
     def test_get_metrics_metadata(self, query_test_helper):
         """Test get_metrics_metadata method."""
@@ -134,12 +137,14 @@ class TestMetricsQueries:
 
         assert isinstance(result, pd.DataFrame)
 
-        # Should have metric_name column and verify our test metrics appear
+        # Verify exact metric names from test_metrics
         assert "metric_name" in result.columns
-        metric_names = result["metric_name"].unique()
-        assert (
-            len(metric_names) == 2
-        )  # We inserted 2 unique metrics: accuracy and precision
+        metric_names = set(result["metric_name"].unique())
+        expected_metric_names = {
+            test_metrics[0][mm_schemas.MetricData.METRIC_NAME],
+            test_metrics[1][mm_schemas.MetricData.METRIC_NAME],
+        }
+        assert metric_names == expected_metric_names
 
         # Should have endpoint_id column and verify it matches our query
         assert "endpoint_id" in result.columns

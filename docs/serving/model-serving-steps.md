@@ -81,7 +81,7 @@ graph.to(model_runner_step).respond()
 
 ### Shared models 
 
-Use the `add_shared_model` method to add a shared model to the graph: this model becomes accessible to all `ModelRunnerSteps` in the graph. Use `add_shared_model_proxy` to add a proxy model to a `ModelRunnerStep`. A proxy model acts as a lightweight reference to an existing shared model within the graph. It allows each step to reuse the same underlying shared model without duplicating it, while still being able to assign a unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. This helps maintain efficiency and consistency across multiple model runners that operate on shared models. See an example in the tutorial [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.html#define-the-function-graph-and-add-modelrunnerstep-with-proxy-models-for-the-shared-model)
+Use the `add_shared_model` method to add a shared model to the graph: this model becomes accessible to all `ModelRunnerSteps` in the graph. Use `add_shared_model_proxy` to add a proxy model to a `ModelRunnerStep`. A proxy model acts as a lightweight reference to an existing shared model within the graph. It allows each step to reuse the same underlying shared model without duplicating it, while still being able to assign a unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. This helps maintain efficiency and consistency across multiple model runners that operate on shared models. See an example in the tutorial [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb#define-the-function-graph-and-add-modelrunnerstep-with-proxy-models-for-the-shared-model)
 
 ### Output
 

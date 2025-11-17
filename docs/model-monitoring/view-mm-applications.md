@@ -24,7 +24,7 @@ The <b>tiles</b> at the top present:
 - Endpoints: The total number of model endpoints, categorized by Batch and Real-time
 - Running Interval: The interval at which the apps monitor the models. 
 
-The <b>graph</b> shows the model endpoints with suspected/detected issues. The The time interval for each bar is based on the running interval:
+The <b>graph</b> shows the model endpoints with suspected/detected issues. The time interval for each bar is based on the running interval:
 - Up to 6 hours: 10-minute intervals
 - 2–72 hours: 1-hour intervals
 - More than 72 hours: 1-day intervals
@@ -44,6 +44,6 @@ The following tables include: a list of all artifacts, the monitoring app result
 <img src="../_static/images/app-page.png">
 
 ## Application metrics
-Access the application metrics either with the Application metrics button in the Application page or from the row of the app in the Monitoring Apps view. This view displays the latest results and metrics. Select a metric and optionally modify the timeframe. By default, the first model endpoint is selected. You can select another model endpoint from the list. When switching model endpoints, the previously selected metrics and results remain (if applicable).
+Access the Application metrics view either with the Application metrics button in the Application page or from the row of the app in the Monitoring Apps view. This view displays the latest results and metrics. Select a metric and optionally modify the timeframe. By default, the first model endpoint is selected. You can select another model endpoint from the list. When switching model endpoints, the previously selected metrics and results remain (if applicable).
 
 <img src="../_static/images/app-metrics.png">

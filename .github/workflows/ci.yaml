@@ -369,8 +369,6 @@ jobs:
       - name: Download integration coverage report
         uses: actions/download-artifact@v6
         with:
-          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
-          
           path: tests/coverage_reports/
 
       - name: Download migration coverage report

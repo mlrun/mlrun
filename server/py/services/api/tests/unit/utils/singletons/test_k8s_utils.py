@@ -686,11 +686,15 @@ def test_list_user_token_secrets_valid(k8s_helper):
     token1_name = "token1"
     token2_name = "token2"
     username = "test-user"
+
+    expiration_1 = datetime.datetime(2025, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    expiration_2 = datetime.datetime(2025, 2, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+
     secret1 = _make_user_token_secret(
-        k8s_helper, token_name=token1_name, expiration=1111, username=username
+        k8s_helper, token_name=token1_name, expiration=expiration_1, username=username
     )
     secret2 = _make_user_token_secret(
-        k8s_helper, token_name=token2_name, expiration=2222, username=username
+        k8s_helper, token_name=token2_name, expiration=expiration_2, username=username
     )
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
@@ -700,10 +704,10 @@ def test_list_user_token_secrets_valid(k8s_helper):
 
     assert len(result) == 2
     assert result[0].name == token1_name
-    assert result[0].expiration == 1111
+    assert result[0].expiration == expiration_1
     assert result[0].username == username
     assert result[1].name == token2_name
-    assert result[1].expiration == 2222
+    assert result[1].expiration == expiration_2
     assert result[1].username == username
 
     k8s_helper.list_secrets.assert_called_once_with(
@@ -732,11 +736,15 @@ def test_list_user_token_secrets_all_users(k8s_helper):
     token2 = "token2"
     user1 = "user1"
     user2 = "user2"
+
+    expiration1 = datetime.datetime(2025, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    expiration2 = datetime.datetime(2025, 2, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+
     secret1 = _make_user_token_secret(
-        k8s_helper, token_name=token1, expiration=1111, username=user1
+        k8s_helper, token_name=token1, expiration=expiration1, username=user1
     )
     secret2 = _make_user_token_secret(
-        k8s_helper, token_name=token2, expiration=2222, username=user2
+        k8s_helper, token_name=token2, expiration=expiration2, username=user2
     )
 
     # Mock namespace resolution
@@ -752,10 +760,10 @@ def test_list_user_token_secrets_all_users(k8s_helper):
     assert len(result) == 2
     assert result[0].name == token1
     assert result[0].username == user1
-    assert result[0].expiration == 1111
+    assert result[0].expiration == expiration1
     assert result[1].name == token2
     assert result[1].username == user2
-    assert result[1].expiration == 2222
+    assert result[1].expiration == expiration2
 
     # Ensure list_secrets was called without filtering by username
     k8s_helper.list_secrets.assert_called_once_with(namespace="default", labels=None)
@@ -765,35 +773,84 @@ def test_list_user_token_secrets_all_users(k8s_helper):
     "secret_username, token_name, expiration, expected_username, expected_token_name, expected_expiration",
     [
         # Normal case
-        ("alice", "token1", 1111, "alice", "token1", 1111),
+        (
+            "alice",
+            "token1",
+            datetime.datetime(2025, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc),
+            "alice",
+            "token1",
+            datetime.datetime(2025, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc),
+        ),
         # Username with dash
-        ("user-with-dash", "token1", 2222, "user-with-dash", "token1", 2222),
+        (
+            "user-with-dash",
+            "token1",
+            datetime.datetime(2025, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc),
+            "user-with-dash",
+            "token1",
+            datetime.datetime(2025, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc),
+        ),
         # Token name with dash
-        ("bob", "my-token", 3333, "bob", "my-token", 3333),
+        (
+            "bob",
+            "my-token",
+            datetime.datetime(2025, 1, 3, 0, 0, 0, tzinfo=datetime.timezone.utc),
+            "bob",
+            "my-token",
+            datetime.datetime(2025, 1, 3, 0, 0, 0, tzinfo=datetime.timezone.utc),
+        ),
         # Both username and token name with dashes
         (
             "user-with-dash",
             "token-with-dash",
-            4444,
+            datetime.datetime(2025, 1, 4, 0, 0, 0, tzinfo=datetime.timezone.utc),
             "user-with-dash",
             "token-with-dash",
-            4444,
+            datetime.datetime(2025, 1, 4, 0, 0, 0, tzinfo=datetime.timezone.utc),
         ),
         # Token name with multiple dashes
-        ("alice", "my-long-token-name", 5555, "alice", "my-long-token-name", 5555),
+        (
+            "alice",
+            "my-long-token-name",
+            datetime.datetime(2025, 1, 5, 0, 0, 0, tzinfo=datetime.timezone.utc),
+            "alice",
+            "my-long-token-name",
+            datetime.datetime(2025, 1, 5, 0, 0, 0, tzinfo=datetime.timezone.utc),
+        ),
         (
             "user-name",
             "token-name-with-many-dashes",
-            6666,
+            datetime.datetime(2025, 1, 6, 0, 0, 0, tzinfo=datetime.timezone.utc),
             "user-name",
             "token-name-with-many-dashes",
-            6666,
+            datetime.datetime(2025, 1, 6, 0, 0, 0, tzinfo=datetime.timezone.utc),
         ),
         # Special characters in token name
-        ("alice", "token.with.dots", 7777, "alice", "token.with.dots", 7777),
-        ("bob", "token-123", 8888, "bob", "token-123", 8888),
+        (
+            "alice",
+            "token.with.dots",
+            datetime.datetime(2025, 1, 7, 0, 0, 0, tzinfo=datetime.timezone.utc),
+            "alice",
+            "token.with.dots",
+            datetime.datetime(2025, 1, 7, 0, 0, 0, tzinfo=datetime.timezone.utc),
+        ),
+        (
+            "bob",
+            "token-123",
+            datetime.datetime(2025, 1, 8, 0, 0, 0, tzinfo=datetime.timezone.utc),
+            "bob",
+            "token-123",
+            datetime.datetime(2025, 1, 8, 0, 0, 0, tzinfo=datetime.timezone.utc),
+        ),
         # Username with dots
-        ("user.name", "token1", 9999, "user.name", "token1", 9999),
+        (
+            "user.name",
+            "token1",
+            datetime.datetime(2025, 1, 9, 0, 0, 0, tzinfo=datetime.timezone.utc),
+            "user.name",
+            "token1",
+            datetime.datetime(2025, 1, 9, 0, 0, 0, tzinfo=datetime.timezone.utc),
+        ),
     ],
 )
 def test_convert_secret_to_token_info_valid_cases(
@@ -1128,8 +1185,12 @@ def _make_user_token_secret(
 
     # Encode tokenExpiration if provided
     if expiration is not None:
+        if isinstance(expiration, datetime.datetime):
+            expiration_str = expiration.isoformat()
+        else:
+            expiration_str = str(expiration)
         secret.data["tokenExpiration"] = base64.b64encode(
-            str(expiration).encode()
+            expiration_str.encode()
         ).decode()
 
     return secret

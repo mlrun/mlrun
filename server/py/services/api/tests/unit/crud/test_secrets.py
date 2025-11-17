@@ -16,6 +16,7 @@ import collections
 import json
 import re
 import unittest.mock
+from datetime import datetime, timezone
 
 import deepdiff
 import fastapi.testclient
@@ -1012,12 +1013,16 @@ def test_extract_and_validate_tokens_info(
 
 def test_list_secret_tokens_returns_tokens():
     username = "dummy-user"
+
+    expiration_1 = datetime(2025, 7, 26, 23, 59, 51, tzinfo=timezone.utc)
+    expiration_2 = datetime(2025, 9, 11, 0, 0, 0, tzinfo=timezone.utc)
+
     expected_tokens = [
         mlrun.common.schemas.SecretTokenInfo(
-            name="jupyter", expiration=1750979191, username=username
+            name="jupyter", expiration=expiration_1, username=username
         ),
         mlrun.common.schemas.SecretTokenInfo(
-            name="my-token", expiration=1754966400, username=username
+            name="my-token", expiration=expiration_2, username=username
         ),
     ]
 
@@ -1032,10 +1037,10 @@ def test_list_secret_tokens_returns_tokens():
     assert isinstance(response, mlrun.common.schemas.ListSecretTokensResponse)
     assert len(response.secret_tokens) == 2
     assert response.secret_tokens[0].name == "jupyter"
-    assert response.secret_tokens[0].expiration == 1750979191
+    assert response.secret_tokens[0].expiration == expiration_1
     assert response.secret_tokens[0].username == username
     assert response.secret_tokens[1].name == "my-token"
-    assert response.secret_tokens[1].expiration == 1754966400
+    assert response.secret_tokens[1].expiration == expiration_2
     assert response.secret_tokens[1].username == username
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(

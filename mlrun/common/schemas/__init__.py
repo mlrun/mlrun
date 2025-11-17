@@ -43,6 +43,7 @@ from .artifact import (
 from .auth import (
     AuthInfo,
     AuthorizationAction,
+    AuthorizationResourceNamespace,
     AuthorizationResourceTypes,
     AuthorizationVerificationInput,
     Credentials,
@@ -113,7 +114,6 @@ from .feature_store import (
 )
 from .frontend_spec import (
     ArtifactLimits,
-    AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
     NuclioStreamsFeatureFlag,

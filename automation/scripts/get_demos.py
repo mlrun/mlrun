@@ -21,7 +21,6 @@ import sys
 import tarfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from pathlib import Path
 from time import sleep
 
 import requests
@@ -30,6 +29,14 @@ from tqdm import tqdm
 
 TIMEOUT = 30  # seconds
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+)(?:-rc\d+)?$")
+DEFAULT_CONFIG = {
+    "demos": [
+        "demo-fraud",
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent",
+    ]
+}
 
 
 def download_with_retry(url, max_retries=3):
@@ -257,24 +264,36 @@ def create_manifest(mlrun_version, demo_versions):
 
 
 def get_demos(mlrun_version):
-    if not os.path.exists(CONFIG_PATH):
-        raise RuntimeError(f"Configuration file not found: {CONFIG_PATH}")
+    config_url = "https://raw.githubusercontent.com/mlrun/mlrun/refs/heads/development/automation/scripts/demos_config.json"
     try:
-        with Path(CONFIG_PATH).open("r", encoding="utf-8") as f:
-            config = json.load(f)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Invalid JSON in configuration file {CONFIG_PATH}: {e}")
-    except Exception as e:
-        raise RuntimeError(f"Failed to read configuration file {CONFIG_PATH}: {e}")
+        response = requests.get(config_url, timeout=10)
+        response.raise_for_status()  # raise HTTPError if not 200
+        config = json.loads(response.text)
 
-    os.makedirs(DEST_DIR, exist_ok=True)
-    repositories = config.get("demos")
+        version_to_use = VERSION_PATTERN.match(mlrun_version).group(1)
+        if version_to_use not in config.keys():
+            config = config.get("development")
+            log("Using development tag for demos list", "get_demos")
+        else:
+            config = config.get(version_to_use)
+            log(f"Using {version_to_use} tag for demos list", "get_demos")
+
+    except Exception:
+        log("Failed getting config json, using default", "get_demos")
+        config = DEFAULT_CONFIG
+
+    try:
+        os.makedirs(DEST_DIR, exist_ok=True)
+        repositories = config.get("demos")
+    except AttributeError:
+        raise AttributeError("Failed to read configuration file")
+
     if not repositories:
-        raise RuntimeError(f"No 'demos' key found in {CONFIG_PATH}")
+        raise RuntimeError(f"No 'demos' key found in {config_url}")
     if not isinstance(repositories, list):
-        raise RuntimeError(f"'demos' must be a list in {CONFIG_PATH}")
+        raise RuntimeError(f"'demos' must be a list in {config_url}")
     if not all(isinstance(r, str) for r in repositories):
-        raise RuntimeError(f"All demo entries must be strings in {CONFIG_PATH}")
+        raise RuntimeError(f"All demo entries must be strings in {config_url}")
 
     errors = []
     demo_versions = {}
@@ -330,19 +349,13 @@ if __name__ == "__main__":
     # Optional argument
     parser.add_argument("--org", default="mlrun", help="GitHub org")
     parser.add_argument(
-        "--config_path", default="demos_config.json", help="Path to demos config file"
-    )
-    parser.add_argument(
         "--dest", default="demos", help="Folder name to extract demos to"
     )
 
     args = parser.parse_args()
 
     GITHUB_ORG = args.org
-    CONFIG_PATH = args.config_path
     DEST_DIR = args.dest
-
-    get_demos(args.mlrun_version)
 
     try:
         get_demos(args.mlrun_version)

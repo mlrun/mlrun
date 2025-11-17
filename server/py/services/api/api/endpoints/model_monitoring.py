@@ -131,7 +131,7 @@ async def _common_parameters(
 
 
 @router.put("/")
-async def enable_model_monitoring(
+def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
@@ -183,7 +183,7 @@ async def enable_model_monitoring(
 
 
 @router.patch("/controller")
-async def update_model_monitoring_controller(
+def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
@@ -520,8 +520,10 @@ async def delete_model_endpoints_metrics_values(
         auth_info=commons.auth_info,
     )
     # call delete_application_records of the tsdb connector
-    await commons.get_monitoring_deployment().delete_application_records(
-        application_name=application_name, endpoint_ids=endpoint_id
+    await run_in_threadpool(
+        commons.get_monitoring_deployment().delete_application_records,
+        application_name=application_name,
+        endpoint_ids=endpoint_id,
     )
 
 

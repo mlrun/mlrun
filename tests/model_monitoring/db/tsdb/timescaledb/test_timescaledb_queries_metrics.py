@@ -368,14 +368,23 @@ class TestMetadataMethods:
 
         # Verify it's the correct application and metric
         assert (
-            result[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0] == "monitoring-app1"
+            result[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
+            == test_data[0]["application_name"]
         ), "Should only return monitoring-app1 data"
         assert (
-            result[mm_schemas.MetricData.METRIC_NAME].iloc[0] == "accuracy"
+            result[mm_schemas.MetricData.METRIC_NAME].iloc[0]
+            == test_data[0]["metric_name"]
         ), "Should return accuracy metric"
         assert (
-            abs(result[mm_schemas.MetricData.METRIC_VALUE].iloc[0] - 0.95) < 0.001
-        ), "Should return monitoring-app1's value (0.95), not monitoring-app2's value (0.75)"
+            abs(
+                result[mm_schemas.MetricData.METRIC_VALUE].iloc[0]
+                - test_data[0]["metric_value"]
+            )
+            < 0.001
+        ), (
+            f"Should return monitoring-app1's value ({test_data[0]['metric_value']}), "
+            f"not monitoring-app2's value ({test_data[1]['metric_value']})"
+        )
 
         # Query for monitoring-app2's accuracy metric
         test_metrics_app2 = [
@@ -401,8 +410,15 @@ class TestMetadataMethods:
         ), f"Should have exactly 1 row for monitoring-app2, got {len(result_app2)}"
         assert (
             result_app2[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
-            == "monitoring-app2"
+            == test_data[1]["application_name"]
         ), "Should only return monitoring-app2 data"
         assert (
-            abs(result_app2[mm_schemas.MetricData.METRIC_VALUE].iloc[0] - 0.75) < 0.001
-        ), "Should return monitoring-app2's value (0.75), not monitoring-app1's value (0.95)"
+            abs(
+                result_app2[mm_schemas.MetricData.METRIC_VALUE].iloc[0]
+                - test_data[1]["metric_value"]
+            )
+            < 0.001
+        ), (
+            f"Should return monitoring-app2's value ({test_data[1]['metric_value']}), "
+            f"not monitoring-app1's value ({test_data[0]['metric_value']})"
+        )

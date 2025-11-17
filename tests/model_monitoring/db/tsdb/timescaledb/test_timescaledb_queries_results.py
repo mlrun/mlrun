@@ -439,14 +439,23 @@ class TestResultsQueries:
 
         # Verify it's the correct application and result
         assert (
-            result[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0] == "proj1-app1"
+            result[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
+            == test_data[0]["application_name"]
         ), "Should only return proj1-app1 data"
         assert (
-            result[mm_schemas.ResultData.RESULT_NAME].iloc[0] == "data_drift_test"
+            result[mm_schemas.ResultData.RESULT_NAME].iloc[0]
+            == test_data[0]["result_name"]
         ), "Should return data_drift_test result"
         assert (
-            abs(result[mm_schemas.ResultData.RESULT_VALUE].iloc[0] - 10.0) < 0.001
-        ), "Should return proj1-app1's value (10.0), not proj1-app2's value (20.0)"
+            abs(
+                result[mm_schemas.ResultData.RESULT_VALUE].iloc[0]
+                - test_data[0]["result_value"]
+            )
+            < 0.001
+        ), (
+            f"Should return proj1-app1's value ({test_data[0]['result_value']}), "
+            f"not proj1-app2's value ({test_data[1]['result_value']})"
+        )
 
         # Query for proj1-app2's data_drift_test metric
         metrics_app2 = [
@@ -471,8 +480,16 @@ class TestResultsQueries:
             len(result_app2) == 1
         ), f"Should have exactly 1 row for proj1-app2, got {len(result_app2)}"
         assert (
-            result_app2[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0] == "proj1-app2"
+            result_app2[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
+            == test_data[1]["application_name"]
         ), "Should only return proj1-app2 data"
         assert (
-            abs(result_app2[mm_schemas.ResultData.RESULT_VALUE].iloc[0] - 20.0) < 0.001
-        ), "Should return proj1-app2's value (20.0), not proj1-app1's value (10.0)"
+            abs(
+                result_app2[mm_schemas.ResultData.RESULT_VALUE].iloc[0]
+                - test_data[1]["result_value"]
+            )
+            < 0.001
+        ), (
+            f"Should return proj1-app2's value ({test_data[1]['result_value']}), "
+            f"not proj1-app1's value ({test_data[0]['result_value']})"
+        )

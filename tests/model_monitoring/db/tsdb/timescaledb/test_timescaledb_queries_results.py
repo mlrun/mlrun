@@ -93,8 +93,13 @@ class TestResultsQueries:
         assert len(test_endpoint_rows) == 1
         # Verify exact values match sample_results
         row = test_endpoint_rows.iloc[0]
-        assert row["application_name"] == sample_results[0][mm_schemas.WriterEvent.APPLICATION_NAME]
-        assert row["result_name"] == sample_results[0][mm_schemas.ResultData.RESULT_NAME]
+        assert (
+            row["application_name"]
+            == sample_results[0][mm_schemas.WriterEvent.APPLICATION_NAME]
+        )
+        assert (
+            row["result_name"] == sample_results[0][mm_schemas.ResultData.RESULT_NAME]
+        )
 
     def test_get_results_metadata(self, query_test_helper):
         """Test get_results_metadata method."""
@@ -139,10 +144,12 @@ class TestResultsQueries:
 
         # Verify exact values from test_results
         result_names = sorted(result["result_name"].tolist())
-        expected_result_names = sorted([
-            test_results[0][mm_schemas.ResultData.RESULT_NAME],
-            test_results[1][mm_schemas.ResultData.RESULT_NAME],
-        ])
+        expected_result_names = sorted(
+            [
+                test_results[0][mm_schemas.ResultData.RESULT_NAME],
+                test_results[1][mm_schemas.ResultData.RESULT_NAME],
+            ]
+        )
         assert result_names == expected_result_names
 
         # Verify endpoint_id is test_endpoint for all rows
@@ -150,10 +157,12 @@ class TestResultsQueries:
 
         # Verify exact application_name values from test_results
         app_names = sorted(result["application_name"].tolist())
-        expected_app_names = sorted([
-            test_results[0][mm_schemas.WriterEvent.APPLICATION_NAME],
-            test_results[1][mm_schemas.WriterEvent.APPLICATION_NAME],
-        ])
+        expected_app_names = sorted(
+            [
+                test_results[0][mm_schemas.WriterEvent.APPLICATION_NAME],
+                test_results[1][mm_schemas.WriterEvent.APPLICATION_NAME],
+            ]
+        )
         assert app_names == expected_app_names
 
     def test_count_results_by_status(self, query_test_helper):

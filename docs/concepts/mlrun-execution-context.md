@@ -77,8 +77,10 @@ def my_job(context, p1=1, p2="x"):
 Example of creating the context objects from the environment:
 
 ```python
+import mlrun
 if __name__ == "__main__":
-    context = mlrun.get_or_create_ctx("train")
+    project = mlrun.get_or_create_project("my-project") # This updates mlrun.mlconf.active_project
+    mlrun.get_or_create_ctx("my-context", project="my-project") 
     p1 = context.get_param("p1", 1)
     p2 = context.get_param("p2", "a-string")
     # do something

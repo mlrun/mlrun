@@ -59,10 +59,11 @@ async def list_secret_tokens(
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
     # TODO: add authorization check for listing other users' tokens
-    # in case of not provided username, we list for the authenticated user unless this is a system admin and
-    # then we list for all users
-    # in case of provided username and the username is different than the authenticated user, we check if the
-    # authenticated user is a system admin
+    # If `username` is not provided, lists tokens for the authenticated user, unless the caller is a system admin,
+    # in which case tokens for all users are listed.
+    # If `username` is provided and is different from the authenticated user, the caller must be a system admin,
+    # otherwise, the request is forbidden.
+    # also, need to handle cases where system admin want to see only his tokens
 
     # await framework.utils.auth.verifier.AuthVerifier().query_resource_permissions(
     #     mlrun.common.schemas.AuthorizationResourceTypes.tokens,

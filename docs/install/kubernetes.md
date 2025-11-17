@@ -159,7 +159,7 @@ When the installation is complete, the helm command prints the URLs and ports of
 In some cases, for example when using minikube, after installing MLRun CE you should expose the installed services by running this command:
 ```
 kubectl -n mlrun port-forward service/mlrun-ui 30060:80
-kubectl -n <"namespace-name"> port-forward svc <"service-name"> <"exposed-port">:<"serivce-port">ß
+kubectl -n <"namespace-name"> port-forward svc <"service-name"> <"exposed-port">:<"serivce-port">
 ```
 
 ```{admonition} Known issue when installing the chart on Macs using Apple silicon (ARM-based architicture):

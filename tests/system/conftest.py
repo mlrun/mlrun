@@ -23,6 +23,16 @@ from _pytest.terminal import TerminalReporter
 from pytest import CallInfo, ExitCode, Function, TestReport
 
 
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--system-test-open-source",
+        action="store_true",
+        default=False,
+        help="Run system tests in open source mode (skip enterprise features)",
+    )
+
+
 def pytest_sessionstart(
     session: pytest.Session,
 ):

@@ -45,7 +45,11 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |-------|----------------------------------------------------------------------------|
 |ML-9685| You can now use models stored in a remote source like HuggingFace, without saving it in your datastore. See [Remote models](../store/models.md#remote-models) and [Serving using a remote model](../genai/deployment/genai_serving.md#serving-using-a-remote-model).|
 |ML-9642|The new ModelRunnerStep enables running a model as part of a inference graph. It gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.|
-|ML-9812|This version introduces a default, out of the box, LLM implementation for your workflows. It includes LLM prompt templates and artifacts, monitoring results, experiment tracking on artifacts, and collecting usage statistics. You simply use your your selected provider (e.g., OpenAI or Hugging Face). See {ref}`genai-04-llm-prompt-artifact`, {ref}`genai-serving-graph`, and {ref}`llm-prompt-artifact`.|
+
+### Artifacts
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9812|This version introduces LLM prompt templates and artifacts, monitoring results, and experiment tracking on artifacts. You simply use your your selected provider (e.g., OpenAI or Hugging Face). See {ref}`genai-04-llm-prompt-artifact`, {ref}`genai-serving-graph`, and {ref}`llm-prompt-artifact`.|
 
 ### Model Monitoring
 
@@ -65,7 +69,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9350|You can now terminate a workflow from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the vertical ellipsis menu, depending on the page you are in. |
-|ML-9430|The cross-project view and the project monitoring page now display run counters instead of job counters, and the "Scheduled" counter estimates upcoming runs. This provides you with more accurate data and predictive data.|
+|ML-9430|The cross-project and Project monitoring views have two new tiles: Artifacts (in sub-categories: Datasets, Documents, LLM pompt artifacts, Other artifacts) and Models. The Project page has an additional tile: Applications. The project monitoring page now display Runs instead of Jobs, and the "Scheduled" counter estimates upcoming runs. Consumer groups is now located under Real-Time and ML functions. |
 
 
 (1.10.0-breaking)=
@@ -107,7 +111,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |ML-8740|Notifications are now issued when retrying pipelines.|
 |ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
 |ML-9338|`latest` tag: If the same project+key were created from both a hyper-param run and single run, and the user removed the latest tag from everything, then `latest` is assigned to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results, and it may not actually be the latest run.|
-|ML-9573|Resolved workflow step failures due to "Read timed out" error from mlrun-api.|
+|ML-9573|Adds a shared Kubernetes client with built-in retries to make CoreV1Api and CustomObjectsApi calls more reliable during temporary API hiccups.|
 |ML-9876|Resolved issue of DB probes failing when the concurrent connections are maxed out.|
 |ML-10289|When using the `project.delete_artifact()` that gets an `mlrun.artifacts.base.Artifact` object, if the object doesn’t have the “latest” tag, now only the specific UID artifacts are deleted.|
 |ML-10293|Scheduled workflow jobs now use the values in the `run` method, and not from the `project.spec.source` as previously.|

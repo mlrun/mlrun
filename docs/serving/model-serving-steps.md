@@ -31,7 +31,7 @@ ModelRunnerStep can only be added to a graph that has the [flow topology](../ser
 
 ### Preprocess steps
 
-When adding models to the `ModelRunnerStap`, there are many configuration options, for example, excluding unnecessary details that are included in any LLM, input and outputs, which can can be paths, dict, etc. 
+When adding models to the `ModelRunnerStap`, there are many configuration options, for example, excluding unnecessary details that are included in any LLM, input and outputs, which can be paths, dict, etc. 
 See the parameters in {py:meth}`mlrun.serving.ModelRunnerStep.add_model`.
 
 ### Basic code examples

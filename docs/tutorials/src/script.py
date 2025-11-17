@@ -10,8 +10,10 @@ import mlrun
 from mlrun.frameworks.lgbm import apply_mlrun
 
 # [MLRun] Create a project and get MLRun's context:
-project = mlrun.get_or_create_project("my-project") # This updates mlrun.mlconf.active_project
-mlrun.get_or_create_ctx("my-context", project="my-project") 
+project = mlrun.get_or_create_project(
+    "my-project"
+)  # This updates mlrun.mlconf.active_project
+mlrun.get_or_create_ctx("my-context", project="my-project")
 
 # [MLRun] Reading train data from context instead of local file:
 train_df = context.get_input("train_set", "./train.csv").as_df()

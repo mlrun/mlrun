@@ -204,7 +204,7 @@ jobs:
       uses: actions/upload-artifact@v5
       if: env.RUN_COVERAGE == 'true'
       with:
-         name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
+         name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ matrix.test-db }}_${{ github.run_id }}.coverage
          path: /tmp/coverage_reports/integration_tests/integration_tests.coverage
          retention-days: 30
 

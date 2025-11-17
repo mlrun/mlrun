@@ -60,7 +60,7 @@ def test_drop_partitions(db, interval, retention_days, now_dt, exp_cutoff):
         ) as mock_drop,
     ):
         mock_dt.now.return_value = now_dt
-        part_mod.DBPartitioner().drop_old_partitions(
+        part_mod.DBPartitioner().drop_partitions(
             session=db,
             table_name="alert_activations",
             partition_interval=mlrun.common.schemas.partition_interval.PartitionInterval(
@@ -110,7 +110,7 @@ def test_create_partitions(db, interval, partitions_to_create, now_dt):
         buffer_multiplier_override = 0  # override so partition_count == retain
         part_mod.DBPartitioner(
             buffer_multiplier_override=buffer_multiplier_override,
-        ).create_new_partitions(
+        ).create_partitions(
             session=db,
             table_name="alert_activations",
             partitions_to_create=partitions_to_create,

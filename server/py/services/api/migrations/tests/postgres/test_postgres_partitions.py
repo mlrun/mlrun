@@ -107,7 +107,7 @@ def test_drop_partitions_postgres(postgres_db_session):
 
     # 2. advance clock by two days and drop anything older than 1 day
     tests.common_fixtures.FrozenDatetime._frozen_now = datetime(2025, 1, 8)
-    services.api.utils.db.partitioner.DBPartitioner().drop_old_partitions(
+    services.api.utils.db.partitioner.DBPartitioner().drop_partitions(
         session=postgres_db_session,
         table_name=table,
         partition_interval=mlrun.common.schemas.partition_interval.PartitionInterval.DAY,

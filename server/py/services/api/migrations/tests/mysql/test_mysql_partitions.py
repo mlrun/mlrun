@@ -47,7 +47,7 @@ def test_create_partitions_mysql(
 
     services.api.utils.db.partitioner.DBPartitioner(
         buffer_multiplier_override=0
-    ).create_new_partitions(
+    ).create_partitions(
         session=mysql_db_session,
         table_name=table,
         partitions_to_create=2,
@@ -110,7 +110,7 @@ def test_drop_partitions_mysql(
     tests.common_fixtures.FrozenDatetime._frozen_now = datetime(2025, 1, 20)
     services.api.utils.db.partitioner.DBPartitioner(
         buffer_multiplier_override=0
-    ).drop_old_partitions(
+    ).drop_partitions(
         session=mysql_db_session,
         table_name=table,
         partition_interval=mlrun.common.schemas.partition_interval.PartitionInterval.YEARWEEK,

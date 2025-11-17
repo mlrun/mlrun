@@ -42,28 +42,6 @@ class DBPartitioner:
         )
         self._db = framework.utils.singletons.db.get_db()
 
-    def create_new_partitions(
-        self,
-        session: Session,
-        table_name: str,
-        partitions_to_create: int,
-        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
-    ) -> None:
-        partitions_count = max(
-            1, math.ceil(partitions_to_create * (1 + self._buffer_multiplier))
-        )
-
-        partitioner = framework.db.sqldb.partition_bootstrapper.PartitionBootstrapper(
-            session.get_bind().dialect.name
-        )
-        partitioner.bootstrap(
-            session=session,
-            table_name=table_name,
-            partition_interval=partition_interval,
-            partitions_count=partitions_count,
-        )
-        session.flush()
-
     def create_and_drop_partitions(
         self,
         session: Session,
@@ -85,7 +63,7 @@ class DBPartitioner:
             table_name=table_name,
         )
 
-        self.create_new_partitions(
+        self.create_partitions(
             session=session,
             table_name=table_name,
             partition_interval=partition_interval,
@@ -93,11 +71,33 @@ class DBPartitioner:
         )
 
         # drop partitions older than retention
-        self.drop_old_partitions(
+        self.drop_partitions(
             session=session,
             table_name=table_name,
             partition_interval=partition_interval,
             retention_days=retention_days,
+        )
+        session.flush()
+
+    def create_partitions(
+        self,
+        session: Session,
+        table_name: str,
+        partitions_to_create: int,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+    ) -> None:
+        partitions_count = max(
+            1, math.ceil(partitions_to_create * (1 + self._buffer_multiplier))
+        )
+
+        partitioner = framework.db.sqldb.partition_bootstrapper.PartitionBootstrapper(
+            session.get_bind().dialect.name
+        )
+        partitioner.bootstrap(
+            session=session,
+            table_name=table_name,
+            partition_interval=partition_interval,
+            partitions_count=partitions_count,
         )
         session.flush()
 
@@ -110,16 +110,15 @@ class DBPartitioner:
         """
         return self._db.get_partition_interval_for_table(session, table_name)
 
-    def drop_old_partitions(
+    def drop_partitions(
         self,
         session: Session,
         table_name: str,
         partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
         retention_days: int,
     ) -> None:
-        db_client = framework.utils.singletons.db.get_db()
         cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
-        db_client.drop_partitions(
+        self._db.drop_partitions(
             session=session,
             table_name=table_name,
             cutoff_partition_name=partition_interval.get_partition_name(cutoff_date),

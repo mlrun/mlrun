@@ -82,7 +82,7 @@ import mlrun
 if __name__ == "__main__":
     project = mlrun.get_or_create_project(
         "my-project"
-    )  # This updates mlrun.mlconf.active_project
+    )  
     mlrun.get_or_create_ctx("my-context", project="my-project")
     p1 = context.get_param("p1", 1)
     p2 = context.get_param("p2", "a-string")

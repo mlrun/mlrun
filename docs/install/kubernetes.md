@@ -24,7 +24,7 @@ These instructions install the community edition, which currently includes MLRun
 
 ## Prerequisites
 
-- Access to a Kubernetes cluster, version >=1.31. To install MLRun on your cluster, you must have administrator permissions. 
+- Access to a Kubernetes cluster, version >=1.32. To install MLRun on your cluster, you must have administrator permissions. 
 For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. 
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
@@ -156,8 +156,13 @@ Where:
 
 When the installation is complete, the helm command prints the URLs and ports of all the MLRun CE services.
 
+In some cases, for example when using minikube, after installing MLRun CE you should expose the installed services by running this command:
+```
+kubectl -n mlrun port-forward service/mlrun-ui 30060:80
+kubectl -n <"namespace-name"> port-forward svc <"service-name"> <"exposed-port">:<"serivce-port">
+```
+
 ```{admonition} Known issue when installing the chart on Macs using Apple silicon (ARM-based architicture):
-- The current pipelines MySQL database fails to start. The workaround for now is to run this line `docker pull mysql:5.7 --platform linux/amd64` before installing the chart.
 - The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
 ```
 
@@ -244,10 +249,6 @@ a minute for all services to start.
 You can change the ports by providing values to the helm install command.
 You can add and configure a Kubernetes ingress-controller for better security and control over external access.
 ```
-
-
-## Optional additional packages
-To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
 
 ## Start working
     

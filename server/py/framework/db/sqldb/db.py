@@ -7246,7 +7246,6 @@ class SQLDB(DBInterface):
             project=project,
         ).one_or_none()
         now = mlrun.utils.now_date()
-        task_labels = []
         if background_task_record:
             # we don't want to be able to change state after it reached terminal state
             if (
@@ -7276,20 +7275,17 @@ class SQLDB(DBInterface):
                 timeout=int(timeout) if timeout else None,
                 error=error,
             )
-            session.add(background_task_record)
-            if labels is not None:
+            if labels:
                 for label_name, label_value in labels.items():
-                    task_labels.append(
+                    background_task_record.labels.append(
                         BackgroundTaskLabel(
                             name=label_name,
                             value=label_value,
-                            task=background_task_record,
+                            project=project,
                         )
                     )
-        objects = [background_task_record]
-        if task_labels:
-            objects.extend(task_labels)
-        self._upsert(session, objects)
+            session.add(background_task_record)
+        self._upsert(session, [background_task_record])
 
     def get_background_task(
         self,

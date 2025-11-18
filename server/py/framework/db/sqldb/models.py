@@ -37,7 +37,7 @@ from sqlalchemy import (
     event,
     text,
 )
-from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
@@ -526,7 +526,7 @@ with warnings.catch_warnings():
         __tablename__ = "background_task_labels"
         __table_args__ = (
             UniqueConstraint(
-                "task_id", "name", name="uq_bg_task_labels_task_id_and_name"
+                "project", "name", "value", name="uq_bg_task_labels_project_name_value"
             ),
         )
 
@@ -537,6 +537,7 @@ with warnings.catch_warnings():
             nullable=False,
             index=True,
         )
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
         name = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
         value = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
 
@@ -544,7 +545,6 @@ with warnings.catch_warnings():
             "BackgroundTask",
             back_populates="labels",
         )
-        project = association_proxy("task", "project")
 
     class Schedule(Base, LabelMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "schedules_v2"

@@ -1324,9 +1324,9 @@ google-crc32c==1.7.1 \
     # via
     #   google-cloud-storage
     #   google-resumable-media
-google-resumable-media==2.7.2 \
-    --hash=sha256:3ce7551e9fe6d99e9a126101d2536612bb73486721951e9562fee0f90c6ababa \
-    --hash=sha256:5280aed4629f2b60b847b0d42f9857fd4935c11af266744df33d8074cae92fe0
+google-resumable-media==2.8.0 \
+    --hash=sha256:dd14a116af303845a8d932ddae161a26e86cc229645bc98b39f026f9b1717582 \
+    --hash=sha256:f1157ed8b46994d60a1bc432544db62352043113684d4e030ee02e77ebe9a1ae
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
@@ -2627,9 +2627,9 @@ multipledispatch==1.0.0 \
     # via
     #   dask-glm
     #   dask-ml
-narwhals==2.11.0 ; python_full_version >= '3.11' \
-    --hash=sha256:a9795e1e44aa94e5ba6406ef1c5ee4c172414ced4f1aea4a79e5894f0c7378d4 \
-    --hash=sha256:d23f3ea7efc6b4d0355444a72de6b8fa3011175585246c3400c894a7583964af
+narwhals==2.12.0 ; python_full_version >= '3.11' \
+    --hash=sha256:075b6d56f3a222613793e025744b129439ecdff9292ea6615dd983af7ba6ea44 \
+    --hash=sha256:baeba5d448a30b04c299a696bd9ee5ff73e4742143e06c49ca316b46539a7cbb
     # via bokeh
 nbclient==0.10.2 \
     --hash=sha256:4ffee11e788b4a27fabeb7955547e4318a5298f34342a4bfd01f2e1faaeadc3d \
@@ -4577,8 +4577,8 @@ starlette==0.49.3 \
     --hash=sha256:1c14546f299b5901a1ea0e34410575bc33bbd741377a10484a54445588d00284 \
     --hash=sha256:b579b99715fdc2980cf88c8ec96d3bf1ce16f5a8051a7c2b84ef9b1cdecaea2f
     # via fastapi
-storey==1.10.17 \
-    --hash=sha256:c423f94e5bd7f754b4c980ae1f519ff617f998941c03eb8006f17599042017c3
+storey==1.11.0 \
+    --hash=sha256:8243340501852f5edeb13969836ef3cb777d33cac657fb8b4ce6db42f770dd44
     # via -r requirements.txt
 tabulate==0.8.10 \
     --hash=sha256:0ba055423dbaa164b9e456abe7920c5e8ed33fcc16f6d1b2f2d152c8e1e8b4fc \

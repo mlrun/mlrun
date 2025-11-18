@@ -13,7 +13,7 @@ When collecting data, for example, you can identify PII automatically with the [
 ## Implementing guardrails with MLRun
 The example below illustrates how to incorporate guardrails within an MLRun job. Initially, it employs a straightforward list of "forbidden words" to filter out any queries containing these terms. Subsequently, a guardrail template is integrated into the prompt to ensure that the model's responses remain safe, respectful, and devoid of potential risks.
 
-Create the function file with the handler (function.py). The list of forbidden words is only "bomb" and "murder", but this can be tailored based on your needs.
+Create the function file with the handler (function.py). The list of forbidden words is "cheat", "steal", "lie", "hack", "bypass", "stalk". This can be tailored based on your needs.
 ```python
 from mlrun.execution import MLClientCtx
 import mlrun
@@ -113,7 +113,7 @@ func_return = project.run_function(
 )
 ```
 ```markdown
-I am sorry, I cannot process your request as it contains the forbidden word: bomb
+I am sorry, I cannot process your request as it contains the forbidden word: hack
 ```
 
 ```python

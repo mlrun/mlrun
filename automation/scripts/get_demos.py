@@ -154,6 +154,10 @@ def validate_versions(all_versions):
     return valid_versions
 
 
+def normalize(v):
+    return re.sub(r"-rc(\d+)$", r"rc\1", v)
+
+
 def download_demo(demo_repo, mlrun_version):
     # Download exact given mlrun version
     log("Starting downloading process", demo_repo)
@@ -166,7 +170,9 @@ def download_demo(demo_repo, mlrun_version):
         )
 
     # Sorting versions
-    sorted_versions = sorted(all_releases, key=Version, reverse=True)
+    sorted_versions = sorted(
+        all_releases, key=lambda x: Version(normalize(x)), reverse=True
+    )
 
     # Check if mlrun version is in the form of x.x.x or x.x.x-rcX
     match = VERSION_PATTERN.match(mlrun_version)
@@ -188,7 +194,7 @@ def download_demo(demo_repo, mlrun_version):
     if matching_demo_releases:
         # Download the release or the latest rc for that mlrun version
         return download_release(demo_repo, mlrun_version) or download_release(
-            demo_repo, max(matching_demo_releases)
+            demo_repo, matching_demo_releases[0]
         )
 
     log(
@@ -196,7 +202,6 @@ def download_demo(demo_repo, mlrun_version):
         demo_repo,
     )
     log("Using latest release", demo_repo)
-
     return download_release(demo_repo, sorted_versions[0])
 
 
@@ -205,7 +210,9 @@ def detect_demo_version(repo, mlrun_version):
     try:
         all_releases = validate_versions(get_all_releases(repo))
         if all_releases:
-            sorted_versions = sorted(all_releases, key=Version, reverse=True)
+            sorted_versions = sorted(
+                all_releases, key=lambda x: Version(normalize(x)), reverse=True
+            )
             match = VERSION_PATTERN.match(mlrun_version)
             if match:
                 base_version = match.group(1)

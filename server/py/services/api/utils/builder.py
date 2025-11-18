@@ -435,6 +435,7 @@ def build_image(
     is_v3io_source, is_s3_source, is_http_source = False, False, False
     if source:
         is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
+        is_s3_source = source.startswith("s3://")
         is_http_source = source.startswith("http")
 
     access_key = builder_env.get(
@@ -1192,30 +1193,69 @@ def _enrich_kaniko_env_for_s3_context(
     env_vars: list[client.V1EnvVar],
 ) -> None:
     """
-    If the build context is s3:// and no AWS_REGION was supplied,
-    assume MinIO/S3-compatibility and add S3_FORCE_PATH_STYLE=true
-    and a default AWS_REGION=us-east-1.
+    If the build context is s3://:
+    - Determine an effective AWS region:
+        * If AWS_REGION is in env_vars, use it as-is (no changes, no MinIO assumption).
+        * Else, if AWS_DEFAULT_REGION is in env_vars, copy its value into AWS_REGION.
+        * Else, if AWS_REGION / AWS_DEFAULT_REGION exist in the process environment,
+          copy that value into AWS_REGION.
+        * Else, assume MinIO/S3-compatible and synthesize AWS_REGION="default-region".
+    - Only when we synthesize a default region (no region anywhere) do we also:
+        * Add S3_FORCE_PATH_STYLE=true (MinIO / path-style assumption).
     """
+
     if not isinstance(source_url, str):
         return
     if not source_url.startswith("s3://"):
         return
+
     env_vars = env_vars or []
 
-    region_defined = any(env.name == "AWS_REGION" and env.value for env in env_vars)
-    if not region_defined:
+    def get_env_var_by_name(
+        env_var_name: str,
+    ) -> typing.Optional[client.V1EnvVar]:
+        return next(
+            (
+                existing_env_var
+                for existing_env_var in env_vars
+                if existing_env_var.name == env_var_name and existing_env_var.value
+            ),
+            None,
+        )
+
+    existing_aws_region_env_var = get_env_var_by_name("AWS_REGION")
+    existing_aws_default_region_env_var = get_env_var_by_name("AWS_DEFAULT_REGION")
+
+    faked_region = False
+
+    if existing_aws_region_env_var:
+        effective_aws_region_value = existing_aws_region_env_var.value
+    elif existing_aws_default_region_env_var:
+        effective_aws_region_value = existing_aws_default_region_env_var.value
+    else:
+        environment_aws_region_value = os.getenv("AWS_REGION") or os.getenv(
+            "AWS_DEFAULT_REGION"
+        )
+        if environment_aws_region_value:
+            effective_aws_region_value = environment_aws_region_value
+        else:
+            effective_aws_region_value = "default-region"
+            faked_region = True
+
+    if not existing_aws_region_env_var:
         env_vars.append(
             client.V1EnvVar(
                 name="AWS_REGION",
-                value="us-east-1",
+                value=effective_aws_region_value,
             )
         )
 
-        # MinIO requires path-style URLs
-        already_has_path_style = any(
-            env.name == "S3_FORCE_PATH_STYLE" and env.value for env in env_vars
+    if faked_region:
+        has_s3_force_path_style_env_var = any(
+            existing_env_var.name == "S3_FORCE_PATH_STYLE" and existing_env_var.value
+            for existing_env_var in env_vars
         )
-        if not already_has_path_style:
+        if not has_s3_force_path_style_env_var:
             env_vars.append(
                 client.V1EnvVar(
                     name="S3_FORCE_PATH_STYLE",

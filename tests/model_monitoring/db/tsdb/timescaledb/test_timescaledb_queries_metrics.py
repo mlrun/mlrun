@@ -83,18 +83,21 @@ class TestMetricsQueries:
 
         assert isinstance(result, dict)
 
-        # Verify accuracy data
+        # Verify accuracy data matches test_metrics exactly
         accuracy_data = result["accuracy"]
-        assert len(accuracy_data) == 1  # One accuracy metric inserted
+        assert len(accuracy_data) == 1
         timestamp_str, value = accuracy_data[0]
-        assert "2024-01-15T12:00:00" in timestamp_str  # Should match inserted timestamp
-        assert value == 0.95  # Should match our test value
+        expected_time = test_metrics[0][mm_schemas.WriterEvent.END_INFER_TIME]
+        assert expected_time.strftime("%Y-%m-%dT%H:%M:%S") in timestamp_str
+        assert value == test_metrics[0][mm_schemas.MetricData.METRIC_VALUE]
 
-        # Verify precision data
+        # Verify precision data matches test_metrics exactly
         precision_data = result["precision"]
+        assert len(precision_data) == 1
         timestamp_str, value = precision_data[0]
-        assert "2024-01-15T12:05:00" in timestamp_str  # Should match inserted timestamp
-        assert value == 0.87  # Should match our test value
+        expected_time = test_metrics[1][mm_schemas.WriterEvent.END_INFER_TIME]
+        assert expected_time.strftime("%Y-%m-%dT%H:%M:%S") in timestamp_str
+        assert value == test_metrics[1][mm_schemas.MetricData.METRIC_VALUE]
 
     def test_get_metrics_metadata(self, query_test_helper):
         """Test get_metrics_metadata method."""
@@ -134,12 +137,14 @@ class TestMetricsQueries:
 
         assert isinstance(result, pd.DataFrame)
 
-        # Should have metric_name column and verify our test metrics appear
+        # Verify exact metric names from test_metrics
         assert "metric_name" in result.columns
-        metric_names = result["metric_name"].unique()
-        assert (
-            len(metric_names) == 2
-        )  # We inserted 2 unique metrics: accuracy and precision
+        metric_names = set(result["metric_name"].unique())
+        expected_metric_names = {
+            test_metrics[0][mm_schemas.MetricData.METRIC_NAME],
+            test_metrics[1][mm_schemas.MetricData.METRIC_NAME],
+        }
+        assert metric_names == expected_metric_names
 
         # Should have endpoint_id column and verify it matches our query
         assert "endpoint_id" in result.columns
@@ -283,3 +288,137 @@ class TestMetadataMethods:
         # Verify the data content
         assert result_df_with_data["application_name"].iloc[0] == "test-app"
         assert result_df_with_data["metric_name"].iloc[0] == "accuracy"
+
+    def test_read_metrics_filters_by_application_name(self, query_test_helper):
+        """Test that querying metrics filters by application_name and doesn't return other apps' data.
+
+        This test verifies the fix for the bug where build_metrics_filter only filtered by
+        metric_name, causing queries to return data from all applications with that metric name.
+        """
+        # Insert metrics for two different applications with the SAME metric name
+        test_time = datetime(2024, 1, 15, 12, 0, 0)
+        metrics_table = query_test_helper.table_schemas[
+            mm_schemas.TimescaleDBTables.METRICS
+        ]
+
+        test_data = [
+            # App1 with accuracy metric
+            {
+                "endpoint_id": "test_endpoint_1",
+                "application_name": "monitoring-app1",
+                "metric_name": "accuracy",
+                "metric_value": 0.95,
+            },
+            # App2 with the SAME metric name
+            {
+                "endpoint_id": "test_endpoint_1",
+                "application_name": "monitoring-app2",
+                "metric_name": "accuracy",
+                "metric_value": 0.75,
+            },
+            # App1 with different metric
+            {
+                "endpoint_id": "test_endpoint_1",
+                "application_name": "monitoring-app1",
+                "metric_name": "precision",
+                "metric_value": 0.88,
+            },
+        ]
+
+        # Insert test data
+        for data in test_data:
+            query_test_helper.connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {metrics_table.full_name()}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, metric_name,
+                     metric_value)
+                    VALUES ('{test_time}', '{test_time}', '{data["endpoint_id"]}',
+                            '{data["application_name"]}', '{data["metric_name"]}',
+                            {data["metric_value"]})
+                    """
+                ]
+            )
+
+        # Query for ONLY monitoring-app1's accuracy metric
+        metrics_handler = query_test_helper.create_metrics_handler()
+        test_metrics = [
+            mm_schemas.ModelEndpointMonitoringMetric(
+                project=query_test_helper.project_name,
+                app="monitoring-app1",
+                name="accuracy",
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            )
+        ]
+
+        result = metrics_handler.read_metrics_data_impl(
+            endpoint_id="test_endpoint_1",
+            start=datetime(2024, 1, 15, 0, 0, 0),
+            end=datetime(2024, 1, 15, 23, 59, 59),
+            metrics=test_metrics,
+        )
+
+        # Verify we ONLY get monitoring-app1's data, NOT monitoring-app2's data
+        assert not result.empty, "Should have returned data for monitoring-app1"
+
+        # Check that we only have data for monitoring-app1
+        assert (
+            len(result) == 1
+        ), f"Should have exactly 1 row for monitoring-app1, got {len(result)}"
+
+        # Verify it's the correct application and metric
+        assert (
+            result[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
+            == test_data[0]["application_name"]
+        ), "Should only return monitoring-app1 data"
+        assert (
+            result[mm_schemas.MetricData.METRIC_NAME].iloc[0]
+            == test_data[0]["metric_name"]
+        ), "Should return accuracy metric"
+        assert (
+            abs(
+                result[mm_schemas.MetricData.METRIC_VALUE].iloc[0]
+                - test_data[0]["metric_value"]
+            )
+            < 0.001
+        ), (
+            f"Should return monitoring-app1's value ({test_data[0]['metric_value']}), "
+            f"not monitoring-app2's value ({test_data[1]['metric_value']})"
+        )
+
+        # Query for monitoring-app2's accuracy metric
+        test_metrics_app2 = [
+            mm_schemas.ModelEndpointMonitoringMetric(
+                project=query_test_helper.project_name,
+                app="monitoring-app2",
+                name="accuracy",
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            )
+        ]
+
+        result_app2 = metrics_handler.read_metrics_data_impl(
+            endpoint_id="test_endpoint_1",
+            start=datetime(2024, 1, 15, 0, 0, 0),
+            end=datetime(2024, 1, 15, 23, 59, 59),
+            metrics=test_metrics_app2,
+        )
+
+        # Verify we ONLY get monitoring-app2's data
+        assert not result_app2.empty, "Should have returned data for monitoring-app2"
+        assert (
+            len(result_app2) == 1
+        ), f"Should have exactly 1 row for monitoring-app2, got {len(result_app2)}"
+        assert (
+            result_app2[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
+            == test_data[1]["application_name"]
+        ), "Should only return monitoring-app2 data"
+        assert (
+            abs(
+                result_app2[mm_schemas.MetricData.METRIC_VALUE].iloc[0]
+                - test_data[1]["metric_value"]
+            )
+            < 0.001
+        ), (
+            f"Should return monitoring-app2's value ({test_data[1]['metric_value']}), "
+            f"not monitoring-app1's value ({test_data[0]['metric_value']})"
+        )

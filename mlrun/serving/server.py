@@ -526,6 +526,34 @@ def add_system_steps_to_graph(
     return graph
 
 
+async def _flush_all_batching_steps(flow, logger):
+    """
+    Flush all batching steps (e.g., ParquetTarget) in the Storey flow graph.
+    This is called during drain events (e.g., Kafka rebalancing) to ensure
+    buffered batches are written before ACK channels close.
+    """
+    try:
+        # Walk through all steps in the flow
+        for step in flow._outlets:
+            # Check if this step has batching capability
+            if hasattr(step, "_emit_all") and hasattr(step, "_batch"):
+                batch_count = sum(len(batch) for batch in step._batch.values())
+                if batch_count > 0:
+                    logger.info(
+                        f"Flushing {batch_count} buffered events from step '{step.name}'"
+                    )
+                    await step._emit_all()
+                    logger.info(f"Successfully flushed step '{step.name}'")
+
+            # Recursively flush child steps
+            if hasattr(step, "_outlets"):
+                await _flush_all_batching_steps(step, logger)
+
+    except Exception as e:
+        logger.warning(f"Error flushing batching steps during drain: {e}")
+        # Don't fail the drain - better to lose some data than block rebalancing
+
+
 def v2_serving_init(context, namespace=None):
     """hook for nuclio init_context()"""
 
@@ -892,6 +920,16 @@ def _set_callbacks(server, context):
 
         async def drain_callback():
             context.logger.info("Drain callback called")
+
+            # Force flush all batching steps (e.g., ParquetTarget) before terminating
+            # This ensures batched events are written to storage before ACK channels close during rebalancing
+            if server.graph._async_flow:
+                context.logger.info("Flushing batched data before drain")
+                await _flush_all_batching_steps(
+                    server.graph._async_flow, context.logger
+                )
+                context.logger.info("Batched data flushed successfully")
+
             maybe_coroutine = server.wait_for_completion()
             if asyncio.iscoroutine(maybe_coroutine):
                 await maybe_coroutine

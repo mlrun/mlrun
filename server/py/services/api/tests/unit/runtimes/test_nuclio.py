@@ -1114,9 +1114,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_nuclio_runtime=expected_nuclio_runtime,
         )
 
-    def test_deploy_python_decode_string_env_var_enrichment(
-        self, db: Session, client: TestClient
-    ):
+    def test_deploy_python_version_validations(self, db: Session, client: TestClient):
         mlconf.default_nuclio_runtime = "python:3.7"
 
         logger.info("Function runtime is golang - do nothing")
@@ -1172,7 +1170,6 @@ class TestNuclioRuntime(TestRuntimeBase):
             ("1.7.2", "1.7.0", "1.3.1", False),
             ("1.7.2", "1.7.3", "1.8.5", False),
             ("1.7.2", "1.7.2", "1.7.2", False),
-            ("1.7.2", "1.7.2", "1.7.3", True),
             ("1.7.2", "1.7.2", "1.7.3", True),
             ("1.7.2", "1.7.0", "1.7.3", True),
             ("1.7.2", "1.5.5", "1.7.3", True),

@@ -1157,7 +1157,7 @@ def set_alert_activations_partition_key(
     __: Connection,
     target: AlertActivation,
 ):
-    if target.partition_key == 0:
+    if not target.partition_key:
         target.partition_key = target.compute_partition_key()
 
 

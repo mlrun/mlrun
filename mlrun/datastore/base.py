@@ -169,7 +169,7 @@ class DataStore(BaseRemoteClient):
         **kwargs,
     ):
         """Read only the relevant partitions using pandas filters and concat."""
-        logger.info(
+        logger.debug(
             "starting urls partition process", granularity=time_partitioning_granularity
         )
         if not partition_keys:
@@ -284,7 +284,7 @@ class DataStore(BaseRemoteClient):
                     kwargs["filters"], partition_keys
                 )
                 df = df_module.read_parquet(url, **kwargs)
-                logger.info("Reading DataFrame", url=url, columns=df.columns)
+                logger.debug("Reading DataFrame", url=url, columns=df.columns)
                 dfs.append(df)
             except (FileNotFoundError, pyarrow.lib.ArrowInvalid) as e:
                 # Skip partitions that don't exist or have no data
@@ -302,7 +302,7 @@ class DataStore(BaseRemoteClient):
                 return pd.DataFrame()
 
         final_df = pd.concat(dfs)
-        logger.info("Finished reading DataFrame columns", columns=final_df.columns)
+        logger.debug("Finished reading DataFrame columns", columns=final_df.columns)
         return final_df
 
     @staticmethod
@@ -357,7 +357,7 @@ class DataStore(BaseRemoteClient):
                 partitions_time_attributes, partitions = find_partitions(
                     url, file_system
                 )
-                logger.info("Partitioned parquet read", partitions=partitions)
+                logger.debug("Partitioned parquet read", partitions=partitions)
                 set_filters(
                     partitions_time_attributes,
                     start_time,

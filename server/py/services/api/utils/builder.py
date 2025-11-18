@@ -1199,8 +1199,8 @@ def _enrich_kaniko_env_for_s3_context(
         * Else, if AWS_DEFAULT_REGION is in env_vars, copy its value into AWS_REGION.
         * Else, if AWS_REGION / AWS_DEFAULT_REGION exist in the process environment,
           copy that value into AWS_REGION.
-        * Else, assume MinIO/S3-compatible and synthesize AWS_REGION="default-region".
-    - Only when we synthesize a default region (no region anywhere) do we also:
+        * Else, assume MinIO/S3-compatible and fake AWS_REGION="default-region".
+    - Only when we fake a default region (no region anywhere) do we also:
         * Add S3_FORCE_PATH_STYLE=true (MinIO / path-style assumption).
     """
 

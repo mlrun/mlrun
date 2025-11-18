@@ -1125,17 +1125,15 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         mlconf.default_nuclio_runtime = "python:3.7"
-        decode_event_strings_env_var_name = "NUCLIO_PYTHON_DECODE_EVENT_STRINGS"
 
         logger.info("Function runtime is golang - do nothing")
         function = self._generate_runtime(self.runtime_kind)
         function.spec.nuclio_runtime = "golang"
         self.execute_function(function)
-        deploy_configs = self._assert_deploy_called_basic_config(
+        self._assert_deploy_called_basic_config(
             expected_class=self.class_name,
             expected_nuclio_runtime=function.spec.nuclio_runtime,
         )
-        assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
 
         logger.info(
             "Function runtime is configured to python:3.7, nuclio version > 1.14.0 and no base image - explode"
@@ -1159,70 +1157,47 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_class=self.class_name,
             expected_nuclio_runtime=mlconf.default_nuclio_runtime,
         )
-        assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
 
         logger.info(
             "Function runtime is python, nuclio version in range, but already has the env var set - do nothing"
         )
         self._reset_mock()
-        mlconf.nuclio_version = "1.7.5"
+        mlconf.nuclio_version = "1.14.14"
         function = self._generate_runtime(self.runtime_kind)
-        function.set_env(decode_event_strings_env_var_name, "false")
+        function.set_env("something", "false")
         self.execute_function(function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name,
             expected_nuclio_runtime=mlconf.default_nuclio_runtime,
-            expected_env={decode_event_strings_env_var_name: "false"},
+            expected_env={"something": "false"},
         )
 
-        logger.info(
-            "Function runtime is python, nuclio version in range, env var not set - add it"
-        )
-        self._reset_mock()
-        mlconf.nuclio_version = "1.7.5"
-        function = self._generate_runtime(self.runtime_kind)
-        self.execute_function(function)
-        self._assert_deploy_called_basic_config(
-            expected_class=self.class_name,
-            expected_nuclio_runtime=mlconf.default_nuclio_runtime,
-            expected_env={decode_event_strings_env_var_name: "true"},
-        )
-
-    def test_is_nuclio_version_in_range(self):
-        mlconf.nuclio_version = "1.7.2"
-
-        assert not services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.6.11", "1.7.2"
-        )
-        assert not services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.0", "1.3.1"
-        )
-        assert not services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.3", "1.8.5"
-        )
-        assert not services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.2", "1.7.2"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.2", "1.7.3"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.0", "1.7.3"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.5.5", "1.7.3"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.5.5", "2.3.4"
-        )
-
-        # best effort - assumes compatibility
-        mlconf.nuclio_version = ""
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.5.5", "2.3.4"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.2", "1.7.2"
+    @pytest.mark.parametrize(
+        "nuclio_version,min_version,max_version,expected_result",
+        [
+            ("1.7.2", "1.6.11", "1.7.2", False),
+            ("1.7.2", "1.7.0", "1.3.1", False),
+            ("1.7.2", "1.7.3", "1.8.5", False),
+            ("1.7.2", "1.7.2", "1.7.2", False),
+            ("1.7.2", "1.7.2", "1.7.3", True),
+            ("1.7.2", "1.7.2", "1.7.3", True),
+            ("1.7.2", "1.7.0", "1.7.3", True),
+            ("1.7.2", "1.5.5", "1.7.3", True),
+            ("1.7.2", "1.5.5", "2.3.4", True),
+            # best effort - assumes compatibility
+            ("", "1.5.5", "2.3.4", True),
+            ("", "1.7.2", "1.7.2", True),
+        ],
+    )
+    def test_is_nuclio_version_in_range(
+        self, nuclio_version, min_version, max_version, expected_result
+    ):
+        mlconf.nuclio_version = nuclio_version
+        assert (
+            services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+                min_version, max_version
+            )
+            is expected_result
         )
 
     def test_validate_nuclio_version_compatibility(self):

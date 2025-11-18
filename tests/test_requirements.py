@@ -127,7 +127,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "storey": {"~=1.10.16"},
-        "pydantic": {">=1.10.15", ">=1,<2"},
+        "pydantic": {">=1.10.15"},
         "nuclio-sdk": {">=0.5"},
         "scipy": {"~=1.13.0"},
         "docstring_parser": {"~=0.16"},
@@ -199,10 +199,6 @@ def test_requirement_specifiers_inconsistencies():
             inconsistent_specifiers_map[requirement_name] = requirement_specifiers
 
     ignored_inconsistencies_map = {
-        # mlrun api must have v1 due to fastapi https://github.com/fastapi/fastapi/issues/10360
-        # and the fact out pydantic currently requires v1
-        # on the other hand, mlrun client can have both and thus the inconsistency
-        "pydantic": {">=1,<2", ">=1.10.15"},
         # packages that require specific versions per python version
         "dask": {
             '~=2023.12.1; python_version < "3.11"',

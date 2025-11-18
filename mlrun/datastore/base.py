@@ -165,6 +165,7 @@ class DataStore(BaseRemoteClient):
         end_time,
         partition_keys,
         df_module,
+        time_partitioning_granularity,
         **kwargs,
     ):
         """Read only the relevant partitions using pandas filters and concat."""
@@ -243,7 +244,10 @@ class DataStore(BaseRemoteClient):
             logger.info("Generated partitioned URLs", extra={"urls": urls})
             return urls
 
-        def clean_filters_for_partitions(filters, partition_keys):
+        def clean_filters_for_partitions(
+            filters,
+            partition_keys,
+        ):
             """
             Remove partition keys from filters.
 
@@ -262,7 +266,13 @@ class DataStore(BaseRemoteClient):
                     cleaned_filters.append(new_group)
             return cleaned_filters
 
-        urls = list_partitioned_urls(base_path, partition_keys, start_time, end_time)
+        urls = list_partitioned_urls(
+            base_path,
+            partition_keys,
+            start_time,
+            end_time,
+            time_partitioning_granularity,
+        )
 
         dfs = []
         errors = []
@@ -366,6 +376,7 @@ class DataStore(BaseRemoteClient):
                             end_time,
                             partitions_time_attributes,
                             df_module,
+                            time_partitioning_granularity,
                             **kwargs,
                         )
 
@@ -403,6 +414,7 @@ class DataStore(BaseRemoteClient):
                             end_time_inner,
                             partitions_time_attributes,
                             df_module,
+                            time_partitioning_granularity,
                             **kwargs,
                         )
                     else:

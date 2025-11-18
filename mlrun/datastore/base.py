@@ -169,7 +169,9 @@ class DataStore(BaseRemoteClient):
         **kwargs,
     ):
         """Read only the relevant partitions using pandas filters and concat."""
-        logger.info("starting urls partition process")
+        logger.info(
+            "starting urls partition process", granularity=time_partitioning_granularity
+        )
         if not partition_keys:
             raise ValueError(
                 f"No partition structure found under {base_path}, while usage requires partition keys"

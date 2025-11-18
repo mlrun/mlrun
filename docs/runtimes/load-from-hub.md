@@ -1,9 +1,11 @@
 (load-from-hub)=
 # MLRun hub
 
-The [MLRun hub](https://www.mlrun.org/hub/) has a wide range of functions, modules, and apps that you can incorporate into your projects, for a variety of use cases.
+The [MLRun hub](https://www.mlrun.org/hub/) has a wide range of functions and modules that you can incorporate into your projects, for a variety of use cases. Reusing built-in code can significantly speed up your development cycle.
 You can search and filter the categories and kinds to find an item that meets your needs.
-Reusing built-in code can significantly speed up your development cycle. 
+
+The examples in this page assume that you are working in a project and that all dependencies were already imported.
+
 <br>
 ![Hub](../_static/images/marketplace-ui.png)
 **In this section**
@@ -15,29 +17,29 @@ Reusing built-in code can significantly speed up your development cycle.
 ## Functions
 
 There are functions for ETL, data preparation, training (ML & Deep learning), serving, alerts and notifications and more.
-Each function has a docstring that explains how to use it. The functions are categorized and their associated versions are listed, so you can easily find a suitable function/module for your needs.
-
-### Prerequisiteß
-
-- {ref}`Create your project <create-projects>`
+Each function has a docstring that explains how to use it. The functions are categorized and their associated versions are listed, so you can easily find a suitable function for your needs.
 
 ### Load a function from the MLRun hub
 
-This section demonstrates how to import a function from the hub into your project, and provides some basic instructions on how to run the function.
+There are two ways to import a function from the hub:
+- {py:meth}`~mlrun.projects.MlrunProject.set_function`: adds or update a function object to your project
+- {py:meth}`~mlrun.import_function`: creates a function object that you can use as relevant, for example running it as a job
 
-Run `project.set_function` to add or update a function object to your project.
-See all the parameters in {py:meth}`~mlrun.projects.MlrunProject.set_function`.
+#### Use `set_function`
 
-The `describe` function analyzes a csv or parquet file for data analysis.
-To load the `describe` function from the MLRun hub:
+This example uses the `describe` function, which analyzes a csv or parquet file for data analysis. 
+
 
 ```python
+# Load the `describe` function from the MLRun hub:
 project.set_function("hub://describe", "describe")
-```
 
-To load the same function from your [custom hub](#custom-hub):
-```python
+# Or load the same function from your [custom hub](#custom-hub):
+
 project.set_function("hub://<hub-name>/describe", "describe")
+
+# Create a function object named, for example, `my_describe`:
+my_describe = project.func("describe")
 ```
 ```{caution} 
 If you don't specify a hub name at all, the algorithm searches for the function in all the hubs, 
@@ -45,11 +47,6 @@ giving preference to newly defined hubs. Therefore, if you
 have multiple hubs, best practice is to explicitly mention the hub name.
 ```
 
-After loading the function, create a function object named, for example, `my_describe`:
-
-```python
-my_describe = project.func("describe")
-```
 
 ### View the function parameters
 

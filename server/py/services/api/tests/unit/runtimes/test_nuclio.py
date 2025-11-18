@@ -1082,23 +1082,16 @@ class TestNuclioRuntime(TestRuntimeBase):
     @pytest.mark.parametrize(
         "client_version,client_python_version,nuclio_version,expected_nuclio_runtime",
         [
-            ("1.2.0", None, "1.5.9", "python:3.6"),
-            ("1.2.0", None, "1.9.15", mlrun.mlconf.default_nuclio_runtime),
-            (None, None, "1.5.9", "python:3.6"),
-            (None, None, "1.9.15", mlrun.mlconf.default_nuclio_runtime),
-            ("1.3.0", "3.7", "1.11.9", "python:3.7"),
-            ("1.3.0", "3.9", "1.11.9", "python:3.9"),
-            ("1.3.0", "3.9", "1.5.9", "python:3.6"),
-            ("1.3.0-rc1", "3.9", "1.11.9", "python:3.9"),
-            ("1.3.0-rc1", "3.7", "1.11.9", "python:3.7"),
-            ("0.0.0-unstable", "3.7", "1.11.9", "python:3.7"),
-            ("0.0.0-unstable", "3.9", "1.11.9", "python:3.9"),
+            # explicit python version
+            ("1.11.0", "3.9", "1.14.14", "python:3.9"),
+            ("1.11.0", "3.11", "1.14.14", "python:3.11"),
+            # no explicit python version defaults to config
+            (None, None, "1.14.14", mlrun.mlconf.default_nuclio_runtime),
+            ("1.11.0", None, "1.14.14", mlrun.mlconf.default_nuclio_runtime),
+            # mlrun is known, not forcing any python version
+            ("0.0.0-unstable", "3.9", "1.14.14", "python:3.9"),
+            ("0.0.0-unstable", "3.11", "1.14.14", "python:3.11"),
         ],
-    )
-    # TODO: Un-skip and align test
-    #  once upgrading to Python 3.12 and resolving the Python version according to client python version
-    @pytest.mark.skip(
-        "Python version is not determined by the client version until python version is bumped to 3.12"
     )
     def test_deploy_with_runtime(
         self,
@@ -1247,37 +1240,46 @@ class TestNuclioRuntime(TestRuntimeBase):
         with pytest.raises(ValueError):
             mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility("")
 
-    def test_min_nuclio_versions_decorator_failure(self):
-        mlconf.nuclio_version = "1.6.10"
-
-        for case in [
+    @pytest.mark.parametrize(
+        "case",
+        [
             ["1.6.11"],
             ["2.6.11"],
             ["1.5.9", "1.6.11"],
-        ]:
+        ],
+    )
+    def test_min_nuclio_versions_decorator_failure(self, case):
+        mlconf.nuclio_version = "1.6.10"
 
-            @mlrun.runtimes.nuclio.function.min_nuclio_versions(*case)
-            def fail():
-                pytest.fail("Should not enter this function")
+        @mlrun.runtimes.nuclio.function.min_nuclio_versions(*case)
+        def fail():
+            pytest.fail("Should not enter this function")
 
-            with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
-                fail()
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            fail()
 
-    def test_min_nuclio_versions_decorator_success(self):
-        for nuclio_version in ["1.6.10", "2.2.1", "", "Gibberish"]:
-            mlconf.nuclio_version = nuclio_version
+    @pytest.mark.parametrize(
+        "nuclio_version",
+        ["1.6.10", "2.2.1", "", "Gibberish"],
+    )
+    @pytest.mark.parametrize(
+        "min_nuclio_versions_args",
+        [
+            ["1.6.9"],
+            ["1.5.9", "1.6.9"],
+            ["1.0.0", "0.9.81", "1.4.1"],
+        ],
+    )
+    def test_min_nuclio_versions_decorator_success(
+        self, nuclio_version, min_nuclio_versions_args
+    ):
+        mlconf.nuclio_version = nuclio_version
 
-            for case in [
-                ["1.6.9"],
-                ["1.5.9", "1.6.9"],
-                ["1.0.0", "0.9.81", "1.4.1"],
-            ]:
+        @mlrun.runtimes.nuclio.function.min_nuclio_versions(*min_nuclio_versions_args)
+        def success():
+            pass
 
-                @mlrun.runtimes.nuclio.function.min_nuclio_versions(*case)
-                def success():
-                    pass
-
-                success()
+        success()
 
     def test_load_function_with_source_archive_git(self):
         fn = self._generate_runtime(self.runtime_kind)

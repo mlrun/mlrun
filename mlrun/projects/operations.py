@@ -85,17 +85,17 @@ def run_function(
 ) -> Union[mlrun.model.RunObject, mlrun_pipelines.models.PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
-    run_function() allow you to execute a function locally, on a remote cluster, or as part of an automated workflow
-    function can be specified as an object or by name (str), when the function is specified by name it is looked up
-    in the current project eliminating the need to redefine/edit functions.
+    run_function() allows you to execute a function locally, on a remote cluster, or as part of an automated workflow.
+    The function can be specified as an object or by name (str). When the function is specified by name it is looked up
+    in the current project, eliminating the need to redefine/edit functions.
 
-    when functions run as part of a workflow/pipeline (project.run()) some attributes can be set at the run level,
+    When functions run as part of a workflow/pipeline (project.run()) some attributes can be set at the run level,
     e.g. local=True will run all the functions locally, setting artifact_path will direct all outputs to the same path.
-    project runs provide additional notifications/reporting and exception handling.
-    inside a Kubeflow pipeline (KFP) run_function() generates KFP node (see PipelineNodeWrapper) which forms a DAG
-    some behavior may differ between regular runs and deferred KFP runs.
+    Project runs provide additional notifications/reporting and exception handling.
+    Inside a Kubeflow pipeline (KFP) run_function() generates KFP node (see PipelineNodeWrapper) which forms a DAG.
+    Some behavior may differ between regular runs and deferred KFP runs.
 
-    example (use with function object)::
+    Example (use with function object)::
 
         LABELS = "is_error"
         MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
@@ -107,7 +107,7 @@ def run_function(
             inputs={"dataset": DATA_PATH},
         )
 
-    example (use with project)::
+    Example (use with project)::
 
         # create a project with two functions (local and from hub)
         project = mlrun.new_project(project_name, "./proj)
@@ -119,7 +119,7 @@ def run_function(
         run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
                                      inputs={"dataset": run1.outputs["data"]})
 
-    example (use in pipeline)::
+    Example (use in pipeline)::
 
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):

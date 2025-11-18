@@ -101,6 +101,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |NA |Improved the {ref}`serving-graph` documentation.|
 |ML-8094|Improved the `set_function` documentation. See {ref}`create-and-use-functions`.|
 |NA|Updated {ref}`genai-serving-graph` with new functionalities.|
+|NA|New page: {ref}`hf-model-image-classification`
 
 
 ### Closed issues
@@ -1420,10 +1421,11 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.11.0 | |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
-| v1.10.0 | |`project="default"` is deprecated. See [Breaking changes](#1.10.0-breaking).
-| v1.10.0 | |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
-| v1.10.0 | |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
+| v1.11.0 |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
+|v1.10.0 |SQLtargets are no longer supported.|
+| v1.10.0 |`project="default"` is deprecated. See [Breaking changes](#1.10.0-breaking).
+| v1.10.0 |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
+| v1.10.0 |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
 | v1.6.0 |ML-5137|The Create/edit function pane was removed from the UI.|
 | v1.5.0 |ML-4075|Python 3.7                                                     |
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`   |

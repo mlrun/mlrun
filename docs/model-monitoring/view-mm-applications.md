@@ -19,10 +19,10 @@ The lag and commited offset statistics reflect the current state of the streams.
 <br>
 The <b>tiles</b> at the top present:
 
-- Applications: The total number of monitoring applications.
-- App Status: The number of functions running and the failed functions.
+- Applications: The total number of monitoring applications
+- App Status: The number of functions running and the failed functions
 - Endpoints: The total number of model endpoints, categorized by Batch and Real-time
-- Running Interval: The interval at which the apps monitor the models. 
+- Running Interval: The interval at which the apps monitor the models
 
 The <b>graph</b> shows the model endpoints with suspected/detected issues. The time interval for each bar is based on the running interval:
 - Up to 6 hours: 10-minute intervals
@@ -39,11 +39,11 @@ See more about these functions in {ref}`model-monitoring-des`.
 
 ## Application page
 From the main view, click an app name to open the App view. The tiles show the app status, number of endpoints processed by the app during the timeframe, possible detections, lag, and committed offset. The lag and commited offset statistics reflect the current state of the streams.
-The following tables include: a list of all artifacts, the monitoring app results, metrics, and status of all the shards/partitions. 
+The following tables include: a list of all artifacts, a sampling of the most recent monitoring app results and metrics, and status of all the shards/partitions. 
 
 <img src="../_static/images/app-page.png">
 
 ## Application metrics
-Access the Application metrics view either with the Application metrics button in the Application page or from the row of the app in the Monitoring Apps view. This view displays the latest results and metrics. Select a metric and optionally modify the timeframe. By default, the first model endpoint is selected. You can select another model endpoint from the list. When switching model endpoints, the previously selected metrics and results remain (if applicable).
+Access the Application metrics view either with the Application metrics button in the Application page or from the row of the app in the Monitoring Apps view. This view displays the results and metrics according to your time selection. Select a metric and optionally modify the timeframe. By default, the first model endpoint is selected. You can select another model endpoint from the list. When switching model endpoints, the previously selected metrics and results remain (if applicable).
 
 <img src="../_static/images/app-metrics.png">

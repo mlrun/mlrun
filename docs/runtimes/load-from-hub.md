@@ -1,8 +1,8 @@
 (load-from-hub)=
 # MLRun hub
 
-The [MLRun hub](https://www.mlrun.org/hub/) has a wide range of functions and modules that you can incorporate into your projects, for a variety of use cases. Reusing built-in code can significantly speed up your development cycle.
-You can search and filter the categories and kinds to find an item that meets your needs.
+The [MLRun hub](https://www.mlrun.org/hub/) provides a wide range of pre-developed functions and modules for your projects, for a variety of use cases. Reusing built-in code can significantly speed up your development cycle.
+You can search and filter the categories and kinds to find an item that meets your needs. Every function and module in the hub has complete documentation and examples.
 
 The examples in this page assume that you are working in a project and that all dependencies were already imported.
 
@@ -27,8 +27,7 @@ There are two ways to import a function from the hub:
 
 #### Use `set_function`
 
-This example uses the `describe` function, which analyzes a csv or parquet file for data analysis. 
-
+This example runs the describe function. This function analyzes a dataset (in this case it's a csv file) and generates HTML files (e.g. correlation, histogram) and saves them under the artifact path.
 
 ```python
 # Load the `describe` function from the MLRun hub:
@@ -46,8 +45,22 @@ If you don't specify a hub name at all, the algorithm searches for the function 
 giving preference to newly defined hubs. Therefore, if you 
 have multiple hubs, best practice is to explicitly mention the hub name.
 ```
+#### Use import_function
+This example uses the aggregate function, which perform a rolling aggregation of artifacts.
 
+```python
+# Import the function
+aggregate_function = mlrun.import_function("hub://aggregate")
+if os.getenv('V3IO_ACCESS_KEY','FALSE')=='TRUE':
+    aggregate_function.apply(mlrun.auto_mount())
+    ```
+import numpy as np
 
+# Declare a custom aggregation function
+def dist_from_mean(l):
+    mean = np.mean(l)
+    return abs(list(l)[3] - mean)
+```
 ### View the function parameters
 
 To view the parameters, run the function with `.doc()`:
@@ -77,16 +90,30 @@ Use the `run` method to run the function.
 
 When working with functions, pay attention to the following:
 
-- Input vs. params &mdash; for sending data items to a function, send it via "inputs" and not as params.
-- Working with artifacts &mdash; Artifacts from each run are stored in the `artifact_path`, which can be set globally with the environment variable (MLRUN_ARTIFACT_PATH) or with the config. If it's not already set you can create a directory and use it in the runs. Using `{{run.uid}}` in the path creates a unique directory per run. When using pipelines you can use the `{{workflow.uid}}` template option.
+- Input vs. params &mdash; for sending data items to a function, send it via "inputs" and not as params. See {ref}`data-items`.
+- Working with artifacts &mdash; Artifacts from each run are stored in the `artifact_path`, which can be set globally with the environment variable (MLRUN_ARTIFACT_PATH) or with the config. If it's not already set, you can create a directory and use it in the runs. Using `{{run.uid}}` in the path creates a unique directory per run. When using pipelines you can use the `{{workflow.uid}}` template option. See {ref}`artifacts`.
 
-This example runs the describe function. This function analyzes a dataset (in this case it's a csv file) and generates HTML files (e.g. correlation, histogram) and saves them under the artifact path.
-
+The function that was added with 
 ```python
-DATA_URL = "https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv"
-
-my_describe.run(name="describe", inputs={"table": DATA_URL}, output_path=artifact_path)
+describe_run = describe_func.run(
+            name="task-describe",
+            handler='analyze',
+            inputs={"table": os.path.abspath("artifacts/random_dataset.parquet")},
+            params={"label_column": "label"},
+            local=True
+        )
 ```
+
+
+aggregate_run = aggregate_function.run(name='aggregate',
+                       params = {'metrics': ['Temperature','Humidity'],
+                                 'labels': ['Occupancy'],
+                                 'metric_aggs': ['mean','std',dist_from_mean],
+                                 'label_aggs': ['sum'],
+                                 'window': 5,
+                                 'center': True},
+                       inputs={'df_artifact': data_path},
+                       local=True)
 
 ## Model monitoring modules
 The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.

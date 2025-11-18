@@ -7,12 +7,20 @@ You can search and filter the categories and kinds to find an item that meets yo
 The examples in this page assume that you are working in a project and that all dependencies were already imported.
 
 <br>
-![Hub](../_static/images/marketplace-ui.png)
+
+<img src="../_static/images/marketplace-ui.png" width="800">
+
+<br>
+
 **In this section**
 
 - [Functions](#functions)
 - [Model monitoring modules](#model-monitoring-modules)
 - [Custom hub](#custom-hub)
+
+```{caution} 
+**About custom hubs**: If you don't specify a hub name at all, the algorithm searches for the function in all the hubs, starting with the most recently defined (custom) hub and going backwards in time. The MlRun hub is the last in the search. If you have multiple hubs, best practice is to specify the hub name when importing from any hub.
+```
 
 ## Functions
 
@@ -40,15 +48,11 @@ project.set_function("hub://<hub-name>/describe", "describe")
 # Create a function object named, for example, `my_describe`:
 my_describe = project.func("describe")
 ```
-```{caution} 
-If you don't specify a hub name at all, the algorithm searches for the function in all the hubs, 
-giving preference to newly defined hubs. Therefore, if you 
-have multiple hubs, best practice is to explicitly mention the hub name.
-```
+
 #### Use import_function
 This example uses the aggregate function, which perform a rolling aggregation of artifacts.
 
-```python
+```
 # Import the function
 aggregate_function = mlrun.import_function("hub://aggregate")
 if os.getenv('V3IO_ACCESS_KEY','FALSE')=='TRUE':
@@ -93,27 +97,32 @@ When working with functions, pay attention to the following:
 - Input vs. params &mdash; for sending data items to a function, send it via "inputs" and not as params. See {ref}`data-items`.
 - Working with artifacts &mdash; Artifacts from each run are stored in the `artifact_path`, which can be set globally with the environment variable (MLRUN_ARTIFACT_PATH) or with the config. If it's not already set, you can create a directory and use it in the runs. Using `{{run.uid}}` in the path creates a unique directory per run. When using pipelines you can use the `{{workflow.uid}}` template option. See {ref}`artifacts`.
 
-The function that was added with 
+Example of running the `describe` function:
 ```python
 describe_run = describe_func.run(
-            name="task-describe",
-            handler='analyze',
-            inputs={"table": os.path.abspath("artifacts/random_dataset.parquet")},
-            params={"label_column": "label"},
-            local=True
-        )
+    name="task-describe",
+    handler="analyze",
+    inputs={"table": os.path.abspath("artifacts/random_dataset.parquet")},
+    params={"label_column": "label"},
+    local=True,
+)
 ```
-
-
-aggregate_run = aggregate_function.run(name='aggregate',
-                       params = {'metrics': ['Temperature','Humidity'],
-                                 'labels': ['Occupancy'],
-                                 'metric_aggs': ['mean','std',dist_from_mean],
-                                 'label_aggs': ['sum'],
-                                 'window': 5,
-                                 'center': True},
-                       inputs={'df_artifact': data_path},
-                       local=True)
+Example of running the `aggregate` function:
+```python
+aggregate_run = aggregate_function.run(
+    name="aggregate",
+    params={
+        "metrics": ["Temperature", "Humidity"],
+        "labels": ["Occupancy"],
+        "metric_aggs": ["mean", "std", dist_from_mean],
+        "label_aggs": ["sum"],
+        "window": 5,
+        "center": True,
+    },
+    inputs={"df_artifact": data_path},
+    local=True,
+)
+```
 
 ## Model monitoring modules
 The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.

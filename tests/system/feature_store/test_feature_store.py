@@ -1059,7 +1059,10 @@ class TestFeatureStore(TestMLRunSystem):
 
         offline = get_offline_target(fs, name="parquet_target")
         result_df = offline.as_df(
-            start_time=start_time, end_time=end_time, time_column="timestamp"
+            start_time=start_time,
+            end_time=end_time,
+            time_column="timestamp",
+            time_partitioning_granularity=granularity,
         )
 
         result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(

@@ -1,7 +1,7 @@
 (llm-prompt-artifcta)=
 # LLM prompt artifacts
 
-LLM prompt artifacts are defined by their prompt template, the model, and the invocation configuration.
+LLM prompt artifacts capture a prompt definition for large language model (LLM) interactions. 
 
 **In this section**
 - [SDK](#sdk)
@@ -14,37 +14,97 @@ LLM prompt artifacts are defined by their prompt template, the model, and the in
 - {py:class}`~mlrun.projects.MlrunProject.list_llm_prompts`: Lists LLM prompt artifacts in the current project with support for filtering.
 - {py:class}`~mlrun.projects.MlrunProject.paginated_list_llm_prompts`: Retrieves a paginated list of LLM prompt artifacts in the current project.
 
-## Logging LLM prompt artifacts
-LLM prompt artifacts capture a prompt definition for LLM interactions. You can log prompt artifacts (to your project) with an inline prompt template, or from a file, and with optional metadata like generation parameters, a legend for variable injection, and references to a parent model artifact. 
+## LLM prompt artifacts
+
+The **prompt template** format is a rformat will be a list[dict], typically with two roles: system and user.
+There is no limitation on the list size.
+Each content can hold a plain text, a place holder, or a combination of both.
+The place holders names are relevant for the entire template: if there is a place holder “user_input”, it can be used inside a few contents, and will always be the same.
+
+
+For example:
+```
+prompt_template=[
+    {
+        "role": "system",
+        "content": "You are a helpful customer support assistant",
+    },
+    {
+        "role": "user",
+        "content": "The customer reports: {issue_description}",
+    },
+],
+```
+
+
+The **prompt legend** is a dictionary for variable injection where each key is a placeholder in the prompt (for example, ``{user_name}``)
+and the value is a dictionary holding two keys:
+- `field` points to the field in the event that is replaced by the value. If set to None or not exist, it is replaced with the placeholder name. 
+- `description` points to the explanation of what that placeholder represents. It's useful for documenting and clarifying dynamic parts of the prompt. 
+For example:
+
+```
+ prompt_legend={
+     "issue_description": {
+          "field": "user_issue",
+          "description": "Detailed description of the customer's issue",
+      },
+      "solution": {
+           "field": "proposed_solution",
+           "description": "Suggested fix for the customer's issue",
+      },
+},
+```
+The **model_artifact** 
+
+Thje `model_artifact` is a reference to the parent model (either a ModelArtifact or a model URI string).
+
+The **invocation_config**
+The `invocation_config` is a configuration dictionary for model generation parameters (e.g., temperature, max tokens), for example:
+
+```
+invocation_config={"temperature": 0.5, "max_tokens": 200},
+```
+
+## Log LLM prompt artifacts
+You can log prompt artifacts (to your project) with an inline prompt template, or from a file, and with optional metadata like generation parameters, a legend for variable injection, and references to a parent model artifact. 
 Prompt artifacts:
 - Are uniquely defined by their LLM, prompt template, and the model generation configuration. 
 - Support {ref}`local and remote models<genai-serving>`.
 - Support [inline prompt templates and templates from a file](../genai/deployment/genai_serving_graph.ipynb#log-the-llm-prompt-artifacts).
 
-Use {py:meth}`~mlrun.projects.MlrunProject.log_llm_prompt` to log prompt artifacts as part of a project.
-
-The basic usage is: 
+Example:
 
 ```
-project/context.log_llm_prompt(
-  key,
-  description: str = "", # User-provided description for this prompt template.
-
-  prompt: str,       # Prompt text, with possible template params.
-  template_params: dict = None, # Configurations for the template params.
-
-  model_artifact: Union[ModelArtifact, str] = None,
-  model_config: dict = None,
-
-  # General artifact identification and metadata params.
-  artifact_path=None,
-  tag = None,
-  labels: Union[list[str], str] = None, # A single label or a list of labels. Each of format key[=value]
-  **kwargs,
+project.log_llm_prompt(
+    key="customer_support_prompt",
+    prompt_template=[
+        {
+            "role": "system",
+            "content": "You are a helpful customer support assistant.",
+        },
+        {
+            "role": "user",
+            "content": "The customer reports: {issue_description}",
+        },
+    ],
+    prompt_legend={
+        "issue_description": {
+            "field": "user_issue",
+            "description": "Detailed description of the customer's issue",
+        },
+        "solution": {
+            "field": "proposed_solution",
+            "description": "Suggested fix for the customer's issue",
+        },
+    },
+    model_artifact=model,
+    invocation_config={"temperature": 0.5, "max_tokens": 200},
+    description="Prompt for handling customer support queries",
+    tag="support-v1",
+    labels={"domain": "support"},
 )
 ```
-
-
 
 ## Deleting prompt artifacts using the SDK
 

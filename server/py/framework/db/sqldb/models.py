@@ -24,7 +24,6 @@ from sqlalchemy import (
     BOOLEAN,
     JSON,
     Column,
-    Connection,
     Enum,
     ForeignKey,
     ForeignKeyConstraint,

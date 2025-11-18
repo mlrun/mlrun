@@ -84,7 +84,7 @@ class TimescaleDBQueryBuilder:
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
     ) -> str:
         """
-        Generate SQL filter for metrics.
+        Generate SQL filter for metrics using both application_name and metric_name columns.
 
         :param metrics: List of ModelEndpointMonitoringMetric objects
         :return: SQL WHERE clause fragment for metrics filtering
@@ -92,28 +92,47 @@ class TimescaleDBQueryBuilder:
         if not metrics:
             raise mlrun.errors.MLRunInvalidArgumentError("Metrics list cannot be empty")
 
-        metric_names = [metric.name for metric in metrics]
-        if len(metric_names) == 1:
-            return f"{mm_schemas.MetricData.METRIC_NAME} = '{metric_names[0]}'"
-        metric_list = "', '".join(metric_names)
-        return f"{mm_schemas.MetricData.METRIC_NAME} IN ('{metric_list}')"
+        # Build filter that includes both application_name and metric_name
+        # Format: (application_name = 'app1' AND metric_name = 'name1') OR
+        # (application_name = 'app2' AND metric_name = 'name2')
+        conditions = []
+        for metric in metrics:
+            condition = (
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' "
+                f"AND {mm_schemas.MetricData.METRIC_NAME} = '{metric.name}')"
+            )
+            conditions.append(condition)
+
+        if len(conditions) == 1:
+            return conditions[0]
+        return " OR ".join(conditions)
 
     @staticmethod
     def build_results_filter(
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
     ) -> str:
         """
-        Generate SQL filter for results using result_name column.
+        Generate SQL filter for results using both application_name and result_name columns.
         :param metrics: List of ModelEndpointMonitoringMetric objects
         :return: SQL WHERE clause fragment for results filtering
         """
         if not metrics:
             raise mlrun.errors.MLRunInvalidArgumentError("Metrics list cannot be empty")
-        metric_names = [metric.name for metric in metrics]
-        if len(metric_names) == 1:
-            return f"{mm_schemas.ResultData.RESULT_NAME} = '{metric_names[0]}'"
-        metric_list = "', '".join(metric_names)
-        return f"{mm_schemas.ResultData.RESULT_NAME} IN ('{metric_list}')"
+
+        # Build filter that includes both application_name and result_name
+        # Format: (application_name = 'app1' AND result_name = 'name1') OR
+        # (application_name = 'app2' AND result_name = 'name2')
+        conditions = []
+        for metric in metrics:
+            condition = (
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' "
+                f"AND {mm_schemas.ResultData.RESULT_NAME} = '{metric.name}')"
+            )
+            conditions.append(condition)
+
+        if len(conditions) == 1:
+            return conditions[0]
+        return " OR ".join(conditions)
 
     @staticmethod
     def build_metrics_filter_from_names(metric_names: list[str]) -> str:

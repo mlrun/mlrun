@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import os.path
 import pathlib
 import re
@@ -18,7 +19,6 @@ import textwrap
 import typing
 from base64 import b64decode, b64encode
 from collections import defaultdict
-from os import path
 from urllib.parse import urlparse
 
 from kubernetes import client
@@ -472,8 +472,8 @@ def build_image(
         if is_v3io_source:
             source = parsed_url.path
             to_mount = True
-            source_dir_to_mount, source_to_copy = path.split(source)
-            source_dir_to_mount = path.normpath(source_dir_to_mount)
+            source_dir_to_mount, source_to_copy = os.path.split(source)
+            source_dir_to_mount = os.path.normpath(source_dir_to_mount)
         elif is_s3_source:
             source = parsed_url.path
 
@@ -483,7 +483,7 @@ def build_image(
         # relative paths are not supported at build time
         # "." and "./" are considered as 'project context'
         # TODO: enrich with project context if pulling on build time
-        elif path.isabs(source):
+        elif os.path.isabs(source):
             source_to_copy = source
 
         else:
@@ -512,7 +512,7 @@ def build_image(
         relative_workdir = source_code_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.build.source_code_target_dir = path.join(
+        runtime.spec.build.source_code_target_dir = os.path.join(
             "/home/mlrun_code", relative_workdir
         )
 
@@ -1203,12 +1203,6 @@ def _enrich_kaniko_env_for_s3_context(
     - Only when we fake a default region (no region anywhere) do we also:
         * Add S3_FORCE_PATH_STYLE=true (MinIO / path-style assumption).
     """
-
-    if not isinstance(source_url, str):
-        return
-    if not source_url.startswith("s3://"):
-        return
-
     env_vars = env_vars or []
 
     def get_env_var_by_name(

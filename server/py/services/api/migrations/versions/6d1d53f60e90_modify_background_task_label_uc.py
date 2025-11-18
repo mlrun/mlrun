@@ -14,9 +14,9 @@
 
 """modify background task label uc
 
-Revision ID: 33e653ca2248
-Revises: 31d54cd9ff11
-Create Date: 2025-10-26 16:13:01.664266
+Revision ID: 6d1d53f60e90
+Revises: 0da0066c77f5
+Create Date: 2025-11-18 09:44:39.663052
 
 """
 
@@ -24,8 +24,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "33e653ca2248"
-down_revision = "31d54cd9ff11"
+revision = "6d1d53f60e90"
+down_revision = "0da0066c77f5"
 branch_labels = None
 depends_on = None
 

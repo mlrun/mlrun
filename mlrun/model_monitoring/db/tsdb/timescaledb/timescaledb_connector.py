@@ -298,9 +298,9 @@ class TimescaleDBConnector(TSDBConnector):
         columns: Optional[list[str]] = None,
     ) -> pd.DataFrame:
         """
-        Get raw records from TimescaleDB as pandas DataFrame (similar to TDEngine).
+        Get raw records from TimescaleDB as pandas DataFrame.
 
-        This method provides direct access to raw table data, matching TDEngine's _get_records() API.
+        This method provides direct access to raw table data.
 
         :param table: Table name - "metrics", "results", or "predictions"
         :param start: Start time for the query

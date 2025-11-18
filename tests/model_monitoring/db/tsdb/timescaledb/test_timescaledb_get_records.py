@@ -21,7 +21,7 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 
 
 class TestGetRecords:
-    """Tests for TimescaleDBConnector._get_records() method - API parity with TDEngine."""
+    """Tests for TimescaleDBConnector._get_records() method."""
 
     def test_get_records_metrics_all_endpoints(self, connector, query_test_helper):
         """Test _get_records() for metrics table with no endpoint filter."""
@@ -166,6 +166,50 @@ class TestGetRecords:
         expected_values = {d[mm_schemas.ResultData.RESULT_VALUE] for d in test_data}
         assert set(df[mm_schemas.WriterEvent.APPLICATION_NAME]) == expected_apps
         assert set(df[mm_schemas.ResultData.RESULT_VALUE]) == expected_values
+
+    def test_get_records_predictions_all_endpoints(self, connector):
+        """Test _get_records() for predictions table with no endpoint filter."""
+        # Insert test data for multiple endpoints directly into predictions table
+        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        predictions_table = connector._metrics_queries.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+
+        # Define test data
+        test_data = [
+            {"endpoint_id": "endpoint-1", "latency": 0.15},
+            {"endpoint_id": "endpoint-2", "latency": 0.25},
+        ]
+
+        # Insert test data
+        for data in test_data:
+            connector._connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {predictions_table.full_name()}
+                    (end_infer_time, endpoint_id, latency, custom_metrics,
+                     estimated_prediction_count, effective_sample_count)
+                    VALUES ('{test_time}', '{data["endpoint_id"]}', {data["latency"]}, '{{}}', 1.0, 1)
+                    """
+                ]
+            )
+
+        # Query all endpoints using _get_records
+        df = connector._get_records(
+            table="predictions",
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
+            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
+            endpoint_id=None,  # Get ALL endpoints
+        )
+
+        # Verify we got data for both endpoints (reference test_data)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert len(df) == len(test_data)
+        expected_endpoints = {d["endpoint_id"] for d in test_data}
+        expected_latencies = {d["latency"] for d in test_data}
+        assert set(df[mm_schemas.WriterEvent.ENDPOINT_ID]) == expected_endpoints
+        assert set(df["latency"]) == expected_latencies
 
     def test_get_records_empty_result(self, connector):
         """Test _get_records() returns empty DataFrame when no data exists."""

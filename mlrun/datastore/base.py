@@ -299,7 +299,7 @@ class DataStore(BaseRemoteClient):
             else:
                 return pd.DataFrame()
 
-        final_df = pd.concat(dfs, ignore_index=True)
+        final_df = pd.concat(dfs)
         logger.info("Finished reading DataFrame columns", columns=final_df.columns)
         return final_df
 

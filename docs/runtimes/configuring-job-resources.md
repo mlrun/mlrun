@@ -172,7 +172,7 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 
 ## Preemption mode: Spot vs. On-demand nodes
-ß
+
 You can control whether to run your MLRun functions on spot nodes or on-demand nodes. 
 - **Spot (preemptible)** nodes give you access to spare computing capacity from your cloud environment. 
 With spot instances, you request capacity from specific availability zones, dependent on spare computing capacity. This is a good choice if you can be flexible about when your application runs,

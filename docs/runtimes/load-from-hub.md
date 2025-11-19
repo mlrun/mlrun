@@ -15,7 +15,7 @@ The examples in this page assume that you are working in a project and that all 
 **In this section**
 
 - [Functions](#functions)
-- [Model monitoring modules](#model-monitoring-modules)
+- [Modules](#modules)
 - [Custom hub](#custom-hub)
 
 ```{caution} 
@@ -124,7 +124,7 @@ aggregate_run = aggregate_function.run(
 )
 ```
 
-## Model monitoring modules
+## Modules
 The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
 Each module in the hub has an accompanying example notebook with complete usage examples. 
 
@@ -132,11 +132,11 @@ There are two means of using modules from the hub:
 - [Import the module as a model monitoring function and use it without modifying it](#module-off-shelf)
 - [Import the module, and optionally test and modify it before running it](#modify-module)
 
-### Prerequisites
-
-1. {ref}`Create your project <create-projects>`
-2. [Set the datastore profiles](../tutorials/05-model-monitoring.ipynb#set-datastore-profiles)
-2. [Enable model monitoring](../tutorials/05-model-monitoring.ipynb#enable-model-monitoring)
+```{admonition} Note
+If you are importing a model monitoring module:
+- [Set the datastore profiles](../tutorials/05-model-monitoring.ipynb#set-datastore-profiles)
+- [Enable model monitoring](../tutorials/05-model-monitoring.ipynb#enable-model-monitoring)
+```
 
 (module-off-shelf)=
 ### Use a module "off the shelf"
@@ -217,7 +217,7 @@ The hierarchy must be:
 
 ### Add a custom hub to the MLRun database
 When you add a hub, specify `order=-1` to add it to the top of the list. 
-The list order is relevant when ßloading a function.
+The list order is relevant when loading a function.
 if you don't specify a hub name, MLRun starts searching for the function with the last added hub.
 If you want to add a hub but not at the top of the list, view the current list using {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_hub_source`.
 The MLRun hub is always the last in the list (and cannot be modified). 

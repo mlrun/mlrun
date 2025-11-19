@@ -56,9 +56,8 @@ on:
 jobs:
   system-test-cleanup:
     name: System Test Cleanup
-    runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
-    container:
-      image: gcr.io/iguazio/ubuntu:latest
+    runs-on:
+      group: mlrun-ce
     timeout-minutes: 10
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'

@@ -63,8 +63,8 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 
 **Docs:**
 [Working with RAG](https://docs.mlrun.org/en/stable/genai/development/working-with-rag.html), [Evalating LLMs](https://docs.mlrun.org/en/stable/genai/development/evaluating-llms.html), [Fine tuning LLMS](https://docs.mlrun.org/en/stable/genai/development/fine-tuning-llms.html)
-**Demos:**
-[Call center demo](https://github.com/mlrun/demo-call-center), [Build & deploy custom (fine-tuned) LLM models and applications](https://github.com/mlrun/demo-llm-tuning/blob/main), [Interactive bot demo using LLMs](https://github.com/mlrun/demo-llm-bot/blob/main)
+**Demo:**
+[Call center demo](https://github.com/mlrun/demo-call-center)
 **Video:**
 [Call center](https://youtu.be/YycMbxRgLBA)
 
@@ -79,8 +79,8 @@ inferring results using one or more models, and driving actions.
 [Serving gen AI models](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving.html), [GPU utilization](https://docs.mlrun.org/en/stable/genai/deployment/gpu_utilization.html), [Gen AI realtime serving graph](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving_graph.html)
 **Tutorial:**
 [Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai-01-basic-tutorial.html)
-**Demos:**
-[Call center demo](https://github.com/mlrun/demo-call-center), [Build & deploy custom(fine-tuned)LLM models and applications](https://github.com/mlrun/demo-llm-tuning/blob/main), [Interactive bot demo using LLMs](https://github.com/mlrun/demo-llm-bot/blob/main)
+**Demo:**
+[Call center demo](https://github.com/mlrun/demo-call-center)
 **Video:**
 [Call center](https://youtu.be/YycMbxRgLBA)
 
@@ -94,8 +94,6 @@ Collect production data, metadata, and metrics to tune the model and application
 [Model monitoring <monitoring](https://docs.mlrun.org/en/stable/concepts/monitoring.html), [Alerts and notifications](https://docs.mlrun.org/en/stable/concepts/alerts-notifications.html)
 **Tutorials:**
 [Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai-01-basic-tutorial.html), [Model monitoring using LLM](https://docs.mlrun.org/en/stable/tutorials/genai-02-monitoring-llm.html)
-**Demo:**
-[Build & deploy custom (fine-tuned) LLM models and applications](https://github.com/mlrun/demo-llm-tuning/blob/main)
 
 
 <a id="mlops-tasks"></a>

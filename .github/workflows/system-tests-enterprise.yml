@@ -337,6 +337,7 @@ jobs:
       mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
 
   run-system-tests-enterprise-ci:
+    if: false
     # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 360
     name: Test ${{ matrix.test_component }} [${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}]
@@ -346,7 +347,7 @@ jobs:
     container:
       image: gcr.io/iguazio/python:3.11
     # let's not run this on every fork, change to your fork when developing
-    if: false && (github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch')
+    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       max-parallel: 1

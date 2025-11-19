@@ -1,11 +1,12 @@
-(llm-prompt-artifcta)=
+(llm-prompt-artifacts)=
 # LLM prompt artifacts
 
 LLM prompt artifacts capture a prompt definition for large language model (LLM) interactions. 
 
 **In this section**
 - [SDK](#sdk)
-- [Logging LLM prompt artifacts](#logging-llm-prompt-artifacts)
+- [LLM prompt artifacts](#llm-prompt-artifacts)
+- [Log LLM prompt artifacts](#log-llm-prompt-artifacts)
 - [Deleting prompt artifacts](#deleting-prompt-artifacts-using-the-sdk)
 - [Viewing LLM-prompt artifacts in the UI](#viewing-llm-prompt-artifacts-in-the-ui)
 
@@ -49,10 +50,6 @@ For example:
           "field": "user_issue",
           "description": "Detailed description of the customer's issue",
       },
-      "solution": {
-           "field": "proposed_solution",
-           "description": "Suggested fix for the customer's issue",
-      },
 },
 ```
 The **model_artifact** 
@@ -65,6 +62,8 @@ The `invocation_config` is a configuration dictionary for model generation param
 ```
 invocation_config={"temperature": 0.5, "max_tokens": 200},
 ```
+
+The `invocation_config` is specific per LLM prompt. For example, you can limit the tokens in a classification step, while other steps do not have a token limitation.
 
 ## Log LLM prompt artifacts
 You can log prompt artifacts (to your project) with an inline prompt template, or from a file, and with optional metadata like generation parameters, a legend for variable injection, and references to a parent model artifact. 

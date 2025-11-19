@@ -35,7 +35,7 @@ There are two ways to import a function from the hub:
 
 
 #### Use `import_function`
-This example uses the aggregate function, which perform a rolling aggregation of artifacts.
+This example uses the aggregate function, which perform a rolling aggregation of artifacts. This example also adds a custom aggregation function that the aggregate hub function will use when it runs.
 
 ```
 # Import the function
@@ -61,7 +61,7 @@ project.set_function("hub://describe", "describe")
 project.set_function("hub://<hub-name>/describe", "describe")
 
 # Create a function object named, for example, `my_describe`:
-project.get_function("describe")
+my_describe = project.get_function("describe")
 ```
 ### View the function parameters
 
@@ -232,16 +232,12 @@ The hierarchy must be:
 				- static (optional)
 					- html files
 					
-
-
-
 ### Add a custom hub to the MLRun database
 When you add a hub, specify `order=-1` to add it to the top of the list. 
 The list order is relevant when loading a function.
 if you don't specify a hub name, MLRun starts searching for the function with the last added hub.
 If you want to add a hub but not at the top of the list, view the current list using {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_hub_source`.
 The MLRun hub is always the last in the list (and cannot be modified). 
-
 
 To add a hub, run:
 ```python
@@ -254,12 +250,13 @@ private_source = mlrun.common.schemas.IndexedHubSource(
             name="my_cool_hub", description="a private hub"
         ),
         spec=mlrun.common.schemas.HubSourceSpec(
-            path="https://mlrun.github.io/marketplace",  # change it to your custom hub path
-            channel="development",  # change it to your channel (branch)
+            path="https://raw.githubusercontent.com/<github-user>/marketplace/refs/heads/master",  # forked from mlrun hub repo
+            channel="master",  # sub-directory in the relevant asset type
         ),
     ),
 )
 
 mlrun.get_run_db().create_hub_source(private_source)
 ```
-
+To access a function or module directly from your hub, specify its path, for example:
+`mlrun.import_function("hub://my_cool_hub/describe")`

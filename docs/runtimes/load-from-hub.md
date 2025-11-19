@@ -101,7 +101,7 @@ Example of running the `describe` function:
 describe_run = describe_func.run(
     name="task-describe",
     handler="analyze",
-    inputs={"table": os.path.abspath("artifacts/random_dataset.parquet")},
+    inputs={"table": os.path.abspath("artifacts/random_dataset.parquet")}, # replace it with your dataset path
     params={"label_column": "label"},
     local=True,
 )

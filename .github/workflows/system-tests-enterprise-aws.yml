@@ -68,7 +68,7 @@ jobs:
       uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
       with:
         role-to-assume: arn:aws:iam::939152069779:role/MLRun-S3-Read
-        role-session-name: mlrun-system-tests-enterprise-{{ github.run_id }}
+        role-session-name: mlrun-system-tests-${{ github.run_id }}
         aws-region: us-east-1
     # Test AWS S3 access
     - name: Test aws s3 list

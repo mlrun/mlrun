@@ -60,8 +60,7 @@ concurrency: one-at-a-time
 jobs:
   system-test-cleanup:
     name: System Test Cleanup
-    runs-on:
-      group: mlrun-ce
+    runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
       image: gcr.io/iguazio/ubuntu:latest
     timeout-minutes: 10
@@ -337,7 +336,6 @@ jobs:
       mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
 
   run-system-tests-enterprise-ci:
-    if: false
     # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 360
     name: Test ${{ matrix.test_component }} [${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}]

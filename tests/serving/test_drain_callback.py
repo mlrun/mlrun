@@ -291,6 +291,76 @@ class TestDrainCallbackFlushBehavior:
         warning_calls = mock_nuclio_context.logger.warning.call_args_list
         assert len(warning_calls) == 0, "No warnings should be logged for cycles"
 
+    @pytest.mark.asyncio
+    async def test_flush_handles_cyclic_graphs_with_re_entry(self, mock_nuclio_context):
+        """
+        Test that multi-pass flushing handles events that re-enter nodes via cycles.
+
+        Scenario: Buffer-A => step-X => Buffer-B => Buffer-A (cycle)
+        - First pass: Buffer-A flushes, events propagate back to Buffer-A
+        - Second pass: Buffer-A flushes again (events that re-entered)
+
+        This verifies ML-10753 cyclic graph support with event re-entry.
+        """
+
+        class MockBatchingStepWithPropagation:
+            def __init__(self, name, outlets=None, propagate_to=None):
+                self.name = name
+                self._outlets = outlets or []
+                self._batch = {"partition1": []}
+                self.propagate_to = propagate_to
+                self.flush_count = 0
+
+            async def _emit_all(self):
+                """Flush batch and optionally propagate events to another step"""
+                self.flush_count += 1
+                events = self._batch.get("partition1", [])
+                num_events = len(events)
+                self._batch["partition1"] = []
+
+                # Simulate event propagation to downstream step
+                if num_events > 0 and self.propagate_to:
+                    # Events flow downstream and may re-enter this step via cycle
+                    self.propagate_to._batch["partition1"].extend(
+                        [f"re-entered_{e}" for e in events]
+                    )
+
+        # Create cyclic graph: Buffer-A => Buffer-B => Buffer-A (cycle)
+        step_a = MockBatchingStepWithPropagation("Buffer-A")
+        step_b = MockBatchingStepWithPropagation("Buffer-B", propagate_to=step_a)
+        step_a.propagate_to = step_b
+        step_a._outlets = [step_b]
+        step_b._outlets = [step_a]
+
+        # Start with events in Buffer-A
+        step_a._batch["partition1"] = ["event1", "event2"]
+
+        # Create wrapper flow
+        class FlowWrapper:
+            def __init__(self, outlets):
+                self._outlets = outlets
+
+        flow = FlowWrapper([step_a])
+
+        # Call multi-pass flush
+        await _flush_all_batching_steps(flow, mock_nuclio_context.logger)
+
+        # Verify multi-pass flushing occurred
+        # Pass 1: Buffer-A flushes 2 events -> propagate to Buffer-B -> back to Buffer-A
+        # Pass 2: Buffer-A flushes 2 re-entered events -> propagate to Buffer-B -> back to Buffer-A
+        # Pass 3: Buffer-A flushes 2 re-entered events, and so on...
+        # Should stop after max_iterations or when stable
+
+        assert step_a.flush_count > 1, "Buffer-A should be flushed multiple times"
+        assert step_b.flush_count > 1, "Buffer-B should be flushed multiple times"
+
+        # Verify that multi-pass stopped (either stabilized or hit max iterations)
+        info_calls = [
+            str(call) for call in mock_nuclio_context.logger.info.call_args_list
+        ]
+        multi_pass_logs = [call for call in info_calls if "iteration" in call.lower()]
+        assert len(multi_pass_logs) > 0, "Should log multi-pass iterations"
+
     def test_integration_with_v2_serving_init(self, mock_nuclio_context, monkeypatch):
         """
         Test that drain callback is properly registered during v2_serving_init.

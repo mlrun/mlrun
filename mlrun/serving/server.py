@@ -64,6 +64,10 @@ from .utils import event_id_key, event_path_key
 
 DUMMY_STREAM = "dummy://"
 
+# Maximum number of flush iterations for handling cyclic graphs (ML-10753)
+# Prevents infinite loops while ensuring events that re-enter via cycles are flushed
+MAX_FLUSH_ITERATIONS = 5
+
 
 class _StreamContext:
     """Handles the stream context for the events stream process. Includes the configuration for the output stream
@@ -526,16 +530,16 @@ def add_system_steps_to_graph(
     return graph
 
 
-async def _flush_all_batching_steps(flow, logger, visited=None):
+async def _flush_all_batching_steps_single_pass(flow, logger, visited=None):
     """
-    Flush all batching steps (e.g., ParquetTarget) in the Storey flow graph.
-    This is called during drain events (e.g., Kafka rebalancing) to ensure
-    buffered batches are written before ACK channels close.
+    Flush all batching steps in a single pass through the graph.
 
-    Handles cyclic graphs by tracking visited steps (ML-10753).
+    Returns the total number of events flushed.
     """
     if visited is None:
         visited = set()
+
+    events_flushed = 0
 
     try:
         # Walk through all steps in the flow
@@ -554,14 +558,66 @@ async def _flush_all_batching_steps(flow, logger, visited=None):
                     )
                     await step._emit_all()
                     logger.info(f"Successfully flushed step '{step.name}'")
+                    events_flushed += batch_count
 
             # Recursively flush child steps
             if hasattr(step, "_outlets"):
-                await _flush_all_batching_steps(step, logger, visited)
+                events_flushed += await _flush_all_batching_steps_single_pass(
+                    step, logger, visited
+                )
 
     except Exception as e:
         logger.warning(f"Error flushing batching steps during drain: {e}")
         # Don't fail the drain - better to lose some data than block rebalancing
+
+    return events_flushed
+
+
+async def _flush_all_batching_steps(flow, logger):
+    """
+    Flush all batching steps (e.g., ParquetTarget) in the Storey flow graph.
+    This is called during drain events (e.g., Kafka rebalancing) to ensure
+    buffered batches are written before ACK channels close.
+
+    Handles cyclic graphs by flushing repeatedly until no events remain (ML-10753).
+    This ensures events that re-enter already-visited nodes via cycles are also flushed.
+
+    Args:
+        flow: The Storey flow graph to flush
+        logger: Logger for diagnostic messages
+
+    Returns:
+        Total number of events flushed across all iterations
+    """
+    total_flushed = 0
+
+    for iteration in range(MAX_FLUSH_ITERATIONS):
+        # Reset visited set each iteration to re-check all nodes
+        events_flushed = await _flush_all_batching_steps_single_pass(
+            flow, logger, visited=set()
+        )
+
+        total_flushed += events_flushed
+
+        if events_flushed == 0:
+            if iteration > 0:
+                logger.info(
+                    f"Flush stabilized after {iteration + 1} iterations "
+                    f"({total_flushed} total events flushed)"
+                )
+            break
+        else:
+            logger.info(
+                f"Flush iteration {iteration + 1}: {events_flushed} events flushed"
+            )
+
+    if events_flushed > 0:
+        logger.warning(
+            f"Flush did not stabilize after {MAX_FLUSH_ITERATIONS} iterations "
+            f"({total_flushed} total events flushed)"
+        )
+
+    return total_flushed
 
 
 def v2_serving_init(context, namespace=None):

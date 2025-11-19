@@ -251,12 +251,11 @@ import mlrun.common.schemas
 private_source = mlrun.common.schemas.IndexedHubSource(
     source=mlrun.common.schemas.HubSource(
         metadata=mlrun.common.schemas.HubObjectMetadata(
-            name="my_cool_hub", 
-            description="a private hub"
+            name="my_cool_hub", description="a private hub"
         ),
         spec=mlrun.common.schemas.HubSourceSpec(
             path="https://mlrun.github.io/marketplace",  # change it to your custom hub path
-            channel="development" # change it to your channel (branch) 
+            channel="development",  # change it to your channel (branch)
         ),
     ),
 )

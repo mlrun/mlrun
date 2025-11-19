@@ -241,6 +241,56 @@ class TestDrainCallbackFlushBehavior:
         # Restore original method for cleanup
         parquet_target._emit_all = original_emit_all
 
+    @pytest.mark.asyncio
+    async def test_flush_handles_cyclic_graphs(self, mock_nuclio_context):
+        """
+        Test that _flush_all_batching_steps() handles cyclic graphs without infinite recursion.
+
+        This verifies the fix for ML-10753 cyclic graph support (coming in 1.11).
+        """
+        # Create a mock cyclic graph structure:
+        # stepA -> stepB -> stepA (cycle)
+        #
+        # Both steps have batching capability with buffered events
+
+        class MockBatchingStep:
+            def __init__(self, name, outlets=None):
+                self.name = name
+                self._outlets = outlets or []
+                self._batch = {"partition1": [{"event": i} for i in range(10)]}
+                self.flush_called = False
+
+            async def _emit_all(self):
+                self.flush_called = True
+                self._batch.clear()
+
+        # Create steps
+        step_a = MockBatchingStep("stepA")
+        step_b = MockBatchingStep("stepB", outlets=[step_a])  # B -> A creates cycle
+        step_a._outlets = [step_b]  # A -> B completes the cycle
+
+        # Create wrapper flow
+        class FlowWrapper:
+            def __init__(self, outlets):
+                self._outlets = outlets
+
+        flow = FlowWrapper([step_a])
+
+        # Call flush - should NOT infinite loop due to cycle detection
+        await _flush_all_batching_steps(flow, mock_nuclio_context.logger)
+
+        # Verify both steps were flushed exactly once (not infinite times)
+        assert step_a.flush_called, "stepA should have been flushed"
+        assert step_b.flush_called, "stepB should have been flushed"
+
+        # Verify batches are empty
+        assert len(step_a._batch) == 0, "stepA batch should be empty"
+        assert len(step_b._batch) == 0, "stepB batch should be empty"
+
+        # Verify no warnings were logged (cycle was handled gracefully)
+        warning_calls = mock_nuclio_context.logger.warning.call_args_list
+        assert len(warning_calls) == 0, "No warnings should be logged for cycles"
+
     def test_integration_with_v2_serving_init(self, mock_nuclio_context, monkeypatch):
         """
         Test that drain callback is properly registered during v2_serving_init.

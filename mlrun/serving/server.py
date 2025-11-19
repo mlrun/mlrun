@@ -526,15 +526,25 @@ def add_system_steps_to_graph(
     return graph
 
 
-async def _flush_all_batching_steps(flow, logger):
+async def _flush_all_batching_steps(flow, logger, visited=None):
     """
     Flush all batching steps (e.g., ParquetTarget) in the Storey flow graph.
     This is called during drain events (e.g., Kafka rebalancing) to ensure
     buffered batches are written before ACK channels close.
+
+    Handles cyclic graphs by tracking visited steps (ML-10753).
     """
+    if visited is None:
+        visited = set()
+
     try:
         # Walk through all steps in the flow
         for step in flow._outlets:
+            # Skip if already visited (handles cyclic graphs)
+            if id(step) in visited:
+                continue
+            visited.add(id(step))
+
             # Check if this step has batching capability
             if hasattr(step, "_emit_all") and hasattr(step, "_batch"):
                 batch_count = sum(len(batch) for batch in step._batch.values())
@@ -547,7 +557,7 @@ async def _flush_all_batching_steps(flow, logger):
 
             # Recursively flush child steps
             if hasattr(step, "_outlets"):
-                await _flush_all_batching_steps(step, logger)
+                await _flush_all_batching_steps(step, logger, visited)
 
     except Exception as e:
         logger.warning(f"Error flushing batching steps during drain: {e}")
@@ -921,8 +931,12 @@ def _set_callbacks(server, context):
         async def drain_callback():
             context.logger.info("Drain callback called")
 
-            # Force flush all batching steps (e.g., ParquetTarget) before terminating
-            # This ensures batched events are written to storage before ACK channels close during rebalancing
+            # Force flush all batching steps (e.g., ParquetTarget) before terminating.
+            # wait_for_completion() below waits for in-flight events to complete processing,
+            # but it does NOT force buffered batches to flush. Batching steps like ParquetTarget
+            # hold events in memory until batch conditions are met (max_events/flush_after_seconds).
+            # Without explicit flushing, these buffered events remain orphaned when the graph is
+            # destroyed during rebalancing, causing memory leaks (ML-11518).
             if server.graph._async_flow:
                 context.logger.info("Flushing batched data before drain")
                 await _flush_all_batching_steps(

@@ -57,7 +57,7 @@ on:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically)'
         required: false
 
-# concurrency: one-at-a-time
+concurrency: one-at-a-time
 
 jobs:
   system-test-cleanup:

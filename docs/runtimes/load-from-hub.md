@@ -8,7 +8,7 @@ The examples in this page assume that you are working in a project and that all 
 
 <br>
 
-<img src="../_static/images/marketplace-ui.png" width="500">
+<img src="../_static/images/marketplace-ui.png" width="550">
 
 <br>
 

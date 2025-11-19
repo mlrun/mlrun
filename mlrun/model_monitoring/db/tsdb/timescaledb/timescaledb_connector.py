@@ -289,6 +289,60 @@ class TimescaleDBConnector(TSDBConnector):
     def read_predictions(self, *args, **kwargs):
         return self._predictions_queries.read_predictions(*args, **kwargs)
 
+    def _get_records(
+        self,
+        table: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        endpoint_id: Optional[str] = None,
+        columns: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """
+        Get raw records from TimescaleDB as pandas DataFrame.
+
+        This method provides direct access to raw table data.
+
+        :param table: Table name - "metrics", "results", or "predictions"
+        :param start: Start time for the query
+        :param end: End time for the query
+        :param endpoint_id: Optional endpoint ID filter (None = all endpoints)
+        :param columns: Optional list of specific columns to return (None = all columns)
+        :return: Raw pandas DataFrame with all matching records
+        """
+        if table == "metrics":
+            df = self._metrics_queries.read_metrics_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all metrics
+            )
+        elif table == "results":
+            df = self._results_queries.read_results_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all results
+                with_result_extra_data=True,
+            )
+        elif table == "predictions":
+            df = self._predictions_queries.read_predictions_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                columns=columns,
+            )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid table '{table}'. Must be 'metrics', 'results', or 'predictions'"
+            )
+
+        if columns is not None and not df.empty:
+            # Filter to requested columns if specified
+            available_columns = [col for col in columns if col in df.columns]
+            df = df[available_columns]
+
+        return df
+
     def get_last_request(self, *args, **kwargs):
         return self._predictions_queries.get_last_request(*args, **kwargs)
 

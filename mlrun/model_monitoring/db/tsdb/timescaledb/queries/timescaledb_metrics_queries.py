@@ -154,12 +154,19 @@ class TimescaleDBMetricsQueries:
     def read_metrics_data_impl(
         self,
         *,
-        endpoint_id: str,
+        endpoint_id: Optional[str] = None,
         start: datetime,
         end: datetime,
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]] = None,
     ) -> pd.DataFrame:
-        """Read metrics data from TimescaleDB (metrics table only) - returns DataFrame."""
+        """Read metrics data from TimescaleDB (metrics table only) - returns DataFrame.
+
+        :param endpoint_id: Endpoint ID to filter by, or None to get all endpoints
+        :param start: Start time
+        :param end: End time
+        :param metrics: List of metrics to filter by, or None to get all metrics
+        :return: DataFrame with metrics data
+        """
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.METRICS]
         name_column = mm_schemas.MetricData.METRIC_NAME
@@ -171,7 +178,7 @@ class TimescaleDBMetricsQueries:
             value_column,
         ]
 
-        # Build metrics condition using query builder utilities
+        # Build metrics condition using query builder utilities (accepts None)
         metrics_condition = TimescaleDBQueryBuilder.build_metrics_filter(metrics)
         endpoint_filter = TimescaleDBQueryBuilder.build_endpoint_filter(endpoint_id)
 

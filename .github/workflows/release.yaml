@@ -237,7 +237,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python automation/scripts/get_demos.py ${{ needs.prepare-inputs.outputs.version }} \
-          --config_path automation/scripts/demos_config.json \
           --dest demos
       - name: Copy update script to demos folder
         run: |

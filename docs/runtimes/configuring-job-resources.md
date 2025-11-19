@@ -494,7 +494,7 @@ The four states and their default thresholds are:
 'pending_scheduled': '1h', #Scheduled and pending and therefore consumes resources
 'pending_not_scheduled': '-1', #Scheduled but not pending, can continue to wait for resources
 'image_pull_backoff': '1h', #Container running in a pod fails to pull the required image from a container registry
-'running': '24h' #Job is running  
+'executing': '24h' #Job is running  
 ```
 
 The thresholds are time strings constructed of value and scale pairs (e.g. "30 minutes 5h 1day"). 

@@ -9,8 +9,9 @@ from sklearn.model_selection import train_test_split
 import mlrun
 from mlrun.frameworks.lgbm import apply_mlrun
 
-# [MLRun] Get MLRun's context:
-context = mlrun.get_or_create_ctx("apply-mlrun-tutorial")
+# [MLRun] Create a project and get MLRun's context:
+project = mlrun.get_or_create_project("my-project")
+context = mlrun.get_or_create_ctx("my-context", project="my-project")
 
 # [MLRun] Reading train data from context instead of local file:
 train_df = context.get_input("train_set", "./train.csv").as_df()

@@ -77,13 +77,11 @@ jobs:
       with:
         role-to-assume: arn:aws:iam::939152069779:role/MLRun-S3-Read
         role-session-name: mlrun-system-tests-${{ github.run_id }}
-        aws-region: us-east-1
+        aws-region: us-west-2
     # Test AWS S3 access
     - name: Test aws s3 list
       run: |
         echo "Testing S3 bucket listing..."
         aws s3 ls
         echo "Testing read from igz-public bucket..."
-        aws s3 ls s3://igz-public/
-        echo "Trying to read a file from igz-public bucket..."
-        aws s3 cp s3://igz-public/node-shell-daemonset.yaml ./ || echo "File not found or no access"   
+        aws s3 ls s3://iguazio-jenkins/

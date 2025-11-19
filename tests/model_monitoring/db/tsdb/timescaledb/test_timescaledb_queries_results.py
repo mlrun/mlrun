@@ -85,14 +85,21 @@ class TestResultsQueries:
         metadata_result = results_handler.get_results_metadata(
             endpoint_id="test_endpoint_1"
         )
-        # Should have at least one row for our inserted data
+        # Verify exact values from sample_results
         assert "endpoint_id" in metadata_result.columns
         test_endpoint_rows = metadata_result[
             metadata_result["endpoint_id"] == "test_endpoint_1"
         ]
+        assert len(test_endpoint_rows) == 1
+        # Verify exact values match sample_results
+        row = test_endpoint_rows.iloc[0]
         assert (
-            len(test_endpoint_rows) == 1
-        ), "Should find exactly 1 metadata record for the endpoint"
+            row["application_name"]
+            == sample_results[0][mm_schemas.WriterEvent.APPLICATION_NAME]
+        )
+        assert (
+            row["result_name"] == sample_results[0][mm_schemas.ResultData.RESULT_NAME]
+        )
 
     def test_get_results_metadata(self, query_test_helper):
         """Test get_results_metadata method."""
@@ -135,16 +142,28 @@ class TestResultsQueries:
         # Should have exactly 2 rows for our 2 test results
         assert len(result) == 2
 
-        # Verify exact result_name values
+        # Verify exact values from test_results
         result_names = sorted(result["result_name"].tolist())
-        assert result_names == ["accuracy_check", "drift_detection"]
+        expected_result_names = sorted(
+            [
+                test_results[0][mm_schemas.ResultData.RESULT_NAME],
+                test_results[1][mm_schemas.ResultData.RESULT_NAME],
+            ]
+        )
+        assert result_names == expected_result_names
 
         # Verify endpoint_id is test_endpoint for all rows
         assert (result["endpoint_id"] == "test_endpoint").all()
 
-        # Verify exact application_name values
+        # Verify exact application_name values from test_results
         app_names = sorted(result["application_name"].tolist())
-        assert app_names == ["drift_app", "performance_app"]
+        expected_app_names = sorted(
+            [
+                test_results[0][mm_schemas.WriterEvent.APPLICATION_NAME],
+                test_results[1][mm_schemas.WriterEvent.APPLICATION_NAME],
+            ]
+        )
+        assert app_names == expected_app_names
 
     def test_count_results_by_status(self, query_test_helper):
         """Test count_results_by_status method."""
@@ -336,3 +355,141 @@ class TestResultsQueries:
         assert (
             actual_total_detected == expected_total_detected
         ), f"Expected {expected_total_detected} detected, got {actual_total_detected}"
+
+    def test_read_results_filters_by_application_name(self, query_test_helper):
+        """Test that querying results filters by application_name and doesn't return other apps' data.
+
+        This test verifies the fix for the bug where build_results_filter only filtered by
+        result_name, causing queries to return data from all applications with that result name.
+        """
+        # Insert results for two different applications with the SAME result name
+        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        app_results_table = query_test_helper.table_schemas[
+            mm_schemas.TimescaleDBTables.APP_RESULTS
+        ]
+
+        test_data = [
+            # App1 with data_drift_test
+            {
+                "endpoint_id": "test_endpoint_1",
+                "application_name": "proj1-app1",
+                "result_name": "data_drift_test",
+                "result_value": 10.0,
+                "result_status": mm_schemas.ResultStatusApp.detected.value,
+            },
+            # App2 with the SAME result name
+            {
+                "endpoint_id": "test_endpoint_1",
+                "application_name": "proj1-app2",
+                "result_name": "data_drift_test",
+                "result_value": 20.0,
+                "result_status": mm_schemas.ResultStatusApp.no_detection.value,
+            },
+            # App1 with different result
+            {
+                "endpoint_id": "test_endpoint_1",
+                "application_name": "proj1-app1",
+                "result_name": "other_metric",
+                "result_value": 30.0,
+                "result_status": mm_schemas.ResultStatusApp.detected.value,
+            },
+        ]
+
+        # Insert test data
+        for data in test_data:
+            query_test_helper.connection.run(
+                statements=[
+                    f"""
+                    INSERT INTO {app_results_table.full_name()}
+                    (end_infer_time, start_infer_time, endpoint_id, application_name, result_name,
+                     result_value, result_status, result_kind, result_extra_data)
+                    VALUES ('{test_time}', '{test_time}', '{data["endpoint_id"]}',
+                            '{data["application_name"]}', '{data["result_name"]}',
+                            {data["result_value"]}, {data["result_status"]},
+                            {mm_schemas.ResultKindApp.data_drift.value}, '{{}}')
+                    """
+                ]
+            )
+
+        # Query for ONLY proj1-app1's data_drift_test metric
+        results_handler = query_test_helper.create_results_handler()
+        metrics = [
+            mm_schemas.ModelEndpointMonitoringMetric(
+                project=query_test_helper.project_name,
+                app="proj1-app1",
+                name="data_drift_test",
+                type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+            )
+        ]
+
+        result = results_handler.read_results_data_impl(
+            endpoint_id="test_endpoint_1",
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
+            end=datetime(2024, 1, 15, 23, 59, 59, tzinfo=timezone.utc),
+            metrics=metrics,
+        )
+
+        # Verify we ONLY get proj1-app1's data, NOT proj1-app2's data
+        assert not result.empty, "Should have returned data for proj1-app1"
+
+        # Check that we only have data for proj1-app1
+        assert (
+            len(result) == 1
+        ), f"Should have exactly 1 row for proj1-app1, got {len(result)}"
+
+        # Verify it's the correct application and result
+        assert (
+            result[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
+            == test_data[0]["application_name"]
+        ), "Should only return proj1-app1 data"
+        assert (
+            result[mm_schemas.ResultData.RESULT_NAME].iloc[0]
+            == test_data[0]["result_name"]
+        ), "Should return data_drift_test result"
+        assert (
+            abs(
+                result[mm_schemas.ResultData.RESULT_VALUE].iloc[0]
+                - test_data[0]["result_value"]
+            )
+            < 0.001
+        ), (
+            f"Should return proj1-app1's value ({test_data[0]['result_value']}), "
+            f"not proj1-app2's value ({test_data[1]['result_value']})"
+        )
+
+        # Query for proj1-app2's data_drift_test metric
+        metrics_app2 = [
+            mm_schemas.ModelEndpointMonitoringMetric(
+                project=query_test_helper.project_name,
+                app="proj1-app2",
+                name="data_drift_test",
+                type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+            )
+        ]
+
+        result_app2 = results_handler.read_results_data_impl(
+            endpoint_id="test_endpoint_1",
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
+            end=datetime(2024, 1, 15, 23, 59, 59, tzinfo=timezone.utc),
+            metrics=metrics_app2,
+        )
+
+        # Verify we ONLY get proj1-app2's data
+        assert not result_app2.empty, "Should have returned data for proj1-app2"
+        assert (
+            len(result_app2) == 1
+        ), f"Should have exactly 1 row for proj1-app2, got {len(result_app2)}"
+        assert (
+            result_app2[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
+            == test_data[1]["application_name"]
+        ), "Should only return proj1-app2 data"
+        assert (
+            abs(
+                result_app2[mm_schemas.ResultData.RESULT_VALUE].iloc[0]
+                - test_data[1]["result_value"]
+            )
+            < 0.001
+        ), (
+            f"Should return proj1-app2's value ({test_data[1]['result_value']}), "
+            f"not proj1-app1's value ({test_data[0]['result_value']})"
+        )

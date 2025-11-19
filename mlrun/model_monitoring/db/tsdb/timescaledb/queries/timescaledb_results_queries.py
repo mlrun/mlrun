@@ -524,13 +524,21 @@ class TimescaleDBResultsQueries:
     def read_results_data_impl(
         self,
         *,
-        endpoint_id: str,
+        endpoint_id: Optional[str] = None,
         start: datetime,
         end: datetime,
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]] = None,
         with_result_extra_data: bool = False,
     ) -> pd.DataFrame:
-        """Read results data from TimescaleDB (app_results table only) - returns DataFrame."""
+        """Read results data from TimescaleDB (app_results table only) - returns DataFrame.
+
+        :param endpoint_id: Endpoint ID to filter by, or None to get all endpoints
+        :param start: Start time
+        :param end: End time
+        :param metrics: List of metrics to filter by, or None to get all results
+        :param with_result_extra_data: Whether to include extra data column
+        :return: DataFrame with results data
+        """
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
         name_column = mm_schemas.ResultData.RESULT_NAME

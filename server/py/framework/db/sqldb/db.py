@@ -1858,7 +1858,11 @@ class SQLDB(DBInterface):
             partition_order,
             parent_uri,
         ):
-            query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
+            query = query.with_hint(
+                ArtifactV2,
+                "USE INDEX (idx_project_bi_updated)",
+                dialect_name="mysql",
+            )
 
         if project:
             query = query.filter(ArtifactV2.project == project)
@@ -2066,7 +2070,6 @@ class SQLDB(DBInterface):
             "producer_uri": producer_uri,
             "best_iteration": best_iteration,
             "most_recent": most_recent,
-            "attach_tags": attach_tags,
             "limit": limit,
             "with_entities": with_entities,
             "partition_by": partition_by,
@@ -2077,7 +2080,9 @@ class SQLDB(DBInterface):
 
         # Check if all current parameters match their default values
         return all(
-            default_list_params[key] == value for key, value in current_params.items()
+            default_list_params[key] == value
+            or (default_list_params[key] is None and value in (None, [], {}, ()))
+            for key, value in current_params.items()
         )
 
     def _find_artifacts_for_producer_id(
@@ -7216,7 +7221,6 @@ class SQLDB(DBInterface):
             project=project,
         ).one_or_none()
         now = mlrun.utils.now_date()
-        task_labels = []
         if background_task_record:
             # we don't want to be able to change state after it reached terminal state
             if (
@@ -7246,20 +7250,17 @@ class SQLDB(DBInterface):
                 timeout=int(timeout) if timeout else None,
                 error=error,
             )
-            session.add(background_task_record)
-            if labels is not None:
+            if labels:
                 for label_name, label_value in labels.items():
-                    task_labels.append(
+                    background_task_record.labels.append(
                         BackgroundTaskLabel(
                             name=label_name,
                             value=label_value,
-                            task=background_task_record,
+                            project=project,
                         )
                     )
-        objects = [background_task_record]
-        if task_labels:
-            objects.extend(task_labels)
-        self._upsert(session, objects)
+            session.add(background_task_record)
+        self._upsert(session, [background_task_record])
 
     def get_background_task(
         self,

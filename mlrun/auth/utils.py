@@ -21,6 +21,9 @@ import mlrun.common.schemas
 import mlrun.utils.helpers
 from mlrun.config import config as mlconf
 
+if typing.TYPE_CHECKING:
+    import mlrun.db
+
 
 def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
     """
@@ -309,3 +312,39 @@ def translate_secret_tokens(
                 raise_on_error,
             )
     return tokens
+
+
+def enrich_auth_env(
+    env: dict,
+    db: "mlrun.db.RunDBInterface",
+    auth_info: mlrun.common.schemas.AuthInfo = None,
+):
+    """
+    Enrich the given environment dictionary with authentication information.
+
+    This function adds authentication-related environment variables to the provided
+    environment dictionary based on the given AuthInfo object.
+
+    :param env: The environment dictionary to enrich.
+    :param db: The RunDBInterface instance to retrieve secret tokens.
+    :param auth_info: The AuthInfo object containing authentication details.
+    """
+
+    # TODO: Remove this once we implement secret token mounting in jobs (ML-11292)
+    _default_token_name = "default"
+
+    if mlrun.mlconf.is_iguazio_v4_mode():
+        if auth_info and auth_info.username:
+            secret = db.get_secret_token(
+                token_name=_default_token_name,
+                username=auth_info.username,
+            )
+            env["MLRUN_AUTH_OFFLINE_TOKEN"] = secret.token
+
+        env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
+        env["MLRUN_AUTH_TOKEN_ENDPOINT"] = (
+            mlrun.mlconf.iguazio_api_url + "/api/v1/refresh-access-token"
+        )
+        env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
+            mlrun.mlconf.iguazio_api_ssl_verify
+        ).lower()

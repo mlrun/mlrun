@@ -187,7 +187,7 @@ Use `get_hub_module` to return a HubModule object that provides the metadata of 
 hub_module = mlrun.get_hub_module("hub://histogram_data_drift")
 ```
 
-Additional opr=tions:
+Additional operations:
 ```
 # print out the details
 hub_module.to_dict()

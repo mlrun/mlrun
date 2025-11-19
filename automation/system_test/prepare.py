@@ -83,8 +83,6 @@ class SystemTestPreparer:
         data_cluster_ssh_password: typing.Optional[str] = None,
         github_access_token: typing.Optional[str] = None,
         provctl_download_url: typing.Optional[str] = None,
-        provctl_download_s3_access_key: typing.Optional[str] = None,
-        provctl_download_s3_key_id: typing.Optional[str] = None,
         username: typing.Optional[str] = None,
         access_key: typing.Optional[str] = None,
         iguazio_version: typing.Optional[str] = None,
@@ -110,8 +108,6 @@ class SystemTestPreparer:
         self._data_cluster_ssh_username = data_cluster_ssh_username
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._provctl_download_url = provctl_download_url
-        self._provctl_download_s3_access_key = provctl_download_s3_access_key
-        self._provctl_download_s3_key_id = provctl_download_s3_key_id
         self._iguazio_version = iguazio_version
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
         self._mlrun_dbpath = mlrun_dbpath
@@ -496,8 +492,6 @@ class SystemTestPreparer:
             "aws",
             args=[
                 "s3",
-                "--profile",
-                "provazio-provctl",
                 "cp",
                 f"s3://{bucket_name}/{object_name}",
                 str(self.Constants.provctl_path),
@@ -796,8 +790,6 @@ def main():
 @click.option("--data-cluster-ssh-username", required=True)
 @click.option("--data-cluster-ssh-password", required=True)
 @click.option("--provctl-download-url", required=True)
-@click.option("--provctl-download-s3-access-key", required=True)
-@click.option("--provctl-download-s3-key-id", required=True)
 @click.option("--username", required=True)
 @click.option("--access-key", required=True)
 @click.option("--iguazio-version", default=None)
@@ -816,8 +808,6 @@ def run(
     data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
     provctl_download_url: str,
-    provctl_download_s3_access_key: str,
-    provctl_download_s3_key_id: str,
     username: str,
     access_key: str,
     iguazio_version: str,
@@ -832,8 +822,6 @@ def run(
         data_cluster_ssh_username=data_cluster_ssh_username,
         data_cluster_ssh_password=data_cluster_ssh_password,
         provctl_download_url=provctl_download_url,
-        provctl_download_s3_access_key=provctl_download_s3_access_key,
-        provctl_download_s3_key_id=provctl_download_s3_key_id,
         username=username,
         access_key=access_key,
         iguazio_version=iguazio_version,

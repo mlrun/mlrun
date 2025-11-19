@@ -21,6 +21,10 @@ permissions:
 
 env:
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
+  # AWS Configuration
+  AWS_REGION: us-east-1
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::939152069779:role/MLRun-S3-Read
 
 on:
   push:
@@ -75,9 +79,9 @@ jobs:
     - name: configure aws credentials
       uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
       with:
-        role-to-assume: arn:aws:iam::939152069779:role/MLRun-S3-Read
+        role-to-assume: ${{ env.AWS_ROLE_ARN }}
         role-session-name: mlrun-system-tests-${{ github.run_id }}
-        aws-region: us-west-2
+        aws-region: ${{ env.AWS_REGION }}
     # Test AWS S3 access
     - name: Test aws s3 list
       run: |

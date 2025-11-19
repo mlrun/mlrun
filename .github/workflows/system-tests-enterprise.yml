@@ -21,6 +21,10 @@ permissions:
 
 env:
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
+  # AWS Configuration
+  AWS_REGION: us-east-1
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::939152069779:role/MLRun-S3-Read
 
 on:
   push:
@@ -68,9 +72,9 @@ jobs:
     - name: configure aws credentials
       uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
       with:
-        role-to-assume: MLRun-S3-Read
-        role-session-name: mlrun-system-tests-enterprise-{{ github.run_id }}
-        aws-region: us-east-1
+        role-to-assume: ${{ env.AWS_ROLE_ARN }}
+        role-session-name: mlrun-system-tests-${{ github.run_id }}
+        aws-region: ${{ env.AWS_REGION }}
     # Test AWS S3 access
     - name: Test aws s3 list
       run: |
@@ -137,9 +141,9 @@ jobs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
       with:
-        role-to-assume: arn:aws:iam::939152069779:role/MLRun-S3-Read
+        role-to-assume: ${{ env.AWS_ROLE_ARN }}
         role-session-name: mlrun-system-tests-${{ github.run_id }}
-        aws-region: us-east-1
+        aws-region: ${{ env.AWS_REGION }}
     - name: Install uv
       uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3 # 7.1.3
       with:

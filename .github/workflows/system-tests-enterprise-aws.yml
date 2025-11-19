@@ -70,7 +70,7 @@ jobs:
         sudo apt-get install -y curl unzip
         curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
         unzip awscliv2.zip
-        sudo ./aws/install
+        sudo ./aws/install --update
         aws --version
     - name: configure aws credentials
       uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502

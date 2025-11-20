@@ -666,8 +666,6 @@ class ServingRuntime(RemoteRuntime):
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
-        # Validate function name before deploying to k8s
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
 
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:

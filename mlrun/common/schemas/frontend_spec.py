@@ -31,13 +31,6 @@ class PreemptionNodesFeatureFlag(mlrun.common.types.StrEnum):
     disabled = "disabled"
 
 
-class AuthenticationFeatureFlag(mlrun.common.types.StrEnum):
-    none = "none"
-    basic = "basic"
-    bearer = "bearer"
-    iguazio = "iguazio"
-
-
 class NuclioStreamsFeatureFlag(mlrun.common.types.StrEnum):
     enabled = "enabled"
     disabled = "disabled"
@@ -45,7 +38,7 @@ class NuclioStreamsFeatureFlag(mlrun.common.types.StrEnum):
 
 class FeatureFlags(pydantic.v1.BaseModel):
     project_membership: ProjectMembershipFeatureFlag
-    authentication: AuthenticationFeatureFlag
+    authentication: mlrun.common.types.AuthenticationMode
     nuclio_streams: NuclioStreamsFeatureFlag
     preemption_nodes: PreemptionNodesFeatureFlag
 

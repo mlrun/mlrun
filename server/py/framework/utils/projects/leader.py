@@ -31,6 +31,7 @@ from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 import framework.db.session
+import framework.utils.clients.iguazio.v4
 import framework.utils.clients.nuclio
 import framework.utils.periodic
 import framework.utils.projects.member
@@ -51,8 +52,9 @@ class Member(
             mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._projects_in_deletion = set()
-        # run one sync to start off on the right foot
-        self._sync_projects()
+        if self._periodic_sync_interval_seconds > 0 and self._followers:
+            # run one sync to start off on the right foot
+            self._sync_projects()
 
     def start(self):
         self._start_periodic_sync()
@@ -65,13 +67,14 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         project: mlrun.common.schemas.Project,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.ProjectOut], bool]:
         self._enrich_and_validate(project)
-        self._run_on_all_followers(True, "create_project", db_session, project)
+        self._run_on_all_followers(
+            True, "create_project", db_session, project, auth_info
+        )
         return self.get_project(db_session, project.metadata.name), False
 
     def store_project(
@@ -79,13 +82,14 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.ProjectOut], bool]:
         self._enrich_and_validate(project)
         self._validate_body_and_path_names_matches(name, project)
-        self._run_on_all_followers(True, "store_project", db_session, name, project)
+        self._run_on_all_followers(
+            True, "store_project", db_session, name, project, auth_info
+        )
         return self.get_project(db_session, name), False
 
     def patch_project(
@@ -94,14 +98,13 @@ class Member(
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[mlrun.common.schemas.Project, bool]:
+    ) -> tuple[mlrun.common.schemas.ProjectOut, bool]:
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(
-            True, "patch_project", db_session, name, project, patch_mode
+            True, "patch_project", db_session, name, project, patch_mode, auth_info
         )
         return self.get_project(db_session, name), False
 
@@ -110,7 +113,6 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: typing.Optional[str] = None,
@@ -129,53 +131,54 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         from_leader: bool = False,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.ProjectOut:
-        return self._leader_follower.get_project(db_session, name)
+        return self._leader_follower.get_project(db_session, name, auth_info)
 
     def list_projects(
         self,
         db_session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
-            db_session, owner, format_, labels, state, names
+            db_session, auth_info, owner, format_, labels, state, names
         )
 
     async def list_project_summaries(
         self,
         db_session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         return await self._leader_follower.list_project_summaries(
-            db_session, owner, labels, state, names
+            db_session, auth_info, owner, labels, state, names
         )
 
     async def get_project_summary(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
-        return await self._leader_follower.get_project_summary(db_session, name)
+        return await self._leader_follower.get_project_summary(
+            db_session, name, auth_info
+        )
 
     def get_project_owner(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectOwner:
         raise NotImplementedError()
 
@@ -421,16 +424,18 @@ class Member(
         self, name: str
     ) -> framework.utils.projects.remotes.follower.Member:
         followers_classes_map = {
-            "mlrun": services.api.crud.Projects(),
-            "nuclio": framework.utils.clients.nuclio.Client(),
+            "mlrun": services.api.crud.Projects,
+            "nuclio": framework.utils.clients.nuclio.Client,
+            # leader follower logic doesn't support async, so we use the v4 sync client
+            "igz": framework.utils.clients.iguazio.v4.Client,
             # for tests
-            "nop-self-leader": framework.utils.projects.remotes.nop_follower.Member(),
-            "nop": framework.utils.projects.remotes.nop_follower.Member(),
-            "nop2": framework.utils.projects.remotes.nop_follower.Member(),
+            "nop-self-leader": framework.utils.projects.remotes.nop_follower.Member,
+            "nop": framework.utils.projects.remotes.nop_follower.Member,
+            "nop2": framework.utils.projects.remotes.nop_follower.Member,
         }
         if name not in followers_classes_map:
             raise ValueError(f"Unknown follower name: {name}")
-        return followers_classes_map[name]
+        return followers_classes_map[name]()
 
     def _enrich_and_validate(self, project: mlrun.common.schemas.Project):
         self._enrich_project(project)

@@ -24,7 +24,10 @@ import mlrun.common.schemas
 class Member(abc.ABC):
     @abc.abstractmethod
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         pass
 
@@ -34,6 +37,7 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         pass
 
@@ -44,6 +48,7 @@ class Member(abc.ABC):
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         pass
 
@@ -59,7 +64,10 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def get_project(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -67,6 +75,7 @@ class Member(abc.ABC):
     def list_projects(
         self,
         session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: typing.Optional[list[str]] = None,
@@ -79,6 +88,7 @@ class Member(abc.ABC):
     def list_project_summaries(
         self,
         session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
@@ -88,6 +98,9 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def get_project_summary(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
         pass

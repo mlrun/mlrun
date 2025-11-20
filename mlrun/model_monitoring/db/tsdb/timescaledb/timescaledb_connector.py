@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import Callable, Optional
+from typing import Optional
 
 import pandas as pd
 
@@ -179,11 +179,9 @@ class TimescaleDBConnector(TSDBConnector):
     def get_metrics_metadata(self, *args, **kwargs):
         return self._metrics_queries.get_metrics_metadata(*args, **kwargs)
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
@@ -191,17 +189,10 @@ class TimescaleDBConnector(TSDBConnector):
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
-        :param project:                The name of the project (unused - uses self.project from constructor).
-        :param run_in_threadpool:      A function that runs another function in a thread pool
-                                       (unused - TimescaleDB operations are synchronous).
         :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
-        # Note: project and run_in_threadpool parameters are part of the interface
-        # but unused in TimescaleDB implementation (uses self.project, synchronous operations)
-        del project, run_in_threadpool  # Suppress unused variable warnings
-
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
 
         # Access methods directly from the respective query classes
@@ -297,6 +288,60 @@ class TimescaleDBConnector(TSDBConnector):
 
     def read_predictions(self, *args, **kwargs):
         return self._predictions_queries.read_predictions(*args, **kwargs)
+
+    def _get_records(
+        self,
+        table: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        endpoint_id: Optional[str] = None,
+        columns: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """
+        Get raw records from TimescaleDB as pandas DataFrame.
+
+        This method provides direct access to raw table data.
+
+        :param table: Table name - "metrics", "results", or "predictions"
+        :param start: Start time for the query
+        :param end: End time for the query
+        :param endpoint_id: Optional endpoint ID filter (None = all endpoints)
+        :param columns: Optional list of specific columns to return (None = all columns)
+        :return: Raw pandas DataFrame with all matching records
+        """
+        if table == "metrics":
+            df = self._metrics_queries.read_metrics_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all metrics
+            )
+        elif table == "results":
+            df = self._results_queries.read_results_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all results
+                with_result_extra_data=True,
+            )
+        elif table == "predictions":
+            df = self._predictions_queries.read_predictions_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                columns=columns,
+            )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid table '{table}'. Must be 'metrics', 'results', or 'predictions'"
+            )
+
+        if columns is not None and not df.empty:
+            # Filter to requested columns if specified
+            available_columns = [col for col in columns if col in df.columns]
+            df = df[available_columns]
+
+        return df
 
     def get_last_request(self, *args, **kwargs):
         return self._predictions_queries.get_last_request(*args, **kwargs)

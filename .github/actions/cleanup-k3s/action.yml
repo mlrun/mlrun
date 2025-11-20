@@ -1,0 +1,77 @@
+# Copyright 2023 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: 'Cleanup K3S Installation'
+description: 'Checks and cleans up any existing K3S installation'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check and cleanup K3S installation
+      shell: bash
+      run: |
+        echo "=== Checking for previous K3S installation ==="
+        
+        # Check if K3S is installed or running
+        K3S_INSTALLED=false
+        
+        if [ -f /usr/local/bin/k3s ] || [ -f /usr/local/bin/k3s-uninstall.sh ] || pgrep -f k3s >/dev/null 2>&1; then
+          K3S_INSTALLED=true
+          echo "Found existing K3S installation, cleaning up..."
+        else
+          echo "No existing K3S installation found, skipping cleanup"
+        fi
+        
+        if [ "$K3S_INSTALLED" = true ]; then
+          echo "=== Cleaning up previous K3S installation ==="
+          
+          # Stop K3S services if they exist
+          if systemctl is-active --quiet k3s 2>/dev/null; then
+            echo "Stopping K3S service..."
+            sudo systemctl stop k3s || true
+          fi
+          
+          if systemctl is-active --quiet k3s-agent 2>/dev/null; then
+            echo "Stopping K3S agent service..."
+            sudo systemctl stop k3s-agent || true
+          fi
+          
+          # Kill any running K3S processes
+          if pgrep -f k3s >/dev/null 2>&1; then
+            echo "Killing K3S processes..."
+            sudo pkill -f k3s || true
+            sleep 2
+          fi
+          
+          # Uninstall K3S if uninstaller exists
+          if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
+            echo "Running K3S uninstaller..."
+            sudo /usr/local/bin/k3s-uninstall.sh || true
+          fi
+          
+          # Clean up remaining files only if they exist
+          echo "Cleaning up remaining K3S files..."
+          sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s 2>/dev/null || true
+          sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s* 2>/dev/null || true
+          
+          # Clean up containers/images only if Docker is running
+          if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+            echo "Cleaning up Docker containers and images..."
+            docker system prune -af || true
+          fi
+          
+          echo "=== Cleanup completed ==="
+        fi
+        
+        exit 0

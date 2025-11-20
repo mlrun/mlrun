@@ -11,7 +11,6 @@ Another common use case is to serve the model as part of an inference pipeline, 
 - [Serving using a remote model](#serving-using-a-remote-model)
 - [Implementing your own model serving function](#implementing-your-own-model-serving-function)
 
-
 ## Serving a local model from the MLRun hub
 
 The hub has a serving class called [`hugging_face_serving`](https://www.mlrun.org/hub/functions/master/hugging_face_serving/) to run Hugging Face models. The following code shows how to import the function to your project:

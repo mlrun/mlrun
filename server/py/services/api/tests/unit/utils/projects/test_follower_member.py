@@ -503,7 +503,9 @@ def test_list_project_leader_format(
     projects = projects_follower.list_projects(
         db,
         format_=mlrun.common.formatters.ProjectFormat.leader,
-        projects_role=mlrun.common.schemas.ProjectsRole.nop,
+        auth_info=mlrun.common.schemas.AuthInfo(
+            projects_role=mlrun.common.schemas.ProjectsRole.nop
+        ),
     )
     assert (
         deepdiff.DeepDiff(

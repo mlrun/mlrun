@@ -221,6 +221,7 @@ class Client(
         self,
         session: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         self._logger.debug("Creating project in Iguazio", project=project.metadata.name)
@@ -238,6 +239,7 @@ class Client(
         session: str,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug("Updating project in Iguazio", name=name)
         body = self._transform_mlrun_project_to_iguazio_project(project)
@@ -247,6 +249,7 @@ class Client(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
@@ -313,6 +316,7 @@ class Client(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
         return self._get_project_from_iguazio(session, name)
 
@@ -320,6 +324,7 @@ class Client(
         self,
         session: str,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectOwner:
         response = self._get_project_from_iguazio_without_parsing(
             session, name, enrich_owner_access_key=True

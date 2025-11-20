@@ -198,8 +198,6 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 | {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.                   | Y      | N     | N      |
 | [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key. | Y      | Y     | Y      |
 | [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key.| Y      | Y     | N      |
-| [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.  | Y      | N     | Y      |
-
 
 ## Kafka target
 
@@ -319,33 +317,3 @@ RedisNoSqlTarget(path="ds://profile-name/a/b")
 ```
 
 
-## SQL target 
-
-```{admonition} Note
-Sql target is currently in Tech Preview status.
-```
-```{admonition} Limitation
-Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
-For currently supported versions of SQLAlchemy, see [extra-requirements.txt](https://github.com/mlrun/mlrun/blob/development/extras-requirements.txt).
-See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html).
-```
-The {py:meth}`~mlrun.datastore.SQLTarget` online target supports storey but does not support Spark. Aggregations are not supported.<br>
-To configure, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
-`mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
-
-You can pass the schema and the name of the table you want to create or the name of an existing table, for example:
-
-```python
-target = SQLTarget(
-    table_name="my_table",
-    schema={"id": string, "age": int, "time": pd.Timestamp},
-    create_table=True,
-    primary_key_column="id",
-    parse_dates=["time"],
-)
-feature_set = fs.FeatureSet(
-    "my_fs",
-    entities=[fs.Entity("id")],
-)
-fs.ingest(feature_set, source=df, targets=[target])
-```

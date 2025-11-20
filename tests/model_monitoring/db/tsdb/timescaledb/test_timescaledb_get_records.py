@@ -14,7 +14,6 @@
 
 from datetime import datetime, timezone
 
-import pandas as pd
 import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -60,9 +59,10 @@ class TestGetRecords:
         )
 
         # Verify we got data for both endpoints
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
         assert len(df) == len(test_data)
+        # Verify endpoint_id is always present
+        expected_endpoints = {d[mm_schemas.WriterEvent.ENDPOINT_ID] for d in test_data}
+        assert set(df[mm_schemas.WriterEvent.ENDPOINT_ID]) == expected_endpoints
         # Reference test_data instead of hardcoding expected values
         expected_apps = {d[mm_schemas.WriterEvent.APPLICATION_NAME] for d in test_data}
         expected_metrics = {d[mm_schemas.MetricData.METRIC_NAME] for d in test_data}
@@ -106,9 +106,12 @@ class TestGetRecords:
         )
 
         # Verify we only got endpoint-1 (reference test_data)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
         assert len(df) == 1
+        # Verify endpoint_id and data match test_data
+        assert (
+            df[mm_schemas.WriterEvent.ENDPOINT_ID].iloc[0]
+            == test_data[0][mm_schemas.WriterEvent.ENDPOINT_ID]
+        )
         assert (
             df[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
             == test_data[0][mm_schemas.WriterEvent.APPLICATION_NAME]
@@ -159,9 +162,10 @@ class TestGetRecords:
         )
 
         # Verify we got data for both endpoints (reference test_data)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
         assert len(df) == len(test_data)
+        # Verify endpoint_id is always present
+        expected_endpoints = {d[mm_schemas.WriterEvent.ENDPOINT_ID] for d in test_data}
+        assert set(df[mm_schemas.WriterEvent.ENDPOINT_ID]) == expected_endpoints
         expected_apps = {d[mm_schemas.WriterEvent.APPLICATION_NAME] for d in test_data}
         expected_values = {d[mm_schemas.ResultData.RESULT_VALUE] for d in test_data}
         assert set(df[mm_schemas.WriterEvent.APPLICATION_NAME]) == expected_apps
@@ -203,8 +207,6 @@ class TestGetRecords:
         )
 
         # Verify we got data for both endpoints (reference test_data)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
         assert len(df) == len(test_data)
         expected_endpoints = {d["endpoint_id"] for d in test_data}
         expected_latencies = {d["latency"] for d in test_data}
@@ -220,7 +222,6 @@ class TestGetRecords:
             endpoint_id=None,
         )
 
-        assert isinstance(df, pd.DataFrame)
         assert df.empty
 
     def test_get_records_invalid_table(self, connector):
@@ -236,7 +237,11 @@ class TestGetRecords:
             )
 
     def test_get_records_with_column_filter(self, connector, query_test_helper):
-        """Test _get_records() with specific columns requested."""
+        """Test _get_records() with specific columns requested.
+
+        Note: When columns parameter is specified, only those columns are returned.
+        endpoint_id must be explicitly requested in the columns list to be included.
+        """
         # Insert test data
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
         test_data = {
@@ -252,7 +257,7 @@ class TestGetRecords:
             test_data, mm_schemas.WriterEventKind.METRIC
         )
 
-        # Query with specific columns
+        # Query with specific columns (not including endpoint_id)
         df = connector._get_records(
             table="metrics",
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
@@ -264,8 +269,58 @@ class TestGetRecords:
             ],
         )
 
-        # Verify only requested columns are returned
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
+        # Verify only requested columns are returned (check filtering logic)
         assert mm_schemas.MetricData.METRIC_NAME in df.columns
         assert mm_schemas.MetricData.METRIC_VALUE in df.columns
+        # endpoint_id is not in columns list, so it should NOT be returned
+        assert mm_schemas.WriterEvent.ENDPOINT_ID not in df.columns
+        # Verify other unrequested columns are also NOT included
+        assert mm_schemas.WriterEvent.APPLICATION_NAME not in df.columns
+
+    def test_get_records_with_endpoint_id_in_columns(
+        self, connector, query_test_helper
+    ):
+        """Test _get_records() with endpoint_id explicitly requested in columns."""
+        # Insert test data
+        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        test_data = {
+            mm_schemas.WriterEvent.END_INFER_TIME: test_time,
+            mm_schemas.WriterEvent.START_INFER_TIME: test_time,
+            mm_schemas.WriterEvent.ENDPOINT_ID: "endpoint-1",
+            mm_schemas.WriterEvent.APPLICATION_NAME: "app1",
+            mm_schemas.MetricData.METRIC_NAME: "accuracy",
+            mm_schemas.MetricData.METRIC_VALUE: 0.95,
+        }
+
+        query_test_helper.write_application_event(
+            test_data, mm_schemas.WriterEventKind.METRIC
+        )
+
+        # Query with endpoint_id explicitly in columns list
+        df = connector._get_records(
+            table="metrics",
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
+            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
+            endpoint_id="endpoint-1",
+            columns=[
+                mm_schemas.WriterEvent.ENDPOINT_ID,
+                mm_schemas.MetricData.METRIC_NAME,
+                mm_schemas.MetricData.METRIC_VALUE,
+            ],
+        )
+
+        # Verify values match test data (KeyError if columns missing, IndexError if empty)
+        assert (
+            df[mm_schemas.WriterEvent.ENDPOINT_ID].iloc[0]
+            == test_data[mm_schemas.WriterEvent.ENDPOINT_ID]
+        )
+        assert (
+            df[mm_schemas.MetricData.METRIC_NAME].iloc[0]
+            == test_data[mm_schemas.MetricData.METRIC_NAME]
+        )
+        assert (
+            df[mm_schemas.MetricData.METRIC_VALUE].iloc[0]
+            == test_data[mm_schemas.MetricData.METRIC_VALUE]
+        )
+        # Verify unrequested columns are NOT included (testing filter logic)
+        assert mm_schemas.WriterEvent.APPLICATION_NAME not in df.columns

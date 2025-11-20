@@ -20,6 +20,7 @@ from mlrun.datastore.model_provider.model_provider import (
     ModelProvider,
     UsageResponseKeys,
 )
+from mlrun.utils import logger
 
 if TYPE_CHECKING:
     from transformers.pipelines.base import Pipeline
@@ -65,6 +66,7 @@ class HuggingFaceProvider(ModelProvider):
         )
         self.options = self.get_client_options()
         self._expected_operation_type = None
+        self._model_local_path = None
         self._download_model()
 
     @staticmethod
@@ -113,11 +115,12 @@ class HuggingFaceProvider(ModelProvider):
             from huggingface_hub import snapshot_download
 
             # Download the model and tokenizer files directly to the cache.
-            snapshot_download(
+            self._model_local_path = snapshot_download(
                 repo_id=self.model,
                 local_dir_use_symlinks=False,
                 token=self._get_secret_or_env("HF_TOKEN") or None,
             )
+            logger.info("model downloaded", model_local_path=self._model_local_path)
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
 
@@ -215,7 +218,6 @@ class HuggingFaceProvider(ModelProvider):
         :raises:
             ImportError: If the `transformers` package is not installed.
         """
-        from mlrun.utils import logger
         if self._client:
             logger.info(
                 "client already exist",
@@ -231,7 +233,7 @@ class HuggingFaceProvider(ModelProvider):
             )
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True
-            self._client = pipeline(model=self.model, **self.options)
+            self._client = pipeline(model=self._model_local_path, **self.options)
             self._expected_operation_type = Pipeline
             logger.info(
                 "finished to create a client",

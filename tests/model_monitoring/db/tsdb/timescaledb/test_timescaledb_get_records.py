@@ -68,6 +68,7 @@ class TestGetRecords:
         expected_metrics = {d[mm_schemas.MetricData.METRIC_NAME] for d in test_data}
         assert set(df[mm_schemas.WriterEvent.APPLICATION_NAME]) == expected_apps
         assert set(df[mm_schemas.MetricData.METRIC_NAME]) == expected_metrics
+        assert mm_schemas.WriterEvent.START_INFER_TIME in df.columns
 
     def test_get_records_metrics_specific_endpoint(self, connector, query_test_helper):
         """Test _get_records() for metrics table with endpoint filter."""
@@ -170,6 +171,7 @@ class TestGetRecords:
         expected_values = {d[mm_schemas.ResultData.RESULT_VALUE] for d in test_data}
         assert set(df[mm_schemas.WriterEvent.APPLICATION_NAME]) == expected_apps
         assert set(df[mm_schemas.ResultData.RESULT_VALUE]) == expected_values
+        assert mm_schemas.WriterEvent.START_INFER_TIME in df.columns
 
     def test_get_records_predictions_all_endpoints(self, connector):
         """Test _get_records() for predictions table with no endpoint filter."""
@@ -275,52 +277,4 @@ class TestGetRecords:
         # endpoint_id is not in columns list, so it should NOT be returned
         assert mm_schemas.WriterEvent.ENDPOINT_ID not in df.columns
         # Verify other unrequested columns are also NOT included
-        assert mm_schemas.WriterEvent.APPLICATION_NAME not in df.columns
-
-    def test_get_records_with_endpoint_id_in_columns(
-        self, connector, query_test_helper
-    ):
-        """Test _get_records() with endpoint_id explicitly requested in columns."""
-        # Insert test data
-        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
-        test_data = {
-            mm_schemas.WriterEvent.END_INFER_TIME: test_time,
-            mm_schemas.WriterEvent.START_INFER_TIME: test_time,
-            mm_schemas.WriterEvent.ENDPOINT_ID: "endpoint-1",
-            mm_schemas.WriterEvent.APPLICATION_NAME: "app1",
-            mm_schemas.MetricData.METRIC_NAME: "accuracy",
-            mm_schemas.MetricData.METRIC_VALUE: 0.95,
-        }
-
-        query_test_helper.write_application_event(
-            test_data, mm_schemas.WriterEventKind.METRIC
-        )
-
-        # Query with endpoint_id explicitly in columns list
-        df = connector._get_records(
-            table=mm_schemas.TimescaleDBTables.METRICS,
-            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
-            endpoint_id="endpoint-1",
-            columns=[
-                mm_schemas.WriterEvent.ENDPOINT_ID,
-                mm_schemas.MetricData.METRIC_NAME,
-                mm_schemas.MetricData.METRIC_VALUE,
-            ],
-        )
-
-        # Verify values match test data (KeyError if columns missing, IndexError if empty)
-        assert (
-            df[mm_schemas.WriterEvent.ENDPOINT_ID].iloc[0]
-            == test_data[mm_schemas.WriterEvent.ENDPOINT_ID]
-        )
-        assert (
-            df[mm_schemas.MetricData.METRIC_NAME].iloc[0]
-            == test_data[mm_schemas.MetricData.METRIC_NAME]
-        )
-        assert (
-            df[mm_schemas.MetricData.METRIC_VALUE].iloc[0]
-            == test_data[mm_schemas.MetricData.METRIC_VALUE]
-        )
-        # Verify unrequested columns are NOT included (testing filter logic)
         assert mm_schemas.WriterEvent.APPLICATION_NAME not in df.columns

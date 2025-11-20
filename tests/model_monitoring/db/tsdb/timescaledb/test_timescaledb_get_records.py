@@ -52,7 +52,7 @@ class TestGetRecords:
 
         # Query all endpoints using _get_records
         df = connector._get_records(
-            table="metrics",
+            table=mm_schemas.TimescaleDBTables.METRICS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id=None,  # Get ALL endpoints
@@ -99,7 +99,7 @@ class TestGetRecords:
 
         # Query specific endpoint using _get_records
         df = connector._get_records(
-            table="metrics",
+            table=mm_schemas.TimescaleDBTables.METRICS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id="endpoint-1",
@@ -122,7 +122,7 @@ class TestGetRecords:
         )
 
     def test_get_records_results_all_endpoints(self, connector, query_test_helper):
-        """Test _get_records() for results table with no endpoint filter."""
+        """Test _get_records() for app_results table with no endpoint filter."""
         # Insert test data for multiple endpoints
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
         test_data = [
@@ -155,7 +155,7 @@ class TestGetRecords:
 
         # Query all endpoints using _get_records
         df = connector._get_records(
-            table="results",
+            table=mm_schemas.TimescaleDBTables.APP_RESULTS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id=None,  # Get ALL endpoints
@@ -200,7 +200,7 @@ class TestGetRecords:
 
         # Query all endpoints using _get_records
         df = connector._get_records(
-            table="predictions",
+            table=mm_schemas.TimescaleDBTables.PREDICTIONS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id=None,  # Get ALL endpoints
@@ -216,7 +216,7 @@ class TestGetRecords:
     def test_get_records_empty_result(self, connector):
         """Test _get_records() returns empty DataFrame when no data exists."""
         df = connector._get_records(
-            table="metrics",
+            table=mm_schemas.TimescaleDBTables.METRICS,
             start=datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id=None,
@@ -228,7 +228,7 @@ class TestGetRecords:
         """Test _get_records() raises error for invalid table name."""
         with pytest.raises(
             Exception,
-            match="Invalid table.*Must be 'metrics', 'results', or 'predictions'",
+            match="Invalid table.*Must be METRICS, APP_RESULTS, or PREDICTIONS",
         ):
             connector._get_records(
                 table="invalid_table",
@@ -259,7 +259,7 @@ class TestGetRecords:
 
         # Query with specific columns (not including endpoint_id)
         df = connector._get_records(
-            table="metrics",
+            table=mm_schemas.TimescaleDBTables.METRICS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id="endpoint-1",
@@ -298,7 +298,7 @@ class TestGetRecords:
 
         # Query with endpoint_id explicitly in columns list
         df = connector._get_records(
-            table="metrics",
+            table=mm_schemas.TimescaleDBTables.METRICS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id="endpoint-1",

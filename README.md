@@ -49,8 +49,8 @@ Removing inappropriate data at an early stage saves resources that would otherwi
 
 
 **Docs:**
-[Using LLMs to process unstructured data](https://docs.mlrun.org/en/stable/genai/data-mgmt/unstructured-data.html)
-[Vector databases](https://docs.mlrun.org/en/stable/genai/data-mgmt/vector-databases.html)
+[Using LLMs to process unstructured data](https://docs.mlrun.org/en/stable/genai/data-mgmt/unstructured-data.html),
+[Vector databases](https://docs.mlrun.org/en/stable/genai/data-mgmt/vector-databases.html),
 [Guardrails for data management](https://docs.mlrun.org/en/stable/genai/data-mgmt/guardrails-data.html)
 **Demo:**
 [Call center demo](https://github.com/mlrun/demo-call-center)
@@ -64,7 +64,7 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 **Docs:**
 [Working with RAG](https://docs.mlrun.org/en/stable/genai/development/working-with-rag.html), [Evalating LLMs](https://docs.mlrun.org/en/stable/genai/development/evaluating-llms.html), [Fine tuning LLMS](https://docs.mlrun.org/en/stable/genai/development/fine-tuning-llms.html)
 **Demos:**
-[Call center demo](https://github.com/mlrun/demo-call-center)
+[Call center demo](https://github.com/mlrun/demo-call-center),
 [Banking agent demo](https://github.com/mlrun/demo-banking-agent)
 **Video:**
 [Call center](https://youtu.be/YycMbxRgLBA)
@@ -81,7 +81,7 @@ inferring results using one or more models, and driving actions.
 **Tutorial:**
 [Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai-01-basic-tutorial.html)
 **Demos:**
-[Call center demo](https://github.com/mlrun/demo-call-center)
+[Call center demo](https://github.com/mlrun/demo-call-center),
 [Banking agent demo](https://github.com/mlrun/demo-banking-agent)
 **Video:**
 [Call center](https://youtu.be/YycMbxRgLBA)

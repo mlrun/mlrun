@@ -1337,7 +1337,6 @@ class LLModel(Model):
             model_name=name,
             input_path=input_path,
             result_path=result_path,
-            model= self.model_provider.model
         )
 
     def predict(

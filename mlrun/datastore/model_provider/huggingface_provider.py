@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import TYPE_CHECKING, Any, Optional, Union
-
+import threading
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
@@ -66,7 +66,7 @@ class HuggingFaceProvider(ModelProvider):
         )
         self.options = self.get_client_options()
         self._expected_operation_type = None
-        self._model_local_path = None
+        self._client_lock = threading.Lock()
         self._download_model()
 
     @staticmethod
@@ -115,14 +115,13 @@ class HuggingFaceProvider(ModelProvider):
             from huggingface_hub import snapshot_download
 
             # Download the model and tokenizer files directly to the cache.
-            self._model_local_path = snapshot_download(
+            snapshot_download(
                 repo_id=self.model,
                 local_dir_use_symlinks=False,
                 token=self._get_secret_or_env("HF_TOKEN") or None,
             )
             logger.info(
                 "model downloaded",
-                model_local_path=self._model_local_path,
                 model=self.model,
             )
         except ImportError as exc:
@@ -233,7 +232,8 @@ class HuggingFaceProvider(ModelProvider):
             logger.info("client not exist, creating...", model=self.model)
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True
-            self._client = pipeline(model=self._model_local_path, **self.options)
+            with self._client_lock:
+                self._client = pipeline(model=self.model, **self.options)
             self._expected_operation_type = Pipeline
             logger.info("finished to create a client", model=self.model)
         except ImportError as exc:

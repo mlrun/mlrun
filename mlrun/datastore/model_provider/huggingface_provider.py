@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import traceback
 from typing import TYPE_CHECKING, Any, Optional, Union
 import threading
 import mlrun
@@ -121,10 +121,19 @@ class HuggingFaceProvider(ModelProvider):
                 local_dir_use_symlinks=False,
                 token=self._get_secret_or_env("HF_TOKEN") or None,
             )
-            logger.info(
-                "model downloaded",
-                model=self.model,
-            )
+            try:
+                print(1/0)
+            except Exception:
+                stack_list = traceback.format_stack(limit=None)
+                # 2. Join them into a single block of text
+                stack_str = "".join(stack_list)
+
+                # Now you have it in a variable to do whatever you want with
+                print(f"model downloaded model={self.model}, traceback: {stack_str}\n")
+            # logger.info(
+            #     "model downloaded",
+            #     model=self.model,
+            # )
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
 

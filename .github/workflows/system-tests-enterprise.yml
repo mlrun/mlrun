@@ -256,8 +256,13 @@ jobs:
     - name: Prepare System Test Environment and Install MLRun
       env:
         IP_ADDR_PREFIX: ${{ secrets.IP_ADDR_PREFIX }}
+        # AWS credentials are automatically available from configure-aws-credentials action
       timeout-minutes: 50
       run: |
+        # Retrieve the access token from the SSO cache
+        CACHE_FILE=$(ls -t ~/.aws/sso/cache/*.json | head -n 1)
+        ACCESS_TOKEN=$(jq -r '.accessToken' "$CACHE_FILE")
+        echo "accessToken: $ACCESS_TOKEN"
         . venv/bin/activate
         python automation/system_test/prepare.py run \
           --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
@@ -266,6 +271,7 @@ jobs:
           --provctl-download-url "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          --aws-oidc-access-token "$ACCESS_TOKEN" \
           --iguazio-version "${{ steps.computed_params.outputs.iguazio_version }}" \
           --mlrun-version "${{ steps.computed_params.outputs.mlrun_version }}" \
           --mlrun-ui-version "${{ steps.computed_params.outputs.mlrun_ui_version }}" \

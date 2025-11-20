@@ -85,6 +85,7 @@ class SystemTestPreparer:
         provctl_download_url: typing.Optional[str] = None,
         username: typing.Optional[str] = None,
         access_key: typing.Optional[str] = None,
+        aws_oidc_access_token: typing.Optional[str] = None,
         iguazio_version: typing.Optional[str] = None,
         slack_webhook_url: typing.Optional[str] = None,
         debug: bool = False,
@@ -109,6 +110,7 @@ class SystemTestPreparer:
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._provctl_download_url = provctl_download_url
         self._iguazio_version = iguazio_version
+        self._aws_oidc_access_token = aws_oidc_access_token
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
         self._mlrun_dbpath = mlrun_dbpath
 
@@ -792,6 +794,7 @@ def main():
 @click.option("--provctl-download-url", required=True)
 @click.option("--username", required=True)
 @click.option("--access-key", required=True)
+@click.option("--aws-oidc-access-token", help="AWS OIDC access token for S3 authentication")
 @click.option("--iguazio-version", default=None)
 @click.option(
     "--debug",
@@ -810,6 +813,7 @@ def run(
     provctl_download_url: str,
     username: str,
     access_key: str,
+    aws_oidc_access_token: str,
     iguazio_version: str,
     debug: bool,
 ):
@@ -824,6 +828,7 @@ def run(
         provctl_download_url=provctl_download_url,
         username=username,
         access_key=access_key,
+        aws_oidc_access_token=aws_oidc_access_token,
         iguazio_version=iguazio_version,
         debug=debug,
     )

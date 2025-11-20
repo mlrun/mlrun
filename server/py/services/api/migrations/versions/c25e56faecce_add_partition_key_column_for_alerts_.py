@@ -19,7 +19,7 @@ import mlrun.common.schemas.partition_interval
 import framework.db.sqldb.sql_types
 
 revision = "c25e56faecce"
-down_revision = "0da0066c77f5"
+down_revision = "6d1d53f60e90"
 
 TABLE_NAME = "alert_activations"
 _PK_RAW = "pk_alert_activations"

@@ -1337,6 +1337,7 @@ class LLModel(Model):
             model_name=name,
             input_path=input_path,
             result_path=result_path,
+            model= self.model_provider.model
         )
 
     def predict(
@@ -1355,6 +1356,7 @@ class LLModel(Model):
                 model_name=self.name,
                 messages=messages,
                 invocation_config=invocation_config,
+                model=self.model_provider.model
             )
             response_with_stats = self.model_provider.invoke(
                 messages=messages,
@@ -1367,6 +1369,7 @@ class LLModel(Model):
             logger.info(
                 "LLModel prediction completed",
                 model_name=self.name,
+                model=self.model_provider.model,
                 answer=response_with_stats.get("answer"),
                 usage=response_with_stats.get("usage"),
             )
@@ -1374,6 +1377,7 @@ class LLModel(Model):
             logger.warning(
                 "LLModel invocation artifact or model provider not set, skipping prediction",
                 model_name=self.name,
+                model=self.model_provider.model,
                 invocation_artifact_type=type(llm_prompt_artifact).__name__,
                 model_provider_type=type(self.model_provider).__name__,
             )

@@ -120,7 +120,11 @@ class HuggingFaceProvider(ModelProvider):
                 local_dir_use_symlinks=False,
                 token=self._get_secret_or_env("HF_TOKEN") or None,
             )
-            logger.info("model downloaded", model_local_path=self._model_local_path)
+            logger.info(
+                "model downloaded",
+                model_local_path=self._model_local_path,
+                model=self.model,
+            )
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
 
@@ -219,25 +223,19 @@ class HuggingFaceProvider(ModelProvider):
             ImportError: If the `transformers` package is not installed.
         """
         if self._client:
-            logger.info(
-                "client already exist",
-            )
+            logger.info("client already exist", model=self.model)
             return
         try:
             from transformers import pipeline, AutoModelForCausalLM  # noqa
             from transformers import AutoTokenizer  # noqa
             from transformers.pipelines.base import Pipeline  # noqa
 
-            logger.info(
-                "client not exist, creating...",
-            )
+            logger.info("client not exist, creating...", model=self.model)
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True
             self._client = pipeline(model=self._model_local_path, **self.options)
             self._expected_operation_type = Pipeline
-            logger.info(
-                "finished to create a client",
-            )
+            logger.info("finished to create a client", model=self.model)
         except ImportError as exc:
             raise ImportError("transformers package is not installed") from exc
 

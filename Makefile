@@ -1105,14 +1105,16 @@ upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 		upgrade-mlrun-system-test-deps-lock
 
 
-.PHONY: coverage-combine
-coverage-combine: ## Combine all coverage reports, ignoring errors like missing or corrupted source files
+coverage-combine:
 	rm -f tests/coverage_reports/combined.coverage; \
-	UNIT_TEST_COVERAGE_PATHS=$${UNIT_TEST_COVERAGE_PATHS:-"tests/coverage_reports/unit_tests.coverage"}; \
-	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage combine --keep \
-	$$UNIT_TEST_COVERAGE_PATHS \
-	tests/coverage_reports/integration_tests.coverage \
-	tests/coverage_reports/migration_tests.coverage; \
+	coverage_files="$$(find tests/coverage_reports -type f -name '*.coverage' 2>/dev/null)"; \
+	if [ -z "$$coverage_files" ]; then \
+		echo "No coverage files found under tests/coverage_reports, nothing to combine."; \
+		exit 1; \
+	fi; \
+	echo "Combining coverage from:"; \
+	printf '  %s\n' $$coverage_files; \
+	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage combine --keep $$coverage_files; \
 	python -m coverage xml --ignore-errors --data-file=tests/coverage_reports/combined.coverage -o tests/coverage_reports/combined.xml; \
 	echo "Full coverage report:"; \
 	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage report -i

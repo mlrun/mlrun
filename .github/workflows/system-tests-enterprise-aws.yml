@@ -22,8 +22,8 @@ permissions:
 env:
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
   # AWS Configuration
-  AWS_REGION: us-east-1
-  AWS_DEFAULT_REGION: us-east-1
+  AWS_REGION: us-west-1
+  AWS_DEFAULT_REGION: us-west-1
   AWS_ROLE_ARN: arn:aws:iam::939152069779:role/MLRun-S3-Read
 
 on:
@@ -87,5 +87,5 @@ jobs:
       run: |
         echo "Testing S3 bucket listing..."
         aws s3 ls
-        echo "Testing read from igz-public bucket..."
-        aws s3 ls s3://iguazio-jenkins/
+        echo "Testing read from a private bucket..."
+        aws s3 ls s3://nuclio-k8s-config/

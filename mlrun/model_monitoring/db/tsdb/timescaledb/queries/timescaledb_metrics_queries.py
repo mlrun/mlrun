@@ -173,6 +173,7 @@ class TimescaleDBMetricsQueries:
         value_column = mm_schemas.MetricData.METRIC_VALUE
         columns = [
             table_schema.time_column,
+            mm_schemas.WriterEvent.ENDPOINT_ID,
             mm_schemas.WriterEvent.APPLICATION_NAME,
             name_column,
             value_column,

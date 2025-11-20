@@ -98,10 +98,21 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |NA | New tutorial: {ref}`genai-04-llm-prompt-artifact`. |
+|NA|New page: {ref}`model-serving-steps`.|
+|NA|New page: {ref}`mm-running-applications`.|
+|NA|New page: {ref}`view-mm-applications`.|
+|NA|New page: {ref}`llm-prompt-artifacts`.|
+|NA|New page: {ref}`deploy-serving-graph-as-a-job`.|
+|NA|New page: {ref}`deploy-openai-model`.|
+|NA|New page: {ref}`hf-model-image-classification`.|
+|NA|New section: [Remote models](../store/models.md#remote-models).|
+|NA|New section: [Serving using a remote model](../genai/deployment/genai_serving.md#serving-using-a-remote-model).|
+|NA|Updated page: {ref}`load-from-hub`.|
+|NA|Updated with new functionality: {ref}`genai-serving-graph`|
+|NA|New section: [Exposing multiple ports in the API gateway](../runtimes/application.ipynb#expose-multiple-ports).|
 |NA |Improved the {ref}`serving-graph` documentation.|
 |ML-8094|Improved the `set_function` documentation. See {ref}`create-and-use-functions`.|
 |NA|Updated {ref}`genai-serving-graph` with new functionalities.|
-|NA|New page: {ref}`hf-model-image-classification`
 
 
 ### Closed issues
@@ -1473,7 +1484,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
 | v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
 | v1.10.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
-| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints. See {ref}`serving-graph-as-job`.|
+| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints. See {ref}`deploy-serving-graph-as-a-job`.|
 | v1.10.0|`labels` in`get_or_create_ctx` |`spec` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |

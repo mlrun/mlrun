@@ -215,17 +215,27 @@ class HuggingFaceProvider(ModelProvider):
         :raises:
             ImportError: If the `transformers` package is not installed.
         """
+        from mlrun.utils import logger
         if self._client:
+            logger.info(
+                "client already exist",
+            )
             return
         try:
             from transformers import pipeline, AutoModelForCausalLM  # noqa
             from transformers import AutoTokenizer  # noqa
             from transformers.pipelines.base import Pipeline  # noqa
 
+            logger.info(
+                "client not exist, creating...",
+            )
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True
             self._client = pipeline(model=self.model, **self.options)
             self._expected_operation_type = Pipeline
+            logger.info(
+                "finished to create a client",
+            )
         except ImportError as exc:
             raise ImportError("transformers package is not installed") from exc
 

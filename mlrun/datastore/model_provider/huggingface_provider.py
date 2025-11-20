@@ -42,6 +42,8 @@ class HuggingFaceProvider(ModelProvider):
     into memory for inference. Ensure you have the required CPU/GPU and memory to use this operation.
     """
 
+    _client_lock = threading.Lock()
+
     def __init__(
         self,
         parent,
@@ -66,7 +68,6 @@ class HuggingFaceProvider(ModelProvider):
         )
         self.options = self.get_client_options()
         self._expected_operation_type = None
-        self._client_lock = threading.Lock()
         self._download_model()
 
     @staticmethod

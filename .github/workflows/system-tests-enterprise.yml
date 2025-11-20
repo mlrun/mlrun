@@ -70,21 +70,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v5
-    - name: configure aws credentials
-      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
-      with:
-        role-to-assume: ${{ env.AWS_ROLE_ARN }}
-        role-session-name: mlrun-system-tests-${{ github.run_id }}
-        aws-region: ${{ env.AWS_REGION }}
-    # Test AWS S3 access
-    - name: Test aws s3 list
-      run: |
-        echo "Testing S3 bucket listing..."
-        aws s3 ls
-        echo "Testing read from igz-public bucket..."
-        aws s3 ls s3://igz-public/
-        echo "Trying to read a file from igz-public bucket..."
-        aws s3 cp s3://igz-public/node-shell-daemonset.yaml ./ || echo "File not found or no access"
 
     - name: Install dependencies
       run: |
@@ -133,12 +118,6 @@ jobs:
     - uses: actions/setup-node@v6
       with:
         node-version: 18
-    - name: Install AWS CLI
-      run: |
-        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-        unzip awscliv2.zip
-        ./aws/install
-        aws --version
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
       with:

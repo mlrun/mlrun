@@ -30,13 +30,15 @@ class TimescaleDBQueryBuilder:
     """Utility class for building common SQL query components."""
 
     @staticmethod
-    def build_endpoint_filter(endpoint_ids: Union[str, list[str]]) -> str:
+    def build_endpoint_filter(endpoint_ids: Optional[Union[str, list[str]]]) -> str:
         """
         Generate SQL filter for endpoint IDs.
 
-        :param endpoint_ids: Single endpoint ID or list of endpoint IDs
-        :return: SQL WHERE clause fragment for endpoint filtering
+        :param endpoint_ids: Single endpoint ID, list of endpoint IDs, or None for no filtering
+        :return: SQL WHERE clause fragment for endpoint filtering, or empty string if None
         """
+        if endpoint_ids is None:
+            return ""
         if isinstance(endpoint_ids, str):
             return f"{mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_ids}'"
         elif isinstance(endpoint_ids, list):
@@ -81,14 +83,16 @@ class TimescaleDBQueryBuilder:
 
     @staticmethod
     def build_metrics_filter(
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]],
     ) -> str:
         """
         Generate SQL filter for metrics using both application_name and metric_name columns.
 
-        :param metrics: List of ModelEndpointMonitoringMetric objects
-        :return: SQL WHERE clause fragment for metrics filtering
+        :param metrics: List of ModelEndpointMonitoringMetric objects, or None for no filtering
+        :return: SQL WHERE clause fragment for metrics filtering, or empty string if None
         """
+        if metrics is None:
+            return ""
         if not metrics:
             raise mlrun.errors.MLRunInvalidArgumentError("Metrics list cannot be empty")
 
@@ -109,13 +113,15 @@ class TimescaleDBQueryBuilder:
 
     @staticmethod
     def build_results_filter(
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]],
     ) -> str:
         """
         Generate SQL filter for results using both application_name and result_name columns.
-        :param metrics: List of ModelEndpointMonitoringMetric objects
-        :return: SQL WHERE clause fragment for results filtering
+        :param metrics: List of ModelEndpointMonitoringMetric objects, or None for no filtering
+        :return: SQL WHERE clause fragment for results filtering, or empty string if None
         """
+        if metrics is None:
+            return ""
         if not metrics:
             raise mlrun.errors.MLRunInvalidArgumentError("Metrics list cannot be empty")
 

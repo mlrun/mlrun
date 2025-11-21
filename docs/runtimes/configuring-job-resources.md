@@ -172,7 +172,7 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 
 ## Preemption mode: Spot vs. On-demand nodes
-ß
+
 You can control whether to run your MLRun functions on spot nodes or on-demand nodes. 
 - **Spot (preemptible)** nodes give you access to spare computing capacity from your cloud environment. 
 With spot instances, you request capacity from specific availability zones, dependent on spare computing capacity. This is a good choice if you can be flexible about when your application runs,
@@ -494,7 +494,7 @@ The four states and their default thresholds are:
 'pending_scheduled': '1h', #Scheduled and pending and therefore consumes resources
 'pending_not_scheduled': '-1', #Scheduled but not pending, can continue to wait for resources
 'image_pull_backoff': '1h', #Container running in a pod fails to pull the required image from a container registry
-'running': '24h' #Job is running  
+'executing': '24h' #Job is running  
 ```
 
 The thresholds are time strings constructed of value and scale pairs (e.g. "30 minutes 5h 1day"). 

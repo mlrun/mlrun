@@ -21,6 +21,7 @@ import pytest
 import mlrun.common.schemas
 import mlrun.errors
 
+import framework.db.sqldb.models
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 from framework.utils.background_tasks import background_task_exceeded_timeout
 
@@ -327,3 +328,87 @@ class TestBackgroundTasks(TestDatabaseBase):
         assert recent in remaining_names
         assert old not in remaining_names
         assert len(remaining_names) == 1
+
+    def test_background_task_label_unique_constraint(self):
+        """
+        Test the unique constraint behavior for BackgroundTaskLabel.
+
+        This test ensures:
+        1. A label can be added to a task.
+        2. Adding the same label again does not create a duplicate row.
+        3. The same label name/value can be added to a different project.
+        4. Attempting to add the same label to a second task in the same project fails due to the unique constraint.
+        """
+
+        project = "test-project"
+        project_2 = "test-project2"
+        task = "task"
+        task_2 = "task-2"
+        label_name = "test-label"
+        label_value = "test-value"
+
+        # Create a background task first
+        self._store_task_and_assert_label(task, project, label_name, label_value)
+
+        # Adding the same label again should not create a duplicate
+        self._store_task_and_assert_label(task, project, label_name, label_value)
+
+        # Add the same label to a different project
+        self._store_task_and_assert_label(task, project_2, label_name, label_value)
+
+        # Add the same label to a second task in the same project, expect unique constraint failure
+        # (triggered through the retry mechanism and surfaced as MLRunRetryExhaustedError)
+        self._store_task_and_assert_label(
+            task_2,
+            project,
+            label_name,
+            label_value,
+            expect_error=mlrun.errors.MLRunRetryExhaustedError,
+        )
+
+    def _store_task_and_assert_label(
+        self,
+        task_name,
+        project,
+        label_name,
+        label_value,
+        expected_count=1,
+        expect_error=None,
+    ):
+        """
+        Helper function to store a background task with a specific label and validate DB behavior.
+
+        - If `expect_error` is None: ensures the label is stored successfully and the total count
+          of matching BackgroundTaskLabel entries equals `expected_count`.
+        - If `expect_error` is provided: expects the operation to raise that exception and asserts that
+          the raised error message includes 'UNIQUE constraint failed'.
+        """
+        if expect_error:
+            with pytest.raises(expect_error) as excinfo:
+                self._db.store_background_task(
+                    self._db_session,
+                    name=task_name,
+                    project=project,
+                    labels={label_name: label_value},
+                )
+            assert "UNIQUE constraint failed" in mlrun.errors.err_to_str(excinfo.value)
+        else:
+            self._db.store_background_task(
+                self._db_session,
+                name=task_name,
+                project=project,
+                labels={label_name: label_value},
+            )
+            stored_labels = self._get_labels(project, label_name, label_value)
+            assert len(stored_labels) == expected_count
+
+    def _get_labels(self, project, name, value):
+        """
+        Helper function to query BackgroundTaskLabel by project, name, and value.
+        Returns a list of matching labels.
+        """
+        return (
+            self._db_session.query(framework.db.sqldb.models.BackgroundTaskLabel)
+            .filter_by(project=project, name=name, value=value)
+            .all()
+        )

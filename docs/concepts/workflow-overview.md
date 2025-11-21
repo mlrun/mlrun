@@ -146,6 +146,8 @@ source you can set the remote engine to run in local by setting engine to `remot
 When running workflows from a git enabled context it first verifies that there are no uncommitted git changes 
 (to guarantee that workflows that load from git do not use old code versions). You can suppress that check by setting the `dirty` flag to True.
 
+To run parallel execution it's recommended to use [Create the workflow](../runtimes/multiple-parallel-workflow.ipynb#create-the-workflow) as an example. Do not use `for loop`; this could cause the workflow to reach its size limit.
+
 Examples:
 
     # simple run of workflow 'main' with arguments, block until it completes (watch=True)

@@ -372,17 +372,6 @@ def _resolve_env_vars(function, auth_info=None):
         _add_secrets_config_to_function_spec(function)
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
-
-    # In nuclio 1.6.0<=v<1.8.0, python runtimes default behavior was to not decode event strings
-    # Our code is counting on the strings to be decoded, so add the needed env var for those versions
-    if (
-        services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.6.0", "1.8.0"
-        )
-        and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
-    ):
-        env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
-
     mlrun.auth.utils.enrich_auth_env(env_dict, function._get_db(), auth_info)
 
     return env_dict, external_source_env_dict

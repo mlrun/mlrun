@@ -204,7 +204,7 @@ class DataStore(BaseRemoteClient):
                 )
 
             if start_time or end_time or additional_filters:
-                partitions_time_attributes = find_partitions(url, file_system)
+                partitions_time_attributes, _ = find_partitions(url, file_system)
                 set_filters(
                     partitions_time_attributes,
                     start_time,

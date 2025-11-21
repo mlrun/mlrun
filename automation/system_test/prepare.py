@@ -498,20 +498,38 @@ class SystemTestPreparer:
         if self._aws_access_key_id:
             self._run_command(
                 "aws",
-                args=["configure", "set", "aws_access_key_id", self._aws_access_key_id, "--profile", profile_name],
+                args=[
+                    "configure",
+                    "set",
+                    "aws_access_key_id",
+                    self._aws_access_key_id,
+                    "--profile",
+                    profile_name,
+                ],
             )
         if self._aws_secret_access_key:
             self._run_command(
                 "aws",
                 args=[
-                    "configure", "set", "aws_secret_access_key",
-                    self._aws_secret_access_key, "--profile", profile_name
+                    "configure",
+                    "set",
+                    "aws_secret_access_key",
+                    self._aws_secret_access_key,
+                    "--profile",
+                    profile_name,
                 ],
             )
         if self._aws_oidc_access_token:
             self._run_command(
                 "aws",
-                args=["configure", "set", "aws_session_token", self._aws_oidc_access_token, "--profile", profile_name],
+                args=[
+                    "configure",
+                    "set",
+                    "aws_session_token",
+                    self._aws_oidc_access_token,
+                    "--profile",
+                    profile_name,
+                ],
             )
         # Set region
         self._run_command(
@@ -523,7 +541,8 @@ class SystemTestPreparer:
         self._run_command(
             "aws",
             args=[
-                "--profile", profile_name,
+                "--profile",
+                profile_name,
                 "s3",
                 "cp",
                 f"s3://{bucket_name}/{object_name}",
@@ -826,8 +845,12 @@ def main():
 @click.option("--username", required=True)
 @click.option("--access-key", required=True)
 @click.option("--aws-access-key-id", help="AWS access key ID for S3 authentication")
-@click.option("--aws-secret-access-key", help="AWS secret access key for S3 authentication")
-@click.option("--aws-oidc-access-token", help="AWS OIDC access token for S3 authentication")
+@click.option(
+    "--aws-secret-access-key", help="AWS secret access key for S3 authentication"
+)
+@click.option(
+    "--aws-oidc-access-token", help="AWS OIDC access token for S3 authentication"
+)
 @click.option("--iguazio-version", default=None)
 @click.option(
     "--debug",

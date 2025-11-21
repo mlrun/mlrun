@@ -503,7 +503,10 @@ class SystemTestPreparer:
         if self._aws_secret_access_key:
             self._run_command(
                 "aws",
-                args=["configure", "set", "aws_secret_access_key", self._aws_secret_access_key, "--profile", profile_name],
+                args=[
+                    "configure", "set", "aws_secret_access_key", 
+                    self._aws_secret_access_key, "--profile", profile_name
+                ],
             )
         if self._aws_oidc_access_token:
             self._run_command(

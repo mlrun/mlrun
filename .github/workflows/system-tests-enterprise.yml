@@ -30,7 +30,6 @@ on:
   push:
     branches:
       - '.+-system-tests'
-      - 'feature/aws_access_key_control'
 
   schedule:
 

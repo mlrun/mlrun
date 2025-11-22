@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'mlrun'
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
 

@@ -70,7 +70,7 @@ jobs:
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
 
           # Fetch all history for all tags and branches
@@ -143,7 +143,7 @@ jobs:
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Set up uv
         uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
       - name: Build & push to PyPI
@@ -202,7 +202,7 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Create tutorials tar
         run: |
           wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
@@ -223,7 +223,7 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install Python venv
         run: |
           venv="$HOME/.local/share/venv"
@@ -261,7 +261,7 @@ jobs:
     # runs lastly to avoid conflicts with other release-related jobs
     needs: [ prepare-inputs, update-tutorials, update-demos ]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v6

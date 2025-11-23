@@ -98,7 +98,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|NA | New tutorial: {ref}`genai-04-llm-prompt-artifact`. |
+|NA |New tutorial: {ref}`genai-04-llm-prompt-artifact`. |
 |NA|New page: {ref}`model-serving-steps`.|
 |NA|New page: {ref}`mm-running-applications`.|
 |NA|New page: {ref}`view-mm-applications`.|
@@ -110,11 +110,10 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |NA|New section: [Serving using a remote model](../genai/deployment/genai_serving.md#serving-using-a-remote-model).|
 |NA|Updated page: {ref}`load-from-hub`.|
 |NA|Updated with new functionality: {ref}`genai-serving-graph`|
-|NA|New section: [Exposing multiple ports in the API gateway](../runtimes/application.ipynb#expose-multiple-ports).|
 |NA |Improved the {ref}`serving-graph` documentation.|
+|ML-7770|New section: [Configuring custom loggers](../runtimes/configuring-job-resources.md#custom-logs)|
+|NA|New section: [Exposing multiple ports in the API gateway](../runtimes/application.ipynb#expose-multiple-ports).|
 |ML-8094|Improved the `set_function` documentation. See {ref}`create-and-use-functions`.|
-|NA|Updated {ref}`genai-serving-graph` with new functionalities.|
-
 
 ### Closed issues
 | ID    |Description                                                                 |

@@ -17,7 +17,7 @@ LLM prompt artifacts capture a prompt definition for large language model (LLM) 
 
 ## LLM prompt artifacts
 
-The **prompt template** format is a rformat will be a list[dict], typically with two roles: system and user.
+The **prompt template** format is a list[dict]. It supports any role that the model supports, such as: system and user.
 There is no limitation on the list size.
 Each content can hold a plain text, a place holder, or a combination of both.
 The place holders names are relevant for the entire template: if there is a place holder “user_input”, it can be used inside a few contents, and will always be the same.

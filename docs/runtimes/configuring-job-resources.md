@@ -20,6 +20,7 @@ Configuring runs and functions is relevant for all supported cloud platforms.
 - [Mounting persistent storage](#mounting-persistent-storage)
 - [Preventing stuck pods](#preventing-stuck-pods)
 - [Setting the log level](#setting-the-log-level)
+- [Custom logs](#custom-logs)
 
 ## Environment variables
 

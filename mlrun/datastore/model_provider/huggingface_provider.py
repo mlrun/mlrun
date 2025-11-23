@@ -132,12 +132,16 @@ class HuggingFaceProvider(ModelProvider):
             # Download the model and tokenizer files directly to the cache.
 
             if self.model in self._download_history:
+                logger.info("self.model in self._download_history 1", model=self.model,
+                            _download_history=self._download_history)
                 return
 
             lock = self._get_lock_per_model(self.model)
             with lock:
                 # Double-check after acquiring the lock
                 if self.model in self._download_history:
+                    logger.info("self.model in self._download_history 2", model=self.model,
+                                _download_history=self._download_history)
                     return
 
                 snapshot_download(

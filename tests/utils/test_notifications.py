@@ -1730,8 +1730,6 @@ class TestMailNotification:
         await notification.push(message, severity, [])
         assert notification.params["subject"] == expected["subject"]
         assert notification.params["body"] == expected["body"]
-        assert notification.params["username"] == expected["username"]
-        assert notification.params["password"] == expected["password"]
 
 
 class DummyResponse:

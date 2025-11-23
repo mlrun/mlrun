@@ -43,7 +43,7 @@ docstring-code-format = true
 required-version = ">=0.7.14"
 
 [tool.uv.pip]
-python-version = "3.9"  # TODO: change to 3.11 when 3.9 is no longer supported
+python-version = "3.11"
 generate-hashes = true
 universal = true
 

@@ -14,7 +14,6 @@
 
 from datetime import datetime, timezone
 
-import pandas as pd
 import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -53,21 +52,23 @@ class TestGetRecords:
 
         # Query all endpoints using _get_records
         df = connector._get_records(
-            table="metrics",
+            table=mm_schemas.TimescaleDBTables.METRICS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id=None,  # Get ALL endpoints
         )
 
         # Verify we got data for both endpoints
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
         assert len(df) == len(test_data)
+        # Verify endpoint_id is always present
+        expected_endpoints = {d[mm_schemas.WriterEvent.ENDPOINT_ID] for d in test_data}
+        assert set(df[mm_schemas.WriterEvent.ENDPOINT_ID]) == expected_endpoints
         # Reference test_data instead of hardcoding expected values
         expected_apps = {d[mm_schemas.WriterEvent.APPLICATION_NAME] for d in test_data}
         expected_metrics = {d[mm_schemas.MetricData.METRIC_NAME] for d in test_data}
         assert set(df[mm_schemas.WriterEvent.APPLICATION_NAME]) == expected_apps
         assert set(df[mm_schemas.MetricData.METRIC_NAME]) == expected_metrics
+        assert mm_schemas.WriterEvent.START_INFER_TIME in df.columns
 
     def test_get_records_metrics_specific_endpoint(self, connector, query_test_helper):
         """Test _get_records() for metrics table with endpoint filter."""
@@ -99,16 +100,19 @@ class TestGetRecords:
 
         # Query specific endpoint using _get_records
         df = connector._get_records(
-            table="metrics",
+            table=mm_schemas.TimescaleDBTables.METRICS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id="endpoint-1",
         )
 
         # Verify we only got endpoint-1 (reference test_data)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
         assert len(df) == 1
+        # Verify endpoint_id and data match test_data
+        assert (
+            df[mm_schemas.WriterEvent.ENDPOINT_ID].iloc[0]
+            == test_data[0][mm_schemas.WriterEvent.ENDPOINT_ID]
+        )
         assert (
             df[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
             == test_data[0][mm_schemas.WriterEvent.APPLICATION_NAME]
@@ -119,7 +123,7 @@ class TestGetRecords:
         )
 
     def test_get_records_results_all_endpoints(self, connector, query_test_helper):
-        """Test _get_records() for results table with no endpoint filter."""
+        """Test _get_records() for app_results table with no endpoint filter."""
         # Insert test data for multiple endpoints
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
         test_data = [
@@ -152,20 +156,22 @@ class TestGetRecords:
 
         # Query all endpoints using _get_records
         df = connector._get_records(
-            table="results",
+            table=mm_schemas.TimescaleDBTables.APP_RESULTS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id=None,  # Get ALL endpoints
         )
 
         # Verify we got data for both endpoints (reference test_data)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
         assert len(df) == len(test_data)
+        # Verify endpoint_id is always present
+        expected_endpoints = {d[mm_schemas.WriterEvent.ENDPOINT_ID] for d in test_data}
+        assert set(df[mm_schemas.WriterEvent.ENDPOINT_ID]) == expected_endpoints
         expected_apps = {d[mm_schemas.WriterEvent.APPLICATION_NAME] for d in test_data}
         expected_values = {d[mm_schemas.ResultData.RESULT_VALUE] for d in test_data}
         assert set(df[mm_schemas.WriterEvent.APPLICATION_NAME]) == expected_apps
         assert set(df[mm_schemas.ResultData.RESULT_VALUE]) == expected_values
+        assert mm_schemas.WriterEvent.START_INFER_TIME in df.columns
 
     def test_get_records_predictions_all_endpoints(self, connector):
         """Test _get_records() for predictions table with no endpoint filter."""
@@ -196,15 +202,13 @@ class TestGetRecords:
 
         # Query all endpoints using _get_records
         df = connector._get_records(
-            table="predictions",
+            table=mm_schemas.TimescaleDBTables.PREDICTIONS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id=None,  # Get ALL endpoints
         )
 
         # Verify we got data for both endpoints (reference test_data)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
         assert len(df) == len(test_data)
         expected_endpoints = {d["endpoint_id"] for d in test_data}
         expected_latencies = {d["latency"] for d in test_data}
@@ -214,20 +218,19 @@ class TestGetRecords:
     def test_get_records_empty_result(self, connector):
         """Test _get_records() returns empty DataFrame when no data exists."""
         df = connector._get_records(
-            table="metrics",
+            table=mm_schemas.TimescaleDBTables.METRICS,
             start=datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id=None,
         )
 
-        assert isinstance(df, pd.DataFrame)
         assert df.empty
 
     def test_get_records_invalid_table(self, connector):
         """Test _get_records() raises error for invalid table name."""
         with pytest.raises(
             Exception,
-            match="Invalid table.*Must be 'metrics', 'results', or 'predictions'",
+            match="Invalid table.*Must be METRICS, APP_RESULTS, or PREDICTIONS",
         ):
             connector._get_records(
                 table="invalid_table",
@@ -236,7 +239,11 @@ class TestGetRecords:
             )
 
     def test_get_records_with_column_filter(self, connector, query_test_helper):
-        """Test _get_records() with specific columns requested."""
+        """Test _get_records() with specific columns requested.
+
+        Note: When columns parameter is specified, only those columns are returned.
+        endpoint_id must be explicitly requested in the columns list to be included.
+        """
         # Insert test data
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
         test_data = {
@@ -252,9 +259,9 @@ class TestGetRecords:
             test_data, mm_schemas.WriterEventKind.METRIC
         )
 
-        # Query with specific columns
+        # Query with specific columns (not including endpoint_id)
         df = connector._get_records(
-            table="metrics",
+            table=mm_schemas.TimescaleDBTables.METRICS,
             start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
             endpoint_id="endpoint-1",
@@ -264,8 +271,10 @@ class TestGetRecords:
             ],
         )
 
-        # Verify only requested columns are returned
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
+        # Verify only requested columns are returned (check filtering logic)
         assert mm_schemas.MetricData.METRIC_NAME in df.columns
         assert mm_schemas.MetricData.METRIC_VALUE in df.columns
+        # endpoint_id is not in columns list, so it should NOT be returned
+        assert mm_schemas.WriterEvent.ENDPOINT_ID not in df.columns
+        # Verify other unrequested columns are also NOT included
+        assert mm_schemas.WriterEvent.APPLICATION_NAME not in df.columns

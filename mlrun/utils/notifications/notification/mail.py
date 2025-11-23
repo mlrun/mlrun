@@ -34,17 +34,23 @@ class MailNotification(base.NotificationBase):
 
     boolean_params = ["use_tls", "start_tls", "validate_certs"]
 
+    optional_auth_params = ["username", "password"]
+
     required_params = [
         "server_host",
         "server_port",
         "sender_address",
-        "username",
-        "password",
         "email_addresses",
     ] + boolean_params
 
     @classmethod
     def validate_params(cls, params):
+        # Normalize empty string username/password to None
+        if not params.get("username"):
+            params["username"] = None
+        if not params.get("password"):
+            params["password"] = None
+
         for required_param in cls.required_params:
             if required_param not in params:
                 raise ValueError(
@@ -56,6 +62,13 @@ class MailNotification(base.NotificationBase):
                 raise ValueError(
                     f"Parameter '{boolean_param}' must be a boolean for MailNotification"
                 )
+
+        # Allow no auth, username only, or username + password
+        # Some SMTP servers allow username without password
+        if params["password"] and not params["username"]:
+            raise ValueError(
+                "Parameter 'username' is required when 'password' is provided for MailNotification"
+            )
 
         cls._validate_emails(params)
 
@@ -147,8 +160,8 @@ class MailNotification(base.NotificationBase):
         sender_address: str,
         server_host: str,
         server_port: int,
-        username: str,
-        password: str,
+        username: typing.Optional[str],
+        password: typing.Optional[str],
         use_tls: bool,
         start_tls: bool,
         validate_certs: bool,

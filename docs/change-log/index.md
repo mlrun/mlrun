@@ -1405,7 +1405,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
 |ML-9913|UI: There may be a discrepancy in the artifact count between the Project monitoring page and the Artifacts page when running hyper-param jobs without a best-iteration. |Always provide a selection criteria for `best-iteration`.|v1.8.0|
 |ML-11463|The application graph in the model monitoring UI does not present the “dead zones” where no activity happened, and the time axis representation is not consistent.|NA|v1.10.0|
-
+|ML-11517|When serving using 2 Hugging Face models with `thread_pool` execution mechanism, thread-safety issues may cause failure during invoke time. |Do not use `threading_pool` as an execution mechanism for multiple HF models. |v1.10.0|
+|ML-11530|Model monitoring appplications that have underscores in their names cause breakage when trying to view the counters from the Project view.|NA|v1.10.0|
 ## Limitations
 
 | ID     |Description                                                                                                                                 |Workaround |Opened in|
@@ -1428,8 +1429,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
 |ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|v1.8.0|
-|ML-11517|
-|ML-11530|
 
 ## Deprecations and removed code
 

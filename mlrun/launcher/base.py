@@ -16,7 +16,8 @@ import ast
 import copy
 import os
 import uuid
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any, Union
 
 import mlrun.common.constants
 import mlrun.common.runtimes.constants
@@ -48,33 +49,29 @@ class BaseLauncher(abc.ABC):
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        task: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
-        handler: Optional[Union[str, Callable]] = None,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
-        out_path: Optional[str] = "",
-        workdir: Optional[str] = "",
-        artifact_path: Optional[str] = "",
-        output_path: Optional[str] = "",
-        watch: Optional[bool] = True,
-        schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
-        ] = None,
-        hyperparams: Optional[dict[str, list]] = None,
-        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
-        verbose: Optional[bool] = None,
-        scrape_metrics: Optional[bool] = None,
-        local_code_path: Optional[str] = None,
-        auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[dict[str, str]] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        task: Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict] | None = None,
+        handler: str | Callable | None = None,
+        name: str | None = "",
+        project: str | None = "",
+        params: dict | None = None,
+        inputs: dict[str, str] | None = None,
+        out_path: str | None = "",
+        workdir: str | None = "",
+        artifact_path: str | None = "",
+        output_path: str | None = "",
+        watch: bool | None = True,
+        schedule: str | mlrun.common.schemas.schedule.ScheduleCronTrigger | None = None,
+        hyperparams: dict[str, list] | None = None,
+        hyper_param_options: mlrun.model.HyperParamOptions | None = None,
+        verbose: bool | None = None,
+        scrape_metrics: bool | None = None,
+        local_code_path: str | None = None,
+        auto_build: bool | None = None,
+        param_file_secrets: dict[str, str] | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        returns: list[str | dict[str, str]] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        retry: mlrun.model.Retry | dict | None = None,
     ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass
@@ -83,7 +80,7 @@ class BaseLauncher(abc.ABC):
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
+        project_name: str | None = "",
         full: bool = True,
         client_version: str = "",
     ):
@@ -258,9 +255,9 @@ class BaseLauncher(abc.ABC):
         scrape_metrics=None,
         output_path=None,
         workdir=None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        retry: mlrun.model.Retry | dict | None = None,
     ):
         run.spec.handler = (
             handler or run.spec.handler or runtime.spec.default_handler or ""
@@ -399,8 +396,8 @@ class BaseLauncher(abc.ABC):
         runtime: "mlrun.runtimes.BaseRuntime",
         result: dict,
         run: "mlrun.run.RunObject",
-        schedule: Optional[mlrun.common.schemas.ScheduleCronTrigger] = None,
-        err: Optional[Exception] = None,
+        schedule: mlrun.common.schemas.ScheduleCronTrigger | None = None,
+        err: Exception | None = None,
     ):
         # if the purpose was to schedule (and not to run) nothing to wrap
         if schedule:

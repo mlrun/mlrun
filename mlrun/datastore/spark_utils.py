@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
 import mlrun
 from mlrun.features import Entity
@@ -40,7 +39,7 @@ def spark_session_update_hadoop_options(session, spark_options) -> dict[str, str
 
 
 def check_special_columns_exists(
-    spark_df, entities: list[Union[Entity, str]], timestamp_key: str, label_column: str
+    spark_df, entities: list[Entity | str], timestamp_key: str, label_column: str
 ):
     columns = spark_df.columns
     entities = entities or []

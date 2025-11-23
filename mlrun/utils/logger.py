@@ -17,12 +17,11 @@ import logging
 import os
 import string
 import sys
-import typing
 from enum import Enum
 from functools import cached_property
 from sys import stdout
 from traceback import format_exception
-from typing import IO, Optional, Union
+from typing import IO
 
 import orjson
 import pydantic.v1
@@ -260,7 +259,7 @@ class Logger:
         level,
         name="mlrun",
         propagate=True,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         self._logger = logger or logging.getLogger(name)
         self._logger.propagate = propagate
@@ -319,7 +318,7 @@ class Logger:
     def level(self):
         return self._logger.level
 
-    def set_logger_level(self, level: Union[str, int]) -> None:
+    def set_logger_level(self, level: str | int) -> None:
         self._logger.setLevel(level)
 
     def replace_handler_stream(self, handler_name: str, file: IO[str]) -> None:
@@ -377,12 +376,10 @@ class FormatterKinds(Enum):
 def resolve_formatter_by_kind(
     formatter_kind: FormatterKinds,
 ) -> type[
-    typing.Union[
-        HumanReadableFormatter,
-        HumanReadableExtendedFormatter,
-        JSONFormatter,
-        CustomFormatter,
-    ]
+    HumanReadableFormatter
+    | HumanReadableExtendedFormatter
+    | JSONFormatter
+    | CustomFormatter
 ]:
     return {
         FormatterKinds.HUMAN: HumanReadableFormatter,
@@ -404,7 +401,7 @@ def create_test_logger(name: str = "mlrun", stream: IO[str] = stdout) -> Logger:
 
 
 def create_logger(
-    level: Optional[str] = None,
+    level: str | None = None,
     formatter_kind: str = FormatterKinds.HUMAN.name,
     name: str = "mlrun",
     stream: IO[str] = stdout,

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-from typing import Optional
 
 import pandas as pd
 
@@ -64,7 +63,7 @@ class TimescaleDBConnector(TSDBConnector):
         self,
         project: str,
         profile: DatastoreProfilePostgreSQL,
-        pre_aggregate_config: Optional[PreAggregateConfig] = None,
+        pre_aggregate_config: PreAggregateConfig | None = None,
         **kwargs,
     ):
         super().__init__(project=project)
@@ -182,7 +181,7 @@ class TimescaleDBConnector(TSDBConnector):
     def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object using TimescaleDB optimizations.
@@ -294,8 +293,8 @@ class TimescaleDBConnector(TSDBConnector):
         table: str,
         start: datetime.datetime,
         end: datetime.datetime,
-        endpoint_id: Optional[str] = None,
-        columns: Optional[list[str]] = None,
+        endpoint_id: str | None = None,
+        columns: list[str] | None = None,
     ) -> pd.DataFrame:
         """
         Get raw records from TimescaleDB as pandas DataFrame.

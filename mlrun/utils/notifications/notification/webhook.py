@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import re
-import typing
 
 import orjson
 
@@ -38,13 +37,13 @@ class WebhookNotification(NotificationBase):
     async def push(
         self,
         message: str,
-        severity: typing.Optional[
-            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
-        ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
-        custom_html: typing.Optional[typing.Optional[str]] = None,
-        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
-        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
+        severity: mlrun.common.schemas.NotificationSeverity
+        | str
+        | None = mlrun.common.schemas.NotificationSeverity.INFO,
+        runs: mlrun.lists.RunList | list | None = None,
+        custom_html: str | None | None = None,
+        alert: mlrun.common.schemas.AlertConfig | None = None,
+        event_data: mlrun.common.schemas.Event | None = None,
     ):
         url = self.params.get("url", None)
         method = self.params.get("method", "post").lower()

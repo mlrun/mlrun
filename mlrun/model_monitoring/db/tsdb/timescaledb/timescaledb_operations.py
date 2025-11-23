@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import psycopg
 
@@ -58,7 +57,7 @@ class TimescaleDBOperationsManager:
         self,
         project: str,
         connection: TimescaleDBConnection,
-        pre_aggregate_config: Optional[PreAggregateConfig] = None,
+        pre_aggregate_config: PreAggregateConfig | None = None,
     ):
         """
         Initialize operations handler with a shared connection.
@@ -81,7 +80,7 @@ class TimescaleDBOperationsManager:
         self.tables = timescaledb_schema.create_table_schemas(self.project)
 
     def create_tables(
-        self, pre_aggregate_config: Optional[PreAggregateConfig] = None
+        self, pre_aggregate_config: PreAggregateConfig | None = None
     ) -> None:
         config = pre_aggregate_config or self._pre_aggregate_config
 
@@ -562,7 +561,7 @@ class TimescaleDBOperationsManager:
             )
 
     def delete_application_records(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Delete application records from TimescaleDB for the given model endpoints or all if endpoint_ids is None.
@@ -649,7 +648,7 @@ class TimescaleDBOperationsManager:
         )
 
     def _get_aggregate_delete_statements_by_application(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> list[Statement]:
         """
         Get parameterized DELETE statements for aggregate tables filtered by application name.

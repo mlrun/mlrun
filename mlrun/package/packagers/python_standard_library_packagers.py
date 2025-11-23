@@ -15,7 +15,6 @@
 import os
 import pathlib
 import tempfile
-from typing import Optional, Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
@@ -140,7 +139,7 @@ class StrPackager(DefaultPackager):
         self,
         data_item: DataItem,
         is_directory: bool = False,
-        archive_format: Optional[str] = None,
+        archive_format: str | None = None,
     ) -> str:
         """
         Unpack a data item representing a path string. If the path is of a file, the file is downloaded to a local
@@ -195,7 +194,7 @@ class _BuiltinCollectionPackager(DefaultPackager):
 
     def pack_file(
         self,
-        obj: Union[dict, list],
+        obj: dict | list,
         key: str,
         file_format: str = DEFAULT_STRUCT_FILE_FORMAT,
     ) -> tuple[Artifact, dict]:
@@ -222,8 +221,8 @@ class _BuiltinCollectionPackager(DefaultPackager):
         return artifact, instructions
 
     def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> Union[dict, list]:
+        self, data_item: DataItem, file_format: str | None = None
+    ) -> dict | list:
         """
         Unpack a builtin collection from file.
 
@@ -259,9 +258,7 @@ class DictPackager(_BuiltinCollectionPackager):
 
     PACKABLE_OBJECT_TYPE = dict
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> dict:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> dict:
         """
         Unpack a dictionary from file.
 
@@ -287,9 +284,7 @@ class ListPackager(_BuiltinCollectionPackager):
 
     PACKABLE_OBJECT_TYPE = list
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> list:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> list:
         """
         Unpack a list from file.
 
@@ -359,9 +354,7 @@ class TuplePackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> tuple:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> tuple:
         """
         Unpack a tuple from file.
 
@@ -406,9 +399,7 @@ class SetPackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> set:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> set:
         """
         Unpack a set from file.
 
@@ -443,7 +434,7 @@ class FrozensetPackager(SetPackager):
         return super().pack_file(obj=set(obj), key=key, file_format=file_format)
 
     def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
+        self, data_item: DataItem, file_format: str | None = None
     ) -> frozenset:
         """
         Unpack a frozenset from file.
@@ -491,9 +482,7 @@ class BytesPackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> bytes:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> bytes:
         """
         Unpack a bytes from file.
 
@@ -539,7 +528,7 @@ class BytearrayPackager(BytesPackager):
         return super().pack_file(obj=bytes(obj), key=key, file_format=file_format)
 
     def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
+        self, data_item: DataItem, file_format: str | None = None
     ) -> bytearray:
         """
         Unpack a bytearray from file.
@@ -599,7 +588,7 @@ class PathPackager(StrPackager):
         self,
         data_item: DataItem,
         is_directory: bool = False,
-        archive_format: Optional[str] = None,
+        archive_format: str | None = None,
     ) -> pathlib.Path:
         """
         Unpack a data item representing a `Path`. If the path is of a file, the file is downloaded to a local

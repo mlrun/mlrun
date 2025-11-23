@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
 from copy import copy
 
 import mlrun
@@ -177,18 +176,18 @@ class RunConfig:
 
     def __init__(
         self,
-        function: typing.Union[str, FunctionReference, BaseRuntime] = None,
-        local: typing.Optional[bool] = None,
-        image: typing.Optional[str] = None,
-        kind: typing.Optional[str] = None,
-        handler: typing.Optional[str] = None,
-        parameters: typing.Optional[dict] = None,
-        watch: typing.Optional[bool] = None,
+        function: str | FunctionReference | BaseRuntime = None,
+        local: bool | None = None,
+        image: str | None = None,
+        kind: str | None = None,
+        handler: str | None = None,
+        parameters: dict | None = None,
+        watch: bool | None = None,
         owner=None,
-        credentials: typing.Optional[mlrun.model.Credentials] = None,
-        code: typing.Optional[str] = None,
-        requirements: typing.Optional[typing.Union[str, list[str]]] = None,
-        extra_spec: typing.Optional[dict] = None,
+        credentials: mlrun.model.Credentials | None = None,
+        code: str | None = None,
+        requirements: str | list[str] | None = None,
+        extra_spec: dict | None = None,
         auth_info=None,
     ):
         """class for holding function and run specs for jobs and serving functions
@@ -256,7 +255,7 @@ class RunConfig:
     @function.setter
     def function(self, function):
         if function and not (
-            isinstance(function, (str, FunctionReference)) or hasattr(function, "apply")
+            isinstance(function, str | FunctionReference) or hasattr(function, "apply")
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "function must be a uri (string) or mlrun function object/reference"

@@ -11,21 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
 import typing
 
 import httpx
-import sqlalchemy.orm
 
 # iguazio package is only supported in Python >= 3.11
-if sys.version_info >= (3, 11):
-    import iguazio
-    from iguazio.schemas import (
-        RefreshAccessTokenOptionsV1,
-        RefreshAccessTokensOptionsV1,
-        RevokeOfflineTokenOptionsV1,
-        UpdateProjectOwnerOptionsV1,
-    )
+import iguazio
+import sqlalchemy.orm
+from iguazio.schemas import (
+    RefreshAccessTokenOptionsV1,
+    RefreshAccessTokensOptionsV1,
+    RevokeOfflineTokenOptionsV1,
+    UpdateProjectOwnerOptionsV1,
+)
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -43,10 +41,6 @@ _GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
 class Client(BaseClient, project_follower.Member):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        if sys.version_info < (3, 11):
-            raise mlrun.errors.MLRunRuntimeError(
-                "The 'iguazio' client is only supported in Python >= 3.11"
-            )
         self._client = iguazio.Client(
             api_url=self._api_url,
             auto_login=False,
@@ -135,7 +129,7 @@ class Client(BaseClient, project_follower.Member):
         )
 
     def revoke_offline_token(
-        self, token: str, request_headers: typing.Optional[dict[str, str]] = None
+        self, token: str, request_headers: dict[str, str] | None = None
     ) -> None:
         """
         Revoke an offline token in Iguazio.
@@ -271,11 +265,11 @@ class Client(BaseClient, project_follower.Member):
         self,
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
+        owner: str | None = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: typing.Optional[list[str]] = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         # TODO: This is a placeholder implementation, as it is used for project sync. Implement this method as needed
         #       when we support the project sync functionality with Iguazio 4.
@@ -285,10 +279,10 @@ class Client(BaseClient, project_follower.Member):
         self,
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
@@ -330,7 +324,7 @@ class Client(BaseClient, project_follower.Member):
 
     def _extract_response_error(
         self, response: httpx.Response
-    ) -> tuple[typing.Optional[str], typing.Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """
         Extracts 'errorMessage' and 'ctx' from an Iguazio HTTP response.
 
@@ -369,9 +363,7 @@ class Client(BaseClient, project_follower.Member):
     def _verify_session_http_method(self) -> str:
         return mlrun.common.types.HTTPMethod.GET
 
-    def _prepare_request_kwargs(
-        self, session: typing.Optional[str], path: str, *, kwargs: dict
-    ):
+    def _prepare_request_kwargs(self, session: str | None, path: str, *, kwargs: dict):
         """
         Prepare headers for session verification request.
         Must include either an Authorization header or an _oauth2_proxy cookie.
@@ -417,10 +409,10 @@ class Client(BaseClient, project_follower.Member):
             )
             raise exception_type(failure_message) from exc
 
-    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_ctx(self, response_body: dict) -> str | None:
         return response_body.get("status", {}).get("ctx")
 
-    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_error_message(self, response_body: dict) -> str | None:
         return response_body.get("status", {}).get("errorMessage")
 
     @staticmethod

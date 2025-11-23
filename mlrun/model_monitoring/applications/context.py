@@ -53,10 +53,10 @@ class MonitoringApplicationContext:
         artifacts_logger: _ArtifactsLogger,
         logger: mlrun.utils.Logger,
         nuclio_logger: nuclio.request.Logger,
-        model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
-        sample_df: Optional[pd.DataFrame] = None,
-        feature_stats: Optional[FeatureStats] = None,
-        feature_sets_dict: Optional[dict[str, fs.FeatureSet]] = None,
+        model_endpoint_dict: dict[str, ModelEndpoint] | None = None,
+        sample_df: pd.DataFrame | None = None,
+        feature_stats: FeatureStats | None = None,
+        feature_sets_dict: dict[str, fs.FeatureSet] | None = None,
     ) -> None:
         """
         The :code:`MonitoringApplicationContext` object holds all the relevant information for the
@@ -110,18 +110,18 @@ class MonitoringApplicationContext:
             str, event.get(mm_constants.ApplicationEvent.ENDPOINT_NAME)
         )
 
-        self._feature_stats: Optional[FeatureStats] = feature_stats
-        self._sample_df_stats: Optional[FeatureStats] = None
+        self._feature_stats: FeatureStats | None = feature_stats
+        self._sample_df_stats: FeatureStats | None = None
 
         # Default labels for the artifacts
         self._default_labels = self._get_default_labels()
 
         # Persistent data - fetched when needed
-        self._sample_df: Optional[pd.DataFrame] = sample_df
-        self._model_endpoint: Optional[ModelEndpoint] = (
+        self._sample_df: pd.DataFrame | None = sample_df
+        self._model_endpoint: ModelEndpoint | None = (
             model_endpoint_dict.get(self.endpoint_id) if model_endpoint_dict else None
         )
-        self._feature_set: Optional[fs.FeatureSet] = (
+        self._feature_set: fs.FeatureSet | None = (
             feature_sets_dict.get(self.endpoint_id) if feature_sets_dict else None
         )
         store, _, _ = mlrun.store_manager.get_or_create_store(
@@ -137,9 +137,9 @@ class MonitoringApplicationContext:
         project: Optional["mlrun.MlrunProject"] = None,
         application_name: str,
         event: dict[str, Any],
-        model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
-        sample_df: Optional[pd.DataFrame] = None,
-        feature_stats: Optional[FeatureStats] = None,
+        model_endpoint_dict: dict[str, ModelEndpoint] | None = None,
+        sample_df: pd.DataFrame | None = None,
+        feature_stats: FeatureStats | None = None,
     ) -> "MonitoringApplicationContext":
         project = project or context.get_project_object()
         if not project:
@@ -168,10 +168,10 @@ class MonitoringApplicationContext:
         *,
         application_name: str,
         event: dict[str, Any],
-        model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
-        sample_df: Optional[pd.DataFrame] = None,
-        feature_stats: Optional[FeatureStats] = None,
-        feature_sets_dict: Optional[dict[str, fs.FeatureSet]] = None,
+        model_endpoint_dict: dict[str, ModelEndpoint] | None = None,
+        sample_df: pd.DataFrame | None = None,
+        feature_stats: FeatureStats | None = None,
+        feature_sets_dict: dict[str, fs.FeatureSet] | None = None,
     ) -> "MonitoringApplicationContext":
         nuclio_logger = graph_context.logger
         artifacts_logger = graph_context.project_obj
@@ -203,7 +203,7 @@ class MonitoringApplicationContext:
         }
         return {key: value for key, value in labels.items() if value is not None}
 
-    def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
+    def _add_default_labels(self, labels: dict[str, str] | None) -> dict[str, str]:
         """Add the default labels to logged artifacts labels"""
         return (labels or {}) | self._default_labels
 
@@ -319,11 +319,11 @@ class MonitoringApplicationContext:
         body=None,
         tag: str = "",
         local_path: str = "",
-        artifact_path: Optional[str] = None,
-        format: Optional[str] = None,
-        upload: Optional[bool] = None,
-        labels: Optional[dict[str, str]] = None,
-        target_path: Optional[str] = None,
+        artifact_path: str | None = None,
+        format: str | None = None,
+        upload: bool | None = None,
+        labels: dict[str, str] | None = None,
+        target_path: str | None = None,
         unique_per_endpoint: bool = True,
         **kwargs,
     ) -> Artifact:
@@ -376,7 +376,7 @@ class MonitoringApplicationContext:
         stats=None,
         target_path="",
         extra_data=None,
-        label_column: Optional[str] = None,
+        label_column: str | None = None,
         unique_per_endpoint: bool = True,
         **kwargs,
     ) -> DatasetArtifact:

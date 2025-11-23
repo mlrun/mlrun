@@ -13,9 +13,8 @@
 # limitations under the License.
 import abc
 import json
-import typing
 from abc import abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import cast
 
 import botocore.exceptions
@@ -74,7 +73,7 @@ class ModelMonitoringStatsFile(abc.ABC):
                 path=self._item.url,
             )
 
-    def read(self) -> tuple[dict, typing.Optional[datetime]]:
+    def read(self) -> tuple[dict, datetime | None]:
         """
         Read the stats data and timestamp saved in file
         :return: tuple[dict, str] dictionary with stats data and timestamp saved in file
@@ -83,9 +82,7 @@ class ModelMonitoringStatsFile(abc.ABC):
             content = json.loads(self._item.get().decode())
             timestamp = content.get("timestamp")
             if timestamp is not None:
-                timestamp = datetime.fromisoformat(timestamp).astimezone(
-                    tz=timezone.utc
-                )
+                timestamp = datetime.fromisoformat(timestamp).astimezone(tz=UTC)
             return content.get("data"), timestamp
         except (
             mlrun.errors.MLRunNotFoundError,

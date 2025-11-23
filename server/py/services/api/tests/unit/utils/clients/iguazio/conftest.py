@@ -25,8 +25,8 @@ def patch_restful_request(
     aioresponses_mock: aioresponses_mock,
     method: str,
     url: str,
-    callback: typing.Optional[typing.Callable] = None,
-    status_code: typing.Optional[int] = None,
+    callback: typing.Callable | None = None,
+    status_code: int | None = None,
 ):
     """
     Consolidating the requests_mock / aioresponses library to mock a RESTful request.

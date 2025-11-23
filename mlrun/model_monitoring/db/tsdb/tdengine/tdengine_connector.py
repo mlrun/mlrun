@@ -14,7 +14,7 @@
 
 import threading
 from datetime import datetime, timedelta
-from typing import Final, Literal, Optional, Union
+from typing import Final, Literal
 
 import pandas as pd
 import taosws
@@ -206,12 +206,12 @@ class TDEngineConnector(TSDBConnector):
         )
 
     @staticmethod
-    def _convert_to_datetime(val: Union[str, datetime]) -> datetime:
+    def _convert_to_datetime(val: str | datetime) -> datetime:
         return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     @staticmethod
     def _generate_filter_query(
-        filter_column: str, filter_values: Union[str, list[Union[str, int]]]
+        filter_column: str, filter_values: str | list[str | int]
     ) -> str:
         """
         Generate a filter query for TDEngine based on the provided column and values.
@@ -428,7 +428,7 @@ class TDEngineConnector(TSDBConnector):
         )
 
     def delete_application_records(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Delete application records from the TSDB for the given model endpoints or all if ``endpoint_ids`` is ``None``.
@@ -558,18 +558,18 @@ class TDEngineConnector(TSDBConnector):
         table: str,
         start: datetime,
         end: datetime,
-        columns: Optional[list[str]] = None,
-        filter_query: Optional[str] = None,
-        interval: Optional[str] = None,
-        agg_funcs: Optional[list] = None,
-        limit: Optional[int] = None,
-        sliding_window_step: Optional[str] = None,
+        columns: list[str] | None = None,
+        filter_query: str | None = None,
+        interval: str | None = None,
+        agg_funcs: list | None = None,
+        limit: int | None = None,
+        sliding_window_step: str | None = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
-        group_by: Optional[Union[list[str], str]] = None,
-        preform_agg_columns: Optional[list] = None,
-        order_by: Optional[str] = None,
-        desc: Optional[bool] = None,
-        partition_by: Optional[str] = None,
+        group_by: list[str] | str | None = None,
+        preform_agg_columns: list | None = None,
+        order_by: str | None = None,
+        desc: bool | None = None,
+        partition_by: str | None = None,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
@@ -644,20 +644,16 @@ class TDEngineConnector(TSDBConnector):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: Literal["metrics", "results"],
         with_result_extra_data: bool = False,
-    ) -> Union[
+    ) -> (
         list[
-            Union[
-                mm_schemas.ModelEndpointMonitoringResultValues,
-                mm_schemas.ModelEndpointMonitoringMetricNoData,
-            ],
-        ],
-        list[
-            Union[
-                mm_schemas.ModelEndpointMonitoringMetricValues,
-                mm_schemas.ModelEndpointMonitoringMetricNoData,
-            ],
-        ],
-    ]:
+            mm_schemas.ModelEndpointMonitoringResultValues
+            | mm_schemas.ModelEndpointMonitoringMetricNoData,
+        ]
+        | list[
+            mm_schemas.ModelEndpointMonitoringMetricValues
+            | mm_schemas.ModelEndpointMonitoringMetricNoData,
+        ]
+    ):
         timestamp_column = mm_schemas.WriterEvent.END_INFER_TIME
         columns = [timestamp_column, mm_schemas.WriterEvent.APPLICATION_NAME]
         if type == "metrics":
@@ -730,13 +726,13 @@ class TDEngineConnector(TSDBConnector):
         endpoint_id: str,
         start: datetime,
         end: datetime,
-        aggregation_window: Optional[str] = None,
-        agg_funcs: Optional[list] = None,
-        limit: Optional[int] = None,
-    ) -> Union[
-        mm_schemas.ModelEndpointMonitoringMetricValues,
-        mm_schemas.ModelEndpointMonitoringMetricNoData,
-    ]:
+        aggregation_window: str | None = None,
+        agg_funcs: list | None = None,
+        limit: int | None = None,
+    ) -> (
+        mm_schemas.ModelEndpointMonitoringMetricValues
+        | mm_schemas.ModelEndpointMonitoringMetricNoData
+    ):
         if (agg_funcs and not aggregation_window) or (
             aggregation_window and not agg_funcs
         ):
@@ -785,10 +781,10 @@ class TDEngineConnector(TSDBConnector):
 
     def get_last_request(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-    ) -> Union[pd.DataFrame, dict[str, float]]:
+        endpoint_ids: str | list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> pd.DataFrame | dict[str, float]:
         if not endpoint_ids:
             return {}
         filter_query = self._generate_filter_query(
@@ -830,9 +826,9 @@ class TDEngineConnector(TSDBConnector):
 
     def get_drift_status(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        endpoint_ids: str | list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._generate_filter_query(
@@ -867,11 +863,11 @@ class TDEngineConnector(TSDBConnector):
 
     def count_results_by_status(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        endpoint_ids: Optional[Union[str, list[str]]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
-        result_status_list: Optional[list[int]] = None,
+        start: datetime | str | None = None,
+        end: datetime | str | None = None,
+        endpoint_ids: str | list[str] | None = None,
+        application_names: str | list[str] | None = None,
+        result_status_list: list[int] | None = None,
     ) -> dict[tuple[str, int], int]:
         filter_query = ""
 
@@ -933,9 +929,9 @@ class TDEngineConnector(TSDBConnector):
 
     def count_processed_model_endpoints(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
+        start: datetime | str | None = None,
+        end: datetime | str | None = None,
+        application_names: str | list[str] | None = None,
     ) -> dict:
         filter_query = ""
         start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
@@ -987,12 +983,10 @@ class TDEngineConnector(TSDBConnector):
 
     def calculate_latest_metrics(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
-    ) -> list[
-        Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
-    ]:
+        start: datetime | str | None = None,
+        end: datetime | str | None = None,
+        application_names: str | list[str] | None = None,
+    ) -> list[mm_schemas.ApplicationResultRecord | mm_schemas.ApplicationMetricRecord]:
         metric_list = []
         filter_query = ""
         start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
@@ -1065,10 +1059,7 @@ class TDEngineConnector(TSDBConnector):
 
         def build_metric_objects() -> (
             list[
-                Union[
-                    mm_schemas.ApplicationResultRecord,
-                    mm_schemas.ApplicationMetricRecord,
-                ]
+                mm_schemas.ApplicationResultRecord | mm_schemas.ApplicationMetricRecord
             ]
         ):
             metric_objects = []
@@ -1108,9 +1099,9 @@ class TDEngineConnector(TSDBConnector):
 
     def get_metrics_metadata(
         self,
-        endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        endpoint_id: str | list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         start, end = get_start_end(start, end)
         df = self._get_records(
@@ -1148,9 +1139,9 @@ class TDEngineConnector(TSDBConnector):
 
     def get_results_metadata(
         self,
-        endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        endpoint_id: str | list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         start, end = get_start_end(start, end)
         df = self._get_records(
@@ -1190,9 +1181,9 @@ class TDEngineConnector(TSDBConnector):
 
     def get_error_count(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        endpoint_ids: str | list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._generate_filter_query(
@@ -1224,9 +1215,9 @@ class TDEngineConnector(TSDBConnector):
 
     def get_avg_latency(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        endpoint_ids: str | list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> pd.DataFrame:
         endpoint_ids = (
@@ -1257,7 +1248,7 @@ class TDEngineConnector(TSDBConnector):
     def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object.

@@ -13,7 +13,6 @@
 # limitations under the License.
 import collections
 import re
-import typing
 from dataclasses import dataclass
 
 import mlrun.utils.singleton
@@ -69,7 +68,7 @@ class Client(
 
     def resolve_service_by_request(
         self, method: str, path: str
-    ) -> typing.Optional[ServiceInstance]:
+    ) -> ServiceInstance | None:
         """
         Resolve path and returns the matching service instance for the request.
 
@@ -82,7 +81,7 @@ class Client(
             return self.get_service(service_name)
         return None
 
-    def get_service(self, service_name: str) -> typing.Optional[ServiceInstance]:
+    def get_service(self, service_name: str) -> ServiceInstance | None:
         """Get the registered instance of a service."""
         return self.services.get(service_name, None)
 

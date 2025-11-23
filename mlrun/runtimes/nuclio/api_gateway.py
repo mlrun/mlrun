@@ -13,7 +13,7 @@
 # limitations under the License.
 import base64
 import typing
-from typing import Optional, Union
+from typing import Union
 from urllib.parse import urljoin
 
 import requests
@@ -65,7 +65,7 @@ class Authenticator(typing.Protocol):
 
     def to_scheme(
         self,
-    ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
+    ) -> dict[str, schemas.APIGatewayBasicAuth | None] | None:
         return None
 
 
@@ -99,7 +99,7 @@ class BasicAuth(APIGatewayAuthenticator):
 
     def to_scheme(
         self,
-    ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
+    ) -> dict[str, schemas.APIGatewayBasicAuth | None] | None:
         return {
             "basicAuth": schemas.APIGatewayBasicAuth(
                 username=self._username, password=self._password
@@ -133,10 +133,10 @@ class APIGatewayMetadata(ModelObj):
     def __init__(
         self,
         name: str,
-        namespace: Optional[str] = None,
-        labels: Optional[dict] = None,
-        annotations: Optional[dict] = None,
-        creation_timestamp: Optional[str] = None,
+        namespace: str | None = None,
+        labels: dict | None = None,
+        annotations: dict | None = None,
+        creation_timestamp: str | None = None,
     ):
         """
         :param name: The name of the API gateway
@@ -184,13 +184,13 @@ class APIGatewaySpec(ModelObj):
             "mlrun.runtimes.nuclio.serving.ServingRuntime",
             "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
-        project: Optional[str] = None,
+        project: str | None = None,
         description: str = "",
-        host: Optional[str] = None,
+        host: str | None = None,
         path: str = "/",
-        authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
-        canary: Optional[list[int]] = None,
-        ports: Optional[list[int]] = None,
+        authentication: APIGatewayAuthenticator | None = NoneAuth(),
+        canary: list[int] | None = None,
+        ports: list[int] | None = None,
     ):
         """
         :param functions: The list of functions associated with the API gateway
@@ -241,8 +241,8 @@ class APIGatewaySpec(ModelObj):
             "mlrun.runtimes.nuclio.serving.ServingRuntime",
             "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
-        canary: Optional[list[int]] = None,
-        ports: Optional[list[int]] = None,
+        canary: list[int] | None = None,
+        ports: list[int] | None = None,
     ):
         self.functions = self._validate_functions(project=project, functions=functions)
 
@@ -348,7 +348,7 @@ class APIGatewaySpec(ModelObj):
 
 
 class APIGatewayStatus(ModelObj):
-    def __init__(self, state: Optional[schemas.APIGatewayState] = None):
+    def __init__(self, state: schemas.APIGatewayState | None = None):
         self.state = state or schemas.APIGatewayState.none
 
 
@@ -364,7 +364,7 @@ class APIGateway(ModelObj):
         self,
         metadata: APIGatewayMetadata,
         spec: APIGatewaySpec,
-        status: Optional[APIGatewayStatus] = None,
+        status: APIGatewayStatus | None = None,
     ):
         """
         Initialize the APIGateway instance.
@@ -404,10 +404,10 @@ class APIGateway(ModelObj):
     def invoke(
         self,
         method="POST",
-        headers: Optional[dict] = None,
-        credentials: Optional[tuple[str, str]] = None,
-        path: Optional[str] = None,
-        body: Optional[Union[str, bytes, dict]] = None,
+        headers: dict | None = None,
+        credentials: tuple[str, str] | None = None,
+        path: str | None = None,
+        body: str | bytes | dict | None = None,
         **kwargs,
     ):
         """
@@ -476,7 +476,7 @@ class APIGateway(ModelObj):
         # Determine the correct keyword argument for the body
         if isinstance(body, dict):
             kwargs["json"] = body
-        elif isinstance(body, (str, bytes)):
+        elif isinstance(body, str | bytes):
             kwargs["data"] = body
 
         return requests.request(
@@ -723,7 +723,7 @@ class APIGateway(ModelObj):
     @staticmethod
     def _resolve_canary(
         upstreams: list[schemas.APIGatewayUpstream],
-    ) -> tuple[Union[list[str], None], Union[list[int], None]]:
+    ) -> tuple[list[str] | None, list[int] | None]:
         if len(upstreams) == 1:
             return [upstreams[0].nucliofunction.get("name")], None
         elif len(upstreams) == 2:

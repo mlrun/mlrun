@@ -16,7 +16,6 @@ import urllib.parse
 from base64 import b64encode
 from copy import copy
 from os import path, remove
-from typing import Optional, Union
 from urllib.parse import urlparse
 
 import fsspec
@@ -51,7 +50,7 @@ class DataStore(BaseRemoteClient):
     using_bucket = False
 
     def __init__(
-        self, parent, name, kind, endpoint="", secrets: Optional[dict] = None, **kwargs
+        self, parent, name, kind, endpoint="", secrets: dict | None = None, **kwargs
     ):
         super().__init__(
             parent=parent, kind=kind, name=name, endpoint=endpoint, secrets=secrets
@@ -90,7 +89,7 @@ class DataStore(BaseRemoteClient):
         return ""
 
     @property
-    def filesystem(self) -> Optional[fsspec.AbstractFileSystem]:
+    def filesystem(self) -> fsspec.AbstractFileSystem | None:
         """return fsspec file system object, if supported"""
         return None
 
@@ -470,10 +469,10 @@ class DataItem:
 
     def get(
         self,
-        size: Optional[int] = None,
+        size: int | None = None,
         offset: int = 0,
-        encoding: Optional[str] = None,
-    ) -> Union[bytes, str]:
+        encoding: str | None = None,
+    ) -> bytes | str:
         """read all or a byte range and return the content
 
         :param size:     number of bytes to get
@@ -493,7 +492,7 @@ class DataItem:
         """
         self._store.download(self._path, target_path)
 
-    def put(self, data: Union[bytes, str], append: bool = False) -> None:
+    def put(self, data: bytes | str, append: bool = False) -> None:
         """write/upload the data, append is only supported by some datastores
 
         :param data:   data (bytes/str) to write
@@ -593,7 +592,7 @@ class DataItem:
         )
         return df
 
-    def show(self, format: Optional[str] = None) -> None:
+    def show(self, format: str | None = None) -> None:
         """show the data object content in Jupyter
 
         :param format: format to use (when there is no/wrong suffix), e.g. 'png'
@@ -625,7 +624,7 @@ class DataItem:
         else:
             logger.error(f"unsupported show() format {suffix} for {self.url}")
 
-    def get_artifact_type(self) -> Union[str, None]:
+    def get_artifact_type(self) -> str | None:
         """
         Check if the data item represents an Artifact (one of Artifact, DatasetArtifact and ModelArtifact). If it does
         it return the store uri prefix (artifacts, datasets or models), otherwise None.
@@ -656,9 +655,7 @@ def basic_auth_header(user, password):
 
 
 class HttpStore(DataStore):
-    def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
-    ):
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict | None = None):
         super().__init__(parent, name, schema, endpoint, secrets)
         self._https_auth_token = None
         self._schema = schema

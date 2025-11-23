@@ -47,8 +47,8 @@ class HuggingFaceProvider(ModelProvider):
         schema,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         endpoint = endpoint or mlrun.mlconf.model_providers.huggingface_default_model
         if schema != "huggingface":
@@ -123,11 +123,11 @@ class HuggingFaceProvider(ModelProvider):
 
     def _response_handler(
         self,
-        response: Union[str, list],
+        response: str | list,
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         messages: Union[str, list[str], "ChatType", list["ChatType"]] = None,
         **kwargs,
-    ) -> Union[str, list, dict[str, Any]]:
+    ) -> str | list | dict[str, Any]:
         """
         Processes and formats the raw response from the HuggingFace pipeline according to the specified format.
 
@@ -242,7 +242,7 @@ class HuggingFaceProvider(ModelProvider):
 
     def custom_invoke(
         self, operation: Optional["Pipeline"] = None, **invoke_kwargs
-    ) -> Union[list, dict, Any]:
+    ) -> list | dict | Any:
         """
         Invokes a HuggingFace pipeline operation with the given keyword arguments.
 
@@ -293,7 +293,7 @@ class HuggingFaceProvider(ModelProvider):
         messages: Union[str, list[str], "ChatType", list["ChatType"]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, list, dict[str, Any]]:
+    ) -> str | list | dict[str, Any]:
         """
         HuggingFace-specific implementation of model invocation using the synchronous pipeline client.
         Invokes a HuggingFace model operation for text generation tasks.

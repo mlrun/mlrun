@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 from pydantic.v1 import BaseModel, Field
 
@@ -28,7 +27,7 @@ class SecretProviderName(mlrun.common.types.StrEnum):
 
 class SecretsData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
-    secrets: Optional[dict] = {}
+    secrets: dict | None = {}
 
 
 class AuthSecretData(BaseModel):
@@ -46,7 +45,7 @@ class AuthSecretData(BaseModel):
 
 class SecretKeysData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
-    secret_keys: Optional[list] = []
+    secret_keys: list | None = []
 
 
 class SecretToken(BaseModel):

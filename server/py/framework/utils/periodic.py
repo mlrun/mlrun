@@ -25,7 +25,7 @@ tasks: dict = {}
 
 
 def run_function_periodically(
-    interval: typing.Union[float, int],
+    interval: float | int,
     name: str,
     replace: bool,
     function: typing.Callable,
@@ -65,9 +65,7 @@ def cancel_all_periodic_functions():
     tasks = {}
 
 
-async def _periodic_function_wrapper(
-    interval: typing.Union[int, float], function, *args, **kwargs
-):
+async def _periodic_function_wrapper(interval: int | float, function, *args, **kwargs):
     context_id_var.set(str(uuid.uuid4()))
     while True:
         try:

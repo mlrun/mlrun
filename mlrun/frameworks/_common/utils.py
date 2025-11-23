@@ -16,7 +16,7 @@ import re
 from abc import ABC
 from enum import Enum
 from pathlib import Path
-from typing import Any, TypeVar, Union
+from typing import Any, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -49,24 +49,24 @@ class CommonTypes(ABC):
     ]
 
     # Common dataset type to all frameworks:
-    DatasetType = Union[
-        list,
-        tuple,
-        dict,
-        np.ndarray,
-        pd.DataFrame,
-        pd.Series,
-        "scipy.sparse.base.spmatrix",  # noqa: F821
-    ]
+    DatasetType = (
+        list
+        | tuple
+        | dict
+        | np.ndarray
+        | pd.DataFrame
+        | pd.Series
+        | "scipy.sparse.base.spmatrix"  # noqa: F821
+    )
 
     # A joined type for receiving a path from 'pathlib' or 'os.path':
-    PathType = Union[str, Path]
+    PathType = str | Path
 
     # A joined type for all trackable values (for logging):
-    TrackableType = Union[str, bool, float, int]
+    TrackableType = str | bool | float | int
 
     # Types available in the extra data dictionary of an artifact:
-    ExtraDataType = Union[str, bytes, Artifact, DataItem]
+    ExtraDataType = str | bytes | Artifact | DataItem
 
 
 class LoggingMode(Enum):
@@ -97,9 +97,9 @@ class CommonUtils(ABC):
         """
         if isinstance(dataset, np.ndarray):
             return dataset
-        if isinstance(dataset, (pd.DataFrame, pd.Series)):
+        if isinstance(dataset, pd.DataFrame | pd.Series):
             return dataset.to_numpy()
-        if isinstance(dataset, (list, tuple)):
+        if isinstance(dataset, list | tuple):
             return np.array(dataset)
         if isinstance(dataset, dict):
             return np.array(list(dataset.values()))
@@ -133,7 +133,7 @@ class CommonUtils(ABC):
         """
         if isinstance(dataset, pd.DataFrame):
             return dataset
-        if isinstance(dataset, (np.ndarray, pd.Series, list, tuple, dict)):
+        if isinstance(dataset, np.ndarray | pd.Series | list | tuple | dict):
             return pd.DataFrame(dataset)
         try:
             # SciPy is not in MLRun's requirements but common to all frameworks.
@@ -187,7 +187,7 @@ class CommonUtils(ABC):
         )
 
     @staticmethod
-    def convert_np_dtype_to_value_type(np_dtype: Union[np.dtype, type, str]) -> str:
+    def convert_np_dtype_to_value_type(np_dtype: np.dtype | type | str) -> str:
         """
         Convert the given numpy data type to MLRun value type. It is better to use explicit bit namings (for example:
         instead of using 'np.double', use 'np.float64').

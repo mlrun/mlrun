@@ -17,7 +17,7 @@ import inspect
 import os
 import shutil
 import traceback
-from typing import Any, Optional, Union
+from typing import Any
 
 import mlrun.errors
 from mlrun.artifacts import Artifact
@@ -43,7 +43,7 @@ class PackagersManager:
     It prepares the instructions / log hint configurations and then looks for the first packager that fits the task.
     """
 
-    def __init__(self, default_packager: Optional[type[Packager]] = None):
+    def __init__(self, default_packager: type[Packager] | None = None):
         """
         Initialize a packagers manager.
 
@@ -81,7 +81,7 @@ class PackagersManager:
         return self._results
 
     def collect_packagers(
-        self, packagers: list[Union[type[Packager], str]], default_priority: int = 5
+        self, packagers: list[type[Packager] | str], default_priority: int = 5
     ):
         """
         Collect the provided packagers. Packagers passed as module paths are imported and validated to be of type
@@ -174,7 +174,7 @@ class PackagersManager:
 
     def pack(
         self, obj: Any, log_hint: dict[str, str]
-    ) -> Union[Artifact, dict, None, list[Union[Artifact, dict, None]]]:
+    ) -> Artifact | dict | None | list[Artifact | dict | None]:
         """
         Pack an object using one of the manager's packagers. A `dict` ("**") or `list` ("*") unpacking syntax in the
         log hint key packs the objects within them in separate packages.
@@ -381,7 +381,7 @@ class PackagersManager:
         """
         return [*self._packagers, self._default_packager]
 
-    def _get_packager_by_name(self, name: str) -> Union[Packager, None]:
+    def _get_packager_by_name(self, name: str) -> Packager | None:
         """
         Look for a packager with the given name and return it.
 
@@ -403,9 +403,9 @@ class PackagersManager:
     def _get_packager_for_packing(
         self,
         obj: Any,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
-    ) -> Union[Packager, None]:
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
+    ) -> Packager | None:
         """
         Look for a packager that can pack the provided object as the provided artifact type.
 
@@ -431,8 +431,8 @@ class PackagersManager:
         self,
         data_item: Any,
         type_hint: type,
-        artifact_type: Optional[str] = None,
-    ) -> Union[Packager, None]:
+        artifact_type: str | None = None,
+    ) -> Packager | None:
         """
         Look for a packager that can unpack the data item of the given type hint as the provided artifact type.
 
@@ -454,7 +454,7 @@ class PackagersManager:
         # No packager was found:
         return None
 
-    def _pack(self, obj: Any, log_hint: dict) -> Union[Artifact, dict, None]:
+    def _pack(self, obj: Any, log_hint: dict) -> Artifact | dict | None:
         """
         Pack an object using one of the manager's packagers.
 
@@ -708,7 +708,7 @@ class PackagersManager:
         artifacts: list[Artifact],
         artifact_uris: dict,
         results: dict,
-    ) -> Union[Artifact, str, int, float, None]:
+    ) -> Artifact | str | int | float | None:
         """
         Look for an extra data item (artifact or result) by given key. If not found, None is returned.
 

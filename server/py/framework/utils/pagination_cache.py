@@ -47,13 +47,12 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def list_pagination_cache_records(
         session: sqlalchemy.orm.Session,
-        key: typing.Optional[str] = None,
-        user: typing.Optional[str] = None,
-        function: typing.Optional[str] = None,
-        last_accessed_before: typing.Optional[datetime.datetime] = None,
-        order_by: typing.Optional[
-            mlrun.common.schemas.OrderType
-        ] = mlrun.common.schemas.OrderType.desc,
+        key: str | None = None,
+        user: str | None = None,
+        function: str | None = None,
+        last_accessed_before: datetime.datetime | None = None,
+        order_by: mlrun.common.schemas.OrderType
+        | None = mlrun.common.schemas.OrderType.desc,
     ):
         db = framework.utils.singletons.db.get_db()
         return db.list_paginated_query_cache_record(
@@ -84,7 +83,7 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         db = framework.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(
             session,
-            last_accessed_before=datetime.datetime.now(datetime.timezone.utc)
+            last_accessed_before=datetime.datetime.now(datetime.UTC)
             - datetime.timedelta(seconds=cache_ttl),
             as_query=True,
         ).delete()

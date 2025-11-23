@@ -15,11 +15,12 @@
 import asyncio
 import builtins
 import unittest.mock
+from collections.abc import Callable
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import partial
-from typing import Any, Callable, Optional
+from typing import Any
 
 import aiohttp
 import pytest
@@ -1391,7 +1392,7 @@ def _mock_async_response(monkeypatch, method, result):
 
 
 def _generate_run_result(
-    state: str, error: Optional[str] = None, results: Optional[dict] = None
+    state: str, error: str | None = None, results: dict | None = None
 ):
     run_example = {
         "status": {
@@ -1742,15 +1743,15 @@ class DummyResponse:
 
 class DummySession:
     def __init__(self, json_serialize: Callable) -> None:
-        self.request_args: Optional[dict[str, Any]] = None
+        self.request_args: dict[str, Any] | None = None
         self._json_serialize = json_serialize
 
     async def post(
         self,
         url: str,
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         json: Any = None,
-        ssl: Optional[bool] = None,
+        ssl: bool | None = None,
     ) -> DummyResponse:
         await self._request(
             "post",
@@ -1764,9 +1765,9 @@ class DummySession:
     async def put(
         self,
         url: str,
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         json: Any = None,
-        ssl: Optional[bool] = None,
+        ssl: bool | None = None,
     ) -> DummyResponse:
         await self._request(
             "put",
@@ -1832,10 +1833,10 @@ def client_session(monkeypatch: pytest.MonkeyPatch) -> None:
 class DummyRun:
     project: str = "proj"
     name: str = "run1"
-    host: Optional[str] = None
+    host: str | None = None
     state: str = "s"
-    error: Optional[str] = None
-    results: Optional[list[Any]] = None
+    error: str | None = None
+    results: list[Any] | None = None
     metadata: dict[str, Any] = field(init=False)
     status: dict[str, Any] = field(init=False)
 
@@ -1858,7 +1859,7 @@ class DummyAlert:
     name: str
     project: str
     severity: str
-    summary: Optional[str] = None
+    summary: str | None = None
 
 
 @dataclass
@@ -1960,7 +1961,7 @@ async def test_override_list_passthrough(client_session: Any) -> None:
 async def test_override_values(
     client_session: Any,
     override_body: dict[str, Any],
-    runs: Optional[list[Any]],
+    runs: list[Any] | None,
     key: str,
     expected: Any,
 ) -> None:
@@ -1987,8 +1988,8 @@ async def test_override_values(
 async def test_ssl_logic(
     client_session: Any,
     url: str,
-    verify_ssl: Optional[bool],
-    expected_ssl: Optional[bool],
+    verify_ssl: bool | None,
+    expected_ssl: bool | None,
 ) -> None:
     params: dict[str, Any] = {"url": url}
     if verify_ssl is not None:

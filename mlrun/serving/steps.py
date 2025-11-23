@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
 import storey
 
@@ -25,7 +24,7 @@ class ChoiceByField(storey.Choice):
     :param field_name: event field name that contains the step name or names of the desired outlet or outlets
     """
 
-    def __init__(self, field_name: Union[str, list[str]], **kwargs):
+    def __init__(self, field_name: str | list[str], **kwargs):
         self.field_name = field_name
         super().__init__(**kwargs)
 
@@ -45,7 +44,7 @@ class ChoiceByField(storey.Choice):
             )
 
         # Case 3: Invalid type
-        if not isinstance(outlet, (str, list, tuple)):
+        if not isinstance(outlet, str | list | tuple):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"Field '{self.field_name}' must be a string or list of strings "
                 f"but is instead of type '{type(outlet).__name__}'."

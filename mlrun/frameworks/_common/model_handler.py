@@ -20,7 +20,7 @@ import sys
 import zipfile
 from abc import ABC, abstractmethod
 from types import MethodType
-from typing import Any, Generic, Optional, Union
+from typing import Any, Generic
 
 import numpy as np
 
@@ -55,13 +55,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         self,
         model: CommonTypes.ModelType = None,
         model_path: CommonTypes.PathType = None,
-        model_name: Optional[str] = None,
-        modules_map: Union[
-            dict[str, Union[None, str, list[str]]], CommonTypes.PathType
-        ] = None,
-        custom_objects_map: Union[
-            dict[str, Union[str, list[str]]], CommonTypes.PathType
-        ] = None,
+        model_name: str | None = None,
+        modules_map: dict[str, None | str | list[str]] | CommonTypes.PathType = None,
+        custom_objects_map: dict[str, str | list[str]] | CommonTypes.PathType = None,
         custom_objects_directory: CommonTypes.PathType = None,
         context: MLClientCtx = None,
         **kwargs,
@@ -224,7 +220,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         return self._tag
 
     @property
-    def inputs(self) -> Union[list[Feature], None]:
+    def inputs(self) -> list[Feature] | None:
         """
         Get the input ports features list of this model's artifact. If the inputs are not set, None will be returned.
 
@@ -233,7 +229,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         return self._inputs
 
     @property
-    def outputs(self) -> Union[list[Feature], None]:
+    def outputs(self) -> list[Feature] | None:
         """
         Get the output ports features list of this model's artifact. If the outputs are not set, None will be returned.
 
@@ -306,7 +302,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     def set_inputs(
         self,
         from_sample: CommonTypes.IOSampleType = None,
-        features: Optional[list[Feature]] = None,
+        features: list[Feature] | None = None,
         **kwargs,
     ):
         """
@@ -335,7 +331,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     def set_outputs(
         self,
         from_sample: CommonTypes.IOSampleType = None,
-        features: Optional[list[Feature]] = None,
+        features: list[Feature] | None = None,
         **kwargs,
     ):
         """
@@ -363,8 +359,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_labels(
         self,
-        to_add: Optional[dict[str, Union[str, int, float]]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, str | int | float] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the labels dictionary of this model artifact.
@@ -383,8 +379,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_parameters(
         self,
-        to_add: Optional[dict[str, Union[str, int, float]]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, str | int | float] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the parameters dictionary of this model artifact.
@@ -403,8 +399,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_metrics(
         self,
-        to_add: Optional[dict[str, CommonTypes.ExtraDataType]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, CommonTypes.ExtraDataType] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the metrics dictionary of this model artifact.
@@ -423,8 +419,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_extra_data(
         self,
-        to_add: Optional[dict[str, CommonTypes.ExtraDataType]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, CommonTypes.ExtraDataType] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the extra data dictionary of this model artifact.
@@ -442,7 +438,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
                 self._extra_data.pop(label)
 
     def register_artifacts(
-        self, artifacts: Union[Artifact, list[Artifact], dict[str, Artifact]]
+        self, artifacts: Artifact | list[Artifact] | dict[str, Artifact]
     ):
         """
         Register the given artifacts, so they will be logged as extra data with the model of this handler. Notice: The
@@ -466,7 +462,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     @abstractmethod
     def save(
         self, output_path: CommonTypes.PathType = None, **kwargs
-    ) -> Union[dict[str, Artifact], None]:
+    ) -> dict[str, Artifact] | None:
         """
         Save the handled model at the given output path.
 
@@ -509,9 +505,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             self._import_custom_objects()
 
     @abstractmethod
-    def to_onnx(
-        self, model_name: Optional[str] = None, optimize: bool = True, **kwargs
-    ):
+    def to_onnx(self, model_name: str | None = None, optimize: bool = True, **kwargs):
         """
         Convert the model in this handler to an ONNX model.
 
@@ -527,13 +521,13 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     def log(
         self,
         tag: str = "",
-        labels: Optional[dict[str, Union[str, int, float]]] = None,
-        parameters: Optional[dict[str, Union[str, int, float]]] = None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
-        metrics: Optional[dict[str, Union[int, float]]] = None,
-        artifacts: Optional[dict[str, Artifact]] = None,
-        extra_data: Optional[dict[str, CommonTypes.ExtraDataType]] = None,
+        labels: dict[str, str | int | float] | None = None,
+        parameters: dict[str, str | int | float] | None = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
+        metrics: dict[str, int | float] | None = None,
+        artifacts: dict[str, Artifact] | None = None,
+        extra_data: dict[str, CommonTypes.ExtraDataType] | None = None,
         **kwargs,
     ):
         """
@@ -632,13 +626,13 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def update(
         self,
-        labels: Optional[dict[str, Union[str, int, float]]] = None,
-        parameters: Optional[dict[str, Union[str, int, float]]] = None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
-        metrics: Optional[dict[str, Union[int, float]]] = None,
-        artifacts: Optional[dict[str, Artifact]] = None,
-        extra_data: Optional[dict[str, CommonTypes.ExtraDataType]] = None,
+        labels: dict[str, str | int | float] | None = None,
+        parameters: dict[str, str | int | float] | None = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
+        metrics: dict[str, int | float] | None = None,
+        artifacts: dict[str, Artifact] | None = None,
+        extra_data: dict[str, CommonTypes.ExtraDataType] | None = None,
         **kwargs,
     ):
         """
@@ -793,7 +787,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         """
         return self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
 
-    def _get_default_onnx_model_name(self, model_name: Union[str, None]):
+    def _get_default_onnx_model_name(self, model_name: str | None):
         """
         Check if the given model name is None and if so will generate the default ONNX model name: 'onnx_<MODEL_NAME>'.
 
@@ -1002,7 +996,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def _read_io_samples(
         self,
-        samples: Union[CommonTypes.IOSampleType, list[CommonTypes.IOSampleType]],
+        samples: CommonTypes.IOSampleType | list[CommonTypes.IOSampleType],
     ) -> list[Feature]:
         """
         Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in
@@ -1062,7 +1056,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     @staticmethod
     def _validate_modules_parameter(
-        modules_map: Union[dict[str, Union[None, str, list[str]]], str],
+        modules_map: dict[str, None | str | list[str]] | str,
     ):
         """
         Validate the given modules parameter.
@@ -1090,7 +1084,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     @staticmethod
     def _validate_custom_objects_parameters(
-        custom_objects_map: Union[dict[str, Union[str, list[str]]], str],
+        custom_objects_map: dict[str, str | list[str]] | str,
         custom_objects_directory: str,
     ):
         """
@@ -1154,7 +1148,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     @staticmethod
     def _import_module(
-        module_path: str, objects_names: Union[list[str], None]
+        module_path: str, objects_names: list[str] | None
     ) -> dict[str, Any]:
         """
         Import the given objects by their names from the given module path by the following rules:

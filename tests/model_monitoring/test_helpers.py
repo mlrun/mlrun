@@ -14,7 +14,7 @@
 
 import datetime
 from collections.abc import Iterator
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple
 from unittest.mock import patch
 
 import nuclio
@@ -216,9 +216,7 @@ class TestBatchInterval:
         ):
             return marker.args[0]
         return int(
-            datetime.datetime(
-                2021, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
+            datetime.datetime(2021, 1, 1, 12, 0, 0, tzinfo=datetime.UTC).timestamp()
         )
 
     @staticmethod
@@ -229,9 +227,7 @@ class TestBatchInterval:
         ):
             return marker.args[0]
         return int(
-            datetime.datetime(
-                2021, 1, 1, 13, 1, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
+            datetime.datetime(2021, 1, 1, 13, 1, 0, tzinfo=datetime.UTC).timestamp()
         )
 
     @staticmethod
@@ -276,9 +272,7 @@ class TestBatchInterval:
     @pytest.fixture
     def expected_intervals() -> list[_Interval]:
         def dt(hour: int, minute: int) -> datetime.datetime:
-            return datetime.datetime(
-                2021, 1, 1, hour, minute, tzinfo=datetime.timezone.utc
-            )
+            return datetime.datetime(2021, 1, 1, hour, minute, tzinfo=datetime.UTC)
 
         def interval(start: tuple[int, int], end: tuple[int, int]) -> _Interval:
             return _Interval(dt(*start), dt(*end))
@@ -360,18 +354,10 @@ class TestBatchInterval:
     @staticmethod
     @pytest.mark.timedelta_seconds(int(datetime.timedelta(days=6).total_seconds()))
     @pytest.mark.first_request(
-        int(
-            datetime.datetime(
-                2020, 12, 25, 23, 0, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
+        int(datetime.datetime(2020, 12, 25, 23, 0, 0, tzinfo=datetime.UTC).timestamp())
     )
     @pytest.mark.last_updated(
-        int(
-            datetime.datetime(
-                2021, 1, 1, 3, 1, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
+        int(datetime.datetime(2021, 1, 1, 3, 1, 0, tzinfo=datetime.UTC).timestamp())
     )
     def test_large_base_period(
         timedelta_seconds: int, intervals: list[_Interval]
@@ -569,7 +555,7 @@ def test_filter_results_by_regex():
 )
 def test_get_kafka_topic(
     project: str,
-    function_name: Optional[str],
+    function_name: str | None,
     expected_topic: str,
 ) -> None:
     assert (
@@ -612,7 +598,7 @@ def test_get_kafka_topic(
 )
 def test_get_output_stream(
     profile: DatastoreProfile,
-    expected_output_stream_type: Union[type[KafkaOutputStream], type[OutputStream]],
+    expected_output_stream_type: type[KafkaOutputStream] | type[OutputStream],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     if isinstance(profile, DatastoreProfileV3io):

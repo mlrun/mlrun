@@ -36,15 +36,15 @@ from ..common.schemas.hub import HubModuleType
 from .helpers import update_model_endpoint_last_request
 
 # A union of all supported dataset types:
-DatasetType = typing.Union[
-    mlrun.datastore.base.DataItem,
-    list,
-    dict,
-    pd.DataFrame,
-    pd.Series,
-    np.ndarray,
-    typing.Any,
-]
+DatasetType = (
+    mlrun.datastore.base.DataItem
+    | list
+    | dict
+    | pd.DataFrame
+    | pd.Series
+    | np.ndarray
+    | typing.Any
+)
 
 
 # TODO: Remove this in 1.12.0
@@ -63,7 +63,7 @@ def get_or_create_model_endpoint(
     function_name: str = "",
     function_tag: str = "latest",
     context: typing.Optional["mlrun.MLClientCtx"] = None,
-    sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
+    sample_set_statistics: dict[str, typing.Any] | None = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
     db_session=None,
     feature_analysis: bool = False,
@@ -148,8 +148,8 @@ def record_results(
     endpoint_id: str = "",
     function_name: str = "",
     context: typing.Optional["mlrun.MLClientCtx"] = None,
-    infer_results_df: typing.Optional[pd.DataFrame] = None,
-    sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
+    infer_results_df: pd.DataFrame | None = None,
+    sample_set_statistics: dict[str, typing.Any] | None = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
 ) -> ModelEndpoint:
     """
@@ -227,7 +227,7 @@ def record_results(
 def _model_endpoint_validations(
     model_endpoint: ModelEndpoint,
     model_path: str = "",
-    sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
+    sample_set_statistics: dict[str, typing.Any] | None = None,
 ) -> None:
     """
     Validate that provided model endpoint configurations match the stored fields of the provided `ModelEndpoint`
@@ -372,10 +372,10 @@ def _generate_model_endpoint(
 
 def get_sample_set_statistics(
     sample_set: DatasetType = None,
-    model_artifact_feature_stats: typing.Optional[dict] = None,
-    sample_set_columns: typing.Optional[list] = None,
-    sample_set_drop_columns: typing.Optional[list] = None,
-    sample_set_label_columns: typing.Optional[list] = None,
+    model_artifact_feature_stats: dict | None = None,
+    sample_set_columns: list | None = None,
+    sample_set_drop_columns: list | None = None,
+    sample_set_label_columns: list | None = None,
 ) -> dict:
     """
     Get the sample set statistics either from the given sample set or the statistics logged with the model while
@@ -430,9 +430,9 @@ def get_sample_set_statistics(
 
 def read_dataset_as_dataframe(
     dataset: DatasetType,
-    feature_columns: typing.Optional[typing.Union[str, list[str]]] = None,
-    label_columns: typing.Optional[typing.Union[str, list[str]]] = None,
-    drop_columns: typing.Optional[typing.Union[str, list[str], int, list[int]]] = None,
+    feature_columns: str | list[str] | None = None,
+    label_columns: str | list[str] | None = None,
+    drop_columns: str | list[str] | int | list[int] | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
     """
     Parse the given dataset into a DataFrame and drop the columns accordingly. In addition, the label columns will be
@@ -467,7 +467,7 @@ def read_dataset_as_dataframe(
         # Get the features and parse to DataFrame:
         dataset = dataset.get_offline_features(drop_columns=drop_columns).to_dataframe()
 
-    elif isinstance(dataset, (list, np.ndarray)):
+    elif isinstance(dataset, list | np.ndarray):
         if not feature_columns:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Feature columns list must be provided when dataset input as from type list or numpy array"
@@ -509,7 +509,7 @@ def read_dataset_as_dataframe(
     # Turn the `label_columns` into a list by default:
     if label_columns is None:
         label_columns = []
-    elif isinstance(label_columns, (str, int)):
+    elif isinstance(label_columns, str | int):
         label_columns = [label_columns]
 
     return dataset, label_columns
@@ -542,16 +542,16 @@ def log_result(
 def _create_model_monitoring_function_base(
     *,
     project: str,
-    func: typing.Union[str, None] = None,
+    func: str | None = None,
     application_class: typing.Union[
         str, "mm_app.ModelMonitoringApplicationBase", None
     ] = None,
-    name: typing.Optional[str] = None,
-    image: typing.Optional[str] = None,
-    tag: typing.Optional[str] = None,
-    requirements: typing.Union[list[str], None] = None,
+    name: str | None = None,
+    image: str | None = None,
+    tag: str | None = None,
+    requirements: list[str] | None = None,
     requirements_file: str = "",
-    local_path: typing.Optional[str] = None,
+    local_path: str | None = None,
     **application_kwargs,
 ) -> mlrun.runtimes.ServingRuntime:
     """

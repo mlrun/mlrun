@@ -13,7 +13,6 @@
 # limitations under the License.
 import asyncio
 import datetime
-import typing
 import unittest.mock
 import uuid
 
@@ -125,7 +124,7 @@ class TestService(TestAPIBase):
 
         # manually add the run to the retry in progress dictionary to simulate a stale run
         self._service._retry_in_progress_run_uids[run_uid] = datetime.datetime.now(
-            datetime.timezone.utc
+            datetime.UTC
         ) - datetime.timedelta(days=2)
 
         await self._service._retry_jobs()
@@ -142,8 +141,8 @@ class TestService(TestAPIBase):
     def _generate_retry_job(
         self,
         uid: str = "test-job-uid",
-        project: typing.Optional[str] = None,
-        state: typing.Optional[str] = None,
+        project: str | None = None,
+        state: str | None = None,
         count: int = 3,
         retry_count: int = 0,
         base_delay: str = "1s",
@@ -171,6 +170,6 @@ class TestService(TestAPIBase):
                 or mlrun.common.runtimes.constants.RunStates.pending_retry,
                 "error": "some error",
                 "retry_count": retry_count,
-                "end_time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "end_time": datetime.datetime.now(datetime.UTC).isoformat(),
             },
         }

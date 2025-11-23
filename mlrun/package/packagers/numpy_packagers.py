@@ -16,7 +16,7 @@ import os
 import pathlib
 import tempfile
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -29,7 +29,7 @@ from ..utils import ArtifactType, SupportedFormat
 from .default_packager import DefaultPackager
 
 # Type for collection of numpy arrays (list / dict of arrays):
-NumPyArrayCollectionType = Union[list[np.ndarray], dict[str, np.ndarray]]
+NumPyArrayCollectionType = list[np.ndarray] | dict[str, np.ndarray]
 
 
 class _Formatter(ABC):
@@ -41,7 +41,7 @@ class _Formatter(ABC):
     @abstractmethod
     def save(
         cls,
-        obj: Union[np.ndarray, NumPyArrayCollectionType],
+        obj: np.ndarray | NumPyArrayCollectionType,
         file_path: str,
         **save_kwargs: dict,
     ):
@@ -58,7 +58,7 @@ class _Formatter(ABC):
     @abstractmethod
     def load(
         cls, file_path: str, **load_kwargs: dict
-    ) -> Union[np.ndarray, NumPyArrayCollectionType]:
+    ) -> np.ndarray | NumPyArrayCollectionType:
         """
         Load the array from the given file path.
 
@@ -373,7 +373,7 @@ class NumPyNDArrayPackager(DefaultPackager):
     def unpack_file(
         self,
         data_item: DataItem,
-        file_format: Optional[str] = None,
+        file_format: str | None = None,
         allow_pickle: bool = False,
     ) -> np.ndarray:
         """
@@ -477,7 +477,7 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
     def unpack_file(
         self,
         data_item: DataItem,
-        file_format: Optional[str] = None,
+        file_format: str | None = None,
         allow_pickle: bool = False,
     ) -> dict[str, np.ndarray]:
         """
@@ -517,7 +517,7 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
 
     @staticmethod
     def _is_any_object_dtype(
-        array_collection: Union[np.ndarray, NumPyArrayCollectionType],
+        array_collection: np.ndarray | NumPyArrayCollectionType,
     ):
         """
         Check if any of the arrays in a collection is of type `object`.
@@ -553,8 +553,8 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
     def is_packable(
         self,
         obj: Any,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> bool:
         """
         Check if the object provided is a dictionary of numpy arrays.
@@ -608,7 +608,7 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
     def unpack_file(
         self,
         data_item: DataItem,
-        file_format: Optional[str] = None,
+        file_format: str | None = None,
         allow_pickle: bool = False,
     ) -> dict[str, np.ndarray]:
         """
@@ -641,8 +641,8 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
     def is_packable(
         self,
         obj: Any,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> bool:
         """
         Check if the object provided is a list of numpy arrays.
@@ -688,7 +688,7 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
     def unpack_file(
         self,
         data_item: DataItem,
-        file_format: Optional[str] = None,
+        file_format: str | None = None,
         allow_pickle: bool = False,
     ) -> list[np.ndarray]:
         """

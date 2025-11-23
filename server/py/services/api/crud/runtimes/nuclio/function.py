@@ -15,7 +15,6 @@
 import asyncio
 import base64
 import shlex
-import typing
 
 import nuclio
 import nuclio.utils
@@ -46,9 +45,9 @@ from services.api.crud.runtimes.nuclio.helpers import pure_nuclio_deployed_restr
 def deploy_nuclio_function(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     auth_info: mlrun.common.schemas.AuthInfo = None,
-    client_version: typing.Optional[str] = None,
-    builder_env: typing.Optional[dict] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    builder_env: dict | None = None,
+    client_python_version: str | None = None,
 ):
     """Deploys a nuclio function.
 
@@ -191,7 +190,7 @@ async def delete_nuclio_functions_in_batches(
         function: str,
         _semaphore: asyncio.Semaphore,
         k8s_helper_: framework.utils.singletons.k8s.K8sHelper,
-    ) -> typing.Optional[tuple[str, str]]:
+    ) -> tuple[str, str] | None:
         async with _semaphore:
             try:
                 await nuclio_client.delete_function(name=function, project_name=project)
@@ -233,8 +232,8 @@ async def delete_nuclio_functions_in_batches(
 
 def _compile_function_config(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
     builder_env=None,
     auth_info=None,
 ):

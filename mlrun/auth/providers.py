@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 
@@ -399,7 +398,7 @@ class IGTokenProvider(DynamicTokenProvider):
     @staticmethod
     def _get_token_lifetime_and_expiry(
         token: str,
-    ) -> tuple[int, typing.Optional[datetime]]:
+    ) -> tuple[int, datetime | None]:
         """
         Calculate the total lifetime and expiration time of the token.
 

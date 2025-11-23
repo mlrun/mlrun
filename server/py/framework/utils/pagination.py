@@ -71,7 +71,7 @@ class PaginatedMethods(metaclass=mlrun.utils.singleton.Singleton):
         }
 
     @classmethod
-    def method_is_supported(cls, method: typing.Union[str, typing.Callable]) -> bool:
+    def method_is_supported(cls, method: str | typing.Callable) -> bool:
         method_name = method if isinstance(method, str) else method.__name__
         return method_name in cls._method_map
 
@@ -94,12 +94,12 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         session: sqlalchemy.orm.Session,
         method: typing.Callable,
         filter_: typing.Callable,
-        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
-        token: typing.Optional[str] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
+        token: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
         **method_kwargs,
-    ) -> tuple[typing.Any, dict[str, typing.Union[str, int]]]:
+    ) -> tuple[typing.Any, dict[str, str | int]]:
         """
         Paginate a request and filter the results based on the provided filter function.
         If the result of the filter has fewer items than the page size, the pagination will request more items until
@@ -140,14 +140,12 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         self,
         session: sqlalchemy.orm.Session,
         method: typing.Callable,
-        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
-        token: typing.Optional[str] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
+        token: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
         **method_kwargs,
-    ) -> tuple[
-        typing.Any, typing.Optional[mlrun.common.schemas.pagination.PaginationInfo]
-    ]:
+    ) -> tuple[typing.Any, mlrun.common.schemas.pagination.PaginationInfo | None]:
         if not PaginatedMethods.method_is_supported(method):
             raise NotImplementedError(
                 f"Pagination is not supported for method {method.__name__}"
@@ -226,10 +224,10 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         self,
         session: sqlalchemy.orm.Session,
         method: typing.Callable,
-        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
-        token: typing.Optional[str] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
+        token: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
         **method_kwargs,
     ) -> tuple[str, int, int, typing.Callable, dict]:
         if token:
@@ -277,9 +275,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _calculate_offset_and_limit(
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
-    ) -> tuple[typing.Optional[int], typing.Optional[int]]:
+        page: int | None = None,
+        page_size: int | None = None,
+    ) -> tuple[int | None, int | None]:
         if page is not None:
             page_size = page_size or mlconf.httpdb.pagination.default_page_size
 

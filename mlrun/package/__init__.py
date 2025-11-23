@@ -15,7 +15,8 @@
 import functools
 import inspect
 from collections import OrderedDict
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 from ..config import config
 from .context_handler import ContextHandler
@@ -37,9 +38,9 @@ from .utils import (
 
 
 def handler(
-    labels: Optional[dict[str, str]] = None,
-    outputs: Optional[list[Union[str, dict[str, str]]]] = None,
-    inputs: Union[bool, dict[str, Union[str, type]]] = True,
+    labels: dict[str, str] | None = None,
+    outputs: list[str | dict[str, str]] | None = None,
+    inputs: bool | dict[str, str | type] = True,
 ):
     """
     MLRun's handler is a decorator to wrap a function and enable setting labels, parsing inputs (`mlrun.DataItem`) using

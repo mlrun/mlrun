@@ -14,8 +14,7 @@
 
 import unittest.mock
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import deepdiff
 import fastapi.testclient
@@ -66,11 +65,11 @@ class TestRuntimeHandlerBase:
     def _store_run(
         self,
         db: Session,
-        name: Optional[str] = None,
-        uid: Optional[str] = None,
-        start_time: Optional[datetime] = None,
-        retry_spec: Optional[dict] = None,
-        retry_count: Optional[int] = None,
+        name: str | None = None,
+        uid: str | None = None,
+        start_time: datetime | None = None,
+        retry_spec: dict | None = None,
+        retry_count: int | None = None,
     ):
         self.run = {
             "status": {
@@ -134,7 +133,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_pod(name, labels, phase=PodPhases.succeeded):
         terminated_container_state = client.V1ContainerStateTerminated(
-            finished_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(UTC),
             exit_code=0,
             reason="Some reason",
             message="Failed message",
@@ -151,7 +150,7 @@ class TestRuntimeHandlerBase:
         status = client.V1PodStatus(
             phase=phase,
             container_statuses=[container_status],
-            start_time=datetime.now(timezone.utc),
+            start_time=datetime.now(UTC),
         )
         metadata = client.V1ObjectMeta(
             name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()
@@ -187,9 +186,7 @@ class TestRuntimeHandlerBase:
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ):
         runtime_handler = get_runtime_handler(runtime_kind)
         if group_by is None:
@@ -408,7 +405,7 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_delete_namespaced_pods(
-        expected_pod_names: list[str], expected_pod_namespace: Optional[str] = None
+        expected_pod_names: list[str], expected_pod_namespace: str | None = None
     ):
         calls = [
             unittest.mock.call(
@@ -427,7 +424,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _assert_delete_namespaced_services(
         expected_service_names: list[str],
-        expected_service_namespace: Optional[str] = None,
+        expected_service_namespace: str | None = None,
     ):
         calls = [
             unittest.mock.call(
@@ -446,7 +443,7 @@ class TestRuntimeHandlerBase:
     def _assert_delete_namespaced_custom_objects(
         runtime_handler,
         expected_custom_object_names: list[str],
-        expected_custom_object_namespace: Optional[str] = None,
+        expected_custom_object_namespace: str | None = None,
     ):
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         calls = [
@@ -521,7 +518,7 @@ class TestRuntimeHandlerBase:
     def _assert_list_namespaced_pods_calls(
         runtime_handler,
         expected_number_of_calls: int,
-        expected_label_selector: Optional[str] = None,
+        expected_label_selector: str | None = None,
         paginated: bool = True,
     ):
         assert (
@@ -578,7 +575,7 @@ class TestRuntimeHandlerBase:
         project: str,
         uid: str,
         expected_log: str,
-        logger_pod_name: Optional[str] = None,
+        logger_pod_name: str | None = None,
     ):
         if logger_pod_name is not None:
             get_k8s_helper().v1api.read_namespaced_pod_log.assert_called_once_with(
@@ -597,8 +594,8 @@ class TestRuntimeHandlerBase:
         project: str,
         uid: str,
         expected_state: str,
-        expected_status_attrs: Optional[dict] = None,
-        requested_logs: Optional[bool] = None,
+        expected_status_attrs: dict | None = None,
+        requested_logs: bool | None = None,
     ):
         expected_status_attrs = expected_status_attrs or {}
 

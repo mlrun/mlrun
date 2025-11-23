@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-from typing import Union
 
 import numpy as np
 import pytest
@@ -116,7 +115,7 @@ _length_strategy = st.integers(min_value=1, max_value=_max_value)
 
 
 def distribution_strategy(
-    length: Union[int, st.SearchStrategy[int]] = _length_strategy,
+    length: int | st.SearchStrategy[int] = _length_strategy,
 ) -> st.SearchStrategy[np.ndarray]:
     return st.builds(
         _norm_arr,

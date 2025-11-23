@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from abc import ABC
-from typing import Optional, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -33,13 +32,9 @@ class MLModelHandler(ModelHandler, ABC):
         self,
         model: MLTypes.ModelType = None,
         model_path: MLTypes.PathType = None,
-        model_name: Optional[str] = None,
-        modules_map: Union[
-            dict[str, Union[None, str, list[str]]], MLTypes.PathType
-        ] = None,
-        custom_objects_map: Union[
-            dict[str, Union[str, list[str]]], MLTypes.PathType
-        ] = None,
+        model_name: str | None = None,
+        modules_map: dict[str, None | str | list[str]] | MLTypes.PathType = None,
+        custom_objects_map: dict[str, str | list[str]] | MLTypes.PathType = None,
         custom_objects_directory: MLTypes.PathType = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
@@ -169,9 +164,7 @@ class MLModelHandler(ModelHandler, ABC):
         """
         self._algorithm = algorithm
 
-    def set_sample_set(
-        self, sample_set: Union[MLTypes.DatasetType, mlrun.DataItem, str]
-    ):
+    def set_sample_set(self, sample_set: MLTypes.DatasetType | mlrun.DataItem | str):
         """
         Set the sample set this model will be logged with. The sample set will be casted to a pd.DataFrame. Can be sent
         as a DataItem and as a store object string.
@@ -224,18 +217,18 @@ class MLModelHandler(ModelHandler, ABC):
     def log(
         self,
         tag: str = "",
-        labels: Optional[dict[str, Union[str, int, float]]] = None,
-        parameters: Optional[dict[str, Union[str, int, float]]] = None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
-        metrics: Optional[dict[str, Union[int, float]]] = None,
-        artifacts: Optional[dict[str, Artifact]] = None,
-        extra_data: Optional[dict[str, MLTypes.ExtraDataType]] = None,
-        algorithm: Optional[str] = None,
+        labels: dict[str, str | int | float] | None = None,
+        parameters: dict[str, str | int | float] | None = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
+        metrics: dict[str, int | float] | None = None,
+        artifacts: dict[str, Artifact] | None = None,
+        extra_data: dict[str, MLTypes.ExtraDataType] | None = None,
+        algorithm: str | None = None,
         sample_set: MLTypes.DatasetType = None,
         target_columns: MLTypes.TargetColumnsNamesType = None,
-        feature_vector: Optional[str] = None,
-        feature_weights: Optional[list[float]] = None,
+        feature_vector: str | None = None,
+        feature_weights: list[float] | None = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided.
@@ -299,15 +292,15 @@ class MLModelHandler(ModelHandler, ABC):
 
     def update(
         self,
-        labels: Optional[dict[str, Union[str, int, float]]] = None,
-        parameters: Optional[dict[str, Union[str, int, float]]] = None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
-        metrics: Optional[dict[str, Union[int, float]]] = None,
-        artifacts: Optional[dict[str, Artifact]] = None,
-        extra_data: Optional[dict[str, MLTypes.ExtraDataType]] = None,
-        feature_vector: Optional[str] = None,
-        feature_weights: Optional[list[float]] = None,
+        labels: dict[str, str | int | float] | None = None,
+        parameters: dict[str, str | int | float] | None = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
+        metrics: dict[str, int | float] | None = None,
+        artifacts: dict[str, Artifact] | None = None,
+        extra_data: dict[str, MLTypes.ExtraDataType] | None = None,
+        feature_vector: str | None = None,
+        feature_weights: list[float] | None = None,
     ):
         """
         Update the model held by this handler into the MLRun context provided, updating the model's artifact properties

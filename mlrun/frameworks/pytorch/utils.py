@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Union
+from collections.abc import Callable
 
 import numpy as np
 import torch
@@ -34,10 +34,10 @@ class PyTorchTypes(DLTypes):
     ModelType = Module
 
     # Supported types of loss and metrics values:
-    MetricValueType = Union[int, float, np.ndarray, Tensor]
+    MetricValueType = int | float | np.ndarray | Tensor
 
     # Supported types of metrics:
-    MetricFunctionType = Union[Callable[[Tensor, Tensor], MetricValueType], Module]
+    MetricFunctionType = Callable[[Tensor, Tensor] | MetricValueType] | Module
 
 
 class PyTorchUtils(DLUtils):
@@ -80,7 +80,7 @@ class PyTorchUtils(DLUtils):
         )
 
     @staticmethod
-    def convert_torch_dtype_to_value_type(torch_dtype: Union[torch.dtype, str]) -> str:
+    def convert_torch_dtype_to_value_type(torch_dtype: torch.dtype | str) -> str:
         """
         Convert the given torch data type to MLRun value type. All the CUDA supported data types are supported. For
         more information regarding torch data types, visit: https://pytorch.org/docs/stable/tensors.html#data-types

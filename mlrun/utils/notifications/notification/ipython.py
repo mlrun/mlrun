@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import mlrun.common.schemas
 import mlrun.lists
@@ -28,9 +27,9 @@ class IPythonNotification(NotificationBase):
 
     def __init__(
         self,
-        name: typing.Optional[str] = None,
-        params: typing.Optional[dict[str, str]] = None,
-        default_params: typing.Optional[dict[str, str]] = None,
+        name: str | None = None,
+        params: dict[str, str] | None = None,
+        default_params: dict[str, str] | None = None,
     ):
         super().__init__(name, params, default_params)
         self._ipython = None
@@ -49,13 +48,13 @@ class IPythonNotification(NotificationBase):
     def push(
         self,
         message: str,
-        severity: typing.Optional[
-            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
-        ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
-        custom_html: typing.Optional[typing.Optional[str]] = None,
-        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
-        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
+        severity: mlrun.common.schemas.NotificationSeverity
+        | str
+        | None = mlrun.common.schemas.NotificationSeverity.INFO,
+        runs: mlrun.lists.RunList | list | None = None,
+        custom_html: str | None | None = None,
+        alert: mlrun.common.schemas.AlertConfig | None = None,
+        event_data: mlrun.common.schemas.Event | None = None,
     ):
         if not self._ipython:
             mlrun.utils.helpers.logger.debug(

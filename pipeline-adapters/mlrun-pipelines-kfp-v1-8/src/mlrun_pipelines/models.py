@@ -15,7 +15,7 @@
 import json
 import typing
 from enum import IntEnum
-from typing import Any, Union
+from typing import Any
 
 from kfp_server_api.models.api_run_detail import ApiRunDetail
 
@@ -65,7 +65,7 @@ class PipelineStep(FlexibleMapper):
 
 class PipelineManifest(FlexibleMapper):
     def __init__(
-        self, workflow_manifest: Union[str, dict] = "{}", pipeline_manifest: str = "{}"
+        self, workflow_manifest: str | dict = "{}", pipeline_manifest: str = "{}"
     ):
         try:
             main_manifest = json.loads(workflow_manifest)

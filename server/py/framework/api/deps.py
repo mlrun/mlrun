@@ -27,7 +27,7 @@ import framework.utils.auth.verifier
 
 def get_db_session(
     request: Request,
-) -> typing.Generator[typing.Optional[Session], None, None]:
+) -> typing.Generator[Session | None, None, None]:
     # FastAPI dependencies automatically create DB sessions when entering an endpoint.
     # These sessions are redundant when the request is going to be forwarded to services.
     if not request.app.extra.get("mlrun_service").is_forwarded_request(request):

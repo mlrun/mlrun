@@ -15,7 +15,7 @@
 import re
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from typing import Any, Optional
+from typing import Any
 
 import pydantic.v1
 import pytest
@@ -64,7 +64,7 @@ from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
 )
 def test_fqn_parsing(
     fqn: str,
-    expected_result: Optional[ModelEndpointMonitoringMetricType],
+    expected_result: ModelEndpointMonitoringMetricType | None,
     expectation: AbstractContextManager,
 ) -> None:
     with expectation:

@@ -24,8 +24,8 @@ import socket
 import traceback
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
-from typing import Any, Optional, Union
+from datetime import UTC, datetime
+from typing import Any
 
 import pandas as pd
 import storey
@@ -129,7 +129,7 @@ class GraphServer(ModelObj):
         model_endpoint_creation_task_name=None,
     ):
         self._graph = None
-        self.graph: Union[RouterStep, RootFlowStep] = graph
+        self.graph: RouterStep | RootFlowStep = graph
         self.function_uri = function_uri
         self.parameters = parameters or {}
         self.verbose = verbose
@@ -158,7 +158,7 @@ class GraphServer(ModelObj):
         self._current_function = function
 
     @property
-    def graph(self) -> Union[RootFlowStep, RouterStep]:
+    def graph(self) -> RootFlowStep | RouterStep:
         return self._graph
 
     @graph.setter
@@ -180,11 +180,11 @@ class GraphServer(ModelObj):
         self,
         context,
         namespace,
-        resource_cache: Optional[ResourceCache] = None,
+        resource_cache: ResourceCache | None = None,
         logger=None,
         is_mock=False,
         monitoring_mock=False,
-        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
+        stream_profile: ds_profile.DatastoreProfile | None = None,
     ) -> None:
         """for internal use, initialize all steps (recursively)"""
 
@@ -240,13 +240,13 @@ class GraphServer(ModelObj):
     def test(
         self,
         path: str = "/",
-        body: Optional[Union[str, bytes, dict]] = None,
+        body: str | bytes | dict | None = None,
         method: str = "",
-        headers: Optional[str] = None,
-        content_type: Optional[str] = None,
+        headers: str | None = None,
+        content_type: str | None = None,
         silent: bool = False,
         get_body: bool = True,
-        event_id: Optional[str] = None,
+        event_id: str | None = None,
         trigger: "MockTrigger" = None,
         offset=None,
         time=None,
@@ -303,7 +303,7 @@ class GraphServer(ModelObj):
             if event_path_key in event.headers:
                 event.path = event.headers.get(event_path_key)
 
-        if isinstance(event.body, (str, bytes)) and (
+        if isinstance(event.body, str | bytes) and (
             not event.content_type or event.content_type in ["json", "application/json"]
         ):
             # assume it is json and try to load
@@ -348,7 +348,7 @@ class GraphServer(ModelObj):
         ):
             return body
 
-        if body and not isinstance(body, (str, bytes)):
+        if body and not isinstance(body, str | bytes):
             body = json.dumps(body)
             return context.Response(
                 body=body, content_type="application/json", status_code=200
@@ -575,9 +575,9 @@ def v2_serving_init(context, namespace=None):
 async def async_execute_graph(
     context: MLClientCtx,
     data: DataItem,
-    timestamp_column: Optional[str],
+    timestamp_column: str | None,
     batching: bool,
-    batch_size: Optional[int],
+    batch_size: int | None,
     read_as_lists: bool,
     nest_under_inputs: bool,
 ) -> None:
@@ -676,7 +676,7 @@ async def async_execute_graph(
             start_time = end_time = df["timestamp"].iloc[0].isoformat()
     else:
         # end time will be set from clock time when the batch completes
-        start_time = datetime.now(tz=timezone.utc).isoformat()
+        start_time = datetime.now(tz=UTC).isoformat()
 
     server.graph = add_system_steps_to_graph(
         server.project,
@@ -756,7 +756,7 @@ async def async_execute_graph(
     server = GraphServer.from_dict(spec)
     server.init_states(None, namespace)
 
-    batch_completion_time = datetime.now(tz=timezone.utc).isoformat()
+    batch_completion_time = datetime.now(tz=UTC).isoformat()
 
     if not timestamp_column:
         end_time = batch_completion_time
@@ -829,9 +829,9 @@ def _workaround_asyncio_nesting():
 def execute_graph(
     context: MLClientCtx,
     data: DataItem,
-    timestamp_column: Optional[str] = None,
+    timestamp_column: str | None = None,
     batching: bool = False,
-    batch_size: Optional[int] = None,
+    batch_size: int | None = None,
     read_as_lists: bool = False,
     nest_under_inputs: bool = False,
 ) -> (list[Any], Any):
@@ -1019,7 +1019,7 @@ class GraphContext:
         level="info",  # Unused argument
         logger=None,
         server=None,
-        nuclio_context: Optional[NuclioContext] = None,
+        nuclio_context: NuclioContext | None = None,
     ) -> None:
         self.state = None
         self.logger = logger
@@ -1028,7 +1028,7 @@ class GraphContext:
         self.verbose = False
         self.stream = None
         self.root = None
-        self.executor: Optional[storey.flow.RunnableExecutor] = None
+        self.executor: storey.flow.RunnableExecutor | None = None
 
         if nuclio_context:
             self.logger: NuclioLogger = nuclio_context.logger

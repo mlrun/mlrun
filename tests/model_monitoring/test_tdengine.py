@@ -16,7 +16,6 @@ import datetime
 import unittest
 import uuid
 from io import StringIO
-from typing import Optional, Union
 
 import pandas as pd
 import pytest
@@ -58,7 +57,7 @@ class TestTDEngineSchema:
 
     @staticmethod
     @pytest.fixture
-    def values() -> dict[str, Union[str, int, float, datetime.datetime]]:
+    def values() -> dict[str, str | int | float | datetime.datetime]:
         return {
             "column1": datetime.datetime.now(),
             "column2": 0.1,
@@ -81,7 +80,7 @@ class TestTDEngineSchema:
     def test_create_sub_table(
         self,
         super_table: TDEngineSchema,
-        values: dict[str, Union[str, int, float, datetime.datetime]],
+        values: dict[str, str | int | float | datetime.datetime],
         subtable: str,
         remove_tag: bool,
     ):
@@ -102,7 +101,7 @@ class TestTDEngineSchema:
     def test_delete_subtable(
         self,
         super_table: TDEngineSchema,
-        values: dict[str, Union[str, int, float, datetime.datetime]],
+        values: dict[str, str | int | float | datetime.datetime],
         subtable: str,
         remove_tag: bool,
     ):
@@ -146,7 +145,7 @@ class TestTDEngineSchema:
     def test_get_subtables_by_tag(
         self,
         super_table: TDEngineSchema,
-        values: dict[str, Union[str, int, float, datetime.datetime]],
+        values: dict[str, str | int | float | datetime.datetime],
         tag: str,
         invalid_tag: bool,
         operator: str,
@@ -301,12 +300,12 @@ class TestTDEngineSchema:
         start: datetime.datetime,
         end: datetime.datetime,
         timestamp_column: str,
-        agg_funcs: Optional[list[str]],
-        group_by: Optional[Union[list[str], str]],
+        agg_funcs: list[str] | None,
+        group_by: list[str] | str | None,
         preform_agg_funcs_columns: list[str],
-        order_by: Optional[str],
+        order_by: str | None,
         desc: bool,
-        partition_by: Optional[str],
+        partition_by: str | None,
     ):
         if columns_to_filter:
             columns_to_select = ", ".join(columns_to_filter)
@@ -575,12 +574,12 @@ class TestTDEngineConnector:
         last_request = connector.get_last_request(endpoint_ids=["ep_1"])
         assert last_request["last_request"][0] == parser.parse(
             "2024-12-27 05:13:47.56 +00:00"
-        ).astimezone(datetime.timezone.utc)
+        ).astimezone(datetime.UTC)
 
         last_request = connector.get_last_request(endpoint_ids=["ep_2"])
         assert last_request["last_request"][1] == parser.parse(
             "2024-12-27 05:13:47 +00:00"
-        ).astimezone(datetime.timezone.utc)
+        ).astimezone(datetime.UTC)
 
         # ML-10944
         last_request = connector.get_last_request(endpoint_ids=[])

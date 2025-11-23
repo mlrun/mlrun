@@ -16,6 +16,7 @@ import builtins
 import importlib
 import itertools
 import re
+import types
 import typing
 
 from mlrun.errors import MLRunInvalidArgumentError
@@ -46,7 +47,7 @@ class TypeHintUtils:
         )
 
     @staticmethod
-    def parse_type_hint(type_hint: typing.Union[type, str]) -> type:
+    def parse_type_hint(type_hint: type | str) -> type:
         """
         Parse a given type hint from string to its actual hinted type class object. The string must be one of the
         following:
@@ -150,7 +151,7 @@ class TypeHintUtils:
     @staticmethod
     def is_matching(
         object_type: type,
-        type_hint: typing.Union[type, set[type]],
+        type_hint: type | set[type],
         include_subclasses: bool = True,
         reduce_type_hint: bool = True,
     ) -> bool:
@@ -188,7 +189,7 @@ class TypeHintUtils:
 
     @staticmethod
     def reduce_type_hint(
-        type_hint: typing.Union[type, set[type]],
+        type_hint: type | set[type],
     ) -> set[type]:
         """
         Reduce a type hint (or a set of type hints) using the `_reduce_type_hint` function.
@@ -224,6 +225,10 @@ class TypeHintUtils:
 
         :return: The reduced type hint as list of hinted types or an empty list if the type hint could not be reduced.
         """
+        # Handle PEP 604 unions: int | float
+        if isinstance(type_hint, types.UnionType):
+            return list(type_hint.__args__)
+
         # If it's not a typing type (meaning it's an actual object type) then we can't reduce it further:
         if not TypeHintUtils.is_typing_type(type_hint=type_hint):
             return []

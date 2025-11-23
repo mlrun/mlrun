@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
 
 import numpy as np
 from cloudpickle import load
@@ -64,9 +63,7 @@ class OneToMany(mlrun.serving.V2ModelServer):
 
 
 class IncModel(mlrun.serving.states.Model):
-    def __init__(
-        self, *args, inc: int, gpu_number: typing.Optional[int] = None, **kwargs
-    ):
+    def __init__(self, *args, inc: int, gpu_number: int | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.inc = inc
         self.gpu_number = gpu_number
@@ -102,9 +99,9 @@ class MyModel(mlrun.serving.Model):
     def __init__(
         self,
         *args,
-        artifact_uri: typing.Optional[str] = None,
+        artifact_uri: str | None = None,
         raise_exception: bool = False,
-        gpu_number: typing.Optional[int] = None,
+        gpu_number: int | None = None,
         **kwargs,
     ):
         super().__init__(

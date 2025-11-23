@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
 import xgboost as xgb
 
@@ -25,10 +24,10 @@ class XGBoostTypes(MLTypes):
     """
 
     # A union of all XGBoost model base classes:
-    ModelType = Union[xgb.XGBModel, xgb.Booster]
+    ModelType = xgb.XGBModel | xgb.Booster
 
     # A type for all the supported dataset types:
-    DatasetType = Union[MLTypes.DatasetType, xgb.DMatrix]
+    DatasetType = MLTypes.DatasetType | xgb.DMatrix
 
 
 class XGBoostUtils(MLUtils):

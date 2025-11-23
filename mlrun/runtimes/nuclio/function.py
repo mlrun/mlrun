@@ -452,17 +452,17 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers: typing.Optional[int] = 8,
-        port: typing.Optional[int] = None,
-        host: typing.Optional[str] = None,
-        paths: typing.Optional[list[str]] = None,
-        canary: typing.Optional[float] = None,
-        secret: typing.Optional[str] = None,
-        worker_timeout: typing.Optional[int] = None,
-        gateway_timeout: typing.Optional[int] = None,
-        trigger_name: typing.Optional[str] = None,
-        annotations: typing.Optional[typing.Mapping[str, str]] = None,
-        extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
+        workers: int | None = 8,
+        port: int | None = None,
+        host: str | None = None,
+        paths: list[str] | None = None,
+        canary: float | None = None,
+        secret: str | None = None,
+        worker_timeout: int | None = None,
+        gateway_timeout: int | None = None,
+        trigger_name: str | None = None,
+        annotations: typing.Mapping[str, str] | None = None,
+        extra_attributes: typing.Mapping[str, str] | None = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -616,7 +616,7 @@ class RemoteRuntime(KubeResource):
         project="",
         tag="",
         verbose=False,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
     ):
         """Deploy the nuclio function to the cluster
@@ -727,10 +727,10 @@ class RemoteRuntime(KubeResource):
     @min_nuclio_versions("1.5.20", "1.6.10")
     def with_node_selection(
         self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-        tolerations: typing.Optional[list[client.V1Toleration]] = None,
+        node_name: str | None = None,
+        node_selector: dict[str, str] | None = None,
+        affinity: client.V1Affinity | None = None,
+        tolerations: list[client.V1Toleration] | None = None,
     ):
         """k8s node selection attributes"""
         if tolerations and not validate_nuclio_version_compatibility("1.7.5"):
@@ -760,14 +760,14 @@ class RemoteRuntime(KubeResource):
         super().with_preemption_mode(mode=mode)
 
     @min_nuclio_versions("1.6.18")
-    def with_priority_class(self, name: typing.Optional[str] = None):
+    def with_priority_class(self, name: str | None = None):
         """k8s priority class"""
         super().with_priority_class(name)
 
     def with_service_type(
         self,
         service_type: str,
-        add_templated_ingress_host_mode: typing.Optional[str] = None,
+        add_templated_ingress_host_mode: str | None = None,
     ):
         """
         Enables to control the service type of the pod and the addition of templated ingress host
@@ -818,7 +818,7 @@ class RemoteRuntime(KubeResource):
         last_log_timestamp=0,
         verbose=False,
         raise_on_exception=True,
-    ) -> tuple[str, str, typing.Optional[float]]:
+    ) -> tuple[str, str, float | None]:
         try:
             text, last_log_timestamp = self._get_db().get_nuclio_deploy_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
@@ -929,12 +929,12 @@ class RemoteRuntime(KubeResource):
     def invoke(
         self,
         path: str,
-        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
-        method: typing.Optional[str] = None,
-        headers: typing.Optional[dict] = None,
+        body: str | bytes | dict | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
-        mock: typing.Optional[bool] = None,
+        mock: bool | None = None,
         **http_client_kwargs,
     ):
         """Invoke the remote (live) function and return the results
@@ -984,7 +984,7 @@ class RemoteRuntime(KubeResource):
         if not http_client_kwargs:
             http_client_kwargs = {}
         if body:
-            if isinstance(body, (str, bytes)):
+            if isinstance(body, str | bytes):
                 http_client_kwargs["data"] = body
             else:
                 http_client_kwargs["json"] = body
@@ -1009,11 +1009,11 @@ class RemoteRuntime(KubeResource):
 
     def with_sidecar(
         self,
-        name: typing.Optional[str] = None,
-        image: typing.Optional[str] = None,
-        ports: typing.Optional[typing.Union[int, list[int]]] = None,
-        command: typing.Optional[str] = None,
-        args: typing.Optional[list[str]] = None,
+        name: str | None = None,
+        image: str | None = None,
+        ports: int | list[int] | None = None,
+        command: str | None = None,
+        args: list[str] | None = None,
     ):
         """
         Add a sidecar container to the function pod

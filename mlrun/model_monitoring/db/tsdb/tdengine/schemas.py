@@ -15,7 +15,6 @@
 import datetime
 from dataclasses import dataclass
 from io import StringIO
-from typing import Optional, Union
 
 import taosws
 
@@ -26,7 +25,7 @@ _MODEL_MONITORING_DATABASE = "mlrun_model_monitoring"
 
 
 class _TDEngineColumnType:
-    def __init__(self, data_type: str, length: Optional[int] = None):
+    def __init__(self, data_type: str, length: int | None = None):
         self.data_type = data_type
         self.length = length
 
@@ -83,7 +82,7 @@ class TDEngineSchema:
         columns: dict[str, _TDEngineColumn],
         tags: dict[str, str],
         project: str,
-        database: Optional[str] = None,
+        database: str | None = None,
     ):
         self.super_table = f"{super_table}_{project.replace('-', '_')}"
         self.columns = columns
@@ -98,7 +97,7 @@ class TDEngineSchema:
     def _create_subtable_sql(
         self,
         subtable: str,
-        values: dict[str, Union[str, int, float, datetime.datetime]],
+        values: dict[str, str | int | float | datetime.datetime],
     ) -> str:
         try:
             tags = ", ".join(f"'{values[val]}'" for val in self.tags)
@@ -111,7 +110,7 @@ class TDEngineSchema:
     def _delete_subtable_query(
         self,
         subtable: str,
-        values: dict[str, Union[str, int, float, datetime.datetime]],
+        values: dict[str, str | int | float | datetime.datetime],
     ) -> str:
         values = " AND ".join(
             f"{val} LIKE '{values[val]}'" for val in self.tags if val in values
@@ -152,19 +151,19 @@ class TDEngineSchema:
         table: str,
         start: datetime.datetime,
         end: datetime.datetime,
-        columns_to_filter: Optional[list[str]] = None,
-        filter_query: Optional[str] = None,
-        interval: Optional[str] = None,
+        columns_to_filter: list[str] | None = None,
+        filter_query: str | None = None,
+        interval: str | None = None,
         limit: int = 0,
-        agg_funcs: Optional[list] = None,
-        sliding_window_step: Optional[str] = None,
+        agg_funcs: list | None = None,
+        sliding_window_step: str | None = None,
         timestamp_column: str = "time",
         database: str = _MODEL_MONITORING_DATABASE,
-        group_by: Optional[Union[list[str], str]] = None,
-        preform_agg_funcs_columns: Optional[list[str]] = None,
-        order_by: Optional[str] = None,
-        desc: Optional[bool] = None,
-        partition_by: Optional[str] = None,
+        group_by: list[str] | str | None = None,
+        preform_agg_funcs_columns: list[str] | None = None,
+        order_by: str | None = None,
+        desc: bool | None = None,
+        partition_by: str | None = None,
     ) -> str:
         if agg_funcs and not columns_to_filter:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -252,7 +251,7 @@ class TDEngineSchema:
 
 @dataclass
 class AppResultTable(TDEngineSchema):
-    def __init__(self, project: str, database: Optional[str] = None):
+    def __init__(self, project: str, database: str | None = None):
         super_table = mm_schemas.TDEngineSuperTables.APP_RESULTS
         columns = {
             mm_schemas.WriterEvent.END_INFER_TIME: _TDEngineColumn.TIMESTAMP,
@@ -278,7 +277,7 @@ class AppResultTable(TDEngineSchema):
 
 @dataclass
 class Metrics(TDEngineSchema):
-    def __init__(self, project: str, database: Optional[str] = None):
+    def __init__(self, project: str, database: str | None = None):
         super_table = mm_schemas.TDEngineSuperTables.METRICS
         columns = {
             mm_schemas.WriterEvent.END_INFER_TIME: _TDEngineColumn.TIMESTAMP,
@@ -301,7 +300,7 @@ class Metrics(TDEngineSchema):
 
 @dataclass
 class Predictions(TDEngineSchema):
-    def __init__(self, project: str, database: Optional[str] = None):
+    def __init__(self, project: str, database: str | None = None):
         super_table = mm_schemas.TDEngineSuperTables.PREDICTIONS
         columns = {
             mm_schemas.EventFieldType.TIME: _TDEngineColumn.TIMESTAMP,
@@ -324,7 +323,7 @@ class Predictions(TDEngineSchema):
 
 @dataclass
 class Errors(TDEngineSchema):
-    def __init__(self, project: str, database: Optional[str] = None):
+    def __init__(self, project: str, database: str | None = None):
         super_table = mm_schemas.TDEngineSuperTables.ERRORS
         columns = {
             mm_schemas.EventFieldType.TIME: _TDEngineColumn.TIMESTAMP,

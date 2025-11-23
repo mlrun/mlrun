@@ -15,7 +15,6 @@
 import asyncio
 import json
 from copy import copy
-from typing import Optional
 
 import aiohttp
 import requests
@@ -46,19 +45,19 @@ class RemoteStep(storey.SendToHttp):
     def __init__(
         self,
         url: str,
-        subpath: Optional[str] = None,
-        method: Optional[str] = None,
-        headers: Optional[dict] = None,
-        url_expression: Optional[str] = None,
-        body_expression: Optional[str] = None,
+        subpath: str | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
+        url_expression: str | None = None,
+        body_expression: str | None = None,
         return_json: bool = True,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
         max_in_flight=None,
         retries=None,
         backoff_factor=None,
         timeout=None,
-        headers_expression: Optional[str] = None,
+        headers_expression: str | None = None,
         **kwargs,
     ):
         """class for calling remote endpoints
@@ -168,7 +167,7 @@ class RemoteStep(storey.SendToHttp):
                 text = await resp.text()
                 raise RuntimeError(f"bad http response {resp.status}: {text}")
             return resp
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             logger.error(f"http request to {url} timed out in RemoteStep {self.name}")
             raise exc
 
@@ -241,7 +240,7 @@ class RemoteStep(storey.SendToHttp):
             headers[event_id_key] = event.id
         if method == "GET":
             body = None
-        elif body is not None and not isinstance(body, (str, bytes)):
+        elif body is not None and not isinstance(body, str | bytes):
             if self._body_function_handler:
                 body = self._body_function_handler(body)
             body = json.dumps(body)
@@ -253,7 +252,7 @@ class RemoteStep(storey.SendToHttp):
         if (
             self.return_json
             or headers.get("content-type", "").lower() == "application/json"
-        ) and isinstance(data, (str, bytes)):
+        ) and isinstance(data, str | bytes):
             data = json.loads(data)
         return data
 
@@ -261,15 +260,15 @@ class RemoteStep(storey.SendToHttp):
 class BatchHttpRequests(_ConcurrentJobExecution):
     def __init__(
         self,
-        url: Optional[str] = None,
-        subpath: Optional[str] = None,
-        method: Optional[str] = None,
-        headers: Optional[dict] = None,
-        url_expression: Optional[str] = None,
-        body_expression: Optional[str] = None,
+        url: str | None = None,
+        subpath: str | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
+        url_expression: str | None = None,
+        body_expression: str | None = None,
         return_json: bool = True,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
         retries=None,
         backoff_factor=None,
         timeout=None,
@@ -390,7 +389,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
 
             if is_get:
                 body = None
-            elif body is not None and not isinstance(body, (str, bytes)):
+            elif body is not None and not isinstance(body, str | bytes):
                 if self._body_function_handler:
                     body = self._body_function_handler(body)
                 body = json.dumps(body)
@@ -458,14 +457,14 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         if (
             self.return_json
             or headers.get("content-type", "").lower() == "application/json"
-        ) and isinstance(data, (str, bytes)):
+        ) and isinstance(data, str | bytes):
             data = json.loads(data)
         return data
 
 
 class MLRunAPIRemoteStep(RemoteStep):
     def __init__(
-        self, method: str, path: str, fill_placeholders: Optional[bool] = None, **kwargs
+        self, method: str, path: str, fill_placeholders: bool | None = None, **kwargs
     ):
         """
         Graph step implementation for calling MLRun API endpoints

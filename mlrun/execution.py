@@ -17,7 +17,7 @@ import os
 import uuid
 import warnings
 from copy import deepcopy
-from typing import Optional, Union, cast
+from typing import Optional, cast
 
 import numpy as np
 import yaml
@@ -330,7 +330,7 @@ class MLClientCtx:
             )
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
-    def get_store_resource(self, url, secrets: Optional[dict] = None):
+    def get_store_resource(self, url, secrets: dict | None = None):
         """Get mlrun data resource (feature set/vector, artifact, item) from url.
 
         Example::
@@ -351,7 +351,7 @@ class MLClientCtx:
             data_store_secrets=secrets,
         )
 
-    def get_dataitem(self, url, secrets: Optional[dict] = None):
+    def get_dataitem(self, url, secrets: dict | None = None):
         """Get mlrun dataitem from url
 
         Example::
@@ -727,7 +727,7 @@ class MLClientCtx:
         db_key=None,
         target_path="",
         extra_data=None,
-        label_column: Optional[str] = None,
+        label_column: str | None = None,
         **kwargs,
     ) -> DatasetArtifact:
         """Log a dataset artifact and optionally upload it to datastore
@@ -811,15 +811,15 @@ class MLClientCtx:
         artifact_path=None,
         upload=True,
         labels=None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
-        feature_vector: Optional[str] = None,
-        feature_weights: Optional[list] = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
+        feature_vector: str | None = None,
+        feature_weights: list | None = None,
         training_set=None,
-        label_column: Optional[Union[str, list]] = None,
+        label_column: str | list | None = None,
         extra_data=None,
         db_key=None,
-        model_url: Optional[str] = None,
+        model_url: str | None = None,
         default_config=None,
         **kwargs,
     ) -> ModelArtifact:
@@ -913,17 +913,17 @@ class MLClientCtx:
     def log_llm_prompt(
         self,
         key,
-        prompt_template: Optional[list[dict]] = None,
-        prompt_path: Optional[str] = None,
-        prompt_legend: Optional[dict] = None,
-        model_artifact: Union[ModelArtifact, str] = None,
-        invocation_config: Optional[dict] = None,
-        description: Optional[str] = None,
-        target_path: Optional[str] = None,
-        artifact_path: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[list[str], str]] = None,
-        upload: Optional[bool] = None,
+        prompt_template: list[dict] | None = None,
+        prompt_path: str | None = None,
+        prompt_legend: dict | None = None,
+        model_artifact: ModelArtifact | str = None,
+        invocation_config: dict | None = None,
+        description: str | None = None,
+        target_path: str | None = None,
+        artifact_path: str | None = None,
+        tag: str | None = None,
+        labels: list[str] | str | None = None,
+        upload: bool | None = None,
         **kwargs,
     ) -> LLMPromptArtifact:
         """Log an LLM prompt artifact and optionally upload it to the artifact store.
@@ -1047,12 +1047,12 @@ class MLClientCtx:
         key: str = "",
         tag: str = "",
         local_path: str = "",
-        artifact_path: Optional[str] = None,
+        artifact_path: str | None = None,
         document_loader_spec: DocumentLoaderSpec = DocumentLoaderSpec(),
-        upload: Optional[bool] = False,
-        labels: Optional[dict[str, str]] = None,
-        target_path: Optional[str] = None,
-        db_key: Optional[str] = None,
+        upload: bool | None = False,
+        labels: dict[str, str] | None = None,
+        target_path: str | None = None,
+        db_key: str | None = None,
         **kwargs,
     ) -> DocumentArtifact:
         """
@@ -1151,7 +1151,7 @@ class MLClientCtx:
 
     def get_artifact(
         self, key, tag=None, iter=None, tree=None, uid=None
-    ) -> Optional[Artifact]:
+    ) -> Artifact | None:
         cached_artifact_uri = self._artifacts_manager.artifact_uris.get(key, None)
         if tag or iter or tree or uid or (not cached_artifact_uri):
             project = self.get_project_object()
@@ -1192,8 +1192,8 @@ class MLClientCtx:
 
     def set_state(
         self,
-        execution_state: Optional[str] = None,
-        error: Optional[str] = None,
+        execution_state: str | None = None,
+        error: str | None = None,
         commit=True,
     ):
         """
@@ -1511,15 +1511,15 @@ class MLClientCtx:
 
 
 def _cast_result(value):
-    if isinstance(value, (int, str, float)):
+    if isinstance(value, int | str | float):
         return value
     if isinstance(value, list):
         return [_cast_result(v) for v in value]
     if isinstance(value, dict):
         return {k: _cast_result(v) for k, v in value.items()}
-    if isinstance(value, (np.int64, np.integer)):
+    if isinstance(value, np.int64 | np.integer):
         return int(value)
-    if isinstance(value, (np.floating, np.float64)):
+    if isinstance(value, np.floating | np.float64):
         return float(value)
     if isinstance(value, np.ndarray):
         return value.tolist()

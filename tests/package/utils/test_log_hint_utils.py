@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
 import pytest
 
@@ -59,9 +58,7 @@ from mlrun.package.utils.log_hint_utils import LogHintKey, LogHintUtils
         ),
     ],
 )
-def test_parse_log_hint(
-    log_hint: Union[str, dict], expected_log_hint: Union[str, dict]
-):
+def test_parse_log_hint(log_hint: str | dict, expected_log_hint: str | dict):
     """
     Test the `LogHintUtils.parse_log_hint` function with multiple types.
 

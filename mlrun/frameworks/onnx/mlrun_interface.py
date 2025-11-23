@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import numpy as np
 import onnx
@@ -35,7 +35,7 @@ class ONNXMLRunInterface:
     def __init__(
         self,
         model: onnx.ModelProto,
-        execution_providers: Optional[list[str]] = None,
+        execution_providers: list[str] | None = None,
         context: mlrun.MLClientCtx = None,
     ):
         # Set the context:

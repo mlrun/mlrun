@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Union
+from typing import Any
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
@@ -31,8 +31,8 @@ class MockModelProvider(ModelProvider):
         kind,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         super().__init__(
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
@@ -62,10 +62,10 @@ class MockModelProvider(ModelProvider):
 
     def invoke(
         self,
-        messages: Union[list[dict], Any],
+        messages: list[dict] | Any,
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, dict[str, Any], Any]:
+    ) -> str | dict[str, Any] | Any:
         if invoke_response_format == InvokeResponseFormat.STRING:
             return (
                 "You are using a mock model provider, no actual inference is performed."

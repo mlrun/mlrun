@@ -25,7 +25,6 @@ import os
 import zipfile
 from ast import literal_eval
 from copy import deepcopy
-from typing import Union
 
 import yaml
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
@@ -66,24 +65,24 @@ def mlrun_op(
     image: str = "",
     runobj=None,
     command: str = "",
-    secrets: typing.Optional[list] = None,
-    params: typing.Optional[dict] = None,
+    secrets: list | None = None,
+    params: dict | None = None,
     job_image=None,
-    hyperparams: typing.Optional[dict] = None,
+    hyperparams: dict | None = None,
     param_file: str = "",
-    labels: typing.Optional[dict] = None,
+    labels: dict | None = None,
     selector: str = "",
-    inputs: typing.Optional[dict] = None,
-    outputs: typing.Optional[list] = None,
+    inputs: dict | None = None,
+    outputs: list | None = None,
     in_path: str = "",
     out_path: str = "",
     mode: str = "",
     handler: str = "",
-    more_args: typing.Optional[list] = None,
+    more_args: list | None = None,
     hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
-    returns: typing.Optional[list[Union[str, dict[str, str]]]] = None,
+    returns: list[str | dict[str, str]] | None = None,
     auto_build: bool = False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
@@ -350,7 +349,7 @@ def build_op(
     func_url=None,
     image=None,
     base_image=None,
-    commands: typing.Optional[list] = None,
+    commands: list | None = None,
     secret_name="",
     with_mlrun=True,
     skip_deployed=False,
@@ -391,8 +390,8 @@ def deploy_op(
     func_url=None,
     source="",
     project="",
-    models: typing.Optional[list] = None,
-    env: typing.Optional[dict] = None,
+    models: list | None = None,
+    env: dict | None = None,
     tag="",
     verbose=False,
 ):
@@ -570,7 +569,7 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True)
 
 
 def is_num(v):
-    return isinstance(v, (int, float, complex))
+    return isinstance(v, int | float | complex)
 
 
 def write_kfpmeta(struct):

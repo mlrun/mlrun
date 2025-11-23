@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
@@ -144,10 +144,10 @@ class Packager(ABC):
     def pack(
         self,
         obj: Any,
-        key: Optional[str] = None,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
-    ) -> Union[tuple[Artifact, dict], dict]:
+        key: str | None = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
+    ) -> tuple[Artifact, dict] | dict:
         """
         Pack an object as the given artifact type using the provided configurations.
 
@@ -165,8 +165,8 @@ class Packager(ABC):
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: Optional[str] = None,
-        instructions: Optional[dict] = None,
+        artifact_type: str | None = None,
+        instructions: dict | None = None,
     ) -> Any:
         """
         Unpack the data item's artifact by the provided type using the given instructions.
@@ -182,8 +182,8 @@ class Packager(ABC):
     def is_packable(
         self,
         obj: Any,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
@@ -215,7 +215,7 @@ class Packager(ABC):
         return True
 
     def is_unpackable(
-        self, data_item: DataItem, type_hint: type, artifact_type: Optional[str] = None
+        self, data_item: DataItem, type_hint: type, artifact_type: str | None = None
     ) -> bool:
         """
         Check if this packager can unpack an input according to the user-given type hint and the provided artifact type.
@@ -245,7 +245,7 @@ class Packager(ABC):
         # Unpackable:
         return True
 
-    def add_future_clearing_path(self, path: Union[str, Path]):
+    def add_future_clearing_path(self, path: str | Path):
         """
         Mark a path to be cleared by this packager's manager after logging the packaged artifacts.
 
@@ -318,7 +318,7 @@ class Packager(ABC):
         )
 
     def get_data_item_local_path(
-        self, data_item: DataItem, add_to_future_clearing_path: Optional[bool] = None
+        self, data_item: DataItem, add_to_future_clearing_path: bool | None = None
     ) -> str:
         """
         Get the local path to the item handled by the data item provided. The local path can be the same as the data

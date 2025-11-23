@@ -15,7 +15,7 @@
 import importlib
 import json
 import sys
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
 import mlrun.errors
 
@@ -30,9 +30,9 @@ class Metric:
 
     def __init__(
         self,
-        metric: Union[Callable, str],
-        name: Optional[str] = None,
-        additional_arguments: Optional[dict] = None,
+        metric: Callable | str,
+        name: str | None = None,
+        additional_arguments: dict | None = None,
         need_probabilities: bool = False,
     ):
         """
@@ -102,7 +102,7 @@ class Metric:
         return self._need_probabilities
 
     @property
-    def result(self) -> Union[float, None]:
+    def result(self) -> float | None:
         """
         Get the metric result. If the metric was not calculated, None will be returned.
 

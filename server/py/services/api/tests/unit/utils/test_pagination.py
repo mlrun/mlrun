@@ -30,9 +30,9 @@ import framework.utils.pagination_cache
 def paginated_method(
     session: sqlalchemy.orm.Session,
     total_amount: int,
-    since: typing.Optional[datetime.datetime] = None,
-    offset: typing.Optional[int] = None,
-    limit: typing.Optional[int] = None,
+    since: datetime.datetime | None = None,
+    offset: int | None = None,
+    limit: int | None = None,
 ):
     items = [{"name": f"item{i}", "since": since} for i in range(total_amount)]
     offset = offset or 0
@@ -745,7 +745,7 @@ def _assert_paginated_response(
 
 def _assert_cache_record(
     cache_record: framework.db.sqldb.models.PaginationCache,
-    user: typing.Optional[str],
+    user: str | None,
     method: typing.Callable,
     current_page: int,
     page_size: int,

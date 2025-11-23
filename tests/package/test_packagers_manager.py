@@ -16,7 +16,7 @@ import os
 import shutil
 import tempfile
 import zipfile
-from typing import Any, Optional, Union
+from typing import Any
 
 import pytest
 
@@ -51,25 +51,25 @@ class PackagerA(Packager):
     def is_packable(
         self,
         obj: Any,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> bool:
         return type(obj) is self.PACKABLE_OBJECT_TYPE and artifact_type == "result"
 
     def pack(
         self,
         obj: str,
-        key: Optional[str] = None,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        key: str | None = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> dict:
         return {f"{key}_from_PackagerA": obj}
 
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: Optional[str] = None,
-        instructions: Optional[dict] = None,
+        artifact_type: str | None = None,
+        instructions: dict | None = None,
     ) -> str:
         pass
 
@@ -154,17 +154,17 @@ class PackagerC(PackagerA):
     def pack(
         self,
         obj: float,
-        key: Optional[str] = None,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        key: str | None = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> dict:
         return {key: round(obj, configurations["n_round"])}
 
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: Optional[str] = None,
-        instructions: Optional[dict] = None,
+        artifact_type: str | None = None,
+        instructions: dict | None = None,
     ) -> float:
         return data_item.key * 2
 
@@ -207,7 +207,7 @@ class NotAPackager:
     ],
 )
 def test_collect_packagers(
-    packagers_to_collect: list[str], validation: Union[list[type[Packager]], str]
+    packagers_to_collect: list[str], validation: list[type[Packager]] | str
 ):
     """
     Test the manager's `collect_packagers` method.
@@ -367,8 +367,8 @@ def test_clear_packagers_outputs():
 )
 def test_arbitrary_log_hint(
     key: str,
-    obj: Union[list, dict, tuple, set],
-    expected_results: Union[dict[str, float], str],
+    obj: list | dict | tuple | set,
+    expected_results: dict[str, float] | str,
 ):
     """
     Test the arbitrary log hint key prefixes "*" and "**".
@@ -412,12 +412,12 @@ class _DummyDataItem:
     [
         (
             0.5,
-            Union[int, bytes, float, int],
+            int | bytes | float | int,
             1.0,
         ),
         (
             0.5,
-            Union[int, bytes, int],
+            int | bytes | int,
             "Could not unpack data item with the hinted type",
         ),
     ],
@@ -425,7 +425,7 @@ class _DummyDataItem:
 def test_plural_type_hint_unpacking(
     data: Any,
     type_hint: Any,
-    expected_results: Union[Any, str],
+    expected_results: Any | str,
 ):
     """
     Test unpacking when plural type hint is given (for example: a union of types).

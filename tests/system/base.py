@@ -77,7 +77,7 @@ class TestMLRunSystem:
         cls._run_db = get_run_db()
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
-        cls.project: typing.Optional[mlrun.projects.MlrunProject] = None
+        cls.project: mlrun.projects.MlrunProject | None = None
 
         cls.mm_tsdb_profile_data = cls._get_mm_data(
             env, "mlrun_model_monitoring_tsdb_profile"
@@ -102,7 +102,7 @@ class TestMLRunSystem:
     @staticmethod
     def _get_mm_data(
         env: dict[str, typing.Any], key: str
-    ) -> typing.Optional[dict[str, typing.Any]]:
+    ) -> dict[str, typing.Any] | None:
         data = env.get(key)
         if isinstance(data, str):
             data = json.loads(data)
@@ -264,7 +264,7 @@ class TestMLRunSystem:
         # Set the environment variable
         if isinstance(value, bool):
             os.environ[key] = "true" if value else "false"
-        elif value is not None and not isinstance(value, (list, dict)):
+        elif value is not None and not isinstance(value, list | dict):
             os.environ[key] = value
 
     @classmethod
@@ -326,14 +326,14 @@ class TestMLRunSystem:
     def _verify_run_spec(
         self,
         run_spec,
-        parameters: typing.Optional[dict] = None,
-        inputs: typing.Optional[dict] = None,
-        outputs: typing.Optional[list] = None,
-        output_path: typing.Optional[str] = None,
-        function: typing.Optional[str] = None,
-        secret_sources: typing.Optional[list] = None,
-        data_stores: typing.Optional[list] = None,
-        scrape_metrics: typing.Optional[bool] = None,
+        parameters: dict | None = None,
+        inputs: dict | None = None,
+        outputs: list | None = None,
+        output_path: str | None = None,
+        function: str | None = None,
+        secret_sources: list | None = None,
+        data_stores: list | None = None,
+        scrape_metrics: bool | None = None,
     ):
         self._logger.debug("Verifying run spec", spec=run_spec)
         if parameters:
@@ -356,11 +356,11 @@ class TestMLRunSystem:
     def _verify_run_metadata(
         self,
         run_metadata,
-        uid: typing.Optional[str] = None,
-        name: typing.Optional[str] = None,
-        project: typing.Optional[str] = None,
-        labels: typing.Optional[dict] = None,
-        iteration: typing.Optional[int] = None,
+        uid: str | None = None,
+        name: str | None = None,
+        project: str | None = None,
+        labels: dict | None = None,
+        iteration: int | None = None,
     ):
         self._logger.debug("Verifying run metadata", spec=run_metadata)
         if uid:
@@ -383,11 +383,11 @@ class TestMLRunSystem:
         name: str,
         project: str,
         output_path: pathlib.Path,
-        accuracy: typing.Optional[int] = None,
-        loss: typing.Optional[int] = None,
-        best_iteration: typing.Optional[int] = None,
+        accuracy: int | None = None,
+        loss: int | None = None,
+        best_iteration: int | None = None,
         iteration_results: bool = False,
-        iteration: typing.Optional[int] = None,
+        iteration: int | None = None,
     ):
         fragment = "" if iteration is None else f"#{iteration}"
 

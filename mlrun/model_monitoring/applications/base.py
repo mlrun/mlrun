@@ -18,8 +18,8 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
-from datetime import datetime, timedelta, timezone
-from typing import Any, Literal, Optional, Union, cast
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal, Optional, cast
 
 import pandas as pd
 
@@ -49,11 +49,9 @@ class ExistingDataHandling(mlrun.common.types.StrEnum):
 def _serialize_context_and_result(
     *,
     context: mm_context.MonitoringApplicationContext,
-    result: Union[
-        mm_results.ModelMonitoringApplicationResult,
-        mm_results.ModelMonitoringApplicationMetric,
-        mm_results._ModelMonitoringApplicationStats,
-    ],
+    result: mm_results.ModelMonitoringApplicationResult
+    | mm_results.ModelMonitoringApplicationMetric
+    | mm_results._ModelMonitoringApplicationStats,
 ) -> dict[mm_constants.WriterEvent, str]:
     """
     Serialize the returned result from a model monitoring application and its context
@@ -128,10 +126,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         self, monitoring_context: mm_context.MonitoringApplicationContext
     ) -> tuple[
         list[
-            Union[
-                mm_results.ModelMonitoringApplicationResult,
-                mm_results.ModelMonitoringApplicationMetric,
-            ]
+            mm_results.ModelMonitoringApplicationResult
+            | mm_results.ModelMonitoringApplicationMetric
         ],
         mm_context.MonitoringApplicationContext,
     ]:
@@ -158,11 +154,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
     @staticmethod
     def _flatten_data_result(
-        result: Union[
-            list[mm_results._ModelMonitoringApplicationDataRes],
-            mm_results._ModelMonitoringApplicationDataRes,
-        ],
-    ) -> Union[list[dict], dict]:
+        result: list[mm_results._ModelMonitoringApplicationDataRes]
+        | mm_results._ModelMonitoringApplicationDataRes,
+    ) -> list[dict] | dict:
         """Flatten result/metric objects to dictionaries"""
         if isinstance(result, mm_results._ModelMonitoringApplicationDataRes):
             return result.to_dict()
@@ -195,12 +189,12 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         write_output: bool,
         application_name: str,
         artifact_path: str,
-        stream_profile: Optional[ds_profile.DatastoreProfile],
+        stream_profile: ds_profile.DatastoreProfile | None,
         project: "mlrun.MlrunProject",
     ) -> Iterator[
         tuple[
             dict[str, list[tuple]],
-            Optional[mm_schedules.ModelMonitoringSchedulesFileApplication],
+            mm_schedules.ModelMonitoringSchedulesFileApplication | None,
         ]
     ]:
         endpoints_output: dict[
@@ -208,16 +202,12 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             list[
                 tuple[
                     mm_context.MonitoringApplicationContext,
-                    Union[
-                        mm_results.ModelMonitoringApplicationResult,
-                        mm_results.ModelMonitoringApplicationMetric,
-                        list[
-                            Union[
-                                mm_results.ModelMonitoringApplicationResult,
-                                mm_results.ModelMonitoringApplicationMetric,
-                                mm_results._ModelMonitoringApplicationStats,
-                            ]
-                        ],
+                    mm_results.ModelMonitoringApplicationResult
+                    | mm_results.ModelMonitoringApplicationMetric
+                    | list[
+                        mm_results.ModelMonitoringApplicationResult
+                        | mm_results.ModelMonitoringApplicationMetric
+                        | mm_results._ModelMonitoringApplicationStats
                     ],
                 ]
             ],
@@ -286,17 +276,19 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def _handler(
         self,
         context: "mlrun.MLClientCtx",
-        sample_data: Optional[pd.DataFrame] = None,
-        reference_data: Optional[pd.DataFrame] = None,
-        endpoints: Union[
-            list[tuple[str, str]], list[list[str]], list[str], Literal["all"], None
-        ] = None,
-        start: Optional[str] = None,
-        end: Optional[str] = None,
-        base_period: Optional[int] = None,
+        sample_data: pd.DataFrame | None = None,
+        reference_data: pd.DataFrame | None = None,
+        endpoints: list[tuple[str, str]]
+        | list[list[str]]
+        | list[str]
+        | Literal["all"]
+        | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        base_period: int | None = None,
         write_output: bool = False,
         existing_data_handling: ExistingDataHandling = ExistingDataHandling.fail_on_overlap,
-        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
+        stream_profile: ds_profile.DatastoreProfile | None = None,
     ):
         """
         A custom handler that wraps the application's logic implemented in
@@ -434,13 +426,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def _normalize_and_validate_endpoints(
         cls,
         project: "mlrun.MlrunProject",
-        endpoints: Union[
-            list[tuple[str, str]], list[list[str]], list[str], Literal["all"]
-        ],
+        endpoints: list[tuple[str, str]] | list[list[str]] | list[str] | Literal["all"],
     ) -> list[tuple[str, str]]:
         if isinstance(endpoints, list):
             if all(
-                isinstance(endpoint, (tuple, list)) and len(endpoint) == 2
+                isinstance(endpoint, tuple | list) and len(endpoint) == 2
                 for endpoint in endpoints
             ):
                 # A list of [(name, uid), ...] / [[name, uid], ...] tuples/lists
@@ -555,13 +545,12 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     @staticmethod
     def _validate_monotonically_increasing_data(
         *,
-        application_schedules: Optional[
-            mm_schedules.ModelMonitoringSchedulesFileApplication
-        ],
+        application_schedules: mm_schedules.ModelMonitoringSchedulesFileApplication
+        | None,
         endpoint_id: str,
         start_dt: datetime,
         end_dt: datetime,
-        base_period: Optional[int],
+        base_period: int | None,
         application_name: str,
         existing_data_handling: ExistingDataHandling,
     ) -> datetime:
@@ -614,9 +603,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         project_name: str,
         application_name: str,
         endpoint_ids: list[str],
-        application_schedules: Optional[
-            mm_schedules.ModelMonitoringSchedulesFileApplication
-        ],
+        application_schedules: mm_schedules.ModelMonitoringSchedulesFileApplication
+        | None,
     ) -> None:
         mlrun.get_run_db().delete_model_monitoring_metrics(
             project=project_name,
@@ -632,22 +620,21 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def _window_generator(
         cls,
         *,
-        start: Optional[str],
-        end: Optional[str],
-        base_period: Optional[int],
-        application_schedules: Optional[
-            mm_schedules.ModelMonitoringSchedulesFileApplication
-        ],
+        start: str | None,
+        end: str | None,
+        base_period: int | None,
+        application_schedules: mm_schedules.ModelMonitoringSchedulesFileApplication
+        | None,
         endpoint_name: str,
         endpoint_id: str,
         application_name: str,
         existing_data_handling: ExistingDataHandling,
         context: "mlrun.MLClientCtx",
         project: "mlrun.MlrunProject",
-        sample_data: Optional[pd.DataFrame],
+        sample_data: pd.DataFrame | None,
     ) -> Iterator[mm_context.MonitoringApplicationContext]:
         def yield_monitoring_ctx(
-            window_start: Optional[datetime], window_end: Optional[datetime]
+            window_start: datetime | None, window_end: datetime | None
         ) -> Iterator[mm_context.MonitoringApplicationContext]:
             ctx = mm_context.MonitoringApplicationContext._from_ml_ctx(
                 event={
@@ -690,8 +677,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
         # If `start_dt` and `end_dt` do not include time zone information - change them to UTC
         if (start_dt.tzinfo is None) and (end_dt.tzinfo is None):
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
-            end_dt = end_dt.replace(tzinfo=timezone.utc)
+            start_dt = start_dt.replace(tzinfo=UTC)
+            end_dt = end_dt.replace(tzinfo=UTC)
         elif (start_dt.tzinfo is None) or (end_dt.tzinfo is None):
             raise mlrun.errors.MLRunValueError(
                 "The start and end times must either both include time zone information or both be naive (no time "
@@ -727,12 +714,12 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def deploy(
         cls,
         func_name: str,
-        func_path: Optional[str] = None,
-        image: Optional[str] = None,
-        handler: Optional[str] = None,
-        with_repo: Optional[bool] = False,
-        tag: Optional[str] = None,
-        requirements: Optional[Union[str, list[str]]] = None,
+        func_path: str | None = None,
+        image: str | None = None,
+        handler: str | None = None,
+        with_repo: bool | None = False,
+        tag: str | None = None,
+        requirements: str | list[str] | None = None,
         requirements_file: str = "",
         **application_kwargs,
     ) -> None:
@@ -775,8 +762,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def _determine_job_name(
         cls,
         *,
-        func_name: Optional[str],
-        class_handler: Optional[str],
+        func_name: str | None,
+        class_handler: str | None,
         handler_to_class: str,
     ) -> str:
         """
@@ -814,13 +801,13 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def to_job(
         cls,
         *,
-        class_handler: Optional[str] = None,
-        func_path: Optional[str] = None,
-        func_name: Optional[str] = None,
-        tag: Optional[str] = None,
-        image: Optional[str] = None,
-        with_repo: Optional[bool] = False,
-        requirements: Optional[Union[str, list[str]]] = None,
+        class_handler: str | None = None,
+        func_path: str | None = None,
+        func_name: str | None = None,
+        tag: str | None = None,
+        image: str | None = None,
+        with_repo: bool | None = False,
+        requirements: str | list[str] | None = None,
         requirements_file: str = "",
         project: Optional["mlrun.MlrunProject"] = None,
     ) -> mlrun.runtimes.KubejobRuntime:
@@ -922,27 +909,27 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     @classmethod
     def evaluate(
         cls,
-        func_path: Optional[str] = None,
-        func_name: Optional[str] = None,
+        func_path: str | None = None,
+        func_name: str | None = None,
         *,
-        tag: Optional[str] = None,
+        tag: str | None = None,
         run_local: bool = True,
         auto_build: bool = True,
-        sample_data: Optional[Union[pd.DataFrame, str]] = None,
-        reference_data: Optional[Union[pd.DataFrame, str]] = None,
-        image: Optional[str] = None,
-        with_repo: Optional[bool] = False,
-        class_handler: Optional[str] = None,
-        class_arguments: Optional[dict[str, Any]] = None,
-        requirements: Optional[Union[str, list[str]]] = None,
+        sample_data: pd.DataFrame | str | None = None,
+        reference_data: pd.DataFrame | str | None = None,
+        image: str | None = None,
+        with_repo: bool | None = False,
+        class_handler: str | None = None,
+        class_arguments: dict[str, Any] | None = None,
+        requirements: str | list[str] | None = None,
         requirements_file: str = "",
-        endpoints: Union[list[tuple[str, str]], list[str], Literal["all"], None] = None,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        base_period: Optional[int] = None,
+        endpoints: list[tuple[str, str]] | list[str] | Literal["all"] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        base_period: int | None = None,
         write_output: bool = False,
         existing_data_handling: ExistingDataHandling = ExistingDataHandling.fail_on_overlap,
-        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
+        stream_profile: ds_profile.DatastoreProfile | None = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -1051,7 +1038,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         )
 
         params: dict[
-            str, Union[list, dict, str, int, None, ds_profile.DatastoreProfile]
+            str, list | dict | str | int | None | ds_profile.DatastoreProfile
         ] = {}
         if endpoints:
             params["endpoints"] = endpoints
@@ -1120,16 +1107,14 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def do_tracking(
         self,
         monitoring_context: mm_context.MonitoringApplicationContext,
-    ) -> Union[
-        mm_results.ModelMonitoringApplicationResult,
-        list[
-            Union[
-                mm_results.ModelMonitoringApplicationResult,
-                mm_results.ModelMonitoringApplicationMetric,
-            ]
-        ],
-        dict[str, Any],
-    ]:
+    ) -> (
+        mm_results.ModelMonitoringApplicationResult
+        | list[
+            mm_results.ModelMonitoringApplicationResult
+            | mm_results.ModelMonitoringApplicationMetric
+        ]
+        | dict[str, Any]
+    ):
         """
         Implement this method with your custom monitoring logic.
 

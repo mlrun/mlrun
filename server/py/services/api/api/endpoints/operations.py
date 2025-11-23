@@ -129,8 +129,8 @@ async def refresh_smtp_configuration(
 def _get_or_create_migration_background_task(
     task_name: str,
 ) -> tuple[
-    typing.Optional[typing.Callable],
-    typing.Optional[mlrun.common.schemas.BackgroundTask],
+    typing.Callable | None,
+    mlrun.common.schemas.BackgroundTask | None,
     str,
 ]:
     if (
@@ -177,7 +177,7 @@ async def _perform_migration():
 def _create_refresh_smtp_configuration_background_task(
     session: str,
 ) -> tuple[
-    typing.Optional[typing.Callable],
+    typing.Callable | None,
     str,
 ]:
     logger.info("Starting the SMTP configuration refresh process")

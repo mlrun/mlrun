@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import inspect
-from collections.abc import Awaitable
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
@@ -50,8 +50,8 @@ class OpenAIProvider(ModelProvider):
         schema,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         endpoint = endpoint or mlrun.mlconf.model_providers.openai_default_model
         if schema != "openai":
@@ -165,7 +165,7 @@ class OpenAIProvider(ModelProvider):
         return self._sanitize_options(res)
 
     def custom_invoke(
-        self, operation: Optional[Callable] = None, **invoke_kwargs
+        self, operation: Callable | None = None, **invoke_kwargs
     ) -> Union["ChatCompletion", "BaseModel"]:
         """
         Invokes a model operation from the OpenAI client with the given keyword arguments.
@@ -215,7 +215,7 @@ class OpenAIProvider(ModelProvider):
 
     async def async_custom_invoke(
         self,
-        operation: Optional[Callable[..., Awaitable[Any]]] = None,
+        operation: Callable[..., Awaitable[Any]] | None = None,
         **invoke_kwargs,
     ) -> Union["ChatCompletion", "BaseModel"]:
         """

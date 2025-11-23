@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
 from copy import copy
-from typing import Union
 
 import numpy as np
 
@@ -28,11 +26,11 @@ from ..model import ModelObj, ObjectList
 class _JoinStep(ModelObj):
     def __init__(
         self,
-        name: typing.Optional[str] = None,
-        left_step_name: typing.Optional[str] = None,
-        right_step_name: typing.Optional[str] = None,
-        left_feature_set_names: typing.Optional[Union[str, list[str]]] = None,
-        right_feature_set_name: typing.Optional[str] = None,
+        name: str | None = None,
+        left_step_name: str | None = None,
+        right_step_name: str | None = None,
+        left_feature_set_names: str | list[str] | None = None,
+        right_feature_set_name: str | None = None,
         join_type: str = "inner",
         asof_join: bool = False,
     ):
@@ -56,7 +54,7 @@ class _JoinStep(ModelObj):
         self,
         feature_set_objects: ObjectList,
         vector,
-        entity_rows_keys: typing.Optional[list[str]] = None,
+        entity_rows_keys: list[str] | None = None,
     ):
         if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
             entity_rows_keys
@@ -114,8 +112,8 @@ class JoinGraph(ModelObj):
 
     def __init__(
         self,
-        name: typing.Optional[str] = None,
-        first_feature_set: Union[str, FeatureSet] = None,
+        name: str | None = None,
+        first_feature_set: str | FeatureSet = None,
     ):
         """
         JoinGraph is a class that represents a graph of data joins between feature sets. It allows users to define
@@ -142,7 +140,7 @@ class JoinGraph(ModelObj):
         if first_feature_set:
             self._start(first_feature_set)
 
-    def inner(self, other_operand: typing.Union[str, FeatureSet]):
+    def inner(self, other_operand: str | FeatureSet):
         """
         Specifies an inner join with the given feature set
 
@@ -152,7 +150,7 @@ class JoinGraph(ModelObj):
         """
         return self._join_operands(other_operand, "inner")
 
-    def outer(self, other_operand: typing.Union[str, FeatureSet]):
+    def outer(self, other_operand: str | FeatureSet):
         """
         Specifies an outer join with the given feature set
 
@@ -161,7 +159,7 @@ class JoinGraph(ModelObj):
         """
         return self._join_operands(other_operand, "outer")
 
-    def left(self, other_operand: typing.Union[str, FeatureSet], asof_join):
+    def left(self, other_operand: str | FeatureSet, asof_join):
         """
         Specifies a left join with the given feature set
 
@@ -172,7 +170,7 @@ class JoinGraph(ModelObj):
         """
         return self._join_operands(other_operand, "left", asof_join=asof_join)
 
-    def right(self, other_operand: typing.Union[str, FeatureSet]):
+    def right(self, other_operand: str | FeatureSet):
         """
         Specifies a right join with the given feature set
 
@@ -184,7 +182,7 @@ class JoinGraph(ModelObj):
 
     def _join_operands(
         self,
-        other_operand: typing.Union[str, FeatureSet],
+        other_operand: str | FeatureSet,
         join_type: str,
         asof_join: bool = False,
     ):
@@ -216,14 +214,14 @@ class JoinGraph(ModelObj):
             self.steps = [new_step]
         return self
 
-    def _start(self, other_operand: typing.Union[str, FeatureSet]):
+    def _start(self, other_operand: str | FeatureSet):
         return self._join_operands(other_operand, JoinGraph.first_join_type)
 
     def _init_all_join_keys(
         self,
         feature_set_objects,
         vector,
-        entity_rows_keys: typing.Optional[list[str]] = None,
+        entity_rows_keys: list[str] | None = None,
     ):
         for step in self.steps:
             step.init_join_keys(feature_set_objects, vector, entity_rows_keys)
@@ -281,8 +279,8 @@ class OnlineVectorService:
         vector,
         graph,
         index_columns,
-        impute_policy: typing.Optional[dict] = None,
-        requested_columns: typing.Optional[list[str]] = None,
+        impute_policy: dict | None = None,
+        requested_columns: list[str] | None = None,
     ):
         self.vector = vector
         self.impute_policy = impute_policy or {}
@@ -338,7 +336,7 @@ class OnlineVectorService:
         """vector merger function status (ready, running, error)"""
         return "ready"
 
-    def get(self, entity_rows: list[Union[dict, list]], as_list=False):
+    def get(self, entity_rows: list[dict | list], as_list=False):
         """get feature vector given the provided entity inputs
 
         take a list of input vectors/rows and return a list of enriched feature vectors
@@ -370,7 +368,7 @@ class OnlineVectorService:
         if (
             not entity_rows
             or not isinstance(entity_rows, list)
-            or not isinstance(entity_rows[0], (list, dict))
+            or not isinstance(entity_rows[0], list | dict)
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"input data is of type {type(entity_rows)}. must be a list of lists or list of dicts"

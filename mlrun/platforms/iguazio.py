@@ -15,7 +15,6 @@
 import json
 import os
 import urllib
-from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -140,7 +139,7 @@ class OutputStream:
         self._lazy_init()
 
         def dump_record(rec):
-            if not isinstance(rec, (str, bytes)):
+            if not isinstance(rec, str | bytes):
                 return dict_to_json(rec)
             return str(rec)
 
@@ -256,7 +255,7 @@ class KafkaOutputStream:
 
 class V3ioStreamClient:
     def __init__(
-        self, url: str, shard_id: int = 0, seek_to: Optional[str] = None, **kwargs
+        self, url: str, shard_id: int = 0, seek_to: str | None = None, **kwargs
     ):
         endpoint, stream_path = parse_path(url)
         seek_options = ["EARLIEST", "LATEST", "TIME", "SEQUENCE"]

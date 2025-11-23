@@ -16,7 +16,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Union
 
 import yaml
 
@@ -35,15 +34,15 @@ class HubModule(ModelObj):
     def __init__(
         self,
         name: str,
-        kind: Union[HubModuleType, str],
-        version: Optional[str] = None,
-        description: Optional[str] = None,
-        categories: Optional[list] = None,
-        requirements: Optional[list] = None,
-        local_path: Optional[str] = None,
-        filename: Optional[str] = None,
-        example: Optional[str] = None,
-        url: Optional[str] = None,
+        kind: HubModuleType | str,
+        version: str | None = None,
+        description: str | None = None,
+        categories: list | None = None,
+        requirements: list | None = None,
+        local_path: str | None = None,
+        filename: str | None = None,
+        example: str | None = None,
+        url: str | None = None,
         **kwargs,  # catch all for unused args
     ):
         self.name: str = name
@@ -110,7 +109,7 @@ class HubModule(ModelObj):
             f.write(data)
 
     @staticmethod
-    def verify_directory(path: Optional[str] = None) -> Path:
+    def verify_directory(path: str | None = None) -> Path:
         """
         Validate that the given path is an existing directory.
         If no path has been provided, returns current working directory.
@@ -134,9 +133,9 @@ class HubModule(ModelObj):
 
 def get_hub_module(
     url: str = "",
-    download_files: Optional[bool] = True,
-    secrets: Optional[dict] = None,
-    local_path: Optional[str] = None,
+    download_files: bool | None = True,
+    secrets: dict | None = None,
+    local_path: str | None = None,
 ) -> HubModule:
     """
     Get a hub-module object containing metadata of the requested module.

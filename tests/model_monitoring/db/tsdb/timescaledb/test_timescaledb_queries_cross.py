@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import pytest
 
@@ -47,7 +46,7 @@ class TestTimescaleDBCrossQueries:
         result_status: int,
         result_kind: int,
         end_time: datetime,
-        start_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
     ) -> dict:
         """Factory method for creating result event data."""
         if start_time is None:
@@ -87,7 +86,7 @@ class TestTimescaleDBCrossQueries:
         check_error_count: int = 0,
         check_last_request: bool = True,
         check_avg_latency: bool = True,
-        check_result_status: Optional[int] = None,
+        check_result_status: int | None = None,
     ):
         """Helper method for verifying basic metrics in endpoints."""
         assert len(endpoints) == expected_count
@@ -155,12 +154,12 @@ class TestTimescaleDBCrossQueries:
 
     def _write_test_predictions_data(self, connector, endpoint_ids):
         """Helper to write predictions test data using direct INSERT."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         predictions_table = connector._metrics_queries.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
-        base_time = datetime.now(timezone.utc) - timedelta(hours=1)  # 1 hour ago
+        base_time = datetime.now(UTC) - timedelta(hours=1)  # 1 hour ago
 
         for i, endpoint_id in enumerate(endpoint_ids):
             test_time = base_time + timedelta(minutes=i)
@@ -177,7 +176,7 @@ class TestTimescaleDBCrossQueries:
         """Helper to write results test data using factory methods."""
         from datetime import timedelta
 
-        base_time = datetime.now(timezone.utc) - timedelta(hours=1)  # 1 hour ago
+        base_time = datetime.now(UTC) - timedelta(hours=1)  # 1 hour ago
         results_data = []
 
         for i, endpoint_id in enumerate(endpoint_ids):

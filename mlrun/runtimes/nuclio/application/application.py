@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import typing
 
 import nuclio
 import nuclio.auth
@@ -245,7 +244,7 @@ class ApplicationStatus(NuclioStatus):
         self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
-        self.api_gateway: typing.Optional[APIGateway] = api_gateway or None
+        self.api_gateway: APIGateway | None = api_gateway or None
         self.url = url or None
 
 
@@ -296,11 +295,11 @@ class ApplicationRuntime(RemoteRuntime):
 
     def with_sidecar(
         self,
-        name: typing.Optional[str] = None,
-        image: typing.Optional[str] = None,
-        ports: typing.Optional[typing.Union[int, list[int]]] = None,
-        command: typing.Optional[str] = None,
-        args: typing.Optional[list[str]] = None,
+        name: str | None = None,
+        image: str | None = None,
+        ports: int | list[int] | None = None,
+        command: str | None = None,
+        args: list[str] | None = None,
     ):
         # wraps with_sidecar just to set the application ports
         super().with_sidecar(
@@ -370,7 +369,7 @@ class ApplicationRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
         with_mlrun=None,
         skip_deployed=False,
@@ -460,7 +459,7 @@ class ApplicationRuntime(RemoteRuntime):
         source,
         workdir=None,
         pull_at_runtime: bool = False,
-        target_dir: typing.Optional[str] = None,
+        target_dir: str | None = None,
     ):
         """load the code from git/tar/zip archive at build
 
@@ -521,15 +520,15 @@ class ApplicationRuntime(RemoteRuntime):
 
     def create_api_gateway(
         self,
-        name: typing.Optional[str] = None,
-        path: typing.Optional[str] = None,
+        name: str | None = None,
+        path: str | None = None,
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
-        authentication_creds: typing.Optional[tuple[str, str]] = None,
-        ssl_redirect: typing.Optional[bool] = None,
+        authentication_creds: tuple[str, str] | None = None,
+        ssl_redirect: bool | None = None,
         set_as_default: bool = False,
-        gateway_timeout: typing.Optional[int] = None,
-        port: typing.Optional[int] = None,
+        gateway_timeout: int | None = None,
+        port: int | None = None,
     ):
         """
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
@@ -647,13 +646,13 @@ class ApplicationRuntime(RemoteRuntime):
     def invoke(
         self,
         path: str = "",
-        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
-        method: typing.Optional[str] = None,
-        headers: typing.Optional[dict] = None,
+        body: str | bytes | dict | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
         force_external_address: bool = False,
         auth_info: schemas.AuthInfo = None,
-        mock: typing.Optional[bool] = None,
-        credentials: typing.Optional[tuple[str, str]] = None,
+        mock: bool | None = None,
+        credentials: tuple[str, str] | None = None,
         **http_client_kwargs,
     ):
         self._sync_api_gateway()
@@ -765,7 +764,7 @@ class ApplicationRuntime(RemoteRuntime):
 
     def _build_application_image(
         self,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
         watch=True,
         with_mlrun=None,

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import semver
 
@@ -24,8 +23,8 @@ from mlrun.utils import logger
 
 def resolve_client_default_kfp_image(
     project: ProjectOut,
-    workflow_spec: typing.Optional[WorkflowSpec] = None,
-    client_version: typing.Optional[str] = None,
+    workflow_spec: WorkflowSpec | None = None,
+    client_version: str | None = None,
 ) -> str:
     if workflow_spec and workflow_spec.image:
         image = workflow_spec.image

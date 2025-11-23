@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-import typing
 from abc import ABC, abstractmethod
 
 import mlrun.common.schemas
@@ -84,8 +83,8 @@ class SecretProviderInterface(ABC):
         token: str,
         expiration: int,
         force: bool = False,
-        namespace: typing.Optional[str] = None,
-    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+        namespace: str | None = None,
+    ) -> mlrun.common.schemas.SecretEventActions | None:
         pass
 
     @abstractmethod
@@ -93,7 +92,7 @@ class SecretProviderInterface(ABC):
         self,
         username: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> str:
         pass
 
@@ -101,7 +100,7 @@ class SecretProviderInterface(ABC):
     def list_user_token_secrets(
         self,
         username: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         pass
 
@@ -110,7 +109,7 @@ class SecretProviderInterface(ABC):
         self,
         username: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
         pass
 
@@ -197,22 +196,22 @@ class InMemorySecretProvider(SecretProviderInterface):
         token: str,
         expiration: int,
         force: bool = False,
-        namespace: typing.Optional[str] = None,
-    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+        namespace: str | None = None,
+    ) -> mlrun.common.schemas.SecretEventActions | None:
         raise NotImplementedError()
 
     def get_user_token_secret_value(
         self,
         username: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> str:
         raise NotImplementedError()
 
     def list_user_token_secrets(
         self,
         username: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         raise NotImplementedError()
 
@@ -220,7 +219,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         self,
         username: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
         raise NotImplementedError()
 

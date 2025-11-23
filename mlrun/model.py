@@ -22,7 +22,7 @@ from collections import OrderedDict
 from copy import copy, deepcopy
 from datetime import datetime
 from os import environ
-from typing import Any, Optional, Union
+from typing import Any
 
 import pydantic.v1.error_wrappers
 
@@ -76,8 +76,8 @@ class ModelObj:
     @mlrun.utils.filter_warnings("ignore", FutureWarning)
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ) -> dict:
         """
@@ -147,7 +147,7 @@ class ModelObj:
         self._apply_enrichment_before_to_dict_completion(struct, strip=strip)
         return struct
 
-    def _resolve_initial_to_dict_fields(self, fields: Optional[list] = None) -> list:
+    def _resolve_initial_to_dict_fields(self, fields: list | None = None) -> list:
         """
         Resolve fields to be used in to_dict method.
         If fields is None, use `_dict_fields` attribute of the object.
@@ -190,7 +190,7 @@ class ModelObj:
         self,
         struct: dict,
         method: typing.Callable,
-        fields: Optional[typing.Union[list, set]] = None,
+        fields: list | set | None = None,
         strip: bool = False,
     ) -> dict:
         for field_name in fields:
@@ -202,14 +202,14 @@ class ModelObj:
         return struct
 
     def _serialize_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         # We pull the field from self and not from struct because it was excluded from the struct when looping over
         # the fields to save.
         return getattr(self, field_name, None)
 
     def _enrich_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         # We first try to pull from struct because the field might have been already serialized and if not,
         # we pull from self
@@ -225,7 +225,7 @@ class ModelObj:
         cls,
         struct=None,
         fields=None,
-        deprecated_fields: Optional[dict] = None,
+        deprecated_fields: dict | None = None,
         init_with_params: bool = False,
     ):
         """create an object from a python dictionary"""
@@ -462,7 +462,7 @@ class Credentials(ModelObj):
 
     def __init__(
         self,
-        access_key: Optional[str] = None,
+        access_key: str | None = None,
     ):
         self.access_key = access_key
 
@@ -535,7 +535,7 @@ class ImageBuilder(ModelObj):
         origin_filename=None,
         with_mlrun=None,
         auto_build=None,
-        requirements: Optional[list] = None,
+        requirements: list | None = None,
         extra_args=None,
         builder_env=None,
         source_code_target_dir=None,
@@ -584,7 +584,7 @@ class ImageBuilder(ModelObj):
         self,
         image="",
         base_image=None,
-        commands: Optional[list] = None,
+        commands: list | None = None,
         secret=None,
         source=None,
         extra=None,
@@ -654,7 +654,7 @@ class ImageBuilder(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[list[str]] = None,
+        requirements: list[str] | None = None,
         requirements_file: str = "",
         overwrite: bool = False,
     ):
@@ -906,7 +906,7 @@ class HyperParamOptions(ModelObj):
     def __init__(
         self,
         param_file=None,
-        strategy: typing.Optional[HyperParamStrategies] = None,
+        strategy: HyperParamStrategies | None = None,
         selector=None,
         stop_condition=None,
         parallel_runs=None,
@@ -939,7 +939,7 @@ class HyperParamOptions(ModelObj):
 class RetryBackoff(ModelObj):
     """Backoff strategy for retries."""
 
-    def __init__(self, base_delay: Optional[str] = None):
+    def __init__(self, base_delay: str | None = None):
         # The base_delay time string must conform to timelength python package standards and be at least
         # mlrun.mlconf.function.spec.retry.backoff.min_base_delay (e.g. 1000s, 1 hour 30m, 1h etc.).
         self.base_delay = (
@@ -953,14 +953,14 @@ class Retry(ModelObj):
     def __init__(
         self,
         count: int = 0,
-        backoff: typing.Union[RetryBackoff, dict] = None,
+        backoff: RetryBackoff | dict = None,
     ):
         # Set to None if count is 0 to eliminate the retry configuration from the dictionary representation.
         self.count = count or None
         self.backoff = backoff
 
     @property
-    def backoff(self) -> Optional[RetryBackoff]:
+    def backoff(self) -> RetryBackoff | None:
         if not self.count:
             # Retry is not configured, return None
             return None
@@ -1051,8 +1051,8 @@ class RunSpec(ModelObj):
         self.retry = retry or {}
 
     def _serialize_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
-    ) -> Optional[str]:
+        self, struct: dict, field_name: str | None = None, strip: bool = False
+    ) -> str | None:
         # We pull the field from self and not from struct because it was excluded from the struct
         if field_name == "handler":
             if self.handler and isinstance(self.handler, str):
@@ -1135,7 +1135,7 @@ class RunSpec(ModelObj):
         return self._returns
 
     @returns.setter
-    def returns(self, returns: list[Union[str, dict[str, str]]]):
+    def returns(self, returns: list[str | dict[str, str]]):
         """
         Set the returns list to log the returning values at the end of a run.
 
@@ -1255,7 +1255,7 @@ class RunSpec(ModelObj):
         return self._retry
 
     @retry.setter
-    def retry(self, retry: typing.Union[Retry, dict]):
+    def retry(self, retry: Retry | dict):
         self._retry = self._verify_dict(retry, "retry", Retry)
 
     def extract_type_hints_from_inputs(self):
@@ -1294,7 +1294,7 @@ class RunSpec(ModelObj):
 
     @staticmethod
     def join_outputs_and_returns(
-        outputs: list[str], returns: list[Union[str, dict[str, str]]]
+        outputs: list[str], returns: list[str | dict[str, str]]
     ) -> list[str]:
         """
         Get the outputs set in the spec. The outputs are constructed from both the 'outputs' and 'returns' properties
@@ -1372,11 +1372,11 @@ class RunStatus(ModelObj):
         last_update=None,
         iterations=None,
         ui_url=None,
-        reason: Optional[str] = None,
-        notifications: Optional[dict[str, Notification]] = None,
-        artifact_uris: Optional[dict[str, str]] = None,
-        retry_count: Optional[int] = None,
-        retries: Optional[list[dict]] = None,
+        reason: str | None = None,
+        notifications: dict[str, Notification] | None = None,
+        artifact_uris: dict[str, str] | None = None,
+        retry_count: int | None = None,
+        retries: list[dict] | None = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1398,9 +1398,7 @@ class RunStatus(ModelObj):
         self._retries = retries or []
 
     @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
-    ):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):
         deprecated_fields = {
             # Set artifacts as deprecated for lazy loading
             "artifacts": "artifact_uris"
@@ -1450,7 +1448,7 @@ class RunStatus(ModelObj):
         self._artifact_uris = resolved_artifact_uris
 
     @property
-    def retry_count(self) -> Optional[int]:
+    def retry_count(self) -> int | None:
         """
         The number of retries that were made for this run.
         """
@@ -1477,7 +1475,7 @@ class RunStatus(ModelObj):
         """
         self._retries = retries
 
-    def is_failed(self) -> Optional[bool]:
+    def is_failed(self) -> bool | None:
         """
         This method returns whether a run has failed.
         Returns none if state has yet to be defined. callee is responsible for handling None.
@@ -2026,7 +2024,7 @@ class RunObject(RunTemplate):
         db.abort_run(self.metadata.uid, self.metadata.project)
 
     @staticmethod
-    def create_uri(project: str, uid: str, iteration: Union[int, str], tag: str = ""):
+    def create_uri(project: str, uid: str, iteration: int | str, tag: str = ""):
         if tag:
             tag = f":{tag}"
         iteration = str(iteration)
@@ -2062,7 +2060,7 @@ class EntrypointParam(ModelObj):
         default=None,
         doc="",
         required=None,
-        choices: Optional[list] = None,
+        choices: list | None = None,
     ):
         self.name = name
         self.type = type
@@ -2259,14 +2257,14 @@ class DataSource(ModelObj):
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        path: Optional[str] = None,
-        attributes: Optional[dict[str, object]] = None,
-        key_field: Optional[str] = None,
-        time_field: Optional[str] = None,
-        schedule: Optional[str] = None,
-        start_time: Optional[Union[datetime, str]] = None,
-        end_time: Optional[Union[datetime, str]] = None,
+        name: str | None = None,
+        path: str | None = None,
+        attributes: dict[str, object] | None = None,
+        key_field: str | None = None,
+        time_field: str | None = None,
+        schedule: str | None = None,
+        start_time: datetime | str | None = None,
+        end_time: datetime | str | None = None,
     ):
         self.name = name
         self.path = str(path) if path is not None else None
@@ -2286,7 +2284,7 @@ class DataSource(ModelObj):
         self._secrets = secrets
 
     def _serialize_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         value = super()._serialize_field(struct, field_name, strip)
         # We pull the field from self and not from struct because it was excluded from the struct when looping over
@@ -2317,9 +2315,7 @@ class DataTargetBase(ModelObj):
     ]
 
     @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
-    ):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):
         return super().from_dict(struct, fields=fields)
 
     def get_path(self):
@@ -2335,19 +2331,19 @@ class DataTargetBase(ModelObj):
 
     def __init__(
         self,
-        kind: Optional[str] = None,
+        kind: str | None = None,
         name: str = "",
         path=None,
-        attributes: Optional[dict[str, str]] = None,
+        attributes: dict[str, str] | None = None,
         after_step=None,
         partitioned: bool = False,
-        key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[list[str]] = None,
-        time_partitioning_granularity: Optional[str] = None,
-        max_events: Optional[int] = None,
-        flush_after_seconds: Optional[int] = None,
-        storage_options: Optional[dict[str, str]] = None,
-        schema: Optional[dict[str, Any]] = None,
+        key_bucketing_number: int | None = None,
+        partition_cols: list[str] | None = None,
+        time_partitioning_granularity: str | None = None,
+        max_events: int | None = None,
+        flush_after_seconds: int | None = None,
+        storage_options: dict[str, str] | None = None,
+        schema: dict[str, Any] | None = None,
     ):
         self.name = name
         self.kind: str = kind
@@ -2400,7 +2396,7 @@ class DataTarget(DataTargetBase):
 
     def __init__(
         self,
-        kind: Optional[str] = None,
+        kind: str | None = None,
         name: str = "",
         path=None,
         online=None,
@@ -2429,12 +2425,12 @@ class DataTarget(DataTargetBase):
 class VersionedObjMetadata(ModelObj):
     def __init__(
         self,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        uid: Optional[str] = None,
-        project: Optional[str] = None,
-        labels: Optional[dict[str, str]] = None,
-        annotations: Optional[dict[str, str]] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        uid: str | None = None,
+        project: str | None = None,
+        labels: dict[str, str] | None = None,
+        annotations: dict[str, str] | None = None,
         updated=None,
     ):
         self.name = name

@@ -16,10 +16,9 @@ import json
 import os
 import pickle
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from random import choice, randint, uniform
 from time import monotonic, sleep
-from typing import Optional, Union
 from uuid import uuid4
 
 import fsspec
@@ -62,12 +61,12 @@ from . import TestMLRunSystemModelMonitoring
 def mock_random_endpoint(
     project_name: str,
     name: str,
-    function_name: Optional[str] = "function-1",
-    function_tag: Optional[str] = "v1",
-    model_path: Optional[str] = None,
+    function_name: str | None = "function-1",
+    function_tag: str | None = "v1",
+    model_path: str | None = None,
     add_labels=True,
     endpoint_type: EndpointType = EndpointType.NODE_EP,
-    mode: Optional[EndpointMode] = None,
+    mode: EndpointMode | None = None,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
@@ -357,8 +356,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
         endpoints_out = self.project.list_model_endpoints(latest_only=False).endpoints
         assert len(endpoints_out) == number_of_endpoints
-        created: Optional[datetime] = None
-        uid: Optional[str] = None
+        created: datetime | None = None
+        uid: str | None = None
         for mep in endpoints_out:
             if not created or mep.metadata.created < created:
                 created = mep.metadata.created
@@ -819,7 +818,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-basic-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.timeout(540)
     def test_basic_model_monitoring(self) -> None:
@@ -1326,7 +1325,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # Simulating valid requests
         t_end = monotonic() + simulation_time
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
         data_sent = 0
         while monotonic() < t_end:
             data_point = choice(iris_data)
@@ -1495,7 +1494,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-batch-drift"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     def custom_setup(self):
         mlrun.runtimes.utils.global_context.set(None)
@@ -1652,7 +1651,7 @@ class TestModelMonitoringKafka(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-kafka-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.timeout(300)
     @pytest.mark.skipif(
@@ -1757,7 +1756,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1785,7 +1784,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
         self.set_mm_credentials()
 
     @classmethod
-    def _generate_data(cls) -> list[Union[pd.DataFrame, pd.Series]]:
+    def _generate_data(cls) -> list[pd.DataFrame | pd.Series]:
         rng = np.random.default_rng(seed=23)
         x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
         y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
@@ -1861,7 +1860,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
     project_name = "infer-model-tsdb"
     name_prefix = "infer-model-only"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -2001,7 +2000,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-endpoint-get-metrics"
-    image: Optional[str] = None
+    image: str | None = None
 
     @staticmethod
     def _generate_event(
@@ -2011,10 +2010,8 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
         event_kind="result",
         app_name="my_app",
     ):
-        start_infer_time = datetime.isoformat(datetime(2024, 1, 1, tzinfo=timezone.utc))
-        end_infer_time = datetime.isoformat(
-            datetime(2024, 1, 1, second=1, tzinfo=timezone.utc)
-        )
+        start_infer_time = datetime.isoformat(datetime(2024, 1, 1, tzinfo=UTC))
+        end_infer_time = datetime.isoformat(datetime(2024, 1, 1, second=1, tzinfo=UTC))
         event_value = 123
         event_name_key = f"{event_kind}_name"
         event_value_key = f"{event_kind}_value"
@@ -2244,9 +2241,9 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
             params = {}
             if with_timestamp_column:
                 params["timestamp_column"] = "time"
-            start_time = datetime.now(timezone.utc)  # any time zone will do
+            start_time = datetime.now(UTC)  # any time zone will do
             self.project.run_function(job, inputs=inputs, params=params, local=False)
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
@@ -2290,8 +2287,8 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
                     if get_records_result.records_behind_latest == 0:
                         break
             assert len(read_back_records) == 5
-            earliest_time_in_dataset = datetime(2020, 1, 1, 1, tzinfo=timezone.utc)
-            latest_time_in_dataset = datetime(2020, 1, 1, 4, tzinfo=timezone.utc)
+            earliest_time_in_dataset = datetime(2020, 1, 1, 1, tzinfo=UTC)
+            latest_time_in_dataset = datetime(2020, 1, 1, 4, tzinfo=UTC)
             for record in read_back_records:
                 if record.get("kind") == "batch_complete":
                     assert "endpoint_id" in record

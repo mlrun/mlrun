@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Optional, Union
 
 import pandas as pd
 
@@ -37,10 +36,10 @@ class TimescaleDBMetricsQueries:
 
     def __init__(
         self,
-        project: Optional[str] = None,
+        project: str | None = None,
         connection=None,
         pre_aggregate_manager=None,
-        tables: Optional[dict] = None,
+        tables: dict | None = None,
     ):
         """
         Initialize TimescaleDB metrics query handler.
@@ -61,8 +60,8 @@ class TimescaleDBMetricsQueries:
         metrics: list[str],
         start: str,
         end: str,
-        interval: Optional[str] = None,
-        agg_function: Optional[str] = None,
+        interval: str | None = None,
+        agg_function: str | None = None,
     ) -> dict[str, list[tuple[str, float]]]:
         """Get real-time metrics with optional pre-aggregate optimization."""
 
@@ -154,10 +153,10 @@ class TimescaleDBMetricsQueries:
     def read_metrics_data_impl(
         self,
         *,
-        endpoint_id: Optional[str] = None,
+        endpoint_id: str | None = None,
         start: datetime,
         end: datetime,
-        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]] = None,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] | None = None,
     ) -> pd.DataFrame:
         """Read metrics data from TimescaleDB (metrics table only) - returns DataFrame.
 
@@ -210,10 +209,10 @@ class TimescaleDBMetricsQueries:
 
     def get_metrics_metadata(
         self,
-        endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        interval: Optional[str] = None,
+        endpoint_id: str | list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str | None = None,
     ) -> pd.DataFrame:
         """Get metrics metadata with optional pre-aggregate optimization."""
 
@@ -281,12 +280,10 @@ class TimescaleDBMetricsQueries:
 
     def calculate_latest_metrics(
         self,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        application_names: Optional[list[str]] = None,
-    ) -> list[
-        Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
-    ]:
+        start: datetime | None = None,
+        end: datetime | None = None,
+        application_names: list[str] | None = None,
+    ) -> list[mm_schemas.ApplicationResultRecord | mm_schemas.ApplicationMetricRecord]:
         """
         Calculate the latest metrics and results across applications.
 

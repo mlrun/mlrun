@@ -14,7 +14,6 @@
 
 import datetime
 import json
-import typing
 from base64 import b64decode
 
 import yaml
@@ -83,7 +82,7 @@ def save_credentials(
     waiter,
     host: str,
     token: str,
-    cluster_id: typing.Optional[str],
+    cluster_id: str | None,
     is_finished: bool,
 ):
     databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)

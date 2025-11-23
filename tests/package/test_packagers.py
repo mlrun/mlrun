@@ -16,7 +16,6 @@ import inspect
 import shutil
 import tempfile
 import typing
-from typing import Union
 
 import pytest
 
@@ -79,7 +78,7 @@ _PACKAGERS_TESTERS = [
 
 
 def _get_tests_tuples(
-    test_type: Union[type[PackTest], type[UnpackTest], type[PackToUnpackTest]],
+    test_type: type[PackTest] | type[UnpackTest] | type[PackToUnpackTest],
 ) -> list[tuple[type[PackagerTester], PackTest]]:
     return [
         (tester, test)
@@ -91,11 +90,11 @@ def _get_tests_tuples(
 
 def _setup_test(
     tester: type[PackagerTester],
-    test: Union[PackTest, UnpackTest, PackToUnpackTest],
+    test: PackTest | UnpackTest | PackToUnpackTest,
     test_directory: str,
 ) -> KubejobRuntime:
     # Enabled logging tuples only if the tuple test is about to be setup:
-    if isinstance(test, (PackTest, PackToUnpackTest)) and tester is TuplePackagerTester:
+    if isinstance(test, PackTest | PackToUnpackTest) and tester is TuplePackagerTester:
         mlrun.mlconf.packagers.pack_tuples = True
 
     # Create a project for this tester:
@@ -113,7 +112,7 @@ def _setup_test(
 
 
 def _get_key_and_artifact_type(
-    tester: type[PackagerTester], test: Union[PackTest, PackToUnpackTest]
+    tester: type[PackagerTester], test: PackTest | PackToUnpackTest
 ) -> tuple[str, str]:
     # Parse the log hint (in case it is a string):
     log_hint = LogHintUtils.parse_log_hint(log_hint=test.log_hint)

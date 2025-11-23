@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 from mlrun.errors import MLRunInvalidArgumentError
 
@@ -35,8 +34,8 @@ class LogHintUtils:
 
     @staticmethod
     def parse_log_hint(
-        log_hint: typing.Union[dict[str, str], str, None],
-    ) -> typing.Union[dict[str, str], None]:
+        log_hint: dict[str, str] | str | None,
+    ) -> dict[str, str] | None:
         """
         Parse a given log hint from string to a logging configuration dictionary. The string will be read as the
         artifact key ('key' in the dictionary) and if the string have a single colon, the following structure is

@@ -15,7 +15,6 @@
 import inspect
 import os
 from collections import OrderedDict
-from typing import Union
 
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
@@ -181,7 +180,7 @@ class ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        log_hints: list[Union[dict[str, str], str, None]],
+        log_hints: list[dict[str, str] | str | None],
     ):
         """
         Log the given outputs as artifacts (or results) with the stored context. Errors raised during the packing will
@@ -310,7 +309,7 @@ class ContextHandler:
     def _validate_objects_to_log_hints_length(
         self,
         outputs: list,
-        log_hints: list[Union[dict[str, str], str, None]],
+        log_hints: list[dict[str, str] | str | None],
     ):
         """
         Validate the outputs and log hints are the same length. If they are not, warnings will be printed on what will

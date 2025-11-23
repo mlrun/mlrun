@@ -15,7 +15,6 @@
 import threading
 import time
 from datetime import datetime
-from typing import Optional
 
 import pytest
 
@@ -35,8 +34,8 @@ class TestTimescaleDBOperationsManagerIntegration:
         result_status: int = 1,
         result_kind: int = 2,
         result_extra_data: str = '{"confidence": 0.9}',
-        end_time: Optional[datetime] = None,
-        start_time: Optional[datetime] = None,
+        end_time: datetime | None = None,
+        start_time: datetime | None = None,
     ) -> dict:
         """Factory method for creating result event data."""
         if end_time is None:
@@ -62,8 +61,8 @@ class TestTimescaleDBOperationsManagerIntegration:
         application_name: str = "performance_monitoring",
         metric_name: str = "accuracy",
         metric_value: float = 0.95,
-        end_time: Optional[datetime] = None,
-        start_time: Optional[datetime] = None,
+        end_time: datetime | None = None,
+        start_time: datetime | None = None,
     ) -> dict:
         """Factory method for creating metric event data."""
         if end_time is None:
@@ -82,7 +81,7 @@ class TestTimescaleDBOperationsManagerIntegration:
 
     @staticmethod
     def _verify_table_data(
-        connection, table, expected_count: int, where_clause: Optional[str] = None
+        connection, table, expected_count: int, where_clause: str | None = None
     ) -> list:
         """Helper method for verifying table data."""
         query = f"SELECT COUNT(*) FROM {table.full_name()}"

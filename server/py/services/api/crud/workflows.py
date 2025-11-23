@@ -15,7 +15,6 @@
 import os
 import uuid
 from abc import abstractmethod
-from typing import Optional, Union
 
 from sqlalchemy.orm import Session
 
@@ -88,11 +87,11 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         runner: mlrun.run.KubejobRuntime,
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
-        workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
+        workflow_request: mlrun.common.schemas.WorkflowRequest | None = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
-        rerun_request: Optional[mlrun.common.schemas.RerunWorkflowRequest] = None,
+        rerun_request: mlrun.common.schemas.RerunWorkflowRequest | None = None,
         artifact_path: str = "",
-        original_runner_owner: Optional[str] = None,
+        original_runner_owner: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the run object and execute the runner.
@@ -146,7 +145,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
-        run_name: Optional[str] = None,
+        run_name: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Abstract method to prepare the run object.
@@ -166,13 +165,13 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         save: bool,
         handler: str,
         parameters: dict,
-        notifications: Optional[list[mlrun_model.Notification]] = None,
-        run_name: Optional[str] = None,
-        is_context: Optional[bool] = None,
-        labels: Optional[dict[str, str]] = None,
-        scrape_metrics: Optional[bool] = None,
-        output_path: Optional[str] = None,
-        uid: Optional[str] = None,
+        notifications: list[mlrun_model.Notification] | None = None,
+        run_name: str | None = None,
+        is_context: bool | None = None,
+        labels: dict[str, str] | None = None,
+        scrape_metrics: bool | None = None,
+        output_path: str | None = None,
+        uid: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Create a RunObject with the given parameters.
@@ -245,8 +244,8 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
     def _enrich_run_labels_and_env(
         labels: dict,
         runner: mlrun.run.KubejobRuntime,
-        auth_username: Optional[str] = None,
-        original_runner_owner: Optional[str] = None,
+        auth_username: str | None = None,
+        original_runner_owner: str | None = None,
     ):
         """
         Enriches the run labels and environment variables for the workflow runner.
@@ -279,9 +278,8 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def _enrich_runner_node_selector(
         runner: mlrun.run.KubejobRuntime,
-        workflow_request: Union[
-            mlrun.common.schemas.WorkflowSpec, mlrun.common.schemas.RerunWorkflowRequest
-        ],
+        workflow_request: mlrun.common.schemas.WorkflowSpec
+        | mlrun.common.schemas.RerunWorkflowRequest,
     ):
         """
         Enrich the runner's node selector with the workflow's node selector.
@@ -330,9 +328,9 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         self,
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
-        run_name: Optional[str] = None,
-        workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
-        rerun_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
+        run_name: str | None = None,
+        workflow_request: mlrun.common.schemas.WorkflowRequest | None = None,
+        rerun_request: mlrun.common.schemas.WorkflowRequest | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for loading the project.
@@ -498,10 +496,10 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest,
-        run_name: Optional[str] = None,
-        uid: Optional[str] = None,
-        scrape_metrics: Optional[str] = None,
-        rerun_request: Optional[mlrun.common.schemas.RerunWorkflowRequest] = None,
+        run_name: str | None = None,
+        uid: str | None = None,
+        scrape_metrics: str | None = None,
+        rerun_request: mlrun.common.schemas.RerunWorkflowRequest | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for running the workflow.
@@ -673,7 +671,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         run_uid: str,
         rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
         auth_info: mlrun.common.schemas.AuthInfo = None,
-        original_runner_owner: Optional[str] = None,
+        original_runner_owner: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Run a rerun workflow runner.
@@ -711,10 +709,10 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
-        workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
-        run_name: Optional[str] = None,
-        uid: Optional[str] = None,
-        scrape_metrics: Optional[str] = None,
+        workflow_request: mlrun.common.schemas.WorkflowRequest | None = None,
+        run_name: str | None = None,
+        uid: str | None = None,
+        scrape_metrics: str | None = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for rerunning the workflow.

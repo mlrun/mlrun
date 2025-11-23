@@ -16,7 +16,6 @@ import asyncio
 import collections
 import datetime
 import traceback
-import typing
 
 import fastapi
 import fastapi.concurrency
@@ -329,9 +328,7 @@ class Service(framework.service.Service):
                 states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
             )
 
-            last_update_time = datetime.datetime.now(
-                datetime.timezone.utc
-            ) - datetime.timedelta(
+            last_update_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
                 seconds=int(mlconf.runtime_resources_deletion_grace_period)
             )
 
@@ -449,10 +446,10 @@ class Service(framework.service.Service):
     async def _start_log_for_run(
         self,
         run: dict,
-        start_logs_limit: typing.Optional[asyncio.Semaphore] = None,
+        start_logs_limit: asyncio.Semaphore | None = None,
         raise_on_error: bool = True,
         best_effort: bool = False,
-    ) -> typing.Optional[typing.Union[str, None]]:
+    ) -> str | None | None:
         """
         Starts log collection for a specific run
         :param run: run object
@@ -894,7 +891,7 @@ class Service(framework.service.Service):
                 requested_logs_modes=[True],
                 only_uids=False,
                 states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
-                last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
+                last_update_time_from=datetime.datetime.now(datetime.UTC)
                 - datetime.timedelta(
                     seconds=1.5 * mlconf.log_collector.stop_logs_interval
                 ),
@@ -947,7 +944,7 @@ class Service(framework.service.Service):
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         fetch_runs_limit = int(mlconf.monitoring.runs.retry.fetch_runs_limit)
         stale_after = mlconf.get_run_retry_staleness_threshold_timedelta()
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         try:
             offset = 0
             while runs := await fastapi.concurrency.run_in_threadpool(
@@ -1051,7 +1048,7 @@ class Service(framework.service.Service):
 
     def _submit_run_for_retry(self, run: mlrun.RunObject):
         self._retry_in_progress_run_uids[run.metadata.uid] = datetime.datetime.now(
-            datetime.timezone.utc
+            datetime.UTC
         )
         loop = asyncio.get_running_loop()
 
@@ -1063,7 +1060,7 @@ class Service(framework.service.Service):
         delta = (
             datetime.datetime.fromisoformat(run.status.end_time)
             + datetime.timedelta(seconds=delay)
-            - datetime.datetime.now(datetime.timezone.utc)
+            - datetime.datetime.now(datetime.UTC)
         )
         call_after_seconds = max(delta.total_seconds(), 0)
 

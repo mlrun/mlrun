@@ -14,7 +14,7 @@
 import time
 from collections.abc import Callable
 from enum import Enum
-from typing import Any, Final, Optional, Union
+from typing import Any, Final
 
 import taosws
 from taosws import TaosStmt
@@ -235,9 +235,9 @@ class TDEngineConnection:
 
     def run(
         self,
-        statements: Optional[Union[str, Statement, list[Union[str, Statement]]]] = None,
-        query: Optional[str] = None,
-    ) -> Optional[QueryResult]:
+        statements: str | Statement | list[str | Statement] | None = None,
+        query: str | None = None,
+    ) -> QueryResult | None:
         statements = statements or []
         if not isinstance(statements, list):
             statements = [statements]

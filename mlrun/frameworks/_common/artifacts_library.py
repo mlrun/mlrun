@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Optional, Union
 
 import mlrun
 
@@ -39,7 +38,7 @@ class ArtifactsLibrary(ABC):
     @classmethod
     def get_plans(
         cls,
-        artifacts: Optional[Union[list[Plan], dict[str, dict], list[str]]] = None,
+        artifacts: list[Plan] | dict[str, dict] | list[str] | None = None,
         context: mlrun.MLClientCtx = None,
         include_default: bool = True,
         # custom_plans: dict = None, :param custom_plans: Custom user plans objects to initialize from.

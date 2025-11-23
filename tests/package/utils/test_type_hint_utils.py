@@ -36,8 +36,8 @@ class AnotherClass(SomeClass):
 @pytest.mark.parametrize(
     "type_hint, expected_result",
     [
-        (typing.Optional[int], True),
-        (typing.Union[str, int], True),
+        (int | None, True),
+        (str | int, True),
         (typing.List, True),  # noqa: UP006
         (typing.Tuple[int, str], True),  # noqa: UP006
         (tuple[int, str], True),
@@ -48,8 +48,7 @@ class AnotherClass(SomeClass):
         (SomeClass, False),
         (list[int], True),
         (tuple[int, str], True),
-        # TODO: Uncomment once we support Python >= 3.10:
-        # (str | int, True),
+        (str | int, True),
     ],
 )
 def test_is_typing_type(type_hint: type, expected_result: bool):
@@ -84,7 +83,7 @@ def test_is_typing_type(type_hint: type, expected_result: bool):
         ),
     ],
 )
-def test_parse_type_hint(type_string: str, expected_type: typing.Union[str, type]):
+def test_parse_type_hint(type_string: str, expected_type: str | type):
     """
     Test the `TypeHintUtils.parse_type_hint` function with multiple types.
 
@@ -107,10 +106,10 @@ def test_parse_type_hint(type_string: str, expected_type: typing.Union[str, type
     [
         (int, int, True, False, True),
         (int, str, True, True, False),
-        (typing.Union[int, str], typing.Union[str, int], True, True, True),
-        (typing.Union[int, str, bool], typing.Union[str, int], True, False, False),
-        (int, typing.Union[int, str], True, False, False),
-        (int, typing.Union[int, str], True, True, True),
+        (int | str, str | int, True, True, True),
+        (int | str | bool, str | int, True, False, False),
+        (int, int | str, True, False, False),
+        (int, int | str, True, True, True),
         (AnotherClass, SomeClass, True, False, True),
         (AnotherClass, SomeClass, False, False, False),
         (SomeClass, AnotherClass, True, False, False),
@@ -177,19 +176,19 @@ def test_is_matching(
         (typing.Literal["r", "w", 9], {str, int}),
         (typing.Literal, set()),
         # `typing.Union` usages:
-        (typing.Union[int, float], {int, float}),
+        (int | float, {int, float}),
         (
-            typing.Union[int, float, typing.Union[str, list]],
+            int | float | str | list,
             {int, float, str, list},
         ),
         (
-            typing.Union[int, str, list[tuple[int, str, SomeClass]]],
+            int | str | list[tuple[int, str, SomeClass]],
             {int, str, list[tuple[int, str, SomeClass]]},
         ),
         (typing.Union, set()),
         # `typing.Optional` usages:
-        (typing.Optional[int], {type(None), int}),
-        (typing.Optional[typing.Union[str, list]], {type(None), str, list}),
+        (int | None, {int, type(None)}),
+        (str | list | None, {str, list, type(None)}),
         (typing.Optional, set()),
         # `typing.Annotated` usages:
         (typing.Annotated[int, 3, 6], {int}),
@@ -202,8 +201,8 @@ def test_is_matching(
         (typing.Final, set()),
         # `typing.ClassVar` usages:
         (
-            typing.ClassVar[typing.Union[int, str, list[tuple[int, str, SomeClass]]]],
-            {typing.Union[int, str, list[tuple[int, str, SomeClass]]]},
+            typing.ClassVar[int | str | list[tuple[int, str, SomeClass]]],
+            {int | str | list[tuple[int, str, SomeClass]]},
         ),
         (typing.ClassVar, set()),
         # Other `typing`:
@@ -217,8 +216,7 @@ def test_is_matching(
         # Multiple types to reduce:
         ({int, str, list[int]}, {list}),
         (list[str], {list}),
-        # TODO: Uncomment once we support Python >= 3.10:
-        # (str | int, {str, int}),
+        (str | int, {str, int}),
     ],
 )
 def test_reduce_type_hint(type_hint: type, expected_result: set[type]):

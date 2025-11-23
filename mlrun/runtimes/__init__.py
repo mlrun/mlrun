@@ -58,7 +58,7 @@ from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip
 def new_model_server(
     name,
     model_class: str,
-    models: typing.Optional[dict] = None,
+    models: dict | None = None,
     filename="",
     protocol="",
     image="",
@@ -187,7 +187,7 @@ class RuntimeKinds:
         ]
 
     @staticmethod
-    def is_log_collectable_runtime(kind: typing.Optional[str]):
+    def is_log_collectable_runtime(kind: str | None):
         """
         whether log collector can collect logs for that runtime
         :param kind: kind name

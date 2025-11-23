@@ -48,7 +48,7 @@ async def create_project_background_task(
     project: str,
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    timeout: typing.Optional[int] = None,
+    timeout: int | None = None,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),
@@ -82,7 +82,7 @@ async def create_project_background_task(
 def create_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    project: typing.Optional[str] = None,
+    project: str | None = None,
 ):
     function = bump_counter
     if failed_task:
@@ -547,7 +547,7 @@ def test_old_project_background_task_cleanup(
 
     with unittest.mock.patch(
         "mlrun.utils.now_date",
-        return_value=datetime.datetime.now(datetime.timezone.utc)
+        return_value=datetime.datetime.now(datetime.UTC)
         - datetime.timedelta(seconds=10),
     ):
         response = client.post(f"/test/projects/{project}/background-tasks")

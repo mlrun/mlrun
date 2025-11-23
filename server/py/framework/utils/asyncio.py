@@ -18,7 +18,7 @@ import typing
 from fastapi.concurrency import run_in_threadpool
 
 
-async def maybe_coroutine(function_results: typing.Union[typing.Coroutine, typing.Any]):
+async def maybe_coroutine(function_results: typing.Coroutine | typing.Any):
     """
     If function_results is a coroutine, await it and return the result. Otherwise, return results.
     This is useful for when function callee is not sure if the response should be awaited or not.

@@ -21,7 +21,6 @@ import unittest.mock
 from copy import deepcopy
 from datetime import datetime
 from types import SimpleNamespace
-from typing import Optional, Union
 
 import pandas as pd
 import pytest
@@ -52,7 +51,7 @@ def append_and_return(lst, event):
 
 
 def create_mocked_get_store_artifact(
-    model_artifact: Union[ModelArtifact, LLMPromptArtifact],
+    model_artifact: ModelArtifact | LLMPromptArtifact,
     origin_model: ModelArtifact = None,
 ):
     _model_artifact = origin_model
@@ -222,7 +221,7 @@ def test_batch():
 
 
 class MyModel(Model):
-    def __init__(self, inc: int, gpu_number: Optional[int] = None, **kwargs):
+    def __init__(self, inc: int, gpu_number: int | None = None, **kwargs):
         super().__init__(**kwargs)
         self.inc = inc
         self.gpu_number = gpu_number
@@ -607,13 +606,11 @@ def _test_model_runner_raise_error_output(
 
 
 class MyModelSelector(ModelSelector):
-    def __init__(self, models: Union[list[str], list[Model]]):
+    def __init__(self, models: list[str] | list[Model]):
         super().__init__()
         self.models = deepcopy(models)
 
-    def select(
-        self, event, available_models: list[Model]
-    ) -> Union[list[str], list[Model]]:
+    def select(self, event, available_models: list[Model]) -> list[str] | list[Model]:
         current_models = event.body.get("models")
         if current_models and set(current_models).issubset(set(self.models)):
             return current_models

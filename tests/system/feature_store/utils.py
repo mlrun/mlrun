@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-from typing import Union
 
 import pandas as pd
 
@@ -28,7 +27,7 @@ SNOWFLAKE_ENV_PARAMETERS = [
 ]
 
 
-def sort_df(df: pd.DataFrame, sort_columns: Union[str, list[str]]):
+def sort_df(df: pd.DataFrame, sort_columns: str | list[str]):
     return (
         df.reindex(sorted(df.columns), axis=1)
         .sort_values(by=sort_columns)

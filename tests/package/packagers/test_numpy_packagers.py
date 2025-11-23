@@ -14,7 +14,6 @@
 
 import tempfile
 from pathlib import Path
-from typing import Union
 
 import numpy as np
 import pytest
@@ -23,7 +22,7 @@ from mlrun.package.packagers.numpy_packagers import NumPySupportedFormat
 
 
 def _test(
-    obj: Union[np.ndarray, dict[str, np.ndarray], list[np.ndarray]],
+    obj: np.ndarray | dict[str, np.ndarray] | list[np.ndarray],
     file_format: str,
     **save_kwargs,
 ):
@@ -91,7 +90,7 @@ def test_formatter_single_array(obj: np.ndarray, file_format: str):
     "save_kwargs", [{"is_compressed": boolean_value} for boolean_value in [True, False]]
 )
 def test_formatter_multiple_arrays(
-    obj: Union[dict[str, np.ndarray], list[np.ndarray]],
+    obj: dict[str, np.ndarray] | list[np.ndarray],
     file_format: str,
     save_kwargs: bool,
 ):

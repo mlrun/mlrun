@@ -108,7 +108,7 @@ ARG MLRUN_CACHE_DATE
 # Download demos aligned with installed MLRun version using get_demos.py
 RUN python -m pip install --no-cache-dir requests packaging tqdm && \
     MLVER=$(python -c "import mlrun; print(mlrun.__version__)") && \
-    python get_demos.py "$MLVER" --config_path "$HOME/demos_config.json" --dest "$HOME/demos" && \
+    python get_demos.py "$MLVER" --dest "$HOME/demos" && \
     rm -rf "$HOME/demos_config.json" "$HOME/get_demos.py"
 
 ENV JUPYTER_ENABLE_LAB=yes \

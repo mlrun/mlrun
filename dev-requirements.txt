@@ -34,8 +34,6 @@ sqlalchemy-utils~=0.41.2
 scikit-learn~=1.5.2
 lightgbm~=4.3
 xgboost~=1.1
-# TODO: once tensorflow upgrades their dependencies to support a newer version protobuf, we can uncomment this line
-tensorflow~=2.15; python_version <= "3.9"
 cryptography~=44.0
 
 # install to verify it doesn't cause a warning (ML-8951)
@@ -47,7 +45,6 @@ diff-cover~=9.2
 openai~=1.88
 transformers~=4.53
 # for hugging face image classifier test:
-tf-keras~=2.18; python_version <= "3.9"
-#tf-keras~=2.19; python_version > "3.9"
+#tf-keras~=2.19
 # TODO: once tf-keras upgrades their dependencies to support a newer version protobuf, we can uncomment this line
 pillow~=11.3

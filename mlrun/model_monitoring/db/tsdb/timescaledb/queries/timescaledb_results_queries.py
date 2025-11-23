@@ -545,6 +545,7 @@ class TimescaleDBResultsQueries:
         value_column = mm_schemas.ResultData.RESULT_VALUE
         columns = [
             table_schema.time_column,
+            mm_schemas.WriterEvent.START_INFER_TIME,
             mm_schemas.WriterEvent.ENDPOINT_ID,
             mm_schemas.WriterEvent.APPLICATION_NAME,
             name_column,

@@ -302,21 +302,21 @@ class TimescaleDBConnector(TSDBConnector):
 
         This method provides direct access to raw table data.
 
-        :param table: Table name - "metrics", "results", or "predictions"
+        :param table: Table name - use TimescaleDBTables enum (METRICS, APP_RESULTS, or PREDICTIONS)
         :param start: Start time for the query
         :param end: End time for the query
         :param endpoint_id: Optional endpoint ID filter (None = all endpoints)
         :param columns: Optional list of specific columns to return (None = all columns)
         :return: Raw pandas DataFrame with all matching records
         """
-        if table == "metrics":
+        if table == mm_schemas.TimescaleDBTables.METRICS:
             df = self._metrics_queries.read_metrics_data_impl(
                 endpoint_id=endpoint_id,
                 start=start,
                 end=end,
                 metrics=None,  # Get all metrics
             )
-        elif table == "results":
+        elif table == mm_schemas.TimescaleDBTables.APP_RESULTS:
             df = self._results_queries.read_results_data_impl(
                 endpoint_id=endpoint_id,
                 start=start,
@@ -324,7 +324,7 @@ class TimescaleDBConnector(TSDBConnector):
                 metrics=None,  # Get all results
                 with_result_extra_data=True,
             )
-        elif table == "predictions":
+        elif table == mm_schemas.TimescaleDBTables.PREDICTIONS:
             df = self._predictions_queries.read_predictions_impl(
                 endpoint_id=endpoint_id,
                 start=start,
@@ -333,7 +333,7 @@ class TimescaleDBConnector(TSDBConnector):
             )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid table '{table}'. Must be 'metrics', 'results', or 'predictions'"
+                f"Invalid table '{table}'. Must be METRICS, APP_RESULTS, or PREDICTIONS from TimescaleDBTables enum"
             )
 
         if columns is not None and not df.empty:

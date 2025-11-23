@@ -31,7 +31,7 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
     Create paginated cache records with last_accessed time older than cache TTL, and check that they are removed
     when calling monitor_pagination_cache
     """
-    ttl = 5
+    ttl = 0.1
     mlconf.httpdb.pagination.pagination_cache.ttl = ttl
 
     method = services.api.crud.Projects().list_projects
@@ -57,7 +57,9 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
     logger.debug(
         "Sleeping for cache TTL so that records will be removed in the monitor"
     )
-    time.sleep(ttl + 2)
+
+    # a minimum of 1.1 is required because `monitor_pagination_cache` adds 1 second buffer to the TTL check
+    time.sleep(ttl + 1.1)
 
     logger.debug("Creating new paginated cache record that won't be expired")
     new_key = framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(

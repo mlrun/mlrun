@@ -25,6 +25,7 @@ from mlrun.utils import logger
 import framework.db.sqldb.models
 import framework.utils.pagination
 import framework.utils.pagination_cache
+import framework.utils.singletons.db
 
 
 def paginated_method(
@@ -44,13 +45,6 @@ def paginated_method(
 
 @pytest.fixture()
 def mock_paginated_method(monkeypatch):
-    class Schema:
-        def __init__(self, **kwargs):
-            self._dict = kwargs
-
-        def dict(self):
-            return self._dict
-
     monkeypatch.setattr(
         framework.utils.pagination.PaginatedMethods,
         "_method_map",
@@ -243,6 +237,70 @@ async def test_paginate_other_users_token(
 
 
 @pytest.mark.asyncio
+async def test_paginate_call_get_token_once(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+    monkeypatch,
+):
+    """
+    Test that the paginate_request calls get_paginated_query_cache_record only once per request.
+    """
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    page_size = 3
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
+
+    # Get the DB instance to mock its method
+    db_instance = framework.utils.singletons.db.get_db()
+    original_get_paginated_query_cache_record = (
+        db_instance.get_paginated_query_cache_record
+    )
+    call_count = 0
+
+    def mocked_get_paginated_query_cache_record(session, key, for_update=False):
+        nonlocal call_count
+        call_count += 1
+        return original_get_paginated_query_cache_record(session, key, for_update)
+
+    # Patch the DB instance's method to track calls
+    monkeypatch.setattr(
+        db_instance,
+        "get_paginated_query_cache_record",
+        mocked_get_paginated_query_cache_record,
+    )
+
+    paginator = framework.utils.pagination.Paginator()
+
+    logger.info("Requesting first page")
+    # First request with token=None calls get_paginated_query_cache_record once
+    # when creating/checking the pagination cache record
+    response, pagination_info = await paginator.paginate_request(
+        db, paginated_method, auth_info, None, 1, page_size, **method_kwargs
+    )
+    assert (
+        call_count == 1
+    ), "First request with token=None should call get_paginated_query_cache_record once when creating cache record"
+
+    logger.info("Requesting second page")
+    # Second request with token should call get_paginated_query_cache_record once more
+    await paginator.paginate_request(
+        db, paginated_method, auth_info, pagination_info.page_token
+    )
+    assert (
+        call_count == 2
+    ), "Second request with token should call get_paginated_query_cache_record once"
+
+    logger.info("Requesting third page")
+    # Third request with token should call get_paginated_query_cache_record once more
+    await paginator.paginate_request(
+        db, paginated_method, auth_info, pagination_info.page_token
+    )
+    assert (
+        call_count == 3
+    ), "Third request with token should call get_paginated_query_cache_record once more"
+
+
+@pytest.mark.asyncio
 async def test_paginate_no_auth(
     mock_paginated_method,
     cleanup_pagination_cache_on_teardown,
@@ -390,7 +448,7 @@ async def test_pagination_not_supported(
     with pytest.raises(NotImplementedError):
         await paginator.paginate_request(
             db,
-            lambda: paginated_method(5, 1, 3),
+            lambda: None,
             auth_info,
             token=None,
             page=1,

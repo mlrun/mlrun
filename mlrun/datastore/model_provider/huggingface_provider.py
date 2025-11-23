@@ -48,6 +48,7 @@ class HuggingFaceProvider(ModelProvider):
     _model_locks = defaultdict(threading.Lock)
     _creation_lock = threading.Lock()
     _download_history = set()
+    _download_counter = 0  # for a check
 
     def __init__(
         self,
@@ -132,16 +133,22 @@ class HuggingFaceProvider(ModelProvider):
             # Download the model and tokenizer files directly to the cache.
 
             if self.model in self._download_history:
-                logger.info("self.model in self._download_history 1", model=self.model,
-                            _download_history=self._download_history)
+                logger.info(
+                    "self.model in self._download_history 1",
+                    model=self.model,
+                    _download_history=self._download_history,
+                )
                 return
 
             lock = self._get_lock_per_model(self.model)
             with lock:
                 # Double-check after acquiring the lock
                 if self.model in self._download_history:
-                    logger.info("self.model in self._download_history 2", model=self.model,
-                                _download_history=self._download_history)
+                    logger.info(
+                        "self.model in self._download_history 2",
+                        model=self.model,
+                        _download_history=self._download_history,
+                    )
                     return
 
                 snapshot_download(
@@ -150,9 +157,12 @@ class HuggingFaceProvider(ModelProvider):
                     token=self._get_secret_or_env("HF_TOKEN") or None,
                 )
                 self._download_history.add(self.model)
+                self._download_counter += 1  # for a check
             logger.info(
                 "model downloaded",
                 model=self.model,
+                download_counter=self._download_counter,
+                download_history=self._download_history,
             )
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc

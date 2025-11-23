@@ -83,12 +83,6 @@ class MailNotification(base.NotificationBase):
         alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
         event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):
-        # Ensure username and password are set to None if not provided
-        if not self.params.get("username"):
-            self.params["username"] = None
-        if not self.params.get("password"):
-            self.params["password"] = None
-
         self.params["subject"] = f"[{severity}] {message}"
         message_body_override = self.params.get("message_body_override", None)
 

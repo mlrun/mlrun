@@ -1578,50 +1578,50 @@ class TestMailNotification:
                     match="Parameter 'use_tls' must be a boolean for MailNotification",
                 ),
             ),
-            ( # missing username and password should pass validation - no auth case
-                    {
-                        "server_host": "smtp.gmail.com",
-                        "server_port": 587,
-                        "sender_address": "sender@example.com",
-                        "username": "",
-                        "password": "",
-                        "email_addresses": "a@example.com",
-                        "use_tls": True,
-                        "validate_certs": True,
-                        "start_tls": False,
-                    },
-                    does_not_raise(),
+            (  # missing username and password should pass validation - no auth case
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "",
+                    "password": "",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                does_not_raise(),
             ),
             (  # missing password should pass validation - some servers allow username only auth
-                    {
-                        "server_host": "smtp.gmail.com",
-                        "server_port": 587,
-                        "sender_address": "sender@example.com",
-                        "username": "user",
-                        "password": "",
-                        "email_addresses": "a@example.com",
-                        "use_tls": True,
-                        "validate_certs": True,
-                        "start_tls": False,
-                    },
-                    does_not_raise(),
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                does_not_raise(),
             ),
-            ( # missing username and password provided should fail validation
-                    {
-                        "server_host": "smtp.gmail.com",
-                        "server_port": 587,
-                        "sender_address": "sender@example.com",
-                        "username": "",
-                        "password": "pass",
-                        "email_addresses": "a@example.com",
-                        "use_tls": True,
-                        "validate_certs": True,
-                        "start_tls": False,
-                    },
-                    pytest.raises(
-                        ValueError,
-                        match="Parameter 'username' is required when 'password' is provided for MailNotification",
-                    ),
+            (  # missing username and password provided should fail validation
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "",
+                    "password": "pass",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(
+                    ValueError,
+                    match="Parameter 'username' is required when 'password' is provided for MailNotification",
+                ),
             ),
         ],
     )
@@ -1680,6 +1680,8 @@ class TestMailNotification:
                 {
                     "subject": "[info] test-message",
                     "body": MOCKED_HTML,
+                    "username": None,
+                    "password": None,
                 },
             ),
             (
@@ -1690,6 +1692,32 @@ class TestMailNotification:
                 {
                     "subject": "[warning] test-message",
                     "body": f"runs: {MOCKED_HTML}",
+                    "username": None,
+                    "password": None,
+                },
+            ),
+            (
+                "empty_auth_params",
+                {"username": "", "password": ""},
+                "test-message",
+                "info",
+                {
+                    "subject": "[info] test-message",
+                    "body": MOCKED_HTML,
+                    "username": None,
+                    "password": None,
+                },
+            ),
+            (
+                "with_auth_params",
+                {"username": "user", "password": "pass"},
+                "test-message",
+                "info",
+                {
+                    "subject": "[info] test-message",
+                    "body": MOCKED_HTML,
+                    "username": "user",
+                    "password": "pass",
                 },
             ),
         ],
@@ -1702,6 +1730,8 @@ class TestMailNotification:
         await notification.push(message, severity, [])
         assert notification.params["subject"] == expected["subject"]
         assert notification.params["body"] == expected["body"]
+        assert notification.params["username"] == expected["username"]
+        assert notification.params["password"] == expected["password"]
 
 
 class DummyResponse:

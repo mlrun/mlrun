@@ -519,3 +519,13 @@ Valid values:
 - info
 - debug
 
+## Custom logs
+
+format_logger = "> {timestamp} [{level}] Running module: {module} {message} {more}"
+os.environ["MLRUN_LOG_FORMAT_OVERRIDE"] = format_logger
+os.environ["MLRUN_LOG_FORMATTER"] = "custom"
+import mlrun
+project = mlrun.get_or_create_project("my-project")
+func = project.set_function(func="func.py",name="func",handler="func",image="mlrun/mlrun",kind="job")
+func.set_env("MLRUN_LOG_FORMAT_OVERRIDE",format_logger)
+func.set_env("MLRUN_LOG_FORMATTER","custom")

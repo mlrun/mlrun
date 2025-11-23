@@ -16,7 +16,7 @@ import re
 from abc import ABC
 from enum import Enum
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -49,15 +49,15 @@ class CommonTypes(ABC):
     ]
 
     # Common dataset type to all frameworks:
-    DatasetType = (
-        list
-        | tuple
-        | dict
-        | np.ndarray
-        | pd.DataFrame
-        | pd.Series
-        | "scipy.sparse.base.spmatrix"  # noqa: F821
-    )
+    DatasetType = Union[
+        list,
+        tuple,
+        dict,
+        np.ndarray,
+        pd.DataFrame,
+        pd.Series,
+        "scipy.sparse.base.spmatrix",  # noqa: F821
+    ]
 
     # A joined type for receiving a path from 'pathlib' or 'os.path':
     PathType = str | Path

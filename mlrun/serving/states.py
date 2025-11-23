@@ -1355,7 +1355,7 @@ class LLModel(Model):
                 model_name=self.name,
                 messages=messages,
                 invocation_config=invocation_config,
-                model=self.model_provider.model
+                model=self.model_provider.model,
             )
             response_with_stats = self.model_provider.invoke(
                 messages=messages,

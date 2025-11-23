@@ -126,7 +126,7 @@ aggregate_run = aggregate_function.run(
 ```
 
 ## Modules
-There are two types of modules: generic and model monitoring. The model monitoring apps provide a wide range of possibilities for monitoring, and save you the time required to develop and test apps.
+There are two types of modules: generic and model monitoring. The model monitoring apps provide off-the-shelf monitoring, and save you the time required to develop and test apps. You can also add applications to your own hub, making them easily accessible for sharing.
 
 The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
 Each module in the hub has an accompanying example notebook with complete usage examples. 

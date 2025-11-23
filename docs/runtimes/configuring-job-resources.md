@@ -521,11 +521,17 @@ Valid values:
 
 ## Custom logs
 
+First set the env variables. the `format_logger` must include {timestamp}, {level}, {message}, {more}. You can add additional supported labels. This example adds {module}:
+```
 format_logger = "> {timestamp} [{level}] Running module: {module} {message} {more}"
 os.environ["MLRUN_LOG_FORMAT_OVERRIDE"] = format_logger
 os.environ["MLRUN_LOG_FORMATTER"] = "custom"
+```
+Then, in the context of your project add the custome logger:
+```
 import mlrun
 project = mlrun.get_or_create_project("my-project")
 func = project.set_function(func="func.py",name="func",handler="func",image="mlrun/mlrun",kind="job")
 func.set_env("MLRUN_LOG_FORMAT_OVERRIDE",format_logger)
 func.set_env("MLRUN_LOG_FORMATTER","custom")
+```

@@ -90,7 +90,8 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 ### Upcoming changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-| NA |The default `--allow-cross-project` CLI flag in `run`, `build`, `deploy`, and `project` CLI commands will change to `False` in v1.11.0.|.
+| NA |The default `--allow-cross-project` CLI flag in `run`, `build`, `deploy`, and `project` CLI commands will change to `False` in v1.11.0.|
+|ML-11530|Use of underscore '_' in function names will be deprecated in v1.11.0. Use dashes '-' instead.|
 
 
 ### Documentation
@@ -1426,12 +1427,15 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8699|After upgrade/restart there may be some lost notifications due to restart of the chief.|NA| v1.8.0|
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
-|ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|
+|ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|v1.8.0|
+|ML-11517|
+|ML-11530|
 
 ## Deprecations and removed code
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.11.0 |Use of underscore '_' in function names will be deprecated. Use dashes '-' instead.|
 | v1.11.0 |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
 |v1.10.0 |SQLtargets are no longer supported.|
 | v1.10.0 |`project="default"` is deprecated. See [Breaking changes](#1.10.0-breaking).

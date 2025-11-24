@@ -1350,12 +1350,11 @@ class LLModel(Model):
         if isinstance(
             llm_prompt_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            logger.info(
+            logger.debug(
                 "Invoking model provider",
                 model_name=self.name,
                 messages=messages,
                 invocation_config=invocation_config,
-                model=self.model_provider.model,
             )
             response_with_stats = self.model_provider.invoke(
                 messages=messages,
@@ -1365,10 +1364,9 @@ class LLModel(Model):
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
             )
-            logger.info(
+            logger.debug(
                 "LLModel prediction completed",
                 model_name=self.name,
-                model=self.model_provider.model,
                 answer=response_with_stats.get("answer"),
                 usage=response_with_stats.get("usage"),
             )
@@ -1407,7 +1405,7 @@ class LLModel(Model):
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
             )
-            logger.info(
+            logger.debug(
                 "LLModel async prediction completed",
                 model_name=self.name,
                 answer=response_with_stats.get("answer"),

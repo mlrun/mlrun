@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import threading
-from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import mlrun
@@ -21,7 +20,6 @@ from mlrun.datastore.model_provider.model_provider import (
     ModelProvider,
     UsageResponseKeys,
 )
-from mlrun.utils import logger
 
 if TYPE_CHECKING:
     from transformers.pipelines.base import Pipeline
@@ -45,10 +43,6 @@ class HuggingFaceProvider(ModelProvider):
 
     #  locks for threading use cases
     _client_lock = threading.Lock()
-    _model_locks = defaultdict(threading.Lock)
-    _creation_lock = threading.Lock()
-    _download_history = set()
-    _download_counter = 0  # for a check
 
     def __init__(
         self,
@@ -75,15 +69,6 @@ class HuggingFaceProvider(ModelProvider):
         self.options = self.get_client_options()
         self._expected_operation_type = None
         self._download_model()
-
-    @classmethod
-    def _get_lock_per_model(cls, model_id):
-        """
-        Safely get or create a lock for a model.
-        Only the first thread creating a new lock will hold the creation lock.
-        """
-        with cls._creation_lock:  # only one thread creates the lock for a new model
-            return cls._model_locks[model_id]
 
     @staticmethod
     def _extract_string_output(response: list[dict]) -> str:
@@ -131,38 +116,10 @@ class HuggingFaceProvider(ModelProvider):
             from huggingface_hub import snapshot_download
 
             # Download the model and tokenizer files directly to the cache.
-
-            if self.model in self._download_history:
-                logger.info(
-                    "self.model in self._download_history 1",
-                    model=self.model,
-                    _download_history=self._download_history,
-                )
-                return
-
-            lock = self._get_lock_per_model(self.model)
-            with lock:
-                # Double-check after acquiring the lock
-                if self.model in self._download_history:
-                    logger.info(
-                        "self.model in self._download_history 2",
-                        model=self.model,
-                        _download_history=self._download_history,
-                    )
-                    return
-
-                snapshot_download(
-                    repo_id=self.model,
-                    local_dir_use_symlinks=False,
-                    token=self._get_secret_or_env("HF_TOKEN") or None,
-                )
-                self._download_history.add(self.model)
-                self._download_counter += 1  # for a check
-            logger.info(
-                "model downloaded",
-                model=self.model,
-                download_counter=self._download_counter,
-                download_history=self._download_history,
+            snapshot_download(
+                repo_id=self.model,
+                local_dir_use_symlinks=False,
+                token=self._get_secret_or_env("HF_TOKEN") or None,
             )
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
@@ -262,20 +219,17 @@ class HuggingFaceProvider(ModelProvider):
             ImportError: If the `transformers` package is not installed.
         """
         if self._client:
-            logger.info("client already exist", model=self.model)
             return
         try:
             from transformers import pipeline, AutoModelForCausalLM  # noqa
             from transformers import AutoTokenizer  # noqa
             from transformers.pipelines.base import Pipeline  # noqa
 
-            logger.info("client not exist, creating...", model=self.model)
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True
             with self._client_lock:
                 self._client = pipeline(model=self.model, **self.options)
             self._expected_operation_type = Pipeline
-            logger.info("finished to create a client", model=self.model)
         except ImportError as exc:
             raise ImportError("transformers package is not installed") from exc
 

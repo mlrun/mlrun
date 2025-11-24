@@ -38,8 +38,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "huggingface-system-test"
-    image = "artifactory.iguazeng.com:10557/tomerm/mlrun:hf_threads"
-    # image = "quay.io/mlrun/mlrun"
+    image = "mlrun/mlrun"
     profile_name = "huggingface_profile"
     basic_llm_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
     image_classification_model = "microsoft/resnet-50"

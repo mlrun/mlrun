@@ -3,10 +3,6 @@
 
 Learn how to create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the `ModelMonitoringApplicationBase` class.
 
-```{admonition} Note
-You can also import model monitoring applications from the [MLRun hub](https://www.mlrun.org/hub/). Each application has complete usage instructions.
-```
-
 **In this section**
 - [Basics](#basics)
 - [Using the application context](#using-the-application-context)

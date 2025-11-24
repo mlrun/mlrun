@@ -278,3 +278,53 @@ class TestGetRecords:
         assert mm_schemas.WriterEvent.ENDPOINT_ID not in df.columns
         # Verify other unrequested columns are also NOT included
         assert mm_schemas.WriterEvent.APPLICATION_NAME not in df.columns
+
+    def test_get_records_with_custom_timestamp_column(
+        self, connector, query_test_helper
+    ):
+        """Test _get_records() with custom timestamp_column parameter.
+
+        Verifies that timestamp_column parameter correctly controls which
+        timestamp column is used for time range filtering in WHERE clause.
+        """
+        # Insert test data with different start and end times
+        start_time = datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC)
+        end_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+
+        test_data = {
+            mm_schemas.WriterEvent.START_INFER_TIME: start_time,
+            mm_schemas.WriterEvent.END_INFER_TIME: end_time,
+            mm_schemas.WriterEvent.ENDPOINT_ID: "endpoint-1",
+            mm_schemas.WriterEvent.APPLICATION_NAME: "app1",
+            mm_schemas.MetricData.METRIC_NAME: "accuracy",
+            mm_schemas.MetricData.METRIC_VALUE: 0.95,
+        }
+
+        query_test_helper.write_application_event(
+            test_data, mm_schemas.WriterEventKind.METRIC
+        )
+
+        # Test 1: Query using start_infer_time (should find the record)
+        df_start = connector._get_records(
+            table=mm_schemas.TimescaleDBTables.METRICS,
+            start=datetime(2024, 1, 15, 9, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 15, 11, 0, 0, tzinfo=UTC),
+            endpoint_id="endpoint-1",
+            timestamp_column=mm_schemas.WriterEvent.START_INFER_TIME,
+        )
+
+        # Should find the record because start_infer_time (10:00) is within range
+        assert len(df_start) == 1
+        assert df_start[mm_schemas.MetricData.METRIC_NAME].iloc[0] == "accuracy"
+
+        # Test 2: Query using end_infer_time (should NOT find the record)
+        df_end = connector._get_records(
+            table=mm_schemas.TimescaleDBTables.METRICS,
+            start=datetime(2024, 1, 15, 9, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 15, 11, 0, 0, tzinfo=UTC),
+            endpoint_id="endpoint-1",
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+        )
+
+        # Should NOT find the record because end_infer_time (12:00) is outside range
+        assert len(df_end) == 0

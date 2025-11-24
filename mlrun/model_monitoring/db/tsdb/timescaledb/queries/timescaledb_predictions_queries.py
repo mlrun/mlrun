@@ -74,6 +74,7 @@ class TimescaleDBPredictionsQueries:
         agg_funcs: Optional[list[str]] = None,
         limit: Optional[int] = None,
         use_pre_aggregates: bool = True,
+        timestamp_column: Optional[str] = None,
     ) -> pd.DataFrame:
         """Read predictions data from TimescaleDB (predictions table) - returns DataFrame.
 
@@ -85,6 +86,7 @@ class TimescaleDBPredictionsQueries:
         :param agg_funcs: Optional list of aggregation functions (e.g., ["avg", "max"])
         :param limit: Optional limit on number of results
         :param use_pre_aggregates: Whether to use pre-aggregates if available
+        :param timestamp_column: Optional timestamp column to use for time filtering
         :return: DataFrame with predictions data
         """
         if (agg_funcs and not aggregation_window) or (
@@ -119,6 +121,7 @@ class TimescaleDBPredictionsQueries:
             agg_funcs=agg_funcs if can_use_pre_aggregates else None,
             limit=limit,
             use_pre_aggregates=can_use_pre_aggregates,
+            timestamp_column=timestamp_column,
         )
 
         result = self._connection.run(query=query)

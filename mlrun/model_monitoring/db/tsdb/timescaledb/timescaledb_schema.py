@@ -283,12 +283,17 @@ class TimescaleDBSchema:
         desc: Optional[bool] = None,
         use_pre_aggregates: bool = True,
         group_by: Optional[list[str]] = None,
+        timestamp_column: Optional[str] = None,
     ) -> str:
-        """Build query to get records from the table or its pre-aggregates."""
+        """Build query to get records from the table or its pre-aggregates.
+
+        :param timestamp_column: Optional timestamp column to use for time filtering.
+                                If not provided, uses the table's default time_column.
+        """
 
         # Determine table to query
         table_name = self.table_name
-        time_col = self.time_column
+        time_col = timestamp_column or self.time_column
 
         if interval and agg_funcs and use_pre_aggregates:
             # Use continuous aggregate if available
@@ -302,9 +307,10 @@ class TimescaleDBSchema:
                 if interval and agg_funcs and use_pre_aggregates:
                     # For pre-aggregates, use column names as-is since they should already be
                     # the correct names from the continuous aggregate view
+                    source_time_col = timestamp_column or self.time_column
                     modified_columns = []
                     for col in columns_to_filter:
-                        if col == self.time_column:
+                        if col == source_time_col:
                             modified_columns.append(TIME_BUCKET_COLUMN)
                         else:
                             # Use column name as-is - caller should provide correct pre-agg column names

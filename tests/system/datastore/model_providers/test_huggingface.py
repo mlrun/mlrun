@@ -181,12 +181,10 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         ep_name = "ep"
         second_ep_name = "ep2"
         model_class = "mlrun.serving.states.LLModel"
-
-        model_url = self.url_prefix + self.basic_llm_model
         second_model_url = self.url_prefix + llm_model2
 
         model1 = self.project.log_model(
-            "model_key", model_url=model_url, default_config={"max_new_tokens": 100}
+            "model_key", model_url=self.model_url, default_config={"max_new_tokens": 100}
         )
 
         model2 = self.project.log_model(

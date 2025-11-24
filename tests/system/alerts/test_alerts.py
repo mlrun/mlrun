@@ -41,7 +41,11 @@ from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestAlerts(TestMLRunSystem):
-    project_name = "alerts-test-project"
+    def setup_method(self, method):
+        # unique per-test project name
+        unique_suffix = method.__name__.replace("_", "-")
+        self.project_name = f"alert-{unique_suffix}"
+        super().setup_method(method)
 
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
@@ -243,7 +247,7 @@ class TestAlerts(TestMLRunSystem):
             expected_endpoint_alerts_count=4,
         )
 
-    def test_job_failure_alert_sliding_window(self):
+    def test_sliding_window_alert(self):
         """
 
         This test simulates a scenario where a job is expected to fail twice within a two-minute window,

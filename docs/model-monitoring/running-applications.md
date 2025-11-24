@@ -18,7 +18,7 @@ flow described in {ref}`register-model-monitoring-app`.
 
 ## Overview
 
-The relevant methods of {py:class}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` are:
+The relevant methods of {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` are:
 
 - {py:meth}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate`
 - {py:meth}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.to_job`

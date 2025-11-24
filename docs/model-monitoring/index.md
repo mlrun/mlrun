@@ -62,10 +62,10 @@ For each model that is served in a model serving function, there is a model endp
 
 The model endpoint APIs are:
 
-- {py:meth}`https://docs.mlrun.org/en/latest/api/mlrun.db/index.html#mlrun.db.httpdb.HTTPRunDB.get_model_endpoint`
-- {py:meth}`https://docs.mlrun.org/en/latest/api/mlrun.db/index.html#mlrun.db.httpdb.HTTPRunDB.list_model_endpoints`
-- {py:meth}`https://docs.mlrun.org/en/latest/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.list_model_endpoints`
-- {py:meth}`https://docs.mlrun.org/en/latest/api/mlrun.db/index.html#mlrun.db.httpdb.HTTPRunDB.get_metrics_by_multiple_endpoints`
+- {py:meth}`~mlrun.db.httpdb.HTTPRunDB.get_model_endpoint`
+- {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_model_endpoints`
+- {py:meth}`~mlrun.projects.MlrunProject.list_model_endpoints`
+- {py:meth}`~mlrun.db.httpdb.HTTPRunDB.get_metrics_by_multiple_endpoints`
 
 All model monitoring endpoints are presented in the UI with information about the actual inference, including data on the inputs, outputs, and results.
 The Model Endpoints tab presents the overall metrics. From there you can select an endpoint and view the Overview, Features Analysis, and the Metrics tabs. 

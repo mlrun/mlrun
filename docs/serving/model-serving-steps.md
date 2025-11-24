@@ -8,7 +8,7 @@ Learn about the ModelRunnerStep and other steps used when serving models.
 
 ## ModelRunnerStep
 
-The {py:class}`ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
+The {py:class}`~mlrun.serving.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
 over how they are executed in terms of concurrency and parallelism. For example, it supports
 running models in a multi-process or a multi-threaded paradigm, and it supports having a dedicated process for a given
 model (useful when the model has a long startup time or requires a lot of resources). Different execution mechanisms can be
@@ -24,25 +24,38 @@ When a `ModelRunnerStep `is included in a function graph, MLRun automatically im
 ModelRunnerStep can only be added to a graph that has the [flow topology](../serving/deploying-graphs.ipynb#flow) and running with the async engine, giving better utilization of CPU/GPU.
 
 ### SDK
-- {py:class}`mlrun.serving.ModelRunner`: Runs multiple models on each event.
-- {py:meth}`mlrun.serving.ModelRunnerStep.add_model`: adds a model to the model runner and configures its execution. The model is accessible to all ModelRunnerSteps in the graph.
-- {py:meth}`mlrun.serving.ModelRunnerStep.add_shared_model_proxy`: Adds a proxy model to the ModelRunnerStep. A  proxy model acts as a lightweight reference to an existing shared model within the graph. Each step can reuse the same underlying shared model without duplicating it. Each model step (a model/prompt combination) is translated to a model endpoint with its unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. 
-- {py:meth}`mlrun.serving.ModelSelector`: Select which model to run on each event, based on responses from an from LLM (for example, finanace vs. travel). Can be a class or a string.
+- {py:class}`~mlrun.serving.ModelRunner`: Runs multiple models on each event.
+- {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`: adds a model to the model runner and configures its execution. The model is accessible to all ModelRunnerSteps in the graph.
+- {py:meth}`~mlrun.serving.ModelRunnerStep.add_shared_model_proxy`: Adds a proxy model to the ModelRunnerStep. A  proxy model acts as a lightweight reference to an existing shared model within the graph. Each step can reuse the same underlying shared model without duplicating it. Each model step (a model/prompt combination) is translated to a model endpoint with its unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. 
+- {py:meth}`~mlrun.serving.ModelSelector`: Select which model to run on each event, based on responses from an from LLM (for example, finanace vs. travel). Can be a class or a string.
 
 ### Preprocess steps
 
 When adding models to the `ModelRunnerStap`, there are many configuration options, for example, excluding unnecessary details that are included in any LLM, input and outputs, which can be paths, dict, etc. 
-See the parameters in {py:meth}`mlrun.serving.ModelRunnerStep.add_model`.
+See the parameters in {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`.
 
 ### Basic code examples
 
-This code illustrates a `ModelRunnerStap` with two models.
+This code illustrates a `ModelRunnerStap` with two models. 
 
 ```
 from mlrun.serving import ModelRunnerStep
 from mlrun.common.schemas.model_monitoring.constants import (
     ModelEndpointCreationStrategy,
 )
+
+class MyClassifier(ModelSelector):
+    def __init__(self, models: Union[list[str], list[Model]]):
+        super().__init__()
+        self.models = deepcopy(models)
+
+    def select(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        current_models = event.body.get("models")
+        if current_models and set(current_models).issubset(set(self.models)):
+            return current_models
+        return []
 
 function = project.set_function(
     name="my-project",
@@ -62,14 +75,12 @@ model_runner_step = ModelRunnerStep(
 model_runner_step.add_model(
     endpoint_name="endpoint-1",
     model_artifact=llm_prompt_artifact-1,
-    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
     execution_mechanism="thread_pool",
     model_class="LLModel",
 )
 model_runner_step.add_model(
     endpoint_name="endpoint-2",
     model_artifact=llm_prompt_artifact-2,
-    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
     execution_mechanism="thread_pool",
     model_class="LLModel",
 )

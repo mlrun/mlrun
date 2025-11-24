@@ -522,11 +522,9 @@ Valid values:
 
 ## Custom logs
 
-First set the env variables. the `format_logger` must include {timestamp}, {level}, {message}, {more}. You can add additional supported labels. This example adds {module}:
+First set the logger format. The `format_logger` must include {timestamp}, {level}, {message}, {more}. You can add additional supported labels. This example adds {module}:
 ```
 format_logger = "> {timestamp} [{level}] Running module: {module} {message} {more}"
-os.environ["MLRUN_LOG_FORMAT_OVERRIDE"] = format_logger
-os.environ["MLRUN_LOG_FORMATTER"] = "custom"
 ```
 Then, in the context of your project add the custome logger:
 ```

@@ -568,7 +568,7 @@ class ApplicationRuntime(RemoteRuntime):
                 "Authentication credentials not provided"
             )
 
-        if direct_port_access and port:
+        if not direct_port_access and port:
             logger.warning(
                 "Ignoring 'port' because 'direct_port_access' is enabled. "
                 "The 'port' setting is only applicable when 'direct_port_access' is disabled."

@@ -521,12 +521,15 @@ Valid values:
 - debug
 
 ## Custom logs
+```{admonition} Note
+Custom logs are supported only for remote runs.
+```
 
 First set the logger format. The `format_logger` must include {timestamp}, {level}, {message}, {more}. You can add additional supported labels. This example adds {module}:
 ```
 format_logger = "> {timestamp} [{level}] Running module: {module} {message} {more}"
 ```
-Then, in the context of your project add the custome logger:
+Then, in the context of your project add the custom logger:
 ```
 import mlrun
 project = mlrun.get_or_create_project("my-project")

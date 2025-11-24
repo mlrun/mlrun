@@ -570,8 +570,8 @@ class ApplicationRuntime(RemoteRuntime):
 
         if not direct_port_access and port:
             logger.warning(
-                "Ignoring 'port' because 'direct_port_access' is enabled. "
-                "The 'port' setting is only applicable when 'direct_port_access' is disabled."
+                "Ignoring 'port' because 'direct_port_access' is bit enabled. "
+                "The 'port' setting is only applicable when 'direct_port_access' is enabled."
             )
 
         ports = (

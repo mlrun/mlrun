@@ -11,12 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
+import os
 from ast import literal_eval
-from os import environ, getenv
+from os import environ
 from typing import Callable, Optional, Union
 
-from .utils import AzureVaultStore, list2dict
+import mlrun.auth.utils
+import mlrun.utils.helpers
+
+from .utils import AzureVaultStore, list2dict, logger
 
 
 class SecretsStore:
@@ -161,6 +165,9 @@ def get_secret_or_env(
     4. An MLRun-generated env. variable, mounted from a project secret (to be used in MLRun runtimes)
     5. The default value
 
+    Also supports discovering the value inside any environment variable that contains a JSON-encoded list
+    of dicts with fields: {'name': 'KEY', 'value': 'VAL', 'value_from': ...}. This fallback is applied
+    after checking normal environment variables and before returning the default.
     Example::
 
         secrets = {"KEY1": "VALUE1"}
@@ -187,18 +194,95 @@ def get_secret_or_env(
     if prefix:
         key = f"{prefix}_{key}"
 
-    value = None
     if secret_provider:
         if isinstance(secret_provider, (dict, SecretsStore)):
-            value = secret_provider.get(key)
+            secret_value = secret_provider.get(key)
         else:
-            value = secret_provider(key)
-        if value:
-            return value
+            secret_value = secret_provider(key)
+        if secret_value:
+            return secret_value
 
-    return (
-        value
-        or getenv(key)
-        or getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
-        or default
-    )
+    direct_environment_value = environ.get(key)
+    if direct_environment_value:
+        return direct_environment_value
+
+    json_list_value = _find_value_in_json_env_lists(key)
+    if json_list_value is not None:
+        return json_list_value
+
+    mlrun_env_key = SecretsStore.k8s_env_variable_name_for_secret(key)
+    mlrun_env_value = environ.get(mlrun_env_key)
+    if mlrun_env_value:
+        return mlrun_env_value
+
+    return default
+
+
+def _find_value_in_json_env_lists(
+    secret_name: str,
+) -> Optional[str]:
+    """
+    Scan all environment variables. If any env var contains a JSON-encoded list
+    of dicts shaped like {'name': str, 'value': str|None, 'value_from': ...},
+    return the 'value' for the entry whose 'name' matches secret_name.
+    """
+    for environment_variable_value in environ.values():
+        if not environment_variable_value or not isinstance(
+            environment_variable_value, str
+        ):
+            continue
+        # Fast precheck to skip obvious non-JSON strings
+        first_char = environment_variable_value.lstrip()[:1]
+        if first_char not in ("[", "{"):
+            continue
+        try:
+            parsed_value = json.loads(environment_variable_value)
+        except ValueError:
+            continue
+        if isinstance(parsed_value, list):
+            for entry in parsed_value:
+                if isinstance(entry, dict) and entry.get("name") == secret_name:
+                    value_in_entry = entry.get("value")
+                    # Match original semantics: empty string is treated as "not found"
+                    if value_in_entry:
+                        return value_in_entry
+    return None
+
+
+@mlrun.utils.iguazio_v4_only
+def sync_secret_tokens() -> None:
+    """
+    Synchronize local secret tokens with the backend.
+
+    This function:
+      1. Reads the local token file (default: ~/.igz.yml, configurable via
+         `mlrun.mlconf.auth_with_oauth_token.token_file`).
+      2. Validates its content and converts validated tokens into `SecretToken` objects.
+      3. Uploads the tokens to the backend.
+      4. Logs a warning if any tokens were updated on the backend due to newer
+         expiration times found locally.
+    """
+    # TODO: Runtime Context Check - Avoid sending a backend request when running inside a runtime, where secrets
+    #  are already injected via Kubernetes and syncing is unnecessary
+
+    # Do not sync tokens from the file when using the offline token environment variable.
+    # The offline token from the env var takes precedence over the file.
+    # Using the env var is not the recommended approach, and tokens from the env var
+    # will not be saved as secrets in the backend.
+    if os.getenv("MLRUN_AUTH_OFFLINE_TOKEN"):
+        return
+
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
+
+    # The import is needed here to prevent a circular import, since this method is called from the mlrun.db connection.
+    from mlrun.db import get_run_db
+
+    # The log_warning=False flag ensures the SDK doesn’t log unnecessary warnings about local file updates, since
+    # this method reads from the file, not updates it.
+    response = get_run_db().store_secret_tokens(secret_tokens, log_warning=False)
+
+    if response.updated_tokens:
+        logger.warning(
+            "Some tokens were updated on the backend due to newer expiration found locally",
+            updated_tokens=response.updated_tokens,
+        )

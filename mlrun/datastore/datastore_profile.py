@@ -16,10 +16,10 @@ import ast
 import base64
 import json
 import typing
-import warnings
 from urllib.parse import ParseResult, urlparse
 
 import pydantic.v1
+from deprecated import deprecated
 from mergedeep import merge
 
 import mlrun
@@ -139,43 +139,28 @@ class ConfigProfile(DatastoreProfile):
         return res
 
 
+# TODO: Remove in 1.12.0
+@deprecated(
+    version="1.10.0",
+    reason=(
+        "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
+        "Use `DatastoreProfileKafkaStream` instead."
+    ),
+    category=FutureWarning,
+)
 class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.v1.Field("kafka_target")
     _private_attributes = "kwargs_private"
-    bootstrap_servers: typing.Optional[str] = None
-    brokers: typing.Optional[str] = None
+    brokers: str
     topic: str
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        if not self.brokers and not self.bootstrap_servers:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "DatastoreProfileKafkaTarget requires the 'brokers' field to be set"
-            )
-
-        if self.bootstrap_servers:
-            if self.brokers:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "DatastoreProfileKafkaTarget cannot be created with both 'brokers' and 'bootstrap_servers'"
-                )
-            else:
-                self.brokers = self.bootstrap_servers
-                self.bootstrap_servers = None
-            warnings.warn(
-                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
-                "use 'brokers' instead.",
-                # TODO: Remove this in 1.9.0
-                FutureWarning,
-            )
 
     def get_topic(self) -> typing.Optional[str]:
         return self.topic
 
     def attributes(self):
-        attributes = {"brokers": self.brokers or self.bootstrap_servers}
+        attributes = {"brokers": self.brokers}
         if self.kwargs_public:
             attributes = merge(attributes, self.kwargs_public)
         if self.kwargs_private:
@@ -183,8 +168,8 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
         return attributes
 
 
-class DatastoreProfileKafkaSource(DatastoreProfile):
-    type: str = pydantic.v1.Field("kafka_source")
+class DatastoreProfileKafkaStream(DatastoreProfile):
+    type: str = pydantic.v1.Field("kafka_stream")
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
     brokers: typing.Union[str, list[str]]
     topics: typing.Union[str, list[str]]
@@ -223,6 +208,19 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         return attributes
 
 
+# TODO: Remove in 1.12.0
+@deprecated(
+    version="1.10.0",
+    reason=(
+        "This class is deprecated from mlrun 1.10.0, and will be removed in 1.12.0. "
+        "Use `DatastoreProfileKafkaStream` instead."
+    ),
+    category=FutureWarning,
+)
+class DatastoreProfileKafkaSource(DatastoreProfileKafkaStream):
+    type: str = pydantic.v1.Field("kafka_source")
+
+
 class DatastoreProfileV3io(DatastoreProfile):
     type: str = pydantic.v1.Field("v3io")
     v3io_access_key: typing.Optional[str] = None
@@ -248,18 +246,7 @@ class DatastoreProfileS3(DatastoreProfile):
     assume_role_arn: typing.Optional[str] = None
     access_key_id: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
-    bucket: typing.Optional[str] = None
-
-    @pydantic.v1.validator("bucket")
-    @classmethod
-    def check_bucket(cls, v):
-        if not v:
-            warnings.warn(
-                "The 'bucket' attribute will be mandatory starting from version 1.9",
-                FutureWarning,
-                stacklevel=2,
-            )
-        return v
+    bucket: str
 
     def secrets(self) -> dict:
         res = {}
@@ -268,7 +255,7 @@ class DatastoreProfileS3(DatastoreProfile):
         if self.secret_key:
             res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
         if self.endpoint_url:
-            res["S3_ENDPOINT_URL"] = self.endpoint_url
+            res["AWS_ENDPOINT_URL_S3"] = self.endpoint_url
         if self.force_non_anonymous:
             res["S3_NON_ANONYMOUS"] = self.force_non_anonymous
         if self.profile_name:
@@ -353,18 +340,7 @@ class DatastoreProfileGCS(DatastoreProfile):
     _private_attributes = ("gcp_credentials",)
     credentials_path: typing.Optional[str] = None  # path to file.
     gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
-    bucket: typing.Optional[str] = None
-
-    @pydantic.v1.validator("bucket")
-    @classmethod
-    def check_bucket(cls, v):
-        if not v:
-            warnings.warn(
-                "The 'bucket' attribute will be mandatory starting from version 1.9",
-                FutureWarning,
-                stacklevel=2,
-            )
-        return v
+    bucket: str
 
     @pydantic.v1.validator("gcp_credentials", pre=True, always=True)
     @classmethod
@@ -380,7 +356,9 @@ class DatastoreProfileGCS(DatastoreProfile):
             #  in gcs the path after schema is starts with bucket, wherefore it should not start with "/".
             subpath = subpath[1:]
         if self.bucket:
-            return f"gcs://{self.bucket}/{subpath}"
+            return (
+                f"gcs://{self.bucket}/{subpath}" if subpath else f"gcs://{self.bucket}"
+            )
         else:
             return f"gcs://{subpath}"
 
@@ -410,25 +388,18 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     client_secret: typing.Optional[str] = None
     sas_token: typing.Optional[str] = None
     credential: typing.Optional[str] = None
-    container: typing.Optional[str] = None
-
-    @pydantic.v1.validator("container")
-    @classmethod
-    def check_container(cls, v):
-        if not v:
-            warnings.warn(
-                "The 'container' attribute will be mandatory starting from version 1.9",
-                FutureWarning,
-                stacklevel=2,
-            )
-        return v
+    container: str
 
     def url(self, subpath) -> str:
         if subpath.startswith("/"):
             #  in azure the path after schema is starts with container, wherefore it should not start with "/".
             subpath = subpath[1:]
         if self.container:
-            return f"az://{self.container}/{subpath}"
+            return (
+                f"az://{self.container}/{subpath}"
+                if subpath
+                else f"az://{self.container}"
+            )
         else:
             return f"az://{subpath}"
 
@@ -514,6 +485,102 @@ class DatastoreProfileTDEngine(DatastoreProfile):
         )
 
 
+class DatastoreProfilePostgreSQL(DatastoreProfile):
+    """
+    A profile that holds the required parameters for a PostgreSQL database.
+    PostgreSQL uses standard PostgreSQL connection parameters.
+    """
+
+    type: str = pydantic.v1.Field("postgresql")
+    _private_attributes = ["password"]
+    user: str
+    # The password cannot be empty in real world scenarios. It's here just because of the profiles completion design.
+    password: typing.Optional[str]
+    host: str
+    port: int
+    database: str = pydantic.v1.Field(
+        default="postgres"
+    )  # the default maintenance database
+
+    def dsn(self) -> str:
+        """Get the Data Source Name of the configured PostgreSQL profile."""
+        return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+    @classmethod
+    def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfilePostgreSQL":
+        """
+        Construct a PostgreSQL profile from DSN (connection string) and a name for the profile.
+
+        :param dsn:          The DSN (Data Source Name) of the PostgreSQL database, e.g.: ``"postgresql://user:password@localhost:5432/mydb"``.
+        :param profile_name: The new profile's name.
+        :return:             The PostgreSQL profile.
+        """
+        parsed_url = urlparse(dsn)
+        return cls(
+            name=profile_name,
+            user=parsed_url.username,
+            password=parsed_url.password,
+            host=parsed_url.hostname,
+            port=parsed_url.port,
+            database=parsed_url.path.lstrip("/") if parsed_url.path else "postgres",
+        )
+
+
+class OpenAIProfile(DatastoreProfile):
+    type: str = pydantic.v1.Field("openai")
+    _private_attributes = "api_key"
+    api_key: typing.Optional[str] = None
+    organization: typing.Optional[str] = None
+    project: typing.Optional[str] = None
+    base_url: typing.Optional[str] = None
+    timeout: typing.Optional[float] = None
+    max_retries: typing.Optional[int] = None
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.api_key:
+            res["OPENAI_API_KEY"] = self.api_key
+        if self.organization:
+            res["OPENAI_ORG_ID"] = self.organization
+        if self.project:
+            res["OPENAI_PROJECT_ID"] = self.project
+        if self.base_url:
+            res["OPENAI_BASE_URL"] = self.base_url
+        if self.timeout:
+            res["OPENAI_TIMEOUT"] = self.timeout
+        if self.max_retries:
+            res["OPENAI_MAX_RETRIES"] = self.max_retries
+        return res
+
+    def url(self, subpath):
+        return f"{self.type}://{subpath.lstrip('/')}"
+
+
+class HuggingFaceProfile(DatastoreProfile):
+    type: str = pydantic.v1.Field("huggingface")
+    _private_attributes = ("token", "model_kwargs")
+    task: typing.Optional[str] = None
+    token: typing.Optional[str] = None
+    device: typing.Optional[typing.Union[int, str]] = None
+    device_map: typing.Union[str, dict[str, typing.Union[int, str]], None] = None
+    trust_remote_code: bool = None
+    model_kwargs: typing.Optional[dict[str, typing.Any]] = None
+
+    def secrets(self) -> dict:
+        keys = {
+            "HF_TASK": self.task,
+            "HF_TOKEN": self.token,
+            "HF_DEVICE": self.device,
+            "HF_DEVICE_MAP": self.device_map,
+            "HF_TRUST_REMOTE_CODE": self.trust_remote_code,
+            "HF_MODEL_KWARGS": self.model_kwargs,
+        }
+        return {k: v for k, v in keys.items() if v}
+
+    def url(self, subpath):
+        return f"{self.type}://{subpath.lstrip('/')}"
+
+
 _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "v3io": DatastoreProfileV3io,
     "s3": DatastoreProfileS3,
@@ -521,12 +588,16 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "basic": DatastoreProfileBasic,
     "kafka_target": DatastoreProfileKafkaTarget,
     "kafka_source": DatastoreProfileKafkaSource,
+    "kafka_stream": DatastoreProfileKafkaStream,
     "dbfs": DatastoreProfileDBFS,
     "gcs": DatastoreProfileGCS,
     "az": DatastoreProfileAzureBlob,
     "hdfs": DatastoreProfileHdfs,
     "taosws": DatastoreProfileTDEngine,
+    "postgresql": DatastoreProfilePostgreSQL,
     "config": ConfigProfile,
+    "openai": OpenAIProfile,
+    "huggingface": HuggingFaceProfile,
 }
 
 
@@ -605,7 +676,7 @@ def datastore_profile_read(url, project_name="", secrets: typing.Optional[dict] 
         url (str): A URL with 'ds' scheme pointing to the datastore profile
             (e.g., 'ds://profile-name').
         project_name (str, optional): The project name where the profile is stored.
-            Defaults to MLRun's default project.
+            Defaults to MLRun's active project.
         secrets (dict, optional): Dictionary containing secrets needed for profile retrieval.
 
     Returns:
@@ -630,7 +701,7 @@ def datastore_profile_read(url, project_name="", secrets: typing.Optional[dict] 
         )
 
     profile_name = parsed_url.hostname
-    project_name = project_name or mlrun.mlconf.default_project
+    project_name = project_name or mlrun.mlconf.active_project
     datastore = TemporaryClientDatastoreProfiles().get(profile_name)
     if datastore:
         return datastore

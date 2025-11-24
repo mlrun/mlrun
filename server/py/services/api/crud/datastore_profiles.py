@@ -79,7 +79,6 @@ class DatastoreProfiles(
         profile_secret_json: Optional[str] = None,
         project: Optional[str] = None,
     ):
-        project = project or mlrun.mlconf.default_project
         framework.utils.singletons.db.get_db().store_datastore_profile(
             session, profile_name, profile_public_json, project
         )
@@ -93,7 +92,6 @@ class DatastoreProfiles(
         session: sqlalchemy.orm.Session,
         project: Optional[str] = None,
     ) -> list:
-        project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().list_datastore_profiles(
             session, project
         )
@@ -104,7 +102,6 @@ class DatastoreProfiles(
         profile_name: Optional[str] = None,
         project: Optional[str] = None,
     ):
-        project = project or mlrun.mlconf.default_project
         # Delete public part of the secret
         framework.utils.singletons.db.get_db().delete_datastore_profile(
             session, profile_name, project
@@ -118,7 +115,6 @@ class DatastoreProfiles(
         profile_name: Optional[str] = None,
         project: Optional[str] = None,
     ):
-        project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().get_datastore_profile(
             session, profile_name, project
         )

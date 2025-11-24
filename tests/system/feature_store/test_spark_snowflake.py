@@ -38,6 +38,10 @@ from tests.system.feature_store.utils import (
     sort_df,
 )
 
+# Skip this test module if running in open source mode
+if os.getenv("MLRUN_SYSTEM_TEST_OPEN_SOURCE", "false").lower() == "true":
+    pytest.skip(allow_module_level=True, reason="Skipped in open source system tests")
+
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
@@ -68,7 +72,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             password=cls.env["SNOWFLAKE_PASSWORD"],
             warehouse=cls.snowflake_spark_parameters["warehouse"],
         )
-        cls.schema = cls.env.get("SNOWFLAKE_SCHEMA")
+        cls.db_schema = cls.env.get("SNOWFLAKE_SCHEMA")
         if cls.deployment_type == Deployment.Remote:
             cls.spark_service = cls.spark_service_name
             cls.run_local = False
@@ -138,13 +142,13 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         source = SnowflakeSource(
             "snowflake_source_for_ingest",
             query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
-            schema=self.schema,
+            db_schema=self.db_schema,
             **self.snowflake_spark_parameters,
         )
         target = SnowflakeTarget(
             "snowflake_target_for_ingest",
             table_name=result_table,
-            db_schema=self.schema,
+            db_schema=self.db_schema,
             **self.snowflake_spark_parameters,
         )
         source_df = self.generate_snowflake_source_table()
@@ -293,13 +297,13 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         source = SnowflakeSource(
             "snowflake_source_for_ingest",
             query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
-            schema=self.schema,
+            db_schema=self.db_schema,
             **self.snowflake_spark_parameters,
         )
         target = SnowflakeTarget(
             "snowflake_target_for_ingest",
             table_name=result_table,
-            db_schema=self.schema,
+            db_schema=self.db_schema,
             **self.snowflake_spark_parameters,
         )
         self.generate_snowflake_source_table()

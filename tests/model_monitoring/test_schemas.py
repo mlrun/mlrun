@@ -30,15 +30,18 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     _parse_metric_fqn_to_monitoring_metric,
 )
+from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
+    _normalize_dict_for_v3io_frames,
+)
 
 
 @pytest.mark.parametrize(
     ("fqn", "expected_result", "expectation"),
     [
         (
-            "1infer-model-tsdb-t3.histogram-data-drift.result.general_drift",
+            "infer-model-tsdb-t3.histogram-data-drift.result.general_drift",
             ModelEndpointMonitoringMetric(
-                project="1infer-model-tsdb-t3",
+                project="infer-model-tsdb-t3",
                 app="histogram-data-drift",
                 type=ModelEndpointMonitoringMetricType.RESULT,
                 name="general_drift",
@@ -46,12 +49,12 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
             does_not_raise(),
         ),
         (
-            "proj_j.app-123.metric.error-count",
+            "proj-j.app-123.metric.error_count",
             ModelEndpointMonitoringMetric(
-                project="proj_j",
+                project="proj-j",
                 app="app-123",
                 type=ModelEndpointMonitoringMetricType.METRIC,
-                name="error-count",
+                name="error_count",
             ),
             does_not_raise(),
         ),
@@ -69,12 +72,21 @@ def test_fqn_parsing(
 
 
 @pytest.mark.parametrize(
-    ("flat_mep", "expectation"),
+    ("flat_mep", "validate", "expectation"),
     [
-        ({"project": "proj-1", "uid": "ok_30", "name": "test"}, does_not_raise()),
-        ({}, pytest.raises(pydantic.v1.ValidationError)),
+        (
+            {
+                "project": "proj-1",
+                "uid": "81d488cf-0104-4bb4-98c4-e4fd1204e82f",
+                "name": "test",
+            },
+            True,
+            does_not_raise(),
+        ),
+        ({}, True, pytest.raises(pydantic.v1.ValidationError)),
         (
             {"project": "im-fine-10"},
+            True,
             pytest.raises(
                 pydantic.v1.ValidationError,
                 match=(
@@ -87,24 +99,28 @@ def test_fqn_parsing(
         ),
         (
             {"project": "im-fine-10", "uid": "xx' OR '1'='1", "name": "test"},
+            True,
             pytest.raises(
                 pydantic.v1.ValidationError,
-                match=(
-                    re.escape(
-                        "1 validation error for ModelEndpointMetadata\nuid\n  "
-                        "string does not match regex "
-                        '"^[a-zA-Z0-9_-]+$" (type=value_error.str.regex; pattern=^[a-zA-Z0-9_-]+$)'
-                    )
+                match=re.escape(
+                    "1 validation error for ModelEndpointMetadata\nuid\n  "
+                    "string does not match regex "
+                    '"^[a-zA-Z0-9_-]+$" (type=value_error.str.regex; pattern=^[a-zA-Z0-9_-]+$)'
                 ),
             ),
+        ),
+        (
+            {"project": "im-fine-10", "uid": "xx' OR '1'='1", "name": "test"},
+            False,
+            does_not_raise(),
         ),
     ],
 )
 def test_model_endpoint_from_flat_dict(
-    flat_mep: dict[str, Any], expectation: AbstractContextManager
+    flat_mep: dict[str, Any], validate: bool, expectation: AbstractContextManager
 ) -> None:
     with expectation:
-        ModelEndpoint.from_flat_dict(flat_mep)
+        ModelEndpoint.from_flat_dict(flat_mep, validate=validate)
 
 
 def test_project_pattern() -> None:
@@ -112,3 +128,43 @@ def test_project_pattern() -> None:
         r"^.{0,63}$",
         r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
     ], f"The `project_name` regex changed, please update {PROJECT_PATTERN=} accordingly"
+
+
+@pytest.mark.parametrize(
+    "event,expected",
+    [
+        # basic case: valid key
+        ({"validKey": 1}, {"validKey": 1}),
+        # hyphens replaced with underscores
+        ({"key-name": 42}, {"key_name": 42}),
+        # keys starting with digit
+        ({"123abc": "value"}, {"_123abc": "value"}),
+        # nested dict flattening
+        (
+            {"outer": {"inner-key": 99}},
+            {"outer.inner_key": 99},
+        ),
+        # multiple nested levels
+        (
+            {"a": {"b": {"c-key": 5}}},
+            {"a.b.c_key": 5},
+        ),
+        # mixed dicts and values
+        (
+            {"root": {"sub1": 1, "sub-2": {"deep-key": "x"}}, "plain": 7},
+            {"root.sub1": 1, "root.sub_2.deep_key": "x", "plain": 7},
+        ),
+        # key with digit prefix deep inside
+        (
+            {"root": {"123abc": {"-bad-key": 1}}},
+            {"root._123abc._bad_key": 1},
+        ),
+    ],
+)
+def test_normalize_dict(event, expected):
+    result = _normalize_dict_for_v3io_frames(event)
+    assert result == expected
+
+
+def test_empty_dict():
+    assert _normalize_dict_for_v3io_frames({}) == {}

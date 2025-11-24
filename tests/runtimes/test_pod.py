@@ -12,16 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import inspect
+import json
+import warnings
 
 import kubernetes.client
+import kubernetes.client as k8s_client
 import pytest
 from deepdiff import DeepDiff
 
 import mlrun
+import mlrun.common.secrets
 import mlrun.runtimes.databricks_job.databricks_runtime
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
+import mlrun.runtimes.nuclio.application
 import mlrun.runtimes.pod
 
 
@@ -54,6 +60,7 @@ def test_runtimes_inheritance(method, base_classes):
         ],
         mlrun.runtimes.nuclio.function.NuclioSpec: [
             mlrun.runtimes.nuclio.serving.ServingSpec,
+            mlrun.runtimes.nuclio.application.application.ApplicationSpec,
         ],
         mlrun.runtimes.base.FunctionStatus: [
             mlrun.runtimes.daskjob.DaskStatus,
@@ -256,7 +263,7 @@ def test_build_config_with_multiple_commands():
     fn.build_config(commands=["pip install pandas", "pip install numpy"])
     assert len(fn.spec.build.commands) == 2
 
-    fn.build_config(commands=["pip install pandas"])
+    fn.build_config(commands=["pip install pandas"], overwrite=False)
     assert len(fn.spec.build.commands) == 2
 
 
@@ -272,3 +279,287 @@ def test_build_config_preserve_order():
         function.spec.build.commands = []
         function.build_config(commands=commands)
         assert function.spec.build.commands == commands
+
+
+# Common Preemptible Affinity Terms
+preemptible_affinity_iguazio = [
+    [
+        k8s_client.V1NodeSelectorRequirement(
+            key="app.iguazio.com/lifecycle", operator="In", values=["preemptible"]
+        )
+    ]
+]
+
+preemptible_affinity_cloud_provider = [
+    [
+        k8s_client.V1NodeSelectorRequirement(
+            key="cloud.google.com/gke-spot", operator="In", values=["true"]
+        )
+    ]
+]
+
+
+def create_node_affinity_with_terms(terms):
+    """Helper function to create a V1Affinity with specific node selector terms."""
+    return k8s_client.V1Affinity(
+        node_affinity=k8s_client.V1NodeAffinity(
+            required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                node_selector_terms=[
+                    k8s_client.V1NodeSelectorTerm(match_expressions=term)
+                    for term in terms
+                ]
+            )
+        )
+    )
+
+
+def mock_preemptible_config():
+    """Fixture to set up mock preemptible configurations before each test."""
+    mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+        json.dumps(
+            {
+                "app.iguazio.com/lifecycle": "preemptible",
+                "cloud.google.com/gke-spot": "true",
+            }
+        ).encode("utf-8")
+    )
+    mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+        json.dumps(
+            [
+                {
+                    "key": "cloud.google.com/gke-spot",
+                    "value": "true",
+                    "operator": "Equal",
+                    "effect": "NoSchedule",
+                }
+            ]
+        ).encode("utf-8")
+    )
+
+
+@pytest.mark.parametrize(
+    "node_selector, tolerations, affinity, expected_warning_substrings",
+    [
+        # Only node_selector matches the preemptible configuration.
+        (
+            {"app.iguazio.com/lifecycle": "preemptible", "other": "value"},
+            None,
+            None,
+            ["Node selectors: 'app.iguazio.com/lifecycle': 'preemptible'"],
+        ),
+        # Only tolerations match the preemptible configuration.
+        (
+            None,
+            [
+                k8s_client.V1Toleration(
+                    key="cloud.google.com/gke-spot", value="true", effect="NoSchedule"
+                )
+            ],
+            None,
+            ["Tolerations: 'cloud.google.com/gke-spot'='true' (effect: 'NoSchedule')"],
+        ),
+        # Only affinity matches the preemptible configuration.
+        (
+            None,
+            None,
+            create_node_affinity_with_terms(preemptible_affinity_iguazio),
+            ["Affinity: 'app.iguazio.com/lifecycle  In  ['preemptible']'"],
+        ),
+        # All three match.
+        (
+            {"app.iguazio.com/lifecycle": "preemptible", "other": "value"},
+            [
+                k8s_client.V1Toleration(
+                    key="cloud.google.com/gke-spot", value="true", effect="NoSchedule"
+                ),
+                k8s_client.V1Toleration(key="custom", value="yes", effect="NoSchedule"),
+            ],
+            create_node_affinity_with_terms(preemptible_affinity_iguazio),
+            [
+                "Node selectors: 'app.iguazio.com/lifecycle': 'preemptible'",
+                "Tolerations: 'cloud.google.com/gke-spot'='true' (effect: 'NoSchedule')",
+                "Affinity: 'app.iguazio.com/lifecycle  In  ['preemptible']'",
+            ],
+        ),
+        # No matching values.
+        (
+            {"custom": "value"},
+            [k8s_client.V1Toleration(key="custom", value="yes", effect="NoSchedule")],
+            create_node_affinity_with_terms(
+                [
+                    [
+                        k8s_client.V1NodeSelectorRequirement(
+                            key="custom-key", operator="In", values=["non-match"]
+                        )
+                    ]
+                ],
+            ),
+            [],
+        ),
+    ],
+)
+def test_with_node_selection_warnings(
+    node_selector,
+    tolerations,
+    affinity,
+    expected_warning_substrings,
+):
+    """
+    This test verifies that mlrun.Function.with_node_selection logs the expected warnings when
+    user-provided configuration (node_selector, tolerations, affinity) matches the preemptible settings.
+    """
+    mock_preemptible_config()
+
+    function = mlrun.new_function("test-func", kind="job")
+
+    # Capture warnings raised during with_node_selection.
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        function.with_node_selection(
+            node_selector=node_selector,
+            tolerations=tolerations,
+            affinity=affinity,
+        )
+
+    warning_messages = [str(w.message) for w in caught]
+
+    # Assert that each expected warning substring is found in the warnings.
+    for expected in expected_warning_substrings:
+        assert any(
+            expected in message for message in warning_messages
+        ), f"Expected warning substring '{expected}' not found in warnings: {warning_messages}"
+    # If no warnings are expected, assert that none were raised.
+    if not expected_warning_substrings:
+        assert len(warning_messages) == 0, (
+            f"Expected no warnings, but found: {warning_messages}"
+            "Expected no warnings, but found: {warning_messages}"
+        )
+
+
+def _auth_prefix() -> str:
+    return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+        hashed_access_key=""
+    )
+
+
+def _new_job_runtime(project: str = "p") -> mlrun.runtimes.KubejobRuntime:
+    # Avoid nuclio path; this creates a plain KubejobRuntime without touching files or API
+    fn = mlrun.new_function(
+        name="f",
+        project=project,
+        kind="job",
+        image="mlrun/mlrun",
+    )
+    assert hasattr(fn, "set_env"), "Expected runtime to expose set_env"
+    return fn
+
+
+def test_set_env_from_secret_blocks_auth_secret():
+    fn = _new_job_runtime()
+    forbidden = _auth_prefix() + "xyz"
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        fn.set_env_from_secret(name="MY_ENV", secret=forbidden)
+
+    assert "Forbidden secret" in str(exc.value)
+    assert forbidden in str(exc.value)
+
+
+def test_set_env_from_secret_allows_regular_secret():
+    fn = _new_job_runtime()
+    # Should not raise
+    fn.set_env_from_secret(name="MY_ENV", secret="regular-secret", secret_key="k")
+
+
+def test_set_env_blocks_when_value_from_contains_auth_secret_object():
+    fn = _new_job_runtime()
+    forbidden = _auth_prefix() + "abc"
+
+    value_from = k8s_client.V1EnvVarSource(
+        secret_key_ref=k8s_client.V1SecretKeySelector(name=forbidden, key="token")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        fn.set_env(name="MY_ENV", value_from=value_from)
+
+    assert "Forbidden secret" in str(exc.value)
+    assert forbidden in str(exc.value)
+
+
+def test_set_env_blocks_when_value_from_contains_auth_secret_dict_variants():
+    fn = _new_job_runtime()
+    forbidden = _auth_prefix() + "def"
+
+    # CamelCase variant
+    value_from_camel = {
+        "valueFrom": {
+            "secretKeyRef": {
+                "name": forbidden,
+                "key": "token",
+            }
+        }
+    }
+
+    # snake_case variant
+    value_from_snake = {
+        "value_from": {
+            "secret_key_ref": {
+                "name": forbidden,
+                "key": "token",
+            }
+        }
+    }
+
+    for payload in (value_from_camel, value_from_snake):
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            fn.set_env(name="MY_ENV", value_from=payload)
+        assert "Forbidden secret" in str(exc.value)
+        assert forbidden in str(exc.value)
+
+
+def test_set_env_allows_value_literal_and_non_secret_value_from():
+    fn = _new_job_runtime()
+
+    # Plain value should pass
+    fn.set_env(name="PLAIN_ENV", value="ok")
+
+    # Non-secret valueFrom (ConfigMap) should also pass
+    value_from_config_map = k8s_client.V1EnvVarSource(
+        config_map_key_ref=k8s_client.V1ConfigMapKeySelector(
+            name="my-configmap", key="cfg"
+        )
+    )
+    fn.set_env(name="FROM_CM", value_from=value_from_config_map)
+
+
+def test_set_env_blocks_top_level_secret_key_ref_dict():
+    fn = _new_job_runtime()
+    forbidden = _auth_prefix() + "top"
+    payload = {
+        "secretKeyRef": {"name": forbidden, "key": "k"},
+    }
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fn.set_env(name="MY_ENV", value_from=payload)
+
+
+@pytest.mark.parametrize(
+    "is_api_server,should_raise",
+    [
+        ("false", True),
+        ("true", False),
+    ],
+)
+def test_validate_not_forbidden_secret(monkeypatch, is_api_server, should_raise):
+    def _forbidden_name():
+        base = mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=""
+        )
+        return f"{base}x"
+
+    monkeypatch.setenv("MLRUN_IS_API_SERVER", is_api_server)
+
+    if should_raise:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())
+    else:
+        mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())

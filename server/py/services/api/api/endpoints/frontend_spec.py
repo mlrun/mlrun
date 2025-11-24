@@ -18,6 +18,7 @@ import fastapi
 import semver
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.runtimes
 import mlrun.runtimes.utils
 import mlrun.utils.helpers
@@ -25,7 +26,7 @@ from mlrun.config import config
 from mlrun.platforms import is_iguazio_session_cookie
 
 import framework.api.deps
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.runtimes.nuclio
 import services.api.utils.builder
 from framework.api.utils import get_allowed_path_prefixes_list
@@ -99,7 +100,7 @@ def try_get_grafana_service_url(session):
     if mlrun.mlconf.grafana_url:
         return mlrun.mlconf.grafana_url
     else:
-        iguazio_client = framework.utils.clients.iguazio.Client()
+        iguazio_client = framework.utils.clients.iguazio.v3.Client()
         return iguazio_client.try_get_grafana_service_url(session)
 
 
@@ -129,7 +130,7 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.disabled
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
         project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.enabled
-    authentication = mlrun.common.schemas.AuthenticationFeatureFlag(
+    authentication = mlrun.common.types.AuthenticationMode(
         mlrun.mlconf.httpdb.authentication.mode
     )
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled

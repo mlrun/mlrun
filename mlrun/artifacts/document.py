@@ -190,7 +190,7 @@ class MLRunLoader:
 
                 # Resolve the producer
                 if not self.producer:
-                    self.producer = mlrun.mlconf.default_project
+                    self.producer = mlrun.mlconf.active_project
                 if isinstance(self.producer, str):
                     self.producer = mlrun.get_or_create_project(self.producer)
 
@@ -359,7 +359,12 @@ class DocumentArtifact(Artifact):
         self,
         splitter: Optional["TextSplitter"] = None,  # noqa: F821
     ) -> list["Document"]:  # noqa: F821
-        from langchain.schema import Document
+        # Try new langchain 1.0+ import path first
+        try:
+            from langchain_core.documents import Document
+        except ImportError:
+            # Fall back to old langchain <1.0 import path
+            from langchain.schema import Document
 
         """
         Create LC documents from the artifact

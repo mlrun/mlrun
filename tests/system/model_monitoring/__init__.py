@@ -18,10 +18,14 @@ import pytest
 from typing_extensions import TypeAlias
 
 import mlrun
+import mlrun.common.model_monitoring.helpers
+import mlrun.model_monitoring.helpers
 from mlrun import MlrunProject
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaStream,
+    DatastoreProfilePostgreSQL,
     DatastoreProfileTDEngine,
     DatastoreProfileV3io,
 )
@@ -33,6 +37,8 @@ _DS_TYPE_TO_DS_PROFILE: _ProfilesMap = {
     "v3io": DatastoreProfileV3io,
     "taosws": DatastoreProfileTDEngine,
     "kafka_source": DatastoreProfileKafkaSource,
+    "postgresql": DatastoreProfilePostgreSQL,
+    "kafka_stream": DatastoreProfileKafkaStream,
 }
 
 
@@ -57,7 +63,10 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
     def get_tsdb_profile(cls, profile_data: dict[str, Any]) -> DatastoreProfile:
         return cls._get_profile(
             profile_data,
-            {type_: _DS_TYPE_TO_DS_PROFILE[type_] for type_ in ("v3io", "taosws")},
+            {
+                type_: _DS_TYPE_TO_DS_PROFILE[type_]
+                for type_ in ("v3io", "taosws", "postgresql")
+            },
         )
 
     @classmethod
@@ -66,7 +75,7 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
             profile_data,
             {
                 type_: _DS_TYPE_TO_DS_PROFILE[type_]
-                for type_ in ("v3io", "kafka_source")
+                for type_ in ("v3io", "kafka_source", "kafka_stream")
             },
         )
         if isinstance(profile, DatastoreProfileV3io):
@@ -93,3 +102,22 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
             tsdb_profile_name=self.mm_tsdb_profile.name,
             stream_profile_name=self.mm_stream_profile.name,
         )
+
+    def get_stream_path(self, function_name) -> (str, str):
+        """
+        :returns: tuple of container and stream_path
+        """
+        stream_profile = TestMLRunSystemModelMonitoring.get_stream_profile(
+            self.mm_stream_profile_data
+        )
+        stream_uri = mlrun.model_monitoring.helpers.get_stream_path(
+            project=self.project.name,
+            function_name=function_name,
+            profile=stream_profile,
+        )
+        _, container, stream_path = (
+            mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                stream_uri,
+            )
+        )
+        return container, stream_path

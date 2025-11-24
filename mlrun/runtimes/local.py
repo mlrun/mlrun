@@ -29,6 +29,7 @@ from os import environ, remove
 from pathlib import Path
 from subprocess import PIPE, Popen
 from sys import executable
+from typing import Optional
 
 from nuclio import Event
 
@@ -200,9 +201,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
 
-    def to_job(self, image=""):
+    def to_job(self, image="", func_name: Optional[str] = None):
         struct = self.to_dict()
         obj = KubejobRuntime.from_dict(struct)
+        obj.kind = "job"  # Ensure kind is set to 'job' for KubejobRuntime
+        if func_name:
+            obj.metadata.name = func_name
         if image:
             obj.spec.image = image
         return obj
@@ -315,15 +319,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 return context.to_dict()
 
             # if RunError was raised it means that the error was raised as part of running the function
-            # ( meaning the state was already updated to error ) therefore we just re-raise the error
             except RunError as err:
                 raise err
-            # this exception handling is for the case where we fail on pre-loading or post-running the function
-            # and the state was not updated to error yet, therefore we update the state to error and raise as RunError
             except Exception as exc:
-                # set_state here is mainly for sanity, as we will raise RunError which is expected to be handled
-                # by the caller and will set the state to error ( in `update_run_state` )
-                context.set_state(error=err_to_str(exc), commit=True)
                 logger.error(f"Run error, {traceback.format_exc()}")
                 raise RunError(
                     "Failed on pre-loading / post-running of the function"

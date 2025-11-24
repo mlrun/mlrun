@@ -15,14 +15,18 @@ import contextlib
 import io
 import pathlib
 import sys
+import tempfile
 from unittest.mock import MagicMock, Mock
 
 import pytest
+import yaml
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.errors
 import mlrun.launcher.factory
-from mlrun import new_function, new_task
+from mlrun import code_to_function, new_function, new_task
+from mlrun.run import import_function_to_dict
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -73,8 +77,30 @@ def test_noparams(rundb_mock):
     assert result.status.artifacts[0]["metadata"].get("key") == "chart", "failed to run"
 
     # verify the DF artifact was created and stored
-    df = result.artifact("mydf").as_df()
-    df.shape
+    result.artifact("mydf").as_df()
+
+
+def test_ensure_remote_run(tmp_path, monkeypatch):
+    """This test ensures that function is not running locally when the API is running on k8s
+    and context is not a workflow.
+    """
+    spec = tag_test(base_spec, "test_force_run_local")
+    spec.spec.handler = "training"
+    nb_path = f"{examples_path}/mlrun_jobs.ipynb"
+    fn = code_to_function(name="mlrun-job", filename=nb_path, kind="job")
+
+    # monkeypatch is_api_running_on_k8s to return True
+    monkeypatch.setattr(mlrun.config.Config, "is_api_running_on_k8s", lambda self: True)
+
+    result = mlrun.run_function(fn, base_task=spec, workdir=str(tmp_path))
+    print(result.to_yaml())
+
+    # kind is job and not local
+    assert result.metadata.labels["kind"] == "job"
+
+    # running remotely, thus created and not completed (as it is not running locally but waiting
+    # to be scheduled)
+    verify_state(result, expected="created")
 
 
 def test_failed_schedule_not_creating_run():
@@ -304,7 +330,7 @@ def test_args_integrity():
     assert output.find("It's, a, nice, day!") != -1, "params not detected in argv"
 
 
-def test_get_or_create_ctx_run_kind():
+def test_get_or_create_ctx_run_kind(ensure_project):
     # varify the default run kind is local
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "local"
@@ -314,7 +340,7 @@ def test_get_or_create_ctx_run_kind():
 
 
 def test_get_or_create_ctx_run_kind_local_from_function():
-    project = mlrun.get_or_create_project("dummy-project")
+    project = mlrun.get_or_create_project("dummy-project", allow_cross_project=True)
     project.set_function(
         name="func",
         func=f"{assets_path}/simple.py",
@@ -334,7 +360,7 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
 ):
     monkeypatch.setenv(
         "MLRUN_EXEC_CONFIG",
-        '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
+        '{"spec":{},"metadata":{"project":"dummy-project", "uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
     )
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "spark"
@@ -389,3 +415,111 @@ def test_code_to_function_file_include_invalid_handler_name_for_nuclio_mlrun_run
             image="mlrun/mlrun",
             kind="nuclio:mlrun",
         )
+
+
+def test_run_status_retry_updates(rundb_mock):
+    """
+    Test that the run status is updated to pending_retry when the run fails
+    """
+    function = new_function(command=f"{assets_path}/kwargs.py")
+    with pytest.raises(mlrun.runtimes.RunError) as exc:
+        function.run(
+            runspec={"spec": {"retry": {"count": 10}}},
+            handler="func_with_default",
+        )
+        assert "Run is pending retry, error: kwargs is empty" in str(exc)
+
+    result = rundb_mock.list_runs()[0]
+    assert (
+        result["status"]["state"]
+        == mlrun.common.runtimes.constants.RunStates.pending_retry
+    ), "Expected run state to be pending_retry"
+
+    with pytest.raises(mlrun.runtimes.RunError) as exc:
+        function.run(
+            runspec=result,
+            handler="func_with_default",
+        )
+        assert "Run is pending retry, error: kwargs is empty" in str(exc)
+    result = rundb_mock.list_runs()[0]
+    assert (
+        result["status"]["state"]
+        == mlrun.common.runtimes.constants.RunStates.pending_retry
+    ), "Expected run state to be pending_retry"
+
+
+@pytest.mark.parametrize(
+    "function_yaml, file, expected_exception, match",
+    [
+        # 1. Missing spec
+        (
+            {"kind": "local", "spec": {}},
+            None,
+            ValueError,
+            "command or code not specified in function spec",
+        ),
+        # 2. Path traversal in spec.command
+        (
+            {"kind": "local", "spec": {"command": "../escape.py"}},
+            None,
+            ValueError,
+            "exec file spec.command=../escape.py is outside of allowed directory",
+        ),
+        # 3. Absolute path required but relative given
+        (
+            {"kind": "local", "spec": {"command": "relative.py"}},
+            "relative.py",
+            ValueError,
+            "exec file spec.command=relative.py is relative, it must be absolute. Change working dir",
+        ),
+        # 4. File does not exist
+        (
+            {"kind": "local", "spec": {"command": "nonexistent.py"}},
+            None,
+            ValueError,
+            "no file in exec path",
+        ),
+        # 5. File exists and is valid - no exception expected
+        (
+            {"kind": "local", "spec": {"command": "success.py"}},
+            "success.py",
+            None,
+            None,
+        ),
+    ],
+)
+def test_import_function_to_dict(function_yaml, file, expected_exception, match):
+    """
+    Test the `import_function_to_dict` utility for various edge cases and valid scenarios.
+
+    This test covers:
+    - Missing command the function spec
+    - Path traversal attempts in the command field
+    - Relative path usage
+    - Nonexistent file specified in the function spec
+    - Successful import when the file exists and is valid.
+
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir_path = pathlib.Path(temp_dir)
+        yaml_path = temp_dir_path / "test.yaml"
+
+        # Create file if needed
+        if file:
+            (temp_dir_path / file).write_text("# dummy python file")
+
+        # For valid file, set absolute path
+        if function_yaml.get("spec", {}).get("command") in ["success.py"]:
+            function_yaml["spec"]["command"] = str(
+                temp_dir_path / function_yaml["spec"]["command"]
+            )
+
+        with open(yaml_path, "w") as temp_file:
+            yaml.dump(function_yaml, temp_file)
+
+        if expected_exception:
+            with pytest.raises(expected_exception, match=match):
+                import_function_to_dict(str(yaml_path))
+        else:
+            result = import_function_to_dict(str(yaml_path))
+            assert result["spec"]["command"] == str(temp_dir_path / "success.py")

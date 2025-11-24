@@ -242,12 +242,14 @@ class TestKubejobRuntime(TestRuntimeBase):
             assert pod.spec.node_name is None
 
         if affinity:
-            assert pod.spec.affinity == affinity
+            assert pod.spec.affinity == mlrun.k8s_utils.sanitize_k8s_objects(affinity)
         else:
             assert pod.spec.affinity is None
 
         if tolerations:
-            assert pod.spec.tolerations == tolerations
+            assert pod.spec.tolerations == mlrun.k8s_utils.sanitize_k8s_objects(
+                tolerations
+            )
         else:
             assert pod.spec.tolerations is None
 
@@ -434,14 +436,12 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                     {
                         "key": "some-key",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                 ],
@@ -478,7 +478,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "some-key",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                 ],
@@ -496,7 +495,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     },
                 ],
@@ -528,14 +526,16 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     }
                 ],
                 {
                     "user-node-selector": "some-value",
+                    "app.iguazio.com/lifecycle": "preemptible",
                 },
-                {},
+                create_node_affinity_with_terms(
+                    preemptible_affinity_iguazio + preemptible_affinity_cloud_provider
+                ),
             ),
             # Mode "allow" with no preemptible toleration.
             (
@@ -548,7 +548,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     }
                 ],
@@ -586,7 +585,6 @@ class TestKubejobRuntime(TestRuntimeBase):
                         "key": "cloud.google.com/gke-spot",
                         "value": "true",
                         "operator": "Equal",
-                        "toleration_seconds": None,
                         "effect": "NoSchedule",
                     }
                 ],
@@ -1016,7 +1014,7 @@ def my_func(context):
 
         assert runtime.spec.build.base_image == "mlrun/mlrun"
 
-        runtime.build_config(commands=["python -m pip install numpy"])
+        runtime.build_config(commands=["python -m pip install numpy"], overwrite=False)
         expected_commands = [
             "python -m pip install pandas",
             "python -m pip install numpy",
@@ -1030,9 +1028,7 @@ def my_func(context):
             == {}
         )
 
-        runtime.build_config(
-            commands=["python -m pip install scikit-learn"], overwrite=True
-        )
+        runtime.build_config(commands=["python -m pip install scikit-learn"])
         expected_commands = ["python -m pip install scikit-learn"]
         assert (
             deepdiff.DeepDiff(
@@ -1066,7 +1062,7 @@ def my_func(context):
             == {}
         )
 
-        runtime.build_config(requirements=["scikit-learn"], overwrite=True)
+        runtime.build_config(requirements=["scikit-learn"])
         expected_requirements = ["scikit-learn"]
         assert (
             deepdiff.DeepDiff(
@@ -1447,6 +1443,27 @@ def my_func(context):
             mlconf.function.spec.state_thresholds.default.pending_scheduled
         )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
+
+    def test_generate_runtime_env_injects_deprecated_default_project(
+        self, db: Session, k8s_secrets_mock
+    ):
+        # TODO: Remove this test in 1.12.0
+        # This test ensures that even though MLRUN_DEFAULT_PROJECT is deprecated, it is still injected into the
+        # runtime environment for backward compatibility
+        runtime = self._generate_runtime()
+
+        runobj = mlrun.model.RunObject.from_dict(
+            {
+                "metadata": {"name": "job", "project": self.project},
+            }
+        )
+
+        env = runtime._generate_runtime_env(runobj)
+
+        assert env["MLRUN_ACTIVE_PROJECT"] == self.project
+
+        # validate that the default project env var is also set for backward compatibility
+        assert env["MLRUN_DEFAULT_PROJECT"] == self.project
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

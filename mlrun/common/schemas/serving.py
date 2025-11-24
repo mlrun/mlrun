@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+
 from pydantic.v1 import BaseModel
+
+from mlrun.common.types import StrEnum
 
 from .background_task import BackgroundTaskList
 
@@ -20,3 +24,29 @@ from .background_task import BackgroundTaskList
 class DeployResponse(BaseModel):
     data: dict
     background_tasks: BackgroundTaskList
+
+
+class ModelRunnerStepData(StrEnum):
+    MODELS = "models"
+    MODEL_TO_EXECUTION_MECHANISM = "execution_mechanism_by_model_name"
+    MONITORING_DATA = "monitoring_data"
+
+
+class MonitoringData(StrEnum):
+    INPUTS = "inputs"
+    OUTPUTS = "outputs"
+    INPUT_PATH = "input_path"
+    RESULT_PATH = "result_path"
+    CREATION_STRATEGY = "creation_strategy"
+    LABELS = "labels"
+    MODEL_PATH = "model_path"
+    MODEL_ENDPOINT_UID = "model_endpoint_uid"
+    MODEL_CLASS = "model_class"
+
+
+class ModelsData(enum.Enum):
+    MODEL_CLASS = 0
+    MODEL_PARAMETERS = 1
+
+
+MAX_BATCH_JOB_DURATION = "1w"

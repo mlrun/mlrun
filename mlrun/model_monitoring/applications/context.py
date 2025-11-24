@@ -24,15 +24,12 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.feature_store as fstore
 import mlrun.feature_store.feature_set as fs
-import mlrun.features
 import mlrun.serving
 import mlrun.utils
 from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact, get_model
 from mlrun.common.model_monitoring.helpers import FeatureStats
 from mlrun.common.schemas import ModelEndpoint
-from mlrun.model_monitoring.helpers import (
-    calculate_inputs_statistics,
-)
+from mlrun.model_monitoring.helpers import calculate_inputs_statistics
 
 
 class _ArtifactsLogger(Protocol):
@@ -137,13 +134,14 @@ class MonitoringApplicationContext:
         cls,
         context: "mlrun.MLClientCtx",
         *,
+        project: Optional["mlrun.MlrunProject"] = None,
         application_name: str,
         event: dict[str, Any],
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
     ) -> "MonitoringApplicationContext":
-        project = context.get_project_object()
+        project = project or context.get_project_object()
         if not project:
             raise mlrun.errors.MLRunValueError("Could not load project from context")
         logger = context.logger
@@ -251,6 +249,7 @@ class MonitoringApplicationContext:
                 project=self.project_name,
                 endpoint_id=self.endpoint_id,
                 feature_analysis=True,
+                tsdb_metrics=False,
             )
         return self._model_endpoint
 

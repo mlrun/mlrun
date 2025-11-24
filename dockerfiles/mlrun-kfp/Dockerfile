@@ -12,45 +12,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
+ARG MLRUN_PIP_VERSION=25.0
+ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
+FROM --platform=${DOCKER_DEFAULT_PLATFORM} mlrun_common_image:${MLRUN_PYTHON_VERSION}
 
-# Update OS packages:
-RUN apt-get update && \
-    apt-get install --no-install-recommends -y \
-      build-essential \
-      cmake \
-      gcc \
-      wget \
-      git-core \
-    && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
-    && rm -rf /var/lib/apt/lists/*
+ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_PIP_VERSION
 
-ARG MLRUN_PIP_VERSION=25.0
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+RUN --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
+  python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
 
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun-kfp/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync --require-hashes locked-requirements.txt
+    uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
-COPY ./pipeline-adapters ./pipeline-adapters
-
-RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
-
-COPY . .
-
-RUN rm -rf ./server/go
+WORKDIR /tmp/mlrun
+COPY *.txt *.md *.py *.toml ./
+COPY mlrun mlrun
+COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[kfp18]
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
+    uv pip install . --python-version ${MLRUN_PYTHON_VERSION}
+
+COPY pipeline-adapters pipeline-adapters
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
+    uv pip install \
+      ./pipeline-adapters/mlrun-pipelines-kfp-common \
+      ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp] \
+      --python-version ${MLRUN_PYTHON_VERSION}
+
+# Remove server related files that are not needed
+# Remove ensurepip folders from both conda and system python
+RUN rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip /tmp/mlrun
+
+RUN chmod 777 /mlrun
+WORKDIR /mlrun

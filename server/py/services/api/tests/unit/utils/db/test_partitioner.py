@@ -31,43 +31,43 @@ import services.api.utils.db.partitioner
         (
             "DAY",
             datetime(2024, 10, 30),
-            "20241030",
+            "p20241030",
             "20241031",
         ),
         (
             "MONTH",
             datetime(2024, 10, 30),
-            "202410",
+            "p202410",
             "202411",
         ),
         (
             "YEARWEEK",
             datetime(2024, 10, 30),
-            "202444",
+            "p202444",
             "202445",
         ),
         (
             "YEARWEEK",
             datetime(2023, 1, 1),
-            "202252",
+            "p202252",
             "202301",
         ),
         (
             "YEARWEEK",
             datetime(2024, 12, 31),
-            "202501",
+            "p202501",
             "202502",
         ),
         (
             "YEARWEEK",
             datetime(2024, 1, 1),
-            "202401",
+            "p202401",
             "202402",
         ),
         (
             "YEARWEEK",
             datetime(2024, 6, 15),
-            "202424",
+            "p202424",
             "202425",
         ),
     ],
@@ -125,7 +125,7 @@ def test_drop_old_partitions(
         mock_datetime.now.return_value = test_date
         mocked_db_drop_partitions.return_value = None
 
-        services.api.utils.db.partitioner.MySQLPartitioner().drop_partitions(
+        services.api.utils.db.partitioner.DBPartitioner().drop_partitions(
             db,
             "alert_activations",
             retention_days,
@@ -133,7 +133,9 @@ def test_drop_old_partitions(
         )
 
         mocked_db_drop_partitions.assert_called_once_with(
-            db, "alert_activations", expected_cutoff_name
+            session=db,
+            table_name="alert_activations",
+            cutoff_partition_name=expected_cutoff_name,
         )
 
 
@@ -146,9 +148,9 @@ def test_drop_old_partitions(
             3,
             datetime(2024, 1, 1),
             [
-                ("20240101", "20240102"),
-                ("20240102", "20240103"),
-                ("20240103", "20240104"),
+                ("p20240101", "20240102"),
+                ("p20240102", "20240103"),
+                ("p20240103", "20240104"),
             ],
             "DAY(activation_time)",
         ),
@@ -157,8 +159,8 @@ def test_drop_old_partitions(
             2,
             datetime(2024, 1, 1),
             [
-                ("202401", "202402"),
-                ("202402", "202403"),
+                ("p202401", "202402"),
+                ("p202402", "202403"),
             ],
             "MONTH(activation_time)",
         ),
@@ -167,8 +169,8 @@ def test_drop_old_partitions(
             2,
             datetime(2024, 12, 31),
             [
-                ("202501", "202502"),
-                ("202502", "202503"),
+                ("p202501", "202502"),
+                ("p202502", "202503"),
             ],
             "YEARWEEK(activation_time, 1)",
         ),
@@ -192,7 +194,7 @@ def test_create_partitions(
         ) as mocked_db_create_partitions,
     ):
         mock_datetime.now.return_value = test_date
-        services.api.utils.db.partitioner.MySQLPartitioner().create_partitions(
+        services.api.utils.db.partitioner.DBPartitioner().create_partitions(
             db,
             "alert_activations",
             partition_number,
@@ -230,7 +232,7 @@ def test_get_interval(
             mocked_partition_expression
         )
         partition_interval = (
-            services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval(
+            services.api.utils.db.partitioner.DBPartitioner().get_partition_interval(
                 db,
                 "alert_activations",
             )

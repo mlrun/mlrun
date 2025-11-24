@@ -27,6 +27,7 @@ import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
+import framework.utils.clients.helpers
 import framework.utils.projects.remotes.follower as project_follower
 
 
@@ -40,28 +41,32 @@ class Client(
         self._api_url = mlrun.mlconf.nuclio_dashboard_url
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug("Creating project in Nuclio", project=project)
         body = self._generate_request_body(project)
-        self._post_project_to_nuclio(body)
+        self._post_project_to_nuclio(body, auth_info=auth_info)
 
     def store_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug("Storing project in Nuclio", name=name, project=project)
         body = self._generate_request_body(project)
         try:
-            self._get_project_from_nuclio(name)
+            self._get_project_from_nuclio(name, auth_info=auth_info)
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
-            self._post_project_to_nuclio(body)
+            self._post_project_to_nuclio(body, auth_info=auth_info)
         else:
-            self._put_project_to_nuclio(name, body)
+            self._put_project_to_nuclio(name, body, auth_info=auth_info)
 
     def patch_project(
         self,
@@ -69,6 +74,7 @@ class Client(
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug(
             "Patching project in Nuclio",
@@ -90,7 +96,7 @@ class Client(
             response_body.setdefault("spec", {})["description"] = project["spec"][
                 "description"
             ]
-        self._put_project_to_nuclio(name, response_body)
+        self._put_project_to_nuclio(name, response_body, auth_info=auth_info)
 
     def delete_project(
         self,
@@ -140,12 +146,12 @@ class Client(
     def list_projects(
         self,
         session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
@@ -182,6 +188,7 @@ class Client(
     def list_project_summaries(
         self,
         session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
@@ -190,7 +197,10 @@ class Client(
         raise NotImplementedError("Listing project summaries is not supported")
 
     def get_project_summary(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
         raise NotImplementedError("Get project summary is not supported")
 
@@ -229,6 +239,10 @@ class Client(
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
 
+        if mlrun.mlconf.httpdb.projects.leader == "mlrun":
+            framework.utils.clients.helpers.add_project_role_headers_if_needed(
+                path, kwargs
+            )
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness
         for kwarg in ["headers", "params"]:

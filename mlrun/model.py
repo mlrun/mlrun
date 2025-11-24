@@ -19,7 +19,7 @@ import re
 import time
 import typing
 from collections import OrderedDict
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import datetime
 from os import environ
 from typing import Any, Optional, Union
@@ -29,6 +29,7 @@ import pydantic.v1.error_wrappers
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.notification
+import mlrun.common.secrets
 import mlrun.utils.regex
 
 from .utils import (
@@ -221,15 +222,26 @@ class ModelObj:
 
     @classmethod
     def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
+        cls,
+        struct=None,
+        fields=None,
+        deprecated_fields: Optional[dict] = None,
+        init_with_params: bool = False,
     ):
         """create an object from a python dictionary"""
-        struct = {} if struct is None else struct
+        struct = {} if struct is None else copy(struct)
         deprecated_fields = deprecated_fields or {}
         fields = fields or cls._dict_fields
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
-        new_obj = cls()
+
+        if init_with_params:
+            kwargs = {field: struct.pop(field, None) for field in fields}
+            kwargs.pop("self", None)
+            new_obj = cls(**kwargs)
+        else:
+            new_obj = cls()
+
         if struct:
             # we are looping over the fields to save the same order and behavior in which the class
             # initialize the attributes
@@ -656,7 +668,7 @@ class ImageBuilder(ModelObj):
         """
         requirements = requirements or []
         self._verify_list(requirements, "requirements")
-        resolved_requirements = self._resolve_requirements(
+        resolved_requirements = self.resolve_requirements(
             requirements, requirements_file
         )
         requirements = self.requirements or [] if not overwrite else []
@@ -669,7 +681,7 @@ class ImageBuilder(ModelObj):
         self.requirements = requirements
 
     @staticmethod
-    def _resolve_requirements(requirements: list, requirements_file: str = "") -> list:
+    def resolve_requirements(requirements: list, requirements_file: str = "") -> list:
         requirements = requirements or []
         requirements_to_resolve = []
 
@@ -924,6 +936,41 @@ class HyperParamOptions(ModelObj):
             )
 
 
+class RetryBackoff(ModelObj):
+    """Backoff strategy for retries."""
+
+    def __init__(self, base_delay: Optional[str] = None):
+        # The base_delay time string must conform to timelength python package standards and be at least
+        # mlrun.mlconf.function.spec.retry.backoff.min_base_delay (e.g. 1000s, 1 hour 30m, 1h etc.).
+        self.base_delay = (
+            base_delay or mlrun.mlconf.function.spec.retry.backoff.default_base_delay
+        )
+
+
+class Retry(ModelObj):
+    """Retry configuration"""
+
+    def __init__(
+        self,
+        count: int = 0,
+        backoff: typing.Union[RetryBackoff, dict] = None,
+    ):
+        # Set to None if count is 0 to eliminate the retry configuration from the dictionary representation.
+        self.count = count or None
+        self.backoff = backoff
+
+    @property
+    def backoff(self) -> Optional[RetryBackoff]:
+        if not self.count:
+            # Retry is not configured, return None
+            return None
+        return self._backoff
+
+    @backoff.setter
+    def backoff(self, backoff):
+        self._backoff = self._verify_dict(backoff, "backoff", RetryBackoff)
+
+
 class RunSpec(ModelObj):
     """Run specification"""
 
@@ -960,6 +1007,7 @@ class RunSpec(ModelObj):
         node_selector=None,
         tolerations=None,
         affinity=None,
+        retry=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -1000,6 +1048,7 @@ class RunSpec(ModelObj):
         self.node_selector = node_selector or {}
         self.tolerations = tolerations or {}
         self.affinity = affinity or {}
+        self.retry = retry or {}
 
     def _serialize_field(
         self, struct: dict, field_name: Optional[str] = None, strip: bool = False
@@ -1201,6 +1250,14 @@ class RunSpec(ModelObj):
         self._verify_dict(state_thresholds, "state_thresholds")
         self._state_thresholds = state_thresholds
 
+    @property
+    def retry(self) -> Retry:
+        return self._retry
+
+    @retry.setter
+    def retry(self, retry: typing.Union[Retry, dict]):
+        self._retry = self._verify_dict(retry, "retry", Retry)
+
     def extract_type_hints_from_inputs(self):
         """
         This method extracts the type hints from the input keys in the input dictionary.
@@ -1318,6 +1375,8 @@ class RunStatus(ModelObj):
         reason: Optional[str] = None,
         notifications: Optional[dict[str, Notification]] = None,
         artifact_uris: Optional[dict[str, str]] = None,
+        retry_count: Optional[int] = None,
+        retries: Optional[list[dict]] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1335,6 +1394,8 @@ class RunStatus(ModelObj):
         self.notifications = notifications or {}
         # Artifact key -> URI mapping, since the full artifacts are not stored in the runs DB table
         self._artifact_uris = artifact_uris or {}
+        self._retry_count = retry_count or None
+        self._retries = retries or []
 
     @classmethod
     def from_dict(
@@ -1387,6 +1448,34 @@ class RunStatus(ModelObj):
             resolved_artifact_uris = artifact_uris
 
         self._artifact_uris = resolved_artifact_uris
+
+    @property
+    def retry_count(self) -> Optional[int]:
+        """
+        The number of retries that were made for this run.
+        """
+        return self._retry_count
+
+    @retry_count.setter
+    def retry_count(self, retry_count: int):
+        """
+        Set the number of retries that were made for this run.
+        :param retry_count: The number of retries.
+        """
+        self._retry_count = retry_count
+
+    @property
+    def retries(self) -> list[dict]:
+        """List of metadata for each retry attempt."""
+        return self._retries
+
+    @retries.setter
+    def retries(self, retries: list[dict]):
+        """
+        Set the list of retry attempt metadata.
+        :param retries: A list of dictionaries, each representing a retry attempt.
+        """
+        self._retries = retries
 
     def is_failed(self) -> Optional[bool]:
         """
@@ -1528,7 +1617,12 @@ class RunTemplate(ModelObj):
 
         :returns: The RunTemplate object
         """
-
+        if kind == "azure_vault" and isinstance(source, dict):
+            candidate_secret_name = (source.get("k8s_secret") or "").strip()
+            if candidate_secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(
+                    candidate_secret_name
+                )
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.project, "secrets": source}
 
@@ -2015,6 +2109,7 @@ def new_task(
     secrets=None,
     base=None,
     returns=None,
+    retry=None,
 ) -> RunTemplate:
     """Creates a new task
 
@@ -2050,6 +2145,7 @@ def new_task(
                             * A dictionary of configurations to use when logging. Further info per object type and
                               artifact type can be given there. The artifact key must appear in the dictionary as
                               "key": "the_key".
+    :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
     """
 
     if base:
@@ -2075,6 +2171,7 @@ def new_task(
     run.spec.hyper_param_options.selector = (
         selector or run.spec.hyper_param_options.selector
     )
+    run.spec.retry = retry or run.spec.retry
     return run
 
 
@@ -2155,7 +2252,6 @@ class DataSource(ModelObj):
         "max_age",
         "start_time",
         "end_time",
-        "credentials_prefix",
     ]
     kind = None
 
@@ -2218,7 +2314,6 @@ class DataTargetBase(ModelObj):
         "storage_options",
         "run_id",
         "schema",
-        "credentials_prefix",
     ]
 
     @classmethod
@@ -2253,7 +2348,6 @@ class DataTargetBase(ModelObj):
         flush_after_seconds: Optional[int] = None,
         storage_options: Optional[dict[str, str]] = None,
         schema: Optional[dict[str, Any]] = None,
-        credentials_prefix=None,
     ):
         self.name = name
         self.kind: str = kind
@@ -2270,7 +2364,6 @@ class DataTargetBase(ModelObj):
         self.storage_options = storage_options
         self.run_id = None
         self.schema = schema
-        self.credentials_prefix = credentials_prefix
 
 
 class FeatureSetProducer(ModelObj):
@@ -2303,7 +2396,6 @@ class DataTarget(DataTargetBase):
         "key_bucketing_number",
         "partition_cols",
         "time_partitioning_granularity",
-        "credentials_prefix",
     ]
 
     def __init__(

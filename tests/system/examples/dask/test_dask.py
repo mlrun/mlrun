@@ -112,9 +112,6 @@ class TestDask(TestMLRunSystem):
             name=f"{dask_function.metadata.name}-main",
             project=self.project_name,
             labels={
-                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
-                    "V3IO_USERNAME"
-                ],
                 mlrun_constants.MLRunInternalLabels.owner: self._test_env[
                     "V3IO_USERNAME"
                 ],
@@ -180,7 +177,7 @@ class TestDask(TestMLRunSystem):
             filename=str(self.assets_path / "dask_function.py"),
         ).apply(mount_v3io())
 
-        dask_function.spec.image = "mlrun/ml-base"
+        dask_function.spec.image = "mlrun/mlrun"
         dask_function.spec.remote = True
         dask_function.spec.replicas = 1
         dask_function.spec.service_type = "NodePort"

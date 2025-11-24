@@ -55,6 +55,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         runtime: mlrun.runtimes.BaseRuntime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         raise NotImplementedError(
             "Execution of dask jobs is done locally by the dask client"
@@ -324,12 +325,8 @@ def enrich_dask_cluster(
     meta = function.metadata
     spec.remote = True
 
-    image = (
-        function.full_image_path(
-            client_version=client_version, client_python_version=client_python_version
-        )
-        # TODO: we might never enter here, since running a function requires defining an image
-        or "daskdev/dask:latest"
+    image = function.full_image_path(
+        client_version=client_version, client_python_version=client_python_version
     )
     env = function.generate_runtime_k8s_env()
 

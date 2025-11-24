@@ -228,6 +228,21 @@ func (s *Server) StartLog(ctx context.Context,
 		return s.successfulBaseResponse(), nil
 	}
 
+	// create a log file for the run so the legacy log collector will not try collect logs for it on deletion
+	logFilePath := s.resolveRunLogFilePath(request.ProjectName, request.RunUID)
+	if err := common.EnsureFileExists(logFilePath); err != nil {
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to ensure log file for run",
+			"runUID", request.RunUID,
+			"projectName", request.ProjectName,
+			"logFilePath", logFilePath)
+		return &protologcollector.BaseResponse{
+			Success:      false,
+			ErrorCode:    common.ErrCodeInternal,
+			ErrorMessage: err.Error(),
+		}, err
+	}
+
 	var pod v1.Pod
 
 	s.Logger.DebugWithCtx(ctx, "Getting run pod using label selector", "selector", request.Selector)
@@ -1243,8 +1258,14 @@ func (s *Server) successfulBaseResponse() *protologcollector.BaseResponse {
 
 func (s *Server) deleteRunLogFiles(ctx context.Context, runUID, project string) error {
 
-	// get all files that have the runUID as a prefix
 	pattern := path.Join(s.baseDir, project, runUID)
+
+	// guard to not delete all project log files
+	if len(runUID) > 0 {
+
+		// get all files that have the runUID as a prefix
+		pattern += "*"
+	}
 	files, err := filepath.Glob(pattern)
 	if err != nil {
 		return errors.Wrap(err, "Failed to get log files")

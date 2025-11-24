@@ -53,6 +53,7 @@ class RunStatuses(StrEnum):
     error = "Error"  # available only on KFP 1.8 or lower
     running = "Running"
     unknown = "Unknown"
+    terminating = "Terminating"  # available only on KFP 1.8 or lower
 
     # States available only on KFP 2.0
     runtime_state_unspecified = "Runtime_State_Unspecified"
@@ -117,4 +118,23 @@ class RunStatuses(StrEnum):
         return cls.stable_statuses() + [
             RunStatuses.unknown,
             RunStatuses.runtime_state_unspecified,
+        ]
+
+    @classmethod
+    def terminable_statuses(cls):
+        return [
+            RunStatuses.running,
+            RunStatuses.pending,
+            RunStatuses.paused,
+            RunStatuses.runtime_state_unspecified,
+            RunStatuses.canceling,
+            RunStatuses.terminating,
+        ]
+
+    @classmethod
+    def unsuccessful_statuses(cls):
+        return [
+            status
+            for status in cls.all()
+            if status not in cls.transient_statuses() + [RunStatuses.succeeded]
         ]

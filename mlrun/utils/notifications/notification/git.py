@@ -16,13 +16,11 @@ import json
 import os
 import typing
 
-import aiohttp
-
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.lists
 
-from .base import NotificationBase
+from .base import NotificationBase, TimedHTTPClient
 
 
 class GitNotification(NotificationBase):
@@ -144,11 +142,11 @@ class GitNotification(NotificationBase):
                     issue = event["number"]
             headers = {
                 "Accept": "application/vnd.github.v3+json",
-                "Authorization": f"token {token}",
+                mlrun.common.schemas.HeaderNames.authorization: f"token {token}",
             }
             url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
 
-        async with aiohttp.ClientSession() as session:
+        async with TimedHTTPClient().session() as session:
             resp = await session.post(url, headers=headers, json={"body": message})
             if not resp.ok:
                 resp_text = await resp.text()

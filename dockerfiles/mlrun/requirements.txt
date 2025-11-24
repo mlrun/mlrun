@@ -1,6 +1,6 @@
 matplotlib~=3.5
-scipy~=1.13.0
-scikit-learn~=1.5.1
+scipy~=1.16.3
+scikit-learn~=1.5.2
 seaborn~=0.11.0
 scikit-plot~=0.3.7
 mpi4py~=3.1
@@ -8,3 +8,7 @@ mpi4py~=3.1
 pymysql~=1.1
 # consumed when training a model using PyTorch
 tqdm~=4.66
+# dask related packages:
+dask-kubernetes~=0.11.0
+dask-ml~=2024.4.4
+dask[complete]==2024.8

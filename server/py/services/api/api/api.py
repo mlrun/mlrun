@@ -39,21 +39,21 @@ from services.api.api.endpoints import (
     grafana_proxy,
     hub,
     internal,
-    jobs,
     logs,
     model_endpoints,
     model_monitoring,
     nuclio,
     operations,
     pipelines,
+    project_secrets,
     projects,
     projects_v2,
     runs,
     runtime_resources,
     schedules,
-    secrets,
     submit,
     tags,
+    user_secrets,
     workflows,
 )
 
@@ -138,14 +138,18 @@ api_router.include_router(
     dependencies=[Depends(deps.authenticate_request)],
 )
 api_router.include_router(
-    secrets.router,
-    tags=["secrets"],
+    project_secrets.router,
+    tags=["project-secrets"],
     dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    user_secrets.router,
+    tags=["user-secrets"],
+    dependencies=[Depends(deps.authenticate_request), Depends(deps.iguazio_v4_only)],
 )
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
 api_router.include_router(model_monitoring.router, tags=["model-monitoring"])
-api_router.include_router(jobs.router, tags=["jobs"])
 api_router.include_router(
     hub.router,
     tags=["hub"],

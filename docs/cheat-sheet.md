@@ -1,7 +1,10 @@
 (cheat-sheet)=
 # MLRun cheat sheet
 
-## Table of contents
+The cheat sheet provides simple code examples of many of MLRun's features.
+
+**In this section**
+
 - [MLRun setup](#mlrun-setup)
 - [MLRun projects](#mlrun-projects)
     - [General workflow](#general-workflow)
@@ -88,7 +91,7 @@ project.run(name="training_pipeline", arguments={...})
 ```
 
 ### Git integration
-Docs: [Create and use functions](./runtimes/create-and-use-functions.ipynb#multiple-source-files)
+Docs: [Create and use functions](./runtimes/create-and-use-functions.ipynb#create-a-function-with-multiple-source-files)
 
 An MLRun project can be backed by a Git repo. Functions consume the repo and pull the code either: once when Docker image is built (production workflow); or at runtime (development workflow).
 
@@ -257,7 +260,7 @@ mpijob.run()
 
 ```python
 project = mlrun.get_or_create_project("dask")
-dask = project.set_function(name="my-dask", kind="dask", image="mlrun/ml-base")
+dask = project.set_function(name="my-dask", kind="dask", image="mlrun/mlrun")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = "NodePort"
@@ -286,9 +289,48 @@ spark.with_igz_spark()
 spark.spec.replicas = 2
 
 spark.deploy()  # build image
-spark.run(artifact_path="/User")  # run spark job
+spark.run(output_path="/User")  # run spark job
 ```
 
+#### Databricks Runtime
+
+```python
+import os
+import mlrun
+
+
+def add_databricks_env(function):
+    job_env = {
+        "DATABRICKS_HOST": os.environ["DATABRICKS_HOST"],
+        "DATABRICKS_CLUSTER_ID": os.environ.get("DATABRICKS_CLUSTER_ID"),  #  optional
+    }
+
+    for name, val in job_env.items():
+        function.spec.env.append({"name": name, "value": val})
+
+
+project_name = "databricks-runtime-project"
+project = mlrun.get_or_create_project(project_name, context="./", user_project=False)
+secrets = {"DATABRICKS_TOKEN": os.environ["DATABRICKS_TOKEN"]}
+project.set_secrets(secrets)
+
+function = mlrun.code_to_function(
+    name="function-with-args",
+    kind="databricks",
+    project=project_name,
+    filename="run_etl.py",
+    image="mlrun/mlrun",
+    handler="run",
+)
+add_databricks_env(function=function)
+
+run = function.run(
+    params={
+        "param1": "value1",
+        "task_parameters": {"timeout_minutes": 15},
+    },
+)
+```
 ### Resource management
 Docs: [Managing job resources](./runtimes/configuring-job-resources.md)
 
@@ -1042,7 +1084,7 @@ feature_service = fvec.get_online_feature_service().feature_service.get(
 ```
 
 ## Real-time pipelines
-Docs: [Real-time serving pipelines](./serving/serving-graph.md), [Real-time pipeline use cases](./serving/use-cases.md), [Graph concepts and state machine](./serving/realtime-pipelines.ipynb), [Model serving graph](./serving/model-serving-get-started.ipynb), [Writing custom steps](./serving/writing-custom-steps.ipynb)
+Docs: {ref}`serving-graph`, {ref}`model-serve-get-started`, {ref}`use-cases-serving`, {ref}`building-graphs`, {ref}`deploying-graphs`, {ref}`demos-serving`, {ref}`advanced-graph-cfg`.
 
 ### Definitions
 
@@ -1125,7 +1167,7 @@ fn.invoke("/v2/models/model1/infer", body={"inputs": [5]})
 
 ### Custom model serving class
 
-Docs: [Model serving graph](./serving/model-serving-get-started.ipynb)
+Docs: {ref}`writing-custom-steps`
 
 ```python
 from cloudpickle import load
@@ -1250,7 +1292,7 @@ Docs: [Running the workers using Dask](./hyper-params.ipynb#running-the-workers-
 # Create Dask cluster
 project = mlrun.get_or_create_project(dask - cluster)
 dask_cluster = project.set_function(
-    name="dask-cluster", kind="dask", image="mlrun/ml-base"
+    name="dask-cluster", kind="dask", image="mlrun/mlrun"
 )
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard

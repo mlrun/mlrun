@@ -62,7 +62,19 @@ def build_function(
         launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
         # When runtime is nuclio, building means we deploy the function and not just build its image,
         # so we need full enrichment
-        launcher.enrich_runtime(runtime=fn, full=is_nuclio_deploy)
+        launcher.enrich_runtime(
+            runtime=fn, full=is_nuclio_deploy, client_version=client_version
+        )
+
+        # only validate
+        framework.api.utils.apply_enrichment_and_validation_on_function(
+            function=fn,
+            auth_info=auth_info,
+            ensure_auth=False,
+            perform_auto_mount=False,
+            mask_sensitive_data=False,
+            ensure_security_context=False,
+        )
 
         if is_nuclio_deploy:
             fn: mlrun.runtimes.RemoteRuntime

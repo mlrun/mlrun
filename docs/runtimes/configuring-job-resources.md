@@ -1,8 +1,7 @@
 (configuring-job-resources)=
 # Configuring runs and functions
 
-MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),
-preferences, and pod priorities in the logical function object. You can also configure how MLRun prevents stuck pods.
+MLRun orchestrates serverless functions over Kubernetes: you can specify the resource requirements (CPU, memory, GPUs), preferences, and pod priorities in the logical function object. You can also configure how MLRun prevents stuck pods.
 All of these are used during the function deployment.
 
 Configuring runs and functions is relevant for all supported cloud platforms.
@@ -41,7 +40,9 @@ fn.set_envs(file_path="env.txt")
 
 Some runtimes can scale horizontally, configured either as a number of replicas:
 ```python
-training_function = mlrun.set_function(
+project = mlrun.get_or_create_project("myproj")
+
+training_function = project.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -81,7 +82,9 @@ See more details in the [Kubernetes documentation: Resource Management for Pods 
 Examples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
 ```python
-training_function = mlrun.set_function(
+project = mlrun.get_or_create_project("myproj")
+
+training_function = project.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -138,7 +141,7 @@ Configure volumes attached to a function by using the `apply` function modifier 
 
 For example, using v3io storage:
 ```
-# import the training function from the Function Hub (hub://)
+# import the training function from the MLRun Hub (hub://)
 train = mlrun.import_function('hub://sklearn_classifier')# Import the function:
 open_archive_function = mlrun.import_function("hub://open_archive")
 
@@ -190,6 +193,9 @@ MLRun aims to hide this complexity from the user by creating a standard interfac
 it to the underlying Kubernetes constructs per the deployment type.<br>
 You still have the option of manually setting these low-level configurations, given that you know the specific configurations that are needed.
 
+MLRun applies preemptible-related scheduling constraints to the run object at execution time without modifying the function definition.
+Original scheduling constraints remain on the function, but actual execution may use different constraints based on the function's preemption mode.
+
 ### Choosing the node type
 
 When deploying your MLRun jobs to specific nodes, take into consideration that on-demand 
@@ -237,8 +243,9 @@ And another function that can only be scheduled on preemptible nodes:
 ```
 import mlrun
 import os
+project = mlrun.get_or_create_project("myproj")
 
-train_fn = mlrun.set_function('training', 
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_preemption_mode(mode="constrain") 
@@ -252,7 +259,9 @@ the pod/function runs only on non-preemptible (on-demand) nodes:
 ```
 import mlrun
 import os
-train_fn = mlrun.set_function('training', 
+project = mlrun.get_or_create_project("myproj")
+
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name="default-priority")
@@ -286,7 +295,9 @@ For example:
 ```
 import mlrun
 import os
-train_fn = mlrun.set_function('training', 
+project = mlrun.get_or_create_project("myproj")
+
+train_fn = project.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name={value})
@@ -484,7 +495,7 @@ The four states and their default thresholds are:
 'pending_scheduled': '1h', #Scheduled and pending and therefore consumes resources
 'pending_not_scheduled': '-1', #Scheduled but not pending, can continue to wait for resources
 'image_pull_backoff': '1h', #Container running in a pod fails to pull the required image from a container registry
-'running': '24h' #Job is running  
+'executing': '24h' #Job is running  
 ```
 
 The thresholds are time strings constructed of value and scale pairs (e.g. "30 minutes 5h 1day"). 

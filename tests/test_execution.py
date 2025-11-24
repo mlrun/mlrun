@@ -21,6 +21,7 @@ import pytest
 import mlrun
 import mlrun.artifacts
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.errors
 from mlrun import new_task
 from mlrun_pipelines.models import PipelineRun
@@ -91,7 +92,7 @@ def test_local_context(rundb_mock):
         context.set_annotation("annotation-key", "annotation-value")
         context._set_input("input-key", "input-url")
 
-        artifact = context.get_cached_artifact("xx")
+        artifact = context.get_artifact("xx")
         artifact.format = "z"
         context.update_artifact(artifact)
 
@@ -125,7 +126,7 @@ def test_local_context(rundb_mock):
     assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
 
 
-def test_context_from_dict_when_start_time_is_string():
+def test_context_from_dict_when_start_time_is_string(ensure_project):
     context = mlrun.get_or_create_ctx("ctx")
     context_dict = context.to_dict()
     context = mlrun.MLClientCtx.from_dict(context_dict)
@@ -254,6 +255,79 @@ def test_artifact_owner(rundb_mock, owner):
 
     artifact = context.log_artifact("artifact", body="123")
     assert artifact.producer.get("owner") == owner
+
+
+@pytest.mark.parametrize(
+    "max_retries, retry_count, expected_state",
+    [
+        (3, 0, mlrun.common.runtimes.constants.RunStates.pending_retry),
+        (3, 1, mlrun.common.runtimes.constants.RunStates.pending_retry),
+        (3, 2, mlrun.common.runtimes.constants.RunStates.pending_retry),
+        (3, 3, mlrun.common.runtimes.constants.RunStates.error),
+        (0, 0, mlrun.common.runtimes.constants.RunStates.error),
+        (0, 1, mlrun.common.runtimes.constants.RunStates.error),
+    ],
+)
+def test_set_state_pending_retry(rundb_mock, max_retries, retry_count, expected_state):
+    project_name = "test_context_pending_retry"
+    run_dict = _generate_run_dict()
+    run_dict["spec"]["retry"] = {"count": max_retries}
+    run = mlrun.run.RunObject.from_dict(run_dict)
+    context = mlrun.MLClientCtx.from_dict(run.to_dict())
+    context._retry_count = retry_count
+
+    db = mlrun.get_run_db()
+    run = db.read_run(context._uid, project=project_name)
+    assert run["status"]["state"] == "running", "run status not updated in db"
+
+    context.set_state(error="mock error", commit=False)
+
+    assert context._state == expected_state, "task state was not set correctly"
+
+
+@pytest.mark.parametrize(
+    "active_project, project_name, should_raise, expected_project",
+    [
+        (
+            "",
+            None,
+            True,
+            None,
+        ),  # No project and no active project -> should raise error
+        (
+            "myproject",
+            None,
+            False,
+            "myproject",
+        ),  # active_project is set -> should not raise error
+        (
+            "",
+            "otherproject",
+            False,
+            "otherproject",
+        ),  # project argument is set -> should not raise error
+        (
+            "myproject",
+            "otherproject",
+            False,
+            "otherproject",
+        ),  # active_project and project argument are set -> should not raise error and use project argument
+    ],
+)
+def test_get_or_create_ctx_project_handling(
+    monkeypatch, active_project, project_name, should_raise, expected_project
+):
+    monkeypatch.setattr(mlrun.mlconf, "active_project", active_project)
+    if should_raise:
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            mlrun.get_or_create_ctx("test")
+    else:
+        if project_name:
+            ctx = mlrun.get_or_create_ctx("test", project=project_name)
+            assert ctx._project == expected_project
+        else:
+            ctx = mlrun.get_or_create_ctx("test")
+            assert ctx._project == expected_project
 
 
 def _generate_run_dict():

@@ -19,6 +19,7 @@ from typing import Any, Union
 
 from kfp_server_api.models.api_run_detail import ApiRunDetail
 
+from mlrun.common.types import StrEnum
 from mlrun_pipelines.common.helpers import FlexibleMapper
 from mlrun_pipelines.imports import ContainerOp
 
@@ -200,3 +201,11 @@ class FilterOperations(IntEnum):
     GREATER_THAN_EQUALS = 5
     LESS_THAN = 6
     LESS_THAN_EQUALS = 7
+    IS_SUBSTRING = 9
+    IN = 8
+    NOT_IN = 10
+
+
+class FilterFields(StrEnum):
+    CREATED_AT = "created_at"
+    EXPERIMENT_ID = "experiment_id"

@@ -370,7 +370,7 @@ async def ingest_feature_set(
     ingest_parameters: Optional[
         mlrun.common.schemas.FeatureSetIngestInput
     ] = mlrun.common.schemas.FeatureSetIngestInput(),
-    username: str = Header(None, alias="x-remote-user"),
+    username: str = Header(None, alias=mlrun.common.schemas.HeaderNames.remote_user),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -474,88 +474,6 @@ async def ingest_feature_set(
     return mlrun.common.schemas.FeatureSetIngestOutput(
         feature_set=result_feature_set, run_object=run_params.to_dict()
     )
-
-
-# TODO: Remove in 1.9.0
-@router.get(
-    "/features",
-    response_model=mlrun.common.schemas.FeaturesOutput,
-    deprecated=True,
-    description="/features v1 is deprecated in 1.7.0 and will be removed in 1.9.0. Use v2 instead.",
-)
-async def list_features(
-    project: str,
-    name: Optional[str] = None,
-    tag: Optional[str] = None,
-    entities: list[str] = Query(None, alias="entity"),
-    labels: list[str] = Query(None, alias="label"),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
-    )
-    features = await run_in_threadpool(
-        services.api.crud.FeatureStore().list_features,
-        db_session,
-        project,
-        name,
-        tag,
-        entities,
-        labels,
-    )
-    features = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.feature,
-        features.features,
-        lambda feature_list_output: (
-            feature_list_output.feature_set_digest.metadata.project,
-            feature_list_output.feature.name,
-        ),
-        auth_info,
-    )
-    return mlrun.common.schemas.FeaturesOutput(features=features)
-
-
-# TODO: Remove in 1.9.0
-@router.get(
-    "/entities",
-    response_model=mlrun.common.schemas.EntitiesOutput,
-    deprecated=True,
-    description="/entities v1 is deprecated in 1.7.0 and will be removed in 1.9.0. Use v2 instead.",
-)
-async def list_entities(
-    project: str,
-    name: Optional[str] = None,
-    tag: Optional[str] = None,
-    labels: list[str] = Query(None, alias="label"),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
-    )
-    entities = await run_in_threadpool(
-        services.api.crud.FeatureStore().list_entities,
-        db_session,
-        project,
-        name,
-        tag,
-        labels,
-    )
-    entities = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.entity,
-        entities.entities,
-        lambda entity_list_output: (
-            entity_list_output.feature_set_digest.metadata.project,
-            entity_list_output.entity.name,
-        ),
-        auth_info,
-    )
-    return mlrun.common.schemas.EntitiesOutput(entities=entities)
 
 
 @router.post(

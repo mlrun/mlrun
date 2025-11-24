@@ -1,14 +1,12 @@
 (install-setup-guide)=
 # Installation and setup guide <!-- omit in toc -->
 
-This guide outlines the steps for installing and running MLRun. 
+This guide outlines the steps for installing the MLRun service and client and for running MLRun. 
 
 MLRun has two main components, the service and the client (SDK and UI):
 
 - The MLRun service can orchestrate and integrate with other open source frameworks, as shown in the following diagram. 
 - The MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
-
-This release of MLRun supports only Python 3.9 for both the server and the client. 
 
 <p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="700"/></p><br>
 
@@ -61,6 +59,10 @@ By default, MLRun assigns the root user to MLRun runtimes and pods. You can impr
 which is implemented by Iguazio during installation, and applied system-wide:
 - Override: Use the user id of the user that triggered the current run or use the `nogroupid` for group id. Requires Iguazio v3.5.1.
 - Disabled: Security context is not auto applied (the system applies the root user). (default)
+
+
+<br>
+<img class="dark-light" src="_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
 
 ```{toctree}
 :hidden:

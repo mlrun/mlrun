@@ -15,16 +15,18 @@
 from collections.abc import Iterator
 from unittest.mock import patch
 
+import pydantic.error_wrappers
 import pytest
 
 import mlrun
 import mlrun.common.schemas
-import mlrun.errors
 from mlrun.datastore.datastore_profile import (
     _DATASTORE_TYPE_TO_PROFILE_CLASS,
     DatastoreProfile,
     DatastoreProfile2Json,
+    DatastoreProfileKafkaStream,
     DatastoreProfileKafkaTarget,
+    DatastoreProfilePostgreSQL,
     DatastoreProfileTDEngine,
     DatastoreProfileV3io,
     datastore_profile_read,
@@ -40,43 +42,38 @@ def test_kafka_target_datastore():
     assert profile.name == "my_target"
     assert profile.topic == "my-topic"
     assert profile.brokers == "localhost:9092"
-    assert profile.bootstrap_servers is None
 
 
-def test_kafka_target_datastore_bootstrap_servers_bwc():
-    with pytest.warns(
-        FutureWarning,
-        match="'bootstrap_servers' parameter is deprecated in 1.7.0 "
-        "and will be removed in 1.9.0, use 'brokers' instead.",
-    ):
-        profile = DatastoreProfileKafkaTarget(
-            name="my_target", topic="my-topic", bootstrap_servers="localhost:9092"
-        )
-    assert profile.name == "my_target"
-    assert profile.topic == "my-topic"
+def test_kafka_stream_datastore() -> None:
+    profile = DatastoreProfileKafkaStream(
+        name="my_stream", topics=["my-topic"], brokers="localhost:9092"
+    )
+    assert profile.name == "my_stream"
+    assert profile.get_topic() == "my-topic"
     assert profile.brokers == "localhost:9092"
-    assert profile.bootstrap_servers is None
 
 
-def test_kafka_target_datastore_no_brokers():
+@pytest.mark.parametrize(
+    ("brokers_kwargs", "expected_err_msg"),
+    [
+        ({"brokers": None}, "none is not an allowed value"),
+        ({}, "field required"),
+    ],
+)
+@pytest.mark.parametrize(
+    "profile_class", [DatastoreProfileKafkaTarget, DatastoreProfileKafkaStream]
+)
+def test_kafka_target_datastore_no_brokers(
+    brokers_kwargs: dict, expected_err_msg: str, profile_class: type
+) -> None:
     with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="DatastoreProfileKafkaTarget requires the 'brokers' field to be set",
+        pydantic.error_wrappers.ValidationError,
+        match=expected_err_msg,
     ):
-        DatastoreProfileKafkaTarget(name="my_target", topic="my-topic")
-
-
-def test_kafka_target_datastore_brokers_and_bootstrap_servers():
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="DatastoreProfileKafkaTarget cannot be created with both 'brokers' and 'bootstrap_servers'",
-    ):
-        DatastoreProfileKafkaTarget(
-            name="my_target",
-            topic="my-topic",
-            brokers="localhost:9092",
-            bootstrap_servers="localhost:9092",
-        )
+        if isinstance(profile_class, DatastoreProfileKafkaStream):
+            profile_class(name="my_stream", topics=["my-topic"], **brokers_kwargs)
+        else:
+            profile_class(name="my_target", topic="my-topic", **brokers_kwargs)
 
 
 @pytest.fixture
@@ -146,9 +143,77 @@ class TestTDEngineProfile:
         assert profile_read.password == "1234", "Wrong password"
 
 
-def test_datastore_type_map() -> None:
-    assert set(_DATASTORE_TYPE_TO_PROFILE_CLASS.values()) == set(
-        DatastoreProfile.__subclasses__()
+class TestDatastoreProfilePostgreSQL:
+    @staticmethod
+    def test_from_dsn() -> None:
+        dsn = "postgresql://postgres:password123@localhost:5432/mydb"
+        profile_name = "test-timescaledb"
+        profile = DatastoreProfilePostgreSQL.from_dsn(
+            dsn=dsn, profile_name=profile_name
+        )
+        assert profile.type == "postgresql"
+        assert profile.user == "postgres"
+        assert profile.password == "password123"
+        assert profile.host == "localhost"
+        assert profile.port == 5432
+        assert profile.database == "mydb"
+        assert (
+            profile.dsn() == dsn
+        ), "Converting the profile back to DSN did not work as expected"
+
+    @staticmethod
+    def test_from_dsn_without_database() -> None:
+        dsn = "postgresql://postgres:password123@localhost:5432"
+        profile_name = "test-timescaledb-no-db"
+        profile = DatastoreProfilePostgreSQL.from_dsn(
+            dsn=dsn, profile_name=profile_name
+        )
+        assert profile.type == "postgresql"
+        assert profile.user == "postgres"
+        assert profile.password == "password123"
+        assert profile.host == "localhost"
+        assert profile.port == 5432
+        assert profile.database == "postgres"  # Should default to "postgres"
+
+    @staticmethod
+    def test_datastore_profile_read_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+        profile_name = "test-profile"
+        project_name = "test-project"
+
+        public_profile = mlrun.common.schemas.DatastoreProfile(
+            name=profile_name,
+            type="postgresql",
+            object='{"type":"cG9zdGdyZXNxbA==","name":"dGltZXNjYWxlZGIx","user":"cG9zdGdyZXM=","host":"bG9jYWxob3N0","port":"NTQzMg==","database":"bXlkYg=="}',
+            private=None,
+            project=project_name,
+        )
+
+        with patch(
+            "mlrun.db.nopdb.NopDB.get_datastore_profile", return_value=public_profile
+        ):
+            monkeypatch.setenv(
+                f"datastore-profiles.{project_name}.{profile_name}",
+                '{"password": "cGFzc3dvcmQxMjM="}',
+            )
+            profile_read = datastore_profile_read(f"ds://{profile_name}", project_name)
+
+        assert profile_read.type == "postgresql", "Wrong profile type"
+        assert profile_read.password == "password123", "Wrong password"
+
+
+@pytest.fixture
+def datastore_profile_classes() -> set[type[DatastoreProfile]]:
+    subclasses = DatastoreProfile.__subclasses__()
+    for subclass in subclasses:
+        subclasses.extend(subclass.__subclasses__())
+    return set(subclasses)
+
+
+def test_datastore_type_map(
+    datastore_profile_classes: set[type[DatastoreProfile]],
+) -> None:
+    assert (
+        set(_DATASTORE_TYPE_TO_PROFILE_CLASS.values()) == datastore_profile_classes
     ), "Missing profiles in the map"
     for type_, profile_class in _DATASTORE_TYPE_TO_PROFILE_CLASS.items():
         assert type_ == profile_class.schema().get("properties", {}).get("type").get(

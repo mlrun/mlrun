@@ -31,6 +31,7 @@ import mlrun.model
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
+from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.utils.helpers import remove_image_protocol_prefix
 
 import framework.utils.helpers
@@ -110,12 +111,13 @@ def make_dockerfile(
         # it is up to base image to have unzip included in case source is zip
         if source.endswith(".zip"):
             source_dir = os.path.join(target_dir, "source")
+            filename = os.path.basename(source)
             stage_lines = [
                 f"FROM {base_image} AS extractor",
                 args,
                 f"RUN mkdir -p {source_dir}",
-                f"COPY {source} {source_dir}",
-                f"RUN cd {source_dir} && unzip {source} && rm {source}",
+                f"ADD {source} {source_dir}",
+                f"RUN cd {source_dir} && unzip {filename} && rm {filename}",
             ]
             stage = textwrap.dedent("\n".join(stage_lines)).strip()
             dock = stage + "\n" + dock
@@ -430,9 +432,10 @@ def build_image(
 
     context = "/context"
     to_mount = False
-    is_v3io_source = False
+    is_v3io_source, is_http_source = False, False
     if source:
         is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
+        is_http_source = source.startswith("http")
 
     access_key = builder_env.get(
         "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
@@ -446,6 +449,10 @@ def build_image(
     source_dir_to_mount = None
     if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
+
+    # http is not officially supported by kaniko's context so we handle it explicitly
+    elif is_http_source:
+        source_to_copy = source
 
     # source is remote
     elif source and "://" in source and not is_v3io_source:
@@ -495,9 +502,7 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
-    source_code_target_dir = (
-        runtime.spec.build.source_code_target_dir or runtime.spec.clone_target_dir
-    )
+    source_code_target_dir = runtime.spec.build.source_code_target_dir
     if source_to_copy and (
         not source_code_target_dir or not os.path.isabs(source_code_target_dir)
     ):
@@ -571,7 +576,9 @@ def build_image(
 def get_kaniko_spec_attributes_from_runtime(
     project, runtime_spec, project_default_fucntion_node_selector
 ):
-    """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
+    """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
+    # preemption mode scheduling constraints cache
+    _preemption_enrichment_result = {}
 
     def service_account_handler(attr_value):
         from framework.api.utils import resolve_project_default_service_account
@@ -586,7 +593,7 @@ def get_kaniko_spec_attributes_from_runtime(
             attr_value = default_service_account
         return attr_value
 
-    def node_selector_handler(attr_value):
+    def get_merged_node_selector(attr_value):
         attr_value = mlrun.utils.to_non_empty_values_dict(
             mlrun.utils.helpers.merge_dicts_with_precedence(
                 mlrun.mlconf.get_default_function_node_selector(),
@@ -596,14 +603,35 @@ def get_kaniko_spec_attributes_from_runtime(
         )
         return attr_value
 
+    def preemption_mode_handler(key):
+        if key not in _preemption_enrichment_result:
+            keys = ["node_selector", "tolerations", "affinity"]
+            values = enrich_preemption_mode(
+                preemption_mode=runtime_spec.preemption_mode,
+                node_selector=get_merged_node_selector(runtime_spec.node_selector),
+                affinity=runtime_spec.affinity,
+                tolerations=runtime_spec.tolerations,
+            )
+            _preemption_enrichment_result.update(dict(zip(keys, values)))
+        return _preemption_enrichment_result[key]
+
+    def node_selector_handler(attr_value):
+        return preemption_mode_handler("node_selector")
+
+    def affinity_handler(attr_value):
+        return preemption_mode_handler("affinity")
+
+    def tolerations_handler(attr_value):
+        return preemption_mode_handler("tolerations")
+
     def identity_handler(attr_value):
         return attr_value
 
     return {
         "node_name": identity_handler,
         "node_selector": node_selector_handler,
-        "affinity": identity_handler,
-        "tolerations": identity_handler,
+        "affinity": affinity_handler,
+        "tolerations": tolerations_handler,
         "priority_class_name": identity_handler,
         "service_account": service_account_handler,
     }
@@ -676,9 +704,11 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
-    base_image: str = (
-        build.base_image or runtime.spec.image or config.default_base_image
-    )
+    base_image: str = build.base_image or runtime.spec.image
+    if not base_image:
+        base_image = mlrun.mlconf.function_defaults.image_by_kind.to_dict().get(
+            runtime.kind, config.default_base_image
+        )
 
     mlrun_image = False
     # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
@@ -801,6 +831,13 @@ def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifie
         installed_mlrun_version_command = resolve_mlrun_install_command_version(
             mlrun_version_specifier, client_version=image_tag
         )
+        mlrun.utils.logger.debug(
+            "Enriching build requirements with mlrun package",
+            enriched_base_image=enriched_base_image,
+            installed_mlrun_version_command=installed_mlrun_version_command,
+            image_tag=image_tag,
+            mlrun_version_specifier=mlrun_version_specifier,
+        )
         build.requirements.insert(0, installed_mlrun_version_command)
 
     else:
@@ -814,7 +851,7 @@ def is_mlrun_image(base_image):
     mlrun_images = [
         "mlrun/mlrun",
         "mlrun/mlrun-gpu",
-        "mlrun/ml-base",
+        "mlrun/mlrun-kfp",
     ]
     return any([image in base_image for image in mlrun_images])
 
@@ -1092,7 +1129,7 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
 
 
 def _resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
-    project = function.metadata.project or config.default_project
+    project = function.metadata.project
     name = function.metadata.name
     tag = function.metadata.tag or "latest"
     if image:

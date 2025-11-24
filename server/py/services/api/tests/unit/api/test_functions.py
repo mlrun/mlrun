@@ -32,11 +32,12 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import tests.conftest
+from mlrun.common.types import AuthenticationMode
 
 import framework.api.utils
 import framework.utils.clients.async_nuclio
 import framework.utils.clients.chief
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import services.api.api.endpoints.functions
@@ -50,6 +51,7 @@ from services.api.daemon import daemon
 PROJECT = "project-name"
 ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 FUNCTIONS_API = "projects/{project}/functions/{name}"
+BUILD_STATUS_API = "build/status"
 
 
 def test_build_status_pod_not_found(
@@ -80,7 +82,7 @@ def test_build_status_pod_not_found(
         ),
     ):
         response = client.get(
-            "build/status",
+            BUILD_STATUS_API,
             params={
                 "project": function["metadata"]["project"],
                 "name": function["metadata"]["name"],
@@ -88,6 +90,53 @@ def test_build_status_pod_not_found(
             },
         )
         assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+
+def test_build_status_with_missing_state(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    # Test that a function without status.state returns 'initialized' in build/status
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": PROJECT,
+            "tag": "latest",
+        },
+        "spec": {
+            "build": {"image": "some-image"},
+        },
+    }
+
+    client.post(
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"], name=function["metadata"]["name"]
+        ),
+        json=function,
+    )
+    response = client.get(
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"],
+            name=function["metadata"]["name"],
+        ),
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    assert response.json().get("status", {}).get("state") is None
+
+    response = client.get(
+        BUILD_STATUS_API,
+        params={
+            "project": function["metadata"]["project"],
+            "name": function["metadata"]["name"],
+            "tag": function["metadata"]["tag"],
+        },
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    assert (
+        response.headers["function_status"]
+        == mlrun.common.schemas.FunctionState.initialized
+    )
 
 
 @pytest.mark.asyncio
@@ -333,10 +382,6 @@ async def test_list_functions_filter_by_states(db, async_client):
         "remote",
     ],
 )
-@pytest.mark.parametrize(
-    "function_deletion_endpoint_prefix, expected_status",
-    [("v1/", HTTPStatus.NO_CONTENT.value), ("v2/", HTTPStatus.ACCEPTED.value)],
-)
 @unittest.mock.patch.object(framework.utils.clients.async_nuclio, "Client")
 @unittest.mock.patch.object(
     framework.utils.clients.async_nuclio.Client, "delete_function"
@@ -347,8 +392,6 @@ def test_delete_function(
     db: sqlalchemy.orm.Session,
     unversioned_client: fastapi.testclient.TestClient,
     kind,
-    function_deletion_endpoint_prefix,
-    expected_status,
 ):
     patched_nuclio_client.return_value = fastapi.testclient.TestClient
     patched_delete_nuclio_function.return_value.return_value = None
@@ -380,10 +423,8 @@ def test_delete_function(
     hash_key = function.json()["hash_key"]
 
     # delete the function and assert that it has been removed, as has its schedule if created
-    response = unversioned_client.delete(
-        f"{function_deletion_endpoint_prefix}{function_endpoint}"
-    )
-    assert response.status_code == expected_status
+    response = unversioned_client.delete(f"v2/{function_endpoint}")
+    assert response.status_code == HTTPStatus.ACCEPTED.value
 
     response = unversioned_client.get(
         f"{endpoint_prefix}{function_endpoint}", params={"hash_key": hash_key}
@@ -767,11 +808,11 @@ def test_build_function_masks_access_key(
     client: fastapi.testclient.TestClient,
     k8s_secrets_mock,
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     # set auto mount to ensure it doesn't override the access key
     mlrun.mlconf.storage.auto_mount_type = "v3io_credentials"
     monkeypatch.setattr(
-        framework.utils.clients.iguazio,
+        framework.utils.clients.iguazio.v3,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )
@@ -838,9 +879,9 @@ def test_build_no_access_key(
     expected_status_code,
     expected_reason,
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     monkeypatch.setattr(
-        framework.utils.clients.iguazio,
+        framework.utils.clients.iguazio.v3,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )
@@ -871,39 +912,6 @@ def test_build_no_access_key(
     assert response.status_code == expected_status_code
     if expected_reason:
         assert response.json()["detail"]["reason"] == expected_reason
-
-
-def test_build_clone_target_dir_backwards_compatability(
-    monkeypatch,
-    db: sqlalchemy.orm.Session,
-    client: fastapi.testclient.TestClient,
-    k8s_secrets_mock,
-):
-    services.api.tests.unit.api.utils.create_project(client, PROJECT)
-    clone_target_dir = "/some/path"
-    function_dict = {
-        "kind": "job",
-        "metadata": {
-            "name": "function-name",
-            "project": "project-name",
-            "tag": "latest",
-        },
-        "spec": {
-            "clone_target_dir": clone_target_dir,
-        },
-    }
-
-    monkeypatch.setattr(
-        services.api.utils.builder,
-        "build_image",
-        lambda *args, **kwargs: "success",
-    )
-
-    response = client.post(
-        "build/function",
-        json={"function": function_dict},
-    )
-    assert response.json()["data"]["spec"]["clone_target_dir"] == clone_target_dir
 
 
 def test_start_function_succeeded(
@@ -1107,7 +1115,7 @@ def test_build_status_events_and_logs(
         ),
     ):
         response = client.get(
-            "build/status",
+            BUILD_STATUS_API,
             params={
                 "project": function["metadata"]["project"],
                 "name": function["metadata"]["name"],
@@ -1140,7 +1148,7 @@ def test_build_status_events_and_logs(
         ),
     ):
         response = client.get(
-            "build/status",
+            BUILD_STATUS_API,
             params={
                 "project": function["metadata"]["project"],
                 "name": function["metadata"]["name"],

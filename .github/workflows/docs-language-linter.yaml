@@ -13,6 +13,10 @@
 # limitations under the License.
 
 name: Docs Language Linter
+
+permissions:
+  contents: read
+
 on:
   pull_request:
     paths:
@@ -26,13 +30,15 @@ jobs:
   vale:
     name: Review docs with Vale
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write  # This is needed for Vale's reviewdog reporter to annotate PRs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: |
           venv="$HOME/.local/share/venv"
           python3 -m venv "$venv"
           echo "$venv/bin" >> $GITHUB_PATH
-      - uses: errata-ai/vale-action@reviewdog
+      - uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # 2.1.1
         with:
           reporter: github-pr-check
   docs_linkcheck:
@@ -40,13 +46,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # TODO: Ensure compatibility with Python 3.11 as well
-        # Currently, MLRun requires KFP with protobuf, which fails to install on Python 3.11.
-        python-version: [ "3.9" ]
+        python-version: [ "3.11" ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -63,13 +67,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # TODO: Ensure compatibility with Python 3.11
-        python-version: [ "3.9" ]
+        python-version: [ "3.11" ]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip

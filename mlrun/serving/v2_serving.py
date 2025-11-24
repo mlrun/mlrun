@@ -24,6 +24,9 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.model_monitoring
 from mlrun.utils import logger, now_date
 
+from ..common.model_monitoring.helpers import (
+    get_model_endpoints_creation_task_status,
+)
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
 
@@ -177,7 +180,7 @@ class V2ModelServer(StepToDict):
         """set real time metric (for model monitoring)"""
         self.metrics[name] = value
 
-    def get_model(self, suffix=""):
+    def get_model(self, suffix="") -> (str, dict):
         """get the model file(s) and metadata from model store
 
         the method returns a path to the model file and the extra data (dict of dataitem objects)
@@ -384,15 +387,15 @@ class V2ModelServer(StepToDict):
         return event
 
     def logged_results(self, request: dict, response: dict, op: str):
-        """hook for controlling which results are tracked by the model monitoring
+        """Hook for controlling which results are tracked by the model monitoring
 
-        this hook allows controlling which input/output data is logged by the model monitoring
-        allow filtering out columns or adding custom values, can also be used to monitor derived metrics
-        for example in image classification calculate and track the RGB values vs the image bitmap
+        This hook allows controlling which input/output data is logged by the model monitoring.
+        It allows filtering out columns or adding custom values, and can also be used to monitor derived metrics,
+        for example in image classification to calculate and track the RGB values vs the image bitmap.
 
-        the request["inputs"] holds a list of input values/arrays, the response["outputs"] holds a list of
-        corresponding output values/arrays (the schema of the input/output fields is stored in the model object),
-        this method should return lists of alternative inputs and outputs which will be monitored
+        The request ["inputs"] holds a list of input values/arrays, the response ["outputs"] holds a list of
+        corresponding output values/arrays (the schema of the input/output fields is stored in the model object).
+        This method should return lists of alternative inputs and outputs which will be monitored.
 
         :param request:   predict/explain request, see model serving docs for details
         :param response:  result from the model predict/explain (after postprocess())
@@ -422,6 +425,7 @@ class V2ModelServer(StepToDict):
 
     def predict(self, request: dict) -> list:
         """model prediction operation
+
         :return: list with the model prediction results (can be multi-port) or list of lists for multiple predictions
         """
         raise NotImplementedError()
@@ -436,7 +440,7 @@ class V2ModelServer(StepToDict):
         where the internal list order is according to the ArtifactModel inputs.
 
         :param request: event
-        :return: evnet body converting the inputs to be list of lists
+        :return: event body converting the inputs to be list of lists
         """
         if self.model_spec and self.model_spec.inputs:
             input_order = [feature.name for feature in self.model_spec.inputs]
@@ -473,22 +477,18 @@ class V2ModelServer(StepToDict):
         ) or getattr(self.context, "server", None)
         if not self.context.is_mock or self.context.monitoring_mock:
             if server.model_endpoint_creation_task_name:
-                background_task = mlrun.get_run_db().get_project_background_task(
-                    server.project, server.model_endpoint_creation_task_name
-                )
-                logger.debug(
-                    "Checking model endpoint creation task status",
-                    task_name=server.model_endpoint_creation_task_name,
+                background_task_state, _, _ = get_model_endpoints_creation_task_status(
+                    server
                 )
                 if (
-                    background_task.status.state
+                    background_task_state
                     in mlrun.common.schemas.BackgroundTaskState.terminal_states()
                 ):
                     logger.debug(
-                        f"Model endpoint creation task completed with state {background_task.status.state}"
+                        f"Model endpoint creation task completed with state {background_task_state}"
                     )
                     if (
-                        background_task.status.state
+                        background_task_state
                         == mlrun.common.schemas.BackgroundTaskState.succeeded
                     ):
                         self._model_logger = (
@@ -503,12 +503,12 @@ class V2ModelServer(StepToDict):
                 else:  # in progress
                     logger.debug(
                         f"Model endpoint creation task is still in progress with the current state: "
-                        f"{background_task.status.state}.",
+                        f"{background_task_state}.",
                         name=self.name,
                     )
             else:
-                logger.debug(
-                    "Model endpoint creation task name not provided",
+                logger.error(
+                    "Model endpoint creation task name not provided. This function is not being monitored.",
                 )
 
 

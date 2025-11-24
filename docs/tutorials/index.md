@@ -1,7 +1,9 @@
 (tutorials-all)=
 # Tutorials and Examples
 
-The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
+The MLRun tutorials provide a hands-on introduction to using MLRun to implement data science workflows and to automate both gen AI and machine-learning operations (MLOps) tasks.
+
+**In this section**
 
 - [**Gen AI tutorials**](#gen-ai-tutorials)
 - [**Machine learning tutorials**](#other-tutorial)
@@ -21,11 +23,15 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 ```
 ````
 
+Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png">at the top of each page.
+
 ```{toctree}
 :maxdepth: 1
 :hidden:
-genai_01_basic_tutorial
+genai-01-basic-tutorial
 genai-02-model-monitor-llm
+genai-03-vector-db
+genai-04-llm-prompt-artifact
 ml-index
 demos
 /cheat-sheet
@@ -40,14 +46,17 @@ demos
 :gutter: 2
 
 ```{grid-item-card} Deploy LLM using MLRun
-:link: ./genai_01_basic_tutorial.html
+:link: ./genai-01-basic-tutorial.html
 How to copy a dataset into your cluster, deploy an LLM in the cluster, and run your function.
 ```
 ```{grid-item-card} Model monitoring using LLM
 :link: ./genai-02-model-monitor-llm.html
 Set up an effective model monitoring system that leverages LLMs to maintain high standards for deployed models.
 ```
-
+```{grid-item-card} Experiment tracking with vector DBs
+:link: ./genai-03-vector-db.html
+How to track experiments for document-based models using the LangChain API to integrate directly with vector databases.
+```
 
 ````
 `````
@@ -55,9 +64,6 @@ Set up an effective model monitoring system that leverages LLMs to maintain high
 
 (other-tutorial)=
 ## Machine learning tutorials
-
-Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png">at the top of each page.
-
 
 `````{div}
 

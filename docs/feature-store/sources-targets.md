@@ -1,6 +1,8 @@
 (sources-targets)=
 # Sources and targets
 
+MLRun supports a variety of sources (for batch and real-time ingestion) and targets for working with the feature store.
+
 - [Sources](#sources)
 - [Targets](#targets)
 
@@ -64,13 +66,13 @@ Support for Confluent Kafka is currently in Tech Preview status.
 ```
 
 ```python
-profile = DatastoreProfileKafkaSource(
-    name="profile-name", bootstrap_servers="localhost", topic="topic_name"
+profile = DatastoreProfileKafkaStream(
+    name="profile-name", brokers="localhost", topic="topic_name"
 )
 target = KafkaSource(path="ds://profile-name")
 ```
 
-`DatastoreProfileKafkaSource` class parameters:
+`DatastoreProfileKafkaStream` class parameters:
 - `name` &mdash; Name of the profile
 - `brokers` &mdash; This parameter can either be a single string or a list of strings representing the Kafka brokers. Brokers serve as the contact points for clients to connect to the Kafka cluster.
 - `topics` &mdash; A string or list of strings that denote the Kafka topics from which data is sourced or read.
@@ -121,8 +123,8 @@ which works similarly to the filtering functionality in pandas (based on pyarrow
 This can increase performance when reading large Parquet files.
 
 Pay attention!
--  When using the additional_filters on a column, values None, NaN, NaT will be filtered out from the filter result.
--  Specifying additional_filters as Datetime object is not supported.
+-  When using the `additional_filters` on a column, the values `None`, `NaN`, `NaT` are filtered out from the filter result.
+-  Specifying `additional_filters` as Datetime object is not supported.
 
 
 
@@ -176,9 +178,9 @@ df = fs.ingest(feature_set, source=source)
 
 # Targets
 
-By default, the feature sets are saved in parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
-The Parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application 
-since it supports low latency data retrieval based on key access. 
+By default, the feature sets are saved in Parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
+The Parquet file is ideal for fetching large sets of data for training while the key value is ideal for online applications 
+since it supports low-latency data retrieval based on key access. 
 
 ```{admonition} Note
 When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: `<project name>/fs/..` folder. 
@@ -196,21 +198,19 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 | {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.                   | Y      | N     | N      |
 | [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key. | Y      | Y     | Y      |
 | [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key.| Y      | Y     | N      |
-| [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.  | Y      | N     | Y      |
-
 
 ## Kafka target
 
 ```python
 profile = DatastoreProfileKafkaTarget(
-    name="profile-name", bootstrap_servers="localhost", topic="topic_name"
+    name="profile-name", brokers="localhost", topic="topic_name"
 )
 target = KafkaTarget(path="ds://profile-name")
 ```
 
 `DatastoreProfileKafkaTarget` class parameters:
 - `name` &mdash; Name of the profile
-- `bootstrap_servers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
+- `brokers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
 - `topic` &mdash; A string that denotes the Kafka topic to which data is sent or from which data is received.
 - `kwargs_public` &mdash; This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
 - `kwargs_private` &mdash; This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
@@ -294,7 +294,7 @@ For example: `rediss://localhost:6379` creates a Redis target, where:
    - The server location is localhost port 6379.
 - If the path parameter is not set, it tries to fetch it from the MLRUN_REDIS__URL environment variable.
 - You cannot pass the username/password as part of the URL. If you want to provide the username/password, use secrets as:
-`<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter.
+`REDIS_USER REDIS_PASSWORD`.
 - Two types of Redis servers are supported: StandAlone and Cluster (no need to specify the server type in the config).
 - A feature set supports one online target only. Therefore `RedisNoSqlTarget` and `NoSqlTarget` cannot be used as two targets of the same feature set.
     
@@ -317,33 +317,3 @@ RedisNoSqlTarget(path="ds://profile-name/a/b")
 ```
 
 
-## SQL target 
-
-```{admonition} Note
-Sql target is currently in Tech Preview status.
-```
-```{admonition} Limitation
-Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
-For currently supported versions of SQLAlchemy, see [extra-requirements.txt](https://github.com/mlrun/mlrun/blob/development/extras-requirements.txt).
-See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html).
-```
-The {py:meth}`~mlrun.datastore.SQLTarget` online target supports storey but does not support Spark. Aggregations are not supported.<br>
-To configure, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
-`mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
-
-You can pass the schema and the name of the table you want to create or the name of an existing table, for example:
-
-```python
-target = SQLTarget(
-    table_name="my_table",
-    schema={"id": string, "age": int, "time": pd.Timestamp},
-    create_table=True,
-    primary_key_column="id",
-    parse_dates=["time"],
-)
-feature_set = fs.FeatureSet(
-    "my_fs",
-    entities=[fs.Entity("id")],
-)
-fs.ingest(feature_set, source=df, targets=[target])
-```

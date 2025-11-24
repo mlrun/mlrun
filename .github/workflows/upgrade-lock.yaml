@@ -14,6 +14,10 @@
 
 name: Update uv lock files
 
+permissions:
+  contents: write  # Allows jobs to modify repository content (for creating/updating lock files).
+  pull-requests: write  # Allows jobs to create and manage pull requests (needed for automated PR creation).
+
 on:
   workflow_dispatch:
   schedule:
@@ -25,17 +29,13 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'mlrun'
     steps:
-    - uses: actions/checkout@v4
-    - name: Get uv version from the Makefile
-      id: uv-version
-      run: |
-        version=$(grep "MLRUN_UV_VERSION ?=" Makefile | cut -d' ' -f3)
-        echo version=$version >> "$GITHUB_OUTPUT"
-    - uses: astral-sh/setup-uv@v5
-      with:
-        version: ${{ steps.uv-version.outputs.version }}
+    - uses: actions/checkout@v6
+
+    - uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
+
     - name: Upgrade dependencies in the lock file with uv
       run: make upgrade-mlrun-deps-lock
+
     - name: Format PR title
       id: format-title
       run: |
@@ -44,7 +44,7 @@ jobs:
         else
           echo "title=[Requirements-automated] Upgrade lock files" >> "$GITHUB_OUTPUT"
         fi
-    - uses: peter-evans/create-pull-request@v7
+    - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # 7.0.8
       with:
         title: ${{ steps.format-title.outputs.title }}
         body: |

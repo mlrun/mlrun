@@ -89,7 +89,6 @@ class TestDaskRuntime(TestRuntimeBase):
         mlconf.remote_host = "http://remote_host"
         os.environ["V3IO_USERNAME"] = self.v3io_user
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key
-        mlconf.default_project = self.project
         mlconf.artifact_path = self.artifact_path
 
         dask_cluster = mlrun.new_function(
@@ -472,7 +471,6 @@ class TestDaskRuntime(TestRuntimeBase):
 
         function.generate_runtime_k8s_env = unittest.mock.Mock(
             return_value=[
-                {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
                 {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             ]
         )
@@ -487,7 +485,6 @@ class TestDaskRuntime(TestRuntimeBase):
             "requests": {},
         }
         expected_env = [
-            {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
             {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
             {"name": "TEST_DUP", "value": "A"},
@@ -506,7 +503,6 @@ class TestDaskRuntime(TestRuntimeBase):
             function_label_name: function_label_val,
             config_label_name: config_label_val,
         }
-
         expected_affinity = k8s_client.V1Affinity(
             node_affinity=k8s_client.V1NodeAffinity(
                 required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
@@ -534,7 +530,6 @@ class TestDaskRuntime(TestRuntimeBase):
                 function, secrets, client_version, client_python_version
             )
         )
-
         assert scheduler_pod.metadata.namespace == namespace
         assert worker_pod.metadata.namespace == namespace
         assert scheduler_pod.metadata.labels == expected_labels
@@ -559,6 +554,31 @@ class TestDaskRuntime(TestRuntimeBase):
 
         # used once by test, once by enrich_dask_cluster
         assert function.generate_runtime_k8s_env.call_count == 2
+
+    def test_dask_cluster_enriches_image(self):
+        """
+        Test that the deprecated 'mlrun/ml-base' image is correctly enriched and replaced with 'mlrun/mlrun'
+        when the client version is >= 1.10.0. This test ensures that the image used in both the scheduler and
+        worker pods is updated accordingly.
+        """
+        function = mlrun.runtimes.DaskCluster(
+            metadata={"name": "test", "project": self.project},
+            spec={"image": "mlrun/ml-base"},
+        )
+
+        client_version = "1.10.0"
+        scheduler_pod, worker_pod, _, _ = (
+            services.api.runtime_handlers.daskjob.enrich_dask_cluster(
+                function=function,
+                secrets=[],
+                client_version=client_version,
+            )
+        )
+
+        expected_image = "mlrun/mlrun:1.10.0"
+
+        assert scheduler_pod.spec.containers[0].image == expected_image
+        assert worker_pod.spec.containers[0].image == expected_image
 
     def test_deploy_dask_function_with_enriched_security_context(
         self, db: Session, client: TestClient, k8s_secrets_mock: APIK8sSecretsMock

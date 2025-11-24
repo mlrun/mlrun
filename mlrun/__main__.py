@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
+import importlib.metadata
 import json
 import pathlib
 import socket
@@ -21,16 +23,19 @@ from ast import literal_eval
 from base64 import b64decode
 from os import environ, path, remove
 from pprint import pprint
+from typing import Optional
 
 import click
 import dotenv
 import pandas as pd
+import semver
 import yaml
 from tabulate import tabulate
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.platforms
 import mlrun.utils.helpers
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.runtimes.mounts import auto_mount as auto_mount_modifier
@@ -63,12 +68,19 @@ from .utils.version import Version
 pd.set_option("mode.chained_assignment", None)
 
 
-def validate_base_argument(ctx, param, value):
+def validate_base_argument(ctx: click.Context, param: click.Parameter, value: str):
+    # click 8.2 expects the context to be passed to make_metavar
+    if semver.VersionInfo.parse(
+        importlib.metadata.version("click")
+    ) < semver.VersionInfo.parse("8.2.0"):
+        metavar_func = functools.partial(param.make_metavar)
+    else:
+        metavar_func = functools.partial(param.make_metavar, ctx)
     if value and value.startswith("-"):
         raise click.BadParameter(
             f"{param.human_readable_name} ({value}) cannot start with '-', ensure the command options are typed "
             f"correctly. Preferably use '--' to separate options and arguments "
-            f"e.g. 'mlrun run --option1 --option2 -- {param.make_metavar()} [--arg1|arg1] [--arg2|arg2]'",
+            f"e.g. 'mlrun run --option1 --option2 -- {metavar_func()} [--arg1|arg1] [--arg2|arg2]'",
             ctx=ctx,
             param=param,
         )
@@ -188,6 +200,12 @@ def main():
     multiple=True,
     help="Logging configurations for the handler's returning values",
 )
+@click.option(
+    "--allow-cross-project",
+    is_flag=True,
+    help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
+    "as a baseline for a new project with a different name",
+)
 def run(
     url,
     param,
@@ -231,6 +249,7 @@ def run(
     run_args,
     ensure_project,
     returns,
+    allow_cross_project,
 ):
     """Execute a task and inject parameters."""
 
@@ -241,7 +260,13 @@ def run(
     config = environ.get("MLRUN_EXEC_CONFIG")
     if from_env and config:
         config = json.loads(config)
-        runobj = RunTemplate.from_dict(config)
+        # If run is a retry we need to maintain the run status therefore using RunObject instead of RunTemplate
+        retry_count = config.get("status", {}).get("retry_count")
+        if retry_count:
+            logger.info(f"Retrying run - attempt: {retry_count + 1}")
+            runobj = mlrun.RunObject.from_dict(config)
+        else:
+            runobj = RunTemplate.from_dict(config)
     elif task:
         obj = get_object(task)
         task = yaml.load(obj, Loader=yaml.FullLoader)
@@ -282,10 +307,11 @@ def run(
         mlrun.get_or_create_project(
             name=project,
             context="./",
+            allow_cross_project=allow_cross_project,
         )
     if func_url or kind:
         if func_url:
-            runtime = func_url_to_runtime(func_url, ensure_project)
+            runtime = func_url_to_runtime(func_url, ensure_project, allow_cross_project)
             kind = get_in(runtime, "kind", kind or "job")
             if runtime is None:
                 exit(1)
@@ -483,6 +509,12 @@ def run(
     default="/tmp/fullimage",
     help="path to file with full image data",
 )
+@click.option(
+    "--allow-cross-project",
+    is_flag=True,
+    help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
+    "as a baseline for a new project with a different name",
+)
 def build(
     func_url,
     name,
@@ -505,6 +537,7 @@ def build(
     state_file_path,
     image_file_path,
     full_image_file_path,
+    allow_cross_project,
 ):
     """Build a container image from code and requirements."""
 
@@ -539,7 +572,7 @@ def build(
         exit(1)
 
     meta = func.metadata
-    meta.project = project or meta.project or mlconf.default_project
+    meta.project = project or meta.project or mlconf.active_project
     meta.name = name or meta.name
     meta.tag = tag or meta.tag
 
@@ -580,6 +613,7 @@ def build(
         mlrun.get_or_create_project(
             name=project,
             context="./",
+            allow_cross_project=allow_cross_project,
         )
 
     if hasattr(func, "deploy"):
@@ -633,6 +667,12 @@ def build(
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
+@click.option(
+    "--allow-cross-project",
+    is_flag=True,
+    help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
+    "as a baseline for a new project with a different name",
+)
 def deploy(
     spec,
     source,
@@ -645,6 +685,7 @@ def deploy(
     verbose,
     env_file,
     ensure_project,
+    allow_cross_project,
 ):
     """Deploy model or function"""
     if env_file:
@@ -654,10 +695,11 @@ def deploy(
         mlrun.get_or_create_project(
             name=project,
             context="./",
+            allow_cross_project=allow_cross_project,
         )
 
     if func_url:
-        runtime = func_url_to_runtime(func_url, ensure_project)
+        runtime = func_url_to_runtime(func_url, ensure_project, allow_cross_project)
         if runtime is None:
             exit(1)
     elif spec:
@@ -859,7 +901,7 @@ def version():
 @main.command()
 @click.argument("uid", type=str)
 @click.option(
-    "--project", "-p", help="project name (defaults to mlrun.mlconf.default_project)"
+    "--project", "-p", help="project name (defaults to mlrun.mlconf.active_project)"
 )
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
@@ -960,6 +1002,12 @@ def logs(uid, project, offset, db):
     "destination define: file=notification.json or a "
     'dictionary configuration e.g \'{"slack":{"webhook":"<webhook>"}}\'',
 )
+@click.option(
+    "--allow-cross-project",
+    is_flag=True,
+    help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
+    "as a baseline for a new project with a different name",
+)
 def project(
     context,
     name,
@@ -987,6 +1035,7 @@ def project(
     notifications,
     save_secrets,
     save,
+    allow_cross_project,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1013,6 +1062,7 @@ def project(
         clone=clone,
         save=save,
         parameters=parameters,
+        allow_cross_project=allow_cross_project,
     )
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
@@ -1326,7 +1376,11 @@ def dict_to_str(struct: dict):
     return ",".join([f"{k}={v}" for k, v in struct.items()])
 
 
-def func_url_to_runtime(func_url, ensure_project: bool = False):
+def func_url_to_runtime(
+    func_url,
+    ensure_project: bool = False,
+    allow_cross_project: Optional[bool] = None,
+):
     try:
         if func_url.startswith("db://"):
             func_url = func_url[5:]
@@ -1337,7 +1391,9 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
         else:
-            mlrun_project = load_project(".", save=ensure_project)
+            mlrun_project = load_project(
+                ".", save=ensure_project, allow_cross_project=allow_cross_project
+            )
             function = mlrun_project.get_function(func_url, enrich=True)
             if function.kind == "local":
                 command, function = load_func_code(function)

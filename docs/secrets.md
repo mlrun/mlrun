@@ -1,7 +1,7 @@
 (secrets)=
 # Working with secrets<!-- omit in toc -->
-When executing jobs through MLRun, the code might need access to specific secrets, for example to access data 
-residing on a data-store that requires credentials (such as a private S3 bucket), or many other similar needs.
+
+When executing jobs through MLRun, the code might need access to specific secrets, for example to access data residing on a data-store that requires credentials (such as a private S3 bucket), or many other similar needs.
 
 MLRun provides some facilities that allow handling secrets and passing those secrets to execution jobs. It's 
 important to understand how these facilities work, as this has implications on the level of security they provide
@@ -44,9 +44,9 @@ secrets = {"AWS_KEY": "111222333"}
 project.set_secrets(secrets=secrets, provider="kubernetes")
 
 # Create and run the MLRun job
-function = mlrun.code_to_function(
+function = project.set_function(
+    func="<path to function>",
     name="secret_func",
-    filename="my_code.py",
     handler="test_function",
     kind="job",
     image="mlrun/mlrun",
@@ -79,14 +79,16 @@ To pass secret parameters, use the Task's {py:func}`~mlrun.model.RunTemplate.wit
 the following command passes specific project-secrets to the execution context:
 
 ```{code-block} python
-:emphasize-lines: 8-8
+:emphasize-lines: 10-10
 
-function = mlrun.code_to_function(
+project = mlrun.get_or_create_project("myproj", "./")
+
+function = project.set_function(
+    func="<path to function>",
     name="secret_func",
-    filename="my_code.py",
     handler="test_function",
     kind="job",
-    image="mlrun/mlrun"
+    image="mlrun/mlrun",
 )
 task = mlrun.new_task().with_secrets("kubernetes", ["AWS_KEY", "DB_PASSWORD"])
 run = function.run(task, ...)
@@ -329,9 +331,10 @@ keys in it - `secret1` and `secret2`.
 to an MLRun job:
 
 ```{code-block} python
-:emphasize-lines: 7-12
+:emphasize-lines: 9-14
+project = mlrun.get_or_create_project("myproj", "./")
 
-function = mlrun.code_to_function(
+function = project.set_function(
     name="secret_func",
     handler="test_function",
     ...

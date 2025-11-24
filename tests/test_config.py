@@ -24,14 +24,12 @@ from tempfile import NamedTemporaryFile
 import deepdiff
 import dotenv
 import pytest
-import requests_mock as requests_mock_package
 import yaml
 
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
 from mlrun.common.schemas import SecurityContextEnrichmentModes
-from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import out_path
 
 assets_path = pathlib.Path(__file__).parent / "assets"
@@ -503,20 +501,27 @@ def test_get_default_function_node_selector():
     assert mlrun.mlconf.get_default_function_node_selector() == {}
 
 
-def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
-    api_url = "http://mlrun-api-url:8080"
-    remote_host = "some-namespace"
-    response_body = {
-        "version": "some-version",
-        "remote_host": remote_host,
-    }
-    requests_mock.get(
-        f"{api_url}/{HTTPRunDB.get_api_path_prefix()}/client-spec",
-        json=response_body,
-    )
-    assert "" == mlrun.mlconf.remote_host
-    mlrun.mlconf.dbpath = api_url
-    assert remote_host == mlrun.mlconf.remote_host
+def test_db_connection_deferred_until_reload(monkeypatch):
+    """
+    This test verifies that setting `mlconf.dbpath` does not eagerly trigger a DB connection.
+    Instead, the connection should be established only at the end of `mlconf.reload()` when populating the config.
+    """
+
+    url = "https://mlrun-api"
+    monkeypatch.setenv("MLRUN_DBPATH", url)
+    import mlrun
+
+    with unittest.mock.patch("mlrun.db.get_run_db") as mock_get_run_db:
+        mlrun.mlconf.dbpath = url
+
+        # ensure setting dbpath does not trigger DB connection
+        mock_get_run_db.assert_not_called()
+
+        # this triggers config update and calls get_run_db at the end
+        mlrun.mlconf.reload()
+
+        # verify the connection happened
+        mock_get_run_db.assert_called_once_with(url, force_reconnect=True)
 
 
 def test_verify_security_context_enrichment_mode_is_allowed_success():

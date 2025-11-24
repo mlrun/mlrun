@@ -211,7 +211,7 @@ def test_dataset_stats():
             assert dataset_artifact.status.stats is not None
 
 
-def test_get_log_dataset_dont_duplicate_index_column():
+def test_get_log_dataset_dont_duplicate_index_column(ensure_project):
     source_url = mlrun.get_sample_path("data/iris/iris.data.raw.csv")
     df = mlrun.get_dataitem(source_url).as_df()
     artifact = mlrun.get_or_create_ctx("test").log_dataset("iris", df=df, upload=False)
@@ -230,7 +230,7 @@ def test_get_log_dataset_dont_duplicate_index_column():
     assert index_counter == 1
 
 
-def test_log_dataset_with_column_overflow(monkeypatch):
+def test_log_dataset_with_column_overflow(monkeypatch, ensure_project):
     context = mlrun.get_or_create_ctx("test")
     source_url = mlrun.get_sample_path("data/iris/iris.data.raw.csv")
     df = mlrun.get_dataitem(source_url).as_df()

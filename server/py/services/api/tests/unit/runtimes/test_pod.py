@@ -131,14 +131,24 @@ class TestKubeResource(TestRuntimeBase):
                     )
             else:
                 self._set_with_node_selection(kube_resource, attribute_name, attribute)
-                assert (
-                    deepdiff.DeepDiff(
-                        getattr(kube_resource.spec, attribute_name),
-                        expected_attribute,
-                        ignore_order=True,
+                result = getattr(kube_resource.spec, attribute_name)
+                if not expected_attribute:
+                    assert result == expected_attribute
+                else:
+                    # not using deepdiff on the whole object since the Toleration objects has some fields
+                    # with hidden magic and they fail the deepdiff comparison
+                    assert (
+                        deepdiff.DeepDiff(
+                            [i.to_dict() for i in result]
+                            if isinstance(result, list)
+                            else result.to_dict(),
+                            [i.to_dict() for i in expected_attribute]
+                            if isinstance(expected_attribute, list)
+                            else expected_attribute.to_dict(),
+                            ignore_order=True,
+                        )
+                        == {}
                     )
-                    == {}
-                )
 
     def test_with_limits_regex_validation(self):
         cases = [

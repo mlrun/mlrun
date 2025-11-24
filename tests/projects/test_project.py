@@ -252,8 +252,8 @@ def test_build_project_from_minimal_dict():
             3,
             True,
             "",
-            False,
-            "",
+            True,
+            "Project name mismatch",
         ),
         (
             pathlib.Path(tests.conftest.tests_root_directory)
@@ -1314,6 +1314,7 @@ def test_function_receives_project_artifact_path(rundb_mock):
     rundb_mock.reset()
 
     proj1.spec.artifact_path = "/var"
+    mlrun.get_run_db().store_project("proj1", proj1)
 
     func2 = mlrun.code_to_function(
         "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
@@ -1332,13 +1333,6 @@ def test_function_receives_project_artifact_path(rundb_mock):
 
     rundb_mock.reset()
     mlrun.pipeline_context.clear(with_project=True)
-
-    func3 = mlrun.code_to_function(
-        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
-    )
-    # expected to call `get_project`, but the project wasn't saved yet, so it will use the default artifact path
-    run5 = func3.run(local=True, project="proj1")
-    assert run5.spec.output_path == mlrun.mlconf.artifact_path
 
     proj1.set_function(func_path, "func", kind="job", image="mlrun/mlrun")
     run = proj1.run_function("func", local=True)
@@ -1476,6 +1470,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     assert run1.spec.output_path == mlrun.mlconf.artifact_path
     rundb_mock.reset()
 
+    mlrun.get_run_db().store_project("proj1", proj1)
     proj1.spec.artifact_path = "/var"
 
     run2 = proj1.run_function("f1", local=True)
@@ -1646,10 +1641,9 @@ def test_validating_large_int_params(
     rundb_mock, parameters, hyperparameters, expectation, run_saved
 ):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    proj1 = mlrun.new_project("proj1", save=False)
+    proj1 = mlrun.new_project("proj1")
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
 
-    rundb_mock.reset()
     with expectation:
         proj1.run_function(
             "f1",
@@ -1869,7 +1863,6 @@ def test_init_function_from_dict_function_in_spec():
                 },
                 "description": "",
                 "disable_auto_mount": False,
-                "clone_target_dir": "/home/mlrun_code/",
                 "replicas": 1,
                 "image_pull_policy": "Always",
                 "priority_class_name": "dummy-class",
@@ -1986,6 +1979,7 @@ def test_load_project_from_yaml_with_function(context):
         mlrun.common.schemas.APIGatewayAuthenticationMode.none,
         mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
         mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
+        mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio,
     ],
 )
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "store_api_gateway")
@@ -2055,6 +2049,10 @@ def test_create_api_gateway_valid(
         == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
     ):
         api_gateway.with_access_key_auth()
+    elif (
+        authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio
+    ):
+        api_gateway.with_iguazio_auth()
 
     gateway = project.store_api_gateway(api_gateway=api_gateway)
 
@@ -2070,6 +2068,10 @@ def test_create_api_gateway_valid(
         == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
     ):
         assert gateway.authentication.authentication_mode == "accessKey"
+    elif (
+        authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.iguazio
+    ):
+        assert gateway.authentication.authentication_mode == "iguazio"
     else:
         assert gateway.authentication.authentication_mode == "none"
 
@@ -2346,6 +2348,7 @@ def test_set_source():
             "/target/path/for/source",
         ),
         ("git://some/repo", True, None, ".some-image", "/target/path"),
+        ("db://project-name", None, None, ".some-image", None),
     ],
 )
 def test_project_build_image(
@@ -2362,19 +2365,25 @@ def test_project_build_image(
 
     (
         build_config,
-        clone_target_dir,
+        source_code_target_dir,
     ) = remote_builder_mock.get_build_config_and_target_dir()
 
     # If pull-at-runtime, then source will not be provided to the build process since no configuration is needed
-    # at build time. Also, there will be no clone_target_dir, since no pulling/cloning is happening at build.
+    # at build time. Also, there will be no source_code_target_dir, since no pulling/cloning is happening at build.
     if pull_at_runtime:
         assert build_config.load_source_on_run is None
         assert build_config.source is None
-        assert clone_target_dir is None
+        assert source_code_target_dir is None
     else:
-        assert not build_config.load_source_on_run
-        assert build_config.source == source_url
-        assert clone_target_dir == target_dir
+        if source_url and source_url.startswith("db://"):
+            # db:// is metadata-only, not an actual build source
+            assert build_config.source is None
+            assert source_code_target_dir is None
+            assert build_config.load_source_on_run is None
+        else:
+            assert not build_config.load_source_on_run
+            assert build_config.source == source_url
+            assert source_code_target_dir == target_dir
 
     assert build_config.image == image_name
     # If no base image was used, then mlrun/mlrun is expected
@@ -2582,3 +2591,73 @@ class TestModelMonitoring:
         assert (
             mock.call_args_list[0].args[0] == mm_consts.MonitoringFunctionNames.list()
         ), "Expected to wait for the infra functions"
+
+    @staticmethod
+    def test_function_with_invalid_name() -> None:
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="application names cannot end with `-batch`",
+        ):
+            mlrun.projects.MlrunProject().create_model_monitoring_function(
+                name="my-invalid-app-name-batch", application_class="NoApp"
+            )
+
+
+def _auth_prefix() -> str:
+    # Matches how the code builds the pattern: format(hashed_access_key="")
+    return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+        hashed_access_key=""
+    )
+
+
+class _StubAzureVaultStore:
+    """No-op stub to avoid real Azure config and network."""
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def get_secrets(self, secrets):
+        # Return empty dict; we only care that client-side validation didn't block.
+        return {}
+
+
+def test_with_secrets_azure_vault_blocks_auth_secret_name(tmp_path, monkeypatch):
+    # Ensure we never touch the real Azure implementation
+    monkeypatch.setattr(mlrun.secrets, "AzureVaultStore", _StubAzureVaultStore)
+
+    project = mlrun.new_project("proj-auth-block", context=str(tmp_path), save=False)
+
+    forbidden = _auth_prefix() + "anything"
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        project.with_secrets(
+            "azure_vault",
+            {
+                "name": "vault1",
+                "k8s_secret": forbidden,
+                "tenant_id": "t",
+                "vault_url": "https://x",
+                "secrets": [],  # required by secrets store path
+            },
+        )
+    assert "Forbidden secret" in str(exc.value)
+    assert forbidden in str(exc.value)
+
+
+def test_with_secrets_azure_vault_allows_non_auth_secret(tmp_path, monkeypatch):
+    # Stub Azure so we don't require tenant/client_id config
+    monkeypatch.setattr(mlrun.secrets, "AzureVaultStore", _StubAzureVaultStore)
+
+    project = mlrun.new_project("proj-auth-allow", context=str(tmp_path), save=False)
+
+    allowed = "my-regular-k8s-secret"
+    # Should not raise
+    project.with_secrets(
+        "azure_vault",
+        {
+            "name": "vault1",
+            "k8s_secret": allowed,
+            "tenant_id": "t",
+            "vault_url": "https://x",
+            "secrets": [],  # minimal valid payload for add_source
+        },
+    )

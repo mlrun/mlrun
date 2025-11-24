@@ -14,6 +14,7 @@
 
 import datetime
 import unittest
+import uuid
 from io import StringIO
 from typing import Optional, Union
 
@@ -21,6 +22,7 @@ import pandas as pd
 import pytest
 from dateutil import parser
 
+import mlrun
 import mlrun.common.schemas
 from mlrun.datastore.datastore_profile import DatastoreProfileTDEngine
 from mlrun.model_monitoring.db.tsdb.tdengine import TDEngineConnector
@@ -153,7 +155,7 @@ class TestTDEngineSchema:
             super_table._get_subtables_query_by_tag(
                 filter_tag=tag, filter_values=[values[tag]]
             )
-            == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
+            == f"SELECT DISTINCT TBNAME FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
             f"{tag} LIKE '{values[tag]}';"
         )
 
@@ -163,7 +165,7 @@ class TestTDEngineSchema:
             super_table._get_subtables_query_by_tag(
                 filter_tag=tag, filter_values=filter_values, operator=operator
             )
-            == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
+            == f"SELECT DISTINCT TBNAME FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
             f"{tag} LIKE '{values[tag]}' {operator} {tag} LIKE '{filter_values[1]}' {operator} {tag} "
             f"LIKE '{filter_values[2]}';"
         )
@@ -187,6 +189,7 @@ class TestTDEngineSchema:
             "preform_agg_funcs_columns",
             "order_by",
             "desc",
+            "partition_by",
         ),
         [
             (
@@ -196,6 +199,7 @@ class TestTDEngineSchema:
                 mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
                 mlrun.utils.datetime_now(),
                 "time",
+                None,
                 None,
                 None,
                 None,
@@ -214,6 +218,7 @@ class TestTDEngineSchema:
                 None,
                 None,
                 None,
+                None,
             ),
             (
                 "subtable_3",
@@ -224,6 +229,7 @@ class TestTDEngineSchema:
                 "time_column",
                 ["avg"],
                 ["column1"],
+                None,
                 None,
                 None,
                 None,
@@ -240,6 +246,7 @@ class TestTDEngineSchema:
                 None,
                 ["column2"],
                 True,
+                None,
             ),
             (
                 "subtable_5",
@@ -253,6 +260,35 @@ class TestTDEngineSchema:
                 None,
                 None,
                 None,
+                None,
+            ),
+            (
+                "subtable_6",
+                ["column1", "column2"],
+                "column1 > 0",
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
+                "time_column",
+                ["avg"],
+                ["column1"],
+                None,
+                ["column2"],
+                True,
+                True,
+            ),
+            (
+                "subtable_7",
+                ["column1", "column2"],
+                "column1 > 0",
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
+                "time_column",
+                None,
+                ["column1"],
+                None,
+                ["column2"],
+                True,
+                True,
             ),
         ],
     )
@@ -270,11 +306,25 @@ class TestTDEngineSchema:
         preform_agg_funcs_columns: list[str],
         order_by: Optional[str],
         desc: bool,
+        partition_by: Optional[str],
     ):
         if columns_to_filter:
             columns_to_select = ", ".join(columns_to_filter)
         else:
             columns_to_select = "*"
+        if partition_by and not agg_funcs:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                super_table._get_records_query(
+                    table=subtable,
+                    columns_to_filter=columns_to_filter,
+                    filter_query=filter_query,
+                    start=start,
+                    end=end,
+                    timestamp_column=timestamp_column,
+                    group_by=group_by,
+                    partition_by=partition_by,
+                )
+            return
         if not group_by:
             if filter_query:
                 expected_query = (
@@ -355,7 +405,8 @@ class TestTDEngineSchema:
                             agg_funcs=agg_funcs,
                         )
                     return
-
+                if partition_by:
+                    expected_query_group_by.write(f" PARTITION BY {partition_by}")
                 if order_by:
                     desc = "DESC" if desc else ""
                     expected_query_group_by.write(f" ORDER BY {order_by} {desc}")
@@ -372,6 +423,7 @@ class TestTDEngineSchema:
                         agg_funcs=agg_funcs,
                         order_by=order_by,
                         desc=desc,
+                        partition_by=partition_by,
                     )
                     == expected_query_group_by.getvalue()
                 )
@@ -500,11 +552,14 @@ class TestTDEngineSchema:
 
 class TestTDEngineConnector:
     @pytest.fixture
-    def connector(self):
+    def connector(self, monkeypatch: pytest.MonkeyPatch):
+        # Set system_id for the test to enable TDEngineConnector to construct database name
+        monkeypatch.setattr(mlrun.mlconf, "system_id", uuid.uuid4().hex)
+
         profile = DatastoreProfileTDEngine(
             name="mm-profile", host="localhost", port=6041, user="root"
         )
-        return TDEngineConnector(project="test-project", profile=profile)
+        yield TDEngineConnector(project="test-project", profile=profile)
 
     def test_get_last_request(self, connector):
         df = pd.DataFrame(
@@ -526,3 +581,38 @@ class TestTDEngineConnector:
         assert last_request["last_request"][1] == parser.parse(
             "2024-12-27 05:13:47 +00:00"
         ).astimezone(datetime.timezone.utc)
+
+        # ML-10944
+        last_request = connector.get_last_request(endpoint_ids=[])
+        assert len(last_request) == 0
+
+    def test_get_drift_data(self, connector):
+        now = datetime.datetime.now().astimezone()
+        end = now
+        start = now - datetime.timedelta(hours=24)
+        df = pd.DataFrame(
+            [
+                {
+                    "_wstart": now - datetime.timedelta(hours=1),
+                    "_wend": now - datetime.timedelta(hours=1),
+                    "max(result_status)": 2,
+                },
+                {
+                    "_wstart": now - datetime.timedelta(hours=2),
+                    "_wend": now - datetime.timedelta(hours=2),
+                    "max(result_status)": 1,
+                },
+            ]
+        )
+        connector._get_records = unittest.mock.Mock(return_value=df)
+        drift_over_time: mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues = connector.get_drift_data(
+            start=start, end=end
+        )
+        assert drift_over_time is not None
+        assert len(drift_over_time.values) == 2, "Drift over time should have one value"
+        assert (
+            drift_over_time.values[0].count_suspected == 1
+        ), "Drift over time should have one detected drift"
+        assert (
+            drift_over_time.values[1].count_detected == 1
+        ), "Drift over time should not have potential drift"

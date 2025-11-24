@@ -26,8 +26,10 @@ import pyarrow
 import pytz
 import requests
 
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+from mlrun.datastore.remote_client import BaseRemoteClient
 from mlrun.errors import err_to_str
 from mlrun.utils import StorePrefix, is_jupyter, logger
 
@@ -45,20 +47,19 @@ class FileStats:
         return f"FileStats(size={self.size}, modified={self.modified}, type={self.content_type})"
 
 
-class DataStore:
+class DataStore(BaseRemoteClient):
     using_bucket = False
 
-    def __init__(self, parent, name, kind, endpoint="", secrets: Optional[dict] = None):
-        self._parent = parent
-        self.kind = kind
-        self.name = name
-        self.endpoint = endpoint
+    def __init__(
+        self, parent, name, kind, endpoint="", secrets: Optional[dict] = None, **kwargs
+    ):
+        super().__init__(
+            parent=parent, kind=kind, name=name, endpoint=endpoint, secrets=secrets
+        )
         self.subpath = ""
-        self.secret_pfx = ""
         self.options = {}
         self.from_spec = False
         self._filesystem = None
-        self._secrets = secrets or {}
 
     @property
     def is_structured(self):
@@ -67,13 +68,6 @@ class DataStore:
     @property
     def is_unstructured(self):
         return True
-
-    @staticmethod
-    def _sanitize_storage_options(options):
-        if not options:
-            return {}
-        options = {k: v for k, v in options.items() if v is not None and v != ""}
-        return options
 
     @staticmethod
     def _sanitize_url(url):
@@ -104,15 +98,9 @@ class DataStore:
         """Whether the data store supports isdir"""
         return True
 
-    def _get_secret_or_env(self, key, default=None, prefix=None):
-        # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
-        return mlrun.get_secret_or_env(
-            key, secret_provider=self._get_secret, default=default, prefix=prefix
-        )
-
     def get_storage_options(self):
         """get fsspec storage options"""
-        return self._sanitize_storage_options(None)
+        return self._sanitize_options(None)
 
     def open(self, filepath, mode):
         file_system = self.filesystem
@@ -122,16 +110,6 @@ class DataStore:
         if self.subpath:
             return f"{self.subpath}/{key}"
         return key
-
-    def _get_parent_secret(self, key):
-        return self._parent.secret(self.secret_pfx + key)
-
-    def _get_secret(self, key: str, default=None):
-        return self._secrets.get(key, default) or self._get_parent_secret(key)
-
-    @property
-    def url(self):
-        return f"{self.kind}://{self.endpoint}"
 
     @property
     def spark_url(self):
@@ -176,7 +154,7 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def get_spark_options(self):
+    def get_spark_options(self, path=None):
         return {}
 
     @staticmethod
@@ -226,7 +204,7 @@ class DataStore:
                 )
 
             if start_time or end_time or additional_filters:
-                partitions_time_attributes = find_partitions(url, file_system)
+                partitions_time_attributes, _ = find_partitions(url, file_system)
                 set_filters(
                     partitions_time_attributes,
                     start_time,
@@ -671,8 +649,10 @@ def basic_auth_header(user, password):
     username = user.encode("latin1")
     password = password.encode("latin1")
     base = b64encode(b":".join((username, password))).strip()
-    authstr = "Basic " + base.decode("ascii")
-    return {"Authorization": authstr}
+    authstr = mlrun.common.schemas.AuthorizationHeaderPrefixes.basic + base.decode(
+        "ascii"
+    )
+    return {mlrun.common.schemas.HeaderNames.authorization: authstr}
 
 
 class HttpStore(DataStore):
@@ -719,7 +699,10 @@ class HttpStore(DataStore):
         token = self._get_secret_or_env("HTTPS_AUTH_TOKEN")
         if token:
             self._https_auth_token = token
-            self._headers.setdefault("Authorization", f"Bearer {token}")
+            self._headers.setdefault(
+                mlrun.common.schemas.HeaderNames.authorization,
+                f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}{token}",
+            )
 
     def _validate_https_token(self):
         if self._https_auth_token and self._schema in ["http"]:

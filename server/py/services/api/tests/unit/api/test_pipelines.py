@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import datetime
 import http
 import importlib
 import json
 import unittest.mock
+import uuid
 
 import deepdiff
 import fastapi.testclient
@@ -32,8 +35,8 @@ from kfp_server_api import (
     ApiRun,
     ApiRunDetail,
 )
+from kfp_server_api.models.api_list_runs_response import ApiListRunsResponse
 
-import mlrun.api.schemas
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun_pipelines.client
@@ -41,8 +44,18 @@ import mlrun_pipelines.common.models
 import mlrun_pipelines.imports
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
+from mlrun.common.schemas import (
+    BackgroundTask,
+    BackgroundTaskMetadata,
+    BackgroundTaskSpec,
+    BackgroundTaskState,
+    BackgroundTaskStatus,
+)
+from mlrun.common.schemas.background_task import BackGroundTaskLabel
 
 import framework.utils.auth.verifier
+import framework.utils.singletons.project_member
+import services.api.api.endpoints.pipelines
 import services.api.crud
 import services.api.tests.unit.conftest
 
@@ -63,13 +76,15 @@ def test_list_pipelines_empty_list(
     kfp_client_mock: mlrun_pipelines.client.Client,
 ) -> None:
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
-        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
+        unittest.mock.AsyncMock(return_value=["some-project", "another"])
     )
     runs = []
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get("projects/*/pipelines")
     expected_response = mlrun.common.schemas.PipelinesOutput(
-        runs=runs, total_size=len(runs), next_page_token=None
+        runs=runs,
+        total_size=len(runs),
+        next_page_token=None,
     )
     _assert_list_pipelines_response(expected_response, response)
 
@@ -80,7 +95,7 @@ def test_list_pipelines_formats(
     kfp_client_mock: mlrun_pipelines.client.Client,
 ) -> None:
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
-        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
+        unittest.mock.AsyncMock(return_value=["some-project", "another"])
     )
     for format_ in [
         mlrun.common.formatters.PipelineFormat.full,
@@ -92,7 +107,9 @@ def test_list_pipelines_formats(
             mlrun_pipelines.models.PipelineRun(run.to_dict()) for run in runs
         ]
         expected_runs = services.api.crud.Pipelines()._format_runs(
-            expected_runs, format_
+            runs=expected_runs,
+            format_=format_,
+            kfp_client=kfp_client_mock,
         )
         _mock_list_runs(kfp_client_mock, runs)
         response = client.get(
@@ -136,7 +153,7 @@ def test_get_pipeline_no_project_opa_validation(
 ) -> None:
     format_ = (mlrun.common.formatters.PipelineFormat.summary,)
     project = "project-name"
-    services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+    services.api.crud.Pipelines()._resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
     )
     framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
@@ -171,7 +188,7 @@ def test_get_pipeline_specific_project(
         project = "project-name"
         api_run_detail = _generate_get_run_mock()
         _mock_get_run(kfp_client_mock, api_run_detail)
-        services.api.crud.Pipelines().resolve_project_from_pipeline = (
+        services.api.crud.Pipelines()._resolve_project_from_pipeline = (
             unittest.mock.Mock(return_value=project)
         )
         response = client.get(
@@ -193,7 +210,7 @@ def test_list_pipelines_time_fields_default(
     kfp_client_mock: mlrun_pipelines.client.Client,
 ) -> None:
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
-        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
+        unittest.mock.AsyncMock(return_value=["some-project", "another"])
     )
     created_at = datetime.datetime.now()
     workflow_manifest = _generate_workflow_manifest()
@@ -256,14 +273,14 @@ def test_list_pipelines_name_contains(
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=project_names)
     )
-    services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+    services.api.crud.Pipelines()._resolve_project_from_pipeline = unittest.mock.Mock(
         return_value="test-project"
     )
     runs = _generate_list_runs_project_name_mocks()
     _mock_list_runs(
         kfp_client_mock,
         runs,
-        expected_filter=mlrun.utils.get_kfp_list_runs_filter(project_name=project_name)
+        expected_filter=mlrun_pipelines.client.create_list_runs_filter()
         if project_name != "*"
         else "",
     )
@@ -275,14 +292,17 @@ def test_list_pipelines_name_contains(
     )
 
     expected_runs = services.api.crud.Pipelines()._format_runs(
-        [
+        runs=[
             mlrun_pipelines.models.PipelineRun(run.to_dict())
             for run in runs
             if run.id in expected_runs_ids
-        ]
+        ],
+        kfp_client=kfp_client_mock,
     )
     expected_response = mlrun.common.schemas.PipelinesOutput(
-        runs=expected_runs, total_size=len(expected_runs), next_page_token=None
+        runs=expected_runs,
+        total_size=len(expected_runs),
+        next_page_token=None,
     )
     _assert_list_pipelines_response(expected_response, response)
 
@@ -299,7 +319,7 @@ def test_list_pipelines_specific_project(
     runs = _generate_list_runs_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
-    services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+    services.api.crud.Pipelines()._resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
     )
     response = client.get(
@@ -316,7 +336,7 @@ def test_list_pipelines_specific_project(
 
 
 def mock_authenticate_request():
-    return mlrun.api.schemas.AuthInfo(username="test_user", token="mock_token")
+    return mlrun.common.schemas.AuthInfo(username="test_user", token="mock_token")
 
 
 def test_create_pipeline(
@@ -326,6 +346,7 @@ def test_create_pipeline(
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ) -> None:
     project = "getting-started-tutorial-iguazio"
+    experiment_name = "my-experiment"
     pipeline_file_path = (
         services.api.tests.unit.conftest.tests_root_directory
         / "api"
@@ -335,15 +356,17 @@ def test_create_pipeline(
     with open(str(pipeline_file_path)) as file:
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
-
+    params = {"experiment": experiment_name}
     response = client.post(
         f"projects/{project}/pipelines",
         data=contents,
+        params=params,
         headers={"content-type": "application/yaml"},
         auth=BasicAuth(username="admin", password="mock_token"),
     )
     response_body = response.json()
     assert response_body["id"] == "some-run-id"
+    assert response_body["name"].startswith(f"{project}-{experiment_name}")
     assert k8s_secrets_mock.auth_secrets_map[
         "secret-ref-V3IO_ACCESS_KEY-some-session"
     ] == {
@@ -395,19 +418,16 @@ def mock_pipeline_run(api_run_status: str) -> ApiRunDetail:
     :param api_run_status: The status of the run.
     :return: An ApiRunDetail object.
     """
-    # Create an instance of ApiPipelineSpec
     pipeline_spec = ApiPipelineSpec(
         pipeline_id=None,
         workflow_manifest='{"mock_workflow_key": "mock_workflow_value"}',
         parameters=None,
     )
 
-    # Create an instance of ApiPipelineRuntime
     pipeline_runtime = ApiPipelineRuntime(
         workflow_manifest='{"status": {"phase": "Succeeded"}}',
     )
 
-    # Create resource references
     resource_references = [
         ApiResourceReference(
             key=ApiResourceKey(
@@ -418,7 +438,6 @@ def mock_pipeline_run(api_run_status: str) -> ApiRunDetail:
         )
     ]
 
-    # Create an instance of ApiRun
     run = ApiRun(
         id="test-run-id",
         name="test-run-name",
@@ -431,7 +450,6 @@ def mock_pipeline_run(api_run_status: str) -> ApiRunDetail:
         resource_references=resource_references,
     )
 
-    # Create an instance of ApiRunDetail
     api_run_detail = ApiRunDetail(
         run=run,
         pipeline_runtime=pipeline_runtime,
@@ -453,8 +471,15 @@ def test_retry(
     kfp_client_mock.get_run = unittest.mock.Mock(
         return_value=mock_api_run_detail,
     )
-    services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+    services.api.crud.Pipelines()._resolve_project_from_pipeline = unittest.mock.Mock(
         return_value="adam"
+    )
+    framework.utils.singletons.project_member.get_project_member().get_project = (
+        unittest.mock.Mock(
+            return_value=mlrun.common.schemas.ProjectOut(
+                metadata=mlrun.common.schemas.ProjectMetadata(name="adam")
+            )
+        )
     )
     temp_file_mock = unittest.mock.Mock()
     temp_file_mock.name = "/tmp/example.yaml"
@@ -615,7 +640,7 @@ def _generate_workflow_manifest(with_status=False):
                             "mlrun/function-uri": "default/hedi-simple-func@a5b181289c7ee40f7fba2a31ed73ff65043dfd2"
                             "7",
                             "mlrun/pipeline-step-type": "run",
-                            "mlrun/project": "default",
+                            "mlrun/project": "some-project",
                             "sidecar.istio.io/inject": "false",
                         },
                         "labels": {"pipelines.kubeflow.org/cache_enabled": "true"},
@@ -717,19 +742,33 @@ def _mock_list_runs_with_one_run_per_page(
     kfp_client_mock: mlrun_pipelines.client.Client,
     runs,
 ):
-    expected_page_tokens = [""]
+    expected_page_tokens = [None]
     for i in range(2, len(runs) + 1):
         expected_page_tokens.append(i)
     expected_page_tokens.append(None)
 
-    def list_runs_mock(*args, page_token=None, page_size=None, **kwargs):
-        assert expected_page_tokens.pop(0) == page_token
-        assert mlrun.common.schemas.PipelinesPagination.max_page_size == page_size
-        return kfp_server_api.models.api_list_runs_response.ApiListRunsResponse(
-            [runs.pop(0)], 1, next_page_token=expected_page_tokens[0]
+    def list_runs_mock(
+        *args,
+        project=None,
+        namespace=None,
+        sort_by=None,
+        page_token=None,
+        filter_json=None,
+        name_contains=None,
+        page_size=None,
+        **kwargs,
+    ) -> ApiListRunsResponse:
+        normalized_page_token = page_token or None
+        if page_size is not None:
+            assert page_size == mlrun.common.schemas.PipelinesPagination.max_page_size
+        assert expected_page_tokens.pop(0) == normalized_page_token
+        next_token = expected_page_tokens[0]
+        return ApiListRunsResponse(
+            runs=[runs.pop(0)],
+            next_page_token=next_token,
         )
 
-    kfp_client_mock.list_runs = list_runs_mock
+    kfp_client_mock._run_api.list_runs = list_runs_mock
 
 
 def _mock_list_runs(
@@ -741,7 +780,7 @@ def _mock_list_runs(
     expected_filter="",
 ):
     def list_runs_mock(
-        *args, page_token=None, page_size=None, sort_by=None, filter=None, **kwargs
+        *args, page_token="", page_size=None, sort_by="", filter="", **kwargs
     ):
         assert expected_page_token == page_token
         assert expected_page_size == page_size
@@ -788,3 +827,104 @@ def _assert_get_pipeline_response(expected_response: dict, response):
         )
         == {}
     )
+
+
+RUN_ID = str(uuid.UUID("00000000-0000-0000-0000-000000000001"))
+PROJECT = "my-proj"
+
+
+@unittest.mock.patch(
+    "framework.utils.background_tasks.ProjectBackgroundTasksHandler.create_background_task"
+)
+@unittest.mock.patch(
+    "framework.utils.background_tasks.ProjectBackgroundTasksHandler.get_background_task_by_state_and_labels"
+)
+@unittest.mock.patch("services.api.crud.pipelines.Pipelines.get_run")
+def test_terminate_pipeline_success(
+    mock_get_run: unittest.mock.Mock,
+    mock_get_bg: unittest.mock.Mock,
+    mock_create_bg: unittest.mock.Mock,
+    client: fastapi.testclient.TestClient,
+) -> None:
+    # Arrange: pipeline is in a terminable state
+    fake_run = unittest.mock.Mock(
+        status=mlrun_pipelines.common.models.RunStatuses.running
+    )
+    mock_get_run.return_value = fake_run
+
+    # No existing terminate task
+    mock_get_bg.return_value = None
+
+    # Create returns a real BackgroundTask
+    new_task = BackgroundTask(
+        id=1,
+        metadata=BackgroundTaskMetadata(name="terminate-1", project=PROJECT),
+        spec=BackgroundTaskSpec(),
+        status=BackgroundTaskStatus(state=BackgroundTaskState.running),
+    )
+    mock_create_bg.return_value = new_task
+
+    # Act
+    response = client.post(f"/projects/{PROJECT}/pipelines/{RUN_ID}/terminate")
+
+    # Assert
+    assert response.status_code == 202
+    assert response.json() == new_task.dict()
+
+    # Act again to ensure idempotency
+    second_response = client.post(f"/projects/{PROJECT}/pipelines/{RUN_ID}/terminate")
+
+    # Assert second invocation returns the same task
+    assert second_response.json() == response.json()
+
+    mock_get_run.assert_called_with(
+        run_id=RUN_ID,
+        project=PROJECT,
+        namespace=unittest.mock.ANY,
+    )
+    mock_get_bg.assert_called_with(
+        db_session=unittest.mock.ANY,
+        status=BackgroundTaskState.running,
+        labels={BackGroundTaskLabel.pipeline: RUN_ID},
+    )
+    mock_create_bg.assert_called_with(
+        unittest.mock.ANY,  # db_session
+        PROJECT,  # project
+        unittest.mock.ANY,  # background_tasks
+        unittest.mock.ANY,  # function
+        mlrun.mlconf.background_tasks.default_timeouts.operations.terminate_pipeline,  # timeout
+        unittest.mock.ANY,  # name
+        {BackGroundTaskLabel.pipeline: RUN_ID},  # labels
+        RUN_ID,  # run_id
+        PROJECT,  # project
+    )
+
+
+@unittest.mock.patch(
+    "framework.utils.background_tasks.ProjectBackgroundTasksHandler.create_background_task"
+)
+@unittest.mock.patch(
+    "framework.utils.background_tasks.ProjectBackgroundTasksHandler.get_background_task_by_state_and_labels"
+)
+@unittest.mock.patch("services.api.crud.pipelines.Pipelines.get_run")
+def test_terminate_pipeline_not_terminable(
+    mock_get_run: unittest.mock.Mock,
+    mock_get_bg: unittest.mock.Mock,
+    mock_create_bg: unittest.mock.Mock,
+    client: fastapi.testclient.TestClient,
+) -> None:
+    # Arrange: pipeline is already finished
+    fake_run = unittest.mock.Mock(
+        status=mlrun_pipelines.common.models.RunStatuses.succeeded
+    )
+    mock_get_run.return_value = fake_run
+
+    # Act
+    response = client.post(f"/projects/{PROJECT}/pipelines/{RUN_ID}/terminate")
+
+    # Assert
+    assert response.status_code == 400
+    assert "not in a terminable state" in response.text
+
+    mock_get_bg.assert_not_called()
+    mock_create_bg.assert_not_called()

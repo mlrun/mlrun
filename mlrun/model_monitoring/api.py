@@ -14,14 +14,12 @@
 
 import hashlib
 import typing
-import warnings
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
+from deprecated import deprecated
 
-import mlrun.artifacts
-import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.datastore.base
 import mlrun.feature_store
@@ -32,8 +30,9 @@ from mlrun.common.schemas.model_monitoring import (
     FunctionURI,
 )
 from mlrun.data_types.infer import InferOptions, get_df_stats
-from mlrun.utils import datetime_now, logger
+from mlrun.utils import check_if_hub_uri, datetime_now, logger, merge_requirements
 
+from ..common.schemas.hub import HubModuleType
 from .helpers import update_model_endpoint_last_request
 
 # A union of all supported dataset types:
@@ -48,6 +47,14 @@ DatasetType = typing.Union[
 ]
 
 
+# TODO: Remove this in 1.12.0
+@deprecated(
+    version="1.10.0",
+    reason="This function is deprecated and will be removed in 1.12. You can generate a model endpoint by either "
+    "deploying a monitored serving function as a real-time service or running it as an offline job. "
+    "To retrieve model endpoints, use `project.list_model_endpoints()`",
+    category=FutureWarning,
+)
 def get_or_create_model_endpoint(
     project: str,
     model_endpoint_name: str,
@@ -70,8 +77,8 @@ def get_or_create_model_endpoint(
     :param model_endpoint_name:      If a new model endpoint is created, the model endpoint name will be presented
                                      under this endpoint (applicable only to new endpoint_id).
     :param model_path:               The model store path (applicable only to new endpoint_id).
-    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
-                                     on the provided `endpoint_id`.
+    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record with a
+                                     newly generated ID.
     :param function_name:            If a new model endpoint is created, use this function name.
     :param function_tag:             If a new model endpoint is created, use this function tag.
     :param context:                  MLRun context. If `function_name` not provided, use the context to generate the
@@ -94,25 +101,26 @@ def get_or_create_model_endpoint(
         function_name = FunctionURI.from_string(
             context.to_dict()["spec"]["function"]
         ).function
-    try:
-        model_endpoint = db_session.get_model_endpoint(
-            project=project,
-            name=model_endpoint_name,
-            endpoint_id=endpoint_id,
-            function_name=function_name,
-            function_tag=function_tag or "latest",
-            feature_analysis=feature_analysis,
-        )
-        # If other fields provided, validate that they are correspond to the existing model endpoint data
-        _model_endpoint_validations(
-            model_endpoint=model_endpoint,
-            model_path=model_path,
-            sample_set_statistics=sample_set_statistics,
-        )
+    if endpoint_id or function_name:
+        try:
+            model_endpoint = db_session.get_model_endpoint(
+                project=project,
+                name=model_endpoint_name,
+                endpoint_id=endpoint_id,
+                function_name=function_name,
+                function_tag=function_tag or "latest",
+                feature_analysis=feature_analysis,
+            )
+            # If other fields provided, validate that they are correspond to the existing model endpoint data
+            _model_endpoint_validations(
+                model_endpoint=model_endpoint,
+                model_path=model_path,
+                sample_set_statistics=sample_set_statistics,
+            )
 
-    except (mlrun.errors.MLRunNotFoundError, mlrun.errors.MLRunInvalidArgumentError):
-        # Create a new model endpoint with the provided details
-        pass
+        except mlrun.errors.MLRunNotFoundError:
+            # Create a new model endpoint with the provided details
+            pass
     if not model_endpoint:
         model_endpoint = _generate_model_endpoint(
             project=project,
@@ -126,6 +134,13 @@ def get_or_create_model_endpoint(
     return model_endpoint
 
 
+# TODO: Remove this in 1.12.0
+@deprecated(
+    version="1.10.0",
+    reason="This function is deprecated and will be removed in 1.12. "
+    "Instead, run a monitored serving function as a job",
+    category=FutureWarning,
+)
 def record_results(
     project: str,
     model_path: str,
@@ -136,12 +151,6 @@ def record_results(
     infer_results_df: typing.Optional[pd.DataFrame] = None,
     sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
-    # Deprecated arguments:
-    drift_threshold: typing.Optional[float] = None,
-    possible_drift_threshold: typing.Optional[float] = None,
-    trigger_monitoring_job: bool = False,
-    artifacts_tag: str = "",
-    default_batch_image: str = "mlrun/mlrun",
 ) -> ModelEndpoint:
     """
     Write a provided inference dataset to model endpoint parquet target. If not exist, generate a new model endpoint
@@ -153,8 +162,8 @@ def record_results(
     :param model_path:               The model Store path.
     :param model_endpoint_name:      If a new model endpoint is generated, the model endpoint name will be presented
                                      under this endpoint.
-    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
-                                     on the provided `endpoint_id`.
+    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record with a
+                                     newly generated ID.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
     :param context:                  MLRun context. Note that the context is required generating the model endpoint.
@@ -166,46 +175,9 @@ def record_results(
                                      the current model endpoint.
     :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id. Enabled
                                      by default.
-    :param drift_threshold:          (deprecated) The threshold of which to mark drifts.
-    :param possible_drift_threshold: (deprecated) The threshold of which to mark possible drifts.
-    :param trigger_monitoring_job:   (deprecated) If true, run the batch drift job. If not exists, the monitoring
-                                     batch function will be registered through MLRun API with the provided image.
-    :param artifacts_tag:            (deprecated) Tag to use for all the artifacts resulted from the function.
-                                     Will be relevant only if the monitoring batch job has been triggered.
-    :param default_batch_image:      (deprecated) The image that will be used when registering the model monitoring
-                                     batch job.
 
     :return: A ModelEndpoint object
     """
-
-    if drift_threshold is not None or possible_drift_threshold is not None:
-        warnings.warn(
-            "Custom drift threshold arguments are deprecated since version "
-            "1.7.0 and have no effect. They will be removed in version 1.9.0.\n"
-            "To enable the default histogram data drift application, run:\n"
-            "`project.enable_model_monitoring()`.",
-            FutureWarning,
-        )
-    if trigger_monitoring_job is not False:
-        warnings.warn(
-            "`trigger_monitoring_job` argument is deprecated since version "
-            "1.7.0 and has no effect. It will be removed in version 1.9.0.\n"
-            "To enable the default histogram data drift application, run:\n"
-            "`project.enable_model_monitoring()`.",
-            FutureWarning,
-        )
-    if artifacts_tag != "":
-        warnings.warn(
-            "`artifacts_tag` argument is deprecated since version "
-            "1.7.0 and has no effect. It will be removed in version 1.9.0.",
-            FutureWarning,
-        )
-    if default_batch_image != "mlrun/mlrun":
-        warnings.warn(
-            "`default_batch_image` argument is deprecated since version "
-            "1.7.0 and has no effect. It will be removed in version 1.9.0.",
-            FutureWarning,
-        )
 
     db = mlrun.get_run_db()
 
@@ -282,6 +254,7 @@ def _model_endpoint_validations(
             key=model_obj.key,
             iter=model_obj.iter,
             tree=model_obj.tree,
+            uid=model_obj.uid,
         )
 
         # Enrich the uri schema with the store prefix
@@ -371,12 +344,15 @@ def _generate_model_endpoint(
 
     :return `mlrun.common.schemas.ModelEndpoint` object.
     """
+
     current_time = datetime_now()
     model_endpoint = mlrun.common.schemas.ModelEndpoint(
         metadata=mlrun.common.schemas.ModelEndpointMetadata(
             project=project,
             name=model_endpoint_name,
             endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP,
+            # Due to backwards compatibility, this endpoint will be created as a legacy batch endpoint.
+            mode=mlrun.common.schemas.model_monitoring.EndpointMode.BATCH_LEGACY,
         ),
         spec=mlrun.common.schemas.ModelEndpointSpec(
             function_name=function_name or "function",
@@ -573,8 +549,9 @@ def _create_model_monitoring_function_base(
     name: typing.Optional[str] = None,
     image: typing.Optional[str] = None,
     tag: typing.Optional[str] = None,
-    requirements: typing.Union[str, list[str], None] = None,
+    requirements: typing.Union[list[str], None] = None,
     requirements_file: str = "",
+    local_path: typing.Optional[str] = None,
     **application_kwargs,
 ) -> mlrun.runtimes.ServingRuntime:
     """
@@ -582,12 +559,30 @@ def _create_model_monitoring_function_base(
     This function does not set the labels or mounts v3io.
     """
     if name in mm_constants._RESERVED_FUNCTION_NAMES:
-        raise mlrun.errors.MLRunInvalidArgumentError(
+        raise mlrun.errors.MLRunValueError(
             "An application cannot have the following names: "
             f"{mm_constants._RESERVED_FUNCTION_NAMES}"
         )
+    _, has_valid_suffix, suffix = mlrun.utils.helpers.ensure_batch_job_suffix(name)
+    if name and not has_valid_suffix:
+        raise mlrun.errors.MLRunValueError(
+            f"Model monitoring application names cannot end with `{suffix}`"
+        )
     if func is None:
         func = ""
+    if check_if_hub_uri(func):
+        hub_module = mlrun.get_hub_module(url=func, local_path=local_path)
+        if hub_module.kind != HubModuleType.monitoring_app:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The provided module is not a monitoring application"
+            )
+        requirements = mlrun.model.ImageBuilder.resolve_requirements(
+            requirements, requirements_file
+        )
+        requirements = merge_requirements(
+            reqs_priority=requirements, reqs_secondary=hub_module.requirements
+        )
+        func = hub_module.get_module_file_path()
     func_obj = typing.cast(
         mlrun.runtimes.ServingRuntime,
         mlrun.code_to_function(

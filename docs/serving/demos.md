@@ -1,7 +1,7 @@
 (demos-serving)=
 # Demos and tutorials
 
-Read these tutorials to get an even better understanding of serving graphs.
+Read and run these tutorials to get an even better understanding of serving graphs.
 
 ```{toctree}
 :maxdepth: 1

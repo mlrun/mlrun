@@ -122,10 +122,7 @@ class TDEngineSchema:
             )
         return f"DELETE FROM {self.database}.{subtable} WHERE {values};"
 
-    def drop_subtable_query(
-        self,
-        subtable: str,
-    ) -> str:
+    def drop_subtable_query(self, subtable: str) -> str:
         return f"DROP TABLE if EXISTS {self.database}.`{subtable}`;"
 
     def drop_supertable_query(self) -> str:
@@ -145,8 +142,10 @@ class TDEngineSchema:
         values = f" {operator} ".join(
             f"{filter_tag} LIKE '{val}'" for val in filter_values
         )
+        return self._get_tables_query_by_condition(values)
 
-        return f"SELECT DISTINCT tbname FROM {self.database}.{self.super_table} WHERE {values};"
+    def _get_tables_query_by_condition(self, condition: str) -> str:
+        return f"SELECT DISTINCT TBNAME FROM {self.database}.{self.super_table} WHERE {condition};"
 
     @staticmethod
     def _get_records_query(
@@ -165,6 +164,7 @@ class TDEngineSchema:
         preform_agg_funcs_columns: Optional[list[str]] = None,
         order_by: Optional[str] = None,
         desc: Optional[bool] = None,
+        partition_by: Optional[str] = None,
     ) -> str:
         if agg_funcs and not columns_to_filter:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -176,7 +176,10 @@ class TDEngineSchema:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "`agg_funcs` must be provided when using interval"
             )
-
+        if partition_by and not agg_funcs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "`agg_funcs` must be provided when using partition by"
+            )
         if sliding_window_step and not interval:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "`interval` must be provided when using sliding window"
@@ -232,6 +235,8 @@ class TDEngineSchema:
                 if isinstance(group_by, list):
                     group_by = ", ".join(group_by)
                 query.write(f" GROUP BY {group_by}")
+            if partition_by:
+                query.write(f" PARTITION BY {partition_by}")
             if order_by:
                 desc = " DESC" if desc else ""
                 query.write(f" ORDER BY {order_by}{desc}")

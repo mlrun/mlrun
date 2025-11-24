@@ -19,10 +19,6 @@ def base_requirements() -> list[str]:
     return list(_load_dependencies_from_file("requirements.txt"))
 
 
-def dev_requirements() -> list[str]:
-    return list(_load_dependencies_from_file("dev-requirements.txt"))
-
-
 def extra_requirements() -> dict[str, list[str]]:
     # NOTE:
     #     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the
@@ -33,12 +29,12 @@ def extra_requirements() -> dict[str, list[str]]:
         "s3": [
             "boto3>=1.28.0,<1.36",
             "aiobotocore>=2.5.0,<2.16",
-            "s3fs>=2023.9.2, <2024.7",
+            "s3fs>=2025.5.1, <=2025.7.0",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
             "azure-core~=1.24",
-            "adlfs==2023.9.0",
+            "adlfs==2024.12.0",
             "pyopenssl>=23",
         ],
         "azure-key-vault": [
@@ -57,27 +53,28 @@ def extra_requirements() -> dict[str, list[str]]:
             # (https://github.com/pypa/setuptools/issues/4476) with setuptools (ML-7273)
             "google-cloud-bigquery-storage~=2.17",
             "google-cloud==0.34",
-            "gcsfs>=2023.9.2, <2024.7",
+            "gcsfs>=2025.5.1, <=2025.7.0",
         ],
         "kafka": [
-            "kafka-python~=2.0",
+            "kafka-python~=2.1.0",
             # because confluent kafka supports avro format by default
             "avro~=1.11",
         ],
         "redis": ["redis~=4.3"],
-        "mlflow": ["mlflow~=2.16"],
+        "mlflow": ["mlflow~=2.22"],
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
-        "sqlalchemy": ["sqlalchemy~=1.4"],
+        "sqlalchemy": ["sqlalchemy~=2.0"],
         "dask": [
-            # dask 2023 does not work on python 3.11
-            # dask 2024 requires dependencies that current mlrun with 3.9 cannot support
-            'dask~=2024.12.1; python_version >= "3.11"',
-            'distributed~=2024.12.1; python_version >= "3.11"',
-            'dask~=2023.12.1; python_version < "3.11"',
-            'distributed~=2023.12.1; python_version < "3.11"',
+            # Use ~= instead of >= to avoid installing newer versions of dask and distributed,
+            # which can cause incompatibilities between the client and the Dask scheduler/worker.
+            # (both must be the same version)
+            # Reference: https://blog.dask.org/2023/04/14/scheduler-environment-requirements
+            "dask==2024.8",
+            "distributed==2024.8",
         ],
-        "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
-        "tdengine": ["taos-ws-py==0.3.2", "taoswswrap~=0.3.5"],
+        "alibaba-oss": ["ossfs==2025.5.0", "oss2==2.18.4"],
+        "tdengine": ["taos-ws-py==0.3.2"],
+        "timescaledb": ["psycopg[binary,pool]~=3.2"],
         "snowflake": ["snowflake-connector-python~=3.7"],
     }
 
@@ -86,7 +83,8 @@ def extra_requirements() -> dict[str, list[str]]:
     )
     extras_require.update(
         {
-            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]>=0.5.0; python_version < '3.11'"],
+            "dev-postgres": ["pytest-mock-resources[postgres]~=2.12"],
+            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.5.8"],
             # TODO uncomment when KFP 1.8 support is removed
             # "kfp2": ["mlrun_pipelines_kfp_v2[kfp]>=0.5.0 ; python_version >= '3.11'"],
             "api": api_deps,

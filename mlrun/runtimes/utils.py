@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import enum
 import getpass
 import hashlib
 import json
@@ -25,10 +26,10 @@ import pandas as pd
 import mlrun
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
-from mlrun.common.runtimes.constants import RunLabels
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
@@ -153,6 +154,7 @@ def results_to_iter(results, runspec, execution):
 
     iter = []
     failed = 0
+    pending_retry = 0
     running = 0
     for task in results:
         if task:
@@ -164,17 +166,26 @@ def results_to_iter(results, runspec, execution):
                 "state": state,
                 "iter": id,
             }
-            if state == "error":
+            if state == mlrun.common.runtimes.constants.RunStates.error:
                 failed += 1
                 err = get_in(task, ["status", "error"], "")
-                logger.error(f"error in task  {execution.uid}:{id} - {err_to_str(err)}")
-            elif state != "completed":
+                logger.error(f"error in task {execution.uid}:{id} - {err_to_str(err)}")
+            elif state == mlrun.common.runtimes.constants.RunStates.pending_retry:
+                pending_retry += 1
+                err = get_in(task, ["status", "error"], "")
+                retry_count = get_in(task, ["status", "retry_count"], 0)
+                logger.warning(
+                    f"pending retry in task {execution.uid}:{id} - {err_to_str(err)}. Retry count: {retry_count}"
+                )
+            elif state != mlrun.common.runtimes.constants.RunStates.completed:
                 running += 1
 
             iter.append(struct)
 
     if not iter:
-        execution.set_state("completed", commit=True)
+        execution.set_state(
+            mlrun.common.runtimes.constants.RunStates.completed, commit=True
+        )
         logger.warning("Warning!, zero iteration results")
         return
     if hasattr(pd, "json_normalize"):
@@ -204,8 +215,14 @@ def results_to_iter(results, runspec, execution):
             error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
             commit=False,
         )
+    elif pending_retry:
+        execution.set_state(
+            mlrun.common.runtimes.constants.RunStates.pending_retry, commit=False
+        )
     elif running == 0:
-        execution.set_state("completed", commit=False)
+        execution.set_state(
+            mlrun.common.runtimes.constants.RunStates.completed, commit=False
+        )
     execution.commit()
 
 
@@ -431,20 +448,58 @@ def enrich_function_from_dict(function, function_dict):
     return function
 
 
+def resolve_owner(
+    labels: dict,
+    owner_to_enrich: Optional[str] = None,
+):
+    """
+    Resolve the owner label value
+    :param labels: The run labels dict
+    :param auth_username: The authenticated username
+    :return: The resolved owner label value
+    """
+
+    if owner_to_enrich and (
+        labels.get("job-type") == mlrun.common.constants.JOB_TYPE_WORKFLOW_RUNNER
+        or labels.get("job-type")
+        == mlrun.common.constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER
+    ):
+        return owner_to_enrich
+    else:
+        return os.environ.get("V3IO_USERNAME") or getpass.getuser()
+
+
 def enrich_run_labels(
     labels: dict,
-    labels_to_enrich: Optional[list[RunLabels]] = None,
+    labels_to_enrich: Optional[list[mlrun_constants.MLRunInternalLabels]] = None,
+    owner_to_enrich: Optional[str] = None,
 ):
+    """
+    Enrich the run labels with the internal labels and the labels enrichment extension.
+    :param labels: The run labels dict
+    :param labels_to_enrich: The label keys to enrich from MLRunInternalLabels.default_run_labels_to_enrich
+    :param owner_to_enrich: Optional owner to enrich the labels with, if not provided will try to resolve it.
+    :return: The enriched labels dict
+    """
+    # Merge the labels with the labels enrichment extension
     labels_enrichment = {
-        RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),
-        # TODO: remove this in 1.9.0
-        RunLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
+        mlrun_constants.MLRunInternalLabels.owner: resolve_owner(
+            labels, owner_to_enrich
+        ),
     }
-    labels_to_enrich = labels_to_enrich or RunLabels.all()
+    # Resolve which label keys to enrich
+    if labels_to_enrich is None:
+        labels_to_enrich = (
+            mlrun_constants.MLRunInternalLabels.default_run_labels_to_enrich()
+        )
+
+    # Enrich labels
     for label in labels_to_enrich:
+        if isinstance(label, enum.Enum):
+            label = label.value
         enrichment = labels_enrichment.get(label)
-        if label.value not in labels and enrichment:
-            labels[label.value] = enrichment
+        if label not in labels and enrichment:
+            labels[label] = enrichment
     return labels
 
 

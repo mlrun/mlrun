@@ -23,6 +23,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.regex
 from mlrun.common.runtimes.constants import RunStates, SparkApplicationStates
@@ -89,6 +90,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
         runtime: mlrun.runtimes.sparkjob.Spark3Runtime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         self._validate_sparkjob(runtime, run)
 
@@ -190,7 +192,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             runtime, project_name=run.metadata.project
         )
 
-        command, args, extra_env = self._get_cmd_args(runtime, run)
+        command, args, extra_env = self._get_cmd_args(runtime, run, auth_info=auth_info)
         code = None
         if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:
             code = f"""
@@ -531,7 +533,7 @@ with ctx:
 
         run.setdefault("status", {})["ui_url"] = ui_url
         run_updates = {"status.ui_url": ui_url}
-        db.update_run(db_session, run_updates, uid, project)
+        db.update_run(db_session, updates=run_updates, uid=uid, project=project)
 
     @staticmethod
     def are_resources_coupled_to_run_object() -> bool:
@@ -796,6 +798,11 @@ with ctx:
                     node_selector=current_node_selector,
                     affinity=affinity,
                     tolerations=tolerations,
+                )
+            )
+            enriched_tolerations, enriched_affinity = (
+                mlrun.k8s_utils.sanitize_scheduling_configuration(
+                    enriched_tolerations, enriched_affinity
                 )
             )
 

@@ -14,6 +14,7 @@
 
 import unittest.mock
 import uuid
+from datetime import datetime
 
 import deepdiff
 import pytest
@@ -282,6 +283,41 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.error
         assert run["status"]["error"] == "Failed to abort run, error: BOOM"
 
+    def test_store_and_get_run_missing_project(self, db: sqlalchemy.orm.Session):
+        project = "some-project"
+        uid = "some-uid"
+        run_name = "run-name"
+
+        services.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": run_name,
+                    "uid": uid,
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                    },
+                    "iteration": 0,
+                },
+            },
+            uid=uid,
+            project=project,
+        )
+
+        run = services.api.crud.Runs().get_run(db, uid=uid, iter=0, project=project)
+        assert run["metadata"]["name"] == run_name
+
+        # get without project should raise
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            services.api.crud.Runs().get_run(db, uid=uid, iter=0)
+
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            services.api.crud.Runs().get_run(db, uid=uid, iter=0, project=None)
+
+        # list without project should raise
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            services.api.crud.Runs().list_runs(db, name=run_name)
+
     def test_store_run_strip_artifacts_metadata(self, db: sqlalchemy.orm.Session):
         project = "project-name"
         run_uid = str(uuid.uuid4())
@@ -545,9 +581,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         for artifact in best_iteration_artifacts:
             framework.utils.singletons.db.get_db().store_artifact(
                 db,
-                artifact["spec"]["db_key"],
-                artifact,
-                None,
+                key=artifact["spec"]["db_key"],
+                artifact=artifact,
+                uid=None,
                 iter=best_iteration,
                 tag="latest",
                 project=project,
@@ -900,6 +936,21 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         iter=0,
         run_format: mlrun.common.formatters.RunFormat = None,
     ):
+        def normalize_datetime_fields(artifact):
+            "Normalize 'created' and 'updated' datetime fields in artifact metadata to a standard format."
+            for field in ["created", "updated"]:
+                value = artifact.get("metadata", {}).get(field)
+                if value:
+                    # Parse and format to "YYYY-MM-DD HH:MM:SS+00:00"
+                    try:
+                        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                        artifact["metadata"][field] = dt.strftime(
+                            "%Y-%m-%d %H:%M:%S%z"
+                        ).replace("+0000", "+00:00")
+
+                    except Exception:
+                        pass  # If parsing fails, leave as is
+
         run = services.api.crud.Runs().get_run(
             db,
             run_uid,
@@ -922,11 +973,17 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         enriched_artifacts.sort(key=sort_by_key)
         artifacts.sort(key=sort_by_key)
         for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):
+            normalize_datetime_fields(artifact)
+            normalize_datetime_fields(enriched_artifact)
             assert (
                 deepdiff.DeepDiff(
                     artifact,
                     enriched_artifact,
-                    exclude_paths="root['metadata']['tag']",
+                    exclude_paths=[
+                        "root['metadata']['tag']",
+                        "root['spec']['parent_uri']",
+                        "root['spec']['has_children']",
+                    ],
                 )
                 == {}
             )

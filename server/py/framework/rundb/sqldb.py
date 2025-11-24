@@ -25,7 +25,6 @@ import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db.factory
-from mlrun.common.db.sql_session import create_session
 from mlrun.db import RunDBInterface
 
 import framework.db.session
@@ -33,6 +32,7 @@ import services.alerts.crud
 import services.api.crud
 from framework.db.base import DBError
 from framework.db.sqldb.db import SQLDB
+from framework.db.sqldb.sql_session import create_session
 
 # This class is a proxy for the real implementation that sits under services.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)
@@ -73,15 +73,9 @@ class SQLRunDB(RunDBInterface):
             append,
         )
 
-    def get_log(self, uid, project="", offset=0, size=0):
-        # TODO: this is method which is not being called through the API (only through the SDK), but due to changes in
-        #  the API we changed the get_log method to async so we cannot call it here, and in this PR we won't change the
-        #  SDK to run async, we will use the legacy method for now, and later when we will have a better solution
-        #  we will change it.
+    def get_log(self, uid, project="", offset=0, size=0, attempt=None):
         raise NotImplementedError(
-            "This should be changed to async call, if you are running in the API, use `services.api.crud.get_log`"
-            " method directly instead and not through the get_db().get_log() method. "
-            "This will be removed in 1.5.0",
+            "Use `services.api.crud.get_log` method directly instead, and not through the get_db().get_log() method."
         )
 
     def store_run(self, struct, uid, project="", iter=0):
@@ -102,6 +96,17 @@ class SQLRunDB(RunDBInterface):
             uid,
             iter,
             updates,
+        )
+
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool
+    ):
+        return self._transform_db_error(
+            services.api.crud.RerunRunner().set_run_retrying_status,
+            self.session,
+            project,
+            run_id,
+            retrying,
         )
 
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
@@ -149,7 +154,6 @@ class SQLRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -175,9 +179,7 @@ class SQLRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            states=mlrun.utils.helpers.as_list(state)
-            if state is not None
-            else states or None,
+            states=states or None,
             sort=sort,
             iter=iter,
             start_time_from=start_time_from,
@@ -281,6 +283,7 @@ class SQLRunDB(RunDBInterface):
         kind: Optional[str] = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
+        parent: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
         partition_by: Optional[
@@ -607,24 +610,6 @@ class SQLRunDB(RunDBInterface):
         )
         return feature_set.dict()
 
-    def list_features(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[list[str]] = None,
-    ):
-        return self._transform_db_error(
-            services.api.crud.FeatureStore().list_features,
-            self.session,
-            project,
-            name,
-            tag,
-            entities,
-            labels,
-        )
-
     def list_features_v2(
         self,
         project: str,
@@ -640,22 +625,6 @@ class SQLRunDB(RunDBInterface):
             name,
             tag,
             entities,
-            labels,
-        )
-
-    def list_entities(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-    ):
-        return self._transform_db_error(
-            services.api.crud.FeatureStore().list_entities,
-            self.session,
-            project,
-            name,
-            tag,
             labels,
         )
 
@@ -926,11 +895,19 @@ class SQLRunDB(RunDBInterface):
             function,
         )
 
+    def get_project_background_task(
+        self,
+        project: str,
+        name: str,
+    ) -> mlrun.common.schemas.BackgroundTask:
+        raise NotImplementedError()
+
     def list_hub_sources(
         self,
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
+        item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         return self._transform_db_error(
             framework.db.session.run_function_with_new_db_session,
@@ -938,6 +915,7 @@ class SQLRunDB(RunDBInterface):
             item_name,
             tag,
             version,
+            item_type,
         )
 
     def get_pipeline(
@@ -949,6 +927,15 @@ class SQLRunDB(RunDBInterface):
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.summary,
         project: Optional[str] = None,
+    ):
+        raise NotImplementedError()
+
+    def retry_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
     ):
         raise NotImplementedError()
 
@@ -974,6 +961,11 @@ class SQLRunDB(RunDBInterface):
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: Optional[dict] = None,
     ):
+        raise NotImplementedError()
+
+    def wait_for_background_task_to_reach_terminal_state(
+        self, name: str, project: str = ""
+    ) -> mlrun.common.schemas.BackgroundTask:
         raise NotImplementedError()
 
     def store_api_gateway(
@@ -1026,16 +1018,6 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_user_secrets(
-        self,
-        user: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.vault,
-        secrets: Optional[dict] = None,
-    ):
-        raise NotImplementedError()
-
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
@@ -1066,9 +1048,12 @@ class SQLRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
+        modes: Optional[
+            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        ] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -1122,6 +1107,7 @@ class SQLRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
+        object_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         raise NotImplementedError()
 
@@ -1132,6 +1118,18 @@ class SQLRunDB(RunDBInterface):
         version: Optional[str] = None,
         tag: str = "latest",
         force_refresh: bool = False,
+        item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
+    ):
+        raise NotImplementedError()
+
+    def get_hub_asset(
+        self,
+        source_name: str,
+        item_name: str,
+        asset_name: str,
+        version: Optional[str] = None,
+        tag: str = "latest",
+        item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         raise NotImplementedError()
 
@@ -1277,6 +1275,36 @@ class SQLRunDB(RunDBInterface):
     ) -> None:
         raise NotImplementedError
 
+    def delete_model_monitoring_metrics(
+        self,
+        project: str,
+        application_name: str,
+        endpoint_ids: Optional[list[str]] = None,
+    ) -> None:
+        raise NotImplementedError
+
+    def get_monitoring_function_summaries(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        names: Optional[Union[list[str], str]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        include_stats: bool = False,
+        include_infra: bool = True,
+    ) -> [mlrun.common.schemas.model_monitoring.FunctionSummary]:
+        raise NotImplementedError
+
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
+        raise NotImplementedError
+
     def _transform_db_error(self, func, *args, **kwargs):
         try:
             return func(*args, **kwargs)
@@ -1372,6 +1400,49 @@ class SQLRunDB(RunDBInterface):
 
     def get_project_summary(self, project: str):
         raise NotImplementedError
+
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
+        raise NotImplementedError
+
+    def store_secret_token(
+        self,
+        secret_token: mlrun.common.schemas.SecretToken,
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        raise NotImplementedError
+
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        raise NotImplementedError
+
+    def revoke_secret_token(self, token_name: str) -> None:
+        raise NotImplementedError
+
+    def list_secret_tokens(
+        self,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        raise NotImplementedError
+
+    def get_secret_token(
+        self,
+        token_name: str,
+        username: Optional[str] = None,
+    ) -> mlrun.common.schemas.SecretToken:
+        return self._transform_db_error(
+            services.api.crud.Secrets().get_secret_token,
+            token_name=token_name,
+            authenticated_username=username,
+        )
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

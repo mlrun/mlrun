@@ -22,7 +22,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 28,
+  "id": 14,
   "links": [
     {
       "asDropdown": true,
@@ -54,7 +54,6 @@
       "url": "/d/9CazA-UGz/model-monitoring-performance"
     }
   ],
-  "liveNow": false,
   "panels": [
     {
       "datasource": "iguazio",
@@ -90,6 +89,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "sum"
@@ -97,9 +97,11 @@
           "fields": "/^estimated_prediction_count$/",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -152,6 +154,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "count"
@@ -159,9 +162,11 @@
           "fields": "/^endpoint_id$/",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -221,6 +226,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "mean"
@@ -228,9 +234,11 @@
           "fields": "/.*/",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -408,6 +416,7 @@
         "graphMode": "none",
         "justifyMode": "center",
         "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -415,10 +424,12 @@
           "fields": "/.*/",
           "values": false
         },
+        "showPercentChange": false,
         "text": {},
-        "textMode": "value_and_name"
+        "textMode": "value_and_name",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -490,7 +501,9 @@
           },
           "custom": {
             "align": "auto",
-            "displayMode": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
             "filterable": true,
             "inspect": false
           },
@@ -581,8 +594,10 @@
                 ]
               },
               {
-                "id": "custom.displayMode",
-                "value": "color-text"
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
               }
             ]
           },
@@ -608,7 +623,9 @@
       },
       "id": 14,
       "options": {
+        "cellHeight": "sm",
         "footer": {
+          "countRows": false,
           "enablePagination": true,
           "fields": "",
           "reducer": [
@@ -618,7 +635,7 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -689,11 +706,13 @@
             "mode": "thresholds"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "Value",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "scheme",
@@ -702,6 +721,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineStyle": {
               "fill": "solid"
@@ -752,11 +772,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.2.15",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -805,71 +826,60 @@
       "type": "timeseries"
     }
   ],
-  "refresh": false,
-  "schemaVersion": 37,
-  "style": "dark",
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 40,
   "tags": [],
   "templating": {
     "list": [
       {
-        "current": {},
+        "current": {
+          "text": "default",
+          "value": "default"
+        },
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
-        "hide": 0,
         "includeAll": false,
         "label": "Project",
-        "multi": false,
         "name": "PROJECT",
         "options": [],
         "query": "target_endpoint=list_projects",
         "refresh": 1,
         "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "tagValuesQuery": "",
-        "tagsQuery": "",
-        "type": "query",
-        "useTags": false
+        "type": "query"
       },
       {
-        "current": {},
+        "current": {
+          "text": "",
+          "value": ""
+        },
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_endpoints;project=$PROJECT",
-        "hide": 0,
         "includeAll": false,
         "label": "Model Endpoint",
-        "multi": false,
         "name": "MODELENDPOINT",
         "options": [],
         "query": "target_endpoint=list_endpoints;project=$PROJECT",
         "refresh": 1,
         "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "tagValuesQuery": "",
-        "tagsQuery": "",
-        "type": "query",
-        "useTags": false
+        "type": "query"
       },
       {
-        "current": {},
+        "current": {
+          "text": "",
+          "value": ""
+        },
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_metrics;project=$PROJECT;endpoint_id=$MODELENDPOINT",
-        "hide": 0,
         "includeAll": false,
         "label": "Metric",
-        "multi": false,
         "name": "METRIC",
         "options": [],
         "query": "target_endpoint=list_metrics;project=$PROJECT;endpoint_id=$MODELENDPOINT",
         "refresh": 1,
         "regex": "",
-        "skipUrlSync": false,
         "sort": 1,
-        "tagValuesQuery": "",
-        "tagsQuery": "",
-        "type": "query",
-        "useTags": false
+        "type": "query"
       }
     ]
   },
@@ -881,6 +891,6 @@
   "timezone": "",
   "title": "Model Monitoring - Applications",
   "uid": "gVrVlU7Iz",
-  "version": 19,
+  "version": 1,
   "weekStart": ""
 }

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import typing
 import uuid
 from datetime import datetime
@@ -20,7 +21,6 @@ from typing import Callable, Optional
 
 import fastapi
 import sqlalchemy.orm
-from fastapi.concurrency import run_in_threadpool
 
 import mlrun.artifacts
 import mlrun.common.formatters
@@ -35,6 +35,8 @@ import mlrun.errors
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
+from mlrun.config import config
+from mlrun.datastore import ParquetTarget
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
@@ -62,7 +64,7 @@ ARCHIVE_LIMITATION = 5
 class ModelEndpoints:
     """Provide different methods for handling model endpoints such as listing, writing and deleting"""
 
-    async def create_model_endpoint(
+    def create_model_endpoint(
         self,
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
@@ -141,6 +143,14 @@ class ModelEndpoints:
                 model_endpoint.metadata.labels.update(
                     model_obj.labels
                 )  # todo : check if we still need this
+                if db_artifact.kind == mlrun.artifacts.LLMPromptArtifact.kind:
+                    artifact = db_artifact.parent.full_object
+                    model_obj = mlrun.artifacts.dict_to_artifact(
+                        mlrun.common.formatters.ArtifactFormat.format_obj(
+                            artifact, "full"
+                        )
+                    )
+
             except mlrun.errors.MLRunNotFoundError:
                 logger.info("The model endpoint is created on a non-existing model")
 
@@ -153,7 +163,7 @@ class ModelEndpoints:
                 method,
                 uid_to_delete,
                 attributes,
-            ) = await self._inplace_model_endpoint(
+            ) = self._inplace_model_endpoint(
                 db_session=db_session,
                 model_endpoint=model_endpoint,
                 model_obj=model_obj,
@@ -169,7 +179,7 @@ class ModelEndpoints:
                 method,
                 uid_to_delete,
                 attributes,
-            ) = await self._overwrite_model_endpoint(
+            ) = self._overwrite_model_endpoint(
                 db_session=db_session,
                 model_endpoint=model_endpoint,
                 delete_background_task=delete_background_task,
@@ -185,7 +195,7 @@ class ModelEndpoints:
                 method,
                 uid_to_delete,
                 attributes,
-            ) = await self._archive_model_endpoint(
+            ) = self._archive_model_endpoint(
                 db_session=db_session,
                 model_endpoint=model_endpoint,
                 model_obj=model_obj,
@@ -203,7 +213,7 @@ class ModelEndpoints:
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
         return model_endpoint, method, uid_to_delete, attributes
 
-    async def create_model_endpoints(
+    def create_model_endpoints(
         self,
         db_session: sqlalchemy.orm.Session,
         model_endpoints_instructions: list[
@@ -230,7 +240,7 @@ class ModelEndpoints:
                 method,
                 uid_to_delete,
                 attributes,
-            ) = await self.create_model_endpoint(
+            ) = self.create_model_endpoint(
                 db_session=db_session,
                 model_endpoint=model_endpoint,
                 creation_strategy=creation_strategy,
@@ -246,8 +256,7 @@ class ModelEndpoints:
             model_endpoints_dict.get("delete").extend(uid_to_delete)
 
         if model_endpoints_dict.get("create"):
-            await run_in_threadpool(
-                framework.utils.singletons.db.get_db().store_model_endpoints,
+            framework.utils.singletons.db.get_db().store_model_endpoints(
                 session=db_session,
                 project=project,
                 model_endpoints=model_endpoints_dict.get("create"),
@@ -255,8 +264,7 @@ class ModelEndpoints:
                 function_tag=function_tag,
             )
         if model_endpoints_dict.get("update"):
-            await run_in_threadpool(
-                framework.utils.singletons.db.get_db().update_model_endpoints,
+            framework.utils.singletons.db.get_db().update_model_endpoints(
                 session=db_session,
                 project=project,
                 attributes=model_endpoints_dict.get("update"),
@@ -265,22 +273,20 @@ class ModelEndpoints:
         if model_endpoints_dict.get("delete"):
             old_uids = model_endpoints_dict.get("delete")
             # delete old versions
-            await run_in_threadpool(
-                framework.utils.singletons.db.get_db().delete_model_endpoints,
+            framework.utils.singletons.db.get_db().delete_model_endpoints(
                 session=db_session,
                 project=project,
                 uids=old_uids,
             )
             # delete monitoring infra including tsdb data that will be deleted in a background task
-            await run_in_threadpool(
-                self._delete_model_endpoint_monitoring_infra,
+            self._delete_model_endpoint_monitoring_infra(
                 uids=old_uids,
                 project=project,
                 db_session=db_session,
                 delete_background_task=delete_background_task,
             )
 
-    async def _inplace_model_endpoint(
+    def _inplace_model_endpoint(
         self,
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
@@ -290,12 +296,13 @@ class ModelEndpoints:
     ) -> tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict]:
         try:
             logger.info("Getting model endpoint from db")
-            exist_model_endpoint = await run_in_threadpool(
-                framework.utils.singletons.db.get_db().get_model_endpoint,
-                session=db_session,
-                project=model_endpoint.metadata.project,
-                name=model_endpoint.metadata.name,
-                uid=model_endpoint.metadata.uid,
+            exist_model_endpoint = (
+                framework.utils.singletons.db.get_db().get_model_endpoint(
+                    session=db_session,
+                    project=model_endpoint.metadata.project,
+                    name=model_endpoint.metadata.name,
+                    uid=model_endpoint.metadata.uid,
+                )
             )
         except mlrun.errors.MLRunNotFoundError:
             exist_model_endpoint = None
@@ -303,7 +310,7 @@ class ModelEndpoints:
         if not exist_model_endpoint:
             # there is no model endpoint with the same name
             # create a new model endpoint using the same logic as archive
-            return await self._archive_model_endpoint(
+            return self._archive_model_endpoint(
                 db_session=db_session,
                 model_endpoint=model_endpoint,
                 upsert=upsert,
@@ -339,7 +346,7 @@ class ModelEndpoints:
             (
                 model_endpoint,
                 monitoring_feature_set_uri,
-            ) = await self._enable_monitoring_on_model_endpoint(
+            ) = self._enable_monitoring_on_model_endpoint(
                 db_session=db_session,
                 model_endpoint=model_endpoint,
                 features=features,
@@ -363,8 +370,7 @@ class ModelEndpoints:
             model_endpoint.spec.feature_names = exist_model_endpoint.spec.feature_names
             model_endpoint.spec.label_names = exist_model_endpoint.spec.label_names
         if upsert:
-            await run_in_threadpool(
-                framework.utils.singletons.db.get_db().update_model_endpoint,
+            framework.utils.singletons.db.get_db().update_model_endpoint(
                 session=db_session,
                 project=exist_model_endpoint.metadata.project,
                 name=exist_model_endpoint.metadata.name,
@@ -376,7 +382,7 @@ class ModelEndpoints:
         else:
             return model_endpoint, "update", [], attributes
 
-    async def _overwrite_model_endpoint(
+    def _overwrite_model_endpoint(
         self,
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
@@ -386,20 +392,19 @@ class ModelEndpoints:
     ) -> tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict]:
         old_uids = [
             model_endpoint.metadata.uid
-            for model_endpoint in (
-                await run_in_threadpool(
-                    framework.utils.singletons.db.get_db().list_model_endpoints,
-                    project=model_endpoint.metadata.project,
-                    names=[model_endpoint.metadata.name],
-                    function_name=model_endpoint.spec.function_name,
-                    function_tag=model_endpoint.spec.function_tag,
-                    latest_only=True,
-                    session=db_session,
-                )
-            ).endpoints
+            for model_endpoint in framework.utils.singletons.db.get_db()
+            .list_model_endpoints(
+                project=model_endpoint.metadata.project,
+                names=[model_endpoint.metadata.name],
+                function_name=model_endpoint.spec.function_name,
+                function_tag=model_endpoint.spec.function_tag,
+                latest_only=True,
+                session=db_session,
+            )
+            .endpoints
         ]
 
-        model_endpoint, method, _, _ = await self._archive_model_endpoint(
+        model_endpoint, method, _, _ = self._archive_model_endpoint(
             db_session=db_session,
             model_endpoint=model_endpoint,
             delete_background_task=delete_background_task,
@@ -408,14 +413,12 @@ class ModelEndpoints:
         )
         if old_uids and upsert:
             # delete old versions
-            await run_in_threadpool(
-                framework.utils.singletons.db.get_db().delete_model_endpoints,
+            framework.utils.singletons.db.get_db().delete_model_endpoints(
                 session=db_session,
                 project=model_endpoint.metadata.project,
                 uids=old_uids,
             )
-            await run_in_threadpool(
-                self._delete_model_endpoint_monitoring_infra,
+            self._delete_model_endpoint_monitoring_infra(
                 uids=old_uids,
                 project=model_endpoint.metadata.project,
                 db_session=db_session,
@@ -426,7 +429,7 @@ class ModelEndpoints:
         else:
             return model_endpoint, method, old_uids, {}
 
-    async def _archive_model_endpoint(
+    def _archive_model_endpoint(
         self,
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
@@ -440,8 +443,7 @@ class ModelEndpoints:
             old_uids = [
                 model_endpoint.metadata.uid
                 for model_endpoint in (
-                    await run_in_threadpool(
-                        framework.utils.singletons.db.get_db().list_model_endpoints,
+                    framework.utils.singletons.db.get_db().list_model_endpoints(
                         project=model_endpoint.metadata.project,
                         names=[model_endpoint.metadata.name],
                         function_name=model_endpoint.spec.function_name,
@@ -466,7 +468,7 @@ class ModelEndpoints:
             (
                 model_endpoint,
                 monitoring_feature_set_uri,
-            ) = await self._enable_monitoring_on_model_endpoint(
+            ) = self._enable_monitoring_on_model_endpoint(
                 db_session=db_session,
                 model_endpoint=model_endpoint,
                 features=features,
@@ -476,21 +478,19 @@ class ModelEndpoints:
         if upsert:
             if uid_to_delete:
                 # delete old versions
-                await run_in_threadpool(
-                    framework.utils.singletons.db.get_db().delete_model_endpoints,
+                framework.utils.singletons.db.get_db().delete_model_endpoints(
                     session=db_session,
                     project=model_endpoint.metadata.project,
                     uids=uid_to_delete,
                 )
-                await run_in_threadpool(
-                    self._delete_model_endpoint_monitoring_infra,
+                self._delete_model_endpoint_monitoring_infra(
                     uids=uid_to_delete,
                     project=model_endpoint.metadata.project,
                     db_session=db_session,
                     delete_background_task=delete_background_task,
                 )
 
-            await self._create_new_model_endpoint(
+            self._create_new_model_endpoint(
                 db_session=db_session, model_endpoint=model_endpoint
             )
             return model_endpoint, "", [], {}
@@ -498,10 +498,10 @@ class ModelEndpoints:
             return model_endpoint, "create", uid_to_delete, {}
 
     @staticmethod
-    async def _create_new_model_endpoint(
+    def _create_new_model_endpoint(
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ) -> mlrun.common.schemas.ModelEndpoint:
+    ) -> None:
         logger.info(
             "Creating model endpoint",
             endpoint_id=model_endpoint.metadata.name,
@@ -509,8 +509,7 @@ class ModelEndpoints:
             function_name=model_endpoint.spec.function_name,
             function_tag=model_endpoint.spec.function_tag,
         )
-        return await run_in_threadpool(
-            framework.utils.singletons.db.get_db().store_model_endpoint,
+        framework.utils.singletons.db.get_db().store_model_endpoint(
             session=db_session,
             model_endpoint=model_endpoint,
         )
@@ -529,6 +528,12 @@ class ModelEndpoints:
                     for f in model_obj.spec.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
+            elif model_endpoint.spec.label_names:
+                model_label_names = [
+                    mlrun.feature_store.api.norm_column_name(name)
+                    for name in model_endpoint.spec.label_names
+                ]
+                model_endpoint.spec.label_names = model_label_names
 
             if not model_endpoint.spec.feature_names:
                 features = self._get_features(
@@ -542,16 +547,22 @@ class ModelEndpoints:
                     for feature in features
                     if feature.name not in model_endpoint.spec.label_names
                 ]
+            elif model_endpoint.spec.feature_names:
+                model_endpoint_feature_names = [
+                    mlrun.feature_store.api.norm_column_name(name)
+                    for name in model_endpoint.spec.feature_names
+                ]
+                model_endpoint.spec.feature_names = model_endpoint_feature_names
 
         return model_endpoint, features
 
-    async def _enable_monitoring_on_model_endpoint(
+    def _enable_monitoring_on_model_endpoint(
         self,
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         features: list[mlrun.feature_store.Feature],
     ) -> tuple[mlrun.common.schemas.ModelEndpoint, str]:
-        monitoring_feature_set = await self.create_monitoring_feature_set(
+        monitoring_feature_set = self.create_monitoring_feature_set(
             features=features,
             model_endpoint=model_endpoint,
             db_session=db_session,
@@ -574,14 +585,15 @@ class ModelEndpoints:
         ModelMonitoringSchedulesFileEndpoint.from_model_endpoint(
             model_endpoint=model_endpoint
         ).create()
-        ModelMonitoringCurrentStatsFile.from_model_endpoint(
-            model_endpoint=model_endpoint
-        ).create()
-        ModelMonitoringDriftMeasuresFile.from_model_endpoint(
-            model_endpoint=model_endpoint
-        ).create()
+        if config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
+            ModelMonitoringCurrentStatsFile.from_model_endpoint(
+                model_endpoint=model_endpoint
+            ).create()
+            ModelMonitoringDriftMeasuresFile.from_model_endpoint(
+                model_endpoint=model_endpoint
+            ).create()
 
-    async def patch_model_endpoint(
+    def patch_model_endpoint(
         self,
         name: str,
         project: str,
@@ -610,8 +622,7 @@ class ModelEndpoints:
         if function_name and function_tag is None:
             logger.info("Function tag not provided, setting to 'latest'")
             function_tag = DEFAULT_FUNCTION_TAG
-        uid = await run_in_threadpool(
-            framework.utils.singletons.db.get_db().update_model_endpoint,
+        uid = framework.utils.singletons.db.get_db().update_model_endpoint(
             session=db_session,
             project=project,
             name=name,
@@ -674,7 +685,7 @@ class ModelEndpoints:
         return features
 
     @staticmethod
-    async def create_monitoring_feature_set(
+    def create_monitoring_feature_set(
         features: list[mlrun.feature_store.Feature],
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         db_session: sqlalchemy.orm.Session,
@@ -746,11 +757,11 @@ class ModelEndpoints:
         driver.update_resource_status("created")
 
         # Save the new feature set
-        await run_in_threadpool(feature_set.save)
+        feature_set.save()
 
         return feature_set
 
-    async def delete_model_endpoint(
+    def delete_model_endpoint(
         self,
         name: str,
         project: str,
@@ -776,14 +787,15 @@ class ModelEndpoints:
             logger.info("Function tag not provided, setting to 'latest'")
             function_tag = DEFAULT_FUNCTION_TAG
         if endpoint_id == "*":
-            model_endpoint_list = await run_in_threadpool(
-                framework.utils.singletons.db.get_db().list_model_endpoints,
-                project=project,
-                names=[name],
-                function_name=function_name,
-                function_tag=function_tag,
-                latest_only=False,
-                session=db_session,
+            model_endpoint_list = (
+                framework.utils.singletons.db.get_db().list_model_endpoints(
+                    project=project,
+                    names=[name],
+                    function_name=function_name,
+                    function_tag=function_tag,
+                    latest_only=False,
+                    session=db_session,
+                )
             )
             uids = [
                 model_endpoint.metadata.uid
@@ -792,8 +804,12 @@ class ModelEndpoints:
         else:
             uids = [endpoint_id]
 
-        await run_in_threadpool(
-            framework.utils.singletons.db.get_db().delete_model_endpoint,
+        if not uids:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Model endpoint '{name}' with function '{function_name}' and tag '{function_tag}' not found"
+            )
+
+        framework.utils.singletons.db.get_db().delete_model_endpoint(
             session=db_session,
             project=project,
             name=name,
@@ -801,8 +817,7 @@ class ModelEndpoints:
             function_tag=function_tag,
             uid=endpoint_id,
         )
-        await run_in_threadpool(
-            self._delete_model_endpoint_monitoring_infra,
+        self._delete_model_endpoint_monitoring_infra(
             uids=uids,
             project=project,
             db_session=db_session,
@@ -849,13 +864,11 @@ class ModelEndpoints:
             project,
             delete_background_task,
             ModelEndpoints.delete_tsdb_records,
-            mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers,
+            config.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers,
             background_task_name,
+            None,
             project,
             uids,
-            int(
-                mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers
-            ),
         )
 
         # delete feature sets
@@ -875,9 +888,8 @@ class ModelEndpoints:
         )
 
     @staticmethod
-    async def delete_tsdb_records(
-        project: str, uids: list[str], delete_timeout: Optional[int] = None
-    ):
+    def delete_tsdb_records(project: str, uids: list[str]):
+        """This function should run only as a background task to delete the TSDB records of a model endpoint."""
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=project,
@@ -885,9 +897,7 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-            tsdb_connector.delete_tsdb_records(
-                endpoint_ids=uids, delete_timeout=delete_timeout
-            )
+            tsdb_connector.delete_tsdb_records(endpoint_ids=uids)
             logger.info("TSDB resources were deleted")
         except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.info(
@@ -895,7 +905,7 @@ class ModelEndpoints:
                 error=mlrun.errors.err_to_str(e),
             )
 
-    async def get_model_endpoint(
+    def get_model_endpoint(
         self,
         name: str,
         project: str,
@@ -940,39 +950,80 @@ class ModelEndpoints:
         )
 
         # Get the model endpoint record
-        model_endpoint_object = await run_in_threadpool(
-            framework.utils.singletons.db.get_db().get_model_endpoint,
-            session=db_session,
-            project=project,
-            name=name,
-            function_name=function_name,
-            function_tag=function_tag,
-            uid=endpoint_id,
+        model_endpoint_object = (
+            framework.utils.singletons.db.get_db().get_model_endpoint(
+                session=db_session,
+                project=project,
+                name=name,
+                function_name=function_name,
+                function_tag=function_tag,
+                uid=endpoint_id,
+            )
         )
 
         # If time metrics were provided, retrieve the results from the time series DB
         if tsdb_metrics:
             logger.info("Adding real time metrics to the model endpoint")
-            model_endpoint_object = (
-                await self._add_basic_metrics(
-                    model_endpoint_objects=[model_endpoint_object],
-                    project=project,
-                    metric_list=metric_list,
-                )
+            model_endpoint_object = self._add_basic_metrics(
+                model_endpoint_objects=[model_endpoint_object],
+                project=project,
+                metric_list=metric_list,
             )[0]
         if feature_analysis:
             logger.info("Adding feature analysis to the model endpoint")
-            model_endpoint_object = self._add_feature_analysis(
-                model_endpoint_objects=[model_endpoint_object]
-            )[0]
+            if config.model_endpoint_monitoring.writer_graph.writer_version != "v1":
+                parquet_target = framework.db.session.run_function_with_new_db_session(
+                    services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path,
+                    project=project,
+                    kind="parquet_stats",
+                )
+                drift_measures, drift_measures_timestamp = (
+                    self._get_mep_stats_dict_from_parquet(
+                        parquet_target=parquet_target,
+                        project=project,
+                        uid=model_endpoint_object.metadata.uid,
+                        kind=mm_constants.StatsKind.DRIFT_MEASURES,
+                    )
+                )
+                current_stats, current_stats_timestamp = (
+                    self._get_mep_stats_dict_from_parquet(
+                        parquet_target=parquet_target,
+                        project=project,
+                        uid=model_endpoint_object.metadata.uid,
+                        kind=mm_constants.StatsKind.CURRENT_STATS,
+                    )
+                )
+            else:
+                current_stats, current_stats_timestamp = {}, None
+                drift_measures, drift_measures_timestamp = {}, None
+            if current_stats or drift_measures:
+                (
+                    model_endpoint_object.status.current_stats,
+                    model_endpoint_object.status.current_stats_timestamp,
+                ) = (current_stats, current_stats_timestamp)
+
+                (
+                    model_endpoint_object.status.drift_measures,
+                    model_endpoint_object.status.drift_measures_timestamp,
+                ) = (drift_measures, drift_measures_timestamp)
+            else:
+                # json option
+                model_endpoint_object = self._add_feature_analysis(
+                    model_endpoint_objects=[model_endpoint_object]
+                )[0]
+
             if model_endpoint_object.spec.model_uri:
-                model_endpoint_object, _ = self._add_feature_stats(
-                    session=db_session, model_endpoint_object=model_endpoint_object
+                (
+                    model_endpoint_object,
+                    _,
+                ) = framework.db.session.run_function_with_new_db_session(
+                    self._add_feature_stats,
+                    model_endpoint_object=model_endpoint_object,
                 )
 
         return model_endpoint_object
 
-    async def list_model_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         db_session: sqlalchemy.orm.Session,
@@ -985,6 +1036,7 @@ class ModelEndpoints:
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
         top_level: typing.Optional[bool] = None,
+        modes: typing.Optional[list[mlrun.common.schemas.EndpointMode]] = None,
         tsdb_metrics: typing.Optional[bool] = None,
         metric_list: Optional[list[str]] = None,
         uids: typing.Optional[list[str]] = None,
@@ -1002,6 +1054,8 @@ class ModelEndpoints:
         :param start:               The start time of the model endpoint creation.
         :param end:                 The end time of the model endpoint creation.
         :param top_level:           When True, only top level model endpoints will be returned.
+        :param modes:               Specifies the mode of the model endpoint. Can be "real-time" (0), "batch" (1),
+                                    "batch_legacy" (2). If set to None, all are included.
         :param tsdb_metrics:        When True, the time series metrics will be added to the output of the resulting
         :param metric_list:         List of metrics to include from the time series DB. Defaults to all metrics.
                                     If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
@@ -1027,6 +1081,7 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
+            modes=modes,
             tsdb_metrics=tsdb_metrics,
             metric_list=metric_list,
             uids=uids,
@@ -1034,8 +1089,7 @@ class ModelEndpoints:
         )
 
         # Initialize an empty model endpoints list
-        endpoint_list = await run_in_threadpool(
-            framework.utils.singletons.db.get_db().list_model_endpoints,
+        endpoint_list = framework.utils.singletons.db.get_db().list_model_endpoints(
             session=db_session,
             project=project,
             names=names,
@@ -1047,12 +1101,13 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
+            modes=modes,
             uids=uids,
             latest_only=latest_only,
         )
 
         if tsdb_metrics and endpoint_list.endpoints:
-            endpoint_list.endpoints = await self._add_basic_metrics(
+            endpoint_list.endpoints = self._add_basic_metrics(
                 model_endpoint_objects=endpoint_list.endpoints,
                 project=project,
                 metric_list=metric_list,
@@ -1085,11 +1140,13 @@ class ModelEndpoints:
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
-        logger.debug(
-            "Deleting model monitoring endpoints resources", project_name=project_name
-        )
         stream_path = mlrun.model_monitoring.get_stream_path(
             project=project_name, profile=stream_profile
+        )
+        logger.debug(
+            "Deleting model monitoring endpoints resources",
+            project_name=project_name,
+            stream_path=stream_path,
         )
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
@@ -1127,17 +1184,6 @@ class ModelEndpoints:
                 error=mlrun.errors.err_to_str(e),
             )
             tsdb_connector = None
-        except mlrun.errors.MLRunInvalidMMStoreTypeError:
-            # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
-            if not mlrun.mlconf.is_ce_mode():
-                tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                    project=project_name,
-                    profile=mlrun.datastore.datastore_profile.DatastoreProfileV3io(
-                        name="tmp"
-                    ),
-                )
-            else:
-                tsdb_connector = None
         if tsdb_connector:
             tsdb_connector.delete_tsdb_resources()
         cls._delete_model_monitoring_stream_resources(
@@ -1172,7 +1218,8 @@ class ModelEndpoints:
         :param project:         The name of the project.
         :param endpoint_id:     The unique id of the model endpoint, Can be a single id or a list of ids.
         :param type:            metric or result.
-        :param metrics_format:  Determines the format of the result. Can be either 'list' or 'dict'.
+        :param metrics_format:  Determines the format of the result, which can be `single`, `separation`, or
+                                `intersection`.
         :return: metrics in the chosen format.
         """
         try:
@@ -1205,6 +1252,16 @@ class ModelEndpoints:
                 df=df, type=type, project=project
             )
         elif metrics_format == mm_constants.GetEventsFormat.INTERSECTION:
+            endpoint_id_set = (
+                set(endpoint_id) if isinstance(endpoint_id, list) else {endpoint_id}
+            )
+            if set(df["endpoint_id"].unique().tolist()) != endpoint_id_set:
+                logger.info(
+                    f"some endpoints does not have {type}s, intersection is empty"
+                )
+                return {
+                    mlrun.common.schemas.model_monitoring.INTERSECT_DICT_KEYS[type]: []
+                }
             return tsdb_connector.df_to_events_intersection_dict(
                 df=df, type=type, project=project
             )
@@ -1330,7 +1387,7 @@ class ModelEndpoints:
                 " Returning without adding real time metrics.",
                 error=mlrun.errors.err_to_str(e),
             )
-            return model_endpoint_object
+            return {}
 
         endpoint_metrics = tsdb_connector.get_model_endpoint_real_time_metrics(
             endpoint_id=model_endpoint_object.metadata.uid,
@@ -1365,7 +1422,7 @@ class ModelEndpoints:
                 )
         return model_endpoint_objects
 
-    async def _add_basic_metrics(
+    def _add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
@@ -1399,10 +1456,8 @@ class ModelEndpoints:
             )
             return model_endpoint_objects
 
-        return await tsdb_connector.add_basic_metrics(
+        return tsdb_connector.add_basic_metrics(
             model_endpoint_objects,
-            project,
-            run_in_threadpool,
             metric_list,
         )
 
@@ -1420,11 +1475,13 @@ class ModelEndpoints:
         """
 
         run_db = framework.api.utils.get_run_db_instance(session)
-        model_obj: mlrun.artifacts.ModelArtifact = (
-            mlrun.datastore.store_resources.get_store_resource(
-                model_endpoint_object.spec.model_uri, db=run_db
-            )
+        model_obj = mlrun.datastore.store_resources.get_store_resource(
+            model_endpoint_object.spec.model_uri, db=run_db
         )
+        if isinstance(model_obj, mlrun.artifacts.LLMPromptArtifact):
+            model_obj = mlrun.datastore.store_resources.get_store_resource(
+                model_obj.spec.model_uri, db=run_db
+            )
         feature_stats: dict = model_obj.spec.feature_stats or {}
         mlrun.common.model_monitoring.helpers.pad_features_hist(
             mlrun.common.model_monitoring.helpers.FeatureStats(feature_stats)
@@ -1438,6 +1495,51 @@ class ModelEndpoints:
 
         model_endpoint_object.spec.feature_stats = feature_stats
         return model_endpoint_object, model_obj
+
+    @staticmethod
+    def _get_mep_stats_dict_from_parquet(
+        parquet_target,
+        project,
+        uid,
+        kind,
+    ) -> tuple[dict, typing.Optional[datetime]]:
+        parquet_target = (
+            parquet_target if parquet_target.endswith("/") else parquet_target + "/"
+        )
+
+        target = ParquetTarget(
+            path=f"{parquet_target}endpoint_id={uid}/stats_name={kind}/target.parquet",
+        )
+        try:
+            df = target.as_df()
+        except Exception as exc:
+            logger.warning(
+                "Failed to read stats from parquet, you may need to check the parquet file",
+                project=project,
+                endpoint_id=uid,
+                kind=kind,
+                error=mlrun.errors.err_to_str(exc),
+            )
+            return {}, None
+
+        if df.empty:
+            return {}, None
+        else:
+            if len(df) > 1:
+                df.sort_values(
+                    by=[mm_constants.StatsData.TIMESTAMP], ascending=False, inplace=True
+                )
+            logger.info(
+                "Got stats from parquet",
+                project=project,
+                endpoint_id=uid,
+                kind=kind,
+                stats=df.iloc[0][mm_constants.StatsData.STATS],
+                timestamp=df.iloc[0][mm_constants.StatsData.TIMESTAMP],
+            )
+            return json.loads(
+                df.iloc[0][mm_constants.StatsData.STATS]
+            ), datetime.fromisoformat(df.iloc[0][mm_constants.StatsData.TIMESTAMP])
 
 
 class ModelMonitoringResourcesDeleter:

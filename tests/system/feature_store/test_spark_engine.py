@@ -111,12 +111,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 name="s3ds_profile",
                 access_key=os.environ["AWS_ACCESS_KEY_ID"],
                 secret_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+                bucket=os.environ["AWS_BUCKET_NAME"],
             )
             register_temporary_client_datastore_profile(cls.ds_profile)
-            bucket = os.environ["AWS_BUCKET_NAME"]
-            path = f"ds://{cls.ds_profile.name}/{bucket}"
+
+            path = f"ds://{cls.ds_profile.name}"
             if without_prefix:
-                path = f"{bucket}"
+                path = ""
         else:
             path = "v3io://"
             if without_prefix:
@@ -183,11 +184,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         if not cls.spark_image_deployed:
+            # TestMLRunSystem will create this project later in the initialization process, but we need it now
+            # to avoid a "project does not exist" error because the default project was dropped in 1.8.0
+            mlrun.get_or_create_project(cls.project_name, allow_cross_project=True)
+
             if not cls.test_branch:
                 RemoteSparkRuntime.deploy_default_image()
             else:
                 sj = new_function(
-                    kind="remote-spark", name="remote-spark-default-image-deploy-temp"
+                    kind="remote-spark",
+                    project=cls.project_name,
+                    name="remote-spark-default-image-deploy-temp",
                 )
 
                 sj.spec.build.image = RemoteSparkRuntime.default_image

@@ -1,30 +1,20 @@
 (use-cases-serving)=
-# Use cases
+# Examples of serving graphs
+
+Learn how serving graphs can simplify complex workflows as illustrated in these examples.
 
 <!-- ## Data preparation, ## Model serving -->
 
 **In this section**
-* [Data and feature engineering](#data-and-feature-engineering-using-the-feature-store)
 * [Example of a simple model serving router](#example-of-a-simple-model-serving-router)
 * [Example of advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
 * [Example of NLP processing pipeline with real-time streaming](#example-of-an-nlp-processing-pipeline-with-real-time-streaming)
+* [Data and feature engineering](#data-and-feature-engineering-using-the-feature-store)
 
 In addition to the examples in this section, see the:
 - [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
 - [Advanced model serving graph notebook example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
-- [MLRun demos repository](https://github.com/mlrun/demos) for additional use cases and full end-to-end examples, including fraud prevention using the Iguazio feature store, a mask detection demo, and converting existing ML code to an MLRun project.
-
-## Data and feature engineering (using the feature store)
-
-You can build a feature set transformation using serving graphs.
-
-High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
-from any online or offline source, handle any type of structures or unstructured data, run complex computation graphs 
-and native user code. Iguazio’s solution uses a unique multi-model database, serving the computed features consistently 
-through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
-resulting in better accuracy and simpler integration.
-
-Read more in {ref}`feature-store`, and [Feature set transformations](../feature-store/transformations.md).
+- {ref}`MLRun demos <demos>` for additional use cases and full end-to-end examples, including GenAI serving.
 
 ## Example of a simple model serving router
 
@@ -49,7 +39,7 @@ fn.invoke("/v2/models/model1/infer", body={"inputs": [5]})
 ```
 
 The serving function supports the same protocol used in KFServing V2 and Triton Serving framework. 
-To invoke the model, to use following url: `<function-host>/v2/models/model1/infer`.
+To invoke the model, use the following url: `<function-host>/v2/models/model1/infer`.
 
 See the [**serving protocol specification**](./model-api.md) for details.
 
@@ -59,7 +49,7 @@ Model url is either an MLRun model store object (starts with `store://`) or URL 
 be added to the serving function via environment variables or MLRun secrets.
 ```
 
-See the [**scikit-learn classifier example**](https://github.com/mlrun/functions/blob/master/sklearn_classifier/sklearn_classifier.ipynb), 
+See the [**scikit-learn classifier example**](https://github.com/mlrun/functions/blob/master/functions/src/sklearn_classifier/sklearn_classifier.ipynb), 
 which explains how to create/log MLRun models.
 
 ### Writing your own serving class
@@ -76,7 +66,7 @@ calling the `<model-url>/xx`, where operation = xx). See {py:class}`~mlrun.model
 
 For an example of writing the minimal serving functions, see [Minimal sklearn serving function example](./custom-model-serving-class.md#minimal-sklearn-serving-function-example).
 
-See the full [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb) that 
+See the full [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/functions/src/v2_model_server/v2_model_server.ipynb) that 
 tests one or more classifier models against a held-out dataset.
 
 ## Example of advanced data processing and serving ensemble
@@ -87,14 +77,16 @@ passes the data into a model ensemble, and finishes off with post processing.
 
 **For a complete example, see the [Advanced graph example notebook](./graph-example.ipynb).**
 
-Create a new function of type serving from code and set the graph topology to `async flow`.
+Create a function of type serving from code and set the graph topology to `async flow`.
 
 ```python
 import mlrun
 
-function = mlrun.code_to_function(
+project = mlrun.get_or_create_project("myproj")
+
+function = project.set_function(
     "advanced",
-    filename="demo.py",
+    func="<path to demo.py>",
     kind="serving",
     image="mlrun/mlrun",
     requirements=["storey"],
@@ -155,14 +147,16 @@ If you test a Nuclio function that has a serving graph with the async engine via
 In some cases it's useful to split your processing to multiple functions and use 
 streaming protocols to connect those functions. In this example the data 
 processing is in the first function/container and the NLP processing is in the second function. 
-In this example the GPU contained in the second function.
+In this example the GPU is contained in the second function.
 
 See the [full notebook example](./distributed-graph.ipynb).
 
 ```python
 # define a new real-time serving function (from code) with an async graph
-fn = mlrun.code_to_function(
-    "multi-func", filename="./data_prep.py", kind="serving", image="mlrun/mlrun"
+project = mlrun.get_or_create_project("myproj")
+
+fn = project.set_function(
+    "multi-func", func="<path to data_prep.py>", kind="serving", image="mlrun/mlrun"
 )
 graph = fn.set_topology("flow", engine="async")
 
@@ -194,4 +188,15 @@ child.spec.build.commands = [
 graph.plot()
 ```
 
-Currently queues support iguazio v3io and Kafka streams.
+Currently queues support Iguazio V3IO and Kafka streams.
+## Data and feature engineering (using the feature store)
+
+You can build a feature set transformation using serving graphs.
+
+High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
+from any online or offline source, handle any type of structures or unstructured data, run complex computation graphs 
+and native user code. Iguazio’s solution uses a unique multi-model database, serving the computed features consistently 
+through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
+resulting in better accuracy and simpler integration.
+
+Read more in {ref}`feature-store`, and [Feature set transformations](../feature-store/transformations.md).

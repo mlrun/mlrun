@@ -21,14 +21,14 @@ import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun
-import mlrun.common.db.sql_session
+import mlrun.common.db.dialects
 import mlrun.common.schemas
-from mlrun.config import config
+import mlrun.config
 
 import framework.constants
-import framework.db.init_db
 import framework.db.sqldb.db
 import framework.db.sqldb.models
+import framework.db.sqldb.sql_session
 import framework.utils.singletons.db
 import services.api.initial_data
 
@@ -68,29 +68,13 @@ def test_add_data_version_non_empty_db():
     services.api.initial_data.latest_data_version = original_latest_data_version
 
 
-def test_perform_data_migrations_from_first_version():
+def test_perform_data_migrations_from_initial_supported_version():
     db, db_session = _initialize_db_without_migrations()
 
-    # set version to 1
-    db.create_data_version(db_session, "1")
+    # set version to 5 as the minimum supported version from 1.10
+    db.create_data_version(db_session, "5")
 
     # keep a reference to the original functions, so we can restore them later
-    original_perform_version_2_data_migrations = (
-        services.api.initial_data._perform_version_2_data_migrations
-    )
-    services.api.initial_data._perform_version_2_data_migrations = unittest.mock.Mock()
-    original_perform_version_3_data_migrations = (
-        services.api.initial_data._perform_version_3_data_migrations
-    )
-    services.api.initial_data._perform_version_3_data_migrations = unittest.mock.Mock()
-    original_perform_version_4_data_migrations = (
-        services.api.initial_data._perform_version_4_data_migrations
-    )
-    services.api.initial_data._perform_version_4_data_migrations = unittest.mock.Mock()
-    original_perform_version_5_data_migrations = (
-        services.api.initial_data._perform_version_5_data_migrations
-    )
-    services.api.initial_data._perform_version_5_data_migrations = unittest.mock.Mock()
     original_perform_version_6_data_migrations = (
         services.api.initial_data._perform_version_6_data_migrations
     )
@@ -110,38 +94,28 @@ def test_perform_data_migrations_from_first_version():
     )
     services.api.initial_data._perform_version_9_data_migrations = unittest.mock.Mock()
 
+    original_perform_version_10_data_migrations = (
+        services.api.initial_data._perform_version_10_data_migrations
+    )
+    services.api.initial_data._perform_version_10_data_migrations = unittest.mock.Mock()
+
     # perform migrations
     services.api.initial_data._perform_data_migrations(db_session)
 
     # calling again should not trigger migrations again, since we're already at the latest version
     services.api.initial_data._perform_data_migrations(db_session)
 
-    services.api.initial_data._perform_version_2_data_migrations.assert_called_once()
-    services.api.initial_data._perform_version_3_data_migrations.assert_called_once()
-    services.api.initial_data._perform_version_4_data_migrations.assert_called_once()
-    services.api.initial_data._perform_version_5_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_6_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_7_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_8_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_9_data_migrations.assert_called_once()
+    services.api.initial_data._perform_version_10_data_migrations.assert_called_once()
 
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         services.api.initial_data.latest_data_version
     )
 
     # restore original functions
-    services.api.initial_data._perform_version_2_data_migrations = (
-        original_perform_version_2_data_migrations
-    )
-    services.api.initial_data._perform_version_3_data_migrations = (
-        original_perform_version_3_data_migrations
-    )
-    services.api.initial_data._perform_version_4_data_migrations = (
-        original_perform_version_4_data_migrations
-    )
-    services.api.initial_data._perform_version_5_data_migrations = (
-        original_perform_version_5_data_migrations
-    )
     services.api.initial_data._perform_version_6_data_migrations = (
         original_perform_version_6_data_migrations
     )
@@ -154,6 +128,9 @@ def test_perform_data_migrations_from_first_version():
     services.api.initial_data._perform_version_9_data_migrations = (
         original_perform_version_9_data_migrations
     )
+    services.api.initial_data._perform_version_10_data_migrations = (
+        original_perform_version_10_data_migrations
+    )
 
 
 def test_resolve_current_data_version_version_exists():
@@ -164,7 +141,7 @@ def test_resolve_current_data_version_version_exists():
 
 
 @pytest.mark.parametrize("table_exists", [True, False])
-@pytest.mark.parametrize("db_type", ["mysql", "sqlite"])
+@pytest.mark.parametrize("db_type", mlrun.common.db.dialects.Dialects.all())
 def test_resolve_current_data_version_before_and_after_projects(table_exists, db_type):
     db, db_session = _initialize_db_without_migrations()
 
@@ -174,11 +151,14 @@ def test_resolve_current_data_version_before_and_after_projects(table_exists, db
     if not table_exists:
         # simulating table doesn't exist in DB
         db.get_current_data_version = unittest.mock.Mock()
-        if db_type == "sqlite":
+        if db_type == mlrun.common.db.dialects.Dialects.SQLITE:
             db.get_current_data_version.side_effect = sqlalchemy.exc.OperationalError(
                 "no such table", None, None
             )
-        elif db_type == "mysql":
+        elif db_type in (
+            mlrun.common.db.dialects.Dialects.MYSQL,
+            mlrun.common.db.dialects.Dialects.POSTGRESQL,
+        ):
             db.get_current_data_version.side_effect = sqlalchemy.exc.ProgrammingError(
                 "Table 'mlrun.data_versions' doesn't exist", None, None
             )
@@ -212,16 +192,16 @@ def test_add_default_hub_source_if_needed():
         db_session,
         index=mlrun.common.schemas.hub.last_source_index,
     )
-    assert hub_source.source.spec.path == config.hub.default_source.url
+    assert hub_source.source.spec.path == mlrun.config.config.hub.default_source.url
 
     # Change the config and make sure the hub source is updated
-    config.hub.default_source.url = "http://some-other-url"
+    mlrun.config.config.hub.default_source.url = "http://some-other-url"
     services.api.initial_data._add_default_hub_source_if_needed(db, db_session)
     hub_source = db.get_hub_source(
         db_session,
         index=mlrun.common.schemas.hub.last_source_index,
     )
-    assert hub_source.source.spec.path == config.hub.default_source.url
+    assert hub_source.source.spec.path == mlrun.config.config.hub.default_source.url
 
     # Make sure the hub source is not updated if it already exists
     with unittest.mock.patch(
@@ -232,6 +212,7 @@ def test_add_default_hub_source_if_needed():
 
 
 def test_migrate_function_kind_and_state():
+    project = "some-project"
     db, db_session = _initialize_db_without_migrations()
     num_of_functions = 10
     chunk_size = 1
@@ -239,20 +220,25 @@ def test_migrate_function_kind_and_state():
     # Insert multiple functions
     for fn_counter in range(num_of_functions):
         fn_name = f"name-{fn_counter}"
-        _insert_function(db, db_session, fn_name)
+        _insert_function(db, db_session, fn_name, project)
 
     # Insert a function with None as kind
     fn_name_none_kind = "name-10"
-    _insert_function(db, db_session, fn_name_none_kind, function_kind=None)
+    _insert_function(db, db_session, fn_name_none_kind, project, function_kind=None)
 
     # Insert a function with None state
     fn_name_none_state = "name-11"
-    _insert_function(db, db_session, fn_name_none_state, function_state=None)
+    _insert_function(db, db_session, fn_name_none_state, project, function_state=None)
 
     # Insert a function with both kind and state as None
     fn_name_none_kind_state = "name-12"
     _insert_function(
-        db, db_session, fn_name_none_kind_state, function_kind=None, function_state=None
+        db,
+        db_session,
+        fn_name_none_kind_state,
+        project,
+        function_kind=None,
+        function_state=None,
     )
 
     # Migrate function kind
@@ -267,6 +253,7 @@ def test_migrate_function_kind_and_state():
             db,
             db_session,
             fn_name,
+            project=project,
             attribute_name="kind",
             attribute_path="kind",
             expected_value="remote",
@@ -275,6 +262,7 @@ def test_migrate_function_kind_and_state():
             db,
             db_session,
             fn_name,
+            project=project,
             attribute_name="state",
             attribute_path="status.state",
             expected_value="ready",
@@ -285,6 +273,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind,
+        project=project,
         attribute_name="kind",
         attribute_path="kind",
         expected_value="",
@@ -293,6 +282,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind,
+        project=project,
         attribute_name="state",
         attribute_path="status.state",
         expected_value="ready",
@@ -303,6 +293,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_state,
+        project=project,
         attribute_name="kind",
         attribute_path="kind",
         expected_value="remote",
@@ -311,6 +302,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_state,
+        project=project,
         attribute_name="state",
         attribute_path="status.state",
         expected_value="",
@@ -321,6 +313,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind_state,
+        project=project,
         attribute_name="kind",
         attribute_path="kind",
         expected_value="",
@@ -329,6 +322,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind_state,
+        project=project,
         attribute_name="state",
         attribute_path="status.state",
         expected_value="",
@@ -416,6 +410,7 @@ def test_align_schedule_labels(
 
 
 def test_add_producer_uri_to_artifact():
+    project = "some-project"
     db, db_session = _initialize_db_without_migrations()
     num_of_artifacts = 10
     chunk_size = 1
@@ -425,14 +420,27 @@ def test_add_producer_uri_to_artifact():
     for artifact_counter in range(num_of_artifacts):
         artifact_key = f"name-{artifact_counter}"
         _insert_artifact(
-            db, db_session, artifact_key, f"{producer_uri}-{artifact_counter}"
+            db,
+            db_session,
+            artifact_key=artifact_key,
+            project=project,
+            artifact_uri=f"{producer_uri}-{artifact_counter}",
         )
 
     # Create artifact when uri field is not exists in spec.producer
-    _insert_artifact(db, db_session, f"name-{10}", None, with_uri=False)
+    _insert_artifact(
+        db,
+        db_session,
+        artifact_key=f"name-{10}",
+        project=project,
+        artifact_uri=None,
+        with_uri=False,
+    )
 
     # Create artifact with producer_uri is None in spec.producer.uri
-    _insert_artifact(db, db_session, f"name-{11}", None)
+    _insert_artifact(
+        db, db_session, artifact_key=f"name-{11}", project=project, artifact_uri=None
+    )
 
     # migrate the artifact producer_uri
     services.api.initial_data._add_producer_uri_to_artifact(
@@ -495,6 +503,24 @@ def test_init_system_id(
     services.api.initial_data._init_system_id(db_session)
     system_id_after_second_init = db.get_system_id(db_session)
     assert system_id_after_second_init == system_id
+
+
+def test_system_id_initialized_from_scratch(monkeypatch: pytest.MonkeyPatch):
+    # This test ensures that calling init_data correctly initializes the system ID
+    monkeypatch.setattr(mlrun.mlconf, "system_id", None)
+
+    db, db_session = _initialize_db_without_schema()
+
+    # Run the init_data flow
+    services.api.initial_data.init_data()
+
+    # After init, system ID must be defined in config
+    config_system_id = mlrun.mlconf.system_id
+    assert config_system_id is not None
+
+    # Ensure it's persisted in the DB too
+    db_system_id = db.get_system_id(db_session)
+    assert db_system_id == config_system_id
 
 
 def test_ensure_latest_tag_for_artifacts():
@@ -679,17 +705,65 @@ def test_ensure_latest_tag_for_artifacts():
     assert artifact.tags[0].obj_id == artifact_2_id
 
 
+def test_migrate_monitoring_functions_labels():
+    project = "some-project"
+    db, db_session = _initialize_db_without_migrations()
+    mm_infra_function_names = (
+        mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.list()
+    )
+    key = mlrun.common.schemas.ModelMonitoringInfraLabel.KEY
+    value = mlrun.common.schemas.ModelMonitoringInfraLabel.VAL
+    labels = {key: value}
+
+    for name in mm_infra_function_names[1:]:
+        _insert_function(db, db_session, name, project)
+
+    # first mm function already has the label
+    _insert_function(db, db_session, mm_infra_function_names[0], project, labels=labels)
+
+    # sanity check that a random function does not get the label
+    _insert_function(db, db_session, "some-name", project)
+
+    services.api.initial_data._migrate_monitoring_functions_labels(
+        db, db_session, chunk_size=1
+    )
+
+    migrated_mm_functions = db.list_functions(session=db_session, project=project)
+
+    for func in migrated_mm_functions:
+        func_name = func.get("metadata", {}).get("name")
+        func_labels = func.get("metadata", {}).get("labels", {})
+        if func_name in mm_infra_function_names:
+            assert key in func_labels, f"{func_name} does not have the expected label"
+            assert func_labels[key] == value
+        else:
+            assert key not in func_labels, f"{func_name} has an unexpected label"
+
+
+def _initialize_db_without_schema() -> (
+    tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
+):
+    dsn = "sqlite:///:memory:?check_same_thread=false"
+    mlrun.mlconf.httpdb.dsn = dsn
+    framework.db.sqldb.sql_session._init_engine(dsn=dsn)
+    framework.utils.singletons.db.initialize_db()
+    db_session = framework.db.sqldb.sql_session.create_session(dsn=dsn)
+    db = framework.db.sqldb.db.SQLDB(dsn)
+    db.initialize(db_session)
+    return db, db_session
+
+
 def _initialize_db_without_migrations() -> (
     tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
 ):
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
-    mlrun.common.db.sql_session._init_engine(dsn=dsn)
+    framework.db.sqldb.sql_session._init_engine(dsn=dsn)
     framework.utils.singletons.db.initialize_db()
-    db_session = mlrun.common.db.sql_session.create_session(dsn=dsn)
+    db_session = framework.db.sqldb.sql_session.create_session(dsn=dsn)
     db = framework.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
-    framework.db.init_db()
+    services.api.initial_data._create_schema()
     return db, db_session
 
 
@@ -697,8 +771,10 @@ def _insert_function(
     db,
     db_session,
     fn_name,
+    project: str,
     function_kind: typing.Optional[str] = "remote",
     function_state: typing.Optional[str] = "ready",
+    labels: typing.Optional[dict] = None,
 ):
     function_body = {
         "metadata": {"name": fn_name},
@@ -707,8 +783,11 @@ def _insert_function(
         "spec": {"description": "some_description"},
     }
 
+    if labels:
+        function_body["metadata"]["labels"] = labels
+
     # Insert function via db
-    db.store_function(db_session, function_body, fn_name)
+    db.store_function(db_session, function=function_body, name=fn_name, project=project)
 
     # Ensure the function is inserted the legacy way
     db_function, _ = db._get_function_db_object(db_session, fn_name)
@@ -727,23 +806,27 @@ def _insert_function(
 
 
 def _verify_function_attr(
-    db, db_session, fn_name, attribute_name, attribute_path, expected_value
+    db, db_session, fn_name, attribute_name, project, attribute_path, expected_value
 ):
-    db_function, _ = db._get_function_db_object(db_session, fn_name)
+    db_function, _ = db._get_function_db_object(db_session, fn_name, project)
     assert not mlrun.utils.get_in(db_function.struct, attribute_path)
     assert getattr(db_function, attribute_name) == expected_value
 
     # Verify migration was stored correctly
-    migrated_function = db.get_function(db_session, fn_name)
+    migrated_function = db.get_function(db_session, name=fn_name, project=project)
     assert mlrun.utils.get_in(migrated_function, attribute_path) == expected_value
 
 
-def _insert_artifact(db, db_session, artifact_key, artifact_uri=None, with_uri=True):
+def _insert_artifact(
+    db, db_session, artifact_key, project, artifact_uri=None, with_uri=True
+):
     artifact = {
         "metadata": {"key": artifact_key},
         "spec": {"producer": {"uri": artifact_uri} if with_uri else {}},
     }
-    uid = db.store_artifact(db_session, key=artifact_key, artifact=artifact)
+    uid = db.store_artifact(
+        db_session, key=artifact_key, artifact=artifact, project=project
+    )
 
     # Legacy insert: set producer_uri to None
     db_artifact = db._query(

@@ -1,6 +1,6 @@
 (genai-development)=
 # Developing a gen AI pipeline
-Model development includes: Prompt library, experiment tracking, automatic distribution, fine-tuning, RLHF, fine parameter tuning.
+Learn how to use MLRun for model development, including: working with RAG, evaluationg LLMS, and fine tuning LLMs.
 
 **In this section**
 
@@ -13,7 +13,7 @@ fine-tuning-llms
 ```
 
 **See also**
-- {ref}`genai_01_basic_tutorial`
+- {ref}`genai-01-basic-tutorial`
 - {ref}`realtime-monitor-drift-tutor`
 - {ref}`model-monitoring-overview`
 - {ref}`alerts-notifications`

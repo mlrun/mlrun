@@ -32,6 +32,7 @@ from .pipelines import (
     load_and_run_workflow,
     load_and_run,
     pipeline_context,
+    rerun_workflow,
 )  # noqa
 from .project import (
     MlrunProject,

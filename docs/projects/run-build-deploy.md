@@ -1,6 +1,8 @@
 (run_project_functions)=
 # Run, build, and deploy functions
 
+The set of methods used to deploy and run project functions can be used interactively or inside a pipeline (for example, Kubeflow). When used inside a pipeline, each method is automatically mapped to the relevant pipeline engine command.
+
 **In this section**
 - [Overview](#overview)
 - [run_function](#run_function)
@@ -13,8 +15,7 @@
 <a id="overview"></a>
 ## Overview
 
-There is a set of methods used to deploy and run project functions. They can be used interactively or inside a pipeline (e.g. Kubeflow). 
-When used inside a pipeline, each method is automatically mapped to the relevant pipeline engine command.
+The methods are:
 
 * {py:meth}`~mlrun.projects.run_function` &mdash; Run a local or remote task as part of local or remote batch/scheduled task
 * {py:meth}`~mlrun.projects.build_function` &mdash; deploy an ML function, build a container with its dependencies for use in runs
@@ -31,7 +32,7 @@ The first parameter in all three methods is either the function name (in the pro
 specify functions that you imported/created or to modify a function spec. For example:
 
 ```python
-# import a serving function from the Function Hub and deploy a trained model over it
+# import a serving function from the MLRun Hub and deploy a trained model over it
 serving = import_function("hub://v2_model_server", new_name="serving")
 serving.spec.replicas = 2
 deploy = deploy_function(
@@ -75,7 +76,7 @@ parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch fu
 Usage examples:
 
 ```python
-# create a project with two functions (local and from Function Hub)
+# create a project with two functions (local and from the MLRun Hub)
 project = mlrun.new_project(project_name, "./proj")
 project.set_function("mycode.py", "prep", image="mlrun/mlrun")
 project.set_function("hub://auto_trainer", "train")
@@ -93,7 +94,6 @@ import mlrun
 
 project = mlrun.get_or_create_project("example-project")
 
-from mlrun import RunTemplate, new_task, mlconf
 from os import path
 
 artifact_path = path.join(mlconf.artifact_path, "{{run.uid}}")
@@ -295,4 +295,8 @@ project.set_function(
     "sentiment.py", name="scores", kind="job", handler="handler", image=image_name
 )
 ```
-   
+
+To build a new image that is based on mlrun/mlrun and add packages to the build, use a build image that looks something like this:
+```
+project.build_image(image=".my-new-image", base_image="mlrun/mlrun", requirements=["tensorflow"])
+```

@@ -26,6 +26,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
 import coloredlogs
+import docker
+import docker.errors
 import paramiko
 import yaml
 
@@ -44,12 +46,19 @@ class Constants:
     mlrun = "mlrun"
     mlrun_kfp = "mlrun-kfp"
     log_collector = "log-collector"
+    default_namespace = "default-tenant"
+    alerts = "mlrun-alerts"
     targets_to_image_name = {
         api: api_container,
         mlrun: mlrun,
         mlrun_kfp: mlrun_kfp,
         log_collector: log_collector,
     }
+    python_39_suffix = "-py39"
+    python_39_targets = [
+        mlrun,
+        mlrun_kfp,
+    ]
 
 
 class MLRunPatcher:
@@ -61,10 +70,12 @@ class MLRunPatcher:
         image_tag: str,
         patch_log_collector_image: bool,
         patch_mlrun_image: bool,
+        build_py39: bool,
         skip_patch_api: bool,
         patch_alerts: bool,
         no_build: bool,
         no_push: bool,
+        namespace: str,
     ):
         self._config = yaml.safe_load(conf_file)
         patch_yaml_data = yaml.safe_load(patch_file)
@@ -74,11 +85,13 @@ class MLRunPatcher:
         self._patch_log_collector_image = bool(patch_log_collector_image)
         self._validate_config()
         self._patch_mlrun_image = patch_mlrun_image
+        self._build_py39 = build_py39
         self._skip_patch_api = skip_patch_api
         self._patch_alerts = patch_alerts
         self._no_build = no_build
         self._no_push = no_push
-
+        self._namespace = self._resolve_namespace(namespace)
+        self._docker_client = docker.from_env()
         if self._skip_patch_api and self._patch_alerts:
             raise ValueError("Cannot skip api and patch alerts at the same time")
 
@@ -91,7 +104,7 @@ class MLRunPatcher:
             "mlrun-api-worker",
         ]
         if self._patch_alerts:
-            self._deployments.append("mlrun-alerts")
+            self._deployments.append(Constants.alerts)
 
     def patch(self):
         image_tag = self._get_current_version()
@@ -120,6 +133,7 @@ class MLRunPatcher:
         # Connect to the first node and start deployment patching process
         node = self._cluster_data_nodes[0]
         self._connect_to_node(node)
+
         if self._patch_log_collector_image:
             self._replace_deployment_images(
                 Constants.log_collector_container,
@@ -144,7 +158,7 @@ class MLRunPatcher:
             finally:
                 # Check status of pods after deployment
                 out = self._exec_remote(
-                    ["kubectl", "-n", "default-tenant", "get", "pods"]
+                    ["kubectl", "-n", self._namespace, "get", "pods"]
                 )
                 for line in out.splitlines():
                     if (
@@ -165,21 +179,79 @@ class MLRunPatcher:
         docker_registry = self._config.get("DOCKER_REGISTRY")
         if not registry_username:
             return
-        command = [
-            "docker",
-            "login",
-            docker_registry or "",
-            "--username",
-            registry_username,
-            "--password-stdin",
-        ]
-        completed_process = subprocess.run(
-            command, input=registry_password.encode() + b"\n", capture_output=True
-        )
-        if completed_process.returncode != 0:
-            raise RuntimeError(
-                f"Failed to login to docker registry. Error: {completed_process.stderr}"
+        try:
+            self._docker_client.login(
+                username=registry_username,
+                password=registry_password,
+                registry=docker_registry,
             )
+            logger.debug("Logged in to docker registry %s", docker_registry)
+        except docker.errors.APIError as exc:
+            raise RuntimeError(f"Failed to login to docker registry: {exc}") from exc
+
+    def _tag_images_for_multi_node_registries(self, built_images):
+        if self._config.get("SKIP_MULTI_NODE_PUSH") == "true":
+            return built_images
+        resolved: list[str] = []
+        for img in built_images:
+            for node in self._cluster_data_nodes:
+                if node in img:
+                    resolved.append(img)
+                    for repl in self._cluster_data_nodes:
+                        if repl == node:
+                            continue
+                        tagged = img.replace(node, repl)
+                        try:
+                            image_obj = self._docker_client.images.get(img)
+                            repo, tag = tagged.rsplit(":", 1)
+                            image_obj.tag(repo, tag)
+                            logger.debug("Tagged %s -> %s", img, tagged)
+                        except docker.errors.ImageNotFound:
+                            logger.warning("Image %s not found for tagging", img)
+                        resolved.append(tagged)
+                    break
+        return resolved or list(built_images)
+
+    def _push_docker_images(self, built_images, max_workers: int = 2, retries: int = 3):
+        logger.info("Pushing mlrun docker images: %s", built_images)
+
+        def _push(image: str):
+            repo, tag = image.rsplit(":", 1)
+            attempt = 0
+            while True:
+                attempt += 1
+                try:
+                    for line in self._docker_client.images.push(
+                        repo, tag=tag, stream=True, decode=True
+                    ):
+                        if "error" in line:
+                            raise RuntimeError(line["error"])
+                        if "status" in line:
+                            logger.info(
+                                "[%s] %s %s",
+                                image,
+                                line["status"],
+                                line.get("progress", ""),
+                            )
+                    return
+                except Exception as exc:
+                    if attempt >= retries:
+                        logger.error(
+                            "Failed pushing %s after %d attempts", image, attempt
+                        )
+                        raise
+                    wait = 5 * attempt
+                    logger.warning(
+                        "Push %s failed (%s). Retrying in %ss", image, exc, wait
+                    )
+                    time.sleep(wait)
+
+        with ThreadPoolExecutor(
+            max_workers=min(max_workers, len(built_images))
+        ) as pool:
+            futures = {pool.submit(_push, img): img for img in built_images}
+            for fut in as_completed(futures):
+                fut.result()
 
     def _validate_config(self):
         missing_fields = Constants.mandatory_fields - set(self._config.keys())
@@ -216,20 +288,68 @@ class MLRunPatcher:
             mlrun_docker_registry = (
                 f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
             )
-
+        target_to_image = {
+            target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
+            for target in targets
+        }
         if not self._no_build:
             env = {
                 "MLRUN_VERSION": image_tag,
                 "MLRUN_DOCKER_REPO": mlrun_docker_registry,
             }
+
+            if Constants.mlrun_kfp in targets:
+                # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
+                # so that workflow pods will use the correct KFP image from the internal registry.
+                _, overwrite_registry = self._resolve_overwrite_registry()
+                kfp_image_uri = (
+                    f"{overwrite_registry}/mlrun/{Constants.mlrun_kfp}:{image_tag}"
+                )
+
+                mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
+                    "template"
+                ]["spec"]["containers"][0]
+                env_vars = mlrun_api_container.setdefault("env", [])
+                existing_var = next(
+                    (var for var in env_vars if var.get("name") == "MLRUN_KFP_IMAGE"),
+                    None,
+                )
+
+                if existing_var:
+                    existing_var["value"] = kfp_image_uri
+                else:
+                    env_vars.append(
+                        {
+                            "name": "MLRUN_KFP_IMAGE",
+                            "value": kfp_image_uri,
+                        }
+                    )
+
             cmd = ["make"]
             cmd.extend(targets)
             self._exec_local(cmd, live=True, env=env)
+            if self._build_py39:
+                python_39_targets_to_build = []
+                for python_39_target in Constants.python_39_targets:
+                    if python_39_target in targets:
+                        target_to_image[
+                            f"{python_39_target}`{Constants.python_39_suffix}"
+                        ] = (
+                            f"{mlrun_docker_registry}/{Constants.targets_to_image_name[python_39_target]}:"
+                            f"{image_tag}{Constants.python_39_suffix}"
+                        )
+                        python_39_targets_to_build.append(python_39_target)
+                self._exec_local(
+                    ["make", *python_39_targets_to_build],
+                    live=True,
+                    env={
+                        **env,
+                        "MLRUN_PYTHON_VERSION": "3.9",
+                        "INCLUDE_PYTHON_VERSION_SUFFIX": "true",
+                    },
+                )
 
-        return {
-            target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
-            for target in targets
-        }
+        return target_to_image
 
     def _connect_to_node(self, node):
         logger.debug(f"Connecting to {node}")
@@ -247,54 +367,6 @@ class MLRunPatcher:
     def _disconnect_from_node(self):
         self._ssh_client.close()
 
-    def _tag_images_for_multi_node_registries(self, built_images):
-        if self._config.get("SKIP_MULTI_NODE_PUSH") == "true":
-            return
-
-        resolve_built_images = []
-        for built_image in built_images:
-            for node in self._cluster_data_nodes:
-                if node in built_image:
-                    resolve_built_images.append(built_image)
-                    for replacement_node in self._cluster_data_nodes:
-                        if replacement_node != node:
-                            replaced_built_image = built_image.replace(
-                                node, replacement_node
-                            )
-                            self._exec_local(
-                                [
-                                    "docker",
-                                    "tag",
-                                    built_image,
-                                    replaced_built_image,
-                                ],
-                                live=True,
-                            )
-                            resolve_built_images.append(replaced_built_image)
-
-                    # Once we found the node configured in the built_image we can stop because it is only possible
-                    # to specify one node when building the image
-                    break
-
-        return resolve_built_images or built_images
-
-    def _push_docker_images(self, built_images):
-        logger.info(f"Pushing mlrun docker images: {built_images}")
-        with ThreadPoolExecutor(max_workers=len(built_images)) as executor:
-            futures = {
-                executor.submit(
-                    self._exec_local, cmd=["docker", "push", image], live=True
-                ): image
-                for image in built_images
-            }
-            for future in as_completed(futures):
-                image = futures[future]
-                try:
-                    future.result()
-                except Exception as exc:
-                    logger.error(f"Error pushing image {image}: {exc}")
-                    raise
-
     def _patch_deployment_from_file(self):
         for deployment in self._deployments:
             logger.info(f"Patching deployment {deployment}")
@@ -307,7 +379,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "patch",
                     "deployment",
                     deployment,
@@ -330,7 +402,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "set",
                     "image",
                     f"deployment/{deployment}",
@@ -345,7 +417,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "rollout",
                     "restart",
                     f"deployment/{deployment}",
@@ -359,7 +431,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "rollout",
                     "status",
                     "deployment",
@@ -387,7 +459,7 @@ class MLRunPatcher:
                     [
                         "kubectl",
                         "-n",
-                        "default-tenant",
+                        self._namespace,
                         "wait",
                         "pods",
                         "-l",
@@ -416,7 +488,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "get",
                     "deployments",
                     "--selector",
@@ -442,7 +514,7 @@ class MLRunPatcher:
             [
                 "kubectl",
                 "-n",
-                "default-tenant",
+                self._namespace,
                 "scale",
                 "deploy",
                 "--selector",
@@ -455,7 +527,7 @@ class MLRunPatcher:
             [
                 "kubectl",
                 "-n",
-                "default-tenant",
+                self._namespace,
                 "wait",
                 "--for=delete",
                 "--timeout=300s",
@@ -471,7 +543,7 @@ class MLRunPatcher:
             [
                 "kubectl",
                 "-n",
-                "default-tenant",
+                self._namespace,
                 "exec",
                 "-it",
                 "deployment/mlrun-db",
@@ -495,7 +567,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "scale",
                     "deploy",
                     deployment,
@@ -559,12 +631,17 @@ class MLRunPatcher:
     def _resolve_overwrite_registry(self):
         docker_registry = self._config["DOCKER_REGISTRY"]
         overwrite_registry = self._config["OVERWRITE_IMAGE_REGISTRY"]
-        if docker_registry.endswith("/"):
-            docker_registry = docker_registry[:-1]
-        if overwrite_registry.endswith("/"):
-            overwrite_registry = overwrite_registry[:-1]
+        if docker_registry:
+            docker_registry = docker_registry.rstrip("/")
+        if overwrite_registry:
+            overwrite_registry = overwrite_registry.rstrip("/")
 
         return docker_registry, overwrite_registry
+
+    def _resolve_namespace(self, namespace: str = "") -> str:
+        if namespace:
+            return namespace
+        return self._config.get("NAMESPACE", Constants.default_namespace)
 
 
 @click.command(help="mlrun-api deployer to remote system")
@@ -607,6 +684,12 @@ class MLRunPatcher:
     help="Deploy the mlrun image",
 )
 @click.option(
+    "-39",
+    "--py39",
+    is_flag=True,
+    help="Build Python 3.9 MLRun image",
+)
+@click.option(
     "-sa",
     "--skip-api",
     is_flag=True,
@@ -629,6 +712,12 @@ class MLRunPatcher:
     is_flag=True,
     help="Skip pushing the image",
 )
+@click.option(
+    "-n",
+    "--namespace",
+    default="",
+    help="Kubernetes namespace to deploy to. If not set, defaults to 'default-tenant'.",
+)
 def main(
     verbose: bool,
     config: str,
@@ -637,10 +726,12 @@ def main(
     tag: str,
     log_collector: bool,
     mlrun: bool,
+    py39: bool,
     skip_api: bool,
     alerts: bool,
     no_build: bool,
     no_push: bool,
+    namespace: str,
 ):
     if verbose:
         coloredlogs.set_level(logging.DEBUG)
@@ -652,10 +743,12 @@ def main(
         image_tag=tag,
         patch_log_collector_image=log_collector,
         patch_mlrun_image=mlrun,
+        build_py39=py39,
         skip_patch_api=skip_api,
         patch_alerts=alerts,
         no_build=no_build,
         no_push=no_push,
+        namespace=namespace,
     ).patch()
 
 

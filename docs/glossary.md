@@ -1,6 +1,14 @@
 (glossary)=
 # Glossary
 
+This page describes commonly used MLRun and industry terminology.
+
+**In this section**
+- [MLRun terms](#mlrun-terms)
+- [Iguazio (V3IO) terms](#iguazio-v3io-terms)
+- [Standard ML terms](#standard-ml-terms)
+- [ML libraries / tools](#ml-libraries-tools)
+
 ## MLRun terms
 
 | MLRun terms        | Description                                                                                                                                                                                                                                 |
@@ -10,10 +18,10 @@
 | HTTPRunDB          | API for wrapper to the internal DB in MLRun. See {py:meth}`mlrun.db.httpdb.HTTPRunDB`.                                                                                                                                                      |
 | hub                | Used in code to reference the {ref}`load-from-hub`.                                                                                                                                                                                         |
 | MLRun function     | An abstraction over the code, extra packages, runtime configuration and desired resources which allow execution in a local environment and on various serverless engines on top of K8s. See {ref}`functions` .                              |
-| MLRun Function hub | A collection of pre-built MLRun functions available for usage. See the {ref}`function hub documentation <load-from-hub>` and the [Function hub](https://www.mlrun.org/hub/).                                                                |                                                 
+| MLRun hub | A collection of pre-built MLRun functions and models available for usage. See the {ref}`MLRun hub documentation <load-from-hub>` and the [MLRun hub](https://www.mlrun.org/hub/).                                                                |                                                 
 | MLRun project      | A logical container for all the work on a particular activity/application that include functions, workflow, artifacts, secrets, and more, and can be assigned to a specific group of users. See {ref}`projects`.                            |
 | mpijob             | One of the MLRun batch runtimes that runs distributed jobs and Horovod over the MPI job operator, used mainly for deep learning jobs. See {ref}`horovod`.                                                                                   |
-| Nuclio function    | Subtype of MLRun function that uses the Nuclio runtime for any generic real-time function. See {ref}`nuclio-real-time-functions` and the [Nuclio documentation](https://docs.nuclio.io/en/stable/index.html).                               |
+| Nuclio function    | Subtype of MLRun function that uses the Nuclio runtime for any generic real-time function. See {ref}`nuclio-real-time-functions` and the [Nuclio documentation](https://docs.nuclio.io/en/latest/index.html).                               |
 | Serving function   | Subtype of MLRun function that uses the Nuclio runtime specifically for serving ML models or real-time pipelines. See {ref}`serving-graph`.                                                                                                 |
 | storey             | Asynchronous streaming library for real time event processing and feature extraction. Used in Iguazio's feature store and real-time pipelines. See [storey.transformations - Graph transformations](./api/storey.transormations/index.rst). |  
 
@@ -40,6 +48,7 @@
 | MLOps               | Set of practices that reliably and efficiently deploys and maintains machine learning models in production. Combination of Machine Learning and DevOps.                                                                                                                              |
 | Dataframe           | Tabular representation of data, often using tools such as Pandas, Spark, or Dask.                                                                                                                                                                                                    |
 
+(ml-libraries-tools)=
 ## ML libraries / tools
 
 

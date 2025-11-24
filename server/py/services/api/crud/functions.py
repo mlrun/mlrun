@@ -43,7 +43,6 @@ class Functions(
         versioned: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> str:
-        project = project or mlrun.mlconf.default_project
         if auth_info:
             function_obj = mlrun.new_function(
                 name=name, project=project, runtime=function, tag=tag
@@ -52,18 +51,22 @@ class Functions(
             # intermediate steps or temporary objects which might not be executed at any phase and therefore we don't
             # want to enrich if user didn't requested.
             # (The way user will request to generate is by passing $generate in the metadata.credentials.access_key)
-            framework.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
-                function_obj, auth_info, allow_empty_access_key=True
+            framework.api.utils.apply_enrichment_and_validation_on_function(
+                function=function_obj,
+                auth_info=auth_info,
+                allow_empty_access_key=True,
+                perform_auto_mount=False,
+                ensure_security_context=False,
             )
             function = function_obj.to_dict()
 
         return framework.utils.singletons.db.get_db().store_function(
-            db_session,
-            function,
-            name,
-            project,
-            tag,
-            versioned,
+            session=db_session,
+            function=function,
+            name=name,
+            project=project,
+            tag=tag,
+            versioned=versioned,
         )
 
     def get_function(
@@ -75,9 +78,13 @@ class Functions(
         hash_key: str = "",
         format_: Optional[str] = None,
     ) -> dict:
-        project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().get_function(
-            db_session, name, project, tag, hash_key, format_
+            db_session,
+            name=name,
+            project=project,
+            tag=tag,
+            hash_key=hash_key,
+            format_=format_,
         )
 
     def delete_function(
@@ -106,7 +113,6 @@ class Functions(
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,
     ) -> list:
-        project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
         return framework.utils.singletons.db.get_db().list_functions(

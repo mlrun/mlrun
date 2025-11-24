@@ -24,8 +24,8 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils
 import mlrun.utils.singleton
-from mlrun.utils import logger
 
 import framework.utils.background_tasks.common
 import framework.utils.singletons.db
@@ -40,22 +40,25 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         function,
         timeout: typing.Optional[int] = None,  # in seconds
         name: typing.Optional[str] = None,
+        labels: typing.Optional[dict[str, str]] = None,
         *args,
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:
         name = name or str(uuid.uuid4())
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Creating background task",
             name=name,
             project=project,
             function=function.__name__,
         )
         framework.utils.singletons.db.get_db().store_background_task(
-            db_session,
-            name,
-            project,
-            mlrun.common.schemas.BackgroundTaskState.running,
-            timeout,
+            session=db_session,
+            name=name,
+            project=project,
+            state=mlrun.common.schemas.BackgroundTaskState.running,
+            error=None,
+            timeout=timeout,
+            labels=labels,
         )
         background_tasks.add_task(
             self.background_task_wrapper,
@@ -79,6 +82,32 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             name,
             project,
             framework.utils.background_tasks.common.background_task_exceeded_timeout,
+        )
+
+    def cleanup_old_background_tasks(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        max_age_seconds: int,
+    ) -> None:
+        mlrun.utils.logger.info(
+            "Cleaning up old background tasks",
+            max_age_seconds=max_age_seconds,
+        )
+        framework.utils.singletons.db.get_db().cleanup_old_background_tasks(
+            db_session,
+            max_age_seconds,
+        )
+
+    def get_background_task_by_state_and_labels(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        status: mlrun.common.schemas.BackgroundTaskState,
+        labels: dict[str, str],
+    ) -> mlrun.common.schemas.BackgroundTask:
+        return framework.utils.singletons.db.get_db().get_background_task_by_state_and_labels(
+            session=db_session,
+            status=status,
+            labels=labels,
         )
 
     def list_background_tasks(
@@ -120,7 +149,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 await fastapi.concurrency.run_in_threadpool(function, *args, **kwargs)
         except Exception as exc:
             err_str = mlrun.errors.err_to_str(exc)
-            logger.warning(
+            mlrun.utils.logger.warning(
                 "Background task execution failed",
                 function_name=function.__name__,
                 exc=err_str,

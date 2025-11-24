@@ -21,10 +21,19 @@ import mlrun.common.schemas
 
 
 def _list_and_assert_objects(
-    client: TestClient, entity_name, project, query, expected_number_of_entities
+    client: TestClient,
+    entity_name,
+    project,
+    query,
+    expected_number_of_entities,
+    version=None,
 ):
     entity_url_name = entity_name.replace("_", "-")
-    url = f"projects/{project}/{entity_url_name}"
+    url = (
+        f"{version}/projects/{project}/{entity_url_name}"
+        if version
+        else f"projects/{project}/{entity_url_name}"
+    )
     if query:
         url = url + f"?{query}"
     response = client.get(url)

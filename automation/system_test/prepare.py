@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import datetime
 import json
 import logging
@@ -26,8 +27,11 @@ import urllib.parse
 from typing import Union
 
 import click
+import orjson
 import paramiko
 import yaml
+
+JsonSerializable = Union[dict, list, str, int, float, bool, None]
 
 
 class Logger:
@@ -79,16 +83,19 @@ class SystemTestPreparer:
         data_cluster_ssh_password: typing.Optional[str] = None,
         github_access_token: typing.Optional[str] = None,
         provctl_download_url: typing.Optional[str] = None,
-        provctl_download_s3_access_key: typing.Optional[str] = None,
-        provctl_download_s3_key_id: typing.Optional[str] = None,
         username: typing.Optional[str] = None,
         access_key: typing.Optional[str] = None,
+        aws_access_key_id: typing.Optional[str] = None,
+        aws_secret_access_key: typing.Optional[str] = None,
+        aws_oidc_access_token: typing.Optional[str] = None,
         iguazio_version: typing.Optional[str] = None,
         slack_webhook_url: typing.Optional[str] = None,
         debug: bool = False,
         branch: typing.Optional[str] = None,
         mlrun_dbpath: typing.Optional[str] = None,
         kubeconfig_content: typing.Optional[str] = None,
+        openai_base_url: typing.Optional[str] = None,
+        openai_api_key: typing.Optional[str] = None,
     ):
         self._logger = logger
         self._debug = debug
@@ -104,9 +111,10 @@ class SystemTestPreparer:
         self._data_cluster_ssh_username = data_cluster_ssh_username
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._provctl_download_url = provctl_download_url
-        self._provctl_download_s3_access_key = provctl_download_s3_access_key
-        self._provctl_download_s3_key_id = provctl_download_s3_key_id
         self._iguazio_version = iguazio_version
+        self._aws_access_key_id = aws_access_key_id
+        self._aws_secret_access_key = aws_secret_access_key
+        self._aws_oidc_access_token = aws_oidc_access_token
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
         self._mlrun_dbpath = mlrun_dbpath
 
@@ -120,6 +128,8 @@ class SystemTestPreparer:
             # (e.g. tests which use public repos, therefor doesn't need that access token)
             "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
             "MLRUN_SYSTEM_TEST_KUBECONFIG": kubeconfig_content,
+            "OPENAI_BASE_URL": openai_base_url,
+            "OPENAI_API_KEY": openai_api_key,
         }
 
     def prepare_local_env(self, save_to_path: str = ""):
@@ -313,6 +323,19 @@ class SystemTestPreparer:
 
         return stdout, stderr, exit_status
 
+    @staticmethod
+    def _encode_json_to_base64(data: JsonSerializable) -> str:
+        """
+        Convert a Python object to base64-encoded JSON string.
+
+        Args:
+            data: Any JSON-serializable Python object (dict, list, etc.)
+
+        Returns:
+            Base64-encoded JSON string
+        """
+        return base64.b64encode(orjson.dumps(data)).decode()
+
     def _prepare_env_remote(self):
         self._run_command(
             "mkdir",
@@ -346,12 +369,26 @@ class SystemTestPreparer:
             else "mlrun[complete]"
         )
         data = {
+            "MLRUN_VENDOR_IMAGES_REGISTRY": "gcr.io/iguazio",
             "MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER": version_specifier,
             # Disable the scheduler minimum allowed interval to allow fast tests (default minimum is 10 minutes, which
             # will make our tests really long)
             "MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL": "0 Seconds",
             # to allow batch_function to have parquet files sooner
             "MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS": "100",
+            "MLRUN_PREEMPTIBLE_NODES__NODE_SELECTOR": self._encode_json_to_base64(
+                {"app.iguazio.com/lifecycle": "preemptible"}
+            ),
+            "MLRUN_PREEMPTIBLE_NODES__TOLERATIONS": self._encode_json_to_base64(
+                [
+                    {
+                        "key": "app.iguazio.com/lifecycle",
+                        "operator": "Equal",
+                        "value": "preemptible",
+                        "effect": "NoSchedule",
+                    }
+                ]
+            ),
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"
@@ -456,13 +493,57 @@ class SystemTestPreparer:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
 
-        # make provctl executable
+        # Set up AWS profile with OIDC credentials
+        profile_name = "github-oidc-mlrun-system-tests"
+        if self._aws_access_key_id:
+            self._run_command(
+                "aws",
+                args=[
+                    "configure",
+                    "set",
+                    "aws_access_key_id",
+                    self._aws_access_key_id,
+                    "--profile",
+                    profile_name,
+                ],
+            )
+        if self._aws_secret_access_key:
+            self._run_command(
+                "aws",
+                args=[
+                    "configure",
+                    "set",
+                    "aws_secret_access_key",
+                    self._aws_secret_access_key,
+                    "--profile",
+                    profile_name,
+                ],
+            )
+        if self._aws_oidc_access_token:
+            self._run_command(
+                "aws",
+                args=[
+                    "configure",
+                    "set",
+                    "aws_session_token",
+                    self._aws_oidc_access_token,
+                    "--profile",
+                    profile_name,
+                ],
+            )
+        # Set region
+        self._run_command(
+            "aws",
+            args=["configure", "set", "region", "us-east-1", "--profile", profile_name],
+        )
+
+        # Download provctl using the configured profile
         self._run_command(
             "aws",
             args=[
-                "s3",
                 "--profile",
-                "provazio-provctl",
+                profile_name,
+                "s3",
                 "cp",
                 f"s3://{bucket_name}/{object_name}",
                 str(self.Constants.provctl_path),
@@ -761,10 +842,15 @@ def main():
 @click.option("--data-cluster-ssh-username", required=True)
 @click.option("--data-cluster-ssh-password", required=True)
 @click.option("--provctl-download-url", required=True)
-@click.option("--provctl-download-s3-access-key", required=True)
-@click.option("--provctl-download-s3-key-id", required=True)
 @click.option("--username", required=True)
 @click.option("--access-key", required=True)
+@click.option("--aws-access-key-id", help="AWS access key ID for S3 authentication")
+@click.option(
+    "--aws-secret-access-key", help="AWS secret access key for S3 authentication"
+)
+@click.option(
+    "--aws-oidc-access-token", help="AWS OIDC access token for S3 authentication"
+)
 @click.option("--iguazio-version", default=None)
 @click.option(
     "--debug",
@@ -781,10 +867,11 @@ def run(
     data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
     provctl_download_url: str,
-    provctl_download_s3_access_key: str,
-    provctl_download_s3_key_id: str,
     username: str,
     access_key: str,
+    aws_access_key_id: str,
+    aws_secret_access_key: str,
+    aws_oidc_access_token: str,
     iguazio_version: str,
     debug: bool,
 ):
@@ -797,10 +884,11 @@ def run(
         data_cluster_ssh_username=data_cluster_ssh_username,
         data_cluster_ssh_password=data_cluster_ssh_password,
         provctl_download_url=provctl_download_url,
-        provctl_download_s3_access_key=provctl_download_s3_access_key,
-        provctl_download_s3_key_id=provctl_download_s3_key_id,
         username=username,
         access_key=access_key,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_oidc_access_token=aws_oidc_access_token,
         iguazio_version=iguazio_version,
         debug=debug,
     )
@@ -843,6 +931,14 @@ def run(
     "--kubeconfig-content",
     help="Kubeconfig file content encoded in base64",
 )
+@click.option(
+    "--openai-base-url",
+    help="Base URL for the OpenAI API endpoint",
+)
+@click.option(
+    "--openai-api-key",
+    help="API key for accessing the OpenAI service",
+)
 def env(
     data_cluster_ip: str,
     data_cluster_ssh_username: str,
@@ -856,6 +952,8 @@ def env(
     save_to_path: str,
     mlrun_dbpath: str,
     kubeconfig_content: str,
+    openai_base_url: str,
+    openai_api_key: str,
 ):
     system_test_preparer = SystemTestPreparer(
         data_cluster_ip=data_cluster_ip,
@@ -869,6 +967,8 @@ def env(
         github_access_token=github_access_token,
         mlrun_dbpath=mlrun_dbpath,
         kubeconfig_content=kubeconfig_content,
+        openai_base_url=openai_base_url,
+        openai_api_key=openai_api_key,
     )
     try:
         system_test_preparer.connect_to_remote()

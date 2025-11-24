@@ -26,6 +26,7 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+import mlrun_pipelines.client
 from mlrun.utils import logger, retry_until_successful
 
 import framework.db.session
@@ -49,7 +50,10 @@ class Projects(
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug(
             "Creating project",
@@ -69,6 +73,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug(
             "Storing project",
@@ -89,6 +94,7 @@ class Projects(
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug(
             "Patching project", name=name, project=project, patch_mode=patch_mode
@@ -257,13 +263,17 @@ class Projects(
             self._delete_project_configmaps(name)
 
     def get_project(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectOut:
         return framework.utils.singletons.db.get_db().get_project(session, name)
 
     def list_projects(
         self,
         session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: typing.Optional[list[str]] = None,
@@ -282,7 +292,6 @@ class Projects(
         project: typing.Optional[str] = None,
         **project_filters,
     ) -> list[str]:
-        project = project or mlrun.mlconf.default_project
         if project != "*":
             await (
                 framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -295,6 +304,7 @@ class Projects(
 
         projects_output = self.list_projects(
             session,
+            auth_info,
             format_=mlrun.common.formatters.ProjectFormat.name_only,
             **project_filters,
         )
@@ -312,7 +322,6 @@ class Projects(
         project: typing.Optional[str] = None,
         **project_filters,
     ) -> list[tuple[str, datetime.datetime]]:
-        project = project or mlrun.mlconf.default_project
         if project != "*":
             await (
                 framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -353,6 +362,7 @@ class Projects(
     async def list_project_summaries(
         self,
         session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
@@ -372,7 +382,10 @@ class Projects(
         )
 
     async def get_project_summary(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
         # Call get project so we'll explode if project doesn't exists
         await fastapi.concurrency.run_in_threadpool(self.get_project, session, name)
@@ -422,8 +435,8 @@ class Projects(
         self, session: sqlalchemy.orm.Session
     ):
         projects_output = await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             self.list_projects,
-            session,
             format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
         )
 
@@ -446,6 +459,13 @@ class Projects(
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
             project_to_other_alerts_count,
+            project_to_datasets_count,
+            project_to_documents_count,
+            project_to_llm_prompts_count,
+            project_to_running_mm_functions,
+            project_to_failed_mm_functions_count,
+            project_to_real_time_mep_count,
+            project_to_batch_mep_count,
         ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
@@ -500,11 +520,26 @@ class Projects(
                     other_alerts_count=project_to_other_alerts_count.get(
                         project_name, 0
                     ),
+                    datasets_count=project_to_datasets_count.get(project_name, 0),
+                    documents_count=project_to_documents_count.get(project_name, 0),
+                    llm_prompts_count=project_to_llm_prompts_count.get(project_name, 0),
+                    running_model_monitoring_functions=project_to_running_mm_functions.get(
+                        project_name, 0
+                    ),
+                    failed_model_monitoring_functions=project_to_failed_mm_functions_count.get(
+                        project_name, 0
+                    ),
+                    real_time_model_endpoint_count=project_to_real_time_mep_count.get(
+                        project_name, 0
+                    ),
+                    batch_model_endpoint_count=project_to_batch_mep_count.get(
+                        project_name, 0
+                    ),
                 )
             )
         await fastapi.concurrency.run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
             framework.utils.singletons.db.get_db().refresh_project_summaries,
-            session,
             project_summaries,
         )
 
@@ -516,7 +551,11 @@ class Projects(
         filter_: str = "",
     ):
         return services.api.crud.Pipelines().list_pipelines(
-            session, "*", format_=format_, page_token=page_token, filter_=filter_
+            session,
+            "*",
+            format_=format_,
+            page_token=page_token,
+            filter_json=filter_,
         )
 
     async def _calculate_pipelines_counters(
@@ -559,7 +598,9 @@ class Projects(
                     framework.db.session.run_function_with_new_db_session,
                     self._list_pipelines,
                     page_token=next_page_token,
-                    filter_=mlrun.utils.get_kfp_list_runs_filter(start_date=start_date),
+                    filter_=mlrun_pipelines.client.create_list_runs_filter(
+                        start_date=start_date
+                    ),
                 )
 
                 for pipeline in pipelines:

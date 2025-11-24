@@ -1,8 +1,13 @@
 (notifications)=
 
 # Notifications
+Notifications are used to inform you of system events on jobs, both scheduled and manually triggered.
+For regular jobs (manual and scheduled), you can receive notifications when the job finishes (`completed`, `error`, or `aborted`).
+For workflows (e.g., MLRun pipelines), you can also receive notifications when the  job starts (`running`).
 
-MLRun supports configuring notifications on jobs and scheduled jobs. This section describes the SDK for notifications.
+This section describes the notifications SDK and its usage.
+
+**In this section**
 
 - [The notification object](#the-notification-object)
 - [Local vs. remote](#local-vs-remote)

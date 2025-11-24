@@ -2,9 +2,7 @@
 # Install MLRun CE on AWS
 
 
-These instructions install the community edition (CE). No pre-installation or pre-configuration is required. This procedure 
-installs an EKS cluster, an EBS volume, an S3 bucket, load balancing, etc. When you complete this procedure, you'll have 
-the Community Edition of MLRun running on your EKS cluster.
+These instructions install the community edition (CE) on your Amazon EKS cluster. No pre-installation or pre-configuration is required. 
 
 **In this section**
 - [Prerequisites](#prerequisites)
@@ -223,9 +221,11 @@ The MLRun CE (Community Edition) includes the following services:
   - MLRun DB (MySQL)
 - Nuclio - https://github.com/nuclio/nuclio
 - Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
+- Kafka
 - Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
+- TDengine  
 
 ## Installation
 1. [Optional] Create or import a certificate to AWS Certificate Manager for the relevant domain including wildcards **\*.SYSTEM_NAME.example.com** by one of:
@@ -326,9 +326,18 @@ The MLRun CE (Community Edition) includes the following services:
    ```
    kubectl -n mlrun get ingress mlrun-ce-ingress -o custom-columns=":status.loadBalancer.ingress[0].hostname" --no-headers
    ```
+2. To work with Spark and PIA authentication
+   ```
+   my_func.spec.spark_conf['spark.hadoop.fs.s3a.aws.credentials.provider'] = 'com.amazonaws.auth.WebIdentityTokenCredentialsProvider'
+   ```
+2. To configure Spark to work with Minio:
+   ```
+   func.spec.spark_conf["spark.hadoop.fs.s3a.endpoint"] = 'http://minio.mlrun.svc.cluster.local:9000' 
+   func.spec.spark_conf['spark.hadoop.fs.s3a.path.style.access'] = 'true'
+   ```
+
 2. [Optional] Add access to the EKS API for additional users. See: [Grant IAM users and roles access to Kubernetes APIs - Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/grant-k8s-access.html).
 2. [Optional] Grant access to the S3 bucket for additional users. See the AWS walkthrough example: [Bucket owner granting its users bucket permissions - Amazon Simple Storage Service](https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-walkthroughs-managing-access-example1.html).
-2. [Optional] Install PySpark for running local Spark jobs.
 
 ## Uninstalling the cluster and deleting the resources
 1. Export the following env variables; fill in the relevant <SYSTEM_NAME>, <DOMAIN_NAME>:

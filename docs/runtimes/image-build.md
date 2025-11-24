@@ -1,8 +1,7 @@
 (build-function-image)=
 # Build function image
 
-As discussed in {ref}`images-usage`, MLRun provides pre-built images which contain the components necessary to execute
-an MLRun runtime. In some cases, however, custom images need to be created. 
+As discussed in {ref}`images-usage`, MLRun provides pre-built images which contain the components necessary to execute an MLRun runtime. In some cases, however, custom images need to be created. 
 This page details this process and the available options.
 
 ## When is a build required?
@@ -229,6 +228,10 @@ with the correct versions of both products.
 To prepare this image, MLRun provides the following facilities:
 
 ```python
+import mlrun
+
+mlrun.get_or_create_project("my-spark-project")
+
 # For remote Spark
 from mlrun.runtimes import RemoteSparkRuntime
 

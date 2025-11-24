@@ -97,11 +97,20 @@ mlrun_model_monitoring_stream_profile:
   # type: v3io
   # v3io_access_key: # can leave empty
   # # or:
-  # type: kafka_source
+  # type: kafka_stream
   # brokers: # <host>:<port>
   # topics: []
+  # With SASL:
   # sasl_user:
   # sasl_pass:
+  # For Confluent Kafka:
+  # kwargs_public:
+  #   security_protocol: SASL_SSL
+  #   api_version_auto_timeout_ms: 15_000
+  #   tls:
+  #     enable: true
+  #   new_topic:
+  #     replication_factor: 3
 
 # Controls whether the client verifies the server's TLS certificate.
 # Set to `True` to enable TLS verification.
@@ -110,3 +119,8 @@ MLRUN_HTTPDB__HTTP__VERIFY:
 
 MILVUS_HOST:
 MILVUS_PORT:
+
+OPENAI_BASE_URL:
+OPENAI_API_KEY:
+#  Optional because hf system tests model is free to use without authentication.
+HF_TOKEN:

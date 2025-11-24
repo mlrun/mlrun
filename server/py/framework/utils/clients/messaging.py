@@ -471,7 +471,9 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         origin_host = request_kwargs.get("headers", {}).pop("host", None)
         if origin_host:
             # original host requested by client
-            request_kwargs["headers"]["x-forwarded-host"] = origin_host
+            request_kwargs["headers"][
+                mlrun.common.schemas.HeaderNames.forwarded_host
+            ] = origin_host
 
         # let the http client calculate it itself
         # or we will hit serious issues with reverse-proxying (client<->worker<->chief) requests

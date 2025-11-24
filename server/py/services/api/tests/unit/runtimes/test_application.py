@@ -49,12 +49,13 @@ class TestApplicationRuntime(TestRuntimeBase):
         requirements = ["requests", "numpy"]
         function.with_requirements(requirements=requirements)
         function.spec.build.base_image = "my-base-image"
+        function.spec.build.source = "v3io://my-source.tar.gz"
         (
             _,
             _,
             config,
         ) = services.api.crud.runtimes.nuclio.function._compile_function_config(
-            function
+            function, builder_env={}
         )
         assert not mlrun.utils.get_in(
             config,
@@ -63,6 +64,10 @@ class TestApplicationRuntime(TestRuntimeBase):
         assert not mlrun.utils.get_in(
             config,
             "spec.build.baseImage",
+        )
+        assert not mlrun.utils.get_in(
+            config,
+            "spec.build.codeEntryType",
         )
 
     def test_create_function_validate_min_nuclio_version(
@@ -76,6 +81,23 @@ class TestApplicationRuntime(TestRuntimeBase):
             str(exc.value)
             == "'Application Runtime' function requires Nuclio v1.13.1 or higher"
         )
+
+    def test_http_trigger_configuration(self):
+        runtime = self._generate_runtime(self.runtime_kind)
+        assert (
+            runtime.spec.config.get("spec.triggers.application-http", {}).get(
+                "maxWorkers"
+            )
+            == mlrun.mlconf.function.application.default_worker_number
+        )
+        # replace an http trigger name to simulate custom http trigger
+        runtime.spec.config["spec.triggers.application-http-copy"] = (
+            runtime.spec.config.get("spec.triggers.application-http")
+        )
+        runtime.spec.config.pop("spec.triggers.application-http")
+        runtime._ensure_reverse_proxy_configurations()
+        # ensure default application-http is not added as part of enrichment
+        assert runtime.spec.config.get("spec.triggers.application-http") is None
 
     def _execute_run(self, runtime, **kwargs):
         # deploy_nuclio_function doesn't accept watch, so we need to remove it
@@ -92,6 +114,6 @@ class TestApplicationRuntime(TestRuntimeBase):
             project=self.project,
             kind=kind or self.runtime_kind,
         )
-        runtime._ensure_reverse_proxy_configurations(runtime)
+        runtime._ensure_reverse_proxy_configurations()
         runtime._configure_application_sidecar()
         return runtime

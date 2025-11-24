@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import time
+import warnings
 from typing import Optional
+from urllib.parse import urlparse
 
 import boto3
 from boto3.s3.transfer import TransferConfig
@@ -26,6 +28,27 @@ from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 
 class S3Store(DataStore):
     using_bucket = True
+
+    # TODO: Remove this in 1.12.0
+    def _get_endpoint_url_with_deprecation_warning(self):
+        """Get S3 endpoint URL with backward compatibility for deprecated S3_ENDPOINT_URL"""
+        # First try the new environment variable
+        endpoint_url = self._get_secret_or_env("AWS_ENDPOINT_URL_S3")
+        if endpoint_url:
+            return endpoint_url
+
+        # Check for deprecated environment variable
+        deprecated_endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        if deprecated_endpoint_url:
+            warnings.warn(
+                "S3_ENDPOINT_URL is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                "use AWS_ENDPOINT_URL_S3 instead.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
+            return deprecated_endpoint_url
+
+        return None
 
     def __init__(
         self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
@@ -40,7 +63,7 @@ class S3Store(DataStore):
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
         token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
-        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        endpoint_url = self._get_endpoint_url_with_deprecation_warning()
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile_name = self._get_secret_or_env("AWS_PROFILE")
         assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
@@ -115,17 +138,27 @@ class S3Store(DataStore):
             byterange += str(offset + size - 1)
         return byterange
 
-    def get_spark_options(self):
+    def get_spark_options(self, path=None):
         res = {}
+        bucket_str = ""
+        if path:
+            parsed = urlparse(path)
+            if parsed.scheme:  # s3:// or s3a://
+                bucket = parsed.hostname
+            else:
+                # drop a leading slash, if any and take 1st segment
+                bucket = path.lstrip("/").split("/", 1)[0]
+            bucket_str = f".bucket.{bucket}"
+
         st = self.get_storage_options()
         if st.get("key"):
-            res["spark.hadoop.fs.s3a.access.key"] = st.get("key")
+            res[f"spark.hadoop.fs.s3a{bucket_str}.access.key"] = st.get("key")
         if st.get("secret"):
-            res["spark.hadoop.fs.s3a.secret.key"] = st.get("secret")
+            res[f"spark.hadoop.fs.s3a{bucket_str}.secret.key"] = st.get("secret")
         if st.get("endpoint_url"):
-            res["spark.hadoop.fs.s3a.endpoint"] = st.get("endpoint_url")
+            res[f"spark.hadoop.fs.s3a{bucket_str}.endpoint"] = st.get("endpoint_url")
         if st.get("profile"):
-            res["spark.hadoop.fs.s3a.aws.profile"] = st.get("profile")
+            res[f"spark.hadoop.fs.s3a{bucket_str}.aws.profile"] = st.get("profile")
         return res
 
     @property
@@ -148,7 +181,7 @@ class S3Store(DataStore):
     def get_storage_options(self):
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile = self._get_secret_or_env("AWS_PROFILE")
-        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        endpoint_url = self._get_endpoint_url_with_deprecation_warning()
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
         token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
@@ -175,7 +208,7 @@ class S3Store(DataStore):
         if profile:
             storage_options["profile"] = profile
 
-        return self._sanitize_storage_options(storage_options)
+        return self._sanitize_options(storage_options)
 
     @property
     def spark_url(self):

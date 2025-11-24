@@ -1,6 +1,8 @@
 (install-on-kubernetes)=
 # Install MLRun CE on Kubernetes
 
+These instructions install the community edition (CE) on your Kubernetes cluster. This procedure installs an EKS cluster, an EBS volume, an S3 bucket, load balancing, etc. When you complete this procedure, you'll have the Community Edition of MLRun running on your EKS cluster.
+
 ```{admonition} Note
 These instructions install the community edition, which currently includes MLRun {{ ceversion }}. 
 ```
@@ -22,12 +24,12 @@ These instructions install the community edition, which currently includes MLRun
 
 ## Prerequisites
 
-- Access to a Kubernetes cluster. To install MLRun on your cluster, you must have administrator permissions. 
+- Access to a Kubernetes cluster, version >=1.32. To install MLRun on your cluster, you must have administrator permissions. 
 For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. 
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-- Helm >=3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
-- An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
+- Helm version >=3.16 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+- An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret. If using docker hub, the registry server is `https://registry.hub.docker.com/`. See the [Docker ID documentation](https://docs.docker.com/docker-id/) for details about creating a user with login that you will configure in the secret.
 - Storage: 
   - 8Gi
   - Set a default storage class for the kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
@@ -49,11 +51,10 @@ The MLRun CE (Community Edition) includes the following components:
 * MPI Operator - https://github.com/kubeflow/mpi-operator
 * MinIO - https://github.com/minio/minio/tree/master/helm/minio
 * Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
-* Pipelines - https://github.com/kubeflow/pipelines
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
-
+* [KFP Pipelines](https://github.com/kubeflow/pipelines) 
 
 <a id="installing-the-chart"></a>
 ## Installing the chart
@@ -100,35 +101,41 @@ kubectl --namespace mlrun create secret docker-registry registry-credentials \
     --docker-password <your-password> \
     --docker-email <your-email>
 ```
-
 ```{admonition} Note
 If using docker hub, the registry server is `https://registry.hub.docker.com/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
 creating a user with login to configure in the secret.
 ```
-Where:
 
-- `<your-registry-server>` is your Private Docker Registry FQDN. (https://registry.hub.docker.com/ for Docker Hub).
+Where:
+- `<your-registry-server>` is your Private Docker Registry FQDN. (`index.docker.io/<your-username>` for Docker Hub).
 - `<your-username>` is your Docker username.
 - `<your-password>` is your Docker password.
 - `<your-email>` is your Docker email.
 
-```{admonition} Note
-First-time MLRun users experience a relatively longer installation time because all required images 
-are pulled locally for the first time (it takes an average of 10-15 minutes, mostly depending on 
-your internet speed).
+:::{admonition} Notes on installation
+- If you are using NFS storage in your Kubernetes cluster, add these flags to the chart deployment command:
 ```
-
-To install the chart with the release name `mlrun-ce` use the following command.
-:::{admonition} Note
-If you are using NFS storage in your Kubernetes cluster, add these flags to the chart deployment command:
+  --set kube-prometheus-stack.grafana.securityContext.runAsUser=1000 
+  --set kube-prometheus-stack.grafana.securityContext.runAsGroup=1000 
+  --set kube-prometheus-stack.grafana.securityContext.fsGroup=1000 
+  --set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
+  --set kube-prometheus-stack.grafana.initChownData.enabled
 ```
---set kube-prometheus-stack.grafana.securityContext.runAsUser=1000 
---set kube-prometheus-stack.grafana.securityContext.runAsGroup=1000 
---set kube-prometheus-stack.grafana.securityContext.fsGroup=1000 
---set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
---set kube-prometheus-stack.grafana.initChownData.enabled
-```
+- A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC by running this after importing MLRun:
+    ```
+    import mlrun
+    mlrun.mlconf.storage.auto_mount_type = "pvc"
+    pvc_params = {
+        "pvc_name": "pvc-fhakn",
+        "volume_name": "pv-zjoij",
+        "volume_mount_path": "/tmp/pv-temp/adcxm",
+    }
+    mlrun.mlconf.storage.auto_mount_params = ",".join(
+        [f"{key}={value}" for key, value in pvc_params.items()]
+    )
+    ```
 :::
+To install the chart with the release name `mlrun-ce` use the following command.  
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
 ```bash
@@ -149,24 +156,66 @@ Where:
 
 When the installation is complete, the helm command prints the URLs and ports of all the MLRun CE services.
 
+In some cases, for example when using minikube, after installing MLRun CE you should expose the installed services by running this command:
+```
+kubectl -n mlrun port-forward service/mlrun-ui 30060:80
+kubectl -n <"namespace-name"> port-forward svc <"service-name"> <"exposed-port">:<"serivce-port">
+```
+
 ```{admonition} Known issue when installing the chart on Macs using Apple silicon (ARM-based architicture):
-- The current pipelines MySQL database fails to start. The workaround for now is to run this line `docker pull mysql:5.7 --platform linux/amd64` before installing the chart.
 - The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
-- An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
+```
+
+## Configuring the user Jupyter conda environment
+
+The default Jupyter comes with a conda env named `mlrun`. This conda is not persistent.
+If you install any packages on this conda env, and then the Jupyter pod gets restarted or deleted, those packages will be deleted.
+
+To create a new, persistent, environment, run this in your Jupyter terminal, where `myenv` is the name of your environment:
+
+```bash
+# Create the virtual environment
+conda create -n <myenv> python=<3.9 or 3.11> -y
+
+# Activate the virtual environment
+conda activate <myenv>
+
+# Make sure that ipykernel is installed
+pip install --user ipykernel
+
+# Add the new virtual environment to Jupyter
+python -m ipykernel install --user --name <myenv> --display-name "Python (<myenv>)"
 ```
 
 ## Configuring TDengine and Kafka for model monitoring
 TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values. It's recommended to change the user/password.
 
 ```py
-stream_path = "kafka://kafka-stream:9092"
-tsdb_connection = "taosws://root:taosdata@tdengine-tsdb:6041"
+# Create and register TSDB profile
+tsdb_profile = DatastoreProfileTDEngine(
+    name=tsdb_profile_name,
+    user="root",
+    password="taosdata",
+    host=f"tdengine-tsdb.{namespace}.svc.cluster.local",
+    port="6041",
+)
+project.register_datastore_profile(tsdb_profile)
+
+# Create and register stream profile
+stream_profile = DatastoreProfileKafkaSource(
+    name=stream_profile_name,
+    brokers=f"kafka-stream.{namespace}.svc.cluster.local:9092",
+    topics=[],
+)
+
+# Set model monitoring credentials and enable the infrastructure
 project.set_model_monitoring_credentials(
-    tsdb_connection=tsdb_connection, stream_path=stream_path
+    tsdb_profile_name=tsdb_profile.name,
+    stream_profile_name=stream_profile.name,
 )
 ```
 
-See more details, including additional configuration options, in {py:class}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+See more details, including additional configuration options, in {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 
 ## Configuring the online feature store
 The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
@@ -201,10 +250,6 @@ You can change the ports by providing values to the helm install command.
 You can add and configure a Kubernetes ingress-controller for better security and control over external access.
 ```
 
-
-## Optional additional packages
-To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
-
 ## Start working
     
 Open the Jupyter notebook on [**jupyter-notebook UI**](http://localhost:30040) and run the code in the 
@@ -226,11 +271,9 @@ Configurable values are documented in the `values.yaml`, and the `values.yaml` o
 The chart installs many components. You may not need them all in your deployment depending on your use cases.
 To opt out of some of the components, use the following helm values:
 ```bash
-...
 --set pipelines.enabled=false \
 --set kube-prometheus-stack.enabled=false \
 --set spark-operator.enabled=false \
-...
 ```
 
 ### Installing on Docker Desktop
@@ -358,6 +401,12 @@ any path that begins with `s3://` is automatically directed by MLRun to the MinI
 path is also configured as `s3://mlrun/projects/{{run.project}}/artifacts` which is a path on the `mlrun` bucket in the
 MinIO service.
 
+For storing data in S3 when using MinIO and Spark, use:
+```
+sj.spec.spark_conf[f"spark.hadoop.fs.s3a.bucket.<your-bucket-name>.endpoint"] = 'http://minio.mlrun.svc.cluster.local:9000'
+sj.spec.spark_conf[f"spark.hadoop.fs.s3a.bucket.<your-bucket-name>.path.style.access"] = 'true'
+```
+
 To store artifacts in AWS S3 buckets instead of the local MinIO service, these configurations need to be overridden to 
 make `s3://` paths lead to AWS buckets instead.
 
@@ -373,10 +422,11 @@ Set up the following project-secrets (refer to [**Data stores**](../store/datast
 for any project used:
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; S3 credentials
-* `S3_ENDPOINT_URL` &mdash; the AWS S3 endpoint to use, depending on the region. For example: 
+* `AWS_ENDPOINT_URL_S3` &mdash; the AWS S3 endpoint to use, depending on the region. For example: 
     ``` console
-    S3_ENDPOINT_URL = https://s3.us-east-2.amazonaws.com/
+    AWS_ENDPOINT_URL_S3 = https://s3.us-east-2.amazonaws.com/
     ```
+    **Note**: `S3_ENDPOINT_URL` is deprecated as of v1.10.0 and will be removed in v1.12.0. Use `AWS_ENDPOINT_URL_S3` instead.
 
 ### Disabling auto-mount
 

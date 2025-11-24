@@ -1,7 +1,7 @@
 (feature-store-overview)=
 # Feature store overview
 
-In machine-learning scenarios, generating a new feature, called feature engineering, takes a tremendous amount of work. The same features 
+In machine-learning scenarios, generating a new feature, called feature engineering, takes a tremendous amount of work: the same features 
 must be used both for training, based on historical data, and for the model prediction based on the online or real-time data. This creates a 
 significant additional engineering effort, and leads to model inaccuracy when the online and offline features do not match. Furthermore, 
 monitoring solutions must be built to track features and results, and to send alerts upon data or model drift.

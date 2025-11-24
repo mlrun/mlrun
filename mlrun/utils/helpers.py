@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import asyncio
 import base64
 import enum
@@ -22,6 +21,7 @@ import inspect
 import itertools
 import json
 import os
+import pathlib
 import re
 import string
 import sys
@@ -29,6 +29,7 @@ import traceback
 import typing
 import uuid
 import warnings
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from importlib import import_module, reload
 from os import path
@@ -45,6 +46,8 @@ import pytz
 import semver
 import yaml
 from dateutil import parser
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -60,6 +63,8 @@ import mlrun_pipelines.common.constants
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
+from mlrun.common.schemas import ArtifactCategories
+from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun_pipelines.models import PipelineRun
 
@@ -83,10 +88,6 @@ DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
 
-class OverwriteBuildParamsWarning(FutureWarning):
-    pass
-
-
 class StorePrefix:
     """map mlrun store objects to prefixes"""
 
@@ -96,10 +97,17 @@ class StorePrefix:
     Model = "models"
     Dataset = "datasets"
     Document = "documents"
+    LLMPrompt = "llm-prompts"
 
     @classmethod
     def is_artifact(cls, prefix):
-        return prefix in [cls.Artifact, cls.Model, cls.Dataset, cls.Document]
+        return prefix in [
+            cls.Artifact,
+            cls.Model,
+            cls.Dataset,
+            cls.Document,
+            cls.LLMPrompt,
+        ]
 
     @classmethod
     def kind_to_prefix(cls, kind):
@@ -107,6 +115,7 @@ class StorePrefix:
             "model": cls.Model,
             "dataset": cls.Dataset,
             "document": cls.Document,
+            "llm-prompt": cls.LLMPrompt,
         }
         return kind_map.get(kind, cls.Artifact)
 
@@ -119,6 +128,7 @@ class StorePrefix:
             cls.FeatureSet,
             cls.FeatureVector,
             cls.Document,
+            cls.LLMPrompt,
         ]
 
 
@@ -131,7 +141,16 @@ def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     uid = item["metadata"].get("uid")
 
-    if kind in {"dataset", "model", "artifact"} and db_key:
+    if (
+        kind
+        in {
+            ArtifactCategories.dataset,
+            ArtifactCategories.model,
+            ArtifactCategories.llm_prompt,
+            "artifact",
+        }
+        and db_key
+    ):
         target = (
             f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
         )
@@ -145,14 +164,6 @@ def get_artifact_target(item: dict, project=None):
         return target
 
     return item["spec"].get("target_path")
-
-
-# TODO: Remove once data migration v5 is obsolete
-def is_legacy_artifact(artifact):
-    if isinstance(artifact, dict):
-        return "metadata" not in artifact
-    else:
-        return not hasattr(artifact, "metadata")
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -240,6 +251,40 @@ def verify_field_regex(
                 f" required patterns: {patterns}"
             )
         return False
+
+
+def validate_function_name(name: str) -> None:
+    """
+    Validate that a function name conforms to Kubernetes DNS-1123 label requirements.
+
+    Function names for Kubernetes resources must:
+    - Be lowercase alphanumeric characters or '-'
+    - Start and end with an alphanumeric character
+    - Be at most 63 characters long
+
+    This validation should be called AFTER normalize_name() has been applied.
+
+    Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
+
+    :param name: The function name to validate (after normalization)
+    :raises MLRunInvalidArgumentError: If the function name is invalid for Kubernetes
+    """
+    if not name:
+        return
+
+    verify_field_regex(
+        "function.metadata.name",
+        name,
+        mlrun.utils.regex.dns_1123_label,
+        raise_on_failure=True,
+        log_message=(
+            f"Function name '{name}' is invalid. "
+            "Kubernetes function names must be DNS-1123 labels: "
+            "lowercase alphanumeric characters or '-', "
+            "starting and ending with an alphanumeric character, "
+            "and at most 63 characters long."
+        ),
+    )
 
 
 def validate_builder_source(
@@ -456,19 +501,47 @@ def to_date_str(d):
     return ""
 
 
-def normalize_name(name: str, verbose: bool = True):
+def normalize_name(name: str):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
     if "_" in name:
-        if verbose:
-            warnings.warn(
-                "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                f"Replacing '{name}' underscores with dashes.",
-                FutureWarning,
-            )
         name = name.replace("_", "-")
     return name.lower()
+
+
+def ensure_batch_job_suffix(
+    function_name: typing.Optional[str],
+) -> tuple[typing.Optional[str], bool, str]:
+    """
+    Ensure that a function name has the batch job suffix appended to prevent database collision.
+
+    This helper is used by to_job() methods in runtimes that convert online functions (serving, local)
+    to batch processing jobs. The suffix prevents the job from overwriting the original function in
+    the database when both are stored with the same (project, name) key.
+
+    :param function_name: The original function name (can be None or empty string)
+
+    :return: A tuple of (modified_name, was_renamed, suffix) where:
+        - modified_name: The function name with the batch suffix (if not already present),
+          or empty string if input was empty
+        - was_renamed: True if the suffix was added, False if it was already present or if name was empty/None
+        - suffix: The suffix value that was used (or would have been used)
+
+    """
+    suffix = mlrun_constants.RESERVED_BATCH_JOB_SUFFIX
+
+    # Handle None or empty string
+    if not function_name:
+        return function_name, False, suffix
+
+    if not function_name.endswith(suffix):
+        return (
+            f"{function_name}{suffix}",
+            True,
+            suffix,
+        )
+    return function_name, False, suffix
 
 
 class LogBatchWriter:
@@ -500,9 +573,14 @@ def get_in(obj, keys, default=None):
     if isinstance(keys, str):
         keys = keys.split(".")
     for key in keys:
-        if not obj or key not in obj:
+        if obj is None:
             return default
-        obj = obj[key]
+        if isinstance(obj, dict):
+            if key not in obj:
+                return default
+            obj = obj[key]
+        else:
+            obj = getattr(obj, key, default)
     return obj
 
 
@@ -779,17 +857,48 @@ def generate_artifact_uri(
     return artifact_uri
 
 
-def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
+def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     """
-    Retrieve the full uri of the item's yaml in the hub.
+    Remove the `:<tag>` part from a URI with pattern:
+    [store://][<project>/]<key>[#<iter>][:<tag>][@<tree>][^<uid>]
+
+    Returns the URI without the tag section.
+
+    Examples:
+        "store://proj/key:latest" => "store://proj/key"
+        "key#1:dev@tree^uid" => "key#1@tree^uid"
+        "store://key:tag" => "store://key"
+        "store://models/remote-model-project/my_model#0@tree" => unchanged (no tag)
+    """
+    add_store = False
+    if mlrun.datastore.is_store_uri(uri):
+        uri = uri.removeprefix(DB_SCHEMA + "://")
+        add_store = True
+    uri = re.sub(r"(#[^:@\s]*)?:[^@^:\s]+(?=(@|\^|$))", lambda m: m.group(1) or "", uri)
+    return uri if not add_store else DB_SCHEMA + "://" + uri
+
+
+def check_if_hub_uri(uri: str) -> bool:
+    return uri.startswith(hub_prefix)
+
+
+def extend_hub_uri_if_needed(
+    uri: str,
+    asset_type: HubSourceType = HubSourceType.functions,
+    file: str = "function.yaml",
+) -> tuple[str, bool]:
+    """
+    Retrieve the full uri of an object in the hub.
 
     :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
+    :param asset_type:  The type of the hub item (functions, modules, etc.)
+    :param file: The file name inside the hub item directory (default: function.yaml)
 
     :return: A tuple of:
                [0] = Extended URI of item
                [1] =  Is hub item (bool)
     """
-    is_hub_uri = uri.startswith(hub_prefix)
+    is_hub_uri = check_if_hub_uri(uri)
     if not is_hub_uri:
         return uri, is_hub_uri
 
@@ -806,10 +915,10 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid character '/' in function name or source name"
             ) from exc
-    name = normalize_name(name=name, verbose=False)
+    name = normalize_name(name=name)
     if not source_name:
         # Searching item in all sources
-        sources = db.list_hub_sources(item_name=name, tag=tag)
+        sources = db.list_hub_sources(item_name=name, tag=tag, item_type=asset_type)
         if not sources:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Item={name}, tag={tag} not found in any hub source"
@@ -819,10 +928,10 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     else:
         # Specific source is given
         indexed_source = db.get_hub_source(source_name)
-    # hub function directory name are with underscores instead of hyphens
+    # hub directories name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    function_suffix = f"{name}/{tag}/src/function.yaml"
-    return indexed_source.source.get_full_uri(function_suffix), is_hub_uri
+    suffix = f"{name}/{tag}/src/{file}"
+    return indexed_source.source.get_full_uri(suffix, asset_type), is_hub_uri
 
 
 def gen_md_table(header, rows=None):
@@ -876,25 +985,68 @@ def enrich_image_url(
     client_version: Optional[str] = None,
     client_python_version: Optional[str] = None,
 ) -> str:
+    image_url = image_url.strip()
+
+    # Add python version tag if needed
+    if image_url == "python" and client_python_version:
+        image_tag = ".".join(client_python_version.split(".")[:2])
+        image_url = f"python:{image_tag}"
+
     client_version = _convert_python_package_version_to_image_tag(client_version)
     server_version = _convert_python_package_version_to_image_tag(
         mlrun.utils.version.Version().get()["version"]
     )
-    image_url = image_url.strip()
     mlrun_version = config.images_tag or client_version or server_version
-    tag = mlrun_version
+    tag = mlrun_version or ""
 
-    # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
-    if "mlrun-kfp" not in image_url:
+    # starting mlrun 1.10.0-rc0 we want to enrich the kfp image with the python version
+    # e.g for 1.9 we have a single mlrun-kfp image that supports only python 3.9
+    enrich_kfp_python_version = (
+        "mlrun-kfp" in image_url
+        and mlrun_version
+        and semver.VersionInfo.is_valid(mlrun_version)
+        and semver.VersionInfo.parse(mlrun_version)
+        >= semver.VersionInfo.parse("1.10.0-rc0")
+    )
+
+    if "mlrun-kfp" not in image_url or enrich_kfp_python_version:
         tag += resolve_image_tag_suffix(
-            mlrun_version=mlrun_version, python_version=client_python_version
+            mlrun_version=mlrun_version,
+            python_version=client_python_version,
         )
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
+    if ":" in image_url:
+        _, image_tag = image_url.rsplit(":", 1)
+    else:
+        image_tag = None
+    if is_mlrun_image and "mlrun/ml-base" in image_url:
+        # use the tag from image URL if available, else fallback to the given tag
+        tag = image_tag or tag
+        if tag:
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "mlrun-client", "1.10.0-rc0", mlrun_client_version=tag
+            ):
+                warnings.warn(
+                    "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                    "use 'mlrun/mlrun' instead.",
+                    # TODO: Remove this in 1.12.0
+                    FutureWarning,
+                )
+                image_url = image_url.replace("mlrun/ml-base", "mlrun/mlrun")
+        else:
+            image_url = "mlrun/mlrun"
 
-    if is_mlrun_image and tag and ":" not in image_url:
-        image_url = f"{image_url}:{tag}"
+    if is_mlrun_image and tag:
+        if ":" not in image_url:
+            image_url = f"{image_url}:{tag}"
+        elif enrich_kfp_python_version:
+            # For mlrun-kfp >= 1.10.0-rc0, append python suffix to existing tag
+            python_suffix = resolve_image_tag_suffix(
+                mlrun_version, client_python_version
+            )
+            image_url = f"{image_url}{python_suffix}" if python_suffix else image_url
 
     registry = (
         config.images_registry if is_mlrun_image else config.vendor_images_registry
@@ -1009,7 +1161,14 @@ def fill_function_hash(function_dict, tag=""):
 
 
 def retry_until_successful(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    *args,
+    fatal_exceptions=(),
+    **kwargs,
 ):
     """
     Runs function with given *args and **kwargs.
@@ -1022,14 +1181,31 @@ def retry_until_successful(
     :param verbose: whether to log the failure on each retry
     :param _function: function to run
     :param args: functions args
+    :param fatal_exceptions: exception types that should not be retried
     :param kwargs: functions kwargs
     :return: function result
     """
-    return Retryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
+    return Retryer(
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
+    ).run()
 
 
 async def retry_until_successful_async(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    *args,
+    fatal_exceptions=(),
+    **kwargs,
 ):
     """
     Runs function with given *args and **kwargs.
@@ -1041,12 +1217,20 @@ async def retry_until_successful_async(
     :param logger: a logger so we can log the failures
     :param verbose: whether to log the failure on each retry
     :param _function: function to run
+    :param fatal_exceptions: exception types that should not be retried
     :param args: functions args
     :param kwargs: functions kwargs
     :return: function result
     """
     return await AsyncRetryer(
-        backoff, timeout, logger, verbose, _function, *args, **kwargs
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
     ).run()
 
 
@@ -1130,55 +1314,6 @@ def get_workflow_url(
     if id:
         url += f"/{id}"
     return url
-
-
-def get_kfp_list_runs_filter(
-    project_name: Optional[str] = None,
-    end_date: Optional[str] = None,
-    start_date: Optional[str] = None,
-) -> str:
-    """
-    Generates a filter for listing Kubeflow Pipelines (KFP) runs.
-
-    :param project_name: The name of the project. If "*", it won't filter by project.
-    :param end_date: The latest creation date for filtering runs (ISO 8601 format).
-    :param start_date: The earliest creation date for filtering runs (ISO 8601 format).
-    :return: A JSON-formatted filter string for KFP.
-    """
-
-    # KFP filter operation codes
-    kfp_less_than_or_equal_op = 7  # '<='
-    kfp_greater_than_or_equal_op = 5  # '>='
-    kfp_substring_op = 9  # Substring match
-
-    filters = {"predicates": []}
-
-    if end_date:
-        filters["predicates"].append(
-            {
-                "key": "created_at",
-                "op": kfp_less_than_or_equal_op,
-                "timestamp_value": end_date,
-            }
-        )
-
-    if project_name and project_name != "*":
-        filters["predicates"].append(
-            {
-                "key": "name",
-                "op": kfp_substring_op,
-                "string_value": project_name,
-            }
-        )
-    if start_date:
-        filters["predicates"].append(
-            {
-                "key": "created_at",
-                "op": kfp_greater_than_or_equal_op,
-                "timestamp_value": start_date,
-            }
-        )
-    return json.dumps(filters)
 
 
 def validate_and_convert_date(date_input: str) -> str:
@@ -1778,10 +1913,7 @@ async def run_in_threadpool(func, *args, **kwargs):
     Run a sync-function in the loop default thread pool executor pool and await its result.
     Note that this function is not suitable for CPU-bound tasks, as it will block the event loop.
     """
-    loop = asyncio.get_running_loop()
-    if kwargs:
-        func = functools.partial(func, **kwargs)
-    return await loop.run_in_executor(None, func, *args)
+    return await asyncio.to_thread(func, *args, **kwargs)
 
 
 def is_explicit_ack_supported(context):
@@ -2091,24 +2223,79 @@ def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}" if path else base_url
 
 
+def warn_on_deprecated_image(image: Optional[str]):
+    """
+    Warn if the provided image is the deprecated 'mlrun/ml-base' image.
+    This image is deprecated as of 1.10.0 and will be removed in 1.12.0.
+    """
+    deprecated_images = ["mlrun/ml-base"]
+    if image and any(
+        image in deprecated_image for deprecated_image in deprecated_images
+    ):
+        warnings.warn(
+            "'mlrun/ml-base' image is deprecated in 1.10.0 and will be replaced by 'mlrun/mlrun'. "
+            "This behavior will be removed in 1.12.0 ",
+            # TODO: Remove this in 1.12.0
+            FutureWarning,
+        )
+
+
 class Workflow:
     @staticmethod
-    def get_workflow_steps(workflow_id: str, project: str) -> list:
+    def get_workflow_steps(
+        db: "mlrun.db.RunDBInterface", workflow_id: str, project: str
+    ) -> list:
         steps = []
-        db = mlrun.get_run_db()
 
         def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
+            # on kfp 1.8 argo sets the pod hostname differently than what we have with kfp 2.5
+            # therefore, the heuristic needs to change. what we do here is first trying against 1.8 conventions
+            # and if we can't find it then falling back to 2.5
             try:
-                _run = db.list_runs(
+                # runner_pod = x-y-N
+                _runs = db.list_runs(
                     project=project,
                     labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
-                )[0]
+                )
+                if not _runs:
+                    try:
+                        # x-y-N -> x-y, N
+                        node_name_initials, node_name_generated_id = (
+                            _step.node_name.rsplit("-", 1)
+                        )
+
+                    except ValueError:
+                        # defensive programming, if the node name is not in the expected format
+                        node_name_initials = _step.node_name
+                        node_name_generated_id = ""
+
+                    # compile the expected runner pod hostname as per kfp >= 2.4
+                    # x-y, Z, N -> runner_pod = x-y-Z-N
+                    runner_pod_value = "-".join(
+                        [
+                            node_name_initials,
+                            _step.display_name,
+                            node_name_generated_id,
+                        ]
+                    ).rstrip("-")
+                    logger.debug(
+                        "No run found for step, trying with different node name",
+                        step_node_name=runner_pod_value,
+                    )
+                    _runs = db.list_runs(
+                        project=project,
+                        labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={runner_pod_value}",
+                    )
+
+                _run = _runs[0]
             except IndexError:
+                logger.warning("No run found for step", step=_step.to_dict())
                 _run = {
                     "metadata": {
                         "name": _step.display_name,
                         "project": project,
                     },
+                    "status": {},
                 }
             _run["step_kind"] = _step.step_type
             if _step.skipped:
@@ -2222,12 +2409,14 @@ class Workflow:
         workflow_id: str,
     ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
         kfp_client = mlrun_pipelines.utils.get_client(
+            logger=logger,
             url=mlrun.mlconf.kfp_url,
             namespace=mlrun.mlconf.namespace,
         )
 
-        # arbitrary timeout of 5 seconds, the workflow should be done by now
-        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)
+        # arbitrary timeout of 30 seconds, the workflow should be done by now, however sometimes kfp takes a few
+        # seconds to update the workflow status
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 30)
         if not kfp_run:
             return None
 
@@ -2254,3 +2443,136 @@ def encode_user_code(
             "Consider using `with_source_archive` to add user code as a remote source to the function."
         )
     return encoded
+
+
+def split_path(path: str) -> typing.Union[str, list[str], None]:
+    if path is not None:
+        parsed_path = path.split(".")
+        if len(parsed_path) == 1:
+            parsed_path = parsed_path[0]
+        return parsed_path
+    return path
+
+
+def get_data_from_path(path: typing.Union[str, list[str], None], data: dict) -> Any:
+    if isinstance(path, str):
+        output_data = data.get(path)
+    elif isinstance(path, list):
+        output_data = deepcopy(data)
+        for key in path:
+            output_data = output_data.get(key, {})
+    elif path is None:
+        output_data = data
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected path be of type str or list of str or None"
+        )
+    return output_data
+
+
+def is_valid_port(port: int, raise_on_error: bool = False) -> bool:
+    if not port:
+        return False
+    if 0 <= port <= 65535:
+        return True
+    if raise_on_error:
+        raise ValueError("Port must be in the range 0–65535")
+    return False
+
+
+def set_data_by_path(
+    path: typing.Union[str, list[str], None], data: dict, value
+) -> None:
+    if path is None:
+        if not isinstance(value, dict):
+            raise ValueError("When path is None, value must be a dictionary.")
+        data.update(value)
+
+    elif isinstance(path, str):
+        data[path] = value
+
+    elif isinstance(path, list):
+        current = data
+        for key in path[:-1]:
+            if key not in current or not isinstance(current[key], dict):
+                current[key] = {}
+            current = current[key]
+        current[path[-1]] = value
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected path to be of type str or list of str"
+        )
+
+
+def _normalize_requirements(reqs: typing.Union[str, list[str], None]) -> list[str]:
+    if reqs is None:
+        return []
+    if isinstance(reqs, str):
+        s = reqs.strip()
+        return [s] if s else []
+    return [s.strip() for s in reqs if s and s.strip()]
+
+
+def merge_requirements(
+    reqs_priority: typing.Union[str, list[str], None],
+    reqs_secondary: typing.Union[str, list[str], None],
+) -> list[str]:
+    """
+    Merge two requirement collections into a union. If the same package
+    appears in both, the specifier from reqs_priority wins.
+
+    Args:
+        reqs_priority: str | list[str] | None  (priority input)
+        reqs_secondary: str | list[str] | None
+
+    Returns:
+        list[str]: pip-style requirements.
+    """
+    merged: dict[str, Requirement] = {}
+
+    for r in _normalize_requirements(reqs_secondary) + _normalize_requirements(
+        reqs_priority
+    ):
+        req = Requirement(r)
+        merged[canonicalize_name(req.name)] = req
+
+    return [str(req) for req in merged.values()]
+
+
+def get_source_and_working_dir_paths(source_file_path) -> (pathlib.Path, pathlib.Path):
+    source_file_path_object = pathlib.Path(source_file_path).resolve()
+    working_dir_path_object = pathlib.Path(".").resolve()
+    return source_file_path_object, working_dir_path_object
+
+
+def get_relative_module_name_from_path(
+    source_file_path_object, working_dir_path_object
+) -> str:
+    relative_path_to_source_file = source_file_path_object.relative_to(
+        working_dir_path_object
+    )
+    return ".".join(relative_path_to_source_file.with_suffix("").parts)
+
+
+def iguazio_v4_only(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        if not config.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
+            )
+        return function(*args, **kwargs)
+
+    return wrapper
+
+
+def raise_or_log_error(message: str, raise_on_error: bool = True):
+    """
+    Handle errors by either raising an exception or logging a warning.
+
+    :param message: The error message.
+    :param raise_on_error: If True, raises an exception. Otherwise, logs a warning.
+    """
+    if raise_on_error:
+        raise mlrun.errors.MLRunRuntimeError(message)
+    logger.warning(message)

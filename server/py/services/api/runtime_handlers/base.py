@@ -60,6 +60,7 @@ class BaseRuntimeHandler(ABC):
         runtime: mlrun.runtimes.BaseRuntime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         pass
 
@@ -241,6 +242,7 @@ class BaseRuntimeHandler(ABC):
         label_selector: Optional[str] = None,
         class_mode: Union[RuntimeClassMode, str] = None,
         with_main_runtime_resource_label_selector: bool = False,
+        retry_count: Optional[int] = None,
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
@@ -269,6 +271,15 @@ class BaseRuntimeHandler(ABC):
                 label_selector = ",".join(
                     [label_selector, main_runtime_resource_label_selector]
                 )
+
+        if retry_count is not None:
+            # If retry attempt is provided, add it to the label selector to avoid conflicts with previous runs
+            label_selector = ",".join(
+                [
+                    label_selector,
+                    f"{mlrun_constants.MLRunInternalLabels.retry}={retry_count}",
+                ]
+            )
 
         return label_selector
 
@@ -623,15 +634,22 @@ class BaseRuntimeHandler(ABC):
                         "possibly it was preempted or evicted. "
                         "Additional details may be available from Kubernetes events."
                     )
-                logger.info(
-                    "Updating run state", run_uid=run_uid, run_state=RunStates.error
-                )
-                run.setdefault("status", {})["state"] = RunStates.error
 
-                run.setdefault("status", {})["reason"] = reason
-                run.setdefault("status", {})["last_update"] = now.isoformat()
-                run.setdefault("status", {})["end_time"] = now.isoformat()
-                db.store_run(db_session, run, run_uid, project)
+                # Check if the run should be retried, and update its status accordingly
+                run_state, message = self._evaluate_run_retry_state(run, reason)
+                logger.info(
+                    "Updating run state - non terminal recovery flow",
+                    run_uid=run_uid,
+                    run_state=run_state,
+                )
+                run_updates = {
+                    "status.state": run_state,
+                    "status.reason": reason,
+                    "status.status_text": message,
+                }
+                db.update_run(
+                    db_session, updates=run_updates, uid=run_uid, project=project
+                )
 
     def _get_runtime_resources(self, label_selector: str, namespace: str):
         """
@@ -1353,6 +1371,15 @@ class BaseRuntimeHandler(ABC):
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=True, uid=uid
         )
+
+        # If retries are configured and this pod belongs to an earlier attempt, skip it to avoid collecting
+        # duplicate/outdated state
+        retry_spec = run.get("spec", {}).get("retry", {})
+        if retry_spec and self._is_pod_from_outdated_retry(
+            runtime_resource=runtime_resource, run=run
+        ):
+            return
+
         (
             run_state,
             threshold_exceeded,
@@ -1380,7 +1407,7 @@ class BaseRuntimeHandler(ABC):
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
-        if updated_run_state in RunStates.terminal_states():
+        if updated_run_state in RunStates.terminal_or_error_states():
             self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _resolve_resource_state_and_apply_threshold(
@@ -1602,9 +1629,7 @@ class BaseRuntimeHandler(ABC):
         resource: mlrun.common.schemas.RuntimeResource,
     ):
         if mlrun_constants.MLRunInternalLabels.uid in resource.labels:
-            project = resource.labels.get(
-                mlrun_constants.MLRunInternalLabels.project, config.default_project
-            )
+            project = resource.labels.get(mlrun_constants.MLRunInternalLabels.project)
             uid = resource.labels[mlrun_constants.MLRunInternalLabels.uid]
             self._add_resource_to_grouped_by_field_resources_response(
                 project, uid, resources, resource_field_name, resource
@@ -1696,6 +1721,28 @@ class BaseRuntimeHandler(ABC):
         search_run: bool = True,
         runtime_resource: Optional[dict] = None,
     ) -> tuple[bool, str, dict]:
+        """
+        Retrieves the run from the database, compares its current state with the desired state,
+        and updates it only if needed.
+        Skips updates when the current state matches the desired one, when the run is in an aborting state, or
+        when the update should be debounced.
+
+        :param db:               Database interface
+        :param db_session:       Db session
+        :param project:          Project name
+        :param uid:              UID of the run
+        :param name:             Name of the function or job
+        :param run_state:        Desired run state
+        :param run:              Optional pre-fetched run object
+        :param search_run:       Whether to search for the run
+        :param runtime_resource: Optional runtime resource (used to resolve error reason)
+
+        :return: Tuple with:
+            was_updated (bool): True if the run state was updated
+            final_state (str): Final state after evaluation
+            run (dict): The updated (or unchanged) run object
+        """
+
         reason, message = "", ""
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid
@@ -1716,52 +1763,36 @@ class BaseRuntimeHandler(ABC):
                 )
                 return False, run_state, run
 
-            # if the current run state is terminal and different from the desired - log
-            if db_run_state in RunStates.terminal_states():
-                # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
-                # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
-                if run_state not in RunStates.terminal_states():
-                    now = datetime.now(timezone.utc)
-                    last_update_str = run.get("status", {}).get("last_update")
-                    if last_update_str is not None:
-                        last_update = datetime.fromisoformat(last_update_str)
-                        debounce_period = config.monitoring.runs.interval
-                        if last_update > now - timedelta(
-                            seconds=float(debounce_period)
-                        ):
-                            logger.warning(
-                                "Monitoring found non-terminal state on runtime resource but record has recently "
-                                "updated to terminal state. Debouncing",
-                                project=project,
-                                uid=uid,
-                                db_run_state=db_run_state,
-                                run_state=run_state,
-                                last_update=last_update,
-                                now=now,
-                                debounce_period=debounce_period,
-                            )
-                            return False, run_state, run
-
-                logger.warning(
-                    "Run record has terminal state but monitoring found different state on runtime resource. Changing",
-                    project=project,
-                    uid=uid,
-                    db_run_state=db_run_state,
-                    run_state=run_state,
-                )
+            if self._should_debounce_run_update(
+                run=run,
+                db_run_state=db_run_state,
+                run_state=run_state,
+                project=project,
+                uid=uid,
+            ):
+                return False, run_state, run
 
             elif run_state == RunStates.error:
                 # Try resolving the error reason
                 reason, message = self._resolve_container_error_status(runtime_resource)
 
-        logger.info("Updating run state", run_uid=uid, run_state=run_state)
+                # Check if the run should be retried, and update its status accordingly
+                run_state, message = self._evaluate_run_retry_state(
+                    run, reason, message
+                )
+
+        logger.info(
+            "Ensuring run state",
+            run_uid=uid,
+            run_state=run_state,
+        )
         run_updates = {
             "status.state": run_state,
             "status.reason": reason or "",
             "status.status_text": message or "",
             "status.error": "",
         }
-        run = db.update_run(db_session, run_updates, uid, project)
+        run = db.update_run(db_session, updates=run_updates, uid=uid, project=project)
 
         return True, run_state, run
 
@@ -1815,6 +1846,79 @@ class BaseRuntimeHandler(ABC):
         return run
 
     @staticmethod
+    def _should_debounce_run_update(
+        run: dict,
+        db_run_state: str,
+        run_state: str,
+        project: str,
+        uid: str,
+    ) -> bool:
+        """
+        Debounce run status updates to avoid premature or incorrect state overrides.
+        This handles cases where:
+        1. The runtime is terminal, but the DB still shows 'running' (e.g., final state not flushed yet)
+        2. The DB is terminal, but the runtime still appears active (e.g., SDK already finalized the run)
+        """
+
+        now = datetime.now(timezone.utc)
+        last_update_str = run.get("status", {}).get("last_update")
+
+        if last_update_str is not None:
+            last_update = datetime.fromisoformat(last_update_str)
+            debounce_period = config.monitoring.runs.interval
+            debounce_cutoff = now - timedelta(seconds=float(debounce_period))
+            is_db_terminal = db_run_state in RunStates.terminal_states()
+            is_runtime_terminal = run_state in RunStates.terminal_states()
+
+            # If the runtime has reached a terminal state but the DB still shows a recent non-terminal state,
+            # debounce the update to avoid prematurely overriding the newer DB state.
+            if (
+                not is_db_terminal
+                and is_runtime_terminal
+                and last_update > debounce_cutoff
+            ):
+                logger.warning(
+                    "Monitoring found terminal state on runtime resource but DB record was recently updated and is "
+                    "still non-terminal. Debouncing.",
+                    db_run_state=db_run_state,
+                    run_state=run_state,
+                    last_update=last_update,
+                    now=now,
+                    debounce_period=debounce_period,
+                )
+                return True
+
+            # if the current run state is terminal and different from the runtime state, handle accordingly
+            if is_db_terminal:
+                # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
+                # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
+                # In this case, we debounce to avoid reverting the state prematurely.
+                if not is_runtime_terminal and last_update > debounce_cutoff:
+                    logger.warning(
+                        "Monitoring found non-terminal state on runtime resource but record has recently "
+                        "updated to terminal state. Debouncing",
+                        project=project,
+                        uid=uid,
+                        db_run_state=db_run_state,
+                        run_state=run_state,
+                        last_update=last_update,
+                        now=now,
+                        debounce_period=debounce_period,
+                    )
+                    return True
+
+                elif run_state != db_run_state:
+                    logger.warning(
+                        "Run record has terminal state but monitoring found different state on runtime resource. "
+                        "Changing",
+                        project=project,
+                        uid=uid,
+                        db_run_state=db_run_state,
+                        run_state=run_state,
+                    )
+        return False
+
+    @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: dict) -> tuple[str, str, str]:
         project = (
             runtime_resource.get("metadata", {})
@@ -1822,7 +1926,7 @@ class BaseRuntimeHandler(ABC):
             .get(mlrun_constants.MLRunInternalLabels.project)
         )
         if not project:
-            project = config.default_project
+            raise mlrun.errors.MLRunMissingProjectError()
         uid = (
             runtime_resource.get("metadata", {})
             .get("labels", {})
@@ -1889,3 +1993,55 @@ class BaseRuntimeHandler(ABC):
         else:
             new_meta.generate_name = norm_name
         return new_meta
+
+    @staticmethod
+    def _evaluate_run_retry_state(
+        run: dict, reason: str, message: str = ""
+    ) -> tuple[str, str]:
+        """
+        Determine if the run should be retried or marked as failed, based on the retry policy and current attempt count.
+        """
+        retry_spec = run.get("spec", {}).get("retry", {})
+        max_retries = retry_spec.get("count", -1) if retry_spec else -1
+        # Run status retry_count may be `None` if the run has never been retried
+        retry_count = run.get("status", {}).get("retry_count") or 0
+        current_attempt = retry_count + 1
+
+        if retry_count < max_retries:
+            new_state = RunStates.pending_retry
+            message = f"Run failed attempt {current_attempt} of {max_retries + 1} with error: {message or reason}"
+        elif 0 < max_retries <= retry_count:
+            new_state = RunStates.error
+            message = f"Run failed after {current_attempt} attempts with error: {message or reason}"
+        else:
+            new_state = RunStates.error
+        return new_state, message
+
+    @staticmethod
+    def _is_pod_from_outdated_retry(runtime_resource: dict, run: dict) -> bool:
+        """
+        Determine whether a given pod belongs to an outdated retry attempt.
+
+        Each pod is labeled with its retry attempt number (`mlrun/retry-attempt`).
+        The run object tracks the current `retry_count`.
+        A pod is considered outdated if its retry attempt label is smaller than the
+        run's current retry_count. In such cases, the pod should be ignored by the
+        monitor flow.
+
+        :param runtime_resource: The Kubernetes pod resource.
+        :param run: The run object, including status and retry_count.
+
+        :returns: True if the pod is outdated and should be ignored, False otherwise.
+        """
+        pod_retry_label = (
+            runtime_resource.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun.common.constants.MLRunInternalLabels.retry)
+        )
+        run_retry_count = run.get("status", {}).get("retry_count") or 0
+
+        if pod_retry_label is None:
+            # pods without a retry label are outdated once retries have started
+            return run_retry_count > 0
+
+        return int(pod_retry_label) < run_retry_count

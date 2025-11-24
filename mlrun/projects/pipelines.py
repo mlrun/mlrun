@@ -21,6 +21,7 @@ import typing
 import uuid
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.function
@@ -39,7 +40,12 @@ from mlrun.utils import (
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
-from ..run import _run_pipeline, retry_pipeline, wait_for_pipeline_completion
+from ..run import (
+    _run_pipeline,
+    retry_pipeline,
+    terminate_pipeline,
+    wait_for_pipeline_completion,
+)
 from ..runtimes.pod import AutoMountType
 
 
@@ -222,11 +228,11 @@ class _PipelineContext:
         force_run_local = mlrun.mlconf.force_run_local
         if force_run_local is None or force_run_local == "auto":
             force_run_local = not mlrun.mlconf.is_api_running_on_k8s()
+
+        if self.workflow:
             if not mlrun.mlconf.kfp_url:
                 logger.debug("Kubeflow pipeline URL is not set, running locally")
                 force_run_local = True
-
-        if self.workflow:
             force_run_local = force_run_local or self.workflow.run_local
 
         return force_run_local
@@ -696,6 +702,24 @@ class _KFPRunner(_PipelineRunner):
         )
         return run_id
 
+    @classmethod
+    def terminate(
+        cls,
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+    ) -> str:
+        project_name = project.metadata.name if project else ""
+        logger.info(
+            "Terminating pipeline",
+            run_id=run.run_id,
+            project=project_name,
+        )
+        run_id = terminate_pipeline(
+            run.run_id,
+            project=project_name,
+        )
+        return run_id
+
     @staticmethod
     def wait_for_completion(
         run: "_PipelineRunStatus",
@@ -1047,6 +1071,88 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
+def rerun_workflow(
+    context: mlrun.execution.MLClientCtx,
+    run_uid: str,
+    project_name: str,
+    original_runner_uid: str,
+    original_workflow_name: str,
+):
+    """
+    Re-run a workflow by retrying a previously failed KFP pipeline.
+
+    :param context:      MLRun context.
+    :param run_uid:      The run UID of the original workflow to retry.
+    :param project_name: The project name.
+    :param original_runner_uid: The original workflow runner UID.
+    :param original_workflow_name: The original workflow name.
+    """
+    db = mlrun.get_run_db()
+    new_pipeline_id = None
+
+    try:
+        # Invoke the KFP retry endpoint (direct-submit mode)
+        new_pipeline_id = db.retry_pipeline(
+            run_id=run_uid,
+            project=project_name,
+            submit_mode=mlrun_constants.WorkflowSubmitMode.direct,
+        )
+        logger.info(
+            "KFP retry submitted",
+            new_pipeline_id=new_pipeline_id,
+            rerun_of_workflow=run_uid,
+        )
+
+        # Enqueue "running" notifications server-side for this RerunRunner run
+        db.push_run_notifications(context.uid, project_name)
+
+        context.set_label(
+            mlrun_constants.MLRunInternalLabels.workflow_id, new_pipeline_id
+        )
+        context.update_run()
+
+        context.log_result("workflow_id", new_pipeline_id)
+
+        pipeline = wait_for_pipeline_completion(
+            new_pipeline_id,
+            project=project_name,
+        )
+
+        final_state = pipeline["run"]["status"]
+        context.log_result("workflow_state", final_state, commit=True)
+
+    except mlrun.errors.MLRunHTTPError as http_exc:
+        logger.error(
+            "Failed calling KFP retry API",
+            run_id=run_uid,
+            error=err_to_str(http_exc),
+        )
+        raise
+
+    except Exception as exc:
+        logger.error(
+            "Error during rerun_workflow execution",
+            error=err_to_str(exc),
+            rerun_pipeline_id=new_pipeline_id,
+        )
+        raise
+
+    finally:
+        # Once the rerun has finished, clear the “retrying” label on the original runner
+        # so that subsequent retry requests can acquire the lock again.
+        db.set_run_retrying_status(
+            project=project_name,
+            name=original_workflow_name,
+            run_id=original_runner_uid,
+            retrying=False,
+        )
+
+    if final_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Pipeline retry of {run_uid} finished in state={final_state}"
+        )
+
+
 def load_and_run(context, *args, **kwargs):
     """
     This function serves as an alias to `load_and_run_workflow`,
@@ -1130,22 +1236,25 @@ def load_and_run_workflow(
     project = mlrun.get_or_create_project(
         context=project_context or f"./{project_name}",
         name=project_name,
+        allow_cross_project=True,
     )
 
     # extract "start" notification if exists
     start_notifications = [
         notification
         for notification in context.get_notifications(unmask_secret_params=True)
-        if "running" in notification.when
+        if mlrun.common.runtimes.constants.RunStates.running in notification.when
     ]
 
     # Prevent redundant notifications for run completion by ensuring that notifications are only triggered when the run
     # reaches the "running" state, as the server already handles the completion notifications.
     for notification in start_notifications:
-        notification.when = ["running"]
+        notification.when = [mlrun.common.runtimes.constants.RunStates.running]
 
     workflow_log_message = workflow_name or workflow_path
-    context.logger.info(f"Running workflow {workflow_log_message} from remote")
+    context.logger.info(
+        "Running workflow from remote", workflow_log_message=workflow_log_message
+    )
     run = project.run(
         name=workflow_name,
         workflow_path=workflow_path,
@@ -1162,6 +1271,13 @@ def load_and_run_workflow(
         notifications=start_notifications,
         context=context,
     )
+    # Patch the current run object (the workflow-runner) with the workflow-id label
+    context.logger.info(
+        "Associating workflow-runner with workflow ID", run_id=run.run_id
+    )
+    context.set_label(mlrun_constants.MLRunInternalLabels.workflow_id, run.run_id)
+    context.update_run()
+
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
 
@@ -1215,6 +1331,7 @@ def pull_remote_project_files(
             subpath=subpath,
             clone=clone,
             save=False,
+            allow_cross_project=True,
         )
     except Exception as error:
         notify_scheduled_workflow_failure(
@@ -1321,4 +1438,4 @@ def import_remote_project(
         sync_functions=True,
     )
 
-    context.logger.info(f"Loaded project {project.name} successfully")
+    context.logger.info("Loaded project successfully", project_name=project.name)

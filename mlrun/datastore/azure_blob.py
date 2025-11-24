@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import time
 from pathlib import Path
 from typing import Optional
@@ -30,6 +31,40 @@ from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 
 
 class AzureBlobStore(DataStore):
+    """
+    Azure Blob Storage datastore implementation.
+
+    Supports multiple URL schemas: az://, wasbs://, wasb://
+
+    Supported Connection String Formats:
+    ====================================
+
+    1. Account Key (Standard):
+       "DefaultEndpointsProtocol=https;AccountName=<account>;AccountKey=<key>;EndpointSuffix=core.windows.net"
+
+    2. SAS Token:
+       "BlobEndpoint=https://<account>.blob.core.windows.net/;SharedAccessSignature=<sas_token>"
+
+    3. Minimal BlobEndpoint:
+       "BlobEndpoint=https://<account>.blob.core.windows.net/;AccountName=<account>;AccountKey=<key>"
+
+    4. Custom Domain:
+       "BlobEndpoint=https://<account>.mydomain.com/;AccountName=<account>;AccountKey=<key>"
+
+    5. China/Government Cloud:
+       "DefaultEndpointsProtocol=https;AccountName=<account>;AccountKey=<key>;EndpointSuffix=core.chinacloudapi.cn"
+
+    6. Full Service Endpoints with SAS:
+       "BlobEndpoint=https://<account>.blob.core.windows.net/;QueueEndpoint=...;SharedAccessSignature=<sas>"
+
+    Authentication Methods:
+    ======================
+    - Account Key (connection_string or storage_options)
+    - SAS Token (connection_string or storage_options)
+    - OAuth/Azure AD (storage_options: client_id, client_secret, tenant_id)
+
+    """
+
     using_bucket = True
     max_concurrency = 100
     max_blocksize = 1024 * 1024 * 4
@@ -40,6 +75,12 @@ class AzureBlobStore(DataStore):
     def __init__(
         self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
     ):
+        # Extract container from WASBS endpoint before calling super()
+        self._container_from_endpoint = None
+        if schema in ["wasbs", "wasb"] and endpoint and "@" in endpoint:
+            # Handle container@host format
+            self._container_from_endpoint, endpoint = endpoint.split("@", 1)
+
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self._service_client = None
         self._storage_options = None
@@ -67,7 +108,35 @@ class AzureBlobStore(DataStore):
                 or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
                 credential=self._get_secret_or_env("credential"),
             )
-            self._storage_options = self._sanitize_storage_options(res)
+            # Use container extracted from WASBS endpoint during initialization
+            if self._container_from_endpoint:
+                res["container"] = self._container_from_endpoint
+
+            # For az:// URLs, endpoint contains the container name
+            if not res.get("container") and self.kind in ["az"]:
+                if container := getattr(self, "endpoint", None):
+                    res["container"] = container
+
+            # Last resort: For wasbs:// without container, check if connection string has BlobEndpoint with container
+            if not res.get("container") and self.kind in ["wasbs", "wasb"]:
+                connection_string = res.get("connection_string")
+                if connection_string and "BlobEndpoint=" in connection_string:
+                    # Try to extract container from BlobEndpoint URL
+                    for part in connection_string.split(";"):
+                        if part.startswith("BlobEndpoint="):
+                            blob_endpoint = part.split("=", 1)[1]
+                            # Parse URL to get path component
+                            from urllib.parse import urlparse
+
+                            parsed = urlparse(blob_endpoint)
+                            if parsed.path and parsed.path.strip("/"):
+                                # Extract first path segment as container
+                                path_parts = parsed.path.strip("/").split("/")
+                                if path_parts[0]:
+                                    res["container"] = path_parts[0]
+                                    break
+
+            self._storage_options = self._sanitize_options(res)
         return self._storage_options
 
     @property
@@ -165,7 +234,18 @@ class AzureBlobStore(DataStore):
         #  if called without passing dataitem - like in fset.purge_targets,
         #  key will include schema.
         if not schema:
-            key = Path(self.endpoint, key).as_posix()
+            # For wasbs/wasb, the filesystem is scoped to the container, so we need to use
+            # the container name as the base path, not the hostname endpoint.
+            # For az://, endpoint already contains the container name.
+            if self.kind in ["wasbs", "wasb"]:
+                container = self.storage_options.get("container")
+                if container:
+                    key = Path(container, key).as_posix()
+                else:
+                    # If no container found, use endpoint (might be hostname, but better than nothing)
+                    key = Path(self.endpoint, key).as_posix()
+            else:
+                key = Path(self.endpoint, key).as_posix()
         return key
 
     def upload(self, key, src_path):
@@ -224,23 +304,32 @@ class AzureBlobStore(DataStore):
         path = self._convert_key_to_remote_path(key=path)
         super().rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
-    def get_spark_options(self):
+    def get_spark_options(self, path=None):
         res = {}
         st = self.storage_options
         service = "blob"
         primary_url = None
-        if st.get("connection_string"):
+
+        # Parse connection string (fills account_name/account_key or SAS)
+        connection_string = st.get("connection_string")
+        if connection_string:
             primary_url, _, parsed_credential = parse_connection_str(
-                st.get("connection_string"), credential=None, service=service
+                connection_string, credential=None, service=service
             )
-            for key in ["account_name", "account_key"]:
-                parsed_value = parsed_credential.get(key)
-                if parsed_value:
-                    if key in st and st[key] != parsed_value:
+
+            if isinstance(parsed_credential, str):
+                # SharedAccessSignature as raw string
+                parsed_credential = {"sas_token": parsed_credential}
+
+            for key in ["account_name", "account_key", "sas_token"]:
+                if parsed_value := parsed_credential.get(key):
+                    # Only check for conflicts if storage options has a non-empty value for this key
+                    existing_value = st.get(key)
+                    if existing_value and existing_value != parsed_value:
                         if key == "account_name":
                             raise mlrun.errors.MLRunInvalidArgumentError(
-                                f"Storage option for '{key}' is '{st[key]}',\
-                                    which does not match corresponding connection string '{parsed_value}'"
+                                f"Storage option for '{key}' is '{existing_value}', "
+                                f"which does not match corresponding connection string '{parsed_value}'"
                             )
                         else:
                             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -249,57 +338,83 @@ class AzureBlobStore(DataStore):
                     st[key] = parsed_value
 
         account_name = st.get("account_name")
+        # Derive host (prefer connection string primary URL)
         if primary_url:
             if primary_url.startswith("http://"):
                 primary_url = primary_url[len("http://") :]
             if primary_url.startswith("https://"):
                 primary_url = primary_url[len("https://") :]
-            host = primary_url
+            # Remove any path components from the host
+            host = primary_url.split("/")[0]
         elif account_name:
             host = f"{account_name}.{service}.core.windows.net"
         else:
+            # nothing to configure yet
             return res
 
-        if "account_key" in st:
+        host = host.rstrip("/")
+
+        # Account key (optional; WASB supports it)
+        if "account_key" in st and st["account_key"]:
             res[f"spark.hadoop.fs.azure.account.key.{host}"] = st["account_key"]
 
-        if "client_secret" in st or "client_id" in st or "tenant_id" in st:
-            res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "OAuth"
-            res[f"spark.hadoop.fs.azure.account.oauth.provider.type.{host}"] = (
-                "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
-            )
-            if "client_id" in st:
-                res[f"spark.hadoop.fs.azure.account.oauth2.client.id.{host}"] = st[
-                    "client_id"
-                ]
-            if "client_secret" in st:
-                res[f"spark.hadoop.fs.azure.account.oauth2.client.secret.{host}"] = st[
-                    "client_secret"
-                ]
-            if "tenant_id" in st:
-                tenant_id = st["tenant_id"]
-                res[f"spark.hadoop.fs.azure.account.oauth2.client.endpoint.{host}"] = (
-                    f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
-                )
+        # --- WASB + SAS (container-scoped key; no provider classes needed) ---
+        if "sas_token" in st and st["sas_token"]:
+            sas = st["sas_token"].lstrip("?")
 
-        if "sas_token" in st:
-            res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "SAS"
-            res[f"spark.hadoop.fs.azure.sas.token.provider.type.{host}"] = (
-                "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider"
-            )
-            res[f"spark.hadoop.fs.azure.sas.fixed.token.{host}"] = st["sas_token"]
+            container = st.get("container")
+
+            if container:
+                # fs.azure.sas.<container>.<account>.blob.core.windows.net = <sas>
+                res[f"spark.hadoop.fs.azure.sas.{container}.{host}"] = sas
+
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Container name is required for WASB SAS. "
+                    "Set self.endpoint or storage_options['container']."
+                )
         return res
 
     @property
     def spark_url(self):
-        spark_options = self.get_spark_options()
-        url = f"wasbs://{self.endpoint}"
-        prefix = "spark.hadoop.fs.azure.account.key."
-        if spark_options:
-            for key in spark_options:
-                if key.startswith(prefix):
-                    account_key = key[len(prefix) :]
-                    if not url.endswith(account_key):
-                        url += f"@{account_key}"
-                    break
-        return url
+        # Build: wasbs://<container>@<host>
+        st = self.storage_options
+        service = "blob"
+
+        container = st.get("container")
+
+        if not container:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Container name is required to build the WASB URL. "
+                "Set storage_options['container'] or use datastore profile with container specified."
+            )
+
+        # Prefer host from connection string; else synthesize from account_name
+        host = None
+        account_name = st.get("account_name")
+        connection_string = st.get("connection_string")
+
+        if connection_string:
+            with contextlib.suppress(Exception):
+                primary_url, _, _ = parse_connection_str(
+                    connection_string, credential=None, service=service
+                )
+                if primary_url.startswith("http://"):
+                    primary_url = primary_url[len("http://") :]
+                if primary_url.startswith("https://"):
+                    primary_url = primary_url[len("https://") :]
+                # Remove any path components from the host
+                host = primary_url.split("/")[0].rstrip("/")
+        if not host and account_name:
+            host = f"{account_name}.{service}.core.windows.net"
+
+        # For wasbs:// URLs where endpoint is already the host
+        if not host and self.kind in ["wasbs", "wasb"] and hasattr(self, "endpoint"):
+            host = getattr(self, "endpoint", None)
+
+        if not host:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "account_name is required (or provide a connection_string) to build the WASB URL."
+            )
+
+        return f"wasbs://{container}@{host}"

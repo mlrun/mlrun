@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
@@ -309,27 +310,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             "volumeMount": {"mountPath": local_path, "name": "v3io", "subPath": ""},
         }
 
-        expected_cm_volume = {
-            "volume": {
-                "name": "serving-conf",
-                "configMap": {"name": "serving-conf-test-project-test-function"},
-            },
-            "volumeMount": {
-                "name": "serving-conf",
-                "mountPath": "/tmp/mlrun/serving-conf",
-                "readOnly": True,
-            },
-        }
-        expected = (
-            [expected_volume, expected_cm_volume]
-            if self.runtime_kind == "serving"
-            else [expected_volume]
-        )
-
         assert (
             deepdiff.DeepDiff(
                 deploy_spec["volumes"],
-                expected,
+                [expected_volume],
                 ignore_order=True,
             )
             == {}
@@ -533,6 +517,8 @@ class TestNuclioRuntime(TestRuntimeBase):
                 "valueFrom": {"secretKeyRef": {"key": secret_key, "name": secret}},
             },
             {"name": name2, "value": value2},
+            # TODO: Remove this in 1.12.0 — deprecated MLRUN_DEFAULT_PROJECT injected for backward compatibility
+            {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
         ]
 
         (
@@ -1096,23 +1082,16 @@ class TestNuclioRuntime(TestRuntimeBase):
     @pytest.mark.parametrize(
         "client_version,client_python_version,nuclio_version,expected_nuclio_runtime",
         [
-            ("1.2.0", None, "1.5.9", "python:3.6"),
-            ("1.2.0", None, "1.9.15", mlrun.mlconf.default_nuclio_runtime),
-            (None, None, "1.5.9", "python:3.6"),
-            (None, None, "1.9.15", mlrun.mlconf.default_nuclio_runtime),
-            ("1.3.0", "3.7", "1.11.9", "python:3.7"),
-            ("1.3.0", "3.9", "1.11.9", "python:3.9"),
-            ("1.3.0", "3.9", "1.5.9", "python:3.6"),
-            ("1.3.0-rc1", "3.9", "1.11.9", "python:3.9"),
-            ("1.3.0-rc1", "3.7", "1.11.9", "python:3.7"),
-            ("0.0.0-unstable", "3.7", "1.11.9", "python:3.7"),
-            ("0.0.0-unstable", "3.9", "1.11.9", "python:3.9"),
+            # explicit python version
+            ("1.11.0", "3.9", "1.14.14", "python:3.9"),
+            ("1.11.0", "3.11", "1.14.14", "python:3.11"),
+            # no explicit python version defaults to config
+            (None, None, "1.14.14", mlrun.mlconf.default_nuclio_runtime),
+            ("1.11.0", None, "1.14.14", mlrun.mlconf.default_nuclio_runtime),
+            # mlrun is known, not forcing any python version
+            ("0.0.0-unstable", "3.9", "1.14.14", "python:3.9"),
+            ("0.0.0-unstable", "3.11", "1.14.14", "python:3.11"),
         ],
-    )
-    # TODO: Un-skip and align test
-    #  once upgrading to Python 3.12 and resolving the Python version according to client python version
-    @pytest.mark.skip(
-        "Python version is not determined by the client version until python version is bumped to 3.12"
     )
     def test_deploy_with_runtime(
         self,
@@ -1135,21 +1114,17 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_nuclio_runtime=expected_nuclio_runtime,
         )
 
-    def test_deploy_python_decode_string_env_var_enrichment(
-        self, db: Session, client: TestClient
-    ):
+    def test_deploy_python_version_validations(self, db: Session, client: TestClient):
         mlconf.default_nuclio_runtime = "python:3.7"
-        decode_event_strings_env_var_name = "NUCLIO_PYTHON_DECODE_EVENT_STRINGS"
 
         logger.info("Function runtime is golang - do nothing")
         function = self._generate_runtime(self.runtime_kind)
         function.spec.nuclio_runtime = "golang"
         self.execute_function(function)
-        deploy_configs = self._assert_deploy_called_basic_config(
+        self._assert_deploy_called_basic_config(
             expected_class=self.class_name,
             expected_nuclio_runtime=function.spec.nuclio_runtime,
         )
-        assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
 
         logger.info(
             "Function runtime is configured to python:3.7, nuclio version > 1.14.0 and no base image - explode"
@@ -1173,70 +1148,46 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_class=self.class_name,
             expected_nuclio_runtime=mlconf.default_nuclio_runtime,
         )
-        assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
 
         logger.info(
             "Function runtime is python, nuclio version in range, but already has the env var set - do nothing"
         )
         self._reset_mock()
-        mlconf.nuclio_version = "1.7.5"
+        mlconf.nuclio_version = "1.14.14"
         function = self._generate_runtime(self.runtime_kind)
-        function.set_env(decode_event_strings_env_var_name, "false")
+        function.set_env("something", "false")
         self.execute_function(function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name,
             expected_nuclio_runtime=mlconf.default_nuclio_runtime,
-            expected_env={decode_event_strings_env_var_name: "false"},
+            expected_env={"something": "false"},
         )
 
-        logger.info(
-            "Function runtime is python, nuclio version in range, env var not set - add it"
-        )
-        self._reset_mock()
-        mlconf.nuclio_version = "1.7.5"
-        function = self._generate_runtime(self.runtime_kind)
-        self.execute_function(function)
-        self._assert_deploy_called_basic_config(
-            expected_class=self.class_name,
-            expected_nuclio_runtime=mlconf.default_nuclio_runtime,
-            expected_env={decode_event_strings_env_var_name: "true"},
-        )
-
-    def test_is_nuclio_version_in_range(self):
-        mlconf.nuclio_version = "1.7.2"
-
-        assert not services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.6.11", "1.7.2"
-        )
-        assert not services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.0", "1.3.1"
-        )
-        assert not services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.3", "1.8.5"
-        )
-        assert not services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.2", "1.7.2"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.2", "1.7.3"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.0", "1.7.3"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.5.5", "1.7.3"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.5.5", "2.3.4"
-        )
-
-        # best effort - assumes compatibility
-        mlconf.nuclio_version = ""
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.5.5", "2.3.4"
-        )
-        assert services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.7.2", "1.7.2"
+    @pytest.mark.parametrize(
+        "nuclio_version,min_version,max_version,expected_result",
+        [
+            ("1.7.2", "1.6.11", "1.7.2", False),
+            ("1.7.2", "1.7.0", "1.3.1", False),
+            ("1.7.2", "1.7.3", "1.8.5", False),
+            ("1.7.2", "1.7.2", "1.7.2", False),
+            ("1.7.2", "1.7.2", "1.7.3", True),
+            ("1.7.2", "1.7.0", "1.7.3", True),
+            ("1.7.2", "1.5.5", "1.7.3", True),
+            ("1.7.2", "1.5.5", "2.3.4", True),
+            # best effort - assumes compatibility
+            ("", "1.5.5", "2.3.4", True),
+            ("", "1.7.2", "1.7.2", True),
+        ],
+    )
+    def test_is_nuclio_version_in_range(
+        self, nuclio_version, min_version, max_version, expected_result
+    ):
+        mlconf.nuclio_version = nuclio_version
+        assert (
+            services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+                min_version, max_version
+            )
+            is expected_result
         )
 
     def test_validate_nuclio_version_compatibility(self):
@@ -1286,37 +1237,46 @@ class TestNuclioRuntime(TestRuntimeBase):
         with pytest.raises(ValueError):
             mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility("")
 
-    def test_min_nuclio_versions_decorator_failure(self):
-        mlconf.nuclio_version = "1.6.10"
-
-        for case in [
+    @pytest.mark.parametrize(
+        "case",
+        [
             ["1.6.11"],
             ["2.6.11"],
             ["1.5.9", "1.6.11"],
-        ]:
+        ],
+    )
+    def test_min_nuclio_versions_decorator_failure(self, case):
+        mlconf.nuclio_version = "1.6.10"
 
-            @mlrun.runtimes.nuclio.function.min_nuclio_versions(*case)
-            def fail():
-                pytest.fail("Should not enter this function")
+        @mlrun.runtimes.nuclio.function.min_nuclio_versions(*case)
+        def fail():
+            pytest.fail("Should not enter this function")
 
-            with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
-                fail()
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            fail()
 
-    def test_min_nuclio_versions_decorator_success(self):
-        for nuclio_version in ["1.6.10", "2.2.1", "", "Gibberish"]:
-            mlconf.nuclio_version = nuclio_version
+    @pytest.mark.parametrize(
+        "nuclio_version",
+        ["1.6.10", "2.2.1", "", "Gibberish"],
+    )
+    @pytest.mark.parametrize(
+        "min_nuclio_versions_args",
+        [
+            ["1.6.9"],
+            ["1.5.9", "1.6.9"],
+            ["1.0.0", "0.9.81", "1.4.1"],
+        ],
+    )
+    def test_min_nuclio_versions_decorator_success(
+        self, nuclio_version, min_nuclio_versions_args
+    ):
+        mlconf.nuclio_version = nuclio_version
 
-            for case in [
-                ["1.6.9"],
-                ["1.5.9", "1.6.9"],
-                ["1.0.0", "0.9.81", "1.4.1"],
-            ]:
+        @mlrun.runtimes.nuclio.function.min_nuclio_versions(*min_nuclio_versions_args)
+        def success():
+            pass
 
-                @mlrun.runtimes.nuclio.function.min_nuclio_versions(*case)
-                def success():
-                    pass
-
-                success()
+        success()
 
     def test_load_function_with_source_archive_git(self):
         fn = self._generate_runtime(self.runtime_kind)
@@ -1428,7 +1388,9 @@ class TestNuclioRuntime(TestRuntimeBase):
                     "codeEntryType": "archive",
                     "codeEntryAttributes": {
                         "workDir": "path/inside/functions/archive",
-                        "headers": {"X-V3io-Session-Key": "ma-access-key"},
+                        "headers": {
+                            mlrun.common.schemas.HeaderNames.v3io_session_key: "ma-access-key"
+                        },
                     },
                 },
             },
@@ -1806,9 +1768,11 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self.execute_function(function)
         args, _ = nuclio.deploy.deploy_config.call_args
-
-        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
-            function.invoke("/")
+        with unittest.mock.patch.object(
+            function, "_get_state", return_value=("ready", "", None)
+        ):
+            with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+                function.invoke("/")
 
     def test_error_on_multiple_stream_triggers_old_nuclio_explicit_ack(self):
         mlconf.nuclio_version = "1.13.11"
@@ -1874,6 +1838,185 @@ class TestNuclioRuntime(TestRuntimeBase):
             == raw_password
         )
 
+    @pytest.mark.parametrize(
+        "nuclio_version",
+        [
+            "1.14.15",
+            "1.14.11",
+        ],
+    )
+    def test_masking_rabbitmq_url(self, nuclio_version):
+        """Test that RabbitMQ URL credentials are extracted and masked properly."""
+        password = "rabbit123"
+        url = (
+            f"amqp://user:{password}@my-rabbitmq.default-tenant.svc.cluster.local:5672"
+        )
+
+        def _validate_masked_trigger(masked_trigger):
+            if nuclio_version == "1.14.15":
+                assert (
+                    masked_trigger["url"]
+                    == "amqp://my-rabbitmq.default-tenant.svc.cluster.local:5672"
+                )
+
+                # Assert: Password is masked in attributes
+                assert masked_trigger["password"] != password
+
+                # Assert: Username is in attributes
+                assert masked_trigger["username"] == "user"
+            else:
+                # should not mask for versions less than 1.14.15
+                assert masked_trigger["url"] == url
+
+            # should not be masked in raw_config (this is config we send to nuclio)
+            if "spec.triggers" in raw_config:
+                assert (
+                    raw_config.get("spec.triggers").get("rabbit-trigger").get("url")
+                    == url
+                )
+            else:
+                assert raw_config.get("spec.triggers.rabbit-trigger").get("url") == url
+
+        mlconf.nuclio_version = nuclio_version
+        function = self._generate_runtime(self.runtime_kind)
+        attributes = {
+            "exchangeName": "input_ex",
+            "queueName": "input_queue",
+        }
+
+        # Option 1: set trigger via add_trigger
+        function.add_trigger(
+            "rabbit-trigger",
+            {"kind": "rabbit-mq", "url": url, "attributes": attributes},
+        )
+
+        raw_config = function.mask_sensitive_data_in_config()
+        masked_trigger = function.spec.config.get("spec.triggers.rabbit-trigger")
+        _validate_masked_trigger(masked_trigger)
+
+        # Option 2: set trigger via set_config
+        triggers = {
+            "rabbit-trigger": {
+                "kind": "rabbit-mq",
+                "url": url,
+                "attributes": attributes,
+            },
+        }
+        function.set_config("spec.triggers", triggers)
+        raw_config = function.mask_sensitive_data_in_config()
+        masked_trigger = function.spec.config.get("spec.triggers").get("rabbit-trigger")
+        _validate_masked_trigger(masked_trigger)
+
+    @pytest.mark.parametrize(
+        "inside_k8s,force_external,internal_urls,external_urls,address,expected_url,expected_exception,disable_default_http_trigger",
+        [
+            # Prefer internal when inside k8s and not forcing external
+            (
+                True,
+                False,
+                ["internal-url:1234"],
+                ["external-url:5678"],
+                "legacy-address:4321",
+                "internal-url:1234",
+                None,
+                False,
+            ),
+            # Use external when forcing external
+            (
+                True,
+                True,
+                ["internal-url:1234"],
+                ["external-url:5678"],
+                "legacy-address:4321",
+                "external-url:5678",
+                None,
+                False,
+            ),
+            # Use external when not inside k8s
+            (
+                False,
+                False,
+                ["internal-url:1234"],
+                ["external-url:5678"],
+                "legacy-address:4321",
+                "external-url:5678",
+                None,
+                False,
+            ),
+            # Fallback to address if no invocation urls
+            (
+                True,
+                False,
+                [],
+                [],
+                "legacy-address:4321",
+                "legacy-address:4321",
+                None,
+                False,
+            ),
+            # Error if no address and no triggers, default http trigger disabled
+            (
+                True,
+                False,
+                [],
+                [],
+                "",
+                None,
+                mlrun.errors.MLRunPreconditionFailedError,
+                True,
+            ),
+            # Error if no address and no triggers, default http trigger enabled
+            (True, False, [], [], "", None, ValueError, False),
+            (False, True, [], [], "", None, ValueError, False),
+        ],
+    )
+    def test_get_url(
+        self,
+        inside_k8s,
+        force_external,
+        internal_urls,
+        external_urls,
+        address,
+        expected_url,
+        expected_exception,
+        disable_default_http_trigger,
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        ingress_host = "something.com"
+        function = function.with_http(host=ingress_host, paths=["/"], port=30030)
+
+        function.status.internal_invocation_urls = internal_urls
+        function.status.external_invocation_urls = external_urls
+        function.status.address = address
+        function.spec.disable_default_http_trigger = disable_default_http_trigger
+
+        for state in ["ready", "error", "building"]:
+            with unittest.mock.patch.object(
+                function, "_get_state", return_value=(state, "", None)
+            ):
+                with unittest.mock.patch.object(
+                    mlrun.k8s_utils,
+                    "is_running_inside_kubernetes_cluster",
+                    return_value=inside_k8s,
+                ):
+                    if expected_exception:
+                        function.spec.config = (
+                            {}
+                            if expected_exception
+                            == mlrun.errors.MLRunPreconditionFailedError
+                            else function.spec.config
+                        )
+                        with pytest.raises(expected_exception):
+                            function.get_url(force_external_address=force_external)
+                    else:
+                        url = function.get_url(force_external_address=force_external)
+                        assert isinstance(url, str)
+                        assert (
+                            expected_url in url
+                            if expected_url
+                            else url.startswith("http")
+                        )
+
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well
 class TestNuclioMLRunRuntime(TestNuclioRuntime):
@@ -1887,7 +2030,9 @@ def get_archive_spec(function, secrets):
     spec = nuclio.ConfigSpec()
     config = {}
     services.api.crud.runtimes.nuclio.helpers.compile_nuclio_archive_config(
-        spec, function, secrets
+        function,
+        spec,
+        secrets,
     )
     spec.merge(config)
     return config

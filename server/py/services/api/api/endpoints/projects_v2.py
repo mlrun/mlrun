@@ -59,7 +59,7 @@ async def delete_project(
     # check if project exists
     try:
         project = await run_in_threadpool(
-            get_project_member().get_project, db_session, name, auth_info.session
+            get_project_member().get_project, db_session, name, auth_info
         )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
@@ -91,7 +91,7 @@ async def delete_project(
                     get_project_member().get_project,
                     db_session,
                     name,
-                    auth_info.session,
+                    auth_info,
                     from_leader=True,
                 )
             except mlrun.errors.MLRunNotFoundError:

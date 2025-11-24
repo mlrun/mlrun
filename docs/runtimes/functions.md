@@ -25,6 +25,12 @@ and gets a new hash code upon changes.
 You can use the MLRun auto-logging to log results and artifacts, and to automatically and seamlessly track machine-learning processes 
 while they execute, such as training a model. See {ref}`decorators-and-auto-logging`. 
 
+**In this section**
+- [Functions and projects](#functions-and-projects)
+- [MLRun hub](#mlrun-hub)
+- [Distributed functions](#distributed-functions)
+- [Hyperparameters](#hyperparameters)
+
 ## Functions and projects
 Function are members of an [**MLRun project**](../projects/project.md), a container for all your work on a particular ML application. 
 Once you register a function within a project, you can execute it in your local 
@@ -39,13 +45,13 @@ After the MLRun functions and workflows are created and [**registered into the p
 using the project object. 
 This workflow pairs especially well with {ref}`ci-cd-automate`.
 
-## Function hub
+## MLRun hub
 
 Since function objects are all-inclusive (code, spec, API, and metadata definitions), they can be stored in, 
-and reused from, a shared and versioned function hub. This means that multiple users can share the same MLRun 
+and reused from, a shared and versioned hub. This means that multiple users can share the same MLRun 
 project and get access to objects associated with it.
 
-MLRun has an open [public function hub](https://www.mlrun.org/hub/functions/) that stores many pre-developed functions for
+The [MLRun hub](https://www.mlrun.org/hub/functions/) is an open, public, that stores many pre-developed functions for
 use in your projects. Read more in {ref}`load-from-hub`.
 
 ## Distributed functions
@@ -72,6 +78,5 @@ mlrun_code_annotations
 function-storage
 images
 image-build
-load-from-hub
 git-repo-as-hub
 ```

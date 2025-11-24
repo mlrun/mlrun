@@ -15,26 +15,10 @@
 import typing
 
 import pydantic.v1
-from deprecated import deprecated
-
-import mlrun.common.types
-
-
-@deprecated(
-    version="1.7.0",
-    reason="mlrun.common.schemas.PipelinesFormat is deprecated and will be removed in 1.9.0. "
-    "Use mlrun.common.formatters.PipelineFormat instead.",
-    category=FutureWarning,
-)
-class PipelinesFormat(mlrun.common.types.StrEnum):
-    full = "full"
-    metadata_only = "metadata_only"
-    summary = "summary"
-    name_only = "name_only"
 
 
 class PipelinesPagination(str):
-    default_page_size = 20
+    default_page_size = 200
     # https://github.com/kubeflow/pipelines/blob/master/backend/src/apiserver/list/list.go#L363
     max_page_size = 200
 

@@ -6,9 +6,7 @@ out-of-the-box analysis of:
 
 - **Continuous Assessment**: Model monitoring involves the continuous assessment of deployed machine learning models in real-time.
    It's a proactive approach to ensure that models remain accurate and reliable as they interact with live data.
-- **Model performance**: Machine learning models train on data. It is important you know how well they perform in production.
-  When you analyze the model performance, it is important you monitor not just the overall model performance, but also the
-  feature-level performance. This gives you better insights for the reasons behind a particular result.
+- **Model performance**: This indicates how well a machine learning model performs its intended task. When you analyze the model performance, it's important to monitor feature-level performance in addition to the overall model performance. This gives you better insights for the reasons behind a particular result.
 - **Data drift**: The change in model input data that potentially leads to model performance degradation. There are various
   statistical metrics and drift metrics that you can use to identify data drift.
 - **Concept drift**: The statistical properties of the target variable (what the model is predicting) change over time.
@@ -34,6 +32,7 @@ Migrating from v1.7.0 to v1.8.0 and higher does not maintain backwards compatibi
 :maxdepth: 1
 ../model-monitoring/applications
 ../model-monitoring/running-applications
+../model-monitoring/view-mm-applications
 ../model-monitoring/monitoring-models
 ../model-monitoring/monitoring-models-grafana
 ../model-monitoring/index

@@ -44,12 +44,8 @@ mlflow~=2.22
 databricks-sdk~=0.20.0
 # sqlalchemy version should be aligned with mlrun-api due to common use with the model monitoring database
 sqlalchemy~=2.0
-# retaining old dask for compatibility with kfp 1.8
-dask~=2023.12.1; python_version < "3.11"
-distributed~=2023.12.1; python_version < "3.11"
-# new dask requires newer cloudpickle which is not compatible with kfp 1.8
-dask==2024.8; python_version >= "3.11"
-distributed==2024.8; python_version >= "3.11"
+dask==2024.8
+distributed==2024.8
 taos-ws-py==0.3.2
 # TimescaleDB dependencies - optional for model monitoring
 psycopg[binary,pool]~=3.2

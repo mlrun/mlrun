@@ -1158,14 +1158,15 @@ class MonitoringDeployment:
         )
         # Iterate over each function and get the stream stats
         for function in function_summaries:
+            normalized_function_name = mlrun.utils.normalize_name(function.name)
             topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
-                project=self.project, function_name=function.name
+                project=self.project, function_name=normalized_function_name
             )
             try:
                 partitions = consumer.partitions_for_topic(topic)
                 if not partitions:
                     logger.warning(
-                        f"No partitions found for topic {topic} in function {function.name}"
+                        f"No partitions found for topic {topic} in function {normalized_function_name}"
                     )
                     continue
 
@@ -1202,7 +1203,7 @@ class MonitoringDeployment:
                 logger.warning(
                     "Failed to get topic stats",
                     project=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     topic=topic,
                     error_message=mlrun.errors.err_to_str(exc),
                 )

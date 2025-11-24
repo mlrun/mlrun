@@ -176,10 +176,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         ["naive", "process_pool", "dedicated_process", "thread_pool"],
     )
     def test_hf_2_models(self, execution_mechanism):
-        """
-        Test objective : run a model using a remote model hosted in HF
-        """
-
         self.setup_datastore_profile()
         llm_model2 = "google/gemma-2b-it"
         ep_name = "ep"

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from collections.abc import Callable
+from typing import Union
 
 import numpy as np
 import torch
@@ -34,10 +35,10 @@ class PyTorchTypes(DLTypes):
     ModelType = Module
 
     # Supported types of loss and metrics values:
-    MetricValueType = int | float | np.ndarray | Tensor
+    MetricValueType = Union[int, float, np.ndarray, Tensor]
 
     # Supported types of metrics:
-    MetricFunctionType = Callable[[Tensor, Tensor] | MetricValueType] | Module
+    MetricFunctionType = Union[Callable[[Tensor, Tensor], MetricValueType], Module]
 
 
 class PyTorchUtils(DLUtils):

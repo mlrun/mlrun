@@ -32,6 +32,7 @@ max-line-length = 120
 "__init__.py" = ["F401"]
 "docs/**.py" = ["CPY001"]
 "*.ipynb" = ["ALL"]  # TODO: enable linting rules on Jupyter notebooks
+"mlrun/frameworks/*" = ["UP007"]
 
 [tool.ruff.lint.flake8-copyright]
 author = "Iguazio"

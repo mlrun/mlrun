@@ -1374,7 +1374,6 @@ class LLModel(Model):
             logger.warning(
                 "LLModel invocation artifact or model provider not set, skipping prediction",
                 model_name=self.name,
-                model=self.model_provider.model,
                 invocation_artifact_type=type(llm_prompt_artifact).__name__,
                 model_provider_type=type(self.model_provider).__name__,
             )

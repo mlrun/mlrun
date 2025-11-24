@@ -137,7 +137,7 @@ class MLTypes(CommonTypes, ABC):
     # of the function and the full module path to the function to import. Arguments to use when calling the metric can
     # be joined by wrapping it as a tuple:
     # TODO: will be moved to SKLearn's framework once LightGBM and XGBoost are fully supported.
-    MetricEntryType = tuple[Callable | str, dict] | Callable, str
+    MetricEntryType = tuple[Callable | str, dict] | Callable | str
 
     # Type for the target column name - a list of indices or column names that are the ground truth (y) of a dataset.
     TargetColumnsNamesType = list[str] | list[int]

@@ -238,12 +238,12 @@ The hierarchy must be:
 When you add a hub, you can specify an order number. The list order is relevant when importing a function or module if you don't specify the hub: the search starts with the highest numbered hub (1, 2, 3, etc.). This is especially relevant if you have two functions with the same name in two hubs. 
 
 The MLRun hub is always `-1`. The options for adding custom hubs are:
-- 0, <0: Adds to the top of the list
-- >0: Adds according to the order you assign it. For examples, you have HubA with index=1 and HubB with index=2. You add HubC with index=2, you get</br>
-mlrun hub: -1 
-hubA: index 1 
-hubC: index 2 
-hubB: index 3
+* 0, <0: Adds to the top of the list
+*-* >0: Adds according to the order you assign it. For examples, you have HubA with index=1 and HubB with index=2. You add HubC with index=2, you get</br>
+mlrun hub: -1 </br>
+hubA: index 1 </br>
+hubC: index 2 </br>
+hubB: index 3</br>
 
 Of course, you can always specify the hub name.  
 
@@ -270,7 +270,7 @@ mlrun.get_run_db().create_hub_source(private_source)
 To access a function or module directly from your hub, specify its path, for example:
 `mlrun.import_function("hub://my_cool_hub/describe")`
 
-To view your hub, run:
+To view your hubs, run:
 ```
 db.list_hub_sources() 
 ```

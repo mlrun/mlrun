@@ -235,11 +235,17 @@ The hierarchy must be:
 					- html files
 					
 ### Add a custom hub to the MLRun database
-When you add a hub, specify `order=-1` to add it to the top of the list. 
-The list order is relevant when loading a function.
-if you don't specify a hub name, MLRun starts searching for the function with the last added hub.
-If you want to add a hub but not at the top of the list, view the current list using {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_hub_source`.
-The MLRun hub is always the last in the list (and cannot be modified). 
+When you add a hub, you can specify an order number. The list order is relevant when importing a function or module if you don't specify the hub: the search starts with the highest numbered hub (1, 2, 3, etc.). This is especially relevant if you have two functions with the same name in two hubs. 
+
+The MLRun hub is always `-1`. The options for adding custom hubs are:
+- 0, <0: Adds to the top of the list
+- >0: Adds according to the order you assign it. For examples, you have HubA with index=1 and and HubB with index=2. You add HubC with index=2, you get</br>
+mlrun hub: -1 
+hubA: index 1 
+hubC: index 2 
+hubB: index 3
+
+Of course, you can always specify the hub name.  
 
 To add a hub, run:
 ```python
@@ -247,6 +253,7 @@ import mlrun.common.schemas
 
 # Add a custom hub to the top of the list
 private_source = mlrun.common.schemas.IndexedHubSource(
+    order=1,
     source=mlrun.common.schemas.HubSource(
         metadata=mlrun.common.schemas.HubObjectMetadata(
             name="my_cool_hub", description="a private hub"
@@ -262,3 +269,15 @@ mlrun.get_run_db().create_hub_source(private_source)
 ```
 To access a function or module directly from your hub, specify its path, for example:
 `mlrun.import_function("hub://my_cool_hub/describe")`
+
+To view your hub, run:
+```
+db.list_hub_sources() 
+```
+The output is similar to:
+```
+[IndexedHubSource(index=1, source=HubSource(kind=HubSource, metadata=HubObjectMetadata(name='testhub', description='a private hub', labels={}, updated=datetime.datetime(2025, 11, 19, 12, 19, 28, 737746, tzinfo=datetime.timezone.utc), created=datetime.datetime(2025, 11, 19, 12, 19, 28, 737746, tzinfo=datetime.timezone.utc)), spec=HubSourceSpec(path='https://raw.githubusercontent.com/GiladShapira94', channel='refs/heads/llm_app', credentials={}, object_type='functions'), status=ObjectStatus(state='created'))),
+ IndexedHubSource(index=2, source=HubSource(kind=HubSource, metadata=HubObjectMetadata(name='eyalhub', description='a private hub', labels={}, updated=datetime.datetime(2025, 11, 19, 12, 29, 11, 186130, tzinfo=datetime.timezone.utc), created=datetime.datetime(2025, 11, 19, 12, 29, 11, 186130, tzinfo=datetime.timezone.utc)), spec=HubSourceSpec(path='https://raw.githubusercontent.com/Eyal-Danieli/marketplace', channel='refs/heads/master', credentials={}, object_type='functions'), status=ObjectStatus(state='created'))),
+ IndexedHubSource(index=3, source=HubSource(kind=HubSource, metadata=HubObjectMetadata(name='eyalhubv2', description='a private hub', labels={}, updated=datetime.datetime(2025, 11, 19, 12, 30, 5, 274030, tzinfo=datetime.timezone.utc), created=datetime.datetime(2025, 11, 19, 12, 30, 5, 274030, tzinfo=datetime.timezone.utc)), spec=HubSourceSpec(path='https://raw.githubusercontent.com/Eyal-Danieli/marketplace', channel='refs/heads/master', credentials={}, object_type='functions'), status=ObjectStatus(state='created'))),
+ IndexedHubSource(index=-1, source=HubSource(kind=HubSource, metadata=HubObjectMetadata(name='default', description='MLRun hub', labels={}, updated=datetime.datetime(2025, 11, 24, 10, 3, 15, 143844, tzinfo=datetime.timezone.utc), created=datetime.datetime(2025, 11, 24, 10, 3, 15, 143844, tzinfo=datetime.timezone.utc)), spec=HubSourceSpec(path='https://mlrun.github.io/marketplace', channel='master', credentials={}), status=ObjectStatus(state='created')))]
+```

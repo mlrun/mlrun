@@ -235,7 +235,7 @@ The hierarchy must be:
 					- html files
 					
 ### Add a custom hub to the MLRun database
-When you add a hub, you can specify an order number. The list order is relevant when importing a function or module if you don't specify the hub: the search starts with the highest numbered hub (1, 2, 3, etc.). This is especially relevant if you have two functions with the same name in two hubs. 
+When you add a hub, you can specify an order number by providing an index. The list order is relevant when importing a function or module if you don't specify the hub: the search starts with the highest numbered hub (1, 2, 3, etc.). This is especially relevant if you have two functions (or modules) with the same name in two hubs. 
 
 The MLRun hub is always `-1`. The options for adding custom hubs are:
 * 0, <0: Adds to the top of the list

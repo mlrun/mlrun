@@ -387,13 +387,13 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         second_model_url = self.url_prefix + llm_model2
 
         model1 = proj_obj.log_model(
-            "model_key", model_url=model_url, default_config={"max_new_tokens": 100}
+            "model_key", model_url=model_url, default_config={"max_new_tokens": 50}
         )
 
         model2 = proj_obj.log_model(
             "model_key2",
             model_url=second_model_url,
-            default_config={"max_new_tokens": 100},
+            default_config={"max_new_tokens": 50},
         )
         llm_art1 = proj_obj.log_llm_prompt(
             "llm_artifact",

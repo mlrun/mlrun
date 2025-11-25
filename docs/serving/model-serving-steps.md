@@ -14,6 +14,7 @@ running models in a multi-process or a multi-threaded paradigm, and it supports 
 model (useful when the model has a long startup time or requires a lot of resources). Different execution mechanisms can be
 used for different models within the same step. ModelRunnerStep supports a shared
 model that is invoked from multiple steps in one graph. Model endpoints resresent the models themselves, not the steps.
+See [Basic code examples](#basic-code-examples).
 
 ModelRunnerSteps have model endpoints, and can therefore be monitored. The input and output of each step are user-configurable. See {py:meth}`mlrun.serving.ModelRunnerStep.add_model`.
 
@@ -81,7 +82,7 @@ model_runner_step.add_model(
 model_runner_step.add_model(
     endpoint_name="endpoint-2",
     model_artifact=llm_prompt_artifact-2,
-    execution_mechanism="thread_pool",
+    execution_mechanism="process_pool",
     model_class="LLModel",
 )
 

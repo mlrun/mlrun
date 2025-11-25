@@ -166,6 +166,7 @@ class DataStore(BaseRemoteClient):
         partition_keys,
         df_module,
         time_partitioning_granularity,
+        filesystem,
         **kwargs,
     ):
         """Read only the relevant partitions using pandas filters and concat."""
@@ -183,6 +184,7 @@ class DataStore(BaseRemoteClient):
             start_time,
             end_time,
             time_partitioning_granularity: str,
+            filesystem,
         ):
             """
             Build a list of URLs based on detected partitioning and time range.
@@ -225,6 +227,7 @@ class DataStore(BaseRemoteClient):
             while current <= end_time:
                 # Build directory structure from partition keys
                 parts = []
+                exists = True
                 for key in fmt_keys:
                     if key == "year":
                         parts.append(f"year={current.year}")
@@ -235,16 +238,52 @@ class DataStore(BaseRemoteClient):
                     elif key == "hour":
                         parts.append(f"hour={current.hour:02d}")
 
-                urls.append(f"{base_path.rstrip('/')}/" + "/".join(parts))
+                    if parts and not filesystem.isdir(
+                        f"{base_path.rstrip('/')}/" + "/".join(parts)
+                    ):
+                        exists = False
+                        break
+
+                if exists:
+                    urls.append(f"{base_path.rstrip('/')}/" + "/".join(parts))
 
                 # Advance to next period
-                if "hour" in actual_partition_keys or "day" in actual_partition_keys:
-                    current += step
-                else:
-                    current = next_step(current)
+                if exists or key == time_partitioning_granularity:
+                    if (
+                        "hour" in actual_partition_keys
+                        or "day" in actual_partition_keys
+                    ):
+                        current += step
+                    else:
+                        current = next_step(current)
+                elif not exists:
+                    current = next_rounded_step(current, key)
 
             logger.info("Generated partitioned URLs", extra={"urls": urls})
             return urls
+
+        def next_rounded_step(
+            current: datetime.datetime, key: str
+        ) -> datetime.datetime:
+            tz = current.tzinfo
+            if key == "day":
+                current = (current + datetime.timedelta(days=1)).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
+            elif key == "month":
+                if current.month == 12:
+                    current = datetime.datetime(
+                        year=current.year + 1, month=1, day=1, tzinfo=tz
+                    )
+                else:
+                    current = datetime.datetime(
+                        year=current.year, month=current.month + 1, day=1, tzinfo=tz
+                    )
+            elif key == "year":
+                current = datetime.datetime(
+                    year=current.year + 1, month=1, day=1, tzinfo=tz
+                )
+            return current
 
         def clean_filters_for_partitions(
             filters,
@@ -274,6 +313,7 @@ class DataStore(BaseRemoteClient):
             start_time,
             end_time,
             time_partitioning_granularity,
+            filesystem,
         )
 
         dfs = []
@@ -379,6 +419,7 @@ class DataStore(BaseRemoteClient):
                             partitions_time_attributes,
                             df_module,
                             time_partitioning_granularity,
+                            file_system,
                             **kwargs,
                         )
 
@@ -417,6 +458,7 @@ class DataStore(BaseRemoteClient):
                             partitions_time_attributes,
                             df_module,
                             time_partitioning_granularity,
+                            file_system,
                             **kwargs,
                         )
                     else:

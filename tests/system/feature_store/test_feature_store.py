@@ -1075,6 +1075,26 @@ class TestFeatureStore(TestMLRunSystem):
         expected_df = expected_df.sort_values(key).reset_index(drop=True)
         assert_frame_equal(result_df, expected_df)
 
+        large_base_period_start = base_time - timedelta(days=367)
+        large_base_period_end = base_time + timedelta(days=367)
+        start = datetime.now(tz=pytz.UTC if with_tz else None)
+        result_df = offline.as_df(
+            start_time=large_base_period_start,
+            end_time=large_base_period_end,
+            time_column="timestamp",
+            time_partitioning_granularity=granularity,
+        )
+        end = datetime.now(tz=pytz.UTC if with_tz else None)
+        assert end - start < timedelta(seconds=20), "Reading large period took too long"
+        result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(
+            "datetime64[ns]"
+        )
+        if with_tz:
+            result_df["timestamp"] = result_df["timestamp"].dt.tz_localize("UTC")
+
+        result_df = result_df.sort_values(key).reset_index(drop=False)
+        assert_frame_equal(result_df, expected_df)
+
         late_start = base_time + timedelta(days=2)
         late_end = late_start + timedelta(minutes=5)
         target_path_2 = f"{target_path}_empty"

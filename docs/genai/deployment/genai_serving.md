@@ -54,7 +54,7 @@ There are two types of remote models.
   - Hugging Face's Inference Provider is designed to handle OpenAI-style chat format (role/content) and therefore requires models that support `tokenizer.apply_chat_template`. If a model does not provide this functionality, you must implement a manual solution.
 
 ### Serving the remote model
-The following code shows the basics of serving and deploying a remote model.
+The following code shows the basics of serving and deploying a remote model. `execution_mechanism` determines how the model is executed. See {py:meth}`~mlrun.serving.ModelRunnerStep.add_model` for a description of all parameters and options.
 
 ```python
 graph = function.set_topology("flow", engine="async")
@@ -62,7 +62,7 @@ model_runner_step = ModelRunnerStep(name="my_model_runner")
 model_runner_step.add_model(
     model_class="LLModel",
     endpoint_name="my_endpoint",
-    execution_mechanism=execution_mechanism,
+    execution_mechanism=dedicated_process,
     model_artifact=llm_prompt_artifact,
     result_path="output",
 )

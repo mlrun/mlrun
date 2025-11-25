@@ -22,7 +22,7 @@ You can also import model monitoring applications from the [MLRun hub](https://w
 
 ## Overview
 
-The relevant methods of {py:class}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` are:
+The relevant methods of {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` are:
 
 - {py:meth}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate`
 - {py:meth}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.to_job`

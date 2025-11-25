@@ -253,7 +253,7 @@ import mlrun.common.schemas
 
 # Add a custom hub to the top of the list
 private_source = mlrun.common.schemas.IndexedHubSource(
-    order=1,
+    index=1,
     source=mlrun.common.schemas.HubSource(
         metadata=mlrun.common.schemas.HubObjectMetadata(
             name="my_cool_hub", description="a private hub"

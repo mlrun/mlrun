@@ -239,7 +239,7 @@ When you add a hub, you can specify an order number. The list order is relevant 
 
 The MLRun hub is always `-1`. The options for adding custom hubs are:
 - 0, <0: Adds to the top of the list
-- >0: Adds according to the order you assign it. For examples, you have HubA with index=1 and and HubB with index=2. You add HubC with index=2, you get</br>
+- >0: Adds according to the order you assign it. For examples, you have HubA with index=1 and HubB with index=2. You add HubC with index=2, you get</br>
 mlrun hub: -1 
 hubA: index 1 
 hubC: index 2 

@@ -874,24 +874,44 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
         self._infer_with_error(serving_fn, with_training_set=with_training_set)
         # wait for the NO-OP event to close the window
-        time.sleep(
+        initial_wait = (
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
             + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
             + self._external_stream_delay
         )
 
-        mep = mlrun.db.get_run_db().get_model_endpoint(
-            name=f"{self.model_name}_{with_training_set}",
-            project=self.project.name,
-            function_name="model-serving",
-            function_tag="latest",
-            feature_analysis=True,
-            tsdb_metrics=True,
+        mep_result = {}
+
+        def check_model_endpoint_data() -> None:
+            mep = mlrun.db.get_run_db().get_model_endpoint(
+                name=f"{self.model_name}_{with_training_set}",
+                project=self.project.name,
+                function_name="model-serving",
+                function_tag="latest",
+                feature_analysis=True,
+                tsdb_metrics=True,
+            )
+            # Verify endpoint has required data
+            assert mep is not None, "Model endpoint is None"
+            assert mep.status.last_request is not None, "last_request is None"
+
+            # Verify TSDB actually has data (not just endpoint metadata)
+            df = self._tsdb_storage.get_results_metadata(endpoint_id=mep.metadata.uid)
+            assert not df.empty, "TSDB data not yet available"
+
+            # Store for later use (avoids duplicate fetch)
+            mep_result["mep"] = mep
+
+        self.wait_for_condition(
+            condition_check=check_model_endpoint_data,
+            initial_wait=initial_wait,
+            condition_description="model endpoint to have monitoring data and TSDB to be populated",
         )
-        assert (
-            mep.status.last_request is not None
-        ), "The last request is not set in the MEP status"
+
+        # Use the endpoint captured during the successful check
+        mep = mep_result["mep"]
+
         # Model predict timestamp is slightly differ than storey timestamp
         assert (
             (mep.status.last_request - last_request) < timedelta(milliseconds=1)
@@ -1023,23 +1043,31 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
 
         endpoint_id = self._record_results()
 
-        time.sleep(
+        # Wait for TSDB data to be processed with retry pattern
+        initial_wait = (
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         )
 
-        mep = mlrun.db.get_run_db().get_model_endpoint(
-            name=f"{self.name_prefix}-test",
-            project=self.project.name,
-            endpoint_id=endpoint_id,
-            feature_analysis=True,
-            tsdb_metrics=True,
+        def check_tsdb_data() -> None:
+            mep = mlrun.db.get_run_db().get_model_endpoint(
+                name=f"{self.name_prefix}-test",
+                project=self.project.name,
+                endpoint_id=endpoint_id,
+                feature_analysis=True,
+                tsdb_metrics=True,
+            )
+            self._test_v3io_records(
+                mep.metadata.uid,
+                apps_data=self.apps_data,
+            )
+            self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
+
+        self.wait_for_condition(
+            condition_check=check_tsdb_data,
+            initial_wait=initial_wait,
+            condition_description="TSDB data to be available for batch endpoint",
         )
-        self._test_v3io_records(
-            mep.metadata.uid,
-            apps_data=self.apps_data,
-        )
-        self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -1269,12 +1297,19 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
         input_df = self._generate_input_df()
         function = self._run_serving_job(input_df=input_df)
-        time.sleep(
+        initial_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
 
-        self._test_batch_ep_metrics(
-            function_name=function.metadata.name, input_df=input_df
+        def check_batch_metrics() -> None:
+            self._test_batch_ep_metrics(
+                function_name=function.metadata.name, input_df=input_df
+            )
+
+        self.wait_for_condition(
+            condition_check=check_batch_metrics,
+            initial_wait=initial_wait,
+            condition_description="batch job metrics to be available (invocations + count)",
         )
 
     @staticmethod
@@ -1686,10 +1721,24 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     ) -> dict[str, typing.Any]:
         serving_fn = self.project.get_function(self.function_name)
         self._infer_by_endpoint(endpoint_name, model_dict, serving_fn)
-        time.sleep(
+
+        initial_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
-        return self._test_parquet(feature_set_uri, model_dict)
+
+        result = {}
+
+        def check_parquet_data() -> None:
+            nonlocal result
+            result = self._test_parquet(feature_set_uri, model_dict)
+
+        self.wait_for_condition(
+            condition_check=check_parquet_data,
+            initial_wait=initial_wait,
+            condition_description=f"parquet data for endpoint {endpoint_name}",
+        )
+
+        return result
 
     @staticmethod
     def _infer_by_endpoint(endpoint_name, model_dict, serving_fn):
@@ -1746,9 +1795,27 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 self.model_by_endpoint_name[endpoint.metadata.name],
                 serving_fn,
             )
-        time.sleep(
+
+        initial_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
+
+        def check_all_endpoints_parquet() -> None:
+            for endpoint in endpoints:
+                res_dict = self._test_parquet(
+                    endpoint.spec.monitoring_feature_set_uri,
+                    self.model_by_endpoint_name[endpoint.metadata.name],
+                )
+                assert res_dict[
+                    "is_schema_saved"
+                ], f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+
+        self.wait_for_condition(
+            condition_check=check_all_endpoints_parquet,
+            initial_wait=initial_wait,
+            condition_description="parquet data for all 7 endpoints",
+        )
+
         for endpoint in endpoints:
             res_dict = self._test_parquet(
                 endpoint.spec.monitoring_feature_set_uri,
@@ -1923,23 +1990,32 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         serving_fn.invoke(
             "/", body=json.dumps({"inputs": [[1, 1, 1, 1]], "labels": {"user": "test"}})
         )
-        time.sleep(
+
+        initial_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 60
         )
-        endpoints_list = (
-            mlrun.db.get_run_db()
-            .list_model_endpoints(project=self.project_name, tsdb_metrics=True)
-            .endpoints
+
+        def check_parquet_with_labels() -> None:
+            endpoints_list = (
+                mlrun.db.get_run_db()
+                .list_model_endpoints(project=self.project_name, tsdb_metrics=True)
+                .endpoints
+            )
+            feature_set_uri = endpoints_list[0].spec.monitoring_feature_set_uri
+            offline_response_df = ParquetTarget(
+                name="temp",
+                path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
+            ).as_df()
+            assert len(offline_response_df) == 2, "Not all the events were saved"
+            assert offline_response_df["labels"].iloc[1] == {
+                "user": "test"
+            }, "Labels were not saved correctly"
+
+        self.wait_for_condition(
+            condition_check=check_parquet_with_labels,
+            initial_wait=initial_wait,
+            condition_description="parquet data with labels to be saved",
         )
-        feature_set_uri = endpoints_list[0].spec.monitoring_feature_set_uri
-        offline_response_df = ParquetTarget(
-            name="temp",
-            path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
-        ).as_df()
-        assert len(offline_response_df) == 2, "Not all the events were saved"
-        assert offline_response_df["labels"].iloc[1] == {
-            "user": "test"
-        }, "Labels were not saved correctly"
 
 
 class TestAppJob(TestMLRunSystem):
@@ -2094,16 +2170,31 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             body=json.dumps({"inputs": [[0, 1, 0, 4.4]]}),
         )
 
-        # Let the stream pod process the data and write the parquets
-        time.sleep(80)
+        initial_wait = 80
+        endpoint_result = {}
 
-        # Get the model endpoint
-        model_endpoint = mlrun.get_run_db().get_model_endpoint(
-            name=self._model_name,
-            project=self.project_name,
-            function_name=self._serving_function_name,
-            function_tag="latest",
+        def check_model_endpoint_ready() -> None:
+            endpoint = mlrun.get_run_db().get_model_endpoint(
+                name=self._model_name,
+                project=self.project_name,
+                function_name=self._serving_function_name,
+                function_tag="latest",
+            )
+            # Verify endpoint has request timestamps from both windows
+            assert endpoint.status.first_request is not None, "first_request is None"
+            assert endpoint.status.last_request is not None, "last_request is None"
+
+            # Store for later use (avoids duplicate fetch)
+            endpoint_result["endpoint"] = endpoint
+
+        self.wait_for_condition(
+            condition_check=check_model_endpoint_ready,
+            initial_wait=initial_wait,
+            condition_description="model endpoint to have request data from both windows",
         )
+
+        # Use the endpoint captured during the successful check
+        model_endpoint = endpoint_result["endpoint"]
 
         # Call `.evaluate(...)` with a base period of 1 minute
 
@@ -2181,12 +2272,8 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             if write_output:
                 # Test that the outputs were written in the database
                 db = typing.cast(mlrun.db.httpdb.HTTPRunDB, mlrun.get_run_db())
-                # Wait for the writer to get the data and write it
-                time.sleep(5)
-                metrics = db.get_model_endpoint_monitoring_metrics(
-                    project=self.project_name, endpoint_id=model_endpoint.metadata.uid
-                )
-                assert metrics == [
+
+                expected_metrics = [
                     ModelEndpointMonitoringMetric(
                         project=self.project_name,
                         app="count-app-batch",
@@ -2202,7 +2289,23 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                         name="invocations",
                         full_name=f"{self.project_name}.mlrun-infra.metric.invocations",
                     ),
-                ], "The metrics from the database are different than expected"
+                ]
+
+                def check_metrics_written() -> None:
+                    metrics = db.get_model_endpoint_monitoring_metrics(
+                        project=self.project_name,
+                        endpoint_id=model_endpoint.metadata.uid,
+                    )
+                    assert (
+                        metrics == expected_metrics
+                    ), "The metrics from the database are different than expected"
+
+                self.wait_for_condition(
+                    condition_check=check_metrics_written,
+                    initial_wait=5,
+                    retry_interval=2.0,  # Faster retry for quick database writes
+                    condition_description="metrics to be written to database by writer",
+                )
 
 
 class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
@@ -2333,26 +2436,69 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
                 body=json.dumps({"inputs": [[0, 0, 0, 0]] * 100}),
             )
 
-        time.sleep(30)
+        # Wait for model endpoints to have sampling data
+        endpoints = {}
 
-        # Get the model endpoints
-        model_endpoint_with_sample = mlrun.get_run_db().get_model_endpoint(
-            name=self._model_name,
-            project=self.project_name,
-            function_name=self._serving_function_name_with_sample,
-            function_tag="latest",
+        def check_endpoints_with_sampling() -> None:
+            ep_with = mlrun.get_run_db().get_model_endpoint(
+                name=self._model_name,
+                project=self.project_name,
+                function_name=self._serving_function_name_with_sample,
+                function_tag="latest",
+            )
+            ep_without = mlrun.get_run_db().get_model_endpoint(
+                name=self._model_name,
+                project=self.project_name,
+                function_name=self._serving_function_name_without_sample,
+                function_tag="latest",
+            )
+            # Check if both endpoints have the expected sampling percentages
+            assert ep_with.status.sampling_percentage == 15.5
+            assert ep_without.status.sampling_percentage == 100
+
+            # Verify TSDB actually has predictions data (not just endpoint metadata)
+            if self._tsdb_storage.type == mm_constants.TSDBTarget.TimescaleDB:
+                table = self._tsdb_storage._metrics_queries.tables[
+                    mm_constants.TimescaleDBTables.PREDICTIONS
+                ]
+                full_query = table._get_records_query(
+                    start=datetime.min, end=datetime.now().astimezone()
+                )
+                query_result = self._tsdb_storage._connection.run(query=full_query)
+                df_columns = query_result.fields
+                predictions_df = pd.DataFrame(query_result.data, columns=df_columns)
+            elif self._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+                predictions_df = self._tsdb_storage._get_records(
+                    table=mm_constants.V3IOTSDBTables.PREDICTIONS,
+                    start="0",
+                    end="now",
+                )
+            else:
+                # TDEngine
+                predictions_df = self._tsdb_storage._get_records(
+                    table=self._tsdb_storage.tables[
+                        mm_constants.TDEngineSuperTables.PREDICTIONS
+                    ].super_table,
+                    start=datetime.min,
+                    end=datetime.now().astimezone(),
+                )
+            assert (
+                predictions_df.shape[0] == 20
+            ), "TSDB predictions data not yet available"
+
+            # Store for later use (avoids duplicate fetch)
+            endpoints["with_sample"] = ep_with
+            endpoints["without_sample"] = ep_without
+
+        self.wait_for_condition(
+            condition_check=check_endpoints_with_sampling,
+            initial_wait=30,
+            condition_description="model endpoints to have sampling data and TSDB predictions",
         )
 
-        model_endpoint_without_sample = mlrun.get_run_db().get_model_endpoint(
-            name=self._model_name,
-            project=self.project_name,
-            function_name=self._serving_function_name_without_sample,
-            function_tag="latest",
-        )
-
-        # Validate the sampling percentage
-        assert model_endpoint_with_sample.status.sampling_percentage == 15.5
-        assert model_endpoint_without_sample.status.sampling_percentage == 100
+        # Use the endpoints captured during the successful check
+        model_endpoint_with_sample = endpoints["with_sample"]
+        model_endpoint_without_sample = endpoints["without_sample"]
 
         self._test_predictions_table(
             ep_id_with_sample=model_endpoint_with_sample.metadata.uid,

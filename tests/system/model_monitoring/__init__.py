@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, TypeAlias
+import time
+from collections.abc import Callable
+from typing import Any, Optional, TypeAlias
 
 import pytest
 
@@ -120,3 +122,80 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
             )
         )
         return container, stream_path
+
+    @classmethod
+    def wait_for_condition(
+        cls,
+        condition_check: Callable,
+        initial_wait: float = 0.0,
+        timeout: Optional[float] = None,
+        retry_interval: float = 10.0,
+        condition_description: str = "condition to be met",
+    ) -> None:
+        """Wait for a condition to be met by retrying until success or timeout.
+
+        The condition_check function should use assertions to validate conditions.
+        If it completes without raising an exception, the condition is considered met.
+        If it raises an exception, the check will be retried until timeout.
+
+        :param condition_check: Function that raises an exception if condition not met
+        :param initial_wait: Time to wait before first check (seconds)
+        :param timeout: Maximum time to wait (auto-calculated if not provided)
+        :param retry_interval: Time between retry attempts (seconds)
+        :param condition_description: Human-readable description for logging
+        """
+        # Auto-calculate timeout if not provided
+        if timeout is None:
+            timeout = max(initial_wait * 3, 60.0)  # At least 60s timeout
+
+        if initial_wait > 0:
+            cls._logger.debug(
+                f"Initial wait before checking {condition_description}",
+                wait_seconds=initial_wait,
+            )
+            time.sleep(initial_wait)
+
+        start_time = time.time()
+        attempt = 0
+
+        while time.time() - start_time < timeout:
+            attempt += 1
+            elapsed = time.time() - start_time
+            # Check if this is the last attempt (not enough time for another retry)
+            last_check = elapsed + retry_interval >= timeout
+
+            cls._logger.debug(
+                f"Checking {condition_description}",
+                attempt=attempt,
+                elapsed_seconds=round(elapsed, 1),
+                timeout_seconds=timeout,
+                last_check=last_check,
+            )
+
+            try:
+                condition_check()
+                # No exception means condition is met
+                cls._logger.info(
+                    f"Condition met: {condition_description}",
+                    attempt=attempt,
+                    elapsed_seconds=round(elapsed, 1),
+                )
+                return
+            except Exception:
+                if last_check:
+                    # On last attempt, let the actual exception propagate for better error reporting
+                    raise
+                # On earlier attempts, log and continue retrying
+                cls._logger.debug(
+                    "Exception during check, will retry",
+                    attempt=attempt,
+                    exc_info=True,
+                )
+                time.sleep(retry_interval)
+
+        # Timeout reached without success
+        elapsed = round(time.time() - start_time, 1)
+        raise TimeoutError(
+            f"Timeout after {elapsed}s waiting for {condition_description} "
+            f"(timeout: {timeout}s, attempts: {attempt})"
+        )

@@ -123,7 +123,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
         )
         if isinstance(
             datastore_profile,
-            (DatastoreProfileKafkaStream, DatastoreProfileKafkaTarget),
+            DatastoreProfileKafkaStream | DatastoreProfileKafkaTarget,
         ):
             attributes = datastore_profile.attributes()
             brokers = attributes.pop("brokers", None)

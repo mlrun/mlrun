@@ -196,7 +196,7 @@ def get_secret_or_env(
         key = f"{prefix}_{key}"
 
     if secret_provider:
-        if isinstance(secret_provider, (dict, SecretsStore)):
+        if isinstance(secret_provider, dict | SecretsStore):
             secret_value = secret_provider.get(key)
         else:
             secret_value = secret_provider(key)

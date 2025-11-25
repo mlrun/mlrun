@@ -303,7 +303,7 @@ class GraphServer(ModelObj):
             if event_path_key in event.headers:
                 event.path = event.headers.get(event_path_key)
 
-        if isinstance(event.body, (str, bytes)) and (
+        if isinstance(event.body, str | bytes) and (
             not event.content_type or event.content_type in ["json", "application/json"]
         ):
             # assume it is json and try to load
@@ -348,7 +348,7 @@ class GraphServer(ModelObj):
         ):
             return body
 
-        if body and not isinstance(body, (str, bytes)):
+        if body and not isinstance(body, str | bytes):
             body = json.dumps(body)
             return context.Response(
                 body=body, content_type="application/json", status_code=200

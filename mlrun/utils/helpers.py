@@ -773,11 +773,11 @@ def dict_to_yaml(struct) -> str:
 # solve numpy json serialization
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, (int, str, float, list, dict)):
+        if isinstance(obj, int | str | float | list | dict):
             return obj
-        elif isinstance(obj, (np.integer, np.int64)):
+        elif isinstance(obj, np.integer | np.int64):
             return int(obj)
-        elif isinstance(obj, (np.floating, np.float64)):
+        elif isinstance(obj, np.floating | np.float64):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
@@ -1740,7 +1740,7 @@ def format_run(run: PipelineRun, with_project=False) -> dict:
     for key, value in run.items():
         if (
             key in time_keys
-            and isinstance(value, (str, datetime))
+            and isinstance(value, str | datetime)
             and parser.parse(str(value)).year == 1970
         ):
             run[key] = None

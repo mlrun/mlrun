@@ -798,7 +798,7 @@ class Client(
                 name=sanitize_input_name(key),
                 value=(
                     str(value)
-                    if not isinstance(value, (list, dict))
+                    if not isinstance(value, list | dict)
                     else orjson.dumps(value).decode()
                 ),
             )

@@ -981,7 +981,7 @@ class Config:
                     try:
                         config_value.update(value)
                     except AttributeError as exc:
-                        if not isinstance(config_value, (dict, Config)):
+                        if not isinstance(config_value, dict | Config):
                             raise ValueError(
                                 f"Can not update `{key}` config. "
                                 f"Expected a configuration but received {type(value)}"

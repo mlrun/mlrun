@@ -264,7 +264,7 @@ class TestMLRunSystem:
         # Set the environment variable
         if isinstance(value, bool):
             os.environ[key] = "true" if value else "false"
-        elif value is not None and not isinstance(value, (list, dict)):
+        elif value is not None and not isinstance(value, list | dict):
             os.environ[key] = value
 
     @classmethod

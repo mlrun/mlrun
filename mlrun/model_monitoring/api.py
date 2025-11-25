@@ -467,7 +467,7 @@ def read_dataset_as_dataframe(
         # Get the features and parse to DataFrame:
         dataset = dataset.get_offline_features(drop_columns=drop_columns).to_dataframe()
 
-    elif isinstance(dataset, (list, np.ndarray)):
+    elif isinstance(dataset, list | np.ndarray):
         if not feature_columns:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Feature columns list must be provided when dataset input as from type list or numpy array"
@@ -509,7 +509,7 @@ def read_dataset_as_dataframe(
     # Turn the `label_columns` into a list by default:
     if label_columns is None:
         label_columns = []
-    elif isinstance(label_columns, (str, int)):
+    elif isinstance(label_columns, str | int):
         label_columns = [label_columns]
 
     return dataset, label_columns

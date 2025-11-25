@@ -140,7 +140,7 @@ class OutputStream:
         self._lazy_init()
 
         def dump_record(rec):
-            if not isinstance(rec, (str, bytes)):
+            if not isinstance(rec, str | bytes):
                 return dict_to_json(rec)
             return str(rec)
 

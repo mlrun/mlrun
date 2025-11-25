@@ -59,7 +59,7 @@ def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
 
         from mlrun.frameworks.xgboost import XGBoostModelHandler
 
-        if isinstance(model, (XGBModel, Booster)):
+        if isinstance(model, XGBModel | Booster):
             return XGBoostModelHandler.FRAMEWORK_NAME
     except ModuleNotFoundError:
         pass
@@ -70,7 +70,7 @@ def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
 
         from mlrun.frameworks.lgbm import LGBMModelHandler
 
-        if isinstance(model, (LGBMModel, Booster)):
+        if isinstance(model, LGBMModel | Booster):
             return LGBMModelHandler.FRAMEWORK_NAME
     except ModuleNotFoundError:
         pass

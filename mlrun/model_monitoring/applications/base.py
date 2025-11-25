@@ -440,7 +440,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     ) -> list[tuple[str, str]]:
         if isinstance(endpoints, list):
             if all(
-                isinstance(endpoint, (tuple, list)) and len(endpoint) == 2
+                isinstance(endpoint, tuple | list) and len(endpoint) == 2
                 for endpoint in endpoints
             ):
                 # A list of [(name, uid), ...] / [[name, uid], ...] tuples/lists

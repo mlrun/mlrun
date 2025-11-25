@@ -931,7 +931,7 @@ def _migrate_data(
         to_commit = []
         for record in records:
             result = handle_field_record_func(record)
-            if isinstance(result, (list, tuple, set)):
+            if isinstance(result, list | tuple | set):
                 to_commit.extend(result)
             elif result is not None:
                 to_commit.append(result)

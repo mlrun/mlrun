@@ -256,7 +256,7 @@ class RunConfig:
     @function.setter
     def function(self, function):
         if function and not (
-            isinstance(function, (str, FunctionReference)) or hasattr(function, "apply")
+            isinstance(function, str | FunctionReference) or hasattr(function, "apply")
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "function must be a uri (string) or mlrun function object/reference"

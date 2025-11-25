@@ -1511,15 +1511,15 @@ class MLClientCtx:
 
 
 def _cast_result(value):
-    if isinstance(value, (int, str, float)):
+    if isinstance(value, int | str | float):
         return value
     if isinstance(value, list):
         return [_cast_result(v) for v in value]
     if isinstance(value, dict):
         return {k: _cast_result(v) for k, v in value.items()}
-    if isinstance(value, (np.int64, np.integer)):
+    if isinstance(value, np.int64 | np.integer):
         return int(value)
-    if isinstance(value, (np.floating, np.float64)):
+    if isinstance(value, np.floating | np.float64):
         return float(value)
     if isinstance(value, np.ndarray):
         return value.tolist()

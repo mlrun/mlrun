@@ -279,11 +279,11 @@ class MapValues(StepToDict, MLRunStep):
                     new_col_type = df.schema[new_column_name].dataType
                     #  in order to avoid exception at isna on non-decimal/float columns -
                     #  we need to check their types before filtering.
-                    if isinstance(col_type, (FloatType, DoubleType, DecimalType)):
+                    if isinstance(col_type, FloatType | DoubleType | DecimalType):
                         column_filter = (~isnull(col(column))) & (~isnan(col(column)))
                     else:
                         column_filter = ~isnull(col(column))
-                    if isinstance(new_col_type, (FloatType, DoubleType, DecimalType)):
+                    if isinstance(new_col_type, FloatType | DoubleType | DecimalType):
                         new_column_filter = isnull(col(new_column_name)) | isnan(
                             col(new_column_name)
                         )
@@ -295,7 +295,7 @@ class MapValues(StepToDict, MLRunStep):
                         for k, v in column_map.items()
                         if v is None
                         or (
-                            isinstance(v, (float, np.float64, np.float32, np.float16))
+                            isinstance(v, float | np.float64 | np.float32 | np.float16)
                             and math.isnan(v)
                         )
                     ]
@@ -338,7 +338,7 @@ class MapValues(StepToDict, MLRunStep):
                     for val in column_map.values()
                     if type(val) is not None
                     and not (
-                        isinstance(val, (float, np.float64, np.float32, np.float16))
+                        isinstance(val, float | np.float64 | np.float32 | np.float16)
                         and math.isnan(val)
                     )
                 )
@@ -358,7 +358,9 @@ class MapValues(StepToDict, MLRunStep):
                         and val != "-inf"
                         and val != "inf"
                         and not (
-                            isinstance(val, (float, np.float64, np.float32, np.float16))
+                            isinstance(
+                                val, float | np.float64 | np.float32 | np.float16
+                            )
                             and math.isnan(val)
                         )
                     )
@@ -443,7 +445,7 @@ class OneHotEncoder(StepToDict, MLRunStep):
         self.mapping = mapping
         for key, values in mapping.items():
             for val in values:
-                if not (isinstance(val, str) or isinstance(val, (int, np.integer))):
+                if not (isinstance(val, str) or isinstance(val, int | np.integer)):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )

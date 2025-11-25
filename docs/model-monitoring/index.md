@@ -100,6 +100,7 @@ tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.).
 - Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's
   trained reference probability distribution.
 
+You can import model monitoring applications from the [MLRun hub](https://www.mlrun.org/hub/). Each application has complete usage instructions.</br>
 You can create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the
 {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` class.
 See {ref}`mm-applications`.</br>

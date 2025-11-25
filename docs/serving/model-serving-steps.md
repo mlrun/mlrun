@@ -37,11 +37,7 @@ See the parameters in {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`.
 This code illustrates a `ModelRunnerStap` with two models. 
 
 ```
-from mlrun.serving import ModelRunnerStep
-from mlrun.serving import ModelSelector
-from mlrun.common.schemas.model_monitoring.constants import (
-    ModelEndpointCreationStrategy,
-)
+from mlrun.serving import ModelRunnerStep, ModelSelector
 
 class MyClassifier(ModelSelector):
     def __init__(self, models: Union[list[str], list[Model]]):

@@ -13,7 +13,6 @@ inferring results using one or more models, and driving actions.
 gpu_utilization
 genai_serving
 genai_serving_graph
-deploy-serving-graph-as-job
 openai-model
 hf-model-image-classification
 ```

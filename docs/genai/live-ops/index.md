@@ -30,5 +30,4 @@ preventing hallucination: minimizing the risk of LLMs generating factually incor
 - {ref}`genai-01-basic-tutorial`
 - {ref}`genai-02-mm-llm`
 - {ref}`realtime-monitor-drift-tutor`
-- [Build & Deploy Custom (fine-tuned) LLM Models and Applications](https://github.com/mlrun/demo-llm-tuning/tree/main)
 - [Large Language Model Monitoring](https://github.com/mlrun/demo-monitoring-and-feedback-loop), which includes using an LLM as a judge

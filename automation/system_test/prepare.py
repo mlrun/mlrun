@@ -83,10 +83,11 @@ class SystemTestPreparer:
         data_cluster_ssh_password: typing.Optional[str] = None,
         github_access_token: typing.Optional[str] = None,
         provctl_download_url: typing.Optional[str] = None,
-        provctl_download_s3_access_key: typing.Optional[str] = None,
-        provctl_download_s3_key_id: typing.Optional[str] = None,
         username: typing.Optional[str] = None,
         access_key: typing.Optional[str] = None,
+        aws_access_key_id: typing.Optional[str] = None,
+        aws_secret_access_key: typing.Optional[str] = None,
+        aws_oidc_access_token: typing.Optional[str] = None,
         iguazio_version: typing.Optional[str] = None,
         slack_webhook_url: typing.Optional[str] = None,
         debug: bool = False,
@@ -110,9 +111,10 @@ class SystemTestPreparer:
         self._data_cluster_ssh_username = data_cluster_ssh_username
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._provctl_download_url = provctl_download_url
-        self._provctl_download_s3_access_key = provctl_download_s3_access_key
-        self._provctl_download_s3_key_id = provctl_download_s3_key_id
         self._iguazio_version = iguazio_version
+        self._aws_access_key_id = aws_access_key_id
+        self._aws_secret_access_key = aws_secret_access_key
+        self._aws_oidc_access_token = aws_oidc_access_token
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
         self._mlrun_dbpath = mlrun_dbpath
 
@@ -491,13 +493,57 @@ class SystemTestPreparer:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
 
-        # make provctl executable
+        # Set up AWS profile with OIDC credentials
+        profile_name = "github-oidc-mlrun-system-tests"
+        if self._aws_access_key_id:
+            self._run_command(
+                "aws",
+                args=[
+                    "configure",
+                    "set",
+                    "aws_access_key_id",
+                    self._aws_access_key_id,
+                    "--profile",
+                    profile_name,
+                ],
+            )
+        if self._aws_secret_access_key:
+            self._run_command(
+                "aws",
+                args=[
+                    "configure",
+                    "set",
+                    "aws_secret_access_key",
+                    self._aws_secret_access_key,
+                    "--profile",
+                    profile_name,
+                ],
+            )
+        if self._aws_oidc_access_token:
+            self._run_command(
+                "aws",
+                args=[
+                    "configure",
+                    "set",
+                    "aws_session_token",
+                    self._aws_oidc_access_token,
+                    "--profile",
+                    profile_name,
+                ],
+            )
+        # Set region
+        self._run_command(
+            "aws",
+            args=["configure", "set", "region", "us-east-1", "--profile", profile_name],
+        )
+
+        # Download provctl using the configured profile
         self._run_command(
             "aws",
             args=[
-                "s3",
                 "--profile",
-                "provazio-provctl",
+                profile_name,
+                "s3",
                 "cp",
                 f"s3://{bucket_name}/{object_name}",
                 str(self.Constants.provctl_path),
@@ -796,10 +842,15 @@ def main():
 @click.option("--data-cluster-ssh-username", required=True)
 @click.option("--data-cluster-ssh-password", required=True)
 @click.option("--provctl-download-url", required=True)
-@click.option("--provctl-download-s3-access-key", required=True)
-@click.option("--provctl-download-s3-key-id", required=True)
 @click.option("--username", required=True)
 @click.option("--access-key", required=True)
+@click.option("--aws-access-key-id", help="AWS access key ID for S3 authentication")
+@click.option(
+    "--aws-secret-access-key", help="AWS secret access key for S3 authentication"
+)
+@click.option(
+    "--aws-oidc-access-token", help="AWS OIDC access token for S3 authentication"
+)
 @click.option("--iguazio-version", default=None)
 @click.option(
     "--debug",
@@ -816,10 +867,11 @@ def run(
     data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
     provctl_download_url: str,
-    provctl_download_s3_access_key: str,
-    provctl_download_s3_key_id: str,
     username: str,
     access_key: str,
+    aws_access_key_id: str,
+    aws_secret_access_key: str,
+    aws_oidc_access_token: str,
     iguazio_version: str,
     debug: bool,
 ):
@@ -832,10 +884,11 @@ def run(
         data_cluster_ssh_username=data_cluster_ssh_username,
         data_cluster_ssh_password=data_cluster_ssh_password,
         provctl_download_url=provctl_download_url,
-        provctl_download_s3_access_key=provctl_download_s3_access_key,
-        provctl_download_s3_key_id=provctl_download_s3_key_id,
         username=username,
         access_key=access_key,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_oidc_access_token=aws_oidc_access_token,
         iguazio_version=iguazio_version,
         debug=debug,
     )

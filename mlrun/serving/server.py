@@ -24,7 +24,7 @@ import socket
 import traceback
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Optional, Union
 
 import pandas as pd
@@ -676,7 +676,7 @@ async def async_execute_graph(
             start_time = end_time = df["timestamp"].iloc[0].isoformat()
     else:
         # end time will be set from clock time when the batch completes
-        start_time = datetime.now(tz=timezone.utc).isoformat()
+        start_time = datetime.now(tz=UTC).isoformat()
 
     server.graph = add_system_steps_to_graph(
         server.project,
@@ -756,7 +756,7 @@ async def async_execute_graph(
     server = GraphServer.from_dict(spec)
     server.init_states(None, namespace)
 
-    batch_completion_time = datetime.now(tz=timezone.utc).isoformat()
+    batch_completion_time = datetime.now(tz=UTC).isoformat()
 
     if not timestamp_column:
         end_time = batch_completion_time

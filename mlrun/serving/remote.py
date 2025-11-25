@@ -168,7 +168,7 @@ class RemoteStep(storey.SendToHttp):
                 text = await resp.text()
                 raise RuntimeError(f"bad http response {resp.status}: {text}")
             return resp
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             logger.error(f"http request to {url} timed out in RemoteStep {self.name}")
             raise exc
 

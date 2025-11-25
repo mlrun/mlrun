@@ -15,8 +15,9 @@ import datetime
 import inspect
 import socket
 import time
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import mlrun.common.schemas
 import mlrun.errors

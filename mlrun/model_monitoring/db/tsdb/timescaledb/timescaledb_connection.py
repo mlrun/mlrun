@@ -14,7 +14,8 @@
 
 import random
 import time
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
 import pandas as pd
 import psycopg

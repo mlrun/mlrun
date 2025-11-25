@@ -21,7 +21,7 @@ import shutil
 import string
 import tempfile
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from time import sleep
 
 import fsspec
@@ -1382,8 +1382,8 @@ class TestFeatureStore(TestMLRunSystem):
         data = pd.DataFrame(
             {
                 "time": [
-                    datetime(2021, 6, 30, 15, 9, 35, tzinfo=timezone.utc),
-                    datetime(2021, 6, 30, 15, 9, 35, tzinfo=timezone.utc),
+                    datetime(2021, 6, 30, 15, 9, 35, tzinfo=UTC),
+                    datetime(2021, 6, 30, 15, 9, 35, tzinfo=UTC),
                 ],
                 "first_name": ["katya", "dina"],
                 "bid": [2000, 10],

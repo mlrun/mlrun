@@ -16,7 +16,7 @@ import unittest
 import unittest.mock
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from datetime import timezone
+from datetime import UTC
 
 import fastapi.concurrency
 import pytest
@@ -425,7 +425,7 @@ class TestAlerts(TestAlertsBase):
             name=alert_name,
         )
         assert alert.updated is not None
-        assert alert.updated > alert.created.replace(tzinfo=timezone.utc)
+        assert alert.updated > alert.created.replace(tzinfo=UTC)
 
     @pytest.mark.asyncio
     @unittest.mock.patch.object(

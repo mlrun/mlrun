@@ -14,7 +14,8 @@
 
 import functools
 import sys
-from typing import Callable, Union
+from collections.abc import Callable
+from typing import Union
 
 import numpy as np
 import plotly.graph_objects as go

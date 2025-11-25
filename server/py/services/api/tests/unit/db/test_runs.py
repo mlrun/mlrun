@@ -14,7 +14,7 @@
 
 import time
 import unittest.mock
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -270,7 +270,7 @@ class TestRuns(TestDatabaseBase):
         )
 
         # Second store - should allow to override the start time
-        run["status"]["start_time"] = datetime.now(timezone.utc).isoformat()
+        run["status"]["start_time"] = datetime.now(UTC).isoformat()
         self._db.store_run(self._db_session, run, uid, project)
 
         # get the start time and verify
@@ -309,7 +309,7 @@ class TestRuns(TestDatabaseBase):
             == run.struct["status"]["last_update"]
         )
 
-        end_time = datetime.now(timezone.utc)
+        end_time = datetime.now(UTC)
         run_dict["status"]["state"] = (
             mlrun.common.runtimes.constants.RunStates.completed
         )

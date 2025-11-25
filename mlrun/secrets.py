@@ -14,8 +14,9 @@
 import json
 import os
 from ast import literal_eval
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import mlrun.auth.utils
 import mlrun.utils.helpers

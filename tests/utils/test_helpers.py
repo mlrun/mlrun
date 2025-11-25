@@ -17,7 +17,7 @@ import json
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Optional
 
 import pytest
@@ -81,11 +81,11 @@ def test_retry_until_successful_fatal_failure():
     [
         (
             "2024-11-11 07:44:56.255000+0000",
-            datetime(2024, 11, 11, 7, 44, 56, 255000, tzinfo=timezone.utc),
+            datetime(2024, 11, 11, 7, 44, 56, 255000, tzinfo=UTC),
         ),
         (
             "2024-11-11 07:44:56+0000",
-            datetime(2024, 11, 11, 7, 44, 56, tzinfo=timezone.utc),
+            datetime(2024, 11, 11, 7, 44, 56, tzinfo=UTC),
         ),
     ],
 )
@@ -1604,16 +1604,16 @@ def test_join_urls(base_url, path, expected_result):
     [
         (None, None),
         # no timezone
-        ("2025-01-15T11:00:00", datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc)),
+        ("2025-01-15T11:00:00", datetime(2025, 1, 15, 11, 0, 0, tzinfo=UTC)),
         # timezone-aware datetime (UTC+2), should convert to UTC
         (
             "2025-01-15T11:00:00+02:00",
-            datetime(2025, 1, 15, 9, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 1, 15, 9, 0, 0, tzinfo=UTC),
         ),
         # already in UTC
         (
             "2025-01-15T11:00:00+00:00",
-            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 1, 15, 11, 0, 0, tzinfo=UTC),
         ),
     ],
 )
@@ -1628,7 +1628,7 @@ def test_datetime_from_iso(input_time, expected_output):
         (datetime(2025, 3, 13, 12, 30, 45, 123456), "2025-03-13 12:30:45.123456+00:00"),
         # Test for datetime with UTC timezone info
         (
-            datetime(2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone.utc),
+            datetime(2025, 3, 13, 12, 30, 45, 123456, tzinfo=UTC),
             "2025-03-13 12:30:45.123456+00:00",
         ),
         # Test for datetime with a non-UTC timezone offset (+05:00), should keep the original timezone

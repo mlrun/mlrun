@@ -213,7 +213,7 @@ class TestBackgroundTasks(TestDatabaseBase):
 
         with unittest.mock.patch(
             "mlrun.utils.now_date",
-            return_value=datetime.datetime.now(datetime.timezone.utc)
+            return_value=datetime.datetime.now(datetime.UTC)
             - datetime.timedelta(seconds=10),
         ):
             self._db.store_background_task(
@@ -236,7 +236,7 @@ class TestBackgroundTasks(TestDatabaseBase):
             self._db_session,
             project=project,
             background_task_exceeded_timeout_func=background_task_exceeded_timeout,
-            created_from=datetime.datetime.now(datetime.timezone.utc)
+            created_from=datetime.datetime.now(datetime.UTC)
             - datetime.timedelta(seconds=5),
         )
 
@@ -250,7 +250,7 @@ class TestBackgroundTasks(TestDatabaseBase):
             self._db_session,
             project=project,
             background_task_exceeded_timeout_func=background_task_exceeded_timeout,
-            last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
+            last_update_time_from=datetime.datetime.now(datetime.UTC)
             - datetime.timedelta(seconds=5),
         )
 
@@ -264,7 +264,7 @@ class TestBackgroundTasks(TestDatabaseBase):
             self._db_session,
             project=project,
             background_task_exceeded_timeout_func=background_task_exceeded_timeout,
-            last_update_time_to=datetime.datetime.now(datetime.timezone.utc)
+            last_update_time_to=datetime.datetime.now(datetime.UTC)
             - datetime.timedelta(seconds=5),
         )
 
@@ -303,7 +303,7 @@ class TestBackgroundTasks(TestDatabaseBase):
 
         with unittest.mock.patch(
             "mlrun.utils.now_date",
-            return_value=datetime.datetime.now(datetime.timezone.utc)
+            return_value=datetime.datetime.now(datetime.UTC)
             - datetime.timedelta(seconds=10),
         ):
             self._db.store_background_task(

@@ -5,11 +5,12 @@ The liveOps stage ensures that the models are always performing optimally and ad
 
 ## Model Monitoring
 
-MLRun includes tools for monitoring the performance of deployed models in real-time. This helps in identifying issues like model performance, operational performance, and concept and data drift. You can upload them to your own [custom hub](../../runtimes/load-from-hub.md#custom-hub), making them available to other users.</br>
+MLRun includes tools for monitoring the performance of deployed models in real-time. This helps in identifying issues like model performance, operational performance, and concept and data drift. The [MLRun hub](https://www.mlrun.org/hub/) has additional monitoring apps that you can [import to your project](../../runtimes/load-from-hub.md#modules). 
+
+In addition to these apps, you can easily {ref}`create your own model monitoring applications<mm-applications>`, tailored to meet your needs. You can upload them to your own [custom hub](../../runtimes/load-from-hub.md#custom-hub), making them available to other users.
+
 Based on the monitoring data, MLRun can trigger automated retraining of models to ensure they remain accurate and effective over time.</br>
 See full details in {ref}`model-monitoring-overview`.
-
-The [MLRun hub](https://www.mlrun.org/hub/) has additional monitoring apps that you can [import to your project](../../runtimes/load-from-hub.md#modules). In addition to these apps, you can easily {ref}`create your own model monitoring applications<mm-applications>`, tailored to meet your needs. 
 
 For examples of implementing model monitoring, see the {ref}`genai-02-mm-llm` tutorial, the [Banking LLM monitoring and feedback loop](https://github.com/mlrun/demo-monitoring-and-feedback-loop/blob/main/README.md) demo, and the [Banking Agent](https://github.com/mlrun/demo-banking-agent/blob/main/README.md) demo.
 

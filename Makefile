@@ -30,9 +30,8 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
-# mainly used for mlrun and mlrun-gpu. mlrun API version >= 1.3.0 should always have python 3.9
+# mainly used for mlrun and mlrun-gpu.
 MLRUN_PYTHON_VERSION ?= 3.11
-PYTHON_VERSION ?= $(shell python --version)
 
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
 IGUAZIO_PACKAGE_VERSION ?= 0.0.1a16
@@ -104,11 +103,11 @@ MLRUN_CACHE_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_CACHE_FROM_REGISTRY),$(st
 MLRUN_USE_CACHE := $(if $(MLRUN_NO_CACHE),,true)
 MLRUN_DOCKER_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache,)
 MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
-# expected to be in the form of '-py<major><minor>' e.g. '-py39'
+# expected to be in the form of '-py<major><minor>' e.g. '-py311'
 MLRUN_ANACONDA_PYTHON_DISTRIBUTION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1$$2}')
 MLRUN_PYTHON_VERSION_SUFFIX := $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION),)
 
-# expected to be in the form of 'py<major><minor>' e.g. 'py39'
+# expected to be in the form of 'py<major><minor>' e.g. 'py311'
 MLRUN_LINT_PYTHON_VERSION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "py"$$1$$2}')
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
@@ -210,14 +209,7 @@ install-docs-requirements: ## Install all requirements needed for compiling mlru
 
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
-ifeq ($(findstring 3.11.,$(PYTHON_VERSION)),3.11.)
 	conda install --yes --file conda-arm64-requirements-python311.txt
-else ifeq ($(findstring 3.9.,$(PYTHON_VERSION)),3.9.)
-	conda install --yes --file conda-arm64-requirements-python39.txt
-else
-	@echo "Unsupported Python version: $(PYTHON_VERSION)" >&2
-	@exit 1
-endif
 	make install-requirements
 
 .PHONY: install-complete-requirements
@@ -390,19 +382,10 @@ pull-mlrun-kfp: ## Pull mlrun docker image
 	docker pull $(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 
 MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:$(MLRUN_GPU_CUDA_VERSION)
-MLRUN_GPU_PREBAKED_PY39_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:11.8.0-cudnn8-devel-ubuntu22.04
 MLRUN_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-gpu
 MLRUN_GPU_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-gpu
 MLRUN_GPU_IMAGE_NAME_TAGGED := $(MLRUN_GPU_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-# Choose the GPU base image based on the minor Python version
-MLRUN_GPU_BASE_IMAGE ?= $(shell \
-  PY_MINOR=$$(echo "$(MLRUN_PYTHON_VERSION)" | cut -d. -f2); \
-  if [ "$$PY_MINOR" = "9" ]; then \
-    echo "$(MLRUN_GPU_PREBAKED_PY39_IMAGE_NAME_TAGGED)"; \
-  else \
-    echo "$(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED)"; \
-  fi \
-)
+MLRUN_GPU_BASE_IMAGE ?= $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED)
 MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_GPU_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
 MLRUN_GPU_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
@@ -528,9 +511,6 @@ COMMON_IMAGE_NAME := mlrun_common_image:$(MLRUN_PYTHON_VERSION)
 
 common-image-3.11:
 	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.11
-
-common-image-3.9:
-	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.9
 
 # --- Build (cached) ----------------------------------------------------------
 ifeq ($(strip $(MLRUN_NO_CACHE)),)

@@ -63,22 +63,30 @@ class TimescaleDBPredictionsQueries:
         self._pre_aggregate_manager = pre_aggregate_manager
         self.tables = tables
 
-    def read_predictions(
+    def read_predictions_impl(
         self,
         *,
-        endpoint_id: str,
+        endpoint_id: Optional[str] = None,
         start: datetime,
         end: datetime,
+        columns: Optional[list[str]] = None,
         aggregation_window: Optional[str] = None,
         agg_funcs: Optional[list[str]] = None,
         limit: Optional[int] = None,
         use_pre_aggregates: bool = True,
-    ) -> Union[
-        mm_schemas.ModelEndpointMonitoringMetricValues,
-        mm_schemas.ModelEndpointMonitoringMetricNoData,
-    ]:
-        """Read predictions with optional pre-aggregate optimization."""
+    ) -> pd.DataFrame:
+        """Read predictions data from TimescaleDB (predictions table) - returns DataFrame.
 
+        :param endpoint_id: Endpoint ID to filter by, or None to get all endpoints
+        :param start: Start time
+        :param end: End time
+        :param columns: Optional list of specific columns to return
+        :param aggregation_window: Optional aggregation window (e.g., "1h", "1d")
+        :param agg_funcs: Optional list of aggregation functions (e.g., ["avg", "max"])
+        :param limit: Optional limit on number of results
+        :param use_pre_aggregates: Whether to use pre-aggregates if available
+        :return: DataFrame with predictions data
+        """
         if (agg_funcs and not aggregation_window) or (
             aggregation_window and not agg_funcs
         ):
@@ -100,12 +108,7 @@ class TimescaleDBPredictionsQueries:
         )
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
-
         filter_query = TimescaleDBQueryBuilder.build_endpoint_filter(endpoint_id)
-        columns = [
-            table_schema.time_column,
-            mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT,
-        ]
 
         query = table_schema._get_records_query(
             start=start,
@@ -121,21 +124,69 @@ class TimescaleDBPredictionsQueries:
         result = self._connection.run(query=query)
         df = TimescaleDBDataFrameProcessor.from_query_result(result)
 
+        if not df.empty:
+            # Set up time index based on whether we used aggregation
+            if aggregation_window and can_use_pre_aggregates:
+                time_col = timescaledb_schema.TIME_BUCKET_COLUMN
+            else:
+                time_col = table_schema.time_column
+
+            if time_col in df.columns:
+                df[time_col] = pd.to_datetime(df[time_col])
+                df.set_index(time_col, inplace=True)
+
+        return df
+
+    def read_predictions(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        aggregation_window: Optional[str] = None,
+        agg_funcs: Optional[list[str]] = None,
+        limit: Optional[int] = None,
+        use_pre_aggregates: bool = True,
+    ) -> Union[
+        mm_schemas.ModelEndpointMonitoringMetricValues,
+        mm_schemas.ModelEndpointMonitoringMetricNoData,
+    ]:
+        """Read predictions with optional pre-aggregate optimization."""
+
+        table_schema = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
+        columns = [
+            table_schema.time_column,
+            mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT,
+        ]
+
+        # Get raw DataFrame from read_predictions_impl
+        df = self.read_predictions_impl(
+            endpoint_id=endpoint_id,
+            start=start,
+            end=end,
+            columns=columns,
+            aggregation_window=aggregation_window,
+            agg_funcs=agg_funcs,
+            limit=limit,
+            use_pre_aggregates=use_pre_aggregates,
+        )
+
+        # Convert to domain objects
         full_name = get_invocations_fqn(self.project)
 
         if df.empty:
             return TimescaleDBDataFrameProcessor.handle_empty_dataframe(full_name)
 
-        # Set up time index based on whether we used aggregation
-        if aggregation_window and can_use_pre_aggregates:
-            time_col = timescaledb_schema.TIME_BUCKET_COLUMN
-        else:
-            time_col = table_schema.time_column
+        # Determine value column name based on whether aggregation was used
+        can_use_pre_aggregates = (
+            use_pre_aggregates
+            and aggregation_window
+            and agg_funcs
+            and self._pre_aggregate_manager.can_use_pre_aggregates(
+                interval=aggregation_window, agg_funcs=agg_funcs
+            )
+        )
 
-        df[time_col] = pd.to_datetime(df[time_col])
-        df.set_index(time_col, inplace=True)
-
-        # Determine value column name
         if agg_funcs and can_use_pre_aggregates:
             value_col = (
                 f"{agg_funcs[0]}_{mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT}"

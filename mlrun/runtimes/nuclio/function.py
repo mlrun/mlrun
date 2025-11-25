@@ -831,9 +831,11 @@ class RemoteRuntime(KubeResource):
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
+        active_project = self.metadata.project or mlconf.active_project
         runtime_env = {
-            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
-            or mlconf.active_project,
+            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: active_project,
+            # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
+            "MLRUN_DEFAULT_PROJECT": active_project,
         }
         if mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url

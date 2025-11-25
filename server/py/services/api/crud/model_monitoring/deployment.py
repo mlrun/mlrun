@@ -1103,9 +1103,11 @@ class MonitoringDeployment:
             self.auth_info
         ) as client:
             for function in function_summaries:
+                normalized_function_name = mlrun.utils.normalize_name(function.name)
+
                 stream_path = mlrun.model_monitoring.get_stream_path(
                     project=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     secret_provider=self._secret_provider,
                     profile=self.__stream_profile,
                 )
@@ -1118,7 +1120,7 @@ class MonitoringDeployment:
 
                 stream_stats = await client.get_v3io_shard_lags(
                     project_name=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     stream_path=stream_path,
                     container_name=container,
                 )
@@ -1156,14 +1158,15 @@ class MonitoringDeployment:
         )
         # Iterate over each function and get the stream stats
         for function in function_summaries:
+            normalized_function_name = mlrun.utils.normalize_name(function.name)
             topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
-                project=self.project, function_name=function.name
+                project=self.project, function_name=normalized_function_name
             )
             try:
                 partitions = consumer.partitions_for_topic(topic)
                 if not partitions:
                     logger.warning(
-                        f"No partitions found for topic {topic} in function {function.name}"
+                        f"No partitions found for topic {topic} in function {normalized_function_name}"
                     )
                     continue
 
@@ -1200,7 +1203,7 @@ class MonitoringDeployment:
                 logger.warning(
                     "Failed to get topic stats",
                     project=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     topic=topic,
                     error_message=mlrun.errors.err_to_str(exc),
                 )
@@ -1227,8 +1230,9 @@ class MonitoringDeployment:
             logger.info("No model monitoring applications found")
             return []
         if names:
-            # generate a list of lowercase names for filtering
-            lower_names = [name.lower() for name in names]
+            # generate a list of normalized lowercase names for filtering
+            lower_names = [mlrun.utils.normalize_name(name.lower()) for name in names]
+
             mm_functions_list = [
                 fn for fn in mm_functions_list if fn["metadata"]["name"] in lower_names
             ]

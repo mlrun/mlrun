@@ -14,8 +14,9 @@
 import json
 import os
 from ast import literal_eval
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import mlrun.auth.utils
 import mlrun.utils.helpers
@@ -195,7 +196,7 @@ def get_secret_or_env(
         key = f"{prefix}_{key}"
 
     if secret_provider:
-        if isinstance(secret_provider, (dict, SecretsStore)):
+        if isinstance(secret_provider, dict | SecretsStore):
             secret_value = secret_provider.get(key)
         else:
             secret_value = secret_provider(key)

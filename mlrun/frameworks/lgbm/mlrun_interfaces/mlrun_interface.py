@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from abc import ABC
+from collections.abc import Callable
 from types import ModuleType
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import lightgbm as lgb
 

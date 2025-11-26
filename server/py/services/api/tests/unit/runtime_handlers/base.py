@@ -14,7 +14,7 @@
 
 import unittest.mock
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Optional
 
 import deepdiff
@@ -134,7 +134,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_pod(name, labels, phase=PodPhases.succeeded):
         terminated_container_state = client.V1ContainerStateTerminated(
-            finished_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(UTC),
             exit_code=0,
             reason="Some reason",
             message="Failed message",
@@ -151,7 +151,7 @@ class TestRuntimeHandlerBase:
         status = client.V1PodStatus(
             phase=phase,
             container_statuses=[container_status],
-            start_time=datetime.now(timezone.utc),
+            start_time=datetime.now(UTC),
         )
         metadata = client.V1ObjectMeta(
             name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()

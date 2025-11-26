@@ -16,8 +16,9 @@ import itertools
 import json
 import typing
 import uuid
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable, Optional
+from typing import Optional
 
 import fastapi
 import sqlalchemy.orm

@@ -614,7 +614,7 @@ class Projects(
                             pipeline["finished_at"], "%Y-%m-%d %H:%M:%S%z"
                         )
                         if finished_at > datetime.datetime.now().astimezone(
-                            tz=datetime.timezone.utc
+                            tz=datetime.UTC
                         ) - datetime.timedelta(days=1):
                             if pipeline["status"] in mlrun.run.RunStatuses.succeeded:
                                 project_to_recent_completed_pipelines_count[

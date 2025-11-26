@@ -20,7 +20,7 @@ import time
 import typing
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import kafka
@@ -719,7 +719,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         function_summaries = self.project.get_monitoring_function_summaries()
         assert len(function_summaries) == 3 + len(self.apps_data)
         function_summaries = self.project.get_monitoring_function_summaries(
-            include_infra=False, start=datetime(2020, 1, 1, tzinfo=timezone.utc)
+            include_infra=False, start=datetime(2020, 1, 1, tzinfo=UTC)
         )
         assert len(function_summaries) == len(self.apps_data)
 
@@ -1200,10 +1200,10 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
         assert model_endpoint.status.first_request == input_df[
             "index"
-        ].min().to_pydatetime().replace(tzinfo=timezone.utc)
+        ].min().to_pydatetime().replace(tzinfo=UTC)
         assert model_endpoint.status.last_request == input_df[
             "index"
-        ].max().to_pydatetime().replace(tzinfo=timezone.utc)
+        ].max().to_pydatetime().replace(tzinfo=UTC)
 
         run_db = mlrun.get_run_db()
 

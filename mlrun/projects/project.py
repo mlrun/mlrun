@@ -26,9 +26,10 @@ import typing
 import uuid
 import warnings
 import zipfile
+from collections.abc import Callable
 from copy import deepcopy
 from os import environ, makedirs, path
-from typing import Callable, Optional, Union, cast
+from typing import Optional, Union, cast
 
 import deprecated
 import dotenv

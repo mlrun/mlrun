@@ -84,7 +84,7 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         db = framework.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(
             session,
-            last_accessed_before=datetime.datetime.now(datetime.timezone.utc)
+            last_accessed_before=datetime.datetime.now(datetime.UTC)
             - datetime.timedelta(seconds=cache_ttl),
             as_query=True,
         ).delete()

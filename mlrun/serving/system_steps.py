@@ -193,8 +193,8 @@ class MonitoringPreProcessor(storey.MapClass):
             )
 
         # Detect if all are scalars ie: int,float,str
-        all_scalars = all(not isinstance(v, (list, tuple, np.ndarray)) for v in values)
-        all_lists = all(isinstance(v, (list, tuple, np.ndarray)) for v in values)
+        all_scalars = all(not isinstance(v, list | tuple | np.ndarray) for v in values)
+        all_lists = all(isinstance(v, list | tuple | np.ndarray) for v in values)
 
         if not (all_scalars or all_lists):
             raise ValueError(

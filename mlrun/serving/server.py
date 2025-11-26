@@ -24,7 +24,7 @@ import socket
 import traceback
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Optional, Union
 
 import pandas as pd
@@ -303,7 +303,7 @@ class GraphServer(ModelObj):
             if event_path_key in event.headers:
                 event.path = event.headers.get(event_path_key)
 
-        if isinstance(event.body, (str, bytes)) and (
+        if isinstance(event.body, str | bytes) and (
             not event.content_type or event.content_type in ["json", "application/json"]
         ):
             # assume it is json and try to load
@@ -348,7 +348,7 @@ class GraphServer(ModelObj):
         ):
             return body
 
-        if body and not isinstance(body, (str, bytes)):
+        if body and not isinstance(body, str | bytes):
             body = json.dumps(body)
             return context.Response(
                 body=body, content_type="application/json", status_code=200
@@ -676,7 +676,7 @@ async def async_execute_graph(
             start_time = end_time = df["timestamp"].iloc[0].isoformat()
     else:
         # end time will be set from clock time when the batch completes
-        start_time = datetime.now(tz=timezone.utc).isoformat()
+        start_time = datetime.now(tz=UTC).isoformat()
 
     server.graph = add_system_steps_to_graph(
         server.project,
@@ -756,7 +756,7 @@ async def async_execute_graph(
     server = GraphServer.from_dict(spec)
     server.init_states(None, namespace)
 
-    batch_completion_time = datetime.now(tz=timezone.utc).isoformat()
+    batch_completion_time = datetime.now(tz=UTC).isoformat()
 
     if not timestamp_column:
         end_time = batch_completion_time

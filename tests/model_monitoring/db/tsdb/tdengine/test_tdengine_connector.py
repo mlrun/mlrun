@@ -15,7 +15,7 @@
 import os
 import uuid
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 import taosws
@@ -67,8 +67,8 @@ def test_write_application_event(
     app_name = "my_app"
     result_name = "my_Result"
     result_kind = 0
-    start_infer_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    end_infer_time = datetime(2024, 1, 1, second=1, tzinfo=timezone.utc)
+    start_infer_time = datetime(2024, 1, 1, tzinfo=UTC)
+    end_infer_time = datetime(2024, 1, 1, second=1, tzinfo=UTC)
     result_status = 0
     result_value = 123
     data = {
@@ -88,8 +88,8 @@ def test_write_application_event(
         connector.write_application_event(data)
     connector.create_tables()  # DB is created here
     connector.write_application_event(data)
-    start_read_time = datetime(2023, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
-    end_read_time = datetime(2025, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
+    start_read_time = datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC)
+    end_read_time = datetime(2025, 1, 1, 1, 0, 0, tzinfo=UTC)
     read_data_kwargs = {
         "endpoint_id": endpoint_id,
         "start": start_read_time,
@@ -111,8 +111,8 @@ def test_write_application_event(
     data_v2["endpoint_id"] = "2"
     data_v2["result_status"] = 2
     data_v2["result_value"] = 123
-    data_v2["start_infer_time"] = datetime(2024, 1, 1, second=1, tzinfo=timezone.utc)
-    data_v2["end_infer_time"] = datetime(2024, 1, 1, second=2, tzinfo=timezone.utc)
+    data_v2["start_infer_time"] = datetime(2024, 1, 1, second=1, tzinfo=UTC)
+    data_v2["end_infer_time"] = datetime(2024, 1, 1, second=2, tzinfo=UTC)
 
     connector.write_application_event(data_v2)
 

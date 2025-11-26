@@ -291,9 +291,9 @@ async def delete_runs(
     else:
         start_time_from = None
         if days_ago:
-            start_time_from = datetime.datetime.now(
-                datetime.timezone.utc
-            ) - datetime.timedelta(days=days_ago)
+            start_time_from = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+                days=days_ago
+            )
         runs = await run_in_threadpool(
             services.api.crud.Runs().list_runs,
             db_session,

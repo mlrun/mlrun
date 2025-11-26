@@ -302,7 +302,7 @@ class Runs(
             start_time_from = None
             if days_ago:
                 start_time_from = datetime.datetime.now(
-                    datetime.timezone.utc
+                    datetime.UTC
                 ) - datetime.timedelta(days=days_ago)
 
             runs_list = self.list_runs(
@@ -542,9 +542,7 @@ class Runs(
             deletion_grace_period = int(
                 mlrun.mlconf.runtime_resources_deletion_grace_period
             )
-            if datetime.datetime.now(
-                datetime.timezone.utc
-            ) > start_time + datetime.timedelta(
+            if datetime.datetime.now(datetime.UTC) > start_time + datetime.timedelta(
                 seconds=deletion_grace_period
             ) + datetime.timedelta(days=1):
                 logger.debug(

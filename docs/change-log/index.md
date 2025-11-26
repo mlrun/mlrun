@@ -49,7 +49,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 ### Artifacts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9812|This version introduces LLM prompt templates and artifacts, monitoring results, and experiment tracking on artifacts. You simply use your your selected provider (e.g., OpenAI or Hugging Face). See {ref}`genai-04-llm-prompt-artifact`, {ref}`genai-serving-graph`, and {ref}`llm-prompt-artifact`.|
+|ML-9812|This version introduces LLM prompt templates and artifacts, monitoring results, and experiment tracking on artifacts. You simply use your selected provider (e.g., OpenAI or Hugging Face). See {ref}`genai-04-llm-prompt-artifact`, {ref}`genai-serving-graph`, and {ref}`llm-prompt-artifact`.|
 
 ### Model Monitoring
 

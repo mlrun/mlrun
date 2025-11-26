@@ -1046,8 +1046,8 @@ class TestFeatureStore(TestMLRunSystem):
                 .astype("datetime64[ns, UTC]")
             )
         else:
-            result_df["timestamp"] = (
-                pd.to_datetime(result_df["timestamp"]).astype("datetime64[ns]")
+            result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(
+                "datetime64[ns]"
             )
 
         result_df = result_df.sort_values(key).reset_index(drop=True)
@@ -1073,8 +1073,8 @@ class TestFeatureStore(TestMLRunSystem):
                 .astype("datetime64[ns, UTC]")
             )
         else:
-            result_df["timestamp"] = (
-                pd.to_datetime(result_df["timestamp"]).astype("datetime64[ns]")
+            result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(
+                "datetime64[ns]"
             )
 
         result_df = result_df.sort_values(key).reset_index(drop=True)
@@ -1089,7 +1089,6 @@ class TestFeatureStore(TestMLRunSystem):
             time_column="timestamp",
         )
         assert empty_df.empty, "df should be empty for out-of-range time filter"
-
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize(
@@ -1163,8 +1162,8 @@ class TestFeatureStore(TestMLRunSystem):
                 .astype("datetime64[ns, UTC]")
             )
         else:
-            result_df["timestamp"] = (
-                pd.to_datetime(result_df["timestamp"]).astype("datetime64[ns]")
+            result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(
+                "datetime64[ns]"
             )
 
         result_df = result_df.sort_values(key).reset_index(drop=True)

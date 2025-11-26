@@ -25,7 +25,7 @@ ModelRunnerStep can only be added to a graph that has the [flow topology](../ser
 ### SDK
 - {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`: adds a model to the model runner and configures its execution. The model is accessible to all ModelRunnerSteps in the graph.
 - {py:meth}`~mlrun.serving.ModelRunnerStep.add_shared_model_proxy`: Adds a proxy model to the ModelRunnerStep. A  proxy model acts as a lightweight reference to an existing shared model within the graph. Each step can reuse the same underlying shared model without duplicating it. Each model step (a model/prompt combination) is translated to a model endpoint with its unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. 
-- {py:meth}`~mlrun.serving.ModelSelector`: Select which model to run on each event, based on responses from an from LLM (for example, finanace vs. travel). Can be a class or a string. If you do not provide a `ModelSelector` to the `ModelRunnerStep `the default case is to run all models.
+- {py:meth}`~mlrun.serving.ModelSelector`: Select which model to run on each event, based on responses from LLM (for example, finanace vs. travel). Can be a class or a string. If you do not provide a `ModelSelector` to the `ModelRunnerStep `the default case is to run all models.
 
 ### Preprocess steps
 

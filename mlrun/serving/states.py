@@ -1658,8 +1658,7 @@ class ModelRunnerStep(MonitoredStep):
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
       an error. If False, the error will appear in the output event.
 
-    raise ModelRunnerError -
-                              when a model raises an error the ModelRunnerStep will handle it, collect errors and
+    :raise ModelRunnerError: when a model raises an error the ModelRunnerStep will handle it, collect errors and
                               outputs from added models. If raise_exception is True will raise ModelRunnerError. Else
                               will add the error msg as part of the event body mapped by model name if more than
                               one model was added to the ModelRunnerStep

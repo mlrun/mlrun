@@ -132,16 +132,15 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |ML-9508|You can now load code from python file from git/http using `with_source_archive`.|
 |ML-9550|Deleting projects with many artifacts now does not fail. Previously failed due to the artufacts.| 
 |ML-9573|Adds a shared Kubernetes client with built-in retries to make CoreV1Api and CustomObjectsApi calls more reliable during temporary API hiccups.|
-|ML-9725||
+|ML-9725|Fixed the correct number of replicas in the serving function spec.|
 |ML-9752|You can now use `with_sidecar` and a list of ports in the API gateway. See [Exposing multiple ports in the API gateway](../runtimes/application.ipynb#expose-multiple-ports).| 
-|ML-9848||
-|ML-9869|UI: After applying filters in the Artifacts page and clicking in the page, the result are now filtered and the filters are reset. |
+|ML-9848|Fixed ""TypeError: __init__() got an unexpected keyword argument 'details'"" upon ingestion to DBFS.|
+|ML-9869|UI: Fixed issue when "Artifacts" icon in navigation bar was not clickable when custom filter enabled. |
 |ML-9876|Resolved issue of DB probes failing when the concurrent connections are maxed out.|
 |ML-9884|UI: After modifying a schedule the UI now remains on the Scheduled page. Previously it redirected to the specific project schedules.|
-|ML-9911||
+|ML-9911|Using the same tag across different artifacts is now allowed.|
 |ML-9937|UI: When clicking on the UID link after running a job in Jupyter, the Job run page opens. Previously, the project page opened.|
 |ML-9971|UI: When registering an artifact, you can reselect an option in the Target path and the dropdown closes. Previously the option was not selected and the drop-down remained open.|| 
-|ML-10271||
 |ML-10289|When using the `project.delete_artifact()` that gets an `mlrun.artifacts.base.Artifact` object, if the object doesn’t have the “latest” tag, now only the specific UID artifacts are deleted.|
 |ML-10293|Scheduled workflow jobs now use the values in the `run` method, and not from the `project.spec.source` as previously.|
 |ML-10349|You can now use two different S3 credentials for source and target.|

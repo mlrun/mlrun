@@ -532,7 +532,7 @@ class BaseStoreTarget(DataTargetBase):
             if (
                 file_system.protocol == "file"
                 # fsspec 2023.10.0 changed protocol from "file" to ("file", "local")
-                or isinstance(file_system.protocol, (tuple, list))
+                or isinstance(file_system.protocol, tuple | list)
                 and "file" in file_system.protocol
             ):
                 dir = os.path.dirname(target_path)

@@ -15,7 +15,7 @@
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Optional, Union
 from unittest.mock import Mock, patch
@@ -338,14 +338,14 @@ def non_empty_sample_df_context_mock() -> Iterator[MonitoringApplicationContext]
     [
         (None, None, None, does_not_raise()),
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC).isoformat(),
             None,
             does_not_raise(),
         ),
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC).isoformat(),
             0,
             pytest.raises(
                 mlrun.errors.MLRunValueError,
@@ -354,7 +354,7 @@ def non_empty_sample_df_context_mock() -> Iterator[MonitoringApplicationContext]
         ),
         (
             datetime(2008, 9, 1, 10, 2, 1).isoformat(),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC).isoformat(),
             None,
             pytest.raises(
                 mlrun.errors.MLRunValueError,
@@ -392,13 +392,13 @@ def test_window_generator_validation(
     ("start", "end", "base_period", "expected_windows"),
     [
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC),
             None,
             [
                 (
-                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC),
+                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC),
                 ),
             ],
         ),
@@ -408,35 +408,35 @@ def test_window_generator_validation(
             600,
             [
                 (
-                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC),
+                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=UTC),
                 ),
                 (
-                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
-                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=UTC),
+                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=UTC),
                 ),
             ],
         ),
         (
-            datetime(2024, 12, 26, 14, 0, 0, tzinfo=timezone.utc),
-            datetime(2024, 12, 26, 14, 4, 0, tzinfo=timezone.utc),
+            datetime(2024, 12, 26, 14, 0, 0, tzinfo=UTC),
+            datetime(2024, 12, 26, 14, 4, 0, tzinfo=UTC),
             1,
             [
                 (
-                    datetime(2024, 12, 26, 14, 0, 0, tzinfo=timezone.utc),
-                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 0, 0, tzinfo=UTC),
+                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=UTC),
                 ),
                 (
-                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=timezone.utc),
-                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=UTC),
+                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=UTC),
                 ),
                 (
-                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=timezone.utc),
-                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=UTC),
+                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=UTC),
                 ),
                 (
-                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=timezone.utc),
-                    datetime(2024, 12, 26, 14, 4, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=UTC),
+                    datetime(2024, 12, 26, 14, 4, 0, tzinfo=UTC),
                 ),
             ],
         ),
@@ -475,8 +475,8 @@ def test_windows(
     [
         (
             600,
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=UTC),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=UTC),
             pytest.raises(
                 mlrun.errors.MLRunValueError,
                 match="The difference between `end` and `start` must be a multiple of "
@@ -485,14 +485,14 @@ def test_windows(
         ),
         (
             10,
-            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
-            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=UTC),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=UTC),
             does_not_raise(),
         ),
         (
             15,
-            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
-            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=UTC),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=UTC),
             pytest.raises(
                 mlrun.errors.MLRunValueError,
                 match="The difference between `end` and `start` must be a multiple of "

@@ -17,8 +17,9 @@ import copy
 import json
 import traceback
 import typing
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 
 import fastapi.concurrency
 import humanfriendly

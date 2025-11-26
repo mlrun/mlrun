@@ -290,7 +290,7 @@ def get_or_create_ctx(
     elif with_env and config:
         newspec = config
 
-    if isinstance(newspec, (RunObject, RunTemplate)):
+    if isinstance(newspec, RunObject | RunTemplate):
         newspec = newspec.to_dict()
 
     if newspec and not isinstance(newspec, dict):

@@ -14,7 +14,8 @@
 
 import random
 import time
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
 import pandas as pd
 import psycopg
@@ -73,7 +74,7 @@ class Statement:
     def execute(self, cursor) -> None:
         """Execute the statement using the provided cursor."""
         if self.execute_many:
-            if not isinstance(self.parameters, (list, tuple)):
+            if not isinstance(self.parameters, list | tuple):
                 raise ValueError(
                     "execute_many=True requires parameters to be a sequence"
                 )
@@ -234,7 +235,7 @@ class TimescaleDBConnection:
         """Convert statements to a normalized list format."""
         if statements is None:
             return []
-        return [statements] if isinstance(statements, (str, Statement)) else statements
+        return [statements] if isinstance(statements, str | Statement) else statements
 
     def _execute_operation(
         self,

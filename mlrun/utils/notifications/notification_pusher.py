@@ -347,7 +347,7 @@ class NotificationPusher(_NotificationPusherBase):
                 run_uid=run.metadata.uid,
             )
             update_notification_status_kwargs["sent_time"] = datetime.datetime.now(
-                tz=datetime.timezone.utc
+                tz=datetime.UTC
             )
         except Exception as exc:
             logger.warning(
@@ -397,7 +397,7 @@ class NotificationPusher(_NotificationPusherBase):
                 run_uid=run.metadata.uid,
             )
             update_notification_status_kwargs["sent_time"] = datetime.datetime.now(
-                tz=datetime.timezone.utc
+                tz=datetime.UTC
             )
 
         except Exception as exc:

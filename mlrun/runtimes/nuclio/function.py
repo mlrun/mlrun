@@ -984,7 +984,7 @@ class RemoteRuntime(KubeResource):
         if not http_client_kwargs:
             http_client_kwargs = {}
         if body:
-            if isinstance(body, (str, bytes)):
+            if isinstance(body, str | bytes):
                 http_client_kwargs["data"] = body
             else:
                 http_client_kwargs["json"] = body

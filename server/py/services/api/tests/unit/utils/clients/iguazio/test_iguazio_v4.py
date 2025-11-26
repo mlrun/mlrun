@@ -14,18 +14,14 @@
 #
 
 import http
-import sys
 import unittest.mock
 
 import httpx
-import pytest
-from aioresponses import CallbackResult
 
 # Skip the entire test module if running under Python < 3.11
-if sys.version_info < (3, 11):
-    pytest.skip("Requires Python 3.11+", allow_module_level=True)
-
 import iguazio.schemas
+import pytest
+from aioresponses import CallbackResult
 
 import mlrun.common.schemas
 import mlrun.common.types

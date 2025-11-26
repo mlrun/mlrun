@@ -15,7 +15,8 @@
 import importlib
 import json
 import sys
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 import mlrun.errors
 

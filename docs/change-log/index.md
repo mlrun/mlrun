@@ -63,7 +63,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-5986|You can now configure to retry jobs that fail using the API. See {py:meth}`~mlrun.projects.MlrunProject.run_function`. The retry status is shown in the new <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table showing the retry status.|
-|ML-9681|You can now deploy a serving graph as a job. See {ref}`serving-graph-as-job`.|
+|ML-9681|You can now deploy a serving graph as a job. See {ref}`batch-infer-drift-tutor`.|
 
 ### UI
 | ID    |Description                                                                 |
@@ -103,7 +103,6 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |NA|New page: {ref}`mm-running-applications`.|
 |NA|New page: {ref}`view-mm-applications`.|
 |NA|New page: {ref}`llm-prompt-artifacts`.|
-|NA|New page: {ref}`deploy-serving-graph-as-a-job`.|
 |NA|New page: {ref}`deploy-openai-model`.|
 |NA|New page: {ref}`hf-model-image-classification`.|
 |NA|New section: [Remote models](../store/models.md#remote-models).|
@@ -112,7 +111,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |NA|Updated with new functionality: {ref}`genai-serving-graph`|
 |NA |Improved the {ref}`serving-graph` documentation.|
 |ML-7770|New section: [Configuring custom loggers](../runtimes/configuring-job-resources.md#custom-logs)|
-|ML-8094|Improved the `set_function` documentation. See {ref}`create-and-use-functions`.|
+|ML-8094|Added use cases and syntax for the `set_function`. See {ref}`create-and-use-functions`.|
 
 
 

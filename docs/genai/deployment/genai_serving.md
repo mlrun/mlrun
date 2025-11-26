@@ -188,7 +188,7 @@ During load, the code above downloads a model from the Hugging Face hub and crea
 
 During prediction, the code collects all prompts, tokenizes the prompts, generates the response tokens, and decodes the output tokens to text.
 
-Save the code above to `src/onnx_genai_serving.ay` and then create a model serving functions with the following code:
+Save the code above to `src/onnx_genai_serving.py` and then create a model serving functions with the following code:
 
 ``` python
 import os

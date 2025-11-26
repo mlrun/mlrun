@@ -1014,7 +1014,7 @@ class MonitoringDeployment:
             # Map the 'kind' to its string representation
             for metric in latest_metrics:
                 if metric.type == "result":
-                    metric.kind = mm_constants.ResultStatusApp(metric.kind).name
+                    metric.kind = metric.kind.name
             function_summary[0].stats["metrics"] = latest_metrics
 
         return function_summary[0]

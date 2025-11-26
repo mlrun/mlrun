@@ -229,7 +229,6 @@ class MonitoringApplicationContext:
                 end_time=self.end_infer_time,
                 time_column=mm_constants.EventFieldType.TIMESTAMP,
                 storage_options=self.storage_options,
-                time_partitioning_granularity=self.granularity or "hour",
             )
             self._sample_df = df.reset_index(drop=True)
         return self._sample_df
@@ -291,26 +290,6 @@ class MonitoringApplicationContext:
     def model(self) -> tuple[str, ModelArtifact, dict]:
         """The model file, model spec object, and a list of extra data items"""
         return get_model(self.model_endpoint.spec.model_uri)
-
-    @property
-    def granularity(self) -> Optional[str]:
-        """The time partitioning granularity of the feature set"""
-        if self.start_infer_time and self.end_infer_time:
-            base_period = self.end_infer_time - self.start_infer_time
-            base_period = abs(base_period)
-
-            if base_period < pd.Timedelta(hours=1):
-                return "hour"
-            elif base_period < pd.Timedelta(days=1):
-                return "day"
-            elif base_period < pd.Timedelta(days=30):
-                return "month"
-            elif base_period < pd.Timedelta(days=365):
-                return "year"
-            else:
-                return "year"
-        else:
-            return None
 
     @staticmethod
     def dict_to_histogram(histogram_dict: FeatureStats) -> pd.DataFrame:

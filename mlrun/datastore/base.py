@@ -165,39 +165,35 @@ class DataStore(BaseRemoteClient):
         end_time,
         partition_keys,
         df_module,
-        time_partitioning_granularity,
         filesystem,
         **kwargs,
     ):
         """Read only the relevant partitions using pandas filters and concat."""
-        logger.debug(
-            "starting urls partition process", granularity=time_partitioning_granularity
-        )
+        logger.debug("starting paths partition process")
         if not partition_keys:
             raise ValueError(
                 f"No partition structure found under {base_path}, while usage requires partition keys"
             )
 
-        def list_partitioned_urls(
+        def list_partitioned_paths(
             base_path: str,
             partition_keys: list[str],
             start_time,
             end_time,
-            time_partitioning_granularity: str,
             filesystem,
         ):
             """
-            Build a list of URLs based on detected partitioning and time range.
+            Build a list of Paths based on detected partitioning and time range.
 
             Automatically adjusts iteration step based on deepest partition key.
             """
             # Determine smallest partition granularity
             actual_partition_keys = []
+            step = None
+            next_step = None
             for key in ["year", "month", "day", "hour"]:
                 if key in partition_keys:
                     actual_partition_keys.append(key)
-                    if key == time_partitioning_granularity:
-                        break
 
             if "hour" in actual_partition_keys:
                 step = datetime.timedelta(hours=1)
@@ -221,46 +217,58 @@ class DataStore(BaseRemoteClient):
             else:
                 raise ValueError("No recognized time-based partition key found")
 
-            urls = []
+            paths = []
             current = start_time
 
             while current <= end_time:
                 # Build directory structure from partition keys
                 parts = []
                 exists = True
+                current_time = None
                 for key in fmt_keys:
+                    if parts:
+                        directories = filesystem.listdir(
+                            f"{base_path.rstrip('/')}/" + "/".join(parts)
+                        )
+                    else:
+                        directories = filesystem.listdir(f"{base_path.rstrip('/')}/")
                     if key == "year":
-                        parts.append(f"year={current.year}")
+                        current_time = current.year
                     elif key == "month":
-                        parts.append(f"month={current.month:02d}")
+                        current_time = current.month
                     elif key == "day":
-                        parts.append(f"day={current.day:02d}")
+                        current_time = current.day
                     elif key == "hour":
-                        parts.append(f"hour={current.hour:02d}")
+                        current_time = current.hour
 
-                    if parts and not filesystem.isdir(
-                        f"{base_path.rstrip('/')}/" + "/".join(parts)
-                    ):
+                    matches = [
+                        directory["name"].split("/")[-1]
+                        for directory in directories
+                        if len(split_dir := directory["name"].split("/")[-1].split("="))
+                        > 1
+                        and current_time == int(split_dir[-1])
+                        and key == split_dir[-2]
+                    ]
+
+                    if not matches:
                         exists = False
                         break
+                    parts.append(matches[0])
 
                 if exists:
-                    urls.append(f"{base_path.rstrip('/')}/" + "/".join(parts))
+                    paths.append(f"{base_path.rstrip('/')}/" + "/".join(parts))
 
                 # Advance to next period
-                if exists or key == time_partitioning_granularity:
-                    if (
-                        "hour" in actual_partition_keys
-                        or "day" in actual_partition_keys
-                    ):
+                if exists or key == actual_partition_keys[-1]:
+                    if step:
                         current += step
-                    else:
+                    elif next_step:
                         current = next_step(current)
                 elif not exists:
                     current = next_rounded_step(current, key)
 
-            logger.info("Generated partitioned URLs", extra={"urls": urls})
-            return urls
+            logger.info("Generated partitioned paths", extra={"paths": paths})
+            return paths
 
         def next_rounded_step(
             current: datetime.datetime, key: str
@@ -292,13 +300,11 @@ class DataStore(BaseRemoteClient):
             """
             Remove partition keys from filters.
 
-            Args:
-                filters (list of list of tuples): pandas-style filters
+            :param filters: (list of lists of tuples) pandas-style filters
                     Example: [[('year','=',2025),('month','=',11),('timestamp','>',ts1)]]
-                partition_keys (list of str): partition columns handled via directory
+            :param partition_keys: (list of str) partition columns handled via directory
 
-            Returns:
-                list of list of tuples: cleaned filters
+            :return list of list of tuples: cleaned filters
             """
             cleaned_filters = []
             for group in filters:
@@ -307,28 +313,29 @@ class DataStore(BaseRemoteClient):
                     cleaned_filters.append(new_group)
             return cleaned_filters
 
-        urls = list_partitioned_urls(
+        paths = list_partitioned_paths(
             base_path,
             partition_keys,
             start_time,
             end_time,
-            time_partitioning_granularity,
             filesystem,
         )
 
         dfs = []
         errors = []
-        for url in urls:
+        for current_path in paths:
             try:
                 kwargs["filters"] = clean_filters_for_partitions(
                     kwargs["filters"], partition_keys
                 )
-                df = df_module.read_parquet(url, **kwargs)
-                logger.debug("Reading DataFrame", url=url, columns=df.columns)
+                df = df_module.read_parquet(current_path, **kwargs)
+                logger.debug("Reading DataFrame", url=current_path, columns=df.columns)
                 dfs.append(df)
             except (FileNotFoundError, pyarrow.lib.ArrowInvalid) as e:
                 # Skip partitions that don't exist or have no data
-                logger.warning("Failed to read DataFrame", url=url, exception=e)
+                logger.warning(
+                    "Failed to read DataFrame", url=current_path, exception=e
+                )
                 errors.append(e)
                 continue
 
@@ -355,7 +362,6 @@ class DataStore(BaseRemoteClient):
         end_time,
         additional_filters,
         create_partition_path,
-        time_partitioning_granularity="hour",  # TODO: Roy make sure it sent from the caller
     ):
         from storey.utils import find_filters, find_partitions
 
@@ -410,7 +416,7 @@ class DataStore(BaseRemoteClient):
                     if (
                         create_partition_path
                         and partitions_time_attributes
-                        and DataStore.verify_url_partition_level(url, partitions)
+                        and DataStore.verify_path_partition_level(url, partitions)
                     ):
                         return DataStore.read_partitioned_parquet(
                             url,
@@ -418,7 +424,6 @@ class DataStore(BaseRemoteClient):
                             end_time,
                             partitions_time_attributes,
                             df_module,
-                            time_partitioning_granularity,
                             file_system,
                             **kwargs,
                         )
@@ -457,7 +462,6 @@ class DataStore(BaseRemoteClient):
                             end_time_inner,
                             partitions_time_attributes,
                             df_module,
-                            time_partitioning_granularity,
                             file_system,
                             **kwargs,
                         )
@@ -486,9 +490,6 @@ class DataStore(BaseRemoteClient):
         is_csv, is_json, drop_time_column = False, False, False
         file_system = self.filesystem
         create_partition_path = kwargs.pop("create_partition_path", True)
-        time_partitioning_granularity = kwargs.pop(
-            "time_partitioning_granularity", "hour"
-        )
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
@@ -551,7 +552,6 @@ class DataStore(BaseRemoteClient):
                 end_time,
                 additional_filters,
                 create_partition_path,
-                time_partitioning_granularity,
             )
 
         elif file_url.endswith(".json") or format == "json":
@@ -618,14 +618,14 @@ class DataStore(BaseRemoteClient):
             return False
 
     @classmethod
-    def verify_url_partition_level(cls, url: str, partitions: list[str]) -> bool:
+    def verify_path_partition_level(cls, path: str, partitions: list[str]) -> bool:
         if not partitions:
             return True
 
-        url_parts = urlparse(url).path.strip("/").split("/")
-        url_parts = [part.split("=")[0] for part in url_parts if "=" in part]
+        path_parts = urlparse(path).path.strip("/").split("/")
+        path_parts = [part.split("=")[0] for part in path_parts if "=" in part]
         for part in partitions:
-            if part in url_parts or part in ["year", "month", "day", "hour"]:
+            if part in path_parts or part in ["year", "month", "day", "hour"]:
                 continue
             else:
                 return False

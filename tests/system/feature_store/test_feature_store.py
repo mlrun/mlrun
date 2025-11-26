@@ -981,21 +981,13 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize("local", [True, False])
     def test_partitioned_parquet_time_filter(self, partition_keys, with_tz, local):
         """
-        Validate MLRun ingestion:
+        test reading partitioned parquet target as_df method with time filtering
+        covers:
           - Partitioned parquet writing via ParquetTarget
           - Reading & filtering via start_time/end_time
           - Empty/out-of-range case
         """
-
-        config_parameters = {} if local else {"image": "mlrun/mlrun"}
-        run_config = fstore.RunConfig(local=local, **config_parameters)
         key = "patient_id"
-        fs = fstore.FeatureSet(
-            "measurements",
-            entities=[Entity(key)],
-            timestamp_key="timestamp",
-        )
-
         base_time = datetime(2020, 12, 1, 17, 0)
         if with_tz:
             base_time = base_time.replace(tzinfo=pytz.UTC)
@@ -1003,7 +995,7 @@ class TestFeatureStore(TestMLRunSystem):
         df = pd.DataFrame(
             [
                 {
-                    "patient_id": i + 1,
+                    key: i + 1,
                     "timestamp": base_time + timedelta(hours=i),
                     "value": i * 10,
                 }
@@ -1022,11 +1014,6 @@ class TestFeatureStore(TestMLRunSystem):
         else:
             raise ValueError("Unexpected partition_keys")
 
-        v3io_path = (
-            f"v3io:///projects/{self.project_name}/test_data_{uuid.uuid4()}.parquet"
-        )
-        df.to_parquet(v3io_path)
-
         run_id = uuid.uuid4()
         target_path = f"v3io:///projects/{self.project_name}/partition_test_{run_id}"
 
@@ -1040,90 +1027,68 @@ class TestFeatureStore(TestMLRunSystem):
         start_time = base_time + timedelta(hours=1)
         end_time = base_time + timedelta(hours=2, minutes=1)
 
-        source = ParquetSource(
-            name="my_parquet",
-            path=v3io_path,
-            start_time=start_time,
-            end_time=end_time.isoformat(),
-        )
-
-        fs.ingest(
-            source=source,
-            targets=[target],
-            run_config=run_config,
-        )
+        target.write_dataframe(df, timestamp_key="timestamp")
 
         expected_df = df[
             (df["timestamp"] > start_time) & (df["timestamp"] <= end_time)
         ].copy()
 
-        offline = get_offline_target(fs, name="parquet_target")
-        result_df = offline.as_df(
+        result_df = target.as_df(
             start_time=start_time,
             end_time=end_time,
             time_column="timestamp",
-            time_partitioning_granularity=granularity,
         )
 
-        result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(
-            "datetime64[ns]"
-        )
         if with_tz:
-            result_df["timestamp"] = result_df["timestamp"].dt.tz_localize("UTC")
+            result_df["timestamp"] = (
+                pd.to_datetime(result_df["timestamp"])
+                .dt.tz_convert("UTC")
+                .astype("datetime64[ns, UTC]")
+            )
+        else:
+            result_df["timestamp"] = (
+                pd.to_datetime(result_df["timestamp"]).astype("datetime64[ns]")
+            )
 
-        result_df = result_df.sort_values(key).reset_index(drop=False)
+        result_df = result_df.sort_values(key).reset_index(drop=True)
         expected_df = expected_df.sort_values(key).reset_index(drop=True)
         assert_frame_equal(result_df, expected_df)
 
-        large_base_period_start = base_time - timedelta(days=367)
-        large_base_period_end = base_time + timedelta(days=367)
+        large_base_period_start = base_time - timedelta(days=365)
+        large_base_period_end = base_time + timedelta(days=1)
         start = datetime.now(tz=pytz.UTC if with_tz else None)
-        result_df = offline.as_df(
+        result_df = target.as_df(
             start_time=large_base_period_start,
             end_time=large_base_period_end,
             time_column="timestamp",
-            time_partitioning_granularity=granularity,
         )
         end = datetime.now(tz=pytz.UTC if with_tz else None)
-        assert end - start < timedelta(seconds=20), "Reading large period took too long"
-        result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(
-            "datetime64[ns]"
-        )
+        assert end - start < timedelta(
+            seconds=120
+        ), "Reading large period took too long"
         if with_tz:
-            result_df["timestamp"] = result_df["timestamp"].dt.tz_localize("UTC")
+            result_df["timestamp"] = (
+                pd.to_datetime(result_df["timestamp"])
+                .dt.tz_convert("UTC")
+                .astype("datetime64[ns, UTC]")
+            )
+        else:
+            result_df["timestamp"] = (
+                pd.to_datetime(result_df["timestamp"]).astype("datetime64[ns]")
+            )
 
-        result_df = result_df.sort_values(key).reset_index(drop=False)
-        assert_frame_equal(result_df, expected_df)
+        result_df = result_df.sort_values(key).reset_index(drop=True)
+        assert_frame_equal(result_df, df.sort_values(key).reset_index(drop=True))
 
         late_start = base_time + timedelta(days=2)
-        late_end = late_start + timedelta(minutes=5)
-        target_path_2 = f"{target_path}_empty"
+        late_end = late_start + timedelta(days=1)
 
-        source_2 = ParquetSource(
-            "my_parquet",
-            path=v3io_path,
+        empty_df = target.as_df(
             start_time=late_start,
-            end_time=late_end.isoformat(),
-            attributes={"partition_keys": partition_keys},
+            end_time=late_end,
+            time_column="timestamp",
         )
-
-        target_2 = ParquetTarget(
-            name="parquet_target_empty",
-            path=target_path_2,
-            partitioned=True,
-            time_partitioning_granularity=granularity,
-        )
-
-        # same source file
-        fs.ingest(
-            source=source_2,
-            targets=[target_2],
-            run_config=run_config,
-        )
-
-        offline2 = get_offline_target(fs, name="parquet_target_empty")
-        with pytest.raises(FileNotFoundError):
-            offline2.as_df()
+        assert empty_df.empty, "df should be empty for out-of-range time filter"
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])

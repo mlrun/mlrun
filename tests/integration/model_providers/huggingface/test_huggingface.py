@@ -272,8 +272,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
     @pytest.mark.parametrize(
         "execution_mechanism",
-        # ["naive", "process_pool", "dedicated_process", "thread_pool"],
-        ["thread_pool"],
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
     )
     def test_hf_model_runner(self, execution_mechanism):
         project = mlrun.new_project("test-hf-model", save=False)

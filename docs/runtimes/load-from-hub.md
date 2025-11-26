@@ -158,27 +158,11 @@ project.deploy_function(fn)
 
 First import the module from the hub, which downloads it to your local file system:
 ```
-count_events_app = mlrun.import_module("hub://count_events")
+module = mlrun.import_module("hub://my_module")
 ```
-
-Then run the app as a job:
+At this point, you can modify the module. When ready, execute it:
 ```
-res = count_events_app.CountApp.evaluate(func_path="count_events.py",
-    run_local=False,
-    sample_data=pd.DataFrame({"col": [1, 2, 3, 4]}),
-                                   image=image,
-                                  endpoints=["model_0"])
-```
-The application is now available on your filesystem, and you can register and deploy it just like any other custom application:
-
-```
-fn = project.set_model_monitoring_function(
-    func="count_events.py",
-    application_class="CountApp",
-    name="CountEventsFromFile",
-    image=image,
-)
-project.deploy_function(fn)
+module.execute()
 ```
 
 ### View module metadata

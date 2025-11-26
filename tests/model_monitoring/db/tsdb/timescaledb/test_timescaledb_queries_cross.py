@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Optional
 
 import pytest
@@ -155,12 +155,12 @@ class TestTimescaleDBCrossQueries:
 
     def _write_test_predictions_data(self, connector, endpoint_ids):
         """Helper to write predictions test data using direct INSERT."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         predictions_table = connector._metrics_queries.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
-        base_time = datetime.now(timezone.utc) - timedelta(hours=1)  # 1 hour ago
+        base_time = datetime.now(UTC) - timedelta(hours=1)  # 1 hour ago
 
         for i, endpoint_id in enumerate(endpoint_ids):
             test_time = base_time + timedelta(minutes=i)
@@ -177,7 +177,7 @@ class TestTimescaleDBCrossQueries:
         """Helper to write results test data using factory methods."""
         from datetime import timedelta
 
-        base_time = datetime.now(timezone.utc) - timedelta(hours=1)  # 1 hour ago
+        base_time = datetime.now(UTC) - timedelta(hours=1)  # 1 hour ago
         results_data = []
 
         for i, endpoint_id in enumerate(endpoint_ids):

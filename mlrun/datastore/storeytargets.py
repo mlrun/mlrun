@@ -152,7 +152,7 @@ class KafkaStoreyTarget(storey.KafkaTarget):
             datastore_profile = datastore_profile_read(path)
             if not isinstance(
                 datastore_profile,
-                (DatastoreProfileKafkaStream, DatastoreProfileKafkaTarget),
+                DatastoreProfileKafkaStream | DatastoreProfileKafkaTarget,
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Unsupported datastore profile type: {type(datastore_profile)}"

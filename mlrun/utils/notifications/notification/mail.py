@@ -135,7 +135,7 @@ class MailNotification(base.NotificationBase):
     def _validate_emails(cls, params):
         cls._validate_email_address(params["sender_address"])
 
-        if not isinstance(params["email_addresses"], (str, list)):
+        if not isinstance(params["email_addresses"], str | list):
             raise ValueError(
                 "Parameter 'email_addresses' must be a string or a list of strings"
             )

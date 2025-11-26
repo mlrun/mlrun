@@ -352,7 +352,7 @@ async def test_list_project_with_updated_after(
 ):
     project = _generate_project()
     session = "1234"
-    updated_after = datetime.datetime.now(tz=datetime.timezone.utc)
+    updated_after = datetime.datetime.now(tz=datetime.UTC)
 
     def verify_list(request, context):
         assert request.qs == {

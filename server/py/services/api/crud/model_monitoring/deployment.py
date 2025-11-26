@@ -1685,10 +1685,8 @@ class MonitoringDeployment:
                 )
         elif not isinstance(
             tsdb_profile,
-            (
-                mlrun.datastore.datastore_profile.DatastoreProfileTDEngine,
-                mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
-            ),
+            mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
+            | mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"

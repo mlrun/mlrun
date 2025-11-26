@@ -168,7 +168,7 @@ class RemoteStep(storey.SendToHttp):
                 text = await resp.text()
                 raise RuntimeError(f"bad http response {resp.status}: {text}")
             return resp
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             logger.error(f"http request to {url} timed out in RemoteStep {self.name}")
             raise exc
 
@@ -241,7 +241,7 @@ class RemoteStep(storey.SendToHttp):
             headers[event_id_key] = event.id
         if method == "GET":
             body = None
-        elif body is not None and not isinstance(body, (str, bytes)):
+        elif body is not None and not isinstance(body, str | bytes):
             if self._body_function_handler:
                 body = self._body_function_handler(body)
             body = json.dumps(body)
@@ -253,7 +253,7 @@ class RemoteStep(storey.SendToHttp):
         if (
             self.return_json
             or headers.get("content-type", "").lower() == "application/json"
-        ) and isinstance(data, (str, bytes)):
+        ) and isinstance(data, str | bytes):
             data = json.loads(data)
         return data
 
@@ -390,7 +390,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
 
             if is_get:
                 body = None
-            elif body is not None and not isinstance(body, (str, bytes)):
+            elif body is not None and not isinstance(body, str | bytes):
                 if self._body_function_handler:
                     body = self._body_function_handler(body)
                 body = json.dumps(body)
@@ -458,7 +458,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         if (
             self.return_json
             or headers.get("content-type", "").lower() == "application/json"
-        ) and isinstance(data, (str, bytes)):
+        ) and isinstance(data, str | bytes):
             data = json.loads(data)
         return data
 

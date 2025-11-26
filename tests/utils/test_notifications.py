@@ -15,11 +15,12 @@
 import asyncio
 import builtins
 import unittest.mock
+from collections.abc import Callable
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import partial
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import aiohttp
 import pytest

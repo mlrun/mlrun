@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, Optional, Union, cast
 
 import pandas as pd
@@ -440,7 +440,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     ) -> list[tuple[str, str]]:
         if isinstance(endpoints, list):
             if all(
-                isinstance(endpoint, (tuple, list)) and len(endpoint) == 2
+                isinstance(endpoint, tuple | list) and len(endpoint) == 2
                 for endpoint in endpoints
             ):
                 # A list of [(name, uid), ...] / [[name, uid], ...] tuples/lists
@@ -690,8 +690,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
         # If `start_dt` and `end_dt` do not include time zone information - change them to UTC
         if (start_dt.tzinfo is None) and (end_dt.tzinfo is None):
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
-            end_dt = end_dt.replace(tzinfo=timezone.utc)
+            start_dt = start_dt.replace(tzinfo=UTC)
+            end_dt = end_dt.replace(tzinfo=UTC)
         elif (start_dt.tzinfo is None) or (end_dt.tzinfo is None):
             raise mlrun.errors.MLRunValueError(
                 "The start and end times must either both include time zone information or both be naive (no time "

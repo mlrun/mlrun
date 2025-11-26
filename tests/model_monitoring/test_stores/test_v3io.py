@@ -14,7 +14,7 @@
 
 from collections import Counter
 from collections.abc import Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
@@ -458,8 +458,8 @@ def test_read_results_data(with_result_extra_data: bool) -> None:
     tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
     data = tsdb_connector.read_metrics_data(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
-        start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
-        end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
+        start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=UTC),
+        end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=UTC),
         metrics=[
             ModelEndpointMonitoringMetric(
                 project="fictitious-one",
@@ -496,8 +496,8 @@ def test_read_results_data(with_result_extra_data: bool) -> None:
 def test_read_predictions() -> None:
     predictions_args = {
         "endpoint_id": "70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
-        "start": datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
-        "end": datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
+        "start": datetime(2024, 4, 2, 18, 0, 0, tzinfo=UTC),
+        "end": datetime(2024, 4, 3, 18, 0, 0, tzinfo=UTC),
         "aggregation_window": "1m",
     }
 

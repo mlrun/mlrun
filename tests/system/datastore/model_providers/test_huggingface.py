@@ -90,10 +90,8 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         function.spec.max_replicas = (
             1  # to avoid allocating extended resources to multiple pods
         )
-
-        # removed worker_timeout=500
-        # now removed gateway_timeout=600
-        function.with_http(worker_timeout=1000, workers=None)
+        # Set workers=None to avoid using the default value of 8 workers
+        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None)
         function.spec.readiness_timeout = 600
 
         function.deploy()
@@ -229,7 +227,8 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         function.spec.max_replicas = (
             1  # to avoid allocating extended resources to multiple pods
         )
-        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None)
+        # Set workers=None to avoid using the default value of 8 workers
+        function.with_http(gateway_timeout=1100, worker_timeout=1000, workers=None)
         model_runner_step = mlrun.serving.states.ModelRunnerStep(name="mrs")
         model_runner_step.add_model(
             endpoint_name=ep_name,

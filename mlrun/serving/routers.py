@@ -986,7 +986,7 @@ class VotingEnsemble(ParallelRun):
         List
             The model's predictions
         """
-        if isinstance(response, (list, numpy.ndarray)):
+        if isinstance(response, list | numpy.ndarray):
             return response
         try:
             self.format_response_with_col_name_flag = True
@@ -1123,7 +1123,7 @@ class EnrichmentModelRouter(ModelRouter):
 
     def preprocess(self, event):
         """Turn an entity identifier (source) to a Feature Vector"""
-        if isinstance(event.body, (str, bytes)):
+        if isinstance(event.body, str | bytes):
             event.body = json.loads(event.body)
         event.body["inputs"] = self._feature_service.get(
             event.body["inputs"], as_list=True
@@ -1275,7 +1275,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         """
         Turn an entity identifier (source) to a Feature Vector
         """
-        if isinstance(event.body, (str, bytes)):
+        if isinstance(event.body, str | bytes):
             event.body = json.loads(event.body)
         event.body["inputs"] = self._feature_service.get(
             event.body["inputs"], as_list=True

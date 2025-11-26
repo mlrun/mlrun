@@ -649,14 +649,14 @@ class BaseStep(ModelObj):
         if actual_shared_name and actual_shared_name not in step._shared_proxy_mapping:
             step._shared_proxy_mapping[actual_shared_name] = {
                 name: artifact.uri
-                if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                if isinstance(artifact, ModelArtifact | LLMPromptArtifact)
                 else artifact
             }
         elif actual_shared_name:
             step._shared_proxy_mapping[actual_shared_name].update(
                 {
                     name: artifact.uri
-                    if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                    if isinstance(artifact, ModelArtifact | LLMPromptArtifact)
                     else artifact
                 }
             )
@@ -1805,14 +1805,14 @@ class ModelRunnerStep(MonitoredStep):
         if shared_model_name and shared_model_name not in self._shared_proxy_mapping:
             self._shared_proxy_mapping[shared_model_name] = {
                 endpoint_name: model_artifact.uri
-                if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                if isinstance(model_artifact, ModelArtifact | LLMPromptArtifact)
                 else model_artifact
             }
         elif override and shared_model_name:
             self._shared_proxy_mapping[shared_model_name].update(
                 {
                     endpoint_name: model_artifact.uri
-                    if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                    if isinstance(model_artifact, ModelArtifact | LLMPromptArtifact)
                     else model_artifact
                 }
             )
@@ -3456,7 +3456,7 @@ def _init_async_objects(context, steps):
                         datastore_profile = datastore_profile_read(stream_path)
                         if isinstance(
                             datastore_profile,
-                            (DatastoreProfileKafkaTarget, DatastoreProfileKafkaStream),
+                            DatastoreProfileKafkaTarget | DatastoreProfileKafkaStream,
                         ):
                             step._async_object = KafkaStoreyTarget(
                                 path=stream_path,

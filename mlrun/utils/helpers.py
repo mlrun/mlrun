@@ -30,7 +30,7 @@ import typing
 import uuid
 import warnings
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from importlib import import_module, reload
 from os import path
 from types import ModuleType
@@ -462,7 +462,7 @@ def get_pretty_types_names(types):
     return types[0].__name__
 
 
-def now_date(tz: timezone = timezone.utc) -> datetime:
+def now_date(tz: timezone = UTC) -> datetime:
     return datetime.now(tz=tz)
 
 
@@ -477,7 +477,7 @@ def datetime_to_mysql_ts(datetime_object: datetime) -> datetime:
     :return: A MySQL-compatible timestamp string with millisecond precision.
     """
     if not datetime_object.tzinfo:
-        datetime_object = datetime_object.replace(tzinfo=timezone.utc)
+        datetime_object = datetime_object.replace(tzinfo=UTC)
 
     # Round to the nearest millisecond
     ms = round(datetime_object.microsecond / 1000) * 1000
@@ -488,7 +488,7 @@ def datetime_to_mysql_ts(datetime_object: datetime) -> datetime:
     return datetime_object.replace(microsecond=ms)
 
 
-def datetime_min(tz: timezone = timezone.utc) -> datetime:
+def datetime_min(tz: timezone = UTC) -> datetime:
     return datetime(1970, 1, 1, tzinfo=tz)
 
 
@@ -773,11 +773,11 @@ def dict_to_yaml(struct) -> str:
 # solve numpy json serialization
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, (int, str, float, list, dict)):
+        if isinstance(obj, int | str | float | list | dict):
             return obj
-        elif isinstance(obj, (np.integer, np.int64)):
+        elif isinstance(obj, np.integer | np.int64):
             return int(obj)
-        elif isinstance(obj, (np.floating, np.float64)):
+        elif isinstance(obj, np.floating | np.float64):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
@@ -1531,9 +1531,9 @@ def datetime_from_iso(time_str: str) -> Optional[datetime]:
         return
     dt = parser.isoparse(time_str)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     # ensure the datetime is in UTC, converting if necessary
-    return dt.astimezone(timezone.utc)
+    return dt.astimezone(UTC)
 
 
 def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
@@ -1547,7 +1547,7 @@ def enrich_datetime_with_tz_info(timestamp_string) -> Optional[datetime]:
         return timestamp_string
 
     if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
-        timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+        timestamp_string += datetime.now(UTC).astimezone().strftime("%z")
 
     for _format in [
         # e.g: 2021-08-25 12:00:00.000Z
@@ -1578,7 +1578,7 @@ def format_datetime(dt: datetime, fmt: Optional[str] = None) -> str:
 
     # If the datetime is naive
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
 
     # TODO: Once Python 3.12 is the minimal version, use %:z to format the timezone offset with a colon
     formatted_time = dt.strftime(fmt or "%Y-%m-%d %H:%M:%S.%f%z")
@@ -1740,7 +1740,7 @@ def format_run(run: PipelineRun, with_project=False) -> dict:
     for key, value in run.items():
         if (
             key in time_keys
-            and isinstance(value, (str, datetime))
+            and isinstance(value, str | datetime)
             and parser.parse(str(value)).year == 1970
         ):
             run[key] = None

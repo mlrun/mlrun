@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from io import StringIO
 from typing import Literal, Optional, Union
 
@@ -1595,7 +1595,7 @@ class V3IOTSDBConnector(TSDBConnector):
             for i, (status, timestamp) in enumerate(zip(result_statuses, timestamps)):
                 # V3IO TSDB returns timestamps in nanoseconds
                 timestamp_dt = pd.Timestamp(
-                    timestamp, unit="ns", tzinfo=timezone.utc
+                    timestamp, unit="ns", tzinfo=UTC
                 ).to_pydatetime()
 
                 # Filter by time window

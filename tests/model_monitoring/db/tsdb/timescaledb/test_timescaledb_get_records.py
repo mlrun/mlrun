@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -25,7 +25,7 @@ class TestGetRecords:
     def test_get_records_metrics_all_endpoints(self, connector, query_test_helper):
         """Test _get_records() for metrics table with no endpoint filter."""
         # Insert test data for multiple endpoints
-        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         test_data = [
             {
                 mm_schemas.WriterEvent.END_INFER_TIME: test_time,
@@ -53,8 +53,8 @@ class TestGetRecords:
         # Query all endpoints using _get_records
         df = connector._get_records(
             table=mm_schemas.TimescaleDBTables.METRICS,
-            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=UTC),
             endpoint_id=None,  # Get ALL endpoints
         )
 
@@ -73,7 +73,7 @@ class TestGetRecords:
     def test_get_records_metrics_specific_endpoint(self, connector, query_test_helper):
         """Test _get_records() for metrics table with endpoint filter."""
         # Insert test data for multiple endpoints
-        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         test_data = [
             {
                 mm_schemas.WriterEvent.END_INFER_TIME: test_time,
@@ -101,8 +101,8 @@ class TestGetRecords:
         # Query specific endpoint using _get_records
         df = connector._get_records(
             table=mm_schemas.TimescaleDBTables.METRICS,
-            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=UTC),
             endpoint_id="endpoint-1",
         )
 
@@ -125,7 +125,7 @@ class TestGetRecords:
     def test_get_records_results_all_endpoints(self, connector, query_test_helper):
         """Test _get_records() for app_results table with no endpoint filter."""
         # Insert test data for multiple endpoints
-        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         test_data = [
             {
                 mm_schemas.WriterEvent.END_INFER_TIME: test_time,
@@ -157,8 +157,8 @@ class TestGetRecords:
         # Query all endpoints using _get_records
         df = connector._get_records(
             table=mm_schemas.TimescaleDBTables.APP_RESULTS,
-            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=UTC),
             endpoint_id=None,  # Get ALL endpoints
         )
 
@@ -176,7 +176,7 @@ class TestGetRecords:
     def test_get_records_predictions_all_endpoints(self, connector):
         """Test _get_records() for predictions table with no endpoint filter."""
         # Insert test data for multiple endpoints directly into predictions table
-        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         predictions_table = connector._metrics_queries.tables[
             mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
@@ -203,8 +203,8 @@ class TestGetRecords:
         # Query all endpoints using _get_records
         df = connector._get_records(
             table=mm_schemas.TimescaleDBTables.PREDICTIONS,
-            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=UTC),
             endpoint_id=None,  # Get ALL endpoints
         )
 
@@ -219,8 +219,8 @@ class TestGetRecords:
         """Test _get_records() returns empty DataFrame when no data exists."""
         df = connector._get_records(
             table=mm_schemas.TimescaleDBTables.METRICS,
-            start=datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC),
             endpoint_id=None,
         )
 
@@ -234,8 +234,8 @@ class TestGetRecords:
         ):
             connector._get_records(
                 table="invalid_table",
-                start=datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-                end=datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
+                start=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
+                end=datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC),
             )
 
     def test_get_records_with_column_filter(self, connector, query_test_helper):
@@ -245,7 +245,7 @@ class TestGetRecords:
         endpoint_id must be explicitly requested in the columns list to be included.
         """
         # Insert test data
-        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         test_data = {
             mm_schemas.WriterEvent.END_INFER_TIME: test_time,
             mm_schemas.WriterEvent.START_INFER_TIME: test_time,
@@ -262,8 +262,8 @@ class TestGetRecords:
         # Query with specific columns (not including endpoint_id)
         df = connector._get_records(
             table=mm_schemas.TimescaleDBTables.METRICS,
-            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 16, 0, 0, 0, tzinfo=UTC),
             endpoint_id="endpoint-1",
             columns=[
                 mm_schemas.MetricData.METRIC_NAME,

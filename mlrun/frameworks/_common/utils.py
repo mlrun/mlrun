@@ -97,9 +97,9 @@ class CommonUtils(ABC):
         """
         if isinstance(dataset, np.ndarray):
             return dataset
-        if isinstance(dataset, (pd.DataFrame, pd.Series)):
+        if isinstance(dataset, pd.DataFrame | pd.Series):
             return dataset.to_numpy()
-        if isinstance(dataset, (list, tuple)):
+        if isinstance(dataset, list | tuple):
             return np.array(dataset)
         if isinstance(dataset, dict):
             return np.array(list(dataset.values()))
@@ -133,7 +133,7 @@ class CommonUtils(ABC):
         """
         if isinstance(dataset, pd.DataFrame):
             return dataset
-        if isinstance(dataset, (np.ndarray, pd.Series, list, tuple, dict)):
+        if isinstance(dataset, np.ndarray | pd.Series | list | tuple | dict):
             return pd.DataFrame(dataset)
         try:
             # SciPy is not in MLRun's requirements but common to all frameworks.

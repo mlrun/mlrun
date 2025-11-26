@@ -37,14 +37,14 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9564|You can now import monitoring apps from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md##modules).|
-|ML-9564|You can now import python modules from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md##modules).|
+|ML-9564|You can now import monitoring apps from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#modules).|
+|ML-9564|You can now import python modules from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#modules).|
 
 ### Serving
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9685| You can now use models stored in a remote source like HuggingFace, without saving it in your datastore. See [Remote models](../store/models.md#remote-models) and [Serving using a remote model](../genai/deployment/genai_serving.md#serving-using-a-remote-model).|
-|ML-9642|The new ModelRunnerStep enables running a model as part of a inference graph. It gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`mlrun.serving.ModelRunnerStep`.|
+|ML-9642|The new ModelRunnerStep enables running a model as part of a inference graph. It gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`~mlrun.serving.ModelRunnerStep`.|
 
 ### Artifacts
 | ID    |Description                                                                 |
@@ -112,25 +112,48 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |NA|Updated with new functionality: {ref}`genai-serving-graph`|
 |NA |Improved the {ref}`serving-graph` documentation.|
 |ML-7770|New section: [Configuring custom loggers](../runtimes/configuring-job-resources.md#custom-logs)|
-|NA|New section: [Exposing multiple ports in the API gateway](../runtimes/application.ipynb#expose-multiple-ports).|
 |ML-8094|Improved the `set_function` documentation. See {ref}`create-and-use-functions`.|
+
+
 
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-7678|Warning is raised when `with_source_archive` is used but source code was provided via `set_function`.|
+|ML-7723|Spark job might remain stuck in running state upon k8s node reboot.|
+|ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
 |ML-7771| Updated message when user tries to create a project but does not have developer permission: "Permission denied: Unable to create a project. Contact your system administrator to review user policy and data access permissions."|
+|ML-8549|Documentation: Clarification that email notification isn't sent for local jobs unless the default email SMTP settings are explicitly set. See [Local vs. Remote](../concepts/notifications.html#local-vs-remote).|
 |ML-8601|Default spot labels node selector are no longer removed.|
 |ML-8740|Notifications are now issued when retrying pipelines.|
 |ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
 |ML-9338|`latest` tag: If the same project+key were created from both a hyper-param run and single run, and the user removed the latest tag from everything, then `latest` is assigned to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results, and it may not actually be the latest run.|
+|ML-9452|A monitored serving function deploy will fail early on validation if model monitoring credentials were not set. Previously, it failed later in the build stage.|
+|ML-9508|You can now load code from python file from git/http using `with_source_archive`.|
+|ML-9550|Deleting projects with many artifacts now does not fail. Previously failed due to the artufacts.| 
 |ML-9573|Adds a shared Kubernetes client with built-in retries to make CoreV1Api and CustomObjectsApi calls more reliable during temporary API hiccups.|
+|ML-9725||
+|ML-9752|You can now use `with_sidecar` and a list of ports in the API gateway. See [Exposing multiple ports in the API gateway](../runtimes/application.ipynb#expose-multiple-ports).| 
+|ML-9848||
+|ML-9869|UI: After applying filters in the Artifacts page and clicking in the page, the result are now filtered and the filters are reset. |
 |ML-9876|Resolved issue of DB probes failing when the concurrent connections are maxed out.|
+|ML-9884|UI: After modifying a schedule the UI now remains on the Scheduled page. Previously it redirected to the specific project schedules.|
+|ML-9911||
+|ML-9937|UI: When clicking on the UID link after running a job in Jupyter, the Job run page opens. Previously, the project page opened.|
+|ML-9971|UI: When registering an artifact, you can reselect an option in the Target path and the dropdown closes. Previously the option was not selected and the drop-down remained open.|| 
+|ML-10271||
 |ML-10289|When using the `project.delete_artifact()` that gets an `mlrun.artifacts.base.Artifact` object, if the object doesn’t have the “latest” tag, now only the specific UID artifacts are deleted.|
 |ML-10293|Scheduled workflow jobs now use the values in the `run` method, and not from the `project.spec.source` as previously.|
+|ML-10349|You can now use two different S3 credentials for source and target.|
+|ML-10411|`set_function` now works with S3.|
+|ML-10422|Calling `to_mock_server` on serving function of V2ModelServer no longer fails.|
 |ML-10612|The `mlrun.get_current_project() function` now also works from within a Nuclio function that has been deployed on Iguazio or from a job.|
 |ML-10622|The remote and schedule workflow owner labels now show the username.|
-|ML-10655|<b>Monitoring>Workflows</b> now shows the correct number of workflows. Previously it occasionally reported 0.|
-
+|ML-10665|<b>Monitoring>Workflows</b> now shows the correct number of workflows. Previously it occasionally reported 0.|
+|ML-10676|Fixed CE installation pages: {ref}`aws-install` and {ref}`install-on-kubernetes`.|
+|ML-10924|UI: The input_path and result_path of steps now display in "Real-time pipelines".|
+|ML-10952|UI: In the Jobs page, Batch run, the current project now appears in the Function dropdown.|
+|ML-10987|UI: Resolved the issue of displying Workflows in the Monitor WOrkflows page with KFP 2.5.|
 
 
 

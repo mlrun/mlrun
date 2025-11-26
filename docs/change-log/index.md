@@ -37,8 +37,8 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9564|You can now import monitoring apps from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#modules).|
-|ML-9564|You can now import python modules from the MLRun hub or your own private hub. See [Model monitoring modules](../runtimes/load-from-hub.md#modules).|
+|ML-9564|You can now import monitoring apps from the MLRun hub or your own private hub. See [hub model monitoring applications](../runtimes/load-from-hub.md#import-a-model-monitoring-application).|
+|ML-9564|You can now import python modules from the MLRun hub or your own private hub. See [hub modules](../runtimes/load-from-hub.md#import-a-module).|
 
 ### Serving
 | ID    |Description                                                                 |

@@ -42,3 +42,4 @@ Migrating from v1.7.0 to v1.8.0 and higher does not maintain backwards compatibi
 
 - {ref}`genai-02-mm-llm`
 - {ref}`realtime-monitor-drift-tutor`
+- [Import model monitoring applications from the MLRun hub](../runtimes/load-from-hub.md#modules)

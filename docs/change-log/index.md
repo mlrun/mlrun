@@ -44,12 +44,12 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9685| You can now use models stored in a remote source like HuggingFace, without saving it in your datastore. See [Remote models](../store/models.md#remote-models) and [Serving using a remote model](../genai/deployment/genai_serving.md#serving-using-a-remote-model).|
-|ML-9642|The new ModelRunnerStep enables running a model as part of a inference graph. It gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See {ref}`modelrunnerstep` and {py:class}`~mlrun.serving.ModelRunnerStep`.|
+|ML-9642|The new ModelRunnerStep enables running a model as part of a inference graph. It gives you an advanced way to run multiple models with control over how they are executed in terms of concurrency and parallelism. See [ModelRunnerStep](../serving/model-serving-steps.md#modelrunnerstep) and {py:class}`~mlrun.serving.ModelRunnerStep`.|
 
 ### Artifacts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9812|This version introduces LLM prompt templates and artifacts, monitoring results, and experiment tracking on artifacts. You simply use your selected provider (e.g., OpenAI or Hugging Face). See {ref}`genai-04-llm-prompt-artifact`, {ref}`genai-serving-graph`, and {ref}`llm-prompt-artifact`.|
+|ML-9812|This version introduces LLM prompt templates and artifacts and experiment tracking on artifacts. You simply use your selected provider (e.g., OpenAI or Hugging Face). See {ref}`genai-04-llm-prompt-artifact`, {ref}`genai-serving-graph`, and {ref}`llm-prompt-artifacts`.|
 
 ### Model Monitoring
 
@@ -112,17 +112,16 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |NA |Improved the {ref}`serving-graph` documentation.|
 |ML-7770|New section: [Configuring custom loggers](../runtimes/configuring-job-resources.md#custom-logs)|
 |ML-8094|Added use cases and syntax for the `set_function`. See {ref}`create-and-use-functions`.|
-
+|ML-10676|Fixed CE installation pages: {ref}`aws-install` and {ref}`install-on-kubernetes`.|
 
 
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7678|Warning is raised when `with_source_archive` is used but source code was provided via `set_function`.|
-|ML-7723|Spark job might remain stuck in running state upon k8s node reboot.|
 |ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
 |ML-7771| Updated message when user tries to create a project but does not have developer permission: "Permission denied: Unable to create a project. Contact your system administrator to review user policy and data access permissions."|
-|ML-8549|Documentation: Clarification that email notification isn't sent for local jobs unless the default email SMTP settings are explicitly set. See [Local vs. Remote](../concepts/notifications.html#local-vs-remote).|
+|ML-8549|Documentation: Clarification that email notification isn't sent for local jobs unless the default email SMTP settings are explicitly set. See [Local vs. Remote](../concepts/notifications.md#local-vs-remote).|
 |ML-8601|Default spot labels node selector are no longer removed.|
 |ML-8740|Notifications are now issued when retrying pipelines.|
 |ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
@@ -133,7 +132,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |ML-9573|Adds a shared Kubernetes client with built-in retries to make CoreV1Api and CustomObjectsApi calls more reliable during temporary API hiccups.|
 |ML-9725|Fixed the correct number of replicas in the serving function spec.|
 |ML-9752|You can now use `with_sidecar` and a list of ports in the API gateway. See [Exposing multiple ports in the API gateway](../runtimes/application.ipynb#expose-multiple-ports).| 
-|ML-9848|Fixed ""TypeError: __init__() got an unexpected keyword argument 'details'"" upon ingestion to DBFS.|
+|ML-9848|Fixed "TypeError: __init__() got an unexpected keyword argument 'details'" upon ingestion to DBFS.|
 |ML-9869|UI: Fixed issue when "Artifacts" icon in navigation bar was not clickable when custom filter enabled. |
 |ML-9876|Resolved issue of DB probes failing when the concurrent connections are maxed out.|
 |ML-9884|UI: After modifying a schedule the UI now remains on the Scheduled page. Previously it redirected to the specific project schedules.|
@@ -144,14 +143,13 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 |ML-10293|Scheduled workflow jobs now use the values in the `run` method, and not from the `project.spec.source` as previously.|
 |ML-10349|You can now use two different S3 credentials for source and target.|
 |ML-10411|`set_function` now works with S3.|
-|ML-10422|Calling `to_mock_server` on serving function of V2ModelServer no longer fails.|
+|ML-10422|Calling `to_mock_server` when `track_models` set to True on serving function of V2ModelServer no longer fails.|
 |ML-10612|The `mlrun.get_current_project() function` now also works from within a Nuclio function that has been deployed on Iguazio or from a job.|
 |ML-10622|The remote and schedule workflow owner labels now show the username.|
 |ML-10665|<b>Monitoring>Workflows</b> now shows the correct number of workflows. Previously it occasionally reported 0.|
-|ML-10676|Fixed CE installation pages: {ref}`aws-install` and {ref}`install-on-kubernetes`.|
 |ML-10924|UI: The input_path and result_path of steps now display in "Real-time pipelines".|
 |ML-10952|UI: In the Jobs page, Batch run, the current project now appears in the Function dropdown.|
-|ML-10987|UI: Resolved the issue of displying Workflows in the Monitor WOrkflows page with KFP 2.5.|
+|ML-10987|UI: Resolved the issue of displaying Workflows in the Monitor workflows page with KFP 2.5.|
 
 
 
@@ -1411,6 +1409,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7553|The application API gateway is redirected even though redirection is not enabled (ssl_redirect=False).| NA | v1.7.0|
 |ML-7568/7915| The SDK does not inform of invalid node selector combinations when running a function, but the pod remains stuck in the Pending state. | See [Preventing and resolving conflicts](../runtimes/configuring-job-resources.md#preventing-and-resolving-conflicts).| v1.7.0 |  
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. | NA   | v1.7.0|   
+|ML-7723|Spark job might remain stuck in running state upon k8s node reboot.| NA   | v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.| NA | v1.7.0|      
 |ML-7820|`sync_functions` should only sync the functions in the workflow, and not all of the functions within the `project.yaml`.| NA | v1.7.0|        
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.| NA| v1.7.0| 
@@ -1507,7 +1506,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
 | v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
 | v1.10.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
-| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints. See {ref}`deploy-serving-graph-as-a-job`.|
+| v1.10.0 |Function: `record_results()`                             |Serving as a job for offline model endpoints.|
 | v1.10.0|`labels` in`get_or_create_ctx` |`spec` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
 | v1.10.0|`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |

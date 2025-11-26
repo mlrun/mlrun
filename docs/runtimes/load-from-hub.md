@@ -132,7 +132,7 @@ The modules are categorized and their associated versions are listed, so you can
 Each module in the hub has an accompanying example notebook with complete usage examples. 
 
 There are two means of using modules from the hub:
-- [Import the module as a model monitoring function and use it without modifying it](#module-off-shelf)
+- [Import a model monitoring module](#import-a-model-monitoring-module)
 - [Import the module, and optionally test and modify it before running it](#modify-module)
 
 ```{admonition} Note
@@ -141,10 +141,9 @@ If you are importing a model monitoring module:
 - [Enable model monitoring](../tutorials/05-model-monitoring.ipynb#enable-model-monitoring)
 ```
 
-(module-off-shelf)=
-### Use a module "off the shelf"
+### Import a model monitoring module
 
-To use a module directly in your project without modifying it, the code looks like:
+To use a model monitoring module directly in your project without modifying it, the code looks like:
 
 ```
 fn = project.set_model_monitoring_function(

@@ -1017,7 +1017,6 @@ class MonitoringDeployment:
                     metric.kind = mm_constants.ResultStatusApp(metric.kind).name
             function_summary[0].stats["metrics"] = latest_metrics
 
-
         return function_summary[0]
 
     def _get_function_summary_infra(

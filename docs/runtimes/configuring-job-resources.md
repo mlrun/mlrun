@@ -19,6 +19,7 @@ Configuring runs and functions is relevant for all supported cloud platforms.
 - [Mounting persistent storage](#mounting-persistent-storage)
 - [Preventing stuck pods](#preventing-stuck-pods)
 - [Setting the log level](#setting-the-log-level)
+- [Custom logs](#custom-logs)
 
 ## Environment variables
 
@@ -530,3 +531,20 @@ Valid values:
 - info
 - debug
 
+## Custom logs
+```{admonition} Note
+Custom logs are supported only for remote runs.
+```
+
+First set the logger format. The `format_logger` must include {timestamp}, {level}, {message}, {more}. You can add additional supported labels. This example adds {module}:
+```
+format_logger = "> {timestamp} [{level}] Running module: {module} {message} {more}"
+```
+Then, in the context of your project add the custom logger:
+```
+import mlrun
+project = mlrun.get_or_create_project("my-project")
+func = project.set_function(func="func.py",name="func",handler="func",image="mlrun/mlrun",kind="job")
+func.set_env("MLRUN_LOG_FORMAT_OVERRIDE",format_logger)
+func.set_env("MLRUN_LOG_FORMATTER","custom")
+```

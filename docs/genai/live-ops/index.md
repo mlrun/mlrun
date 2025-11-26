@@ -26,7 +26,7 @@ aligning LLM functionalities with various legal and regulatory standards to avoi
 preventing toxicity: filtering out and preventing the generation of harmful or offensive content; 
 preventing hallucination: minimizing the risk of LLMs generating factually incorrect or misleading information.
 
-Guardrails can be implemented in a [real-timeserving graph](../deployment/genai_serving_graph.md). The [Banking Agent](https://github.com/mlrun/demo-banking-agent/blob/main/README.md) demo has a few examples of guardrail implementation including using an LLM as a judge, a commonly used technique for implementing and evaluating guardrails.
+Guardrails can be implemented in a [real-timeserving graph](../deployment/genai_serving_graph.ipynb). The [Banking Agent](https://github.com/mlrun/demo-banking-agent/blob/main/README.md) demo has a few examples of guardrail implementation including using an LLM as a judge, a commonly used technique for implementing and evaluating guardrails.
 
 **See also**
 - {ref}`model-monitoring-overview`

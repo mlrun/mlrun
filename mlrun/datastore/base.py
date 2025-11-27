@@ -197,21 +197,30 @@ class DataStore(BaseRemoteClient):
         base_path: str,
         start_time: datetime.datetime,
         end_time: datetime.datetime,
+        partition_level: str,
         filesystem,
     ):
         paths = []
 
         def list_partition_paths_helper(
-            paths: list[str], start_time, end_time, current_path: str
+            paths: list[str],
+            start_time,
+            end_time,
+            current_path: str,
+            partion_level: str,
         ):
+            timing = current_path.rsplit("/")[-1].split("=")[0]
+            if filesystem.isfile(current_path):
+                paths.append(current_path.rsplit("/", 1)[0].rstrip("/"))
+                return
+            elif timing and timing == partion_level:
+                paths.append(current_path.rstrip("/"))
+                return
             directories = filesystem.ls(current_path, detail=True)
             if len(directories) == 0:
                 return
             for directory in directories:
                 current_path = directory["name"]
-                if filesystem.isfile(current_path):
-                    paths.append(current_path.rsplit("/", 1)[0].rstrip("/"))
-                    return
                 parts = [p for p in current_path.split("/") if "=" in p]
                 kwargs = {}
                 for part in parts:
@@ -221,10 +230,12 @@ class DataStore(BaseRemoteClient):
                     kwargs[key] = value
                 if DataStore.is_directory_in_range(start_time, end_time, **kwargs):
                     list_partition_paths_helper(
-                        paths, start_time, end_time, current_path
+                        paths, start_time, end_time, current_path, partion_level
                     )
 
-        list_partition_paths_helper(paths, start_time, end_time, base_path)
+        list_partition_paths_helper(
+            paths, start_time, end_time, base_path, partition_level
+        )
         for i in range(len(paths)):
             paths[i] = DataStore.reconstruct_from_base(base_path, paths[i])
         return paths
@@ -302,6 +313,7 @@ class DataStore(BaseRemoteClient):
             base_path,
             start_time,
             end_time,
+            partition_keys[-1],
             filesystem,
         )
 
@@ -608,8 +620,16 @@ class DataStore(BaseRemoteClient):
 
         path_parts = urlparse(path).path.strip("/").split("/")
         path_parts = [part.split("=")[0] for part in path_parts if "=" in part]
+        if "hour" in partitions:
+            hour_index = partitions.index("hour")
+        else:
+            return False
         for i, part in enumerate(partitions):
-            if part in path_parts or part in ["year", "month", "day", "hour"]:
+            if (
+                part in path_parts
+                or part in ["year", "month", "day", "hour"]
+                or i > hour_index
+            ):
                 continue
             else:
                 return False

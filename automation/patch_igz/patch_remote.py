@@ -54,11 +54,6 @@ class Constants:
         mlrun_kfp: mlrun_kfp,
         log_collector: log_collector,
     }
-    python_39_suffix = "-py39"
-    python_39_targets = [
-        mlrun,
-        mlrun_kfp,
-    ]
 
 
 class MLRunPatcher:
@@ -70,7 +65,6 @@ class MLRunPatcher:
         image_tag: str,
         patch_log_collector_image: bool,
         patch_mlrun_image: bool,
-        build_py39: bool,
         skip_patch_api: bool,
         patch_alerts: bool,
         no_build: bool,
@@ -85,7 +79,6 @@ class MLRunPatcher:
         self._patch_log_collector_image = bool(patch_log_collector_image)
         self._validate_config()
         self._patch_mlrun_image = patch_mlrun_image
-        self._build_py39 = build_py39
         self._skip_patch_api = skip_patch_api
         self._patch_alerts = patch_alerts
         self._no_build = no_build
@@ -328,26 +321,6 @@ class MLRunPatcher:
             cmd = ["make"]
             cmd.extend(targets)
             self._exec_local(cmd, live=True, env=env)
-            if self._build_py39:
-                python_39_targets_to_build = []
-                for python_39_target in Constants.python_39_targets:
-                    if python_39_target in targets:
-                        target_to_image[
-                            f"{python_39_target}`{Constants.python_39_suffix}"
-                        ] = (
-                            f"{mlrun_docker_registry}/{Constants.targets_to_image_name[python_39_target]}:"
-                            f"{image_tag}{Constants.python_39_suffix}"
-                        )
-                        python_39_targets_to_build.append(python_39_target)
-                self._exec_local(
-                    ["make", *python_39_targets_to_build],
-                    live=True,
-                    env={
-                        **env,
-                        "MLRUN_PYTHON_VERSION": "3.9",
-                        "INCLUDE_PYTHON_VERSION_SUFFIX": "true",
-                    },
-                )
 
         return target_to_image
 
@@ -684,12 +657,6 @@ class MLRunPatcher:
     help="Deploy the mlrun image",
 )
 @click.option(
-    "-39",
-    "--py39",
-    is_flag=True,
-    help="Build Python 3.9 MLRun image",
-)
-@click.option(
     "-sa",
     "--skip-api",
     is_flag=True,
@@ -726,7 +693,6 @@ def main(
     tag: str,
     log_collector: bool,
     mlrun: bool,
-    py39: bool,
     skip_api: bool,
     alerts: bool,
     no_build: bool,
@@ -743,7 +709,6 @@ def main(
         image_tag=tag,
         patch_log_collector_image=log_collector,
         patch_mlrun_image=mlrun,
-        build_py39=py39,
         skip_patch_api=skip_api,
         patch_alerts=alerts,
         no_build=no_build,

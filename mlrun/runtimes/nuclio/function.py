@@ -526,6 +526,10 @@ class RemoteRuntime(KubeResource):
         if batching_spec and (
             batching_config := batching_spec.get_nuclio_batch_config()
         ):
+            if not validate_nuclio_version_compatibility("1.14.0"):
+                raise mlrun.errors.MLRunValueError(
+                    "Batching is only supported on Nuclio 1.14.0 and higher"
+                )
             trigger._struct["batch"] = batching_config
 
         self.add_trigger(trigger_name or "http", trigger)

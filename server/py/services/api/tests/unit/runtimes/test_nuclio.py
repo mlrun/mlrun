@@ -875,6 +875,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_v3io_trigger(v3io_trigger)
 
     def test_deploy_with_batching(self, db: Session, client: TestClient):
+        mlconf.nuclio_version = "1.14.0"
         function = self._generate_runtime(self.runtime_kind)
 
         http_trigger = {
@@ -902,6 +903,12 @@ class TestNuclioRuntime(TestRuntimeBase):
         # disable again
         function.with_http(batching_spec=None)
         self._assert_batching_spec(function, enabled=False)
+
+        mlconf.nuclio_version = "1.13.9"
+        with pytest.raises(mlrun.errors.MLRunValueError):
+            function.with_http(
+                batching_spec=mlrun.common.schemas.BatchingSpec(enabled=True)
+            )
 
     def test_deploy_with_v3io(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)

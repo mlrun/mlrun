@@ -526,6 +526,308 @@ def add_system_steps_to_graph(
     return graph
 
 
+# ML-11518: Drain tracking state
+_drain_count = 0
+_previous_controller_id = None
+_previous_flow_id = None
+_previous_object_counts = None
+
+
+def _get_process_memory_mb():
+    """Get current process memory usage in MB."""
+    try:
+        # Read from /proc/self/statm (Linux)
+        with open("/proc/self/statm") as f:
+            # statm: size resident shared text lib data dirty
+            # resident is in pages, typically 4KB each
+            parts = f.read().split()
+            resident_pages = int(parts[1])
+            page_size_kb = os.sysconf("SC_PAGE_SIZE") // 1024
+            return (resident_pages * page_size_kb) // 1024
+    except Exception:
+        return -1
+
+
+def _count_pending_tasks():
+    """Count pending asyncio tasks."""
+    try:
+        all_tasks = asyncio.all_tasks()
+        pending = [t for t in all_tasks if not t.done()]
+        return len(pending), len(all_tasks)
+    except Exception:
+        return -1, -1
+
+
+def _get_top_object_types(top_n=10):
+    """
+    Get the top N object types by count.
+
+    Returns dict of {type_name: count} for types we care about.
+    Filters out common internal types to focus on potential leaks.
+    """
+    import gc
+    from collections import Counter
+
+    try:
+        gc.collect()
+        counts = Counter(type(obj).__name__ for obj in gc.get_objects())
+
+        # Filter out very common internal types that are unlikely to be leaks
+        ignore_types = {
+            "function", "dict", "list", "tuple", "set", "frozenset",
+            "type", "module", "method", "builtin_function_or_method",
+            "wrapper_descriptor", "method_descriptor", "getset_descriptor",
+            "member_descriptor", "classmethod_descriptor", "staticmethod",
+            "cell", "code", "frame", "traceback", "generator",
+            "weakref", "property", "classmethod",
+        }
+
+        # Get counts for interesting types only
+        interesting = {k: v for k, v in counts.items() if k not in ignore_types}
+        return dict(Counter(interesting).most_common(top_n))
+    except Exception:
+        return {}
+
+
+def _get_flow_data_sizes(server):
+    """
+    ML-11518: Get sizes of data held in flow objects.
+
+    Returns dict with queue sizes, batch sizes, and event counts.
+    """
+    import sys
+
+    result = {
+        "queue_events": 0,
+        "batch_events": 0,
+        "queue_size_kb": 0,
+        "batch_size_kb": 0,
+    }
+
+    try:
+        # Walk the flow graph to find queues and batching steps
+        if not server.graph or not hasattr(server.graph, "_async_flow"):
+            return result
+
+        def walk_steps(step, visited=None):
+            if visited is None:
+                visited = set()
+            if id(step) in visited:
+                return
+            visited.add(id(step))
+
+            # Check for queue
+            if hasattr(step, "_queue") and step._queue:
+                q = step._queue
+                if hasattr(q, "qsize"):
+                    result["queue_events"] += q.qsize()
+                if hasattr(q, "_queue"):
+                    try:
+                        result["queue_size_kb"] += sys.getsizeof(q._queue) // 1024
+                    except Exception:
+                        pass
+
+            # Check for batch
+            if hasattr(step, "_batch") and step._batch:
+                for key, events in step._batch.items():
+                    result["batch_events"] += len(events)
+                    try:
+                        for event in events:
+                            result["batch_size_kb"] += sys.getsizeof(event) // 1024
+                    except Exception:
+                        pass
+
+            # Recurse
+            for outlet in getattr(step, "_outlets", []):
+                walk_steps(outlet, visited)
+
+        walk_steps(server.graph._async_flow)
+
+    except Exception:
+        pass
+
+    return result
+
+
+def _log_drain_diagnostics(logger, phase, server):
+    """
+    ML-11518: Log diagnostics to identify memory leak source.
+
+    Tracks:
+    - Process memory growth between drains
+    - Controller/flow object identity (are we creating new ones?)
+    - Pending async tasks (are they accumulating?)
+    - Top object types by count (what's growing?)
+    - Queue and batch sizes (where is data stuck?)
+    """
+    global _drain_count, _previous_controller_id, _previous_flow_id, _previous_object_counts
+
+    memory_mb = _get_process_memory_mb()
+    pending_tasks, total_tasks = _count_pending_tasks()
+
+    # Get data sizes in flow
+    data_sizes = _get_flow_data_sizes(server)
+
+    # Get current controller/flow IDs
+    controller_id = None
+    flow_id = None
+    if server.graph and hasattr(server.graph, "_controller"):
+        controller_id = id(server.graph._controller)
+    if server.graph and hasattr(server.graph, "_async_flow"):
+        flow_id = id(server.graph._async_flow)
+
+    # Check if objects changed
+    controller_changed = (
+        _previous_controller_id is not None and
+        controller_id != _previous_controller_id
+    )
+    flow_changed = (
+        _previous_flow_id is not None and
+        flow_id != _previous_flow_id
+    )
+
+    logger.info(
+        f"ML-11518 DIAG [{phase}]: "
+        f"drain_count={_drain_count}, "
+        f"memory_mb={memory_mb}, "
+        f"pending_tasks={pending_tasks}/{total_tasks}, "
+        f"controller_id={controller_id} (changed={controller_changed}), "
+        f"flow_id={flow_id} (changed={flow_changed})"
+    )
+
+    # Log data sizes in flow (queue/batch)
+    logger.info(
+        f"ML-11518 DIAG [{phase}]: "
+        f"queue_events={data_sizes['queue_events']}, "
+        f"batch_events={data_sizes['batch_events']}, "
+        f"queue_size_kb={data_sizes['queue_size_kb']}, "
+        f"batch_size_kb={data_sizes['batch_size_kb']}"
+    )
+
+    # Log pending task details if there are many
+    if pending_tasks > 5:
+        try:
+            all_tasks = asyncio.all_tasks()
+            task_names = {}
+            for t in all_tasks:
+                if not t.done():
+                    coro = t.get_coro()
+                    name = coro.__qualname__ if hasattr(coro, "__qualname__") else str(coro)
+                    task_names[name] = task_names.get(name, 0) + 1
+
+            logger.warning(
+                f"ML-11518 DIAG [{phase}]: Pending tasks breakdown: {dict(task_names)}"
+            )
+        except Exception as e:
+            logger.warning(f"ML-11518 DIAG: Error getting task details: {e}")
+
+    # Log top object types and changes since last drain
+    current_counts = _get_top_object_types(top_n=15)
+    if current_counts:
+        logger.info(f"ML-11518 DIAG [{phase}]: Top object types: {current_counts}")
+
+        # Show what grew since last measurement
+        if _previous_object_counts is not None:
+            growth = {}
+            for obj_type, count in current_counts.items():
+                prev_count = _previous_object_counts.get(obj_type, 0)
+                if count > prev_count:
+                    growth[obj_type] = f"+{count - prev_count}"
+
+            if growth:
+                logger.warning(f"ML-11518 DIAG [{phase}]: Object growth since last: {growth}")
+
+    return controller_id, flow_id, current_counts
+
+
+async def _clear_flow_references(logger, source, graph_steps=None):
+    """
+    ML-11518: Clear circular references in storey flow objects to enable garbage collection.
+
+    Storey flows create circular references via _outlets/_inlets that are NOT cleared
+    by terminate(). This prevents garbage collection and causes memory leaks during
+    Kafka rebalancing (drain/restart cycles).
+
+    Args:
+        logger: Logger for diagnostic messages
+        source: The storey AsyncEmitSource (server.graph._async_flow)
+        graph_steps: Optional dict of graph steps to clear (server.graph._steps)
+    """
+    import gc
+
+    cleared_count = 0
+
+    def clear_step(step, visited=None):
+        """Recursively clear references on a step and its outlets/inlets."""
+        nonlocal cleared_count
+        if visited is None:
+            visited = set()
+
+        step_id = id(step)
+        if step_id in visited:
+            return
+        visited.add(step_id)
+
+        # Save outlets/inlets before clearing
+        outlets = list(getattr(step, "_outlets", []))
+        inlets = list(getattr(step, "_inlets", []))
+
+        # Clear circular references
+        if hasattr(step, "_outlets"):
+            step._outlets = []
+        if hasattr(step, "_inlets"):
+            step._inlets = []
+
+        # Clear bound method references that hold self
+        if hasattr(step, "_extract_key"):
+            step._extract_key = None
+        if hasattr(step, "_field_extractor"):
+            step._field_extractor = None
+
+        # Clear batching state
+        if hasattr(step, "_batch"):
+            step._batch.clear() if hasattr(step._batch, "clear") else None
+
+        # Cancel and clear timeout tasks (holds reference via closure)
+        if hasattr(step, "_timeout_task"):
+            task = step._timeout_task
+            if task and not task.done():
+                task.cancel()
+                # Don't await here - just cancel and clear
+            step._timeout_task = None
+
+        # Clear context reference
+        if hasattr(step, "context"):
+            step.context = None
+
+        cleared_count += 1
+
+        # Recurse to outlets and inlets
+        for outlet in outlets:
+            clear_step(outlet, visited)
+        for inlet in inlets:
+            clear_step(inlet, visited)
+
+    try:
+        # Clear the source (AsyncEmitSource) and all connected steps
+        if source:
+            clear_step(source)
+
+        # Also clear async_object references in graph steps
+        if graph_steps:
+            for step in graph_steps.values():
+                if hasattr(step, "async_object") and step.async_object:
+                    clear_step(step.async_object, set())
+
+        # Force garbage collection
+        gc.collect()
+
+        logger.info(f"ML-11518: Cleared references on {cleared_count} flow steps")
+
+    except Exception as e:
+        logger.warning(f"ML-11518: Error clearing flow references: {e}")
+
+
 def v2_serving_init(context, namespace=None):
     """hook for nuclio init_context()"""
 
@@ -891,16 +1193,36 @@ def _set_callbacks(server, context):
         )
 
         async def drain_callback():
-            context.logger.info("Drain callback called")
+            global _drain_count, _previous_controller_id, _previous_flow_id, _previous_object_counts
+
+            _drain_count += 1
+            context.logger.info(f"Drain callback called (drain #{_drain_count})")
+
+            # ML-11518: Log diagnostics BEFORE termination
+            _log_drain_diagnostics(context.logger, "BEFORE_TERMINATE", server)
+
             maybe_coroutine = server.wait_for_completion()
             if asyncio.iscoroutine(maybe_coroutine):
                 await maybe_coroutine
+
+            # ML-11518: Log diagnostics AFTER termination, BEFORE restart
+            _log_drain_diagnostics(context.logger, "AFTER_TERMINATE", server)
+
             context.logger.info(
                 "Termination of async flow is completed. Rerunning async flow."
             )
             # Rerun the flow without reconstructing it
             server.graph._run_async_flow()
-            context.logger.info("Async flow restarted")
+
+            # ML-11518: Log diagnostics AFTER restart, update tracking state
+            new_ctrl_id, new_flow_id, new_counts = _log_drain_diagnostics(
+                context.logger, "AFTER_RESTART", server
+            )
+            _previous_controller_id = new_ctrl_id
+            _previous_flow_id = new_flow_id
+            _previous_object_counts = new_counts
+
+            context.logger.info(f"Async flow restarted (drain #{_drain_count} complete)")
 
         context.platform.set_drain_callback(drain_callback)
 

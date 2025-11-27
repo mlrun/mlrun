@@ -147,7 +147,8 @@ class BatchingSpec(pydantic.v1.BaseModel):
     enabled: bool
     # Maximal events to batch together
     batch_size: typing.Optional[int]
-    # How long to wait before sending the batch
+    # The maximum amount of time to wait before processing the batch.
+    # Once this time passes, the batch is processed even if it hasn’t reached the full batch size.
     timeout: typing.Optional[str]
 
     def get_nuclio_batch_config(self):

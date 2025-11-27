@@ -62,7 +62,7 @@ TDEngine will be replaced with TimescaleDB. Data will not be migrated.**
 ### Batch run
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5986|You can now configure to retry jobs that fail using the API. See {py:meth}`~mlrun.projects.MlrunProject.run_function`. The retry status is shown in the new <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table showing the retry status.|
+|ML-5986|You can now configure to retry runs that fail using the SDK. See {ref}`run_project_functions#run`.|
 |ML-9681|You can now deploy a serving graph as a job. See {ref}`batch-infer-drift-tutor`.|
 
 ### UI

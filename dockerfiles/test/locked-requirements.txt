@@ -1798,9 +1798,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.148.3 \
-    --hash=sha256:bd81221740d8658473060ad900dc831f889f156fdb41210ba2f47cfad10a66ed \
-    --hash=sha256:e7dd193da9800234ec5e1541c1eddde4bddff49b53faf690ba68a0af55a7abb3
+hypothesis==6.148.2 \
+    --hash=sha256:07e65d34d687ddff3e92a3ac6b43966c193356896813aec79f0a611c5018f4b1 \
+    --hash=sha256:bf8ddc829009da73b321994b902b1964bcc3e5c3f0ed9a1c1e6a1631ab97c5fa
     # via -r dev-requirements.txt
 idna==3.11 \
     --hash=sha256:771a87f49d9defaf64091e6e6fe9c18d4833f140bd19464795bc32d966ca37ea \

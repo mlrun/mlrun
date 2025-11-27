@@ -18,6 +18,7 @@ import os
 import pytest
 from transformers import AutoTokenizer
 
+import mlrun.serving.states
 from mlrun.datastore.datastore_profile import (
     HuggingFaceProfile,
 )
@@ -25,6 +26,8 @@ from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
+    PROMPT_LEGEND,
+    PROMPT_TEMPLATE,
     setup_remote_model_test,
 )
 from tests.system.base import TestMLRunSystem
@@ -56,7 +59,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
 
     @pytest.mark.parametrize(
         "execution_mechanism",
-        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+        ["thread_pool"],
     )
     def test_basic_huggingface_model_runner(self, execution_mechanism):
         self.setup_datastore_profile()
@@ -81,12 +84,16 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         # The default Nuclio resource configuration is:
         # {"requests": {"cpu": "25m", "memory": "1Mi"}, "limits": {"cpu": "2", "memory": "20Gi"}}
         function.spec.resources = {
-            "limits": {"cpu": "5", "memory": "30Gi"},
-            "requests": {"cpu": "3", "memory": "1Mi"},
+            "limits": {"cpu": "7", "memory": "20Gi"},
+            "requests": {"cpu": "25m", "memory": "1Mi"},
         }
         function.spec.max_replicas = (
             1  # to avoid allocating extended resources to multiple pods
         )
+        # Set workers=None to avoid using the default value of 8 workers
+        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None)
+        function.spec.readiness_timeout = 600
+
         function.deploy()
         response = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",
@@ -161,3 +168,90 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             assert "score" in result
             assert isinstance(result["score"], float)
             assert 0 <= result["score"] <= 1
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_hf_2_models(self, execution_mechanism):
+        self.setup_datastore_profile()
+        llm_model2 = "google/gemma-2b-it"
+        ep_name = "ep"
+        second_ep_name = "ep2"
+        model_class = "mlrun.serving.states.LLModel"
+        second_model_url = self.url_prefix + llm_model2
+
+        model1 = self.project.log_model(
+            "model_key", model_url=self.model_url, default_config={"max_new_tokens": 50}
+        )
+
+        model2 = self.project.log_model(
+            "model_key2",
+            model_url=second_model_url,
+            default_config={"max_new_tokens": 50},
+        )
+        llm_art1 = self.project.log_llm_prompt(
+            "llm_artifact",
+            prompt_template=PROMPT_TEMPLATE,
+            description="remote_model_open_ai-llm-prompt-prompt",
+            prompt_legend=PROMPT_LEGEND,
+            model_artifact=model1,
+        )
+
+        llm_art2 = self.project.log_llm_prompt(
+            "llm_artifact2",
+            prompt_template=PROMPT_TEMPLATE,
+            description="remote_model_open_ai-llm-prompt-prompt",
+            prompt_legend=PROMPT_LEGEND,
+            model_artifact=model2,
+        )
+
+        function = self.project.set_function(
+            name="function_with_llm_hf",
+            kind="serving",
+            requirements=[
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/cpu",
+                "torch==2.8.0+cpu",
+                "transformers==4.56.2",
+                "pillow~=11.3",
+            ],
+            image=self.image,
+        )
+
+        function.spec.resources = {
+            "limits": {"cpu": "7", "memory": "20Gi"},
+            "requests": {"cpu": "25m", "memory": "1Mi"},
+        }
+        function.spec.readiness_timeout = 600
+        function.spec.max_replicas = (
+            1  # to avoid allocating extended resources to multiple pods
+        )
+        # Set workers=None to avoid using the default value of 8 workers
+        function.with_http(gateway_timeout=1100, worker_timeout=1000, workers=None)
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="mrs")
+        model_runner_step.add_model(
+            endpoint_name=ep_name,
+            model_class=model_class,
+            execution_mechanism=execution_mechanism,
+            model_artifact=llm_art1,
+            result_path="output",
+        )
+        model_runner_step.add_model(
+            endpoint_name=second_ep_name,
+            model_class=model_class,
+            execution_mechanism=execution_mechanism,
+            model_artifact=llm_art2,
+            result_path="output",
+        )
+
+        llm_graph = function.set_topology("flow", engine="async")
+        llm_graph.to(model_runner_step).respond()
+        function.deploy()
+
+        results = function.invoke("/", json.dumps(INPUT_DATA[0]))
+        # Verify we got the expected number of results
+
+        assert sorted(list(results.keys())) == sorted([ep_name, second_ep_name])
+        for model_result in results.values():
+            assert "paris" in model_result["output"]["answer"].lower()

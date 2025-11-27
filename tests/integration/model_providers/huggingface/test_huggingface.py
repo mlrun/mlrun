@@ -36,6 +36,8 @@ from mlrun.datastore.model_provider.model_provider import (
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
+    PROMPT_LEGEND,
+    PROMPT_TEMPLATE,
     formatted_messages,
     setup_remote_model_test,
 )
@@ -366,5 +368,100 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
                 assert "score" in result
                 assert isinstance(result["score"], float)
                 assert 0 <= result["score"] <= 1
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_hf_2_models(self, execution_mechanism):
+        proj_obj = mlrun.new_project("test-hf-model", save=False)
+        llm_model2 = "google/gemma-2b-it"
+        ep_name = "ep1"
+        second_ep_name = "ep2"
+        model_class = "mlrun.serving.states.LLModel"
+
+        model_url = self.url_prefix + self.basic_llm_model
+        second_model_url = self.url_prefix + llm_model2
+
+        model1 = proj_obj.log_model(
+            "model_key", model_url=model_url, default_config={"max_new_tokens": 50}
+        )
+
+        model2 = proj_obj.log_model(
+            "model_key2",
+            model_url=second_model_url,
+            default_config={"max_new_tokens": 50},
+        )
+        llm_art1 = proj_obj.log_llm_prompt(
+            "llm_artifact",
+            prompt_template=PROMPT_TEMPLATE,
+            description="remote_model_open_ai-llm-prompt-prompt",
+            prompt_legend=PROMPT_LEGEND,
+            model_artifact=model1,
+        )
+
+        llm_art2 = proj_obj.log_llm_prompt(
+            "llm_artifact2",
+            prompt_template=PROMPT_TEMPLATE,
+            description="remote_model_open_ai-llm-prompt-prompt",
+            prompt_legend=PROMPT_LEGEND,
+            model_artifact=model2,
+        )
+
+        function = proj_obj.set_function(
+            name="function_with_llm_hf",
+            kind="serving",
+            requirements=[
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/cpu",
+                "torch==2.7.1+cpu",
+                "transformers==4.53.2",
+                "pillow~=11.3",
+            ],
+        )
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="mrs")
+        model_runner_step.add_model(
+            endpoint_name=ep_name,
+            model_class=model_class,
+            execution_mechanism=execution_mechanism,
+            model_artifact=llm_art1,
+            result_path="output",
+        )
+        model_runner_step.add_model(
+            endpoint_name=second_ep_name,
+            model_class=model_class,
+            execution_mechanism=execution_mechanism,
+            model_artifact=llm_art2,
+            result_path="output",
+        )
+
+        llm_graph = function.set_topology("flow", engine="async")
+        llm_graph.to(model_runner_step).respond()
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model1.uri: model1,
+                model2.uri: model2,
+                llm_art1.uri: llm_art1,
+                llm_art2.uri: llm_art2,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            results = server.test(body=INPUT_DATA[0])
+            # Verify we got the expected number of results
+
+            assert sorted(list(results.keys())) == sorted([ep_name, second_ep_name])
+            for model_result in results.values():
+                assert "paris" in model_result["output"]["answer"].lower()
         finally:
             server.wait_for_completion()

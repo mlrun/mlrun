@@ -126,27 +126,37 @@ aggregate_run = aggregate_function.run(
 ```
 
 ## Modules
-<<<<<<< HEAD
-There are two types of modules: generic and model monitoring. The model monitoring apps provide off-the-shelf monitoring, and save you the time required to develop and test apps. You can also add applications to your own hub, making them easily accessible for sharing.
+There are two types of modules: generic and model monitoring application. You can also add modules to your own hub, making them easily accessible for sharing.
 
 The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
 
 There are two types of modules: generic and model monitoring. The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
 
 There are two means of using modules from the hub:
-- [Import the module as a model monitoring function and use it without modifying it](#module-off-shelf)
-- [Import the module, and optionally test and modify it before running it](#modify-module)
+- [Import a module](#import-a-module)
+- [Import a model monitoring application](#import-a-model-monitoring-application)
+
+
+(import-a-module)=
+### Import a module
+
+First import the module from the hub, which downloads it to your local file system. For example:
+```
+module = mlrun.import_module("hub://my_module")
+```
+At this point, you can call the module's functions. For example, if the module has a function named `execute`, you can run it as follows:
+```
+module.execute()
+```
+### Import a model monitoring application
 
 ```{admonition} Note
-If you are importing a model monitoring module:
+Before you import a model monitoring module:
 - [Set the datastore profiles](../tutorials/05-model-monitoring.ipynb#set-datastore-profiles)
 - [Enable model monitoring](../tutorials/05-model-monitoring.ipynb#enable-model-monitoring)
 ```
-
-(module-off-shelf)=
-### Use a module "off the shelf"
-
-To use a module directly in your project without modifying it, the code looks like:
+The model monitoring apps provide off-the-shelf monitoring, and save you the time required to develop and test apps. 
+To use a model monitoring module directly in your project without modifying it, the code looks like:
 
 ```
 fn = project.set_model_monitoring_function(
@@ -156,15 +166,14 @@ fn = project.set_model_monitoring_function(
 )
 project.deploy_function(fn)
 ```
-(modify-module)=
-### Import and modify a module
+You can also download a model monitoring module and modify it. 
 
 First import the module from the hub, which downloads it to your local file system:
 ```
 count_events_app = mlrun.import_module("hub://count_events")
 ```
 
-Then run the app as a job:
+The module is now available on your filesystem, and you can modify it as needed. For example, you can run the app as a job:
 ```
 res = count_events_app.CountApp.evaluate(func_path="count_events.py",
     run_local=False,
@@ -172,8 +181,7 @@ res = count_events_app.CountApp.evaluate(func_path="count_events.py",
                                    image=image,
                                   endpoints=["model_0"])
 ```
-The application is now available on your filesystem, and you can register and deploy it just like any other custom application:
-
+You can also deploy it just like any other custom monitoring application:
 ```
 fn = project.set_model_monitoring_function(
     func="count_events.py",

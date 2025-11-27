@@ -159,6 +159,109 @@ class DataStore(BaseRemoteClient):
         return {}
 
     @staticmethod
+    def is_directory_in_range(
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+        year: int = None,
+        month: int = None,
+        day: int = None,
+        hour: int = None,
+    ):
+        """Check if a partition directory (year=.., month=.., etc.) is in the time range."""
+        from dateutil.relativedelta import relativedelta
+
+        partition_start = datetime.datetime(
+            year=year,
+            month=month or 1,
+            day=day or 1,
+            hour=hour or 0,
+            tzinfo=start_time.tzinfo,
+        )
+        partition_end = (
+            partition_start
+            + relativedelta(
+                years=1 if month is None else 0,
+                months=1 if day is None and month is not None else 0,
+                days=1 if hour is None and day is not None else 0,
+                hours=1 if hour is not None else 0,
+            )
+            - datetime.timedelta(microseconds=1)
+        )
+
+        if end_time < partition_start or start_time > partition_end:
+            return False
+        return True
+
+    @staticmethod
+    def list_partitioned_paths(
+        base_path: str,
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+        filesystem,
+    ):
+        paths = []
+
+        def list_partition_paths_helper(
+            paths: list[str], start_time, end_time, current_path: str
+        ):
+            directories = filesystem.ls(current_path, detail=True)
+            if len(directories) == 0:
+                return
+            for directory in directories:
+                current_path = directory["name"]
+                if filesystem.isfile(current_path):
+                    paths.append(current_path.rsplit("/", 1)[0].rstrip("/"))
+                    return
+                parts = [p for p in current_path.split("/") if "=" in p]
+                kwargs = {}
+                for part in parts:
+                    part = part.split("=")
+                    key = part[0]
+                    value = int(part[1])
+                    kwargs[key] = value
+                if DataStore.is_directory_in_range(start_time, end_time, **kwargs):
+                    list_partition_paths_helper(
+                        paths, start_time, end_time, current_path
+                    )
+
+        list_partition_paths_helper(paths, start_time, end_time, base_path)
+        for i in range(len(paths)):
+            paths[i] = DataStore.reconstruct_from_base(base_path, paths[i])
+        return paths
+
+    @staticmethod
+    def reconstruct_from_base(base_path: str, returned_path: str) -> str:
+        base_path = base_path.rstrip("/")
+        clean_return = returned_path.strip("/")
+
+        prefix, _, base_suffix = base_path.partition(":///")
+        schema = prefix + ":///"
+
+        return schema + clean_return
+
+    @staticmethod
+    def next_rounded_step(current: datetime.datetime, key: str) -> datetime.datetime:
+        tz = current.tzinfo
+        if key == "day":
+            current = (current + datetime.timedelta(days=1)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+        elif key == "month":
+            if current.month == 12:
+                current = datetime.datetime(
+                    year=current.year + 1, month=1, day=1, tzinfo=tz
+                )
+            else:
+                current = datetime.datetime(
+                    year=current.year, month=current.month + 1, day=1, tzinfo=tz
+                )
+        elif key == "year":
+            current = datetime.datetime(
+                year=current.year + 1, month=1, day=1, tzinfo=tz
+            )
+        return current
+
+    @staticmethod
     def read_partitioned_parquet(
         base_path,
         start_time,
@@ -174,124 +277,6 @@ class DataStore(BaseRemoteClient):
             raise ValueError(
                 f"No partition structure found under {base_path}, while usage requires partition keys"
             )
-
-        def list_partitioned_paths(
-            base_path: str,
-            partition_keys: list[str],
-            start_time,
-            end_time,
-            filesystem,
-        ):
-            """
-            Build a list of Paths based on detected partitioning and time range.
-
-            Automatically adjusts iteration step based on deepest partition key.
-            """
-            # Determine smallest partition granularity
-            actual_partition_keys = []
-            step = None
-            next_step = None
-            for key in ["year", "month", "day", "hour"]:
-                if key in partition_keys:
-                    actual_partition_keys.append(key)
-
-            if "hour" in actual_partition_keys:
-                step = datetime.timedelta(hours=1)
-                fmt_keys = ["year", "month", "day", "hour"]
-            elif "day" in actual_partition_keys:
-                step = datetime.timedelta(days=1)
-                fmt_keys = ["year", "month", "day"]
-            elif "month" in actual_partition_keys:
-                # Approximate month stepping
-                fmt_keys = ["year", "month"]
-
-                def next_step(dt):
-                    year = dt.year + (dt.month // 12)
-                    month = 1 if dt.month == 12 else dt.month + 1
-                    return dt.replace(year=year, month=month, day=1)
-            elif "year" in actual_partition_keys:
-                fmt_keys = ["year"]
-
-                def next_step(dt):
-                    return dt.replace(year=dt.year + 1, month=1, day=1)
-            else:
-                raise ValueError("No recognized time-based partition key found")
-
-            paths = []
-            current = start_time
-
-            while current <= end_time:
-                # Build directory structure from partition keys
-                parts = []
-                exists = True
-                current_time = None
-                for key in fmt_keys:
-                    if parts:
-                        directories = filesystem.listdir(
-                            f"{base_path.rstrip('/')}/" + "/".join(parts)
-                        )
-                    else:
-                        directories = filesystem.listdir(f"{base_path.rstrip('/')}/")
-                    if key == "year":
-                        current_time = current.year
-                    elif key == "month":
-                        current_time = current.month
-                    elif key == "day":
-                        current_time = current.day
-                    elif key == "hour":
-                        current_time = current.hour
-
-                    matches = [
-                        directory["name"].split("/")[-1]
-                        for directory in directories
-                        if len(split_dir := directory["name"].split("/")[-1].split("="))
-                        > 1
-                        and current_time == int(split_dir[-1])
-                        and key == split_dir[-2]
-                    ]
-
-                    if not matches:
-                        exists = False
-                        break
-                    parts.append(matches[0])
-
-                if exists:
-                    paths.append(f"{base_path.rstrip('/')}/" + "/".join(parts))
-
-                # Advance to next period
-                if exists or key == actual_partition_keys[-1]:
-                    if step:
-                        current += step
-                    elif next_step:
-                        current = next_step(current)
-                elif not exists:
-                    current = next_rounded_step(current, key)
-
-            logger.info("Generated partitioned paths", extra={"paths": paths})
-            return paths
-
-        def next_rounded_step(
-            current: datetime.datetime, key: str
-        ) -> datetime.datetime:
-            tz = current.tzinfo
-            if key == "day":
-                current = (current + datetime.timedelta(days=1)).replace(
-                    hour=0, minute=0, second=0, microsecond=0
-                )
-            elif key == "month":
-                if current.month == 12:
-                    current = datetime.datetime(
-                        year=current.year + 1, month=1, day=1, tzinfo=tz
-                    )
-                else:
-                    current = datetime.datetime(
-                        year=current.year, month=current.month + 1, day=1, tzinfo=tz
-                    )
-            elif key == "year":
-                current = datetime.datetime(
-                    year=current.year + 1, month=1, day=1, tzinfo=tz
-                )
-            return current
 
         def clean_filters_for_partitions(
             filters,
@@ -313,9 +298,8 @@ class DataStore(BaseRemoteClient):
                     cleaned_filters.append(new_group)
             return cleaned_filters
 
-        paths = list_partitioned_paths(
+        paths = DataStore.list_partitioned_paths(
             base_path,
-            partition_keys,
             start_time,
             end_time,
             filesystem,
@@ -617,23 +601,15 @@ class DataStore(BaseRemoteClient):
         except ImportError:
             return False
 
-    @classmethod
-    def verify_path_partition_level(cls, path: str, partitions: list[str]) -> bool:
+    @staticmethod
+    def verify_path_partition_level(path: str, partitions: list[str]) -> bool:
         if not partitions:
-            return True
+            return False
 
         path_parts = urlparse(path).path.strip("/").split("/")
         path_parts = [part.split("=")[0] for part in path_parts if "=" in part]
-        if partitions and "year" in partitions:
-            time_index = partitions.index("year")
-        else:
-            return False
         for i, part in enumerate(partitions):
-            if (
-                part in path_parts
-                or part in ["year", "month", "day", "hour"]
-                or i > time_index
-            ):
+            if part in path_parts or part in ["year", "month", "day", "hour"]:
                 continue
             else:
                 return False

@@ -18,11 +18,12 @@ import os
 import shutil
 import sys
 import unittest
+from collections.abc import Callable
 from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 from unittest.mock import Mock
 
 import deepdiff

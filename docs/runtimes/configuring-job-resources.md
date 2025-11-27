@@ -19,6 +19,7 @@ Configuring runs and functions is relevant for all supported cloud platforms.
 - [Mounting persistent storage](#mounting-persistent-storage)
 - [Preventing stuck pods](#preventing-stuck-pods)
 - [Setting the log level](#setting-the-log-level)
+- [Custom logs](#custom-logs)
 
 ## Environment variables
 
@@ -172,7 +173,7 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 
 ## Preemption mode: Spot vs. On-demand nodes
-ß
+
 You can control whether to run your MLRun functions on spot nodes or on-demand nodes. 
 - **Spot (preemptible)** nodes give you access to spare computing capacity from your cloud environment. 
 With spot instances, you request capacity from specific availability zones, dependent on spare computing capacity. This is a good choice if you can be flexible about when your application runs,
@@ -494,7 +495,7 @@ The four states and their default thresholds are:
 'pending_scheduled': '1h', #Scheduled and pending and therefore consumes resources
 'pending_not_scheduled': '-1', #Scheduled but not pending, can continue to wait for resources
 'image_pull_backoff': '1h', #Container running in a pod fails to pull the required image from a container registry
-'running': '24h' #Job is running  
+'executing': '24h' #Job is running  
 ```
 
 The thresholds are time strings constructed of value and scale pairs (e.g. "30 minutes 5h 1day"). 
@@ -530,3 +531,20 @@ Valid values:
 - info
 - debug
 
+## Custom logs
+```{admonition} Note
+Custom logs are supported only for remote runs.
+```
+
+First set the logger format. The `format_logger` must include {timestamp}, {level}, {message}, {more}. You can add additional supported labels. This example adds {module}:
+```
+format_logger = "> {timestamp} [{level}] Running module: {module} {message} {more}"
+```
+Then, in the context of your project add the custom logger:
+```
+import mlrun
+project = mlrun.get_or_create_project("my-project")
+func = project.set_function(func="func.py",name="func",handler="func",image="mlrun/mlrun",kind="job")
+func.set_env("MLRUN_LOG_FORMAT_OVERRIDE",format_logger)
+func.set_env("MLRUN_LOG_FORMATTER","custom")
+```

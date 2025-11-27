@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 import numpy as np
 import tensorflow as tf
@@ -441,8 +442,8 @@ class LoggingCallback(Callback):
                     )
 
         # Parse the value:
-        if isinstance(value, (tf.Tensor, tf.Variable)) or (
-            is_keras_3() and isinstance(value, (keras.KerasTensor, keras.Variable))
+        if isinstance(value, tf.Tensor | tf.Variable) or (
+            is_keras_3() and isinstance(value, keras.KerasTensor | keras.Variable)
         ):
             if int(tf.size(value)) == 1:
                 value = float(value)
@@ -459,7 +460,7 @@ class LoggingCallback(Callback):
                     f"The parameter with the following key chain: {key_chain} is a numpy.ndarray with {value.size} "
                     f"elements. numpy arrays are trackable only if they have 1 element."
                 )
-        elif not (isinstance(value, (float, int, str, bool))):
+        elif not (isinstance(value, float | int | str | bool)):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"The parameter with the following key chain: {key_chain} is of type '{type(value)}'. The only "
                 f"trackable types are: float, int, str and bool."

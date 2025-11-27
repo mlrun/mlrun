@@ -72,7 +72,7 @@ jobs:
       mlrun_version: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrun_version_specifier: ${{ steps.computed_params.outputs.mlrun_version_specifier }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Extract git hashes from upstream and latest version
         id: git_upstream_info
@@ -174,7 +174,7 @@ jobs:
       group: mlrun-ce
     needs: [prepare-inputs, build-mlrun]
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
@@ -182,7 +182,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3
+      uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"

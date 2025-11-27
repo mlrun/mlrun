@@ -42,7 +42,7 @@ class PlotArtifact(Artifact):
         import matplotlib
 
         if not self.spec.get_body() or not isinstance(
-            self.spec.get_body(), (bytes, matplotlib.figure.Figure)
+            self.spec.get_body(), bytes | matplotlib.figure.Figure
         ):
             raise ValueError(
                 "matplotlib fig or png bytes must be provided as artifact body"

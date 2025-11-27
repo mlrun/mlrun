@@ -16,8 +16,9 @@ import http
 import re
 import typing
 import warnings
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import requests.exceptions
 from nuclio.build import mlrun_footer

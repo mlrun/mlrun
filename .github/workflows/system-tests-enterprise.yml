@@ -16,9 +16,15 @@ name: System Tests Enterprise
 
 permissions:
   contents: read
+  id-token: write   # This is required for requesting the AWS OIDC JWT
+
 
 env:
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
+  # AWS Configuration
+  AWS_REGION: us-east-1
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::939152069779:role/MLRun-S3-Read
 
 on:
   push:
@@ -62,7 +68,8 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
+
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass
@@ -103,15 +110,24 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass jq curl gnupg nodejs
     - uses: actions/setup-node@v6
       with:
         node-version: 18
+    - name: Configure AWS credentials
+      id: creds
+      uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708
+      with:
+        role-to-assume: ${{ env.AWS_ROLE_ARN }}
+        role-session-name: mlrun-system-tests-${{ github.run_id }}
+        aws-region: ${{ env.AWS_REGION }}
+        output-credentials: true
+
     - name: Install uv
-      uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3 # 7.1.3
+      uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
       with:
         enable-cache: true
         python-version: 3.11
@@ -178,7 +194,7 @@ jobs:
       # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
       # before merging the changes to upstream.
     - name: Checkout base branch
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Install automation scripts dependencies
       run: |
@@ -242,6 +258,7 @@ jobs:
     - name: Prepare System Test Environment and Install MLRun
       env:
         IP_ADDR_PREFIX: ${{ secrets.IP_ADDR_PREFIX }}
+        # AWS credentials are automatically available from configure-aws-credentials action
       timeout-minutes: 50
       run: |
         . venv/bin/activate
@@ -250,10 +267,11 @@ jobs:
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
           --data-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           --provctl-download-url "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
-          --provctl-download-s3-access-key "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_ACCESS_KEY }}" \
-          --provctl-download-s3-key-id "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_KEY_ID }}" \
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          --aws-access-key-id "${{ steps.creds.outputs.aws-access-key-id }}" \
+          --aws-secret-access-key "${{ steps.creds.outputs.aws-secret-access-key }}" \
+          --aws-oidc-access-token "${{ steps.creds.outputs.aws-session-token }}" \
           --iguazio-version "${{ steps.computed_params.outputs.iguazio_version }}" \
           --mlrun-version "${{ steps.computed_params.outputs.mlrun_version }}" \
           --mlrun-ui-version "${{ steps.computed_params.outputs.mlrun_ui_version }}" \
@@ -350,7 +368,7 @@ jobs:
       with:
         node-version: 18
 
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
       # the system tests of the branch that triggered the system tests as it might be in a different version
       # than the mlrun version we deployed on the previous job (can have features that the resolved branch doesn't have)
@@ -358,7 +376,7 @@ jobs:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3 # 7.1.3
+      uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
       with:
         enable-cache: true
         python-version: 3.11

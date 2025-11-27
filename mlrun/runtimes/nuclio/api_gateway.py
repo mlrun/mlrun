@@ -476,7 +476,7 @@ class APIGateway(ModelObj):
         # Determine the correct keyword argument for the body
         if isinstance(body, dict):
             kwargs["json"] = body
-        elif isinstance(body, (str, bytes)):
+        elif isinstance(body, str | bytes):
             kwargs["data"] = body
 
         return requests.request(

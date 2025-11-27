@@ -16,7 +16,7 @@ import os
 import random
 import tempfile
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -101,7 +101,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.cursor.close()
 
     def generate_snowflake_source_table(self):
-        utc_timezone = timezone.utc
+        utc_timezone = UTC
 
         data_values = [
             (

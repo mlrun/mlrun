@@ -95,7 +95,7 @@ def _setup_test(
     test_directory: str,
 ) -> KubejobRuntime:
     # Enabled logging tuples only if the tuple test is about to be setup:
-    if isinstance(test, (PackTest, PackToUnpackTest)) and tester is TuplePackagerTester:
+    if isinstance(test, PackTest | PackToUnpackTest) and tester is TuplePackagerTester:
         mlrun.mlconf.packagers.pack_tuples = True
 
     # Create a project for this tester:

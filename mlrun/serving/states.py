@@ -649,14 +649,14 @@ class BaseStep(ModelObj):
         if actual_shared_name and actual_shared_name not in step._shared_proxy_mapping:
             step._shared_proxy_mapping[actual_shared_name] = {
                 name: artifact.uri
-                if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                if isinstance(artifact, ModelArtifact | LLMPromptArtifact)
                 else artifact
             }
         elif actual_shared_name:
             step._shared_proxy_mapping[actual_shared_name].update(
                 {
                     name: artifact.uri
-                    if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                    if isinstance(artifact, ModelArtifact | LLMPromptArtifact)
                     else artifact
                 }
             )
@@ -1651,15 +1651,14 @@ class ModelRunnerStep(MonitoredStep):
 
     Note ModelRunnerStep can only be added to a graph that has the flow topology and running with async engine.
 
-    Note see config_pool_resource method documentation for default number of max threads and max processes.
+    Note see configure_pool_resource method documentation for default number of max threads and max processes.
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
       an error. If False, the error will appear in the output event.
 
-    raise ModelRunnerError -
-                              when a model raises an error the ModelRunnerStep will handle it, collect errors and
+    :raise ModelRunnerError: when a model raises an error the ModelRunnerStep will handle it, collect errors and
                               outputs from added models. If raise_exception is True will raise ModelRunnerError. Else
                               will add the error msg as part of the event body mapped by model name if more than
                               one model was added to the ModelRunnerStep
@@ -1805,14 +1804,14 @@ class ModelRunnerStep(MonitoredStep):
         if shared_model_name and shared_model_name not in self._shared_proxy_mapping:
             self._shared_proxy_mapping[shared_model_name] = {
                 endpoint_name: model_artifact.uri
-                if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                if isinstance(model_artifact, ModelArtifact | LLMPromptArtifact)
                 else model_artifact
             }
         elif override and shared_model_name:
             self._shared_proxy_mapping[shared_model_name].update(
                 {
                     endpoint_name: model_artifact.uri
-                    if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                    if isinstance(model_artifact, ModelArtifact | LLMPromptArtifact)
                     else model_artifact
                 }
             )
@@ -3456,7 +3455,7 @@ def _init_async_objects(context, steps):
                         datastore_profile = datastore_profile_read(stream_path)
                         if isinstance(
                             datastore_profile,
-                            (DatastoreProfileKafkaTarget, DatastoreProfileKafkaStream),
+                            DatastoreProfileKafkaTarget | DatastoreProfileKafkaStream,
                         ):
                             step._async_object = KafkaStoreyTarget(
                                 path=stream_path,

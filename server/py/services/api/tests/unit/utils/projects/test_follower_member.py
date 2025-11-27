@@ -431,7 +431,7 @@ async def test_list_project_summaries(
 
     # cannot compare exact datetime objects, so assert that the difference from now is less than 10 seconds
     # and then remove the updated field for comparison.
-    assert datetime.datetime.now(tz=datetime.timezone.utc) - db_project_summary[
+    assert datetime.datetime.now(tz=datetime.UTC) - db_project_summary[
         "updated"
     ] < datetime.timedelta(seconds=10)
     db_project_summary["updated"] = None

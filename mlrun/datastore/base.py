@@ -159,13 +159,13 @@ class DataStore(BaseRemoteClient):
         return {}
 
     @staticmethod
-    def is_directory_in_range(
+    def _is_directory_in_range(
         start_time: datetime.datetime,
         end_time: datetime.datetime,
-        year: int = None,
-        month: int = None,
-        day: int = None,
-        hour: int = None,
+        year: int,
+        month: Optional[int] = None,
+        day: Optional[int] = None,
+        hour: Optional[int] = None,
     ):
         """Check if a partition directory (year=.., month=.., etc.) is in the time range."""
         from dateutil.relativedelta import relativedelta
@@ -193,7 +193,7 @@ class DataStore(BaseRemoteClient):
         return True
 
     @staticmethod
-    def list_partitioned_paths(
+    def _list_partitioned_paths(
         base_path: str,
         start_time: datetime.datetime,
         end_time: datetime.datetime,
@@ -228,7 +228,7 @@ class DataStore(BaseRemoteClient):
                     key = part[0]
                     value = int(part[1])
                     kwargs[key] = value
-                if DataStore.is_directory_in_range(start_time, end_time, **kwargs):
+                if DataStore._is_directory_in_range(start_time, end_time, **kwargs):
                     list_partition_paths_helper(
                         paths, start_time, end_time, current_path, partion_level
                     )
@@ -237,11 +237,11 @@ class DataStore(BaseRemoteClient):
             paths, start_time, end_time, base_path, partition_level
         )
         for i in range(len(paths)):
-            paths[i] = DataStore.reconstruct_from_base(base_path, paths[i])
+            paths[i] = DataStore._reconstruct_path_from_base_path(base_path, paths[i])
         return paths
 
     @staticmethod
-    def reconstruct_from_base(base_path: str, returned_path: str) -> str:
+    def _reconstruct_path_from_base_path(base_path: str, returned_path: str) -> str:
         base_path = base_path.rstrip("/")
         clean_return = returned_path.strip("/")
 
@@ -251,29 +251,28 @@ class DataStore(BaseRemoteClient):
         return schema + clean_return
 
     @staticmethod
-    def next_rounded_step(current: datetime.datetime, key: str) -> datetime.datetime:
-        tz = current.tzinfo
-        if key == "day":
-            current = (current + datetime.timedelta(days=1)).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-        elif key == "month":
-            if current.month == 12:
-                current = datetime.datetime(
-                    year=current.year + 1, month=1, day=1, tzinfo=tz
-                )
-            else:
-                current = datetime.datetime(
-                    year=current.year, month=current.month + 1, day=1, tzinfo=tz
-                )
-        elif key == "year":
-            current = datetime.datetime(
-                year=current.year + 1, month=1, day=1, tzinfo=tz
-            )
-        return current
+    def _clean_filters_for_partitions(
+        filters,
+        partition_keys,
+    ):
+        """
+        Remove partition keys from filters.
+
+        :param filters: (list of lists of tuples) pandas-style filters
+                Example: [[('year','=',2025),('month','=',11),('timestamp','>',ts1)]]
+        :param partition_keys: (list of str) partition columns handled via directory
+
+        :return list of list of tuples: cleaned filters
+        """
+        cleaned_filters = []
+        for group in filters:
+            new_group = [f for f in group if f[0] not in partition_keys]
+            if new_group:
+                cleaned_filters.append(new_group)
+        return cleaned_filters
 
     @staticmethod
-    def read_partitioned_parquet(
+    def _read_partitioned_parquet(
         base_path,
         start_time,
         end_time,
@@ -289,27 +288,7 @@ class DataStore(BaseRemoteClient):
                 f"No partition structure found under {base_path}, while usage requires partition keys"
             )
 
-        def clean_filters_for_partitions(
-            filters,
-            partition_keys,
-        ):
-            """
-            Remove partition keys from filters.
-
-            :param filters: (list of lists of tuples) pandas-style filters
-                    Example: [[('year','=',2025),('month','=',11),('timestamp','>',ts1)]]
-            :param partition_keys: (list of str) partition columns handled via directory
-
-            :return list of list of tuples: cleaned filters
-            """
-            cleaned_filters = []
-            for group in filters:
-                new_group = [f for f in group if f[0] not in partition_keys]
-                if new_group:
-                    cleaned_filters.append(new_group)
-            return cleaned_filters
-
-        paths = DataStore.list_partitioned_paths(
+        paths = DataStore._list_partitioned_paths(
             base_path,
             start_time,
             end_time,
@@ -321,7 +300,7 @@ class DataStore(BaseRemoteClient):
         errors = []
         for current_path in paths:
             try:
-                kwargs["filters"] = clean_filters_for_partitions(
+                kwargs["filters"] = DataStore._clean_filters_for_partitions(
                     kwargs["filters"], partition_keys
                 )
                 df = df_module.read_parquet(current_path, **kwargs)
@@ -414,7 +393,7 @@ class DataStore(BaseRemoteClient):
                         and partitions_time_attributes
                         and DataStore.verify_path_partition_level(url, partitions)
                     ):
-                        return DataStore.read_partitioned_parquet(
+                        return DataStore._read_partitioned_parquet(
                             url,
                             start_time,
                             end_time,
@@ -452,7 +431,7 @@ class DataStore(BaseRemoteClient):
                         kwargs,
                     )
                     if create_partition_path and partitions_time_attributes:
-                        return DataStore.read_partitioned_parquet(
+                        return DataStore._read_partitioned_parquet(
                             url,
                             start_time_inner,
                             end_time_inner,

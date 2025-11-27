@@ -166,6 +166,7 @@ class DataStore(BaseRemoteClient):
         month: Optional[int] = None,
         day: Optional[int] = None,
         hour: Optional[int] = None,
+        **kwargs,
     ):
         """Check if a partition directory (year=.., month=.., etc.) is in the time range."""
         from dateutil.relativedelta import relativedelta
@@ -226,7 +227,7 @@ class DataStore(BaseRemoteClient):
                 for part in parts:
                     part = part.split("=")
                     key = part[0]
-                    value = int(part[1])
+                    value = int(part[1]) if part[1].isdigit() else part[1]
                     kwargs[key] = value
                 if DataStore._is_directory_in_range(start_time, end_time, **kwargs):
                     list_partition_paths_helper(

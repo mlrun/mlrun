@@ -17,7 +17,7 @@ import typing
 import pydantic.v1
 
 import mlrun.common.types
-
+import mlrun.runtimes.nuclio
 
 # Ideally we would want this to be class FunctionState(mlrun.common.types.StrEnum) which is the
 # "FastAPI-compatible" way of creating schemas
@@ -141,7 +141,7 @@ class Function(pydantic.v1.BaseModel):
     class Config:
         extra = pydantic.v1.Extra.allow
 
-
+@mlrun.runtimes.nuclio.min_nuclio_versions("1.14.0")
 class BatchingSpec(pydantic.v1.BaseModel):
     # Set to True to enable batching
     enabled: bool

@@ -84,7 +84,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         # The default Nuclio resource configuration is:
         # {"requests": {"cpu": "25m", "memory": "1Mi"}, "limits": {"cpu": "2", "memory": "20Gi"}}
         function.spec.resources = {
-            "limits": {"cpu": "5", "memory": "20Gi"},
+            "limits": {"cpu": "6", "memory": "20Gi"},
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
         function.spec.max_replicas = (

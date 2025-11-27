@@ -7760,7 +7760,7 @@ class SQLDB(DBInterface):
         ).hexdigest()
 
         # it could be that the record was passed, but belongs to a different user
-        # therefor, we need to re-fetch for teh correct user.
+        # therefore, we need to re-fetch for the correct user.
         # the scenario where pagination_cache_record.user != user is when
         # user A (user) using token belongs to user B (pagination_cache_record.user).
         # in that case, ensure we retrieve the correct record for user A.

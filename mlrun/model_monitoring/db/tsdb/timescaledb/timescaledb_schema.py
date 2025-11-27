@@ -18,6 +18,7 @@ from io import StringIO
 from typing import Optional
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.errors
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
 from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
     TimescaleDBNaming,
@@ -285,17 +286,18 @@ class TimescaleDBSchema:
         group_by: Optional[list[str]] = None,
         timestamp_column: Optional[str] = None,
     ) -> str:
-        """Build query to get records from the table or its pre-aggregates.
-
-        :param timestamp_column: Optional timestamp column to use for time filtering.
-                                If not provided, uses the table's default time_column.
-        """
+        """Build query to get records from the table or its pre-aggregates."""
 
         # Determine table to query
         table_name = self.table_name
         time_col = timestamp_column or self.time_column
 
         if interval and agg_funcs and use_pre_aggregates:
+            if timestamp_column and timestamp_column != self.time_column:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Cannot use custom timestamp_column='{timestamp_column}' with pre-aggregates. "
+                    "Pre-aggregates are built on the table's default time column."
+                )
             # Use continuous aggregate if available
             table_name = TimescaleDBNaming.get_cagg_view_name(self.table_name, interval)
             time_col = TIME_BUCKET_COLUMN
@@ -305,12 +307,9 @@ class TimescaleDBSchema:
 
             if columns_to_filter:
                 if interval and agg_funcs and use_pre_aggregates:
-                    # For pre-aggregates, use column names as-is since they should already be
-                    # the correct names from the continuous aggregate view
-                    source_time_col = timestamp_column or self.time_column
                     modified_columns = []
                     for col in columns_to_filter:
-                        if col == source_time_col:
+                        if col == time_col:
                             modified_columns.append(TIME_BUCKET_COLUMN)
                         else:
                             # Use column name as-is - caller should provide correct pre-agg column names

@@ -50,6 +50,7 @@ run = project.run_function("train", inputs={"data": data_url})
 ```
 
 <a id="run"></a>
+(run_function)=
 ## run_function
 
 Use the {py:meth}`~mlrun.projects.run_function` method to run a local or remote batch/scheduled task.

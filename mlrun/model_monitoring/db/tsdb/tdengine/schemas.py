@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import enum
 from dataclasses import dataclass
 from io import StringIO
 from typing import Optional, Union
@@ -40,7 +41,7 @@ class _TDEngineColumnType:
             return self.data_type
 
 
-class _TDEngineColumn(mlrun.common.types.StrEnum):
+class _TDEngineColumn(enum.Enum):
     TIMESTAMP = _TDEngineColumnType("TIMESTAMP")
     FLOAT = _TDEngineColumnType("FLOAT")
     INT = _TDEngineColumnType("INT")

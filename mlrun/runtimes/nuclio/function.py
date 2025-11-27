@@ -37,7 +37,7 @@ import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils
 import mlrun.utils.helpers
-from mlrun.common.schemas import AuthInfo
+from mlrun.common.schemas import AuthInfo, BatchingSpec
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
 from mlrun.lists import RunList
@@ -463,6 +463,7 @@ class RemoteRuntime(KubeResource):
         trigger_name: typing.Optional[str] = None,
         annotations: typing.Optional[typing.Mapping[str, str]] = None,
         extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
+        batching_spec: typing.Optional[BatchingSpec] = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -484,6 +485,7 @@ class RemoteRuntime(KubeResource):
         :param trigger_name:    alternative nuclio trigger name
         :param annotations:     key/value dict of ingress annotations
         :param extra_attributes: key/value dict of extra nuclio trigger attributes
+        :param batching_spec: BatchingSpec objects that defines batching configuration. By default, batching is disabled.
         :return: function object (self)
         """
         if self.disable_default_http_trigger:
@@ -519,6 +521,12 @@ class RemoteRuntime(KubeResource):
             trigger._struct["workerAvailabilityTimeoutMilliseconds"] = (
                 worker_timeout
             ) * 1000
+
+        if batching_spec and (
+            batching_config := batching_spec.get_nuclio_batch_config()
+        ):
+            trigger._struct["batch"] = batching_config
+
         self.add_trigger(trigger_name or "http", trigger)
         return self
 

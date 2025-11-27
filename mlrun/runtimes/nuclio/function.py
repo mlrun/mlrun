@@ -485,7 +485,7 @@ class RemoteRuntime(KubeResource):
         :param trigger_name:    alternative nuclio trigger name
         :param annotations:     key/value dict of ingress annotations
         :param extra_attributes: key/value dict of extra nuclio trigger attributes
-        :param batching_spec: BatchingSpec objects that defines batching configuration.
+        :param batching_spec: BatchingSpec object that defines batching configuration.
             By default, batching is disabled.
         :return: function object (self)
         """

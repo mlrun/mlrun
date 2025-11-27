@@ -145,9 +145,9 @@ class Function(pydantic.v1.BaseModel):
 class BatchingSpec(pydantic.v1.BaseModel):
     # Set to True to enable batching
     enabled: bool
-    # Maximal events to batch together
+    # Maximal events to batch together. Default size is 10.
     batch_size: typing.Optional[int]
-    # The maximum amount of time to wait before processing the batch.
+    # The maximum amount of time to wait before processing the batch. Default timeout is 1s.
     # Once this time passes, the batch is processed even if it hasn’t reached the full batch size.
     timeout: typing.Optional[str]
 

@@ -624,8 +624,16 @@ class DataStore(BaseRemoteClient):
 
         path_parts = urlparse(path).path.strip("/").split("/")
         path_parts = [part.split("=")[0] for part in path_parts if "=" in part]
-        for part in partitions:
-            if part in path_parts or part in ["year", "month", "day", "hour"]:
+        if partitions and "year" in partitions:
+            time_index = partitions.index("year")
+        else:
+            return False
+        for i, part in enumerate(partitions):
+            if (
+                part in path_parts
+                or part in ["year", "month", "day", "hour"]
+                or i > time_index
+            ):
                 continue
             else:
                 return False

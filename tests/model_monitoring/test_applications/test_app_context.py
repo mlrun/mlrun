@@ -17,12 +17,10 @@ import logging
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pandas as pd
 import pytest
 from nuclio.request import Logger as NuclioLogger
 
 import mlrun
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun import MLClientCtx, MlrunProject
 from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.applications.context import MonitoringApplicationContext

@@ -317,6 +317,7 @@ async def test_paginate_no_auth(
 
     paginator = framework.utils.pagination.Paginator()
 
+    # no-user request
     logger.info("Requesting first page")
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, None, None, 1, page_size, **method_kwargs
@@ -337,39 +338,49 @@ async def test_paginate_no_auth(
         )
     )
     _assert_cache_record(cache_record, None, paginated_method, 1, page_size)
+    no_auth_user_token = pagination_info.page_token
 
-    logger.info("Requesting second page with auth info of some user")
+    logger.info(
+        "Requesting second page with auth info of some user, token from no-auth request"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(user_id="any-user")
-    # save token as it will be overridden with None on the last page
-    old_token = pagination_info.page_token
+
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+        # user cannot access a token that was created without auth info
+        await paginator.paginate_request(
+            db,
+            paginated_method,
+            auth_info,
+            no_auth_user_token,
+        )
+
+    logger.info("Requesting first page with auth info of some user")
     response, pagination_info = await paginator.paginate_request(
-        db, paginated_method, auth_info, pagination_info.page_token
+        db, paginated_method, auth_info, None, 1, page_size, **method_kwargs
     )
     _assert_paginated_response(
         response,
         pagination_info,
-        2,
+        1,
         page_size,
-        ["item3", "item4"],
+        ["item0", "item1", "item2"],
         method_kwargs["since"],
-        last_page=True,
+        last_page=False,
     )
 
     logger.info("Checking old db cache record")
     cache_record = (
         framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
-            db, old_token
+            db, no_auth_user_token
         )
     )
     # The request with AuthInfo creates a new cache record, therefore the old one
     # should still be on page 1 and without a user.
-    # The new one should be on page 2 and with the user, however, since it's on the last page,
-    # we don't get a token back to check.
     _assert_cache_record(cache_record, None, paginated_method, 1, page_size)
 
     logger.info("Requesting second page without auth info")
     response, pagination_info = await paginator.paginate_request(
-        db, paginated_method, None, old_token
+        db, paginated_method, None, no_auth_user_token
     )
     _assert_paginated_response(
         response,
@@ -384,7 +395,7 @@ async def test_paginate_no_auth(
     logger.info("Checking old db cache record again")
     cache_record = (
         framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
-            db, old_token
+            db, no_auth_user_token
         )
     )
     _assert_cache_record(cache_record, None, paginated_method, 2, page_size)
@@ -789,16 +800,26 @@ def _assert_paginated_response(
     since,
     last_page=False,
 ):
-    assert len(response) == len(expected_items)
+    assert len(response) == len(
+        expected_items
+    ), f"Expected {len(expected_items)} items, got {len(response)}"
     for i, item in enumerate(expected_items):
-        assert response[i]["name"] == item
-        assert response[i]["since"] == since
+        assert (
+            response[i]["name"] == item
+        ), f"Expected item name {item}, got {response[i]['name']}"
+        assert (
+            response[i]["since"] == since
+        ), f"Expected since {since}, got {response[i]['since']}"
     if not last_page:
         assert pagination_info.page_token is not None
     else:
         assert pagination_info.page_token is None
-    assert pagination_info.page == page
-    assert pagination_info.page_size == page_size
+    assert (
+        pagination_info.page == page
+    ), f"Expected page {page}, got {pagination_info.page}"
+    assert (
+        pagination_info.page_size == page_size
+    ), f"Expected page size {page_size}, got {pagination_info.page_size}"
 
 
 def _assert_cache_record(
@@ -808,8 +829,14 @@ def _assert_cache_record(
     current_page: int,
     page_size: int,
 ):
-    assert cache_record is not None
-    assert cache_record.user == user
-    assert cache_record.function == method.__name__
-    assert cache_record.current_page == current_page
-    assert cache_record.page_size == page_size
+    assert cache_record is not None, "Cache record should not be None"
+    assert cache_record.user == user, f"Expected user {user}, got {cache_record.user}"
+    assert (
+        cache_record.function == method.__name__
+    ), f"Expected function {method.__name__}, got {cache_record.function}"
+    assert (
+        cache_record.current_page == current_page
+    ), f"Expected current page {current_page}, got {cache_record.current_page}"
+    assert (
+        cache_record.page_size == page_size
+    ), f"Expected page size {page_size}, got {cache_record.page_size}"

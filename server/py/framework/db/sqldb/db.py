@@ -7758,16 +7758,10 @@ class SQLDB(DBInterface):
         key = hashlib.sha256(
             f"{user}/{function}/{page_size}/{kwargs}".encode()
         ).hexdigest()
-
-        # it could be that the record was passed, but belongs to a different user
-        # therefore, we need to re-fetch for the correct user.
-        # the scenario where pagination_cache_record.user != user is when
-        # user A (user) using token belongs to user B (pagination_cache_record.user).
-        # in that case, ensure we retrieve the correct record for user A.
-        # use case is covered by UT - "test_paginate_no_auth"
-        if not pagination_cache_record or pagination_cache_record.user != user:
+        if not pagination_cache_record:
+            # in this case, we just lock for update to make sure no one else is writing to it
             pagination_cache_record = self.get_paginated_query_cache_record(
-                session, key, for_update=True
+                session, key=key, for_update=True
             )
         if pagination_cache_record:
             pagination_cache_record.current_page = current_page

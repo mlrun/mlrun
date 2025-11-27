@@ -267,6 +267,11 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             page_size = pagination_cache_record.page_size
             user = pagination_cache_record.user
 
+            if not user and auth_info:
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "Token is not associated with any user, access denied"
+                )
+
             if user and (not auth_info or auth_info.user_id != user):
                 raise mlrun.errors.MLRunAccessDeniedError(
                     "User is not allowed to access this token"

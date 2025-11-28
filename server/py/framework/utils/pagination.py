@@ -267,7 +267,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             page_size = pagination_cache_record.page_size
             user = pagination_cache_record.user
 
-            if not user and auth_info:
+            # NOTE: the current heuristic of checking on user_id allows us
+            # to detect token misuse between different users.
+            if not user and auth_info and auth_info.user_id:
                 raise mlrun.errors.MLRunAccessDeniedError(
                     "Token is not associated with any user, access denied"
                 )
@@ -290,6 +292,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         )
         token = self._pagination_cache.store_pagination_cache_record(
             session,
+            # NOTE: this works when authentication allows multiple users.
+            # when having single user authentication mode (read: BASIC) and having multiple clients
+            # then this needs to be rethought, perhaps using remote address or client id in addition to user id.
             user=auth_info.user_id if auth_info else None,
             method=method,
             current_page=page,

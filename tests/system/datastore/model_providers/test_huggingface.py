@@ -174,7 +174,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         ["naive", "process_pool", "dedicated_process", "thread_pool"],
     )
     def test_hf_2_models(self, execution_mechanism):
-        if not os.environ.get("HF_TOKEN"):
+        if not os.getenv("HF_TOKEN"):
             pytest.skip("test_hf_2_models Requires HF_TOKEN")
         self.setup_datastore_profile()
         llm_model2 = "google/gemma-2b-it"

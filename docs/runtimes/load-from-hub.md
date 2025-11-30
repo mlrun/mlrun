@@ -1,5 +1,5 @@
 (load-from-hub)=
-# Import modules and functions from the MLRun hub
+# MLRun hub
 
 The [MLRun hub](https://www.mlrun.org/hub/) provides a wide range of pre-developed functions and modules for your projects, for a variety of use cases. Reusing built-in code can significantly speed up your development cycle.
 You can search and filter the categories and kinds to find an item that meets your needs. Every function and module in the hub has complete documentation and examples.
@@ -126,23 +126,36 @@ aggregate_run = aggregate_function.run(
 ```
 
 ## Modules
-There are two types of modules: generic and model monitoring. The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
+There are two types of modules: generic and model monitoring application. You can also add modules to your own hub, making them easily accessible for sharing.
+
+The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
 Each module in the hub has an accompanying example notebook with complete usage examples. 
 
 There are two means of using modules from the hub:
-- [Import the module as a model monitoring function and use it without modifying it](#module-off-shelf)
-- [Import the module, and optionally test and modify it before running it](#modify-module)
+- [Import a module](#import-a-module)
+- [Import a model monitoring application](#import-a-model-monitoring-application)
+
+
+(import-a-module)=
+### Import a module
+
+First import the module from the hub, which downloads it to your local file system. For example:
+```
+module = mlrun.import_module("hub://my_module")
+```
+At this point, you can call the module's functions. For example, if the module has a function named `execute`, you can run it as follows:
+```
+module.execute()
+```
+### Import a model monitoring application
 
 ```{admonition} Note
-If you are importing a model monitoring module:
+Before you import a model monitoring module:
 - [Set the datastore profiles](../tutorials/05-model-monitoring.ipynb#set-datastore-profiles)
 - [Enable model monitoring](../tutorials/05-model-monitoring.ipynb#enable-model-monitoring)
 ```
-
-(module-off-shelf)=
-### Use a module "off the shelf"
-
-To use a module directly in your project without modifying it, the code looks like:
+The model monitoring apps provide off-the-shelf monitoring, and save you the time required to develop and test apps. 
+To use a model monitoring module directly in your project without modifying it, the code looks like:
 
 ```
 fn = project.set_model_monitoring_function(
@@ -152,15 +165,14 @@ fn = project.set_model_monitoring_function(
 )
 project.deploy_function(fn)
 ```
-(modify-module)=
-### Import and modify a module
+You can also download a model monitoring module and modify it. 
 
 First import the module from the hub, which downloads it to your local file system:
 ```
 count_events_app = mlrun.import_module("hub://count_events")
 ```
 
-Then run the app as a job:
+The module is now available on your filesystem, and you can modify it as needed. For example, you can run the app as a job:
 ```
 res = count_events_app.CountApp.evaluate(func_path="count_events.py",
     run_local=False,
@@ -168,8 +180,7 @@ res = count_events_app.CountApp.evaluate(func_path="count_events.py",
                                    image=image,
                                   endpoints=["model_0"])
 ```
-The application is now available on your filesystem, and you can register and deploy it just like any other custom application:
-
+You can also deploy it just like any other custom monitoring application:
 ```
 fn = project.set_model_monitoring_function(
     func="count_events.py",
@@ -235,11 +246,17 @@ The hierarchy must be:
 					- html files
 					
 ### Add a custom hub to the MLRun database
-When you add a hub, specify `order=-1` to add it to the top of the list. 
-The list order is relevant when loading a function.
-if you don't specify a hub name, MLRun starts searching for the function with the last added hub.
-If you want to add a hub but not at the top of the list, view the current list using {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_hub_source`.
-The MLRun hub is always the last in the list (and cannot be modified). 
+When you add a hub, you can specify an order number by providing an index. The list order is relevant when importing a function or module if you don't specify the hub: the search starts with the highest numbered hub (1, 2, 3, etc.). This is especially relevant if you have two functions (or modules) with the same name in two hubs. 
+
+The MLRun hub is always `-1`. The options for adding custom hubs are:
+* 0, <0: Adds to the top of the list
+*-* >0: Adds according to the order you assign it. For examples, you have HubA with index=1 and HubB with index=2. You add HubC with index=2, you get</br>
+mlrun hub: -1 </br>
+hubA: index 1 </br>
+hubC: index 2 </br>
+hubB: index 3</br>
+
+Of course, you can always specify the hub name.  
 
 To add a hub, run:
 ```python
@@ -247,6 +264,7 @@ import mlrun.common.schemas
 
 # Add a custom hub to the top of the list
 private_source = mlrun.common.schemas.IndexedHubSource(
+    index=1,
     source=mlrun.common.schemas.HubSource(
         metadata=mlrun.common.schemas.HubObjectMetadata(
             name="my_cool_hub", description="a private hub"
@@ -262,3 +280,15 @@ mlrun.get_run_db().create_hub_source(private_source)
 ```
 To access a function or module directly from your hub, specify its path, for example:
 `mlrun.import_function("hub://my_cool_hub/describe")`
+
+To view your hubs, run:
+```
+db.list_hub_sources() 
+```
+The output is similar to:
+```
+[IndexedHubSource(index=1, source=HubSource(kind=HubSource, metadata=HubObjectMetadata(name='testhub', description='a private hub', labels={}, updated=datetime.datetime(2025, 11, 19, 12, 19, 28, 737746, tzinfo=datetime.timezone.utc), created=datetime.datetime(2025, 11, 19, 12, 19, 28, 737746, tzinfo=datetime.timezone.utc)), spec=HubSourceSpec(path='https://raw.githubusercontent.com/GiladShapira94', channel='refs/heads/llm_app', credentials={}, object_type='functions'), status=ObjectStatus(state='created'))),
+ IndexedHubSource(index=2, source=HubSource(kind=HubSource, metadata=HubObjectMetadata(name='eyalhub', description='a private hub', labels={}, updated=datetime.datetime(2025, 11, 19, 12, 29, 11, 186130, tzinfo=datetime.timezone.utc), created=datetime.datetime(2025, 11, 19, 12, 29, 11, 186130, tzinfo=datetime.timezone.utc)), spec=HubSourceSpec(path='https://raw.githubusercontent.com/Eyal-Danieli/marketplace', channel='refs/heads/master', credentials={}, object_type='functions'), status=ObjectStatus(state='created'))),
+ IndexedHubSource(index=3, source=HubSource(kind=HubSource, metadata=HubObjectMetadata(name='eyalhubv2', description='a private hub', labels={}, updated=datetime.datetime(2025, 11, 19, 12, 30, 5, 274030, tzinfo=datetime.timezone.utc), created=datetime.datetime(2025, 11, 19, 12, 30, 5, 274030, tzinfo=datetime.timezone.utc)), spec=HubSourceSpec(path='https://raw.githubusercontent.com/Eyal-Danieli/marketplace', channel='refs/heads/master', credentials={}, object_type='functions'), status=ObjectStatus(state='created'))),
+ IndexedHubSource(index=-1, source=HubSource(kind=HubSource, metadata=HubObjectMetadata(name='default', description='MLRun hub', labels={}, updated=datetime.datetime(2025, 11, 24, 10, 3, 15, 143844, tzinfo=datetime.timezone.utc), created=datetime.datetime(2025, 11, 24, 10, 3, 15, 143844, tzinfo=datetime.timezone.utc)), spec=HubSourceSpec(path='https://mlrun.github.io/marketplace', channel='master', credentials={}), status=ObjectStatus(state='created')))]
+```

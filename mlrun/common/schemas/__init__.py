@@ -120,7 +120,12 @@ from .frontend_spec import (
     PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
-from .function import FunctionState, PreemptionModes, SecurityContextEnrichmentModes
+from .function import (
+    BatchingSpec,
+    FunctionState,
+    PreemptionModes,
+    SecurityContextEnrichmentModes,
+)
 from .http import HTTPSessionRetryMode
 from .hub import (
     HubCatalog,

@@ -43,7 +43,7 @@ evidently~=0.7.6
 coverage[toml]~=7.8
 diff-cover~=9.2
 openai~=1.88
-transformers~=4.53
+transformers~=4.56
 # for hugging face image classifier test:
 #tf-keras~=2.19
 # TODO: once tf-keras upgrades their dependencies to support a newer version protobuf, we can uncomment this line

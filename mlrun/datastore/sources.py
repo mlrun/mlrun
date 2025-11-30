@@ -460,7 +460,7 @@ class ParquetSource(BaseSourceDriver):
             if not filter_tuple:
                 continue
             col_name, op, value = filter_tuple
-            if op.lower() in ("in", "not in") and isinstance(value, (list, tuple, set)):
+            if op.lower() in ("in", "not in") and isinstance(value, list | tuple | set):
                 none_exists = False
                 value = list(value)
                 for sub_value in value:

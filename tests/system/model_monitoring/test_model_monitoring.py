@@ -16,7 +16,7 @@ import json
 import os
 import pickle
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from random import choice, randint, uniform
 from time import monotonic, sleep
 from typing import Optional, Union
@@ -1326,7 +1326,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # Simulating valid requests
         t_end = monotonic() + simulation_time
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
         data_sent = 0
         while monotonic() < t_end:
             data_point = choice(iris_data)
@@ -2011,10 +2011,8 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
         event_kind="result",
         app_name="my_app",
     ):
-        start_infer_time = datetime.isoformat(datetime(2024, 1, 1, tzinfo=timezone.utc))
-        end_infer_time = datetime.isoformat(
-            datetime(2024, 1, 1, second=1, tzinfo=timezone.utc)
-        )
+        start_infer_time = datetime.isoformat(datetime(2024, 1, 1, tzinfo=UTC))
+        end_infer_time = datetime.isoformat(datetime(2024, 1, 1, second=1, tzinfo=UTC))
         event_value = 123
         event_name_key = f"{event_kind}_name"
         event_value_key = f"{event_kind}_value"
@@ -2244,9 +2242,9 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
             params = {}
             if with_timestamp_column:
                 params["timestamp_column"] = "time"
-            start_time = datetime.now(timezone.utc)  # any time zone will do
+            start_time = datetime.now(UTC)  # any time zone will do
             self.project.run_function(job, inputs=inputs, params=params, local=False)
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
@@ -2290,8 +2288,8 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
                     if get_records_result.records_behind_latest == 0:
                         break
             assert len(read_back_records) == 5
-            earliest_time_in_dataset = datetime(2020, 1, 1, 1, tzinfo=timezone.utc)
-            latest_time_in_dataset = datetime(2020, 1, 1, 4, tzinfo=timezone.utc)
+            earliest_time_in_dataset = datetime(2020, 1, 1, 1, tzinfo=UTC)
+            latest_time_in_dataset = datetime(2020, 1, 1, 4, tzinfo=UTC)
             for record in read_back_records:
                 if record.get("kind") == "batch_complete":
                     assert "endpoint_id" in record

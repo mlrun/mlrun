@@ -296,6 +296,7 @@ class TimescaleDBConnector(TSDBConnector):
         end: datetime.datetime,
         endpoint_id: Optional[str] = None,
         columns: Optional[list[str]] = None,
+        timestamp_column: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Get raw records from TimescaleDB as pandas DataFrame.
@@ -307,6 +308,7 @@ class TimescaleDBConnector(TSDBConnector):
         :param end: End time for the query
         :param endpoint_id: Optional endpoint ID filter (None = all endpoints)
         :param columns: Optional list of specific columns to return (None = all columns)
+        :param timestamp_column: Optional timestamp column to use for time filtering (None = use table's default)
         :return: Raw pandas DataFrame with all matching records
         """
         if table == mm_schemas.TimescaleDBTables.METRICS:
@@ -315,6 +317,7 @@ class TimescaleDBConnector(TSDBConnector):
                 start=start,
                 end=end,
                 metrics=None,  # Get all metrics
+                timestamp_column=timestamp_column,
             )
         elif table == mm_schemas.TimescaleDBTables.APP_RESULTS:
             df = self._results_queries.read_results_data_impl(
@@ -323,6 +326,7 @@ class TimescaleDBConnector(TSDBConnector):
                 end=end,
                 metrics=None,  # Get all results
                 with_result_extra_data=True,
+                timestamp_column=timestamp_column,
             )
         elif table == mm_schemas.TimescaleDBTables.PREDICTIONS:
             df = self._predictions_queries.read_predictions_impl(
@@ -330,6 +334,7 @@ class TimescaleDBConnector(TSDBConnector):
                 start=start,
                 end=end,
                 columns=columns,
+                timestamp_column=timestamp_column,
             )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

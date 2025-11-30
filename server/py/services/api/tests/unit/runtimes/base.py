@@ -20,7 +20,7 @@ import typing
 import unittest.mock
 from base64 import b64encode
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import deepdiff
 import fastapi.testclient
@@ -319,7 +319,7 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
     def _mock_create_namespaced_pod(self):
         def _generate_pod(namespace, pod):
             terminated_container_state = client.V1ContainerStateTerminated(
-                finished_at=datetime.now(timezone.utc), exit_code=0
+                finished_at=datetime.now(UTC), exit_code=0
             )
             container_state = client.V1ContainerState(
                 terminated=terminated_container_state

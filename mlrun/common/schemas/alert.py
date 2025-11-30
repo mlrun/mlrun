@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime
-from typing import Annotated, Any, Callable, Optional, Union
+from typing import Annotated, Any, Optional, Union
 
 import pydantic.v1
 

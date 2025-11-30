@@ -139,12 +139,10 @@ class _BatchWindow:
             self._start, self._stop - self._step + 1, self._step
         ):
             entered = True
-            start_time = datetime.datetime.fromtimestamp(
-                timestamp, tz=datetime.timezone.utc
-            )
+            start_time = datetime.datetime.fromtimestamp(timestamp, tz=datetime.UTC)
             end_time = datetime.datetime.fromtimestamp(
                 timestamp - self.TIMESTAMP_RESOLUTION_MICRO + self._step,
-                tz=datetime.timezone.utc,
+                tz=datetime.UTC,
             )
             yield _Interval(start_time, end_time)
 
@@ -164,23 +162,15 @@ class _BatchWindow:
                     # If the last analyzed time is earlier than the stop time,
                     # yield the final partial interval from last_analyzed to stop
                     yield _Interval(
-                        datetime.datetime.fromtimestamp(
-                            last_analyzed, tz=datetime.timezone.utc
-                        ),
-                        datetime.datetime.fromtimestamp(
-                            self._stop, tz=datetime.timezone.utc
-                        ),
+                        datetime.datetime.fromtimestamp(last_analyzed, tz=datetime.UTC),
+                        datetime.datetime.fromtimestamp(self._stop, tz=datetime.UTC),
                     )
             else:
                 # The time span between the start and end of the batch is shorter than the step,
                 # so we need to yield a partial interval covering that range.
                 yield _Interval(
-                    datetime.datetime.fromtimestamp(
-                        self._start, tz=datetime.timezone.utc
-                    ),
-                    datetime.datetime.fromtimestamp(
-                        self._stop, tz=datetime.timezone.utc
-                    ),
+                    datetime.datetime.fromtimestamp(self._start, tz=datetime.UTC),
+                    datetime.datetime.fromtimestamp(self._stop, tz=datetime.UTC),
                 )
 
             self._update_last_analyzed(last_analyzed=self._stop)
@@ -866,7 +856,7 @@ class MonitoringApplicationController:
                     last_request = last_request_dict.get(endpoint.metadata.uid, None)
                     if isinstance(last_request, float):
                         last_request = datetime.datetime.fromtimestamp(
-                            last_request, tz=datetime.timezone.utc
+                            last_request, tz=datetime.UTC
                         )
                     elif isinstance(last_request, pd.Timestamp):
                         last_request = last_request.to_pydatetime()

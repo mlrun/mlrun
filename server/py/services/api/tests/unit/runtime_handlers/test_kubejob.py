@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import unittest.mock
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -643,9 +643,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pending_scheduled_pod.status.conditions = [
             k8s_client.V1PodCondition(type="PodScheduled", status="True")
         ]
-        pending_scheduled_pod.status.start_time = datetime.now(
-            timezone.utc
-        ) - timedelta(
+        pending_scheduled_pod.status.start_time = datetime.now(UTC) - timedelta(
             seconds=framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
             )
@@ -683,7 +681,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             running_overtime_labels,
             PodPhases.running,
         )
-        running_overtime_pod.status.start_time = datetime.now(timezone.utc) - timedelta(
+        running_overtime_pod.status.start_time = datetime.now(UTC) - timedelta(
             seconds=framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.executing
             )
@@ -717,9 +715,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 ),
             )
         ]
-        image_pull_backoff_pod.status.start_time = datetime.now(
-            timezone.utc
-        ) - timedelta(
+        image_pull_backoff_pod.status.start_time = datetime.now(UTC) - timedelta(
             seconds=framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
             )

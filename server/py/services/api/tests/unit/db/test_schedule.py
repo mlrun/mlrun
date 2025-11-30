@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -76,7 +76,7 @@ class TestSchedules(TestDatabaseBase):
         assert self._db_session.query(Schedule).count() == 3
 
     def test_calculate_schedules_counters(self):
-        next_minute = datetime.now(timezone.utc) + timedelta(hours=1)
+        next_minute = datetime.now(UTC) + timedelta(hours=1)
 
         # Store schedule job
         self._db.store_schedule(

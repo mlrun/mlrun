@@ -20,7 +20,7 @@ import shutil
 import sys
 import tarfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from time import sleep
 
 import requests
@@ -256,7 +256,7 @@ def create_manifest(mlrun_version, demo_versions):
     """Create a manifest file with version information for all downloaded demos."""
     manifest = {
         "mlrun_version": mlrun_version,
-        "download_date": datetime.now(timezone.utc).isoformat(),
+        "download_date": datetime.now(UTC).isoformat(),
         "github_org": GITHUB_ORG,
         "demos": demo_versions,
     }

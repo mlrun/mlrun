@@ -16,7 +16,7 @@ import traceback
 import typing
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Optional, Union
 
 import humanfriendly
@@ -1079,7 +1079,7 @@ class BaseRuntimeHandler(ABC):
                         continue
 
                     # give some grace period if we have last update time
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     if (
                         last_update is not None
                         and last_update + timedelta(seconds=float(grace_period)) > now
@@ -1161,7 +1161,7 @@ class BaseRuntimeHandler(ABC):
                             continue
 
                         # give some grace period if we have last update time
-                        now = datetime.now(timezone.utc)
+                        now = datetime.now(UTC)
                         if (
                             last_update is not None
                             and last_update + timedelta(seconds=float(grace_period))
@@ -1480,7 +1480,7 @@ class BaseRuntimeHandler(ABC):
             )
             return run_state, False
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         delta = now - start_time
 
         # Resolve the state threshold from the run
@@ -1860,7 +1860,7 @@ class BaseRuntimeHandler(ABC):
         2. The DB is terminal, but the runtime still appears active (e.g., SDK already finalized the run)
         """
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_update_str = run.get("status", {}).get("last_update")
 
         if last_update_str is not None:

@@ -50,6 +50,7 @@ run = project.run_function("train", inputs={"data": data_url})
 ```
 
 <a id="run"></a>
+(run_function)=
 ## run_function
 
 Use the {py:meth}`~mlrun.projects.run_function` method to run a local or remote batch/scheduled task.
@@ -59,9 +60,11 @@ parameters and the advanced options.
 
 Functions can host multiple methods (handlers). You can set the default handler per function. You need to specify which handler you intend to call in the run command. 
 You can pass `parameters` (arguments) or data `inputs` (such as datasets, feature-vectors, models, or files) to the functions through the `run_function` method.
- 
+
 The {py:meth}`~mlrun.projects.run_function` command returns an MLRun {py:class}`~mlrun.model.RunObject` object that you can use to track the job and its results. 
 If you pass the parameter `watch=True` (default), the command blocks until the job completes.
+
+You can also specify the retry configuration for the run by using the `retry` parameter. The retry status is shown in the <b>Retries</b> column in the <b>Jobs and Workflows > Monitor Jobs</b> table. To configure the retry behavior, see {py:meth}`~mlrun.projects.MlrunProject.run_function`.
 
 MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.). 
 See {ref}`hyper-params` for details and examples.

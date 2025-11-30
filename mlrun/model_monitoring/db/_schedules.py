@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import sys
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 from datetime import datetime
@@ -30,10 +29,7 @@ import mlrun.utils.helpers
 from mlrun.utils import logger
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 11):
-        from typing import Self
-    else:
-        from typing_extensions import Self
+    from typing import Self
 
 
 class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):

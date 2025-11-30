@@ -529,6 +529,7 @@ class TimescaleDBResultsQueries:
         end: datetime,
         metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]] = None,
         with_result_extra_data: bool = False,
+        timestamp_column: Optional[str] = None,
     ) -> pd.DataFrame:
         """Read results data from TimescaleDB (app_results table only) - returns DataFrame.
 
@@ -537,6 +538,7 @@ class TimescaleDBResultsQueries:
         :param end: End time
         :param metrics: List of metrics to filter by, or None to get all results
         :param with_result_extra_data: Whether to include extra data column
+        :param timestamp_column: Optional timestamp column to use for time filtering
         :return: DataFrame with results data
         """
 
@@ -575,6 +577,7 @@ class TimescaleDBResultsQueries:
             name_column=name_column,
             value_column=value_column,
             debug_name="read_results_data",
+            timestamp_column=timestamp_column,
         )
 
         if not df.empty:

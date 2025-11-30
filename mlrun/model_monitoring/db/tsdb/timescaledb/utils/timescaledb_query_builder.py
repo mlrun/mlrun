@@ -322,6 +322,7 @@ class TimescaleDBQueryBuilder:
         name_column: str,
         value_column: str,
         debug_name: str = "read_data",
+        timestamp_column: Optional[str] = None,
     ) -> "pd.DataFrame":  # Use string to avoid import cycle
         """
         Build and execute read data query with pre-aggregate fallback pattern.
@@ -339,6 +340,7 @@ class TimescaleDBQueryBuilder:
         :param name_column: Name of the metric/result name column
         :param value_column: Name of the metric/result value column
         :param debug_name: Name for debugging purposes
+        :param timestamp_column: Optional timestamp column to use for time filtering
         :return: DataFrame with query results
         """
 
@@ -349,6 +351,7 @@ class TimescaleDBQueryBuilder:
                 columns_to_filter=columns,
                 filter_query=filter_query,
                 use_pre_aggregates=True,
+                timestamp_column=timestamp_column,
             )
 
         def build_raw_query():
@@ -357,6 +360,7 @@ class TimescaleDBQueryBuilder:
                 end=end,
                 columns_to_filter=columns,
                 filter_query=filter_query,
+                timestamp_column=timestamp_column,
             )
 
         # Column mapping rules for pre-aggregate results

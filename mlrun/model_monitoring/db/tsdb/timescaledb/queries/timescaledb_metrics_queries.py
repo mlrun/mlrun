@@ -158,6 +158,7 @@ class TimescaleDBMetricsQueries:
         start: datetime,
         end: datetime,
         metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]] = None,
+        timestamp_column: Optional[str] = None,
     ) -> pd.DataFrame:
         """Read metrics data from TimescaleDB (metrics table only) - returns DataFrame.
 
@@ -165,6 +166,7 @@ class TimescaleDBMetricsQueries:
         :param start: Start time
         :param end: End time
         :param metrics: List of metrics to filter by, or None to get all metrics
+        :param timestamp_column: Optional timestamp column to use for time filtering
         :return: DataFrame with metrics data
         """
 
@@ -200,6 +202,7 @@ class TimescaleDBMetricsQueries:
             name_column=name_column,
             value_column=value_column,
             debug_name="read_metrics_data",
+            timestamp_column=timestamp_column,
         )
 
         if not df.empty:

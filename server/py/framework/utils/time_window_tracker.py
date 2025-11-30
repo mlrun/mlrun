@@ -47,9 +47,7 @@ class TimeWindowTracker:
         time_window_tracker_record = self._refresh_from_db(
             session, raise_on_not_found=False
         )
-        self._timestamp = self._timestamp or datetime.datetime.now(
-            datetime.timezone.utc
-        )
+        self._timestamp = self._timestamp or datetime.datetime.now(datetime.UTC)
         if not time_window_tracker_record:
             self._db.store_time_window_tracker_record(
                 session, self._key, self._timestamp, self._max_window_size_seconds
@@ -60,7 +58,7 @@ class TimeWindowTracker:
         session: sqlalchemy.orm.Session,
         timestamp: typing.Optional[datetime.datetime] = None,
     ):
-        self._timestamp = timestamp or datetime.datetime.now(datetime.timezone.utc)
+        self._timestamp = timestamp or datetime.datetime.now(datetime.UTC)
         self._db.store_time_window_tracker_record(
             session, self._key, self._timestamp, self._max_window_size_seconds
         )
@@ -83,7 +81,7 @@ class TimeWindowTracker:
         # Ensure the timestamp is timezone-aware, it might return as naive from the DB
         # though it was saved as timezone-aware
         self._timestamp = time_window_tracker_record.timestamp.replace(
-            tzinfo=datetime.timezone.utc
+            tzinfo=datetime.UTC
         )
         self._max_window_size_seconds = (
             time_window_tracker_record.max_window_size_seconds
@@ -91,7 +89,7 @@ class TimeWindowTracker:
         if time_window_tracker_record.max_window_size_seconds is not None:
             self._timestamp = max(
                 self._timestamp,
-                datetime.datetime.now(datetime.timezone.utc)
+                datetime.datetime.now(datetime.UTC)
                 - datetime.timedelta(seconds=self._max_window_size_seconds),
             )
             self.update_window(session, self._timestamp)
@@ -119,7 +117,7 @@ async def run_with_time_window_tracker(
     last_update_time = await run_in_threadpool(
         framework.db.session.run_function_with_new_db_session, cycle_tracker.get_window
     )
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     db_session = await run_in_threadpool(framework.db.session.create_session)
     try:
         await framework.utils.asyncio.maybe_coroutine(

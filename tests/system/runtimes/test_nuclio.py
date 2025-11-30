@@ -16,6 +16,7 @@ import json
 import os
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 import pytest
@@ -491,6 +492,33 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         serving_func_deploy = self.project.deploy_function("serving-handler-func")
 
         serving_func_deploy.function.invoke("/")
+
+    def test_nuclio_function_handler_with_batching(self):
+        code_path = str(self.assets_path / "nuclio_function_batching.py")
+
+        function = self.project.set_function(
+            name="batching-handler-func",
+            func=code_path,
+            image=self.image,
+            kind="nuclio",
+        )
+        function.with_http(
+            batching_spec=mlrun.common.schemas.BatchingSpec(
+                enabled=True, size=5, timeout="5s"
+            )
+        )
+        function.deploy()
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: function.invoke("/"), range(10)))
+
+        assert len(responses) == 10
+
+        for resp in responses:
+            assert b"Hello" in resp
+
+        # unique IDs expected
+        assert len(set(responses)) == 10
 
     @pytest.mark.parametrize("async_mode", [True, False])
     async def test_list_mep_through_api_step(self, async_mode: bool):

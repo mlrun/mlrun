@@ -24,10 +24,9 @@ attempts to deduce the correct Python version to use based on the Python version
 
 The images are:
 
-- `mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI and other ML packages. Useful as a base image for simple jobs. 
+- `mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI and other ML packages. Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities.
 - `mlrun/mlrun-kfp`: The same as `mlrun/mlrun` with the addition of KFP 1.8 already installed. Use it for compiling KFP workflows, and for remote workflows. **This image includes KFP.**
 - `mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
-- `mlrun/ml-base`: Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities.
 - `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples. 
 - `mlrun/mlrun-api`: The server's backend image.
 - `mlrun/log-collector`: A service that collects the logs for all runs and stores them in a persistent storage
@@ -68,7 +67,6 @@ For example, running `MLRUN_VERSION=x.y.z make docker-images` generates these im
 - mlrun/mlrun-kfp:x.y.z
 - mlrun/mlrun-gpu:x.y.z
 - mlrun/jupyter:x.y.z
-- mlrun/ml-base:x.y.z
 
 You can build specific images. The typical images to build are the common client-side images that you actually use to run your code: `mlrun`, `mlrun-gpu` and `mlrun-kfp`.
 

@@ -26,9 +26,10 @@ import typing
 import uuid
 import warnings
 import zipfile
+from collections.abc import Callable
 from copy import deepcopy
 from os import environ, makedirs, path
-from typing import Callable, Optional, Union, cast
+from typing import Optional, Union, cast
 
 import deprecated
 import dotenv
@@ -45,6 +46,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.secrets
 import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
@@ -166,7 +168,7 @@ def new_project(
     in the project root dir, it will be executed upon project creation or loading.
 
 
-    example::
+    Example::
 
         # create a project with local and hub functions, a workflow, and an artifact
         project = mlrun.new_project(
@@ -183,7 +185,7 @@ def new_project(
         # run the "main" workflow (watch=True to wait for run completion)
         project.run("main", watch=True)
 
-    example (load from template)::
+    Example (load from template)::
 
         # create a new project from a zip template (can also use yaml/git templates)
         # initialize a local git, and register the git remote path
@@ -197,7 +199,7 @@ def new_project(
         project.run("main", watch=True)
 
 
-    example using project_setup.py to init the project objects::
+    Example using project_setup.py to init the project objects::
 
             def setup(project):
                 project.set_function(
@@ -1281,7 +1283,7 @@ class MlrunProject(ModelObj):
     ) -> str:
         """return the project artifact uri (store://..) from the artifact key
 
-        example::
+        Example::
 
             uri = project.get_artifact_uri("my_model", category="model", tag="prod", iter=0)
 
@@ -1459,7 +1461,7 @@ class MlrunProject(ModelObj):
     ):
         """add/set an artifact in the project spec (will be registered on load)
 
-        example::
+        Example::
 
             # register a simple file artifact
             project.set_artifact("data", target_path=data_url)
@@ -1610,7 +1612,7 @@ class MlrunProject(ModelObj):
 
         If the artifact already exists with the same key and tag, it will be overwritten.
 
-        example::
+        Example::
 
             project.log_artifact(
                 "some-data",
@@ -1714,7 +1716,7 @@ class MlrunProject(ModelObj):
 
         If the dataset already exists with the same key and tag, it will be overwritten.
 
-        example::
+        Example::
 
             raw_data = {
                 "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
@@ -1801,7 +1803,7 @@ class MlrunProject(ModelObj):
 
         If the model already exists with the same key and tag, it will be overwritten.
 
-        example::
+        Example::
 
             project.log_model(
                 "model",
@@ -2043,11 +2045,12 @@ class MlrunProject(ModelObj):
                                 This wrapper provides both access to the original vector
                                 store's capabilities and additional MLRun functionality.
 
-        Example:
-            >>> vector_store = Chroma(embedding_function=embeddings)
-            >>> collection = project.get_vector_store_collection(
-            ...     vector_store, collection_name="my_collection"
-            ... )
+        Example::
+
+            vector_store = Chroma(embedding_function=embeddings)
+            collection = project.get_vector_store_collection(
+                vector_store, collection_name="my_collection"
+            )
         """
         return VectorStoreCollection(
             self,
@@ -2098,16 +2101,17 @@ class MlrunProject(ModelObj):
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
 
-        Example:
-            >>> # Log a PDF document with custom loader
-            >>> project.log_document(
-            ...     local_path="path/to/doc.pdf",
-            ...     document_loader=DocumentLoaderSpec(
-            ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
-            ...         src_name="file_path",
-            ...         kwargs={"extract_images": True},
-            ...     ),
-            ... )
+        Example::
+
+            # Log a PDF document with custom loader
+            project.log_document(
+                local_path="path/to/doc.pdf",
+                document_loader=DocumentLoaderSpec(
+                    loader_class_name="langchain_community.document_loaders.PDFLoader",
+                    src_name="file_path",
+                    kwargs={"extract_images": True},
+                ),
+            )
 
         """
         if not key and not local_path and not target_path:
@@ -2386,8 +2390,9 @@ class MlrunProject(ModelObj):
         handler: Optional[str] = None,
         with_repo: Optional[bool] = None,
         tag: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
+        requirements: Optional[list[str]] = None,
         requirements_file: str = "",
+        local_path: Optional[str] = None,
         **application_kwargs,
     ) -> mlrun.runtimes.RemoteRuntime:
         """
@@ -2402,7 +2407,8 @@ class MlrunProject(ModelObj):
             )
 
         :param func:                    Remote function object or spec/code URL. :code:`None` refers to the current
-                                        notebook.
+                                        notebook. May also be a hub URL of a module of kind model-monitoring-app in the
+                                        format: hub://[{source}/]{name}[:{tag}].
         :param name:                    Name of the function (under the project), can be specified with a tag to support
                                         versions (e.g. myfunc:v1).
         :param image:                   Docker image to be used, can also be specified in
@@ -2417,6 +2423,8 @@ class MlrunProject(ModelObj):
         :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
+        :param local_path:              Path to a local directory to save the downloaded monitoring-app code files in,
+                                        in case 'func' is a hub URL (defaults to current working directory).
         :returns:                       The model monitoring remote function object.
         """
         (
@@ -2433,6 +2441,7 @@ class MlrunProject(ModelObj):
             tag,
             requirements,
             requirements_file,
+            local_path,
             **application_kwargs,
         )
         # save to project spec
@@ -2511,8 +2520,9 @@ class MlrunProject(ModelObj):
         handler: typing.Optional[str] = None,
         with_repo: typing.Optional[bool] = None,
         tag: typing.Optional[str] = None,
-        requirements: typing.Union[str, list[str], None] = None,
+        requirements: typing.Union[list[str], None] = None,
         requirements_file: str = "",
+        local_path: typing.Optional[str] = None,
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.RemoteRuntime, dict]:
         import mlrun.model_monitoring.api
@@ -2529,6 +2539,7 @@ class MlrunProject(ModelObj):
                 tag=tag,
                 requirements=requirements,
                 requirements_file=requirements_file,
+                local_path=local_path,
                 **application_kwargs,
             )
         elif isinstance(func, str) and isinstance(handler, str):
@@ -2757,9 +2768,9 @@ class MlrunProject(ModelObj):
 
         Supported URL prefixes:
 
-        - Object: s3://, v3io://, etc.
-        - MLRun DB: e.g db://project/func:ver
-        - Function hub/market: e.g. hub://auto-trainer:master
+            | Object (s3://, v3io://, ..)
+            | MLRun DB e.g. db://project/func:ver
+            | Hub/market: e.g. hub://auto-trainer:master
 
         Examples::
 
@@ -3411,7 +3422,12 @@ class MlrunProject(ModelObj):
         self._initialized = True
         return self.spec._function_objects
 
-    def with_secrets(self, kind, source, prefix=""):
+    def with_secrets(
+        self,
+        kind,
+        source,
+        prefix="",
+    ):
         """register a secrets source (file, env or dict)
 
         read secrets from a source provider to be used in workflows, example::
@@ -3433,12 +3449,19 @@ class MlrunProject(ModelObj):
 
         This will enable access to all secrets in vault registered to the current project.
 
-        :param kind:   secret type (file, inline, env, vault)
+        :param kind:   secret type (file, inline, env, vault, azure_vault)
         :param source: secret data or link (see example)
         :param prefix: add a prefix to the keys in this source
 
         :returns: project object
         """
+        # Block using mlrun-auth-secrets.* via azure_vault's k8s_secret param (client-side only)
+        if kind == "azure_vault" and isinstance(source, dict):
+            candidate_secret_name = (source.get("k8s_secret") or "").strip()
+            if candidate_secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(
+                    candidate_secret_name
+                )
 
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.name, "secrets": source}
@@ -3465,7 +3488,7 @@ class MlrunProject(ModelObj):
         when using a secrets file it should have lines in the form KEY=VALUE, comment line start with "#"
         V3IO paths/credentials and MLrun service API address are dropped from the secrets
 
-        example secrets file:
+        Example secrets file:
 
         .. code-block:: shell
 
@@ -3906,6 +3929,7 @@ class MlrunProject(ModelObj):
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileTDEngine`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL`
 
                                           You need to register one of them, and pass the profile's name.
         :param stream_profile_name:       The datastore profile name of the stream to be used in model monitoring.
@@ -4051,7 +4075,7 @@ class MlrunProject(ModelObj):
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
-        example (use with project)::
+        Example (use with project)::
 
             # create a project with two functions (local and from hub)
             project = mlrun.new_project(project_name, "./proj")
@@ -4890,7 +4914,7 @@ class MlrunProject(ModelObj):
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
-        example::
+        Example::
 
             functions = project.list_functions(tag="latest")
 
@@ -5028,21 +5052,27 @@ class MlrunProject(ModelObj):
         include_stats: bool = False,
         include_infra: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
-        """Get monitoring function summaries for the specified project.
-        :param start: Start time for filtering the results (optional).
-        :param end: End time for filtering the results (optional).
+        """
+        Get monitoring function summaries for the specified project.
+
+        :param start: The start time of the monitoring applications’ statistics.
+            If not defined, the default is 24 hours ago.
+            Required timezone, applicable only when `include_stats` is set to True.
+        :param end: The end time of the monitoring applications’ statistics.
+            If not defined, the default is now.
+            Required timezone, applicable only when `include_stats` is set to True.
         :param names: List of function names to filter by (optional).
         :param labels: Labels to filter by (optional).
         :param include_stats: Whether to include statistics in the response (default is False).
-        :param include_infra: whether to include model monitoring infrastructure functions (default is True).
+        :param include_infra: Whether to include model monitoring infrastructure functions (default is True).
+
         :return: A list of FunctionSummary objects containing information about the monitoring functions.
         """
 
-        if start is not None and end is not None:
-            if start.tzinfo is None or end.tzinfo is None:
-                raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                    "Custom start and end times must contain the timezone."
-                )
+        if (start and start.tzinfo is None) or (end and end.tzinfo is None):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Custom start and end times must contain the timezone."
+            )
 
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_monitoring_function_summaries(
@@ -5062,10 +5092,14 @@ class MlrunProject(ModelObj):
         end: Optional[datetime.datetime] = None,
         include_latest_metrics: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
-        """Get a monitoring function summary for the specified project and function name.
-        :param name:                   Name of the monitoring function to retrieve the summary for.
-        :param start:                  Start time for filtering the results (optional).
-        :param end:                    End time for filtering the results (optional).
+        """
+        Get a monitoring function summary for the specified project and function name.
+
+        :param name: Name of the monitoring function to retrieve the summary for.
+        :param start: The start time of the monitoring applications’ statistics.
+            If not defined, the default is 24 hours ago. Required timezone.
+        :param end: The end time of the monitoring applications’ statistics.
+            If not defined, the default is now. Required timezone.
         :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
 
         :return: A FunctionSummary object containing information about the monitoring function.

@@ -108,10 +108,10 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 {bdg-link-info}`Fine tuning LLMS <./genai/development/fine-tuning-llms.html>`
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
-{bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-`````
+{bdg-link-success}`Banking Agent Demo <https://github.com/mlrun/demo-banking-agent>`
 <br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
+`````
 
 ### Deployment
 MLRun serving can productize the newly trained LLM as a serverless function using real-time auto-scaling Nuclio serverless functions. 
@@ -125,10 +125,10 @@ inferring results using one or more models, and driving actions.
 {bdg-link-info}`GPU utilization <./genai/deployment/gpu_utilization.html>`
 {bdg-link-info}`Gen AI realtime serving graph <./genai/deployment/genai_serving_graph.html>`
 <br> {octicon}`code-square` **Tutorial:**
-{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
+{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai-01-basic-tutorial.html>`
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
-{bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-success}`Banking Agent Demo <https://github.com/mlrun/demo-banking-agent>`
 <br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
@@ -143,12 +143,12 @@ Collect production data, metadata, and metrics to tune the model and application
 {bdg-link-info}`Model monitoring <./concepts/model-monitoring.html>`
 {bdg-link-info}`Alerts and notifications <./concepts/alerts-notifications.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Deploy an LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
+{bdg-link-primary}`Deploy an LLM using MLRun <./tutorials/genai-01-basic-tutorial.html>`
 {bdg-link-primary}`Model monitoring using LLM  <./tutorials/-02-model-monitor-llm.html>`
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
-<br> {octicon}`code-square` **Demo:**
-{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-{bdg-link-primary}`Model Monitoring using an LLM <https://github.com/mlrun/demo-monitoring-and-feedback-loop/blob/main/llm-monitoring-main.ipynb>`
+<br> {octicon}`code-square` **Demos:**
+{bdg-link-success}`Model Monitoring using an LLM <https://github.com/mlrun/demo-monitoring-and-feedback-loop/blob/main/llm-monitoring-main.ipynb>`
+{bdg-link-success}`Banking Agent Demo <https://github.com/mlrun/demo-banking-agent>`
 `````
 
 ## MLOps tasks

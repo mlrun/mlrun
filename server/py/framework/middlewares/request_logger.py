@@ -124,10 +124,10 @@ class RequestLoggerMiddleware:
     def _log_headers(self, headers: MutableHeaders):
         headers_to_log = headers.mutablecopy()
         headers_to_omit = [
-            "authorization",
-            "cookie",
-            "x-v3io-session-key",
-            "x-v3io-access-key",
+            mlrun.common.schemas.HeaderNames.authorization,
+            mlrun.common.schemas.HeaderNames.cookie,
+            mlrun.common.schemas.HeaderNames.v3io_session_key,
+            mlrun.common.schemas.HeaderNames.v3io_access_key,
         ]
         for name, values in headers.items():
             if name in headers_to_omit:

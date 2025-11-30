@@ -570,7 +570,7 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True)
 
 
 def is_num(v):
-    return isinstance(v, (int, float, complex))
+    return isinstance(v, int | float | complex)
 
 
 def write_kfpmeta(struct):

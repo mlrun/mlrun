@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 

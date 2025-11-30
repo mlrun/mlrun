@@ -18,7 +18,7 @@ import random
 import time
 import typing
 import unittest.mock
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -594,7 +594,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         labels_2,
     )
     schedule_2 = scheduler.get_schedule(db, project, schedule_name_2)
-    year_datetime = datetime(year=year, month=1, day=1, tzinfo=timezone.utc)
+    year_datetime = datetime(year=year, month=1, day=1, tzinfo=UTC)
     _assert_schedule(
         schedule_2,
         project,
@@ -1223,7 +1223,7 @@ async def test_update_schedule(
         hour=end_date.hour,
         minute=end_date.minute,
         second=end_date.second,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     _assert_schedule(

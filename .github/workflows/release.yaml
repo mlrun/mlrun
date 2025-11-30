@@ -70,7 +70,7 @@ jobs:
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
 
           # Fetch all history for all tags and branches
@@ -143,9 +143,9 @@ jobs:
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Set up uv
-        uses: astral-sh/setup-uv@3259c6206f993105e3a61b142c2d97bf4b9ef83d # 7.1.0
+        uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
       - name: Build & push to PyPI
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
@@ -202,7 +202,7 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Create tutorials tar
         run: |
           wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
@@ -223,7 +223,7 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install Python venv
         run: |
           venv="$HOME/.local/share/venv"
@@ -231,10 +231,20 @@ jobs:
           echo "$venv/bin" >> $GITHUB_PATH
       - name: Install prerequisites
         run: |
-          pip install gitpython requests
-      - name: Create mlrun demos tar
+          pip install requests packaging tqdm
+      - name: Download demos using get_demos script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python automation/scripts/bundle_demos.py
+          python automation/scripts/get_demos.py ${{ needs.prepare-inputs.outputs.version }} \
+          --dest demos
+      - name: Copy update script to demos folder
+        run: |
+          cp automation/scripts/update_demos.sh demos/update_demos.sh
+      - name: Create mlrun-demos tar
+        run: |
+          tar -cf mlrun-demos.tar demos
+          echo "✅ Archive created successfully!"
       - name: Add mlrun-demos tar to release
         uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
         with:
@@ -251,7 +261,7 @@ jobs:
     # runs lastly to avoid conflicts with other release-related jobs
     needs: [ prepare-inputs, update-tutorials, update-demos ]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v6
@@ -260,8 +270,7 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r automation/requirements.txt
+          make install-automation-requirements
       - name: Generate release notes
         id: release-notes
         run: |

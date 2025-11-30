@@ -45,7 +45,7 @@ class ChoiceByField(storey.Choice):
             )
 
         # Case 3: Invalid type
-        if not isinstance(outlet, (str, list, tuple)):
+        if not isinstance(outlet, str | list | tuple):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"Field '{self.field_name}' must be a string or list of strings "
                 f"but is instead of type '{type(outlet).__name__}'."

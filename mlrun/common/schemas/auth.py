@@ -39,8 +39,14 @@ class AuthorizationAction(mlrun.common.types.StrEnum):
     store = "store"
 
 
+class AuthorizationResourceNamespace(mlrun.common.types.StrEnum):
+    resources = "resources"
+    mgmt = "mgmt"
+
+
 class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     project = "project"
+    project_global = "project-global"
     log = "log"
     runtime_resource = "runtime-resource"
     function = "function"
@@ -75,6 +81,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
         return {
             # project is the resource itself, so no need for both resource_name and project_name
             AuthorizationResourceTypes.project: "/projects/{project_name}",
+            AuthorizationResourceTypes.project_global: "/projects",
             AuthorizationResourceTypes.project_summaries: "/projects/{project_name}/project-summaries/{resource_name}",
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
@@ -101,9 +108,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
             AuthorizationResourceTypes.datastore_profile: "/projects/{project_name}/datastore_profiles",
             # Hub sources are not project-scoped, and auth is globally on the sources endpoint.
-            # TODO - this was reverted to /marketplace since MLRun needs to be able to run with old igz versions. Once
-            #  we only have support for igz versions that support /hub (>=3.5.4), change this to "/hub/sources".
-            AuthorizationResourceTypes.hub_source: "/marketplace/sources",
+            AuthorizationResourceTypes.hub_source: "/hub/sources",
             # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
             AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
             AuthorizationResourceTypes.api_gateway: "/projects/{project_name}/api-gateways/{resource_name}",
@@ -135,6 +140,8 @@ class AuthInfo(pydantic.v1.BaseModel):
     planes: list[str] = []
 
     def to_nuclio_auth_info(self):
+        if mlrun.mlconf.is_iguazio_v4_mode():
+            return NuclioAuthInfoWithHeaders(headers=self.request_headers)
         if self.session != "":
             return NuclioAuthInfo(password=self.session, mode=NuclioAuthKinds.iguazio)
         return None
@@ -143,6 +150,8 @@ class AuthInfo(pydantic.v1.BaseModel):
         member_ids = []
         if self.user_id:
             member_ids.append(self.user_id)
+        if self.username:
+            member_ids.append(self.username)
         if self.user_group_ids:
             member_ids.extend(self.user_group_ids)
         return member_ids
@@ -153,3 +162,37 @@ class AuthInfo(pydantic.v1.BaseModel):
 
 class Credentials(pydantic.v1.BaseModel):
     access_key: typing.Optional[str]
+
+
+class NuclioAuthInfoWithHeaders(NuclioAuthInfo):
+    """ "
+    Nuclio AuthInfo subclass that supports custom headers.
+    This is needed because Nuclio Jupyter is using `to_requests_auth` method, but in Iguazio V4 we need to inject
+    the Auth headers instead of using basic auth
+    """
+
+    def __init__(self, headers=None, **kwargs):
+        super().__init__(**kwargs)
+        self._headers = headers or {}
+
+    def to_requests_auth(self):
+        # Return custom auth handler that applies headers
+        base_auth = super().to_requests_auth()
+        return _CustomAuthWithHeaders(base_auth, self._headers)
+
+
+class _CustomAuthWithHeaders:
+    """
+    Custom requests auth handler that applies additional headers to the request
+    """
+
+    def __init__(self, base_auth, headers):
+        self.base_auth = base_auth
+        self.headers = headers
+
+    def __call__(self, request):
+        if self.base_auth:
+            request = self.base_auth(request)
+        for key, value in self.headers.items():
+            request.headers[key] = value
+        return request

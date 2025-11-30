@@ -338,7 +338,6 @@ The MLRun CE (Community Edition) includes the following services:
 
 2. [Optional] Add access to the EKS API for additional users. See: [Grant IAM users and roles access to Kubernetes APIs - Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/grant-k8s-access.html).
 2. [Optional] Grant access to the S3 bucket for additional users. See the AWS walkthrough example: [Bucket owner granting its users bucket permissions - Amazon Simple Storage Service](https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-walkthroughs-managing-access-example1.html).
-2. [Optional] Install PySpark for running local Spark jobs.
 
 ## Uninstalling the cluster and deleting the resources
 1. Export the following env variables; fill in the relevant <SYSTEM_NAME>, <DOMAIN_NAME>:

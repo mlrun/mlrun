@@ -27,6 +27,9 @@ import mlrun.errors
 
 import framework.utils.auth.providers.opa
 
+TEST_PROJECT_NAME = "test-project"
+TEST_RESOURCE_NAME = "test-resource"
+
 
 @pytest.fixture()
 def api_url() -> str:
@@ -380,3 +383,89 @@ def test_allowed_project_owners_cache_clean_expired(
         )
         is False
     )
+
+
+@pytest.mark.parametrize(
+    "resources_namespace, mgmt_namespace, resource_type, namespace, expected_resource_string",
+    [
+        (
+            "resources",
+            "mgmt",
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            mlrun.common.schemas.AuthorizationResourceNamespace.resources,
+            f"/resources/projects/{TEST_PROJECT_NAME}/functions/{TEST_RESOURCE_NAME}",
+        ),
+        (
+            "resources",
+            "mgmt",
+            mlrun.common.schemas.AuthorizationResourceTypes.project,
+            mlrun.common.schemas.AuthorizationResourceNamespace.resources,
+            f"/resources/projects/{TEST_PROJECT_NAME}",
+        ),
+        (
+            "resources",
+            "mgmt",
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+            f"/mgmt/projects/{TEST_PROJECT_NAME}/functions/{TEST_RESOURCE_NAME}",
+        ),
+        (
+            "res_ns",
+            "mgmt",
+            mlrun.common.schemas.AuthorizationResourceTypes.project,
+            mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+            f"/mgmt/projects/{TEST_PROJECT_NAME}",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            mlrun.common.schemas.AuthorizationResourceNamespace.resources,
+            f"/projects/{TEST_PROJECT_NAME}/functions/{TEST_RESOURCE_NAME}",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.AuthorizationResourceTypes.project,
+            mlrun.common.schemas.AuthorizationResourceNamespace.resources,
+            f"/projects/{TEST_PROJECT_NAME}",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+            f"/projects/{TEST_PROJECT_NAME}/functions/{TEST_RESOURCE_NAME}",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.AuthorizationResourceTypes.project,
+            mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+            f"/projects/{TEST_PROJECT_NAME}",
+        ),
+    ],
+)
+def test_attach_resource_namespace(
+    resources_namespace: str,
+    mgmt_namespace: str,
+    resource_type: mlrun.common.schemas.AuthorizationResourceTypes,
+    namespace: mlrun.common.schemas.AuthorizationResourceNamespace,
+    expected_resource_string: str,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        "mlrun.mlconf.httpdb.authorization.namespaces.resources", resources_namespace
+    )
+    monkeypatch.setattr(
+        "mlrun.mlconf.httpdb.authorization.namespaces.mgmt", mgmt_namespace
+    )
+    resource_string = resource_type.to_resource_string(
+        project_name=TEST_PROJECT_NAME, resource_name=TEST_RESOURCE_NAME
+    )
+    namespaced_resource_string = (
+        framework.utils.auth.verifier.AuthVerifier()._attach_resource_namespace(
+            resource_string, namespace
+        )
+    )
+    assert namespaced_resource_string == expected_resource_string

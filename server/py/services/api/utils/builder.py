@@ -531,7 +531,6 @@ def build_image(
     )
     if is_s3_source:
         _enrich_kaniko_env_for_s3_context(
-            source_url=source,
             env_vars=builder_env_list,
         )
     kpod = make_kaniko_pod(
@@ -1189,9 +1188,10 @@ def _resolve_function_image_secret(
 
 
 def _enrich_kaniko_env_for_s3_context(
-    source_url: str,
     env_vars: list[client.V1EnvVar],
 ) -> None:
+    if env_vars is None:
+        return
     """
     If the build context is s3://:
     - Determine an effective AWS region:
@@ -1203,8 +1203,6 @@ def _enrich_kaniko_env_for_s3_context(
     - Only when we fake a default region (no region anywhere) do we also:
         * Add S3_FORCE_PATH_STYLE=true (MinIO / path-style assumption).
     """
-    env_vars = env_vars or []
-
     def get_env_var_by_name(
         env_var_name: str,
     ) -> typing.Optional[client.V1EnvVar]:

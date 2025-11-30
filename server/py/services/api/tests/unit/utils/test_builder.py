@@ -1749,7 +1749,7 @@ def test_build_runtime_calls_enrich_kaniko_env_for_s3_source(monkeypatch):
         "some-tag",
         kind=RuntimeKinds.job,
     )
-    function.spec.build.source = "s3://my-bucket/path/to/source"
+    function.spec.build.source = "s3://my-bucket/path/to/source.tgz"
 
     with (
         unittest.mock.patch(

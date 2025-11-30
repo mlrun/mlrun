@@ -1433,12 +1433,17 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :raises mlrun.errors.MLRunNotFoundError: If the token is not found in the secret.
         :raises mlrun.errors.MLRunRuntimeError: If decoding/parsing fails.
         """
-        username = k8s_secret.metadata.labels[
-            mlrun_constants.MLRunInternalLabels.auth_username
-        ]
-        token_name = k8s_secret.metadata.labels[
-            mlrun_constants.MLRunInternalLabels.auth_token_name
-        ]
+        try:
+            username = k8s_secret.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.auth_username
+            ]
+            token_name = k8s_secret.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.auth_token_name
+            ]
+        except KeyError as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Secret {k8s_secret.metadata.name} is missing required labels for username or token name"
+            ) from exc
         try:
             encoded_tokens_file = k8s_secret.data.get("tokensFile")
             if not encoded_tokens_file:

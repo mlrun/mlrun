@@ -400,10 +400,30 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _normalize_categories(item: mlrun.common.schemas.hub.HubItem):
+        """Normalize the item categories to UI format using a predefined mapping,
+        falling back to default (title) formatting when no match is found."""
+
+        unique_mapping = {
+            "etl": "ETL",
+            "genai": "GenAI",
+            "NLP": "NLP",
+            "pytorch": "PyTorch",
+            "huggingface": "Hugging Face",
+            "structured-ML": "Structured ML",
+        }
+
         categories = getattr(item.metadata, "categories", [])
-        normalized_categories = [
-            s.replace("-", " ").title().strip()
-            for s in categories
-            if isinstance(s, str)
-        ]
+        normalized_categories = []
+
+        for s in categories:
+            if not isinstance(s, str):
+                continue
+
+            if s in unique_mapping:
+                normalized_categories.append(unique_mapping[s])
+                continue
+
+            normalized = s.replace("-", " ").title().strip()
+            normalized_categories.append(normalized)
+
         setattr(item.metadata, "categories", normalized_categories)

@@ -140,3 +140,27 @@ class Function(pydantic.v1.BaseModel):
 
     class Config:
         extra = pydantic.v1.Extra.allow
+
+
+class BatchingSpec(pydantic.v1.BaseModel):
+    # Set to True to enable batching
+    enabled: bool
+    # Maximal events to batch together. Default size is 10.
+    batch_size: typing.Optional[int]
+    # The maximum amount of time to wait before processing the batch. Default timeout is 1s.
+    # Once this time passes, the batch is processed even if it hasn’t reached the full batch size.
+    timeout: typing.Optional[str]
+
+    def get_nuclio_batch_config(self):
+        if not self.enabled:
+            return None
+
+        config = {"mode": "enable"}
+
+        if self.batch_size:
+            config["batchSize"] = self.batch_size
+
+        if self.timeout:
+            config["timeout"] = self.timeout
+
+        return config

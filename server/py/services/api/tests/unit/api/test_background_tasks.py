@@ -173,7 +173,10 @@ async def async_client(app) -> typing.Iterator[ThreadedAsyncClient]:
         response = result.result()
     """
     app.include_router(test_router, prefix="/test")
-    async with ThreadedAsyncClient(app=app, base_url="https://mlrun") as client:
+    transport = httpx.ASGITransport(app=app)
+    async with ThreadedAsyncClient(
+        transport=transport, base_url="https://mlrun"
+    ) as client:
         yield client
 
 
@@ -544,7 +547,7 @@ def test_old_project_background_task_cleanup(
 
     with unittest.mock.patch(
         "mlrun.utils.now_date",
-        return_value=datetime.datetime.now(datetime.timezone.utc)
+        return_value=datetime.datetime.now(datetime.UTC)
         - datetime.timedelta(seconds=10),
     ):
         response = client.post(f"/test/projects/{project}/background-tasks")

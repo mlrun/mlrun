@@ -14,8 +14,9 @@
 
 import json
 import typing
-from datetime import datetime, timezone
-from typing import Any, Callable, NewType, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any, NewType, Optional
 
 import storey
 
@@ -171,7 +172,7 @@ class ModelMonitoringWriter(StepToDict):
         )
         stat_kind = event.get(StatsData.STATS_NAME)
         data, timestamp_str = event.get(StatsData.STATS), event.get(StatsData.TIMESTAMP)
-        timestamp = datetime.fromisoformat(timestamp_str).astimezone(tz=timezone.utc)
+        timestamp = datetime.fromisoformat(timestamp_str).astimezone(tz=UTC)
         if stat_kind == StatsKind.CURRENT_STATS.value:
             ModelMonitoringCurrentStatsFile(self.project, endpoint_id).write(
                 data, timestamp

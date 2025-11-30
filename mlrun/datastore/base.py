@@ -26,6 +26,7 @@ import pyarrow
 import pytz
 import requests
 
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 from mlrun.datastore.remote_client import BaseRemoteClient
@@ -203,7 +204,7 @@ class DataStore(BaseRemoteClient):
                 )
 
             if start_time or end_time or additional_filters:
-                partitions_time_attributes = find_partitions(url, file_system)
+                partitions_time_attributes, _ = find_partitions(url, file_system)
                 set_filters(
                     partitions_time_attributes,
                     start_time,
@@ -648,8 +649,10 @@ def basic_auth_header(user, password):
     username = user.encode("latin1")
     password = password.encode("latin1")
     base = b64encode(b":".join((username, password))).strip()
-    authstr = "Basic " + base.decode("ascii")
-    return {"Authorization": authstr}
+    authstr = mlrun.common.schemas.AuthorizationHeaderPrefixes.basic + base.decode(
+        "ascii"
+    )
+    return {mlrun.common.schemas.HeaderNames.authorization: authstr}
 
 
 class HttpStore(DataStore):
@@ -696,7 +699,10 @@ class HttpStore(DataStore):
         token = self._get_secret_or_env("HTTPS_AUTH_TOKEN")
         if token:
             self._https_auth_token = token
-            self._headers.setdefault("Authorization", f"Bearer {token}")
+            self._headers.setdefault(
+                mlrun.common.schemas.HeaderNames.authorization,
+                f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}{token}",
+            )
 
     def _validate_https_token(self):
         if self._https_auth_token and self._schema in ["http"]:

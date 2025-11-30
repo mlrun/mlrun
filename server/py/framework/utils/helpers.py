@@ -17,7 +17,8 @@ import datetime
 import functools
 import re
 import time
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 import semver
 from humanfriendly import InvalidTimespan, parse_timespan

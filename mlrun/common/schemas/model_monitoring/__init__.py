@@ -41,6 +41,7 @@ from .constants import (
     SpecialApps,
     StreamProcessingEvent,
     TDEngineSuperTables,
+    TimescaleDBTables,
     TSDBTarget,
     V3IOTSDBTables,
     VersionedModel,

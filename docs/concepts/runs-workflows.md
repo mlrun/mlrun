@@ -18,11 +18,11 @@ See the examples listed below and the **{ref}`tutorial`** for more details.
 local-remote
 mlrun-execution-context
 decorators-and-auto-logging
+/runtimes/configuring-job-resources
+scheduled-jobs
 submitting-tasks-jobs-to-functions
 workflow-overview
 /runtimes/conditional-workflow
 /runtimes/multiple-funcs-exithandler
 /runtimes/multiple-parallel-workflow
-/runtimes/configuring-job-resources
-scheduled-jobs
 ```

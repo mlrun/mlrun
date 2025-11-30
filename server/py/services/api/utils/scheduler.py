@@ -17,8 +17,9 @@ import copy
 import json
 import traceback
 import typing
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 
 import fastapi.concurrency
 import humanfriendly
@@ -510,8 +511,8 @@ class Scheduler:
                 )
                 # created an access key with control and data session plane, so enriching auth_info with those planes
                 auth_info.planes = [
-                    framework.utils.clients.iguazio.SessionPlanes.control,
-                    framework.utils.clients.iguazio.SessionPlanes.data,
+                    framework.utils.clients.iguazio.v3.SessionPlanes.control,
+                    framework.utils.clients.iguazio.v3.SessionPlanes.data,
                 ]
             # Support receiving access-key reference ($ref:...), for example when updating existing schedule
             if auth_info.access_key.startswith(
@@ -800,7 +801,7 @@ class Scheduler:
                     username=username,
                     access_key=access_key,
                     # enriching with control plane tag because scheduling a function requires control plane
-                    planes=[framework.utils.clients.iguazio.SessionPlanes.control],
+                    planes=[framework.utils.clients.iguazio.v3.SessionPlanes.control],
                 )
 
                 self._create_schedule_in_scheduler(
@@ -1094,7 +1095,7 @@ class Scheduler:
                 )
 
                 project_owner = framework.utils.singletons.project_member.get_project_member().get_project_owner(
-                    db_session, project_name
+                    db_session, project_name, auth_info=auth_info
                 )
                 # Update the schedule with the new auth info so we won't need to do the above again in the next run
                 scheduler.update_schedule(
@@ -1104,7 +1105,7 @@ class Scheduler:
                         access_key=project_owner.access_key,
                         # enriching with control plane tag because scheduling a function requires control plane
                         planes=[
-                            framework.utils.clients.iguazio.SessionPlanes.control,
+                            framework.utils.clients.iguazio.v3.SessionPlanes.control,
                         ],
                     ),
                     project_name,

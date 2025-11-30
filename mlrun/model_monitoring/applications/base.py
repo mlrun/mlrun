@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, Optional, Union, cast
 
 import pandas as pd
@@ -440,7 +440,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     ) -> list[tuple[str, str]]:
         if isinstance(endpoints, list):
             if all(
-                isinstance(endpoint, (tuple, list)) and len(endpoint) == 2
+                isinstance(endpoint, tuple | list) and len(endpoint) == 2
                 for endpoint in endpoints
             ):
                 # A list of [(name, uid), ...] / [[name, uid], ...] tuples/lists
@@ -690,8 +690,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
         # If `start_dt` and `end_dt` do not include time zone information - change them to UTC
         if (start_dt.tzinfo is None) and (end_dt.tzinfo is None):
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
-            end_dt = end_dt.replace(tzinfo=timezone.utc)
+            start_dt = start_dt.replace(tzinfo=UTC)
+            end_dt = end_dt.replace(tzinfo=UTC)
         elif (start_dt.tzinfo is None) or (end_dt.tzinfo is None):
             raise mlrun.errors.MLRunValueError(
                 "The start and end times must either both include time zone information or both be naive (no time "
@@ -799,10 +799,13 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 f"`{mm_constants.APP_NAME_REGEX.pattern}`. "
                 "Please choose another `func_name`."
             )
-        if not job_name.endswith(mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX):
-            job_name += mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+        job_name, was_renamed, suffix = mlrun.utils.helpers.ensure_batch_job_suffix(
+            job_name
+        )
+        if was_renamed:
             mlrun.utils.logger.info(
-                'Changing function name - adding `"-batch"` suffix', func_name=job_name
+                f'Changing function name - adding `"{suffix}"` suffix',
+                func_name=job_name,
             )
 
         return job_name
@@ -847,6 +850,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``base_period``, ``int``
         * ``write_output``, ``bool``
         * ``existing_data_handling``, ``str``
+        * ``_init_args``, ``dict`` - the arguments for the application class constructor
+          (equivalent to ``class_arguments``)
+
+        See :py:meth:`~ModelMonitoringApplicationBase.evaluate` for more details
+        about these inputs and params.
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -925,6 +933,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         image: Optional[str] = None,
         with_repo: Optional[bool] = False,
         class_handler: Optional[str] = None,
+        class_arguments: Optional[dict[str, Any]] = None,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
         endpoints: Union[list[tuple[str, str]], list[str], Literal["all"], None] = None,
@@ -960,7 +969,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   You do not need to have a model endpoint to use this option.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
-        :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
+        :param class_handler:     The relative path to the application class, useful when using Git sources or code
+                                  from images.
+        :param class_arguments:   The arguments for the application class constructor. These are passed to the
+                                  class ``__init__``. The values must be JSON-serializable.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
         :param endpoints:         The model endpoints to get the data from. The options are:
@@ -1038,7 +1050,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             project=project,
         )
 
-        params: dict[str, Union[list, str, int, None, ds_profile.DatastoreProfile]] = {}
+        params: dict[
+            str, Union[list, dict, str, int, None, ds_profile.DatastoreProfile]
+        ] = {}
         if endpoints:
             params["endpoints"] = endpoints
             if sample_data is None:
@@ -1073,6 +1087,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     "Passing a `stream_profile` is relevant only when writing the outputs"
                 )
         params["stream_profile"] = stream_profile
+
+        if class_arguments:
+            params["_init_args"] = class_arguments
 
         inputs: dict[str, str] = {}
         for data, identifier in [

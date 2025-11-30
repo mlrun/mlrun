@@ -400,6 +400,7 @@ class ApplicationRuntime(RemoteRuntime):
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
+
         if (self.requires_build() and not self.spec.image) or force_build:
             self._fill_credentials()
             self._build_application_image(
@@ -567,10 +568,10 @@ class ApplicationRuntime(RemoteRuntime):
                 "Authentication credentials not provided"
             )
 
-        if direct_port_access and port:
+        if not direct_port_access and port:
             logger.warning(
-                "Ignoring 'port' because 'direct_port_access' is enabled. "
-                "The 'port' setting is only applicable when 'direct_port_access' is disabled."
+                "Ignoring 'port' because 'direct_port_access' is not enabled. "
+                "The 'port' setting is only applicable when 'direct_port_access' is enabled."
             )
 
         ports = (
@@ -607,6 +608,8 @@ class ApplicationRuntime(RemoteRuntime):
             api_gateway.with_access_key_auth()
         elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
             api_gateway.with_basic_auth(*authentication_creds)
+        elif authentication_mode == schemas.APIGatewayAuthenticationMode.iguazio:
+            api_gateway.with_iguazio_auth()
 
         db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(

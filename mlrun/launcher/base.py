@@ -16,7 +16,8 @@ import ast
 import copy
 import os
 import uuid
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
 import mlrun.common.constants
 import mlrun.common.runtimes.constants

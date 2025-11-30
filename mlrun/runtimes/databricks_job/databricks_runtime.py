@@ -14,7 +14,8 @@
 import typing
 from ast import FunctionDef, parse, unparse
 from base64 import b64decode
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 import mlrun
 import mlrun.runtimes.kubejob as kubejob

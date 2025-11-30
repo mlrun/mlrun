@@ -13,8 +13,9 @@
 # limitations under the License.
 import os
 import pathlib
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.schedule
@@ -243,6 +244,8 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
 
         # if the handler has module prefix force "local" (vs "handler") runtime
         kind = "local" if isinstance(handler, str) and "." in handler else ""
+
+        # Create temporary local function for execution
         fn = mlrun.new_function(meta.name, command=command, args=args, kind=kind)
         fn.metadata = meta
         setattr(fn, "_is_run_local", True)

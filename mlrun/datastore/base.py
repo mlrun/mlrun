@@ -178,15 +178,11 @@ class DataStore(BaseRemoteClient):
             hour=hour or 0,
             tzinfo=start_time.tzinfo,
         )
-        partition_end = (
-            partition_start
-            + relativedelta(
-                years=1 if month is None else 0,
-                months=1 if day is None and month is not None else 0,
-                days=1 if hour is None and day is not None else 0,
-                hours=1 if hour is not None else 0,
-            )
-            - datetime.timedelta(microseconds=1)
+        partition_end = partition_start + relativedelta(
+            years=1 if month is None else 0,
+            months=1 if day is None and month is not None else 0,
+            days=1 if hour is None and day is not None else 0,
+            hours=1 if hour is not None else 0,
         )
 
         if end_time < partition_start or start_time > partition_end:
@@ -260,7 +256,7 @@ class DataStore(BaseRemoteClient):
         base_path = base_path.rstrip("/")
         clean_return = returned_path.strip("/")
 
-        prefix, _, base_suffix = base_path.partition(":///")
+        prefix = base_path.base_suffix(":///", 1)[0]
         schema = prefix + ":///"
 
         return schema + clean_return
@@ -277,7 +273,7 @@ class DataStore(BaseRemoteClient):
                 Example: [[('year','=',2025),('month','=',11),('timestamp','>',ts1)]]
         :param partition_keys: (list of str) partition columns handled via directory
 
-        :return list of list of tuples: cleaned filters
+        :return list of list of tuples: cleaned filters without partition keys
         """
         cleaned_filters = []
         for group in filters:
@@ -339,7 +335,7 @@ class DataStore(BaseRemoteClient):
         start_time,
         end_time,
         additional_filters,
-        create_partition_path,
+        apply_discovery_urls,
     ):
         from storey.utils import find_filters, find_partitions
 
@@ -392,7 +388,7 @@ class DataStore(BaseRemoteClient):
 
                 try:
                     if (
-                        create_partition_path
+                        apply_discovery_urls
                         and partitions_time_attributes
                         and DataStore.verify_path_partition_level(url, partitions)
                     ):
@@ -434,7 +430,7 @@ class DataStore(BaseRemoteClient):
                         kwargs,
                     )
                     if (
-                        create_partition_path
+                        apply_discovery_urls
                         and partitions_time_attributes
                         and DataStore.verify_path_partition_level(url, partitions)
                     ):
@@ -471,7 +467,7 @@ class DataStore(BaseRemoteClient):
         file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
         file_system = self.filesystem
-        create_partition_path = kwargs.pop("create_partition_path", True)
+        apply_discovery_urls = kwargs.pop("apply_discovery_urls", True)
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
@@ -533,7 +529,7 @@ class DataStore(BaseRemoteClient):
                 start_time,
                 end_time,
                 additional_filters,
-                create_partition_path,
+                apply_discovery_urls,
             )
 
         elif file_url.endswith(".json") or format == "json":

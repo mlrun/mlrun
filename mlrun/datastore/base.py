@@ -194,6 +194,51 @@ class DataStore(BaseRemoteClient):
         return True
 
     @staticmethod
+    def _list_partition_paths_helper(
+        paths: list[str],
+        start_time,
+        end_time,
+        current_path: str,
+        partition_level: str,
+        filesystem,
+    ):
+        directory_split = current_path.rsplit("/", 1)
+        timing = None
+        directory_start, directory_end = "", ""
+        if len(directory_split) == 2:
+            directory_start, directory_end = directory_split
+            timing = directory_end.split("=")[0] if "=" in directory_end else None
+
+        if not timing and directory_end.endswith((".parquet", ".pq")):
+            paths.append(directory_start.rstrip("/"))
+            return
+        elif timing and timing == partition_level:
+            paths.append(current_path.rstrip("/"))
+            return
+
+        directories = filesystem.ls(current_path, detail=True)
+        if len(directories) == 0:
+            return
+        for directory in directories:
+            current_path = directory["name"]
+            parts = [p for p in current_path.split("/") if "=" in p]
+            kwargs = {}
+            for part in parts:
+                part = part.split("=")
+                key = part[0]
+                value = int(part[1]) if part[1].isdigit() else part[1]
+                kwargs[key] = value
+            if DataStore._is_directory_in_range(start_time, end_time, **kwargs):
+                DataStore._list_partition_paths_helper(
+                    paths,
+                    start_time,
+                    end_time,
+                    current_path,
+                    partition_level,
+                    filesystem,
+                )
+
+    @staticmethod
     def _list_partitioned_paths(
         base_path: str,
         start_time: datetime.datetime,
@@ -203,39 +248,8 @@ class DataStore(BaseRemoteClient):
     ):
         paths = []
 
-        def list_partition_paths_helper(
-            paths: list[str],
-            start_time,
-            end_time,
-            current_path: str,
-            partion_level: str,
-        ):
-            timing = current_path.rsplit("/")[-1].split("=")[0]
-            if filesystem.isfile(current_path):
-                paths.append(current_path.rsplit("/", 1)[0].rstrip("/"))
-                return
-            elif timing and timing == partion_level:
-                paths.append(current_path.rstrip("/"))
-                return
-            directories = filesystem.ls(current_path, detail=True)
-            if len(directories) == 0:
-                return
-            for directory in directories:
-                current_path = directory["name"]
-                parts = [p for p in current_path.split("/") if "=" in p]
-                kwargs = {}
-                for part in parts:
-                    part = part.split("=")
-                    key = part[0]
-                    value = int(part[1]) if part[1].isdigit() else part[1]
-                    kwargs[key] = value
-                if DataStore._is_directory_in_range(start_time, end_time, **kwargs):
-                    list_partition_paths_helper(
-                        paths, start_time, end_time, current_path, partion_level
-                    )
-
-        list_partition_paths_helper(
-            paths, start_time, end_time, base_path, partition_level
+        DataStore._list_partition_paths_helper(
+            paths, start_time, end_time, base_path, partition_level, filesystem
         )
         for i in range(len(paths)):
             paths[i] = DataStore._reconstruct_path_from_base_path(base_path, paths[i])
@@ -274,20 +288,18 @@ class DataStore(BaseRemoteClient):
 
     @staticmethod
     def _read_partitioned_parquet(
-        base_path,
-        start_time,
-        end_time,
-        partition_keys,
-        df_module,
-        filesystem,
+        base_path: str,
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+        partition_keys: list[str],
+        df_module: Union[pd, object],
+        filesystem: fsspec.AbstractFileSystem,
         **kwargs,
     ):
-        """Read only the relevant partitions using pandas filters and concat."""
+        """
+        Read only the relevant partitions using pandas filters and concat. Note that partition_keys cannot be empty.
+        """
         logger.debug("starting paths partition process")
-        if not partition_keys:
-            raise ValueError(
-                f"No partition structure found under {base_path}, while usage requires partition keys"
-            )
 
         paths = DataStore._list_partitioned_paths(
             base_path,
@@ -298,34 +310,24 @@ class DataStore(BaseRemoteClient):
         )
 
         dfs = []
-        errors = []
         for current_path in paths:
-            try:
-                kwargs["filters"] = DataStore._clean_filters_for_partitions(
-                    kwargs["filters"], partition_keys
-                )
-                df = df_module.read_parquet(current_path, **kwargs)
-                logger.debug("Reading DataFrame", url=current_path, columns=df.columns)
-                dfs.append(df)
-            except (FileNotFoundError, pyarrow.lib.ArrowInvalid) as e:
-                # Skip partitions that don't exist or have no data
-                logger.warning(
-                    "Failed to read DataFrame", url=current_path, exception=e
-                )
-                errors.append(e)
-                continue
+            kwargs["filters"] = DataStore._clean_filters_for_partitions(
+                kwargs["filters"], partition_keys
+            )
+            df = df_module.read_parquet(current_path, **kwargs)
+            logger.debug(
+                "Finish reading DataFrame from specific url",
+                url=current_path,
+                columns=df.columns,
+            )
+            dfs.append(df)
 
-        if not dfs:
-            pyarrow_errors = [
-                err for err in errors if isinstance(err, pyarrow.lib.ArrowInvalid)
-            ]
-            if pyarrow_errors:
-                raise pyarrow_errors[0]
-            else:
-                return pd.DataFrame()
-
-        final_df = pd.concat(dfs)
-        logger.debug("Finished reading DataFrame columns", columns=final_df.columns)
+        final_df = pd.concat(dfs) if dfs else pd.DataFrame()
+        logger.debug(
+            "Finished reading partitioned parquet files",
+            url=base_path,
+            columns=final_df.columns,
+        )
         return final_df
 
     @staticmethod
@@ -431,7 +433,11 @@ class DataStore(BaseRemoteClient):
                         additional_filters,
                         kwargs,
                     )
-                    if create_partition_path and partitions_time_attributes:
+                    if (
+                        create_partition_path
+                        and partitions_time_attributes
+                        and DataStore.verify_path_partition_level(url, partitions)
+                    ):
                         return DataStore._read_partitioned_parquet(
                             url,
                             start_time_inner,

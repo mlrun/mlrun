@@ -37,8 +37,8 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9564|You can now import monitoring apps from the MLRun hub or your own private hub. See [hub model monitoring applications](../runtimes/load-from-hub.md#import-a-model-monitoring-application).|
-|ML-9564|You can now import python modules from the MLRun hub or your own private hub. See [hub modules](../runtimes/load-from-hub.md#import-a-module).|
+|ML-9564|You can now import monitoring apps from the MLRun hub or your own private hub. See [import a model monitoring application](../runtimes/load-from-hub.md#import-a-model-monitoring-application).|
+|ML-9319|You can now import python modules from the MLRun hub or your own private hub. See [import a module](../runtimes/load-from-hub.md#import-a-module).|
 
 ### Serving
 | ID    |Description                                                                 |
@@ -55,20 +55,20 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9577|You can run model monitoring on the new ModelRunnerStep. See the example in {ref}`genai-04-llm-prompt-artifact`.|
+|ML-9577, ML-4309|You can run model monitoring on the new ModelRunnerStep. See the example in {ref}`genai-04-llm-prompt-artifact`.|
 |ML-9613|The new Monitoring Application view, accessed with the Monitoring app icon in the menu, provides you with a comprehensive overview of your model monitoring applications and their status. See {ref}`view-mm-applications`.|
-|ML-9817|You can now run a model monitoring application as a batch application on existing model endpoint data. See {ref}`mm-running-applications`.|
+|ML-8072|You can now run a model monitoring application as a batch application on existing model endpoint data. See {ref}`mm-running-applications`.|
 
 ### Batch run
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5986|You can now configure to retry runs that fail using the SDK. See {ref}`run_function`.|
+|ML-5986|You can now use the SDK to configure retries on runs that fail. See {ref}`run_function`.|
 |ML-9681|You can now deploy a serving graph as a job. See {ref}`batch-infer-drift-tutor`.|
 
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9350|You can now terminate a workflow from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the vertical ellipsis menu, depending on the page you are in. |
+|ML-9351|You can now terminate a workflow from the UI with either the <b>Terminate</b> button or the <b>Terminate</b> option in the vertical ellipsis menu, depending on the page you are in. |
 |ML-9430|The cross-project and Project monitoring views have two new tiles: Artifacts (in sub-categories: Datasets, Documents, LLM pompt artifacts, Other artifacts) and Models. The Project page has an additional tile: Applications. The project monitoring page now display Runs instead of Jobs, and the "Scheduled" counter estimates upcoming runs. Consumer groups is now located under Real-Time and ML functions. |
 
 
@@ -119,11 +119,10 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7678|Warning is raised when `with_source_archive` is used but source code was provided via `set_function`.|
-|ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
 |ML-7771| Updated message when user tries to create a project but does not have developer permission: "Permission denied: Unable to create a project. Contact your system administrator to review user policy and data access permissions."|
 |ML-8549|Documentation: Clarification that email notification isn't sent for local jobs unless the default email SMTP settings are explicitly set. See [Local vs. Remote](../concepts/notifications.md#local-vs-remote).|
 |ML-8601|Default spot labels node selector are no longer removed.|
-|ML-8740|Notifications are now issued when retrying pipelines.|
+|ML-8674|Notifications are now issued when retrying pipelines.|
 |ML-8756|When assigning a node selector from the list of `mlconf.get_preemptible_node_selector()`, if the preemption mode is `prevent` or `allow` MLRun now warns that this node selector might get removed.|
 |ML-9338|`latest` tag: If the same project+key were created from both a hyper-param run and single run, and the user removed the latest tag from everything, then `latest` is assigned to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results, and it may not actually be the latest run.|
 |ML-9452|A monitored serving function deploy will fail early on validation if model monitoring credentials were not set. Previously, it failed later in the build stage.|
@@ -136,6 +135,7 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 |ML-9869|UI: Fixed issue when "Artifacts" icon in navigation bar was not clickable when custom filter enabled. |
 |ML-9876|Resolved issue of DB probes failing when the concurrent connections are maxed out.|
 |ML-9884|UI: After modifying a schedule the UI now remains on the Scheduled page. Previously it redirected to the specific project schedules.|
+|ML-9899|Compressed workflow size limitation exceeded resolved by documentation update: do not use `for loop`. See [Running workflows](../concepts/workflow-overview.md#running-workflows).|
 |ML-9911|Using the same tag across different artifacts is now allowed.|
 |ML-9937|UI: When clicking on the UID link after running a job in Jupyter, the Job run page opens. Previously, the project page opened.|
 |ML-9971|UI: When registering an artifact, you can reselect an option in the Target path and the dropdown closes. Previously the option was not selected and the drop-down remained open.|| 

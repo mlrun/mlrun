@@ -107,6 +107,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             if (tag is None or item.metadata.tag == tag) and (
                 version is None or item.metadata.version == version
             ):
+                self._normalize_categories(item)
                 result_catalog.catalog.append(item)
 
         return result_catalog
@@ -396,3 +397,35 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         """
         normalized_name = mlrun.utils.helpers.normalize_name(item_name)
         return [item for item in catalog if item.metadata.name == normalized_name]
+
+    @staticmethod
+    def _normalize_categories(item: mlrun.common.schemas.hub.HubItem):
+        """
+        Normalize the item categories to UI format using a predefined mapping,
+        falling back to default (title) formatting when no match is found.
+        """
+
+        unique_mapping = {
+            "etl": "ETL",
+            "genai": "GenAI",
+            "NLP": "NLP",
+            "pytorch": "PyTorch",
+            "huggingface": "Hugging Face",
+            "structured-ML": "Structured ML",
+        }
+
+        categories = getattr(item.metadata, "categories", [])
+        normalized_categories = []
+
+        for s in categories:
+            if not isinstance(s, str):
+                continue
+
+            if s in unique_mapping:
+                normalized_categories.append(unique_mapping[s])
+                continue
+
+            normalized = s.replace("-", " ").title().strip()
+            normalized_categories.append(normalized)
+
+        setattr(item.metadata, "categories", normalized_categories)

@@ -17,7 +17,7 @@ import urllib.parse
 from base64 import b64encode
 from copy import copy
 from os import path, remove
-from typing import Optional, Union
+from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 import fsspec
@@ -220,9 +220,9 @@ class DataStore(BaseRemoteClient):
             parts = [p for p in current_path.split("/") if "=" in p]
             kwargs = {}
             for part in parts:
-                part = part.split("=")
-                key = part[0]
-                value = int(part[1]) if part[1].isdigit() else part[1]
+                key, value = part.split("=", 1)
+                if value.isdigit():
+                    value = int(value)
                 kwargs[key] = value
             if DataStore._is_directory_in_range(start_time, end_time, **kwargs):
                 DataStore._list_partition_paths_helper(
@@ -254,24 +254,24 @@ class DataStore(BaseRemoteClient):
     @staticmethod
     def _reconstruct_path_from_base_path(base_path: str, returned_path: str) -> str:
         base_path = base_path.rstrip("/")
-        clean_return = returned_path.strip("/")
+        strip_path = returned_path.strip("/")
 
-        prefix = base_path.base_suffix(":///", 1)[0]
+        prefix = base_path.split(":///", 1)[0]
         schema = prefix + ":///"
 
-        return schema + clean_return
+        return schema + strip_path
 
     @staticmethod
     def _clean_filters_for_partitions(
-        filters,
-        partition_keys,
+        filters: list[list[tuple]],
+        partition_keys: list[str],
     ):
         """
         Remove partition keys from filters.
 
-        :param filters: (list of lists of tuples) pandas-style filters
+        :param filters: pandas-style filters
                 Example: [[('year','=',2025),('month','=',11),('timestamp','>',ts1)]]
-        :param partition_keys: (list of str) partition columns handled via directory
+        :param partition_keys: partition columns handled via directory
 
         :return list of list of tuples: cleaned filters without partition keys
         """
@@ -288,12 +288,13 @@ class DataStore(BaseRemoteClient):
         start_time: datetime.datetime,
         end_time: datetime.datetime,
         partition_keys: list[str],
-        df_module: Union[pd, object],
+        df_module: Union[pd, Any],
         filesystem: fsspec.AbstractFileSystem,
         **kwargs,
     ):
         """
-        Read only the relevant partitions using pandas filters and concat. Note that partition_keys cannot be empty.
+        Reads only the relevant partitions and concatenates the results.
+        Note that partition_keys cannot be empty.
         """
         logger.debug(f"Starting partition discovery process for {base_path}")
 
@@ -306,19 +307,36 @@ class DataStore(BaseRemoteClient):
         )
 
         dfs = []
+        errors = []
         for current_path in paths:
-            kwargs["filters"] = DataStore._clean_filters_for_partitions(
-                kwargs["filters"], partition_keys
-            )
-            df = df_module.read_parquet(current_path, **kwargs)
-            logger.debug(
-                "Finish reading DataFrame from specific url",
-                url=current_path,
-                columns=df.columns,
-            )
-            dfs.append(df)
+            try:
+                kwargs["filters"] = DataStore._clean_filters_for_partitions(
+                    kwargs["filters"], partition_keys
+                )
+                df = df_module.read_parquet(current_path, **kwargs)
+                logger.debug(
+                    "Finished reading DataFrame from subpath",
+                    url=current_path,
+                )
+                dfs.append(df)
+            except (FileNotFoundError, pyarrow.lib.ArrowInvalid) as e:
+                # Skip partitions that don't exist or have no data
+                logger.warning(
+                    "Failed to read DataFrame", url=current_path, exception=e
+                )
+                errors.append(e)
+                continue
 
-        final_df = pd.concat(dfs) if dfs else pd.DataFrame()
+        if not dfs:
+            pyarrow_errors = [
+                err for err in errors if isinstance(err, pyarrow.lib.ArrowInvalid)
+            ]
+            if pyarrow_errors:
+                raise pyarrow_errors[0]
+            else:
+                return pd.DataFrame()
+
+        final_df = pd.concat(dfs)
         logger.debug(
             "Finished reading partitioned parquet files",
             url=base_path,
@@ -467,7 +485,9 @@ class DataStore(BaseRemoteClient):
         file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
         file_system = self.filesystem
-        apply_discovery_urls = kwargs.pop("apply_discovery_urls", True)
+        apply_discovery_urls = kwargs.pop(
+            "apply_discovery_urls", True
+        )  # allow to disable discovery urls
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False

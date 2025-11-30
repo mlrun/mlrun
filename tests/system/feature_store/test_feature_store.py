@@ -1003,16 +1003,7 @@ class TestFeatureStore(TestMLRunSystem):
             ]
         )
 
-        if partition_keys == ["year"]:
-            granularity = "year"
-        elif partition_keys == ["year", "month"]:
-            granularity = "month"
-        elif partition_keys == ["year", "month", "day"]:
-            granularity = "day"
-        elif partition_keys == ["year", "month", "day", "hour"]:
-            granularity = "hour"
-        else:
-            raise ValueError("Unexpected partition_keys")
+        granularity = partition_keys[-1]
 
         run_id = uuid.uuid4()
         target_path = f"v3io:///projects/{self.project_name}/partition_test_{run_id}"
@@ -1118,16 +1109,7 @@ class TestFeatureStore(TestMLRunSystem):
             ]
         )
 
-        if partition_keys == ["year"]:
-            granularity = "year"
-        elif partition_keys == ["year", "month"]:
-            granularity = "month"
-        elif partition_keys == ["year", "month", "day"]:
-            granularity = "day"
-        elif partition_keys == ["year", "month", "day", "hour"]:
-            granularity = "hour"
-        else:
-            raise ValueError("Unexpected partition_keys")
+        granularity = partition_keys[-1]
 
         run_id = uuid.uuid4()
         target_path = f"v3io:///projects/{self.project_name}/partition_test_{run_id}"

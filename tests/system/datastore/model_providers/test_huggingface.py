@@ -59,7 +59,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
 
     @pytest.mark.parametrize(
         "execution_mechanism",
-        ["thread_pool"],
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
     )
     def test_basic_huggingface_model_runner(self, execution_mechanism):
         self.setup_datastore_profile()

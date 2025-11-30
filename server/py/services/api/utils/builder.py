@@ -1203,6 +1203,7 @@ def _enrich_kaniko_env_for_s3_context(
     - Only when we fake a default region (no region anywhere) do we also:
         * Add S3_FORCE_PATH_STYLE=true (MinIO / path-style assumption).
     """
+
     def get_env_var_by_name(
         env_var_name: str,
     ) -> typing.Optional[client.V1EnvVar]:

@@ -1205,7 +1205,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         }
 
         create = False
-        secret_data = self._encode_user_token(token_name, token, expiration)
         k8s_secret = self._get_user_token_secret(username, token_name, namespace)
         if not k8s_secret:
             create = True
@@ -1216,7 +1215,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 labels=labels,
                 namespace=namespace,
                 secret_name=self._resolve_auth_secret_name(username, token_name),
-                secrets=secret_data,
+                secrets=self._encode_user_token(token_name, token, expiration),
                 encoded=True,
             )
             return mlrun.common.schemas.SecretEventActions.created
@@ -1227,7 +1226,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 k8s_secret=k8s_secret,
                 namespace=namespace,
                 secret_name=self._resolve_auth_secret_name(username, token_name),
-                secrets=secret_data,
+                secrets=self._encode_user_token(token_name, token, expiration),
                 encoded=True,
             )
             return mlrun.common.schemas.SecretEventActions.updated

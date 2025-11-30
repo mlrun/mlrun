@@ -733,6 +733,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param encoded: Whether the secret values are already base64-encoded. Defaults to False.
         """
         logger.debug("Creating secret", secret_name=secret_name)
+        namespace = self.resolve_namespace(namespace)
 
         secret_data = (
             secrets

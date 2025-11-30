@@ -299,7 +299,7 @@ class DataStore(BaseRemoteClient):
         """
         Read only the relevant partitions using pandas filters and concat. Note that partition_keys cannot be empty.
         """
-        logger.debug("starting paths partition process")
+        logger.debug(f"Starting partition discovery process for {base_path}")
 
         paths = DataStore._list_partitioned_paths(
             base_path,

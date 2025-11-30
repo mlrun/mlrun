@@ -400,8 +400,10 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _normalize_categories(item: mlrun.common.schemas.hub.HubItem):
-        """Normalize the item categories to UI format using a predefined mapping,
-        falling back to default (title) formatting when no match is found."""
+        """
+        Normalize the item categories to UI format using a predefined mapping,
+        falling back to default (title) formatting when no match is found.
+        """
 
         unique_mapping = {
             "etl": "ETL",

@@ -108,19 +108,11 @@ class Client(BaseClient, project_follower.Member):
                 f"Offline tokens are empty for: {', '.join(empty_tokens)}"
             )
 
-        self._logger.info(
-            "Refreshing multiple access tokens via Iguazio", token_names=token_names
-        )
+        self._logger.debug("Refreshing access tokens", token_names=token_names)
 
         def _refresh_access_tokens():
             options = RefreshAccessTokensOptionsV1(refresh_tokens=token_values)
-            # Call Iguazio batch refresh
             self._client.refresh_access_tokens(options=options)
-
-            self._logger.info(
-                "Successfully refreshed multiple access tokens via Iguazio",
-                token_names=token_names,
-            )
 
         return self._try_callback_with_httpx_exceptions(
             _refresh_access_tokens,

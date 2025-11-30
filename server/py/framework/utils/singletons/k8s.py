@@ -1319,12 +1319,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             ",".join(f"{k}={v}" for k, v in labels.items()) if labels else None
         )
 
-        logger.debug(
-            "Listing secrets from Kubernetes",
-            namespace=namespace,
-            label_selector=label_selector,
-        )
-
         try:
             secrets_list = self.v1api.list_namespaced_secret(
                 namespace=namespace,

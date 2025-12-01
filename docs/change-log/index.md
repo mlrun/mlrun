@@ -2,7 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
-- [v1.10.1](#v1101) | [v1.10.0](#v1100)
+- [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
@@ -24,14 +24,6 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Python: from 3.9 to 3.11.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
-
-(v1101)=
-## v1.10.0 (December 2025)
-
-### Closed issues
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-11602|In a Python 3.9 environment on Dask clusters, when running code that specifies `mlrun/ml-base` image it is now replaced  with `mlrun/mlrun` image.|
 
 (v1101)=
 ## v1.10.0 (November 2025)
@@ -1456,6 +1448,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
 |ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|v1.8.0|
+|ML-11602|In a Python 3.9 environment on Dask clusters, when running code that specifies the `mlrun/ml-base` image, the image name is not replaced  with `mlrun/mlrun` image and the workflow fails.|Update the code to use `mlrun/mlrun`|v1.10.0|
 
 ## Deprecations and removed code
 

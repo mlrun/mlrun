@@ -31,7 +31,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-11602|In a Python 3.9 environment, when running code that specifies `mlrun/ml-base` image it is now replaced  with `mlrun/mlrun` image.|
+|ML-11602|In a Python 3.9 environment on Dask clusters, when running code that specifies `mlrun/ml-base` image it is now replaced  with `mlrun/mlrun` image.|
 
 (v1101)=
 ## v1.10.0 (November 2025)

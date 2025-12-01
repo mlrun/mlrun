@@ -289,6 +289,65 @@ class TimescaleDBConnector(TSDBConnector):
     def read_predictions(self, *args, **kwargs):
         return self._predictions_queries.read_predictions(*args, **kwargs)
 
+    def _get_records(
+        self,
+        table: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        endpoint_id: Optional[str] = None,
+        columns: Optional[list[str]] = None,
+        timestamp_column: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Get raw records from TimescaleDB as pandas DataFrame.
+
+        This method provides direct access to raw table data.
+
+        :param table: Table name - use TimescaleDBTables enum (METRICS, APP_RESULTS, or PREDICTIONS)
+        :param start: Start time for the query
+        :param end: End time for the query
+        :param endpoint_id: Optional endpoint ID filter (None = all endpoints)
+        :param columns: Optional list of specific columns to return (None = all columns)
+        :param timestamp_column: Optional timestamp column to use for time filtering (None = use table's default)
+        :return: Raw pandas DataFrame with all matching records
+        """
+        if table == mm_schemas.TimescaleDBTables.METRICS:
+            df = self._metrics_queries.read_metrics_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all metrics
+                timestamp_column=timestamp_column,
+            )
+        elif table == mm_schemas.TimescaleDBTables.APP_RESULTS:
+            df = self._results_queries.read_results_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all results
+                with_result_extra_data=True,
+                timestamp_column=timestamp_column,
+            )
+        elif table == mm_schemas.TimescaleDBTables.PREDICTIONS:
+            df = self._predictions_queries.read_predictions_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                columns=columns,
+                timestamp_column=timestamp_column,
+            )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid table '{table}'. Must be METRICS, APP_RESULTS, or PREDICTIONS from TimescaleDBTables enum"
+            )
+
+        if columns is not None and not df.empty:
+            # Filter to requested columns if specified
+            available_columns = [col for col in columns if col in df.columns]
+            df = df[available_columns]
+
+        return df
+
     def get_last_request(self, *args, **kwargs):
         return self._predictions_queries.get_last_request(*args, **kwargs)
 

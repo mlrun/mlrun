@@ -370,7 +370,7 @@ class OnlineVectorService:
         if (
             not entity_rows
             or not isinstance(entity_rows, list)
-            or not isinstance(entity_rows[0], (list, dict))
+            or not isinstance(entity_rows[0], list | dict)
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"input data is of type {type(entity_rows)}. must be a list of lists or list of dicts"

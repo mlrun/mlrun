@@ -547,7 +547,7 @@ def test_old_project_background_task_cleanup(
 
     with unittest.mock.patch(
         "mlrun.utils.now_date",
-        return_value=datetime.datetime.now(datetime.timezone.utc)
+        return_value=datetime.datetime.now(datetime.UTC)
         - datetime.timedelta(seconds=10),
     ):
         response = client.post(f"/test/projects/{project}/background-tasks")

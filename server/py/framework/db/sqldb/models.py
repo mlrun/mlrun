@@ -16,8 +16,9 @@ import json
 import pickle
 import uuid
 import warnings
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import orjson
 from sqlalchemy import (
@@ -395,11 +396,11 @@ with warnings.catch_warnings():
         )
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         _full_object = Column("object", framework.db.sqldb.sql_types.Blob)
         parent = relationship(
@@ -500,12 +501,12 @@ with warnings.catch_warnings():
         project = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
-            onupdate=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
+            onupdate=lambda: datetime.now(UTC),
         )
         state = Column(framework.db.sqldb.sql_types.Utf8BinText, index=True)
         error = Column(framework.db.sqldb.sql_types.Utf8BinText)
@@ -660,11 +661,11 @@ with warnings.catch_warnings():
         project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         state = Column(framework.db.sqldb.sql_types.Utf8BinText)
         uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
@@ -710,11 +711,11 @@ with warnings.catch_warnings():
         project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         state = Column(framework.db.sqldb.sql_types.Utf8BinText)
         uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
@@ -743,11 +744,11 @@ with warnings.catch_warnings():
         index = Column(Integer)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
 
         _full_object = Column("object", JSON)
@@ -773,7 +774,7 @@ with warnings.catch_warnings():
         version = Column(framework.db.sqldb.sql_types.Utf8BinText)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
 
         def get_identifier_string(self) -> str:
@@ -814,7 +815,7 @@ with warnings.catch_warnings():
         kwargs = Column(JSON)
         last_accessed = Column(
             framework.db.sqldb.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
 
         def get_identifier_string(self) -> str:
@@ -828,7 +829,7 @@ with warnings.catch_warnings():
         count = Column(Integer)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         last_updated = Column(
             framework.db.sqldb.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
@@ -990,7 +991,7 @@ with warnings.catch_warnings():
         timestamp = Column(
             framework.db.sqldb.sql_types.MicroSecondDateTime,
             nullable=False,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         max_window_size_seconds = Column(Integer)
 
@@ -1017,11 +1018,11 @@ with warnings.catch_warnings():
         body = Column(framework.db.sqldb.sql_types.Blob)
         created = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         updated = Column(
             framework.db.sqldb.sql_types.DateTime,
-            default=lambda: datetime.now(timezone.utc),
+            default=lambda: datetime.now(UTC),
         )
         function_id = Column(
             Integer,

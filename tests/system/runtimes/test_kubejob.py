@@ -14,7 +14,7 @@
 
 import json
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from sys import executable
 
 import pandas as pd
@@ -386,7 +386,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert run.output("return") == '{"x": 99}'
 
     def test_list_runs_with_end_time(self):
-        beginning_time = datetime.now(timezone.utc)
+        beginning_time = datetime.now(UTC)
 
         sleep_func = mlrun.code_to_function(
             "sleep-function",
@@ -458,7 +458,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert len(runs) == 1
 
         # list failed runs from now, should not return any
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         runs = mlrun.get_run_db().list_runs(
             project=self.project_name,
             end_time_from=now,

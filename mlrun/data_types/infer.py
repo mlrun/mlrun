@@ -134,9 +134,9 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
     for col, values in df.describe(include="all", **kwargs).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
-            if isinstance(val, (float, np.floating, np.float64)):
+            if isinstance(val, float | np.floating | np.float64):
                 stats_dict[stat] = float(val)
-            elif isinstance(val, (int, np.integer, np.int64)):
+            elif isinstance(val, int | np.integer | np.int64):
                 # boolean values are considered subclass of int
                 if isinstance(val, bool):
                     stats_dict[stat] = bool(val)

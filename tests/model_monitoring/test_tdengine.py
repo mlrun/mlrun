@@ -575,12 +575,12 @@ class TestTDEngineConnector:
         last_request = connector.get_last_request(endpoint_ids=["ep_1"])
         assert last_request["last_request"][0] == parser.parse(
             "2024-12-27 05:13:47.56 +00:00"
-        ).astimezone(datetime.timezone.utc)
+        ).astimezone(datetime.UTC)
 
         last_request = connector.get_last_request(endpoint_ids=["ep_2"])
         assert last_request["last_request"][1] == parser.parse(
             "2024-12-27 05:13:47 +00:00"
-        ).astimezone(datetime.timezone.utc)
+        ).astimezone(datetime.UTC)
 
         # ML-10944
         last_request = connector.get_last_request(endpoint_ids=[])

@@ -13,8 +13,9 @@
 # limitations under the License.
 import os
 import pathlib
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.schedule

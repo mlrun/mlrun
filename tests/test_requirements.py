@@ -129,7 +129,7 @@ def test_requirement_specifiers_convention():
         "storey": {"~=1.11.0"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
-        "scipy": {"~=1.13.0"},
+        "scipy": {"~=1.16.3"},
         "docstring_parser": {"~=0.16"},
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.6"},
@@ -145,22 +145,7 @@ def test_requirement_specifiers_convention():
         "urllib3": {
             ">=1.26.20",
         },
-        "dask-ml": {
-            '~=1.4,<1.9.0; python_version < "3.11"',
-            '~=2024.4.4; python_version >= "3.11"',
-        },
-        "kfp": {
-            '==1.8.22; python_version < "3.11"',
-            '==1.8.23; python_version >= "3.11"',
-        },
-        "dask": {
-            '~=2023.12.1; python_version < "3.11"',
-            '==2024.8; python_version >= "3.11"',
-        },
-        "distributed": {
-            '~=2023.12.1; python_version < "3.11"',
-            '==2024.8; python_version >= "3.11"',
-        },
+        "dask-ml": {"~=2024.4.4"},
     }
 
     missing_requirements = []
@@ -203,27 +188,6 @@ def test_requirement_specifiers_inconsistencies():
         # and the fact out pydantic currently requires v1
         # on the other hand, mlrun client can have both and thus the inconsistency
         "pydantic": {">=1,<2", ">=1.10.15"},
-        # packages that require specific versions per python version
-        "dask": {
-            '~=2023.12.1; python_version < "3.11"',
-            '==2024.8; python_version >= "3.11"',
-        },
-        "distributed": {
-            '~=2023.12.1; python_version < "3.11"',
-            '==2024.8; python_version >= "3.11"',
-        },
-        "dask-ml": {
-            '~=1.4,<1.9.0; python_version < "3.11"',
-            '~=2024.4.4; python_version >= "3.11"',
-        },
-        "kfp": {
-            '==1.8.22; python_version < "3.11"',
-            '==1.8.23; python_version >= "3.11"',
-        },
-        "v3io-frames": {
-            '~=0.10.16; python_version < "3.11"',
-            '~=0.13.11; python_version >= "3.11"',
-        },
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

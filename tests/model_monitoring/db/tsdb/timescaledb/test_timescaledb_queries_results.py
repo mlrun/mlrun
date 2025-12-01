@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 
@@ -329,8 +329,8 @@ class TestResultsQueries:
 
             # Verify timestamp is within our query range - we know the exact format from our data
             # Timestamps should be timezone-aware datetime objects from TimescaleDB
-            start_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
-            end_time = datetime(2024, 1, 15, 14, 0, 0, tzinfo=timezone.utc)
+            start_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+            end_time = datetime(2024, 1, 15, 14, 0, 0, tzinfo=UTC)
 
             # Convert pandas Timestamp to datetime for comparison
             timestamp_dt = drift_bin.timestamp.to_pydatetime()
@@ -363,7 +363,7 @@ class TestResultsQueries:
         result_name, causing queries to return data from all applications with that result name.
         """
         # Insert results for two different applications with the SAME result name
-        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         app_results_table = query_test_helper.table_schemas[
             mm_schemas.TimescaleDBTables.APP_RESULTS
         ]
@@ -424,8 +424,8 @@ class TestResultsQueries:
 
         result = results_handler.read_results_data_impl(
             endpoint_id="test_endpoint_1",
-            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2024, 1, 15, 23, 59, 59, tzinfo=timezone.utc),
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 15, 23, 59, 59, tzinfo=UTC),
             metrics=metrics,
         )
 
@@ -469,8 +469,8 @@ class TestResultsQueries:
 
         result_app2 = results_handler.read_results_data_impl(
             endpoint_id="test_endpoint_1",
-            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2024, 1, 15, 23, 59, 59, tzinfo=timezone.utc),
+            start=datetime(2024, 1, 15, 0, 0, 0, tzinfo=UTC),
+            end=datetime(2024, 1, 15, 23, 59, 59, tzinfo=UTC),
             metrics=metrics_app2,
         )
 

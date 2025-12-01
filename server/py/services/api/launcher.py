@@ -253,7 +253,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             ]
 
         serving_spec = getattr(runtime, "serving_spec", None)
-        if serving_spec and isinstance(runtime, (KubejobRuntime, RemoteRuntime)):
+        if serving_spec and isinstance(runtime, KubejobRuntime | RemoteRuntime):
             serving_spec_volume = self._configure_serving_spec(
                 client_version=client_version,
                 function=runtime,

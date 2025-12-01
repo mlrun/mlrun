@@ -67,7 +67,6 @@ default_config = {
     "nuclio_version": "",
     "default_nuclio_runtime": "python:3.11",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
-    "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
     "api_base_version": "v1",
     "version": "",  # will be set to current version
@@ -704,7 +703,6 @@ default_config = {
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
-            "user_token_secret_name": "mlrun-auth-{username}-{token_name}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
         },
@@ -982,7 +980,7 @@ class Config:
                     try:
                         config_value.update(value)
                     except AttributeError as exc:
-                        if not isinstance(config_value, (dict, Config)):
+                        if not isinstance(config_value, dict | Config):
                             raise ValueError(
                                 f"Can not update `{key}` config. "
                                 f"Expected a configuration but received {type(value)}"
@@ -1297,10 +1295,7 @@ class Config:
 
     @staticmethod
     def resolve_ui_url():
-        # ui_url is deprecated in favor of the ui.url (we created the ui block)
-        # since the config class is used in a "recursive" way, we can't use property like we used in other places
-        # since the property will need to be url, which exists in other structs as well
-        return config.ui.url or config.ui_url
+        return config.ui.url
 
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
@@ -1599,7 +1594,6 @@ def read_env(env=None, prefix=env_prefix):
             "https://mlrun-api.", "https://framesd."
         )
 
-    uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")
 
     # workaround to try and detect IGZ domain
@@ -1624,10 +1618,6 @@ def read_env(env=None, prefix=env_prefix):
     # effort" to try and determine the URL, we want this "best effort" so overriding the "disabled" value
     if config.get("nuclio_dashboard_url") == "disabled":
         config["nuclio_dashboard_url"] = ""
-
-    if uisvc and not config.get("ui_url"):
-        if igz_domain:
-            config["ui_url"] = f"https://mlrun-ui.{igz_domain}"
 
     if log_level := config.get("log_level"):
         import mlrun.utils.logger

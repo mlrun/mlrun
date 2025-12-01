@@ -235,6 +235,22 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         return deploy_configs
 
+    def _assert_batching_spec(
+        self,
+        function,
+        enabled,
+        expected_size=None,
+        expected_timeout=None,
+    ):
+        batch_info = function.spec.config["spec.triggers.http"].get("batch")
+        if enabled:
+            assert batch_info["mode"] == "enable"
+        else:
+            assert batch_info is None
+            return
+        assert batch_info.get("batchSize") == expected_size
+        assert batch_info.get("timeout") == expected_timeout
+
     def _assert_http_trigger(self, http_trigger):
         args, _ = nuclio.deploy.deploy_config.call_args
         triggers_config = args[0]["spec"]["triggers"]
@@ -857,6 +873,42 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
         self._assert_http_trigger(http_trigger)
         self._assert_v3io_trigger(v3io_trigger)
+
+    def test_deploy_with_batching(self, db: Session, client: TestClient):
+        mlconf.nuclio_version = "1.14.0"
+        function = self._generate_runtime(self.runtime_kind)
+
+        http_trigger = {
+            "batching_spec": mlrun.common.schemas.BatchingSpec(
+                enabled=True, batch_size=2, timeout="1s"
+            ),
+        }
+
+        # create http trigger with full batching spec
+        function.with_http(**http_trigger)
+        self._assert_batching_spec(
+            function, enabled=True, expected_size=2, expected_timeout="1s"
+        )
+
+        # disable batching
+        function.with_http(batching_spec=None)
+        self._assert_batching_spec(function, enabled=False)
+
+        # enable batching again, but without setting size/timeout (will be set to Nuclio's defaults)
+        function.with_http(
+            batching_spec=mlrun.common.schemas.BatchingSpec(enabled=True)
+        )
+        self._assert_batching_spec(function, enabled=True)
+
+        # disable again
+        function.with_http(batching_spec=None)
+        self._assert_batching_spec(function, enabled=False)
+
+        mlconf.nuclio_version = "1.13.9"
+        with pytest.raises(mlrun.errors.MLRunValueError):
+            function.with_http(
+                batching_spec=mlrun.common.schemas.BatchingSpec(enabled=True)
+            )
 
     def test_deploy_with_v3io(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)

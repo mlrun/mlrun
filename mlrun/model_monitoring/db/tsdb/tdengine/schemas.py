@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import enum
 from dataclasses import dataclass
 from io import StringIO
 from typing import Optional, Union
@@ -40,7 +41,7 @@ class _TDEngineColumnType:
             return self.data_type
 
 
-class _TDEngineColumn(mlrun.common.types.StrEnum):
+class _TDEngineColumn(enum.Enum):
     TIMESTAMP = _TDEngineColumnType("TIMESTAMP")
     FLOAT = _TDEngineColumnType("FLOAT")
     INT = _TDEngineColumnType("INT")
@@ -91,8 +92,12 @@ class TDEngineSchema:
         self.database = database or _MODEL_MONITORING_DATABASE
 
     def _create_super_table_query(self) -> str:
-        columns = ", ".join(f"{col} {val}" for col, val in self.columns.items())
-        tags = ", ".join(f"{col} {val}" for col, val in self.tags.items())
+        columns = ", ".join(
+            f"{col} {getattr(val, 'value', val)}" for col, val in self.columns.items()
+        )
+        tags = ", ".join(
+            f"{col} {getattr(val, 'value', val)}" for col, val in self.tags.items()
+        )
         return f"CREATE STABLE if NOT EXISTS {self.database}.{self.super_table} ({columns}) TAGS ({tags});"
 
     def _create_subtable_sql(

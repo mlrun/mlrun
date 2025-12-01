@@ -1142,6 +1142,9 @@ class DBInterface(ABC):
         current_page: int,
         page_size: int,
         kwargs: dict,
+        pagination_cache_record: typing.Optional[
+            framework.db.sqldb.models.PaginationCache
+        ] = None,
     ):
         raise NotImplementedError
 
@@ -1149,6 +1152,7 @@ class DBInterface(ABC):
         self,
         session,
         key: str,
+        for_update: bool = False,
     ):
         raise NotImplementedError
 

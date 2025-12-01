@@ -14,8 +14,9 @@
 
 import os
 from abc import abstractmethod
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, Generic, Optional, Union
+from typing import Any, Generic, Optional, Union
 
 import yaml
 

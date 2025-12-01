@@ -84,7 +84,7 @@ def to_dict(obj):
             attr: to_dict(getattr(obj, attr)) for attr in dir(obj) if is_field(attr)
         }
 
-    if isinstance(obj, (list, tuple)):
+    if isinstance(obj, list | tuple):
         cls = type(obj)
         return cls(to_dict(v) for v in obj)
 
@@ -185,7 +185,7 @@ def _validate_label(name: str, value: typing.Optional[typing.Union[str, int]]):
             "The name in the label must be a string."
         )
 
-    if not isinstance(value, (str, int)):
+    if not isinstance(value, str | int):
         raise mlrun.errors.MLRunInvalidArgumentError(
             "The value in the label must be a string or an integer."
         )

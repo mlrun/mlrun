@@ -10,6 +10,7 @@ One of the biggest challenge in distributed systems is handling data given the d
 ../store/datastore
 ../store/data-items
 ../store/artifacts
+../store/llm-artifacts
 ../store/models
 ../store/log-artifacts
 ```

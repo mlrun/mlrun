@@ -46,7 +46,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -95,7 +95,7 @@ jobs:
         python-version: ["3.11"]
         test-suite: ["server", "client"]
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -158,7 +158,7 @@ jobs:
             test-db: postgres
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
@@ -192,12 +192,13 @@ jobs:
 
     - name: Run Dockerized tests
       run: |
+          MLRUN_VERSION=${{ github.sha }} \
           MLRUN_DOCKER_REGISTRY=ghcr.io/ \
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
           MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
           MLRUN_TEST_DB=${{ matrix.test-db }} \
           RUN_COVERAGE=$RUN_COVERAGE \
-          make test-integration-dockerized RUN_COVERAGE=$RUN_COVERAGE
+          make test-integration-dockerized
       timeout-minutes: 90
 
     - name: Upload coverage report
@@ -212,7 +213,7 @@ jobs:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -225,7 +226,11 @@ jobs:
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
           echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Dockerized DB Migration tests
-        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized RUN_COVERAGE=true
+        run: |
+          MLRUN_VERSION=${{ github.sha }} \
+          MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+          make test-migrations-dockerized RUN_COVERAGE=true
       - name: Upload coverage report
         uses: actions/upload-artifact@v5
         with:
@@ -242,7 +247,7 @@ jobs:
           - python-version: "3.11"
             pipeline-adapter: "kfp-v1-8"
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -264,7 +269,7 @@ jobs:
     name: Build Project Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -298,12 +303,12 @@ jobs:
         run: |
             echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Checkout PR Base (target) Branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
       - name: Checkout Merge Commit (requested branch merged with the target branch)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: head/mlrun
       - name: Resolve docker cache tag
@@ -315,7 +320,9 @@ jobs:
       - name: Run Backward Compatibility Tests
         run: |
           cd head/mlrun
-          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
+          MLRUN_VERSION=${{ github.sha }} \
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+          make test-backward-compatibility-dockerized
 
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)
@@ -324,7 +331,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -345,7 +352,7 @@ jobs:
         python-version: [ "3.11"]
     needs: [tests, integration-tests, migrations-tests]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Set up Python

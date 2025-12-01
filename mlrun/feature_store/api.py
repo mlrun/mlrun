@@ -361,7 +361,7 @@ def _ingest(
         import pyspark.sql
 
         if (
-            isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame))
+            isinstance(source, pd.DataFrame | pyspark.sql.DataFrame)
             and run_config is not None
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -11,21 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
 import typing
 
 import httpx
-import sqlalchemy.orm
 
 # iguazio package is only supported in Python >= 3.11
-if sys.version_info >= (3, 11):
-    import iguazio
-    from iguazio.schemas import (
-        RefreshAccessTokenOptionsV1,
-        RefreshAccessTokensOptionsV1,
-        RevokeOfflineTokenOptionsV1,
-        UpdateProjectOwnerOptionsV1,
-    )
+import iguazio
+import sqlalchemy.orm
+from iguazio.schemas import (
+    RefreshAccessTokenOptionsV1,
+    RefreshAccessTokensOptionsV1,
+    RevokeOfflineTokenOptionsV1,
+    UpdateProjectOwnerOptionsV1,
+)
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -43,10 +41,6 @@ _GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
 class Client(BaseClient, project_follower.Member):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        if sys.version_info < (3, 11):
-            raise mlrun.errors.MLRunRuntimeError(
-                "The 'iguazio' client is only supported in Python >= 3.11"
-            )
         self._client = iguazio.Client(
             api_url=self._api_url,
             auto_login=False,
@@ -114,19 +108,11 @@ class Client(BaseClient, project_follower.Member):
                 f"Offline tokens are empty for: {', '.join(empty_tokens)}"
             )
 
-        self._logger.info(
-            "Refreshing multiple access tokens via Iguazio", token_names=token_names
-        )
+        self._logger.debug("Refreshing access tokens", token_names=token_names)
 
         def _refresh_access_tokens():
             options = RefreshAccessTokensOptionsV1(refresh_tokens=token_values)
-            # Call Iguazio batch refresh
             self._client.refresh_access_tokens(options=options)
-
-            self._logger.info(
-                "Successfully refreshed multiple access tokens via Iguazio",
-                token_names=token_names,
-            )
 
         return self._try_callback_with_httpx_exceptions(
             _refresh_access_tokens,

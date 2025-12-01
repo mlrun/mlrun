@@ -15,7 +15,6 @@
 import logging
 import os
 import uuid
-import warnings
 from copy import deepcopy
 from typing import Optional, Union, cast
 
@@ -1141,14 +1140,6 @@ class MLClientCtx:
         self._update_run()
         return item
 
-    def get_cached_artifact(self, key):
-        """Return a logged artifact from cache (for potential updates)"""
-        warnings.warn(
-            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.11.0. Use get_artifact instead.",
-            FutureWarning,
-        )
-        return self.get_artifact(key)
-
     def get_artifact(
         self, key, tag=None, iter=None, tree=None, uid=None
     ) -> Optional[Artifact]:
@@ -1511,15 +1502,15 @@ class MLClientCtx:
 
 
 def _cast_result(value):
-    if isinstance(value, (int, str, float)):
+    if isinstance(value, int | str | float):
         return value
     if isinstance(value, list):
         return [_cast_result(v) for v in value]
     if isinstance(value, dict):
         return {k: _cast_result(v) for k, v in value.items()}
-    if isinstance(value, (np.int64, np.integer)):
+    if isinstance(value, np.int64 | np.integer):
         return int(value)
-    if isinstance(value, (np.floating, np.float64)):
+    if isinstance(value, np.floating | np.float64):
         return float(value)
     if isinstance(value, np.ndarray):
         return value.tolist()

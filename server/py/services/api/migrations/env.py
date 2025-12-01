@@ -70,7 +70,7 @@ def compare_type(
         # suppress VARCHAR→Uuid/UuidType only if lengths are equal
         if isinstance(
             metadata_column.type,
-            (sqlalchemy.Uuid, framework.db.sqldb.sql_types.UuidType),
+            sqlalchemy.Uuid | framework.db.sqldb.sql_types.UuidType,
         ):
             inspected_len = getattr(inspected_type, "length", None)
             meta_len = getattr(metadata_column.type, "length", None)
@@ -93,13 +93,11 @@ def compare_type(
     # DATETIME/TIMESTAMP → DateTime/MicroSecondDateTime (MySQL)
     if isinstance(
         inspected_type,
-        (sqlalchemy.dialects.mysql.DATETIME, sqlalchemy.dialects.mysql.TIMESTAMP),
+        sqlalchemy.dialects.mysql.DATETIME | sqlalchemy.dialects.mysql.TIMESTAMP,
     ) and isinstance(
         metadata_column.type,
-        (
-            framework.db.sqldb.sql_types.DateTime,
-            framework.db.sqldb.sql_types.MicroSecondDateTime,
-        ),
+        framework.db.sqldb.sql_types.DateTime
+        | framework.db.sqldb.sql_types.MicroSecondDateTime,
     ):
         if getattr(inspected_type, "fsp", None) == metadata_column.type.precision:
             return False
@@ -110,10 +108,8 @@ def compare_type(
         inspected_type, sqlalchemy.dialects.postgresql.TIMESTAMP
     ) and isinstance(
         metadata_column.type,
-        (
-            framework.db.sqldb.sql_types.DateTime,
-            framework.db.sqldb.sql_types.MicroSecondDateTime,
-        ),
+        framework.db.sqldb.sql_types.DateTime
+        | framework.db.sqldb.sql_types.MicroSecondDateTime,
     ):
         if getattr(inspected_type, "precision", None) == metadata_column.type.precision:
             return False

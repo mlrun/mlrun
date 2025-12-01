@@ -5,7 +5,7 @@ These instructions install the community edition (CE) on your Amazon EKS cluster
 
 ```{admonition} Note
 These instructions install the community edition {{ ceversion }}, which currently includes the features in MLRun {{ version }}.</br>
-CE version 0.10 will includes the features in MLRun 1.10.
+CE version 0.10 will include the features in MLRun 1.10.
 ```
 
 **In this section**

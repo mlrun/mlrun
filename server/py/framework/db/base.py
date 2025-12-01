@@ -1143,7 +1143,7 @@ class DBInterface(ABC):
         page_size: int,
         kwargs: dict,
         pagination_cache_record: typing.Optional[
-            framework.db.sqldb.models.PaginationCache
+            "framework.db.sqldb.models.PaginationCache"
         ] = None,
     ):
         raise NotImplementedError

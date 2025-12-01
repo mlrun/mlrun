@@ -11,16 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import asyncio
 import base64
 import enum
+import functools
 import gzip
 import hashlib
 import inspect
 import itertools
 import json
 import os
+import pathlib
 import re
 import string
 import sys
@@ -29,7 +30,7 @@ import typing
 import uuid
 import warnings
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from importlib import import_module, reload
 from os import path
 from types import ModuleType
@@ -45,6 +46,8 @@ import pytz
 import semver
 import yaml
 from dateutil import parser
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -250,6 +253,40 @@ def verify_field_regex(
         return False
 
 
+def validate_function_name(name: str) -> None:
+    """
+    Validate that a function name conforms to Kubernetes DNS-1123 label requirements.
+
+    Function names for Kubernetes resources must:
+    - Be lowercase alphanumeric characters or '-'
+    - Start and end with an alphanumeric character
+    - Be at most 63 characters long
+
+    This validation should be called AFTER normalize_name() has been applied.
+
+    Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
+
+    :param name: The function name to validate (after normalization)
+    :raises MLRunInvalidArgumentError: If the function name is invalid for Kubernetes
+    """
+    if not name:
+        return
+
+    verify_field_regex(
+        "function.metadata.name",
+        name,
+        mlrun.utils.regex.dns_1123_label,
+        raise_on_failure=True,
+        log_message=(
+            f"Function name '{name}' is invalid. "
+            "Kubernetes function names must be DNS-1123 labels: "
+            "lowercase alphanumeric characters or '-', "
+            "starting and ending with an alphanumeric character, "
+            "and at most 63 characters long."
+        ),
+    )
+
+
 def validate_builder_source(
     source: str, pull_at_runtime: bool = False, workdir: Optional[str] = None
 ):
@@ -425,7 +462,7 @@ def get_pretty_types_names(types):
     return types[0].__name__
 
 
-def now_date(tz: timezone = timezone.utc) -> datetime:
+def now_date(tz: timezone = UTC) -> datetime:
     return datetime.now(tz=tz)
 
 
@@ -440,7 +477,7 @@ def datetime_to_mysql_ts(datetime_object: datetime) -> datetime:
     :return: A MySQL-compatible timestamp string with millisecond precision.
     """
     if not datetime_object.tzinfo:
-        datetime_object = datetime_object.replace(tzinfo=timezone.utc)
+        datetime_object = datetime_object.replace(tzinfo=UTC)
 
     # Round to the nearest millisecond
     ms = round(datetime_object.microsecond / 1000) * 1000
@@ -451,7 +488,7 @@ def datetime_to_mysql_ts(datetime_object: datetime) -> datetime:
     return datetime_object.replace(microsecond=ms)
 
 
-def datetime_min(tz: timezone = timezone.utc) -> datetime:
+def datetime_min(tz: timezone = UTC) -> datetime:
     return datetime(1970, 1, 1, tzinfo=tz)
 
 
@@ -471,6 +508,40 @@ def normalize_name(name: str):
     if "_" in name:
         name = name.replace("_", "-")
     return name.lower()
+
+
+def ensure_batch_job_suffix(
+    function_name: typing.Optional[str],
+) -> tuple[typing.Optional[str], bool, str]:
+    """
+    Ensure that a function name has the batch job suffix appended to prevent database collision.
+
+    This helper is used by to_job() methods in runtimes that convert online functions (serving, local)
+    to batch processing jobs. The suffix prevents the job from overwriting the original function in
+    the database when both are stored with the same (project, name) key.
+
+    :param function_name: The original function name (can be None or empty string)
+
+    :return: A tuple of (modified_name, was_renamed, suffix) where:
+        - modified_name: The function name with the batch suffix (if not already present),
+          or empty string if input was empty
+        - was_renamed: True if the suffix was added, False if it was already present or if name was empty/None
+        - suffix: The suffix value that was used (or would have been used)
+
+    """
+    suffix = mlrun_constants.RESERVED_BATCH_JOB_SUFFIX
+
+    # Handle None or empty string
+    if not function_name:
+        return function_name, False, suffix
+
+    if not function_name.endswith(suffix):
+        return (
+            f"{function_name}{suffix}",
+            True,
+            suffix,
+        )
+    return function_name, False, suffix
 
 
 class LogBatchWriter:
@@ -702,11 +773,11 @@ def dict_to_yaml(struct) -> str:
 # solve numpy json serialization
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, (int, str, float, list, dict)):
+        if isinstance(obj, int | str | float | list | dict):
             return obj
-        elif isinstance(obj, (np.integer, np.int64)):
+        elif isinstance(obj, np.integer | np.int64):
             return int(obj)
-        elif isinstance(obj, (np.floating, np.float64)):
+        elif isinstance(obj, np.floating | np.float64):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
@@ -807,6 +878,10 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
     return uri if not add_store else DB_SCHEMA + "://" + uri
 
 
+def check_if_hub_uri(uri: str) -> bool:
+    return uri.startswith(hub_prefix)
+
+
 def extend_hub_uri_if_needed(
     uri: str,
     asset_type: HubSourceType = HubSourceType.functions,
@@ -823,7 +898,7 @@ def extend_hub_uri_if_needed(
                [0] = Extended URI of item
                [1] =  Is hub item (bool)
     """
-    is_hub_uri = uri.startswith(hub_prefix)
+    is_hub_uri = check_if_hub_uri(uri)
     if not is_hub_uri:
         return uri, is_hub_uri
 
@@ -923,10 +998,22 @@ def enrich_image_url(
     )
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version or ""
-    tag += resolve_image_tag_suffix(
-        mlrun_version=mlrun_version,
-        python_version=client_python_version,
+
+    # starting mlrun 1.10.0-rc0 we want to enrich the kfp image with the python version
+    # e.g for 1.9 we have a single mlrun-kfp image that supports only python 3.9
+    enrich_kfp_python_version = (
+        "mlrun-kfp" in image_url
+        and mlrun_version
+        and semver.VersionInfo.is_valid(mlrun_version)
+        and semver.VersionInfo.parse(mlrun_version)
+        >= semver.VersionInfo.parse("1.10.0-rc0")
     )
+
+    if "mlrun-kfp" not in image_url or enrich_kfp_python_version:
+        tag += resolve_image_tag_suffix(
+            mlrun_version=mlrun_version,
+            python_version=client_python_version,
+        )
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
@@ -951,8 +1038,15 @@ def enrich_image_url(
         else:
             image_url = "mlrun/mlrun"
 
-    if is_mlrun_image and tag and ":" not in image_url:
-        image_url = f"{image_url}:{tag}"
+    if is_mlrun_image and tag:
+        if ":" not in image_url:
+            image_url = f"{image_url}:{tag}"
+        elif enrich_kfp_python_version:
+            # For mlrun-kfp >= 1.10.0-rc0, append python suffix to existing tag
+            python_suffix = resolve_image_tag_suffix(
+                mlrun_version, client_python_version
+            )
+            image_url = f"{image_url}{python_suffix}" if python_suffix else image_url
 
     registry = (
         config.images_registry if is_mlrun_image else config.vendor_images_registry
@@ -1437,9 +1531,9 @@ def datetime_from_iso(time_str: str) -> Optional[datetime]:
         return
     dt = parser.isoparse(time_str)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     # ensure the datetime is in UTC, converting if necessary
-    return dt.astimezone(timezone.utc)
+    return dt.astimezone(UTC)
 
 
 def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
@@ -1453,7 +1547,7 @@ def enrich_datetime_with_tz_info(timestamp_string) -> Optional[datetime]:
         return timestamp_string
 
     if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
-        timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+        timestamp_string += datetime.now(UTC).astimezone().strftime("%z")
 
     for _format in [
         # e.g: 2021-08-25 12:00:00.000Z
@@ -1484,7 +1578,7 @@ def format_datetime(dt: datetime, fmt: Optional[str] = None) -> str:
 
     # If the datetime is naive
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
 
     # TODO: Once Python 3.12 is the minimal version, use %:z to format the timezone offset with a colon
     formatted_time = dt.strftime(fmt or "%Y-%m-%d %H:%M:%S.%f%z")
@@ -1646,7 +1740,7 @@ def format_run(run: PipelineRun, with_project=False) -> dict:
     for key, value in run.items():
         if (
             key in time_keys
-            and isinstance(value, (str, datetime))
+            and isinstance(value, str | datetime)
             and parser.parse(str(value)).year == 1970
         ):
             run[key] = None
@@ -2408,3 +2502,77 @@ def set_data_by_path(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected path to be of type str or list of str"
         )
+
+
+def _normalize_requirements(reqs: typing.Union[str, list[str], None]) -> list[str]:
+    if reqs is None:
+        return []
+    if isinstance(reqs, str):
+        s = reqs.strip()
+        return [s] if s else []
+    return [s.strip() for s in reqs if s and s.strip()]
+
+
+def merge_requirements(
+    reqs_priority: typing.Union[str, list[str], None],
+    reqs_secondary: typing.Union[str, list[str], None],
+) -> list[str]:
+    """
+    Merge two requirement collections into a union. If the same package
+    appears in both, the specifier from reqs_priority wins.
+
+    Args:
+        reqs_priority: str | list[str] | None  (priority input)
+        reqs_secondary: str | list[str] | None
+
+    Returns:
+        list[str]: pip-style requirements.
+    """
+    merged: dict[str, Requirement] = {}
+
+    for r in _normalize_requirements(reqs_secondary) + _normalize_requirements(
+        reqs_priority
+    ):
+        req = Requirement(r)
+        merged[canonicalize_name(req.name)] = req
+
+    return [str(req) for req in merged.values()]
+
+
+def get_source_and_working_dir_paths(source_file_path) -> (pathlib.Path, pathlib.Path):
+    source_file_path_object = pathlib.Path(source_file_path).resolve()
+    working_dir_path_object = pathlib.Path(".").resolve()
+    return source_file_path_object, working_dir_path_object
+
+
+def get_relative_module_name_from_path(
+    source_file_path_object, working_dir_path_object
+) -> str:
+    relative_path_to_source_file = source_file_path_object.relative_to(
+        working_dir_path_object
+    )
+    return ".".join(relative_path_to_source_file.with_suffix("").parts)
+
+
+def iguazio_v4_only(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        if not config.is_iguazio_v4_mode():
+            raise mlrun.errors.MLRunRuntimeError(
+                "This method is only supported in an Iguazio V4 system."
+            )
+        return function(*args, **kwargs)
+
+    return wrapper
+
+
+def raise_or_log_error(message: str, raise_on_error: bool = True):
+    """
+    Handle errors by either raising an exception or logging a warning.
+
+    :param message: The error message.
+    :param raise_on_error: If True, raises an exception. Otherwise, logs a warning.
+    """
+    if raise_on_error:
+        raise mlrun.errors.MLRunRuntimeError(message)
+    logger.warning(message)

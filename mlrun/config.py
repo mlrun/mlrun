@@ -40,6 +40,7 @@ import yaml
 
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 
 env_prefix = "MLRUN_"
@@ -66,7 +67,6 @@ default_config = {
     "nuclio_version": "",
     "default_nuclio_runtime": "python:3.11",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
-    "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
     "api_base_version": "v1",
     "version": "",  # will be set to current version
@@ -86,6 +86,7 @@ default_config = {
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
+    "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
@@ -304,6 +305,7 @@ default_config = {
         "application": {
             "default_sidecar_internal_port": 8050,
             "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
+            "default_worker_number": 10000,
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -421,7 +423,7 @@ default_config = {
             "allow_local_run": False,
         },
         "authentication": {
-            "mode": "none",  # one of none, basic, bearer, iguazio
+            "mode": "none",  # one of none, basic, bearer, iguazio, iguazio-v4
             "basic": {"username": "", "password": ""},
             "bearer": {"token": ""},
             "iguazio": {
@@ -480,6 +482,10 @@ default_config = {
         },
         "authorization": {
             "mode": "none",  # one of none, opa
+            "namespaces": {
+                "resources": "",
+                "mgmt": "mgmt",
+            },
             "opa": {
                 "address": "",
                 "request_timeout": 10,
@@ -652,7 +658,7 @@ default_config = {
         "writer_graph": {
             "max_events": 1000,
             "flush_after_seconds": 30,
-            "writer_version": "v1",  # v1 is the sync version while v2 is async
+            "writer_version": "v2",  # v1 is the sync version while v2 is async
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
@@ -697,6 +703,7 @@ default_config = {
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
+            "user_token_secret_name": "mlrun-auth-{username}-{token_name}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
         },
@@ -724,7 +731,7 @@ default_config = {
             # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
             "name": "default",
-            "description": "MLRun global function hub",
+            "description": "MLRun hub",
             "url": "https://mlrun.github.io/marketplace",
             "channel": "master",
         },
@@ -867,6 +874,16 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
     },
+    "auth_with_oauth_token": {
+        "enabled": False,
+        "request_timeout": 5,
+        "refresh_threshold": 0.75,
+        "token_file": "~/.igz.yml",
+        # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
+        # for a token named "default", if "default" does not exist, it will use the first token in the file
+        "token_name": "",
+    },
+    "auth_token_endpoint": "",
     "services": {
         # The running service name. One of: "api", "alerts"
         "service_name": "api",
@@ -964,7 +981,7 @@ class Config:
                     try:
                         config_value.update(value)
                     except AttributeError as exc:
-                        if not isinstance(config_value, (dict, Config)):
+                        if not isinstance(config_value, dict | Config):
                             raise ValueError(
                                 f"Can not update `{key}` config. "
                                 f"Expected a configuration but received {type(value)}"
@@ -1279,10 +1296,7 @@ class Config:
 
     @staticmethod
     def resolve_ui_url():
-        # ui_url is deprecated in favor of the ui.url (we created the ui block)
-        # since the config class is used in a "recursive" way, we can't use property like we used in other places
-        # since the property will need to be url, which exists in other structs as well
-        return config.ui.url or config.ui_url
+        return config.ui.url
 
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
@@ -1400,6 +1414,18 @@ class Config:
         # True if the setup is in CE environment
         return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
+        )
+
+    def is_iguazio_mode(self):
+        return (
+            mlrun.mlconf.httpdb.authentication.mode
+            == mlrun.common.types.AuthenticationMode.IGUAZIO
+        )
+
+    def is_iguazio_v4_mode(self):
+        return (
+            config.httpdb.authentication.mode
+            == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 
     def is_explicit_ack_enabled(self) -> bool:
@@ -1569,7 +1595,6 @@ def read_env(env=None, prefix=env_prefix):
             "https://mlrun-api.", "https://framesd."
         )
 
-    uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")
 
     # workaround to try and detect IGZ domain
@@ -1594,10 +1619,6 @@ def read_env(env=None, prefix=env_prefix):
     # effort" to try and determine the URL, we want this "best effort" so overriding the "disabled" value
     if config.get("nuclio_dashboard_url") == "disabled":
         config["nuclio_dashboard_url"] = ""
-
-    if uisvc and not config.get("ui_url"):
-        if igz_domain:
-            config["ui_url"] = f"https://mlrun-ui.{igz_domain}"
 
     if log_level := config.get("log_level"):
         import mlrun.utils.logger

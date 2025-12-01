@@ -400,6 +400,7 @@ class ApplicationRuntime(RemoteRuntime):
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
+
         if (self.requires_build() and not self.spec.image) or force_build:
             self._fill_credentials()
             self._build_application_image(
@@ -413,8 +414,7 @@ class ApplicationRuntime(RemoteRuntime):
                 show_on_failure=show_on_failure,
             )
 
-        # This is a class method that accepts a function instance, so we pass self as the function instance
-        self._ensure_reverse_proxy_configurations(self)
+        self._ensure_reverse_proxy_configurations()
         self._configure_application_sidecar()
 
         # We only allow accessing the application via the API Gateway
@@ -568,6 +568,12 @@ class ApplicationRuntime(RemoteRuntime):
                 "Authentication credentials not provided"
             )
 
+        if not direct_port_access and port:
+            logger.warning(
+                "Ignoring 'port' because 'direct_port_access' is not enabled. "
+                "The 'port' setting is only applicable when 'direct_port_access' is enabled."
+            )
+
         ports = (
             port or self.spec.internal_application_port if direct_port_access else []
         )
@@ -602,6 +608,8 @@ class ApplicationRuntime(RemoteRuntime):
             api_gateway.with_access_key_auth()
         elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
             api_gateway.with_basic_auth(*authentication_creds)
+        elif authentication_mode == schemas.APIGatewayAuthenticationMode.iguazio:
+            api_gateway.with_iguazio_auth()
 
         db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(
@@ -793,27 +801,42 @@ class ApplicationRuntime(RemoteRuntime):
             with_mlrun=with_mlrun,
         )
 
-    @staticmethod
-    def _ensure_reverse_proxy_configurations(function: RemoteRuntime):
-        if function.spec.build.functionSourceCode or function.status.container_image:
+    def _ensure_reverse_proxy_configurations(self):
+        # If an HTTP trigger already exists in the spec,
+        # it means the user explicitly defined a custom configuration,
+        # so, skip automatic creation.
+        skip_http_trigger_creation = False
+        for key, value in self.spec.config.items():
+            if key.startswith("spec.triggers"):
+                if isinstance(value, dict):
+                    if value.get("kind") == "http":
+                        skip_http_trigger_creation = True
+                        break
+        if not skip_http_trigger_creation:
+            self.with_http(
+                workers=mlrun.mlconf.function.application.default_worker_number,
+                trigger_name="application-http",
+            )
+
+        if self.spec.build.functionSourceCode or self.status.container_image:
             return
 
         filename, handler = ApplicationRuntime.get_filename_and_handler()
         name, spec, code = nuclio.build_file(
             filename,
-            name=function.metadata.name,
+            name=self.metadata.name,
             handler=handler,
         )
-        function.spec.function_handler = mlrun.utils.get_in(spec, "spec.handler")
-        function.spec.build.functionSourceCode = mlrun.utils.get_in(
+        self.spec.function_handler = mlrun.utils.get_in(spec, "spec.handler")
+        self.spec.build.functionSourceCode = mlrun.utils.get_in(
             spec, "spec.build.functionSourceCode"
         )
-        function.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
+        self.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
 
         # default the reverse proxy logger level to info
         logger_sinks_key = "spec.loggerSinks"
-        if not function.spec.config.get(logger_sinks_key):
-            function.set_config(
+        if not self.spec.config.get(logger_sinks_key):
+            self.set_config(
                 logger_sinks_key, [{"level": "info", "sink": "myStdoutLoggerSink"}]
             )
 

@@ -18,6 +18,7 @@ import unittest.mock
 
 import deepdiff
 import pytest
+from sqlalchemy.orm import Query
 
 import mlrun.common.constants
 import mlrun.common.schemas
@@ -2792,6 +2793,164 @@ class TestArtifacts(TestDatabaseBase):
 
         artifacts = self._db.list_artifacts(session=self._db_session, project=project)
         assert artifacts == []
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            {"with_entities": None, "attach_tags": False, "expected": True},
+            {"with_entities": None, "attach_tags": True, "expected": True},
+            {
+                "ids": ["non-empty"],
+                "with_entities": None,
+                "attach_tags": False,
+                "expected": False,
+            },
+            {"ids": [], "with_entities": None, "attach_tags": False, "expected": True},
+            {"ids": [], "with_entities": [], "attach_tags": False, "expected": True},
+        ],
+        ids=[
+            "default-no-ids",
+            "default-with-attach-tags",
+            "non-default-with-ids",
+            "default-empty-ids-none-entities",
+            "default-empty-ids-empty-entities",
+        ],
+    )
+    def test_is_default_list_artifacts_query_defaults(self, case):
+        """
+        Verify the predicate returns True only for the exact UI default list-artifacts query.
+        Pass caller-side UI defaults + only the fields under test.
+        """
+        kwargs = {}
+        for key in ("ids", "with_entities", "attach_tags"):
+            if key in case:
+                kwargs[key] = case[key]
+
+        result = self._db._is_default_list_artifacts_query(
+            project=self.project,
+            **self._ui_defaults(),
+            **kwargs,
+        )
+
+        assert result == case["expected"], f"Unexpected result for case {case}"
+
+    @pytest.mark.parametrize(
+        "scenario, ui_overrides, expect_hint",
+        [
+            ("ui-default", {}, True),
+            (
+                "partition_by-name",
+                {"partition_by": mlrun.common.schemas.ArtifactPartitionByField.name},
+                False,
+            ),
+            (
+                "sort-order-asc",
+                {"partition_order": mlrun.common.schemas.OrderType.asc},
+                False,
+            ),
+            (
+                "sort-by-created",
+                {"partition_sort_by": mlrun.common.schemas.SortField.created},
+                False,
+            ),
+            ("limit-50", {"limit": 50}, False),
+            ("non-latest-tag", {"tag": "v1"}, False),
+            ("best_iteration-false", {"best_iteration": False}, False),
+            ("ids-non-empty", {"ids": ["force-non-default"]}, False),
+            ("ids-empty-list", {"ids": []}, True),
+            ("with_entities-minimal", {"with_entities": []}, True),
+            ("attach_tags-true", {"attach_tags": True}, True),
+        ],
+    )
+    def test_mysql_use_index_hint_scoping(
+        self, monkeypatch, scenario, ui_overrides, expect_hint
+    ):
+        """
+        USE INDEX should be applied ONLY for the exact UI default shape.
+        Any deviation should NOT get the hint.
+        """
+        key = "artifact-for-default-query"
+        self._db.store_artifact(
+            self._db_session,
+            key=key,
+            artifact=self._generate_artifact(key, project=self.project),
+            project=self.project,
+        )
+
+        hint_called = {"value": False}
+        real_with_hint = Query.with_hint
+
+        def with_hint_spy(q, selectable, text, dialect_name=None):
+            if "USE INDEX" in str(text):
+                hint_called["value"] = True
+            return real_with_hint(q, selectable, text, dialect_name=dialect_name)
+
+        monkeypatch.setattr(Query, "with_hint", with_hint_spy, raising=True)
+
+        kwargs = {"project": self.project, **self._ui_defaults(), **ui_overrides}
+        _ = self._db._find_artifacts(self._db_session, **kwargs)
+
+        if expect_hint:
+            assert hint_called["value"], f"{scenario}: expected USE INDEX hint"
+        else:
+            assert not hint_called[
+                "value"
+            ], f"{scenario}: did NOT expect USE INDEX hint"
+
+    @pytest.mark.parametrize(
+        "scenario, attach_tags, ids_value, expect_hint",
+        [
+            ("default-query-attach-tags-false", False, None, True),
+            ("default-query-attach-tags-true", True, None, True),
+            ("non-default-with-ids", False, ["break-default"], False),
+        ],
+    )
+    def test_mysql_use_index_hint_behavior(
+        self, monkeypatch, scenario, attach_tags, ids_value, expect_hint
+    ):
+        """
+        Ensure the hint is applied for the UI-default behavior and not for simple deviations.
+        """
+        key = "artifact-for-default-query"
+        self._db.store_artifact(
+            self._db_session,
+            key=key,
+            artifact=self._generate_artifact(key, project=self.project),
+            project=self.project,
+        )
+
+        hint_called = {"value": False}
+        original_with_hint = Query.with_hint
+
+        def with_hint_spy(q, selectable, text, dialect_name=None):
+            if "USE INDEX" in str(text):
+                hint_called["value"] = True
+            return original_with_hint(q, selectable, text, dialect_name=dialect_name)
+
+        monkeypatch.setattr(Query, "with_hint", with_hint_spy, raising=True)
+
+        kwargs = {"project": self.project, **self._ui_defaults()}
+        if attach_tags:
+            kwargs["attach_tags"] = True
+        if ids_value is not None:
+            kwargs["ids"] = ids_value
+
+        _ = self._db._find_artifacts(self._db_session, **kwargs)
+
+        if expect_hint:
+            assert hint_called["value"], f"{scenario}: expected USE INDEX hint"
+        else:
+            assert not hint_called[
+                "value"
+            ], f"{scenario}: did not expect USE INDEX hint"
+
+    @staticmethod
+    def _ui_defaults():
+        return {
+            "tag": mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            "best_iteration": True,
+            "limit": 1001,
+        }
 
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""

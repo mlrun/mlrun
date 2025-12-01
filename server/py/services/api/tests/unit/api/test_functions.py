@@ -32,11 +32,12 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import tests.conftest
+from mlrun.common.types import AuthenticationMode
 
 import framework.api.utils
 import framework.utils.clients.async_nuclio
 import framework.utils.clients.chief
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import services.api.api.endpoints.functions
@@ -807,11 +808,11 @@ def test_build_function_masks_access_key(
     client: fastapi.testclient.TestClient,
     k8s_secrets_mock,
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     # set auto mount to ensure it doesn't override the access key
     mlrun.mlconf.storage.auto_mount_type = "v3io_credentials"
     monkeypatch.setattr(
-        framework.utils.clients.iguazio,
+        framework.utils.clients.iguazio.v3,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )
@@ -878,9 +879,9 @@ def test_build_no_access_key(
     expected_status_code,
     expected_reason,
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     monkeypatch.setattr(
-        framework.utils.clients.iguazio,
+        framework.utils.clients.iguazio.v3,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )

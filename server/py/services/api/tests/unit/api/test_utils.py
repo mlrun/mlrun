@@ -39,7 +39,7 @@ from server.py.framework.api.utils import (
 )
 
 import framework.api.utils
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import services.api.crud
 import services.api.crud.runtimes.nuclio
 import services.api.tests.unit.api.utils
@@ -1117,7 +1117,7 @@ def test_ensure_function_security_context_override_enrichment_mode(
     mlrun.utils.logger.info(
         "Enrichment mode is override, security context should be enriched"
     )
-    framework.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock()
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock()
     auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
@@ -1128,7 +1128,7 @@ def test_ensure_function_security_context_override_enrichment_mode(
     framework.api.utils.ensure_function_security_context(function, auth_info)
 
     # assert user unix id was not fetched from iguazio
-    assert framework.utils.clients.iguazio.Client.get_user_unix_id.called == 0
+    assert framework.utils.clients.iguazio.v3.Client.get_user_unix_id.called == 0
 
     # assert function was changed
     assert (
@@ -1244,13 +1244,13 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
         mlrun.common.schemas.SecurityContextEnrichmentModes.override
     )
     auth_info = mlrun.common.schemas.AuthInfo(
-        planes=[framework.utils.clients.iguazio.SessionPlanes.data]
+        planes=[framework.utils.clients.iguazio.v3.SessionPlanes.data]
     )
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
 
-    framework.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunHTTPError()
     )
     mlrun.utils.logger.info(
@@ -1260,10 +1260,10 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         framework.api.utils.ensure_function_security_context(function, auth_info)
     assert "Were unable to enrich user unix id" in str(exc.value)
-    framework.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id.assert_called_once()
 
     user_unix_id = 1000
-    framework.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock(
         return_value=user_unix_id
     )
     auth_info = mlrun.common.schemas.AuthInfo(planes=[])
@@ -1272,8 +1272,10 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     )
     function = mlrun.new_function(runtime=original_function_dict)
     framework.api.utils.ensure_function_security_context(function, auth_info)
-    framework.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
-    assert auth_info.planes == [framework.utils.clients.iguazio.SessionPlanes.control]
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id.assert_called_once()
+    assert auth_info.planes == [
+        framework.utils.clients.iguazio.v3.SessionPlanes.control
+    ]
 
 
 def test_ensure_function_security_context_get_user_unix_id(
@@ -1288,9 +1290,9 @@ def test_ensure_function_security_context_get_user_unix_id(
 
     # set auth info with control plane and without user unix id so that it will be fetched
     auth_info = mlrun.common.schemas.AuthInfo(
-        planes=[framework.utils.clients.iguazio.SessionPlanes.control]
+        planes=[framework.utils.clients.iguazio.v3.SessionPlanes.control]
     )
-    framework.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock(
         return_value=user_unix_id
     )
 
@@ -1306,7 +1308,7 @@ def test_ensure_function_security_context_get_user_unix_id(
 
     function = mlrun.new_function(runtime=original_function_dict)
     framework.api.utils.ensure_function_security_context(function, auth_info)
-    framework.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id.assert_called_once()
     assert (
         DeepDiff(
             original_function.to_dict(),

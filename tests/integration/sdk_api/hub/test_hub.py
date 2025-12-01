@@ -35,11 +35,10 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_hub(self):
         db = mlrun.get_run_db()
 
-        default_source = mlrun.common.schemas.IndexedHubSource(
-            index=-1,
-            source=mlrun.common.schemas.HubSource.generate_default_source(),
-        )
-        self._assert_source_lists_match([default_source])
+        response = mlrun.get_run_db().list_hub_sources()
+        # make sure that there is only the default source
+        assert len(response) == 1
+        default_source = response[0]
 
         new_source = mlrun.common.schemas.IndexedHubSource(
             source=mlrun.common.schemas.HubSource(

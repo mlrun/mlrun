@@ -43,6 +43,7 @@ from .artifact import (
 from .auth import (
     AuthInfo,
     AuthorizationAction,
+    AuthorizationResourceNamespace,
     AuthorizationResourceTypes,
     AuthorizationVerificationInput,
     Credentials,
@@ -65,7 +66,9 @@ from .common import ImageBuilder
 from .constants import (
     APIStates,
     ArtifactPartitionByField,
+    AuthorizationHeaderPrefixes,
     ClusterizationRole,
+    CookieNames,
     DeletionStrategy,
     FeatureStorePartitionByField,
     HeaderNames,
@@ -111,14 +114,18 @@ from .feature_store import (
 )
 from .frontend_spec import (
     ArtifactLimits,
-    AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
     NuclioStreamsFeatureFlag,
     PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
-from .function import FunctionState, PreemptionModes, SecurityContextEnrichmentModes
+from .function import (
+    BatchingSpec,
+    FunctionState,
+    PreemptionModes,
+    SecurityContextEnrichmentModes,
+)
 from .http import HTTPSessionRetryMode
 from .hub import (
     HubCatalog,
@@ -154,6 +161,7 @@ from .model_monitoring import (
     ModelEndpointSchema,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringInfraLabel,
     ModelMonitoringMode,
     MonitoringFunctionNames,
     TSDBTarget,
@@ -211,10 +219,13 @@ from .schedule import (
 )
 from .secret import (
     AuthSecretData,
+    ListSecretTokensResponse,
     SecretKeysData,
     SecretProviderName,
     SecretsData,
-    UserSecretCreationRequest,
+    SecretToken,
+    SecretTokenInfo,
+    StoreSecretTokensResponse,
 )
 from .serving import ModelRunnerStepData, ModelsData, MonitoringData
 from .tag import Tag, TagObjects

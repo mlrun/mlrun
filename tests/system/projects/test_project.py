@@ -20,6 +20,7 @@ import sys
 import time
 from sys import executable
 
+import git.exc
 import igz_mgmt
 import pandas as pd
 import pytest
@@ -317,6 +318,7 @@ class TestProject(TestMLRunSystem):
             "-u",
             "git://github.com/mlrun/project-demo.git",
             project_dir,
+            "--allow-cross-project",
         ]
         out = exec_project(args)
         self._logger.debug("executed project", out=out)
@@ -357,6 +359,7 @@ class TestProject(TestMLRunSystem):
             "--url",
             "git://github.com/mlrun/project-demo.git",
             project_dir,
+            "--allow-cross-project",
         ]
         out = exec_project(args)
         self._logger.debug("Loaded project", out=out)
@@ -583,7 +586,7 @@ class TestProject(TestMLRunSystem):
 
         workflow_path = str(self.assets_path / "pipeline_with_resource_param.py")
         function_name = "func-1"
-        function = self._get_sleep_job(function_name=function_name)
+        self._get_sleep_job(project=project, function_name=function_name)
 
         # set and run a two-step workflow in the project
         project.set_workflow("paramflow", workflow_path)
@@ -828,6 +831,7 @@ class TestProject(TestMLRunSystem):
             "--watch",
             "--timeout 1",
             project_dir,
+            "--allow-cross-project",
         ]
         out = exec_project(args)
 
@@ -1844,13 +1848,15 @@ class TestProject(TestMLRunSystem):
         self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         db = self._run_db
-        mlrun.load_project(
+        project = mlrun.load_project(
             project_dir,
             name=name,
             url="git://github.com/mlrun/project-demo.git",
-            secrets={"secret1": "1234"},
             allow_cross_project=True,
         )
+
+        if save_secrets:
+            project.set_secrets({"secret1": "1234"})
 
         secrets = db.list_project_secret_keys(name)
 
@@ -1862,14 +1868,16 @@ class TestProject(TestMLRunSystem):
     def test_load_project_remotely_with_secrets_failed(self):
         name = "failed-to-load"
         self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
         db = self._run_db
-        state = db.load_project(
-            name=name,
-            url="git://github.com/some/wrong/uri.git",
-            secrets={"secret1": "1234"},
-            save_secrets=False,
-        )
-        assert state == "error"
+        with pytest.raises(git.exc.GitCommandError):
+            mlrun.load_project(
+                project_dir,
+                name=name,
+                url="git://github.com/some/wrong/uri.git",
+                secrets={"secret1": "1234"},
+                allow_cross_project=True,
+            )
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             db.get_project(name)
 
@@ -2012,10 +2020,12 @@ class TestProject(TestMLRunSystem):
             project=self.project_name,
         )
 
-    def _get_sleep_job(self, function_name="sleep-job"):
+    def _get_sleep_job(self, project=None, function_name="sleep-job"):
+        if project is None:
+            project = self.project
         code_path = str(self.assets_path / "sleep.py")
 
-        function = self.project.set_function(
+        function = project.set_function(
             name=function_name,
             func=code_path,
             kind="job",

@@ -181,7 +181,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     runtime_handler = services.api.runtime_handlers.get_runtime_handler(
                         runtime.kind
                     )
-                    runtime_handler.run(runtime, run, execution)
+                    runtime_handler.run(runtime, run, execution, self._auth_info)
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 
@@ -253,7 +253,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             ]
 
         serving_spec = getattr(runtime, "serving_spec", None)
-        if serving_spec and isinstance(runtime, (KubejobRuntime, RemoteRuntime)):
+        if serving_spec and isinstance(runtime, KubejobRuntime | RemoteRuntime):
             serving_spec_volume = self._configure_serving_spec(
                 client_version=client_version,
                 function=runtime,

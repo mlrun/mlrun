@@ -26,7 +26,7 @@ from mlrun.utils import logger
 import framework.api.deps
 import framework.utils.background_tasks
 import framework.utils.clients.chief
-import framework.utils.clients.iguazio as iguazio_client
+import framework.utils.clients.iguazio.v3 as iguazio_client
 import framework.utils.notifications.notification_pusher as notification_pusher
 import framework.utils.singletons
 import services.api.initial_data

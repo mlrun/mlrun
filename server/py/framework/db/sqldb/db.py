@@ -22,7 +22,7 @@ import re
 import typing
 import urllib.parse
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Optional, Union
 
 import fastapi.concurrency
@@ -251,7 +251,7 @@ class SQLDB(DBInterface):
         )
         # Do not lock run as it may cause deadlocks
         run = self._get_run(session, uid, project, iter)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if not run:
             run = Run(
                 name=run_data["metadata"]["name"],
@@ -286,7 +286,7 @@ class SQLDB(DBInterface):
             iter=iter,
             run_name=run_data["metadata"]["name"],
         )
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         run = Run(
             name=run_data["metadata"]["name"],
             uid=uid,
@@ -452,7 +452,7 @@ class SQLDB(DBInterface):
         self._query(session, Run).filter(Run.uid.in_(uids)).update(
             {
                 Run.requested_logs: requested_logs,
-                Run.updated: datetime.now(timezone.utc),
+                Run.updated: datetime.now(UTC),
             },
             synchronize_session=False,
         )
@@ -602,7 +602,7 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunMissingProjectError()
         query = self._find_runs(session, None, project, labels)
         if days_ago:
-            since = datetime.now(timezone.utc) - timedelta(days=days_ago)
+            since = datetime.now(UTC) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
         if name:
             query = self._add_run_name_query(query, name)
@@ -720,7 +720,7 @@ class SQLDB(DBInterface):
         run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
     ):
         if now is None:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
         run_record.updated = now
         run_dict.setdefault("status", {})["last_update"] = now.isoformat()
 
@@ -808,6 +808,7 @@ class SQLDB(DBInterface):
                 )
                 db_artifact = existing_artifact
                 self._update_artifact_record_from_dict(
+                    session,
                     db_artifact,
                     artifact_dict,
                     project,
@@ -871,6 +872,7 @@ class SQLDB(DBInterface):
 
         db_artifact = ArtifactV2(project=project, key=key)
         self._update_artifact_record_from_dict(
+            session,
             db_artifact,
             artifact,
             project,
@@ -879,7 +881,6 @@ class SQLDB(DBInterface):
             iteration,
             best_iteration,
             producer_id,
-            session,
         )
 
         self._upsert(session, [db_artifact])
@@ -1589,6 +1590,7 @@ class SQLDB(DBInterface):
 
     def _update_artifact_record_from_dict(
         self,
+        session: Session,
         artifact_record,
         artifact_dict: dict,
         project: str,
@@ -1597,7 +1599,6 @@ class SQLDB(DBInterface):
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         producer_id: typing.Optional[str] = None,
-        session: Session = None,
     ):
         artifact_record.project = project
         kind = artifact_dict.get("kind") or "artifact"
@@ -1608,7 +1609,7 @@ class SQLDB(DBInterface):
         artifact_record.producer_uri = (
             artifact_dict.get("spec", {}).get("producer", {}).get("uri", None)
         )
-        updated_datetime = datetime.now(timezone.utc)
+        updated_datetime = datetime.now(UTC)
         artifact_record.updated = updated_datetime
         created = (
             str(artifact_record.created)
@@ -1618,7 +1619,7 @@ class SQLDB(DBInterface):
         # make sure we have a datetime object with timezone both in the artifact record and in the artifact dict
         created_datetime = mlrun.utils.enrich_datetime_with_tz_info(
             created
-        ) or datetime.now(timezone.utc)
+        ) or datetime.now(UTC)
         artifact_record.created = created_datetime
 
         # if iteration is not given, we assume it is a single iteration artifact, and thus we set the iteration to 0
@@ -1857,7 +1858,11 @@ class SQLDB(DBInterface):
             partition_order,
             parent_uri,
         ):
-            query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
+            query = query.with_hint(
+                ArtifactV2,
+                "USE INDEX (idx_project_bi_updated)",
+                dialect_name="mysql",
+            )
 
         if project:
             query = query.filter(ArtifactV2.project == project)
@@ -1905,6 +1910,8 @@ class SQLDB(DBInterface):
             # If a tag is given, we can just join (faster than outer join) and filter on the tag
             query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
             query = query.filter(ArtifactV2.Tag.name == tag)
+            if project:
+                query = query.filter(ArtifactV2.Tag.project == project)
         else:
             # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
             query = query.outerjoin(
@@ -2063,7 +2070,6 @@ class SQLDB(DBInterface):
             "producer_uri": producer_uri,
             "best_iteration": best_iteration,
             "most_recent": most_recent,
-            "attach_tags": attach_tags,
             "limit": limit,
             "with_entities": with_entities,
             "partition_by": partition_by,
@@ -2074,7 +2080,9 @@ class SQLDB(DBInterface):
 
         # Check if all current parameters match their default values
         return all(
-            default_list_params[key] == value for key, value in current_params.items()
+            default_list_params[key] == value
+            or (default_list_params[key] is None and value in (None, [], {}, ()))
+            for key, value in current_params.items()
         )
 
     def _find_artifacts_for_producer_id(
@@ -2468,7 +2476,7 @@ class SQLDB(DBInterface):
         else:
             uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
 
-        updated = datetime.now(timezone.utc)
+        updated = datetime.now(UTC)
         update_in(function, "metadata.updated", updated)
         body_name = function.get("metadata", {}).get("name")
         if body_name and body_name != name:
@@ -2963,7 +2971,7 @@ class SQLDB(DBInterface):
             project=project,
             name=name,
             kind=kind.value,
-            creation_time=datetime.now(timezone.utc),
+            creation_time=datetime.now(UTC),
             concurrency_limit=concurrency_limit,
             next_run_time=next_run_time,
             # these are properties of the object that map manually (using getters and setters) to other column of the
@@ -3373,7 +3381,7 @@ class SQLDB(DBInterface):
         project_summary = ProjectSummary(
             project=project.metadata.name,
             summary=summary.dict(),
-            updated=datetime.now(timezone.utc),
+            updated=datetime.now(UTC),
         )
         objects_to_store.append(project_summary)
 
@@ -3535,7 +3543,7 @@ class SQLDB(DBInterface):
         for project_summary in project_summaries:
             # project_summary.updated is timezone naive, make it utc
             project_summary.summary["updated"] = project_summary.updated.replace(
-                tzinfo=timezone.utc
+                tzinfo=UTC
             )
             project_summaries_results.append(
                 mlrun.common.schemas.ProjectSummary(**project_summary.summary)
@@ -3571,7 +3579,7 @@ class SQLDB(DBInterface):
         # Update the summaries of projects that have associated projects
         for project_summary in associated_summaries:
             project_summary.summary = summary_dicts.get(project_summary.project)
-            project_summary.updated = datetime.now(timezone.utc)
+            project_summary.updated = datetime.now(UTC)
             session.add(project_summary)
 
         # To avoid race conditions where a project might be deleted after its summary is queried
@@ -3755,7 +3763,7 @@ class SQLDB(DBInterface):
             result[0]: result[1] for result in schedules_count_per_project
         }
 
-        next_day = datetime.now(timezone.utc) + timedelta(hours=24)
+        next_day = datetime.now(UTC) + timedelta(hours=24)
 
         # We check the workflow label because the schedule kind
         # is not used properly (not setting pipelines kind for workflow schedules)
@@ -3778,7 +3786,7 @@ class SQLDB(DBInterface):
                 ),
             )
             .filter(Schedule.next_run_time < next_day)
-            .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
+            .filter(Schedule.next_run_time >= datetime.now(UTC))
             .all()
         )
 
@@ -3900,8 +3908,22 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
+        """
+        Calculate per-project run counters for recent activity and current status.
+
+        This method counts only top-level runs (``iteration == 0``), excluding child runs
+        from hyperparameter tuning, which are not considered separate jobs.
+
+        :param session: The active DB session used to query the runs.
+
+        :return: A tuple containing:
+            - A dictionary of recently completed runs (last 24h) per project.
+            - A dictionary of recently failed or aborted runs (last 24h) per project.
+            - A dictionary of currently running runs (non-terminal states) per project.
+        """
         running_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     mlrun.common.runtimes.constants.RunStates.non_terminal_states()
@@ -3910,6 +3932,7 @@ class SQLDB(DBInterface):
             .group_by(Run.project)
             .all()
         )
+
         project_to_running_runs_count = {
             result[0]: result[1] for result in running_runs_count_per_project
         }
@@ -3917,6 +3940,8 @@ class SQLDB(DBInterface):
         one_day_ago = datetime.now() - timedelta(hours=24)
         recent_failed_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.start_time >= one_day_ago)
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     [
@@ -3925,7 +3950,6 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
-            .filter(Run.start_time >= one_day_ago)
             .group_by(Run.project)
             .all()
         )
@@ -3935,6 +3959,8 @@ class SQLDB(DBInterface):
 
         recent_completed_runs_count_per_project = (
             session.query(Run.project, func.count())
+            .filter(Run.start_time >= one_day_ago)
+            .filter(Run.iteration == 0)
             .filter(
                 Run.state.in_(
                     [
@@ -3942,7 +3968,6 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
-            .filter(Run.start_time >= one_day_ago)
             .group_by(Run.project)
             .all()
         )
@@ -4853,12 +4878,12 @@ class SQLDB(DBInterface):
         uid,
     ):
         db_object.name = common_object_dict["metadata"]["name"]
-        updated_datetime = datetime.now(timezone.utc)
+        updated_datetime = datetime.now(UTC)
         db_object.updated = updated_datetime
         if not db_object.created:
             db_object.created = common_object_dict["metadata"].pop(
                 "created", None
-            ) or datetime.now(timezone.utc)
+            ) or datetime.now(UTC)
         db_object.state = common_object_dict.get("status", {}).get("state")
         db_object.uid = uid
 
@@ -6312,7 +6337,7 @@ class SQLDB(DBInterface):
         hub_source_schema: mlrun.common.schemas.IndexedHubSource,
         current_object: HubSource = None,
     ):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if current_object:
             if current_object.name != hub_source_schema.source.metadata.name:
                 raise mlrun.errors.MLRunInternalServerError(
@@ -7159,9 +7184,7 @@ class SQLDB(DBInterface):
             severity=alert_activation_record.severity,
             # the activation_time is already stored in UTC in the database as a naive datetime.
             # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
-            activation_time=alert_activation_record.activation_time.replace(
-                tzinfo=timezone.utc
-            ),
+            activation_time=alert_activation_record.activation_time.replace(tzinfo=UTC),
             entity_id=alert_activation_record.entity_id,
             entity_kind=alert_activation_record.entity_kind,
             event_kind=alert_activation_record.event_kind,
@@ -7170,7 +7193,7 @@ class SQLDB(DBInterface):
             criteria=alert_activation_record.data.get("criteria"),
             # the reset_time is already stored in UTC (if not None) in the database as a naive datetime.
             # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
-            reset_time=alert_activation_record.reset_time.replace(tzinfo=timezone.utc)
+            reset_time=alert_activation_record.reset_time.replace(tzinfo=UTC)
             if alert_activation_record.reset_time
             else None,
         )
@@ -7196,7 +7219,6 @@ class SQLDB(DBInterface):
             project=project,
         ).one_or_none()
         now = mlrun.utils.now_date()
-        task_labels = []
         if background_task_record:
             # we don't want to be able to change state after it reached terminal state
             if (
@@ -7226,20 +7248,17 @@ class SQLDB(DBInterface):
                 timeout=int(timeout) if timeout else None,
                 error=error,
             )
-            session.add(background_task_record)
-            if labels is not None:
+            if labels:
                 for label_name, label_value in labels.items():
-                    task_labels.append(
+                    background_task_record.labels.append(
                         BackgroundTaskLabel(
                             name=label_name,
                             value=label_value,
-                            task=background_task_record,
+                            project=project,
                         )
                     )
-        objects = [background_task_record]
-        if task_labels:
-            objects.extend(task_labels)
-        self._upsert(session, objects)
+            session.add(background_task_record)
+        self._upsert(session, [background_task_record])
 
     def get_background_task(
         self,
@@ -7724,6 +7743,9 @@ class SQLDB(DBInterface):
         current_page: int,
         page_size: int,
         kwargs: dict,
+        pagination_cache_record: typing.Optional[
+            framework.db.sqldb.models.PaginationCache
+        ] = None,
     ):
         self._validate_integer_max_value(
             PaginationCache.__table__.c.current_page, current_page
@@ -7736,11 +7758,15 @@ class SQLDB(DBInterface):
         key = hashlib.sha256(
             f"{user}/{function}/{page_size}/{kwargs}".encode()
         ).hexdigest()
-        existing_record = self.get_paginated_query_cache_record(session, key)
-        if existing_record:
-            existing_record.current_page = current_page
-            existing_record.last_accessed = datetime.now(timezone.utc)
-            param_record = existing_record
+        if not pagination_cache_record:
+            # in this case, we just lock for update to make sure no one else is writing to it
+            pagination_cache_record = self.get_paginated_query_cache_record(
+                session, key=key, for_update=True
+            )
+        if pagination_cache_record:
+            pagination_cache_record.current_page = current_page
+            pagination_cache_record.last_accessed = datetime.now(UTC)
+            param_record = pagination_cache_record
         else:
             param_record = PaginationCache(
                 key=key,
@@ -7758,8 +7784,12 @@ class SQLDB(DBInterface):
         self,
         session,
         key: str,
-    ):
-        return self._query(session, PaginationCache, key=key).one_or_none()
+        for_update: bool = False,
+    ) -> typing.Optional[PaginationCache]:
+        query = self._query(session, PaginationCache, key=key)
+        if for_update:
+            query = query.populate_existing().with_for_update()
+        return query.one_or_none()
 
     def list_paginated_query_cache_record(
         self,
@@ -7941,7 +7971,7 @@ class SQLDB(DBInterface):
             "Storing Model Endpoint to DB",
             metadata=model_endpoint.metadata,
         )
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
         mep = ModelEndpoint(
             uid=model_endpoint.metadata.uid if model_endpoint.metadata.uid else None,
             name=model_endpoint.metadata.name,
@@ -7985,7 +8015,7 @@ class SQLDB(DBInterface):
     ) -> None:
         model_endpoint_records: list[ModelEndpoint] = []
         uids = list(attributes.keys())
-        updated = datetime.now(timezone.utc)
+        updated = datetime.now(UTC)
         for mep_record in self._find_model_endpoints(
             session=session,
             uids=uids,
@@ -8012,7 +8042,7 @@ class SQLDB(DBInterface):
             session, project, name, function_name, function_tag, uid
         )
         if mep_record:
-            updated = datetime.now(timezone.utc)
+            updated = datetime.now(UTC)
             mep_record = self._update_mep_record(
                 session, mep_record, attributes, updated
             )

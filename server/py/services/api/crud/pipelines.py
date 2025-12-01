@@ -703,7 +703,27 @@ class Pipelines(
     ) -> list[dict]:
         """
         Submit formatting tasks concurrently and emit results in discovery order.
+
+        This function parallelizes run-formatting using a ThreadPoolExecutor.
+        Two separate controls influence concurrency:
+
+        * **max_workers** – limits the number of *active* threads executing
+          formatting tasks at any moment. This caps CPU usage and prevents
+          excessive I/O pressure against the KFP API.
+
+        * **queue_size** – limits the number of *submitted but not yet started*
+          tasks. Without this bound, submitting thousands of runs at once would
+          allocate a large number of pending Future objects and unbounded
+          memory growth. By default, the queue is `max_workers * 2`, providing
+          a small buffer while still preventing runaway task submission.
+
+        The internal **semaphore** enforces the queue bound: each submission
+        acquires the semaphore, and each finished task releases it. This keeps
+        the total number of in-flight tasks (running + waiting) under control,
+        ensuring predictable memory usage even for very large run lists.
         """
+        if not runs:
+            return []
         if queue_size is None:
             queue_size = max_workers * 2
 
@@ -732,7 +752,7 @@ class Pipelines(
                 try:
                     formatted_runs.append(future.result())
                 except Exception:
-                    mlrun.utils.logger.warning(
+                    mlrun.utils.logger.error(
                         "Run formatting failed; skipping run", exc_info=True
                     )
 

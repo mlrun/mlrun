@@ -1722,7 +1722,6 @@ def test_enrich_kaniko_env_for_s3_context_does_not_duplicate_path_style(monkeypa
     )
 
     services.api.utils.builder._enrich_kaniko_env_for_s3_context(
-        source_url="s3://bucket/path",
         env_vars=env_vars,
     )
     env_map = _envs_to_name_value_map(env_vars)
@@ -1763,7 +1762,7 @@ def test_build_runtime_calls_enrich_kaniko_env_for_s3_source(monkeypatch):
     # strict validation: called exactly once with exact arguments
     enrich_mock.assert_called_once_with(
         "s3://my-bucket/path/to/source",
-        typing.ANY,
+        typing.Any,
     )
 
 

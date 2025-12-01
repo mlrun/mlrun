@@ -16,7 +16,6 @@ import base64
 import json
 import os
 import re
-import typing
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 

@@ -99,7 +99,8 @@ class MLRunInternalLabels:
     workflow = "workflow"
     feature_vector = "feature-vector"
 
-    user_token_secret_label_key = "mlrun/user"
+    auth_username = f"{MLRUN_LABEL_PREFIX}user"
+    auth_token_name = f"{MLRUN_LABEL_PREFIX}token"
 
     @classmethod
     def all(cls):

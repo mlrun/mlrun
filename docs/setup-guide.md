@@ -1,7 +1,7 @@
 (install-remote)=
 # Set up your environment <!-- omit in toc -->
 
-Learn about MLRun non root user support and version compatibility requirements, essential information for MLRun developers and operators.
+Learn about MLRun non-root user support and version compatibility requirements, essential information for MLRun developers and operators.
 
 **In this section**
 - [Prerequisites](#prerequisites)
@@ -37,10 +37,10 @@ After you update the MLRun package client version by running `pip install mlrun=
 For example, when running this command `pip install mlrun==1.8.0` you must update your images to use MLRun v1.8.0 by adding `mlrun==<"new-client-version">` as a function requirement. See {py:meth}`~mlrun.runtimes.BaseRuntime.with_requirements`.
 
 ```{admonition} Important
-- The feature store is not backward compatible. 
+The feature store is not backward compatible. 
 ```
 
-## Non root user support
+## Non-root user support
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, which is implemented by Iguazio during installation, and applied system-wide:
 
@@ -128,7 +128,7 @@ It creates the following environment file:
 MLRUN_DBPATH=http://localhost:8080
 ```
 
-MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in [Example 2](#ex2)). 
+MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, the username and access_key are not required (as in [Example 2](#ex2)). 
 
 (ex2)=
 **Example 2**<br>
@@ -154,7 +154,7 @@ page, and select **Access Keys** from the menu. In the **Access Keys** window, e
 key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web shell or Jupyter Notebook service.
 
 ```{admonition} Note
-If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
+If the MLRUN_DBPATH points to a remote Iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
 ```
 
 **Explanation:**
@@ -184,7 +184,8 @@ mlrun.set_environment("http://localhost:8080", artifact_path="./")
 mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
 
-For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/stable/api/mlrun.html#mlrun.set_environment).
+For more explanations read the documentation on {py:meth}`~mlrun.set_environment`.
+
 (using-your-ide-e-g-pycharm-or-vscode)=
 ### Using your IDE (e.g. PyCharm or VSCode)
 

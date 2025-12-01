@@ -28,7 +28,7 @@ for any project used:
 
 ## Disabling auto-mount
 
-Before running any MLRun job that writes to S3 bucket, make sure auto-mount is disabled for it, since by default
+Before running any MLRun job that writes to an S3 bucket, make sure auto-mount is disabled for it, since by default
 auto-mount adds S3 configurations that point at the MinIO service (refer to 
 [**Function storage**](../runtimes/function-storage.md) for more details on auto-mount). This can be done in one
 of following ways:

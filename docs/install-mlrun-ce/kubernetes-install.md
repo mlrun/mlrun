@@ -4,7 +4,7 @@
 These instructions install the community edition (CE) on your Kubernetes cluster. This procedure installs an EKS cluster, an EBS volume, an S3 bucket, load balancing, etc. When you complete this procedure, you'll have the Community Edition of MLRun running on your EKS cluster.
 
 ```{admonition} Note
-These instructions install the community edition, which currently includes MLRun {{ ceversion }}. 
+These instructions install the community edition {{ ceversion }}, which currently includes the features in MLRun {{ version }}.</br>
 ```
 
 **In this section**
@@ -18,15 +18,15 @@ These instructions install the community edition, which currently includes MLRun
 
 ## Prerequisites
 
-- Access to a Kubernetes cluster, version >=1.31. To install MLRun on your cluster, you must have administrator permissions. 
+- Access to a Kubernetes cluster, version >=1.32. To install MLRun on your cluster, you must have administrator permissions. 
 For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. 
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
 - Helm version >=3.16 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
-- An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret. If using docker hub, the registry server is `https://registry.hub.docker.com/`. See the [Docker ID documentation](https://docs.docker.com/docker-id/) for details about creating a user with login that you will configure in the secret.
+- An accessible Docker Registry (such as [Docker Hub](https://hub.docker.com)). The Registry's URL and credentials are consumed by the applications via a pre-created secret. If using Docker Hub, the Registry server is `https://registry.hub.docker.com/`. See the [Docker ID documentation](https://docs.docker.com/docker-id/) for details about creating a user with login that you will configure in the secret.
 - Storage: 
   - 8Gi
-  - Set a default storage class for the kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
+  - Set a default storage class for the Kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
 - RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
 - Review the [MLRun CE installation notes](./mlrun-ce-installation-notes.md) for any additional installation steps you may need to consider.
 
@@ -38,7 +38,7 @@ The MLRun Community Edition resources are configured initially with the default 
 ## Installing the chart
 
 ```{admonition} Note
-These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
+These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your Kubernetes cluster.
 ```
 
 Create a namespace for the deployed components:
@@ -70,7 +70,7 @@ Update the repo to make sure you're getting the latest chart:
 helm repo update
 ```
 
-Create a secret with your docker-registry named `registry-credentials`:
+Create a secret with your Docker Registry named `registry-credentials`:
 
 ```bash
 kubectl --namespace mlrun create secret docker-registry registry-credentials \
@@ -80,7 +80,7 @@ kubectl --namespace mlrun create secret docker-registry registry-credentials \
     --docker-email <your-email>
 ```
 ```{admonition} Note
-If using docker hub, the registry server is `https://registry.hub.docker.com/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
+If using Docker hub, the Registry server is `https://registry.hub.docker.com/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
 creating a user with login to configure in the secret.
 ```
 
@@ -101,18 +101,16 @@ helm --namespace mlrun \
     --set global.registry.url=<registry-url> \
     --set global.registry.secretName=<registry-credentials> \
     --set global.externalHostAddress=<host-machine-address> \
-    --set nuclio.dashboard.externalIPAddresses=<list of IP addresses> \
     mlrun-ce/mlrun-ce
 ```
 
 Where:
- - `<registry-url>` is the registry URL that can be authenticated by the `<registry-credentials>` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
+ - `<registry-url>` is the Registry URL that can be authenticated by the `<registry-credentials>` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
  - `<host-machine-address>` is the IP address of the host machine (or `$(minikube ip)` if using minikube).
 
 When the installation is complete, the helm command prints the URLs and ports of all the MLRun CE services.
 
 ```{admonition} Known issue when installing the chart on Macs using Apple silicon (ARM-based architicture):
-- The current pipelines MySQL database fails to start. The workaround for now is to run this line `docker pull mysql:5.7 --platform linux/amd64` before installing the chart.
 - The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
 ```
 
@@ -193,8 +191,8 @@ helm --namespace mlrun uninstall mlrun-ce
 ### Notes on dangling resources
 - The created CRDs are not deleted by default and should be manually cleaned up. 
 - The created PVs and PVCs are not deleted by default and should be manually cleaned up. 
-- As stated above, the images in the docker registry are not deleted either and should be cleaned up manually.
-- If you installed the chart in its own namespace, it's also possible to delete the entire namespace to clean up all resources (apart from the docker registry images).
+- As stated above, the images in the Docker Registry are not deleted either and should be cleaned up manually.
+- If you installed the chart in its own namespace, it's also possible to delete the entire namespace to clean up all resources (apart from the Docker Registry images).
 
 ### Note on terminating pods and hanging resources
 This chart generates several persistent volume claims that provide persistency (via PVC) out of the box. 

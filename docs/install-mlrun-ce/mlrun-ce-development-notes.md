@@ -1,28 +1,28 @@
 # MLRun CE development notes
 
-This page contains notes for configuring your development system (after installtion).
+This page contains notes for configuring your development system (after installation).
 
 **In this section**
 
 - [Change the deployment and jobs default PVC](#change-the-deployment-and-jobs-default-pvc)
 - [Configuring the user Jupyter conda environment](#configuring-the-user-jupyter-conda-environment)
 - [Configuring TDengine and Kafka for model monitoring](#configuring-tdengine-and-kafka-for-model-monitoring)
-- [Running local Spark jobs](#running-local-spark-jobs)
 
 ## Change the deployment and jobs default PVC
-- A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC by running this after importing MLRun:
-    ```
-    import mlrun
-    mlrun.mlconf.storage.auto_mount_type = "pvc"
-    pvc_params = {
-        "pvc_name": "pvc-fhakn",
-        "volume_name": "pv-zjoij",
-        "volume_mount_path": "/tmp/pv-temp/adcxm",
-    }
-    mlrun.mlconf.storage.auto_mount_params = ",".join(
-        [f"{key}={value}" for key, value in pvc_params.items()]
-    )
-    ```
+A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC, after importing MLRun, by running this code:
+
+```
+import mlrun
+mlrun.mlconf.storage.auto_mount_type = "pvc"
+pvc_params = {
+    "pvc_name": "pvc-fhakn",
+    "volume_name": "pv-zjoij",
+    "volume_mount_path": "/tmp/pv-temp/adcxm",
+}
+mlrun.mlconf.storage.auto_mount_params = ",".join(
+    [f"{key}={value}" for key, value in pvc_params.items()]
+)
+```
 
 ## Configuring the user Jupyter conda environment
 
@@ -33,7 +33,7 @@ To create a new, persistent, environment, run this in your Jupyter terminal, whe
 
 ```bash
 # Create the virtual environment
-conda create -n <myenv> python=<3.9 or 3.11> -y
+conda create -n <myenv> python==3.11 -y
 
 # Activate the virtual environment
 conda activate <myenv>
@@ -74,7 +74,3 @@ project.set_model_monitoring_credentials(
 ```
 
 See more details, including additional configuration options, in {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-
-## Running local Spark jobs
-To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
-`pip install pyspark`

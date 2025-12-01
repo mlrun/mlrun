@@ -196,10 +196,11 @@ def _create_refresh_smtp_configuration_background_task(
 async def _perform_refresh_smtp(session: str):
     # if running in iguazio, get the SMTP configuration from iguazio and store it in k8s secret store
     if mlrun.mlconf.iguazio_api_url:
+        # TODO: Fix for iguazio v4
         iguazio_client_instance = iguazio_client.Client()
         try:
-            returned_smtp_configuration = iguazio_client_instance.get_smtp_configuration(
-                session
+            returned_smtp_configuration = (
+                iguazio_client_instance.get_smtp_configuration(session)
             )
         except mlrun.errors.MLRunInternalServerError as exc:
             logger.warning(

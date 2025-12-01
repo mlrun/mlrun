@@ -28,6 +28,7 @@ from sqlalchemy.dialects import mysql
 
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.partition_interval
+
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"
 down_revision = "63a7eec6d034"

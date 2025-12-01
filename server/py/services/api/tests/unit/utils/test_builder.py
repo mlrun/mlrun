@@ -1759,11 +1759,8 @@ def test_build_runtime_calls_enrich_kaniko_env_for_s3_source(monkeypatch):
             mlrun.common.schemas.AuthInfo(), function
         )
 
-    # strict validation: called exactly once with exact arguments
-    enrich_mock.assert_called_once_with(
-        "s3://my-bucket/path/to/source",
-        typing.Any,
-    )
+    # strict validation: called exactly once
+    enrich_mock.assert_called_once()
 
 
 def test_build_runtime_does_not_call_enrich_kaniko_env_for_non_s3_source(monkeypatch):

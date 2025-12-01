@@ -25,6 +25,7 @@ from typing import Optional, Union
 
 import pandas as pd
 import pytest
+import storey
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -220,6 +221,37 @@ def test_batch():
             ), f"Batch {i} timestamp {batch_ts} not greater than previous {prev_ts}"
             prev_ts = batch_ts
 
+class Echo2(storey.MapClass):
+    def do(self, event: dict):
+        print("Echo:", event)
+        return event
+class MyCyclicChoice(storey.Choice):
+    def select_outlets(self, event):
+        if event.get("go_cyclic"):
+            return ["count"]
+        return ["end"]
+
+class Counter(storey.MapClass):
+    def do(self, event:dict):
+        event["counter"] = event.get("counter", 0) + 1
+        event["go_cyclic"] = True
+        if event["counter"] > 4:
+            event["go_cyclic"] = False
+        return event
+
+def test_cyclic_graph():
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+
+    graph.to(name="start", class_name="Echo2").to(class_name="Counter", name="count").to(name="num", class_name="Echo2")
+    graph.add_step(name="end", class_name="Echo2").respond()
+    graph.add_step("MyCyclicChoice", name='cyclic_choice', after="num", before=["count","end"])
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={"counter": 1})
+        assert resp["counter"] == 5
+    finally:
+        server.wait_for_completion()
 
 class MyModel(Model):
     def __init__(self, inc: int, gpu_number: Optional[int] = None, **kwargs):

@@ -420,6 +420,8 @@ class BaseStep(ModelObj):
             # check that its not the root, todo: in future may gave nested flows
             step.after_step(self.name)
         parent._last_added = step
+        if isinstance(self, RootFlowStep):
+            self.from_step = name
         return step
 
     def set_flow(
@@ -2301,6 +2303,7 @@ class FlowStep(BaseStep):
         after: Optional[list] = None,
         engine=None,
         final_step=None,
+        allow_cyclic: bool = False,
     ):
         super().__init__(name, after)
         self._steps = None
@@ -2314,9 +2317,18 @@ class FlowStep(BaseStep):
         self._wait_for_result = False
         self._source = None
         self._start_steps = []
+        self._allow_cyclic = allow_cyclic
 
     def get_children(self):
         return self._steps.values()
+
+    @property
+    def allow_cyclic(self) -> bool:
+        return self._allow_cyclic
+
+    @allow_cyclic.setter
+    def allow_cyclic(self, allow_cyclic: list[str]):
+        self._allow_cyclic = allow_cyclic
 
     @property
     def steps(self):
@@ -2438,16 +2450,23 @@ class FlowStep(BaseStep):
             step.after_step(previous)
 
         if before:
-            if before not in self._steps.keys():
-                raise MLRunInvalidArgumentError(
-                    f"cant set before, there is no step named {before}"
-                )
-            if before == step.name or before == previous:
-                raise GraphError(
-                    f"graph loop, step {before} is specified in before and/or after {key}"
-                )
-            self[step.name].after_step(*self[before].after, append=False)
-            self[before].after_step(step.name, append=False)
+            before_list= before if isinstance(before, list) else list(before)
+            for before in before_list:
+                if before not in self._steps.keys():
+                    raise MLRunInvalidArgumentError(
+                        f"cant set before, there is no step named {before}"
+                    )
+                if (before == step.name or before == previous) and not self.allow_cyclic:
+                    raise GraphError(
+                        f"graph loop, step {before} is specified in before and/or after {key}"
+                    )
+                elif self.allow_cyclic:
+                    self[before].after_step(step.name, append=False or self.allow_cyclic)
+                    continue
+                else:
+                    # for DAG just link the steps
+                    self[step.name].after_step(*self[before].after, append=False or self.allow_cyclic)
+                    self[before].after_step(step.name, append=False or self.allow_cyclic)
         self._last_added = step
         return step
 
@@ -2508,7 +2527,7 @@ class FlowStep(BaseStep):
             step._visited = False
             if step.after:
                 loop_step = has_loop(step, [])
-                if loop_step:
+                if loop_step and not self.allow_cyclic:
                     raise GraphError(
                         f"Error, loop detected in step {loop_step}, graph must be acyclic (DAG)"
                     )
@@ -2609,14 +2628,14 @@ class FlowStep(BaseStep):
         def process_step(state, step, root):
             if not state._is_local_function(self.context) or state._visited:
                 return
+            state._visited = (
+                True  # mark visited to avoid re-visit in case of multiple uplinks
+            )
             for item in state.next or []:
                 next_state = root[item]
                 if next_state.async_object:
                     next_step = step.to(next_state.async_object)
                     process_step(next_state, next_step, root)
-            state._visited = (
-                True  # mark visited to avoid re-visit in case of multiple uplinks
-            )
 
         default_source, self._wait_for_result = _init_async_objects(
             self.context, self._steps.values()
@@ -2850,6 +2869,7 @@ class RootFlowStep(FlowStep):
         "shared_models",
         "shared_models_mechanism",
         "pool_factor",
+        "allow_cyclic"
     ]
 
     def __init__(
@@ -2859,6 +2879,7 @@ class RootFlowStep(FlowStep):
         after: Optional[list] = None,
         engine=None,
         final_step=None,
+        allow_cyclic: bool = False,
     ):
         super().__init__(
             name,
@@ -2866,6 +2887,7 @@ class RootFlowStep(FlowStep):
             after,
             engine,
             final_step,
+            allow_cyclic,
         )
         self._models = set()
         self._route_models = set()

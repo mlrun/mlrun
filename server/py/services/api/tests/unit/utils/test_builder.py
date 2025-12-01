@@ -1639,7 +1639,6 @@ def test_enrich_kaniko_env_for_s3_context_keeps_existing_aws_region(monkeypatch)
     ]
 
     services.api.utils.builder._enrich_kaniko_env_for_s3_context(
-        source_url="s3://bucket/path",
         env_vars=env_vars,
     )
 
@@ -1657,7 +1656,6 @@ def test_enrich_kaniko_env_for_s3_context_uses_aws_default_region(monkeypatch):
     ]
 
     services.api.utils.builder._enrich_kaniko_env_for_s3_context(
-        source_url="s3://bucket/path",
         env_vars=env_vars,
     )
 
@@ -1678,7 +1676,6 @@ def test_enrich_kaniko_env_for_s3_context_uses_process_env_region(monkeypatch):
     )
 
     services.api.utils.builder._enrich_kaniko_env_for_s3_context(
-        source_url="s3://bucket/path",
         env_vars=env_vars,
     )
 
@@ -1700,7 +1697,6 @@ def test_enrich_kaniko_env_for_s3_context_fakes_region_and_sets_path_style(monke
     )
 
     services.api.utils.builder._enrich_kaniko_env_for_s3_context(
-        source_url="s3://bucket/path",
         env_vars=env_vars,
     )
 

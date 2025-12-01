@@ -939,7 +939,7 @@ class DBInterface(ABC):
         self,
         session,
         alert: mlrun.common.schemas.AlertConfig,
-        state: Optional["framework.db.sqldb.models.AlertState"] = None,
+        state: Optional[framework.db.sqldb.models.AlertState] = None,
     ):
         pass
 
@@ -1426,6 +1426,10 @@ class DBInterface(ABC):
         session: sqlalchemy.orm.Session,
         table_name: str,
     ) -> Optional[mlrun.common.schemas.partition_interval.PartitionInterval]:
+        """
+        Return the interval recorded for *table_name*.
+        Raises MLRunNotFoundError if the record is missing.
+        """
         pass
 
     def set_partition_interval_for_table(
@@ -1434,4 +1438,7 @@ class DBInterface(ABC):
         table_name: str,
         partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
     ) -> None:
+        """
+        Set the interval recorded for *table_name*.
+        """
         pass

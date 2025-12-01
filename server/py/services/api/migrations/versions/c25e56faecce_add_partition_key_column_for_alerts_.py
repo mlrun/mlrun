@@ -40,10 +40,7 @@ def _fill_partition_keys(
     for row_id, act_time in connection.execute(select_stmt):
         connection.execute(
             alert_table.update()
-            .where(
-                (alert_table.c.id == row_id)
-                & (alert_table.c.activation_time == act_time)
-            )
+            .where(alert_table.c.id == row_id)
             .values(partition_key=interval.get_partition_key_value(act_time))
         )
 

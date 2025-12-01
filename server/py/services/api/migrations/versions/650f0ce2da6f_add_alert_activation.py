@@ -20,7 +20,6 @@ Create Date: 2024-10-30 16:38:07.592754
 
 """
 
-import os
 from datetime import datetime
 
 import sqlalchemy as sa
@@ -28,7 +27,7 @@ from alembic import op
 from sqlalchemy.dialects import mysql
 
 import mlrun.common.schemas.alert
-
+import mlrun.common.schemas.partition_interval
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"
 down_revision = "63a7eec6d034"
@@ -82,7 +81,7 @@ def upgrade():
     )
     # ### end Alembic commands ###
 
-    partition_interval = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
+    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
 
     # Validate the partition interval
     if not mlrun.common.schemas.partition_interval.PartitionInterval.is_valid(

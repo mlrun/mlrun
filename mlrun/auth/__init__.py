@@ -11,14 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from mlrun.model_monitoring.applications.histogram_data_drift import (
-    HistogramDataDriftApplication,
-)
-
-
-class HistogramDataDriftApplicationWithArtifacts(HistogramDataDriftApplication):
-    """The same histogram application but with artifacts"""
-
-    def __init__(self) -> None:
-        super().__init__(produce_json_artifact=True, produce_plotly_artifact=True)
+from .providers import IGTokenProvider, OAuthClientIDTokenProvider, StaticTokenProvider

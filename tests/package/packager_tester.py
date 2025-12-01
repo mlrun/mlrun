@@ -14,7 +14,8 @@
 
 import sys
 from abc import ABC
-from typing import Any, Callable, NamedTuple, Union
+from collections.abc import Callable
+from typing import Any, NamedTuple, Union
 
 import cloudpickle
 

@@ -232,12 +232,30 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         page_size: typing.Optional[int] = None,
         **method_kwargs,
     ) -> tuple[str, int, int, typing.Callable, dict]:
+        """
+        This function creates or updates a pagination cache record.
+        To avoid race conditions between multiple requests using the same token, when a token is provided,
+        the existing pagination cache record is locked for update.
+        If no token is provided, a new pagination cache record is created.
+
+        :param session: The database session to use for the operation.
+        :param method: The function method to paginate.
+        :param auth_info: The authentication information of the user making the request.
+        :param token: The pagination token.
+        :param page: The page number to retrieve.
+        :param page_size: The number of items per page.
+        :param method_kwargs: The keyword arguments to pass to the method.
+        :return: A tuple containing the pagination token, page number, page size, method, and method keyword arguments.
+        """
+        pagination_cache_record = None
         if token:
             self._logger.debug(
                 "Token provided, updating pagination cache record", token=token
             )
             pagination_cache_record = (
-                self._pagination_cache.get_pagination_cache_record(session, key=token)
+                self._pagination_cache.get_pagination_cache_record(
+                    session, key=token, for_update=True
+                )
             )
             if pagination_cache_record is None:
                 raise mlrun.errors.MLRunPaginationEndOfResultsError(
@@ -248,6 +266,13 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             page = page or pagination_cache_record.current_page + 1
             page_size = pagination_cache_record.page_size
             user = pagination_cache_record.user
+
+            # NOTE: the current heuristic of checking on user_id allows us
+            # to detect token misuse between different users.
+            if not user and auth_info and auth_info.user_id:
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "Token is not associated with any user, access denied"
+                )
 
             if user and (not auth_info or auth_info.user_id != user):
                 raise mlrun.errors.MLRunAccessDeniedError(
@@ -267,11 +292,15 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         )
         token = self._pagination_cache.store_pagination_cache_record(
             session,
+            # NOTE: this works when authentication allows multiple users.
+            # when having single user authentication mode (read: BASIC) and having multiple clients
+            # then this needs to be rethought, perhaps using remote address or client id in addition to user id.
             user=auth_info.user_id if auth_info else None,
             method=method,
             current_page=page,
             page_size=page_size,
             kwargs=kwargs_schema.json(exclude_none=True),
+            pagination_cache_record=pagination_cache_record,
         )
         return token, page, page_size, method, kwargs_schema.dict(exclude_none=True)
 

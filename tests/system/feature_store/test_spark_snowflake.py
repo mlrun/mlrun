@@ -16,7 +16,7 @@ import os
 import random
 import tempfile
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -37,6 +37,10 @@ from tests.system.feature_store.utils import (
     get_snowflake_spark_parameters,
     sort_df,
 )
+
+# Skip this test module if running in open source mode
+if os.getenv("MLRUN_SYSTEM_TEST_OPEN_SOURCE", "false").lower() == "true":
+    pytest.skip(allow_module_level=True, reason="Skipped in open source system tests")
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -97,7 +101,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.cursor.close()
 
     def generate_snowflake_source_table(self):
-        utc_timezone = timezone.utc
+        utc_timezone = UTC
 
         data_values = [
             (

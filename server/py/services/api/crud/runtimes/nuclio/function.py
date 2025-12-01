@@ -22,6 +22,7 @@ import nuclio.utils
 import requests
 
 import mlrun
+import mlrun.auth.utils
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -34,7 +35,7 @@ from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.utils import logger
 
 import framework.utils.clients.async_nuclio
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.singletons.k8s
 import services.api.crud.runtimes.nuclio.helpers
 import services.api.runtime_handlers
@@ -185,7 +186,7 @@ async def delete_nuclio_functions_in_batches(
     function_names: list[str],
 ):
     async def delete_function(
-        nuclio_client: framework.utils.clients.iguazio.AsyncClient,
+        nuclio_client: framework.utils.clients.iguazio.v3.AsyncClient,
         project: str,
         function: str,
         _semaphore: asyncio.Semaphore,
@@ -250,7 +251,7 @@ def _compile_function_config(
     """
 
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
-    env_dict, external_source_env_dict = _resolve_env_vars(function)
+    env_dict, external_source_env_dict = _resolve_env_vars(function, auth_info)
 
     project = function.metadata.project
     tag = function.metadata.tag
@@ -361,7 +362,7 @@ def _apply_escaped_config(config, parent_key, items: dict):
         mlrun.utils.update_in(config, f"{parent_key}.\\{key}\\", value)
 
 
-def _resolve_env_vars(function):
+def _resolve_env_vars(function, auth_info=None):
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
@@ -371,16 +372,7 @@ def _resolve_env_vars(function):
         _add_secrets_config_to_function_spec(function)
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
-
-    # In nuclio 1.6.0<=v<1.8.0, python runtimes default behavior was to not decode event strings
-    # Our code is counting on the strings to be decoded, so add the needed env var for those versions
-    if (
-        services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.6.0", "1.8.0"
-        )
-        and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
-    ):
-        env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
+    mlrun.auth.utils.enrich_auth_env(env_dict, function._get_db(), auth_info)
 
     return env_dict, external_source_env_dict
 

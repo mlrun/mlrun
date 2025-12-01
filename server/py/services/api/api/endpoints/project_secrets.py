@@ -45,7 +45,7 @@ async def store_project_secrets(
         framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project,
-        auth_info.session,
+        auth_info,
     )
 
     await (
@@ -78,7 +78,7 @@ async def delete_project_secrets(
         framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project,
-        auth_info.session,
+        auth_info,
     )
 
     await (
@@ -116,7 +116,7 @@ async def list_project_secret_keys(
         framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project,
-        auth_info.session,
+        auth_info,
     )
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -151,7 +151,7 @@ async def list_project_secrets(
         framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project,
-        auth_info.session,
+        auth_info,
     )
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -168,15 +168,4 @@ async def list_project_secrets(
         provider,
         secrets,
         token,
-    )
-
-
-@router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)
-def add_user_secrets(
-    secrets: mlrun.common.schemas.UserSecretCreationRequest,
-):
-    # vault is not used
-    return fastapi.Response(
-        status_code=HTTPStatus.BAD_REQUEST.value,
-        content=f"Invalid secrets provider {secrets.provider}",
     )

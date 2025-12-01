@@ -366,9 +366,9 @@ def get_df_stats(df):
     for col, values in df.describe(include="all").items():
         stats_dict = {}
         for stat, val in values.dropna().items():
-            if isinstance(val, (float, np.floating, np.float64)):
+            if isinstance(val, float | np.floating | np.float64):
                 stats_dict[stat] = float(val)
-            elif isinstance(val, (int, np.integer, np.int64)):
+            elif isinstance(val, int | np.integer | np.int64):
                 stats_dict[stat] = int(val)
             else:
                 stats_dict[stat] = str(val)

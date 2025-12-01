@@ -566,7 +566,7 @@ class Alerts(
         """
         Filter out events that are older than the period from the object
         """
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        now = datetime.datetime.now(tz=datetime.UTC)
 
         def _is_valid_event(event):
             if isinstance(event, str):

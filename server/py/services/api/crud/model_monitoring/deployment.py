@@ -1005,12 +1005,17 @@ class MonitoringDeployment:
 
         if include_latest_metrics:
             # Enrich the function summary with latest metrics
-            function_summary[0].stats["metrics"] = await run_in_threadpool(
+            latest_metrics = await run_in_threadpool(
                 self._tsdb_connector.calculate_latest_metrics,
                 start=start,
                 end=end,
                 application_names=[name],
             )
+            # Map the 'kind' to its string representation
+            for metric in latest_metrics:
+                if metric.type == "result":
+                    metric.kind = metric.kind.name
+            function_summary[0].stats["metrics"] = latest_metrics
 
         return function_summary[0]
 
@@ -1103,9 +1108,11 @@ class MonitoringDeployment:
             self.auth_info
         ) as client:
             for function in function_summaries:
+                normalized_function_name = mlrun.utils.normalize_name(function.name)
+
                 stream_path = mlrun.model_monitoring.get_stream_path(
                     project=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     secret_provider=self._secret_provider,
                     profile=self.__stream_profile,
                 )
@@ -1118,7 +1125,7 @@ class MonitoringDeployment:
 
                 stream_stats = await client.get_v3io_shard_lags(
                     project_name=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     stream_path=stream_path,
                     container_name=container,
                 )
@@ -1156,14 +1163,15 @@ class MonitoringDeployment:
         )
         # Iterate over each function and get the stream stats
         for function in function_summaries:
+            normalized_function_name = mlrun.utils.normalize_name(function.name)
             topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
-                project=self.project, function_name=function.name
+                project=self.project, function_name=normalized_function_name
             )
             try:
                 partitions = consumer.partitions_for_topic(topic)
                 if not partitions:
                     logger.warning(
-                        f"No partitions found for topic {topic} in function {function.name}"
+                        f"No partitions found for topic {topic} in function {normalized_function_name}"
                     )
                     continue
 
@@ -1200,7 +1208,7 @@ class MonitoringDeployment:
                 logger.warning(
                     "Failed to get topic stats",
                     project=self.project,
-                    function_name=function.name,
+                    function_name=normalized_function_name,
                     topic=topic,
                     error_message=mlrun.errors.err_to_str(exc),
                 )
@@ -1227,8 +1235,9 @@ class MonitoringDeployment:
             logger.info("No model monitoring applications found")
             return []
         if names:
-            # generate a list of lowercase names for filtering
-            lower_names = [name.lower() for name in names]
+            # generate a list of normalized lowercase names for filtering
+            lower_names = [mlrun.utils.normalize_name(name.lower()) for name in names]
+
             mm_functions_list = [
                 fn for fn in mm_functions_list if fn["metadata"]["name"] in lower_names
             ]
@@ -1677,14 +1686,16 @@ class MonitoringDeployment:
         ):
             if mlrun.mlconf.is_ce_mode():
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "MLRun CE supports only TDEngine TSDB, received a V3IO profile for the TSDB"
+                    "MLRun CE supports only TDEngine and TimescaleDB TSDB, received a V3IO profile for the TSDB"
                 )
         elif not isinstance(
-            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
+            tsdb_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
+            | mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io` or `DatastoreProfileTDEngine`."
+                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfilePostgreSQL`."
             )
 
         return tsdb_profile
@@ -1966,7 +1977,7 @@ class MonitoringDeployment:
         delete_background_task: fastapi.BackgroundTasks,
     ):
         async with semaphore:
-            result = await framework.db.session.run_async_function_with_new_db_session(
+            result = framework.db.session.run_function_with_new_db_session(
                 func=services.api.crud.ModelEndpoints().create_model_endpoints,
                 model_endpoints_instructions=model_endpoints_instructions,
                 project=project,
@@ -2501,7 +2512,7 @@ class MonitoringDeployment:
                 )
         return model_endpoints_instructions
 
-    async def _delete_app_from_schedules_files(
+    def _delete_app_from_schedules_files(
         self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
     ) -> None:
         """
@@ -2515,7 +2526,7 @@ class MonitoringDeployment:
             endpoint_id_list = endpoint_ids
         else:
             endpoints_data = (
-                await services.api.crud.ModelEndpoints().list_model_endpoints(
+                framework.utils.singletons.db.get_db().list_model_endpoints(
                     project=self.project,
                     uids=endpoint_ids,
                     db_session=self.db_session,
@@ -2535,7 +2546,7 @@ class MonitoringDeployment:
             ) as schedules_file:
                 schedules_file.delete_application_time(application=application_name)
 
-    async def delete_application_records(
+    def delete_application_records(
         self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
     ) -> None:
         """
@@ -2555,11 +2566,9 @@ class MonitoringDeployment:
             application_name=application_name, endpoint_ids=endpoint_ids
         )
 
-        if not application_name.endswith(
-            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
-        ):
+        if not application_name.endswith(mlrun_constants.RESERVED_BATCH_JOB_SUFFIX):
             # The schedules file of "batch" applications is handled on the user side
-            await self._delete_app_from_schedules_files(
+            self._delete_app_from_schedules_files(
                 application_name=application_name, endpoint_ids=endpoint_ids
             )
 

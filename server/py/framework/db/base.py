@@ -939,7 +939,7 @@ class DBInterface(ABC):
         self,
         session,
         alert: mlrun.common.schemas.AlertConfig,
-        state: Optional[framework.db.sqldb.models.AlertState] = None,
+        state: Optional["framework.db.sqldb.models.AlertState"] = None,
     ):
         pass
 

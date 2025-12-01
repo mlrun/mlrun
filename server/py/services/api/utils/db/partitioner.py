@@ -12,14 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-
-try:
-    from datetime import UTC, datetime, timedelta  # UTC is only defined in Python 3.11+
-except ImportError:
-    from datetime import datetime, timedelta, timezone
-
-    UTC = timezone.utc
-
+from datetime import UTC, datetime, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session

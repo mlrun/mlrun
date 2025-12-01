@@ -13,13 +13,7 @@
 # limitations under the License.
 
 import os
-
-try:
-    from datetime import UTC, datetime  # UTC is only defined in Python 3.11+
-except ImportError:
-    from datetime import datetime, timezone
-
-    UTC = timezone.utc
+from datetime import UTC, datetime
 
 import pytest
 import sqlalchemy.engine

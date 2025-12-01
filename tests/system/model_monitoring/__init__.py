@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import re
 import time
 from collections.abc import Callable
 from typing import Any, Optional, TypeAlias
@@ -199,3 +201,137 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
             f"Timeout after {elapsed}s waiting for {condition_description} "
             f"(timeout: {timeout}s, attempts: {attempt})"
         )
+
+    def _is_kube_client_available(self) -> bool:
+        """Check if kube_client is configured and available."""
+        try:
+            if not hasattr(self, "kube_client") or self.kube_client is None:
+                return False
+            # Test if it's a property that raises
+            _ = self.kube_client.api_client
+            return True
+        except AttributeError:
+            return False
+
+    def _get_monitoring_pod_prefixes(self, project_name: str) -> list[str]:
+        """Get pod prefixes for project-specific monitoring pods (full logs)."""
+        return [
+            f"nuclio-{project_name}-model-monitoring-stream",
+            f"nuclio-{project_name}-model-monitoring-controller",
+            f"nuclio-{project_name}-model-monitoring-writer",
+            f"nuclio-{project_name}-model-serving",
+        ]
+
+    def _matches_prefix(self, pod_name: str, prefixes: list[str]) -> bool:
+        """Check if pod_name matches any of the given prefixes."""
+        return any(pod_name.startswith(prefix) for prefix in prefixes)
+
+    def _collect_logs_from_pods_via_kube(
+        self,
+        namespace: str,
+        project_name: str,
+        monitoring_prefixes: list[str],
+        api_prefixes: list[str],
+        tail_lines: int,
+    ) -> dict[str, str]:
+        """Collect logs from pods using kube_client."""
+        collected_logs = {}
+        pods = self.kube_client.list_namespaced_pod(namespace)
+
+        for pod in pods.items:
+            pod_name = pod.metadata.name
+            logs = self._collect_pod_logs(pod_name, namespace, tail_lines)
+            if not logs:
+                continue
+
+            if self._matches_prefix(pod_name, monitoring_prefixes):
+                collected_logs[pod_name] = logs
+            elif self._matches_prefix(pod_name, api_prefixes):
+                if filtered := self._filter_error_logs(logs, project_name):
+                    collected_logs[f"{pod_name} (errors)"] = filtered
+
+        return collected_logs
+
+    def collect_monitoring_pod_logs(self, tail_lines: int = 500) -> dict[str, str]:
+        """Collect logs from model monitoring related pods for debugging.
+
+        :param tail_lines: Number of lines to retrieve from each pod's logs
+        :returns: Dictionary mapping pod names to their logs
+        """
+
+        if not self._is_kube_client_available():
+            self._logger.info(
+                "kube_client not available, skipping pod log collection. "
+                "Set MLRUN_SYSTEM_TEST_KUBECONFIG_PATH or MLRUN_SYSTEM_TEST_KUBECONFIG to enable."
+            )
+            return {}
+
+        project_name = self.project_name
+        monitoring_prefixes = self._get_monitoring_pod_prefixes(project_name)
+        api_prefixes = ["mlrun-api-chief", "mlrun-api-worker"]
+
+        try:
+            return self._collect_logs_from_pods_via_kube(
+                "default-tenant",
+                project_name,
+                monitoring_prefixes,
+                api_prefixes,
+                tail_lines,
+            )
+        except Exception as e:
+            self._logger.warning("Failed to collect pod logs", error=str(e))
+            return {}
+
+    def _collect_pod_logs(
+        self, pod_name: str, namespace: str, tail_lines: int
+    ) -> Optional[str]:
+        """Collect logs from a single pod."""
+        try:
+            logs = self.kube_client.read_namespaced_pod_log(
+                name=pod_name, namespace=namespace, tail_lines=tail_lines
+            )
+            self._logger.info(f"Collected logs from {pod_name}", log_length=len(logs))
+            return logs
+        except Exception as e:
+            self._logger.warning(
+                f"Failed to collect logs from {pod_name}", error=str(e)
+            )
+            return f"Failed to get logs: {e}"
+
+    def _filter_error_logs(
+        self, logs: str, project_name: str, context_lines: int = 5
+    ) -> str:
+        """Filter logs to include warning/error lines mentioning project, with context.
+
+        Captures N lines before each matching line to include call stacks/tracebacks.
+        """
+        lines = logs.splitlines()
+        error_pattern = re.compile(
+            r"(warning|warn|error|exception|traceback|failed|critical)",
+            re.IGNORECASE,
+        )
+
+        matched_indices = set()
+        for i, line in enumerate(lines):
+            if error_pattern.search(line) and project_name in line:
+                # Add context lines before the match
+                for j in range(max(0, i - context_lines), i + 1):
+                    matched_indices.add(j)
+
+        return "\n".join(lines[i] for i in sorted(matched_indices))
+
+    def print_monitoring_pod_logs(self, tail_lines: int = 500) -> None:
+        """Log pod logs for CI visibility on test failure.
+
+        :param tail_lines: Number of lines to retrieve from each pod's logs
+        """
+        logs = self.collect_monitoring_pod_logs(tail_lines=tail_lines)
+
+        if not logs:
+            self._logger.info("No monitoring pod logs collected")
+            return
+
+        self._logger.info("=== MODEL MONITORING POD LOGS (for debugging) ===")
+        for pod_name, pod_logs in logs.items():
+            self._logger.info(f"--- POD: {pod_name} ---\n{pod_logs}")
+        self._logger.info("=== END OF MONITORING POD LOGS ===")

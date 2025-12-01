@@ -1025,8 +1025,10 @@ def enrich_image_url(
         # use the tag from image URL if available, else fallback to the given tag
         tag = image_tag or tag
         if tag:
+            # Remove '-pyXY' suffix if present, since the compatibility check expects a valid semver string
+            tag_for_compatibility = re.sub(r"-py\d+$", "", tag)
             if mlrun.utils.helpers.validate_component_version_compatibility(
-                "mlrun-client", "1.10.0-rc0", mlrun_client_version=tag
+                "mlrun-client", "1.10.0-rc0", mlrun_client_version=tag_for_compatibility
             ):
                 warnings.warn(
                     "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "

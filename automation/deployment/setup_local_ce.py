@@ -76,12 +76,20 @@ def run_command(
     input_data: str | None = None,
     debug: bool = False,
 ):
-    """Execute a shell command and return its stdout; optionally log the command and tolerate failures."""
+    """Execute a shell command and return its stdout; optionally log the command and tolerate failures.
+
+    On failure, prints the combined stdout/stderr of the command.
+    """
+    # Automatically add --debug to helm commands when debug is enabled
+    if debug and cmd and cmd[0] == "helm" and "--debug" not in cmd:
+        cmd = [*cmd, "--debug"]
+
     if debug:
         echo_color(
             f"[DEBUG] {' '.join(cmd)}",
             color=typer.colors.MAGENTA,
         )
+
     stdout = None
     try:
         stdout = subprocess.check_output(
@@ -93,6 +101,19 @@ def run_command(
         )
 
     except subprocess.SubprocessError as exc:
+        # stderr is merged into stdout via STDERR=STDOUT, so exc.output contains both
+        combined_output = ""
+        if isinstance(exc, subprocess.CalledProcessError):
+            combined_output = exc.output or ""
+        elif stdout:
+            combined_output = stdout
+
+        if combined_output:
+            echo_color(
+                f"[COMMAND OUTPUT]\n{combined_output}",
+                err=True,
+            )
+
         if raise_on_error:
             echo_color(
                 f"[ERROR] Command failed: {' '.join(cmd)}",
@@ -101,7 +122,7 @@ def run_command(
             raise exc
         else:
             echo_color(
-                f"[WARNING] Command failed: {stdout}",
+                f"[WARNING] Command failed: {' '.join(cmd)}",
                 err=True,
             )
     else:
@@ -183,9 +204,9 @@ def setup_ingress(
     debug: bool,
 ):
     if is_traefik_installed(debug):
-        echo_color("Traefik already present – skipping ingress‑nginx install")
+        echo_color("Traefik already present – skipping ingress-nginx install")
         return
-    echo_color("Installing ingress‑nginx controller ...")
+    echo_color("Installing ingress-nginx controller ...")
     run_command(
         [
             "helm",
@@ -200,8 +221,17 @@ def setup_ingress(
         ["helm", "repo", "update"],
         debug=debug,
     )
+    helm_status_cmd = [
+        "helm",
+        "status",
+        "ingress-nginx",
+        "-n",
+        "ingress-nginx",
+    ]
+    if debug and "--debug" not in helm_status_cmd:
+        helm_status_cmd.append("--debug")
     res = subprocess.run(
-        ["helm", "status", "ingress-nginx", "-n", "ingress-nginx"],
+        helm_status_cmd,
         capture_output=True,
         text=True,
     )
@@ -395,7 +425,8 @@ def get_latest_tag(
     )
     if code != 200:
         echo_color(
-            f"GitHub API error {code}: releases/latest {str(data)[:80]}", err=True
+            f"GitHub API error {code}: releases/latest {str(data)[:80]}",
+            err=True,
         )
         return None
     return (data or {}).get("tag_name")
@@ -412,7 +443,10 @@ def get_all_tags(
             params={"page": page, "per_page": per_page},
         )
         if code != 200:
-            echo_color(f"GitHub API error {code}: tags {str(data)[:80]}", err=True)
+            echo_color(
+                f"GitHub API error {code}: tags {str(data)[:80]}",
+                err=True,
+            )
             break
         page_tags = data or []
         if not page_tags:
@@ -582,7 +616,9 @@ def resolve_from_releases(
     if tag:
         cleaned = clean_version(tag)
         if allow_dev_versions and is_valid_semver_or_rc(cleaned):
-            echo_color(f"Using latest release (dev-allowed) for {repo_name}: {cleaned}")
+            echo_color(
+                f"Using latest release (dev-allowed) for {repo_name}: {cleaned}",
+            )
             return cleaned
         if not allow_dev_versions and is_valid_stable_version(cleaned):
             echo_color(f"Using latest release for {repo_name}: {cleaned}")
@@ -628,6 +664,7 @@ def get_latest_valid_version(
             allow_dev_versions=allow_dev_versions,
         )
         if chosen:
+            echo_color(f"Using release {chosen} for {repo_name}")
             return chosen
         echo_color(
             "Falling back to tags as releases produced no acceptable version",
@@ -640,6 +677,7 @@ def get_latest_valid_version(
             allow_dev_versions=allow_dev_versions,
         )
         if chosen:
+            echo_color(f"Using tag {chosen} for {repo_name}")
             return chosen
         echo_color(
             "Falling back to releases as tags produced no acceptable version",
@@ -657,6 +695,7 @@ def get_latest_valid_version(
         allow_dev_versions=allow_dev_versions,
     )
     if chosen:
+        echo_color(f"Using tag {chosen} for {repo_name}")
         return chosen
 
     raise ValueError(f"No acceptable tag found for {repo_name}")
@@ -702,13 +741,14 @@ def ensure_helm_repo(
         if existing_repos[name] == url:
             if debug:
                 echo_color(
-                    f"Repo '{name}' already exists with the same URL. Skipping..."
+                    f"Repo '{name}' already exists with the same URL. Skipping...",
                 )
             return
         else:
             echo_color(f"Adding helm repo '{name}'...")
             run_command(
-                ["helm", "repo", "add", "--force-update", name, url], debug=debug
+                ["helm", "repo", "add", "--force-update", name, url],
+                debug=debug,
             )
 
 
@@ -765,7 +805,8 @@ def setup_ce(
 ):
     if not ce_version:
         ce_version = get_latest_valid_version(
-            "mlrun/ce", allow_dev_versions=dev_versions
+            "mlrun/ce",
+            allow_dev_versions=dev_versions,
         ).replace("mlrun-ce-", "")
     ensure_helm_repos(debug)
     if not ce_dir.is_dir():
@@ -785,19 +826,30 @@ def setup_ce(
             debug=debug,
         )
 
-    echo_color("Building helm dependencies")
+    echo_color("Building helm dependencies ...")
     run_command(
-        ["helm", "dependency", "build"], cwd=ce_dir / "charts" / "mlrun-ce", debug=debug
+        ["helm", "dependency", "build"],
+        cwd=ce_dir / "charts" / "mlrun-ce",
+        debug=debug,
     )
 
+    helm_status_cmd = [
+        "helm",
+        "status",
+        "mlrun-admin",
+        "--namespace",
+        admin_namespace,
+    ]
+    if debug and "--debug" not in helm_status_cmd:
+        helm_status_cmd.append("--debug")
     res = subprocess.run(
-        ["helm", "status", "mlrun-admin", "--namespace", admin_namespace],
+        helm_status_cmd,
         capture_output=True,
         text=True,
     )
     if "not found" in (res.stdout + res.stderr).lower():
         echo_color(
-            "No mlrun-admin installation found, installing mlrun-ce admin requirements"
+            "No mlrun-admin installation found, installing mlrun-ce admin requirements",
         )
         run_command(
             [
@@ -816,7 +868,7 @@ def setup_ce(
                 f"{ce_dir}/charts/mlrun-ce/admin_installation_values.yaml",
                 "--force",
             ],
-            debug=False,
+            debug=debug,
             cwd=ce_dir,
         )
 
@@ -867,7 +919,7 @@ def setup_ce(
                 f"global.registry.secretName={docker_creds_secret_name}",
             ]
         )
-    echo_color("Installing mlrun-ce")
+    echo_color("Installing MLRun CE ...")
     run_command(
         ["helm", "upgrade", "--install", "mlrun"] + base_values,
         debug=debug,
@@ -918,7 +970,7 @@ def upgrade_images(
 
     registry_url = f"{docker_registry}/{user}"
     run_command(
-        ["helm", "dependency", "build"] + (["--debug"] if debug else []),
+        ["helm", "dependency", "build"],
         cwd=charts,
         debug=debug,
     )
@@ -1210,7 +1262,9 @@ def install(
         help="Nuclio image tag",
     ),
     branch: str = typer.Option(
-        "", "--branch", help="Git branch to checkout before upgrade"
+        "",
+        "--branch",
+        help="Git branch to checkout before upgrade",
     ),
     namespace: str = typer.Option(
         "mlrun",

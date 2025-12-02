@@ -188,11 +188,12 @@ jobs:
 
     - name: Run Dockerized tests
       run: |
+          MLRUN_VERSION=${{ github.sha }} \
           MLRUN_DOCKER_REGISTRY=ghcr.io/ \
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
           MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
           RUN_COVERAGE=$RUN_COVERAGE \
-          make test-integration-dockerized RUN_COVERAGE=$RUN_COVERAGE
+          make test-integration-dockerized
       timeout-minutes: 90
 
     - name: Upload coverage report
@@ -220,7 +221,11 @@ jobs:
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
           echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Dockerized DB Migration tests
-        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized RUN_COVERAGE=true
+        run: |
+          MLRUN_VERSION=${{ github.sha }} \
+          MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+          make test-migrations-dockerized RUN_COVERAGE=true
       - name: Upload coverage report
         uses: actions/upload-artifact@v5
         with:
@@ -310,7 +315,9 @@ jobs:
       - name: Run Backward Compatibility Tests
         run: |
           cd head/mlrun
-          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
+          MLRUN_VERSION=${{ github.sha }} \
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+          make test-backward-compatibility-dockerized
 
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)

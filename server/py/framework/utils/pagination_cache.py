@@ -21,6 +21,7 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun import mlconf
 
+import framework.db.sqldb.models
 import framework.utils.singletons.db
 
 
@@ -33,16 +34,36 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         current_page: int,
         page_size: int,
         kwargs: dict,
+        pagination_cache_record: typing.Optional[
+            framework.db.sqldb.models.PaginationCache
+        ] = None,
     ):
         db = framework.utils.singletons.db.get_db()
         return db.store_paginated_query_cache_record(
-            session, user, method.__name__, current_page, page_size, kwargs
+            session,
+            user,
+            method.__name__,
+            current_page,
+            page_size,
+            kwargs,
+            pagination_cache_record,
         )
 
     @staticmethod
-    def get_pagination_cache_record(session: sqlalchemy.orm.Session, key: str):
+    def get_pagination_cache_record(
+        session: sqlalchemy.orm.Session,
+        key: str,
+        for_update: bool = False,
+    ) -> typing.Optional[framework.db.sqldb.models.PaginationCache]:
+        """
+        Retrieve a pagination cache record by its key.
+        :param session: The database session to use for the operation.
+        :param key: The unique key of the pagination cache record.
+        :param for_update: Whether to lock the record for update.
+        :return: The pagination cache record if found, else None.
+        """
         db = framework.utils.singletons.db.get_db()
-        return db.get_paginated_query_cache_record(session, key)
+        return db.get_paginated_query_cache_record(session, key, for_update)
 
     @staticmethod
     def list_pagination_cache_records(
@@ -92,7 +113,22 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         all_records_query = db.list_paginated_query_cache_record(session, as_query=True)
         table_size = all_records_query.count()
         if table_size > table_max_size:
-            records = all_records_query.limit(table_size - table_max_size)
-            for record in records:
-                session.delete(record)
+            # Create a subquery to get the keys of the oldest records to delete
+            # This executes as a single SQL DELETE with subquery, no Python iteration needed
+            oldest_records_subquery = (
+                db.list_paginated_query_cache_record(
+                    session,
+                    order_by=mlrun.common.schemas.OrderType.asc,
+                    as_query=True,
+                )
+                .with_entities(framework.db.sqldb.models.PaginationCache.key)
+                .limit(table_size - table_max_size)
+            )
+
+            # Delete records in a single SQL query using the subquery directly
+            session.query(framework.db.sqldb.models.PaginationCache).filter(
+                framework.db.sqldb.models.PaginationCache.key.in_(
+                    oldest_records_subquery
+                )
+            ).delete(synchronize_session=False)
             session.commit()

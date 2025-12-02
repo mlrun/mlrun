@@ -443,7 +443,7 @@ class Secrets(
             )
 
         logger.debug(
-            "Starting to store secret tokens",
+            "Storing secret tokens",
             username=auth_info.username,
             token_count=len(secret_tokens),
         )
@@ -475,15 +475,16 @@ class Secrets(
             if action is not None:
                 token_actions[action].append(token_name)
 
-        logger.debug(
-            "Finished storing tokens",
-            created_tokens=token_actions[
-                mlrun.common.schemas.SecretEventActions.created
-            ],
-            updated_tokens=token_actions[
-                mlrun.common.schemas.SecretEventActions.updated
-            ],
-        )
+        if token_actions:
+            logger.debug(
+                "Finished storing tokens",
+                created_tokens=token_actions[
+                    mlrun.common.schemas.SecretEventActions.created
+                ],
+                updated_tokens=token_actions[
+                    mlrun.common.schemas.SecretEventActions.updated
+                ],
+            )
 
         return mlrun.common.schemas.StoreSecretTokensResponse(
             created_tokens=token_actions[

@@ -20,6 +20,7 @@ import random
 import shutil
 import string
 import tempfile
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from time import sleep
@@ -1047,14 +1048,14 @@ class TestFeatureStore(TestMLRunSystem):
 
         large_base_period_start = base_time - timedelta(days=365)
         large_base_period_end = base_time + timedelta(days=1)
-        start = datetime.now(tz=pytz.UTC if with_tz else None)
+        start = time.monotonic()
         result_df = target.as_df(
             start_time=large_base_period_start,
             end_time=large_base_period_end,
             time_column="timestamp",
         )
-        end = datetime.now(tz=pytz.UTC if with_tz else None)
-        assert end - start < timedelta(seconds=10), "Reading large period took too long"
+        end = time.monotonic()
+        assert end - start < 10, "Reading large period took too long"
         if with_tz:
             result_df["timestamp"] = (
                 pd.to_datetime(result_df["timestamp"])

@@ -4,7 +4,7 @@
 These instructions install the community edition (CE) on your Amazon EKS cluster. No pre-installation or pre-configuration is required. 
 
 ```{admonition} Note
-These instructions install the community edition {{ ceversion }}, which currently includes the features of MLRun v{{ version }}.</br>
+These instructions install the community edition {{ ceversion }}, which currently includes the features in MLRun v{{ version }}.</br>
 CE v0.10 will include the features in MLRun v1.10.
 ```
 

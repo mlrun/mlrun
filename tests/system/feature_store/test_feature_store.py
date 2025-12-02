@@ -1091,7 +1091,7 @@ class TestFeatureStore(TestMLRunSystem):
     )
     @pytest.mark.parametrize("with_tz", [True, False])
     def test_partition_uid_with_time_filtering_optimization(
-        self, partition_keys, granularity ,with_tz
+        self, partition_keys, granularity, with_tz
     ):
         key = "uid"
         base_time = datetime(2020, 12, 1, 17, 0)

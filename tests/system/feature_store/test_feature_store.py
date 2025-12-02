@@ -970,16 +970,18 @@ class TestFeatureStore(TestMLRunSystem):
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize(
-        "partition_keys",
+        ("partition_keys", "granularity"),
         [
-            ["year"],
-            ["year", "month"],
-            ["year", "month", "day"],
-            ["year", "month", "day", "hour"],
+            (["year"], "year"),
+            (["year", "month"], "month"),
+            (["year", "month", "day"], "day"),
+            (["year", "month", "day", "hour"], "hour"),
         ],
     )
     @pytest.mark.parametrize("with_tz", [True, False])
-    def test_partitioned_parquet_as_df(self, partition_keys, with_tz):
+    def test_partitioned_parquet_as_df_time_filtering_optimization(
+        self, partition_keys, granularity, with_tz
+    ):
         """
         test reading partitioned parquet target as_df method with time filtering
         covers:
@@ -1002,8 +1004,6 @@ class TestFeatureStore(TestMLRunSystem):
                 for i in range(4)
             ]
         )
-
-        granularity = partition_keys[-1]
 
         run_id = uuid.uuid4()
         target_path = f"v3io:///projects/{self.project_name}/partition_test_{run_id}"
@@ -1054,9 +1054,7 @@ class TestFeatureStore(TestMLRunSystem):
             time_column="timestamp",
         )
         end = datetime.now(tz=pytz.UTC if with_tz else None)
-        assert end - start < timedelta(
-            seconds=120
-        ), "Reading large period took too long"
+        assert end - start < timedelta(seconds=10), "Reading large period took too long"
         if with_tz:
             result_df["timestamp"] = (
                 pd.to_datetime(result_df["timestamp"])
@@ -1083,16 +1081,18 @@ class TestFeatureStore(TestMLRunSystem):
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize(
-        "partition_keys",
+        ("partition_keys", "granularity"),
         [
-            ["year"],
-            ["year", "month"],
-            ["year", "month", "day"],
-            ["year", "month", "day", "hour"],
+            (["year"], "year"),
+            (["year", "month"], "month"),
+            (["year", "month", "day"], "day"),
+            (["year", "month", "day", "hour"], "hour"),
         ],
     )
     @pytest.mark.parametrize("with_tz", [True, False])
-    def test_partition_uid_with_time(self, partition_keys, with_tz):
+    def test_partition_uid_with_time_filtering_optimization(
+        self, partition_keys, granularity ,with_tz
+    ):
         key = "uid"
         base_time = datetime(2020, 12, 1, 17, 0)
         if with_tz:
@@ -1108,8 +1108,6 @@ class TestFeatureStore(TestMLRunSystem):
                 for i in range(4)
             ]
         )
-
-        granularity = partition_keys[-1]
 
         run_id = uuid.uuid4()
         target_path = f"v3io:///projects/{self.project_name}/partition_test_{run_id}"

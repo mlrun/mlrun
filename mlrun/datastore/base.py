@@ -17,7 +17,8 @@ import urllib.parse
 from base64 import b64encode
 from copy import copy
 from os import path, remove
-from typing import Any, Optional, Union
+from types import ModuleType
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 import fsspec
@@ -288,7 +289,7 @@ class DataStore(BaseRemoteClient):
         start_time: datetime.datetime,
         end_time: datetime.datetime,
         partition_keys: list[str],
-        df_module: Union[pd, Any],
+        df_module: ModuleType,
         filesystem: fsspec.AbstractFileSystem,
         **kwargs,
     ):
@@ -307,7 +308,6 @@ class DataStore(BaseRemoteClient):
         )
 
         dfs = []
-        errors = []
         for current_path in paths:
             try:
                 kwargs["filters"] = DataStore._clean_filters_for_partitions(
@@ -319,24 +319,13 @@ class DataStore(BaseRemoteClient):
                     url=current_path,
                 )
                 dfs.append(df)
-            except (FileNotFoundError, pyarrow.lib.ArrowInvalid) as e:
+            except FileNotFoundError as e:
                 # Skip partitions that don't exist or have no data
                 logger.warning(
                     "Failed to read DataFrame", url=current_path, exception=e
                 )
-                errors.append(e)
-                continue
 
-        if not dfs:
-            pyarrow_errors = [
-                err for err in errors if isinstance(err, pyarrow.lib.ArrowInvalid)
-            ]
-            if pyarrow_errors:
-                raise pyarrow_errors[0]
-            else:
-                return pd.DataFrame()
-
-        final_df = pd.concat(dfs)
+        final_df = pd.concat(dfs) if dfs else pd.DataFrame()
         logger.debug(
             "Finished reading partitioned parquet files",
             url=base_path,
@@ -353,7 +342,7 @@ class DataStore(BaseRemoteClient):
         start_time,
         end_time,
         additional_filters,
-        apply_discovery_urls,
+        optimize_discovery,
     ):
         from storey.utils import find_filters, find_partitions
 
@@ -406,7 +395,7 @@ class DataStore(BaseRemoteClient):
 
                 try:
                     if (
-                        apply_discovery_urls
+                        optimize_discovery
                         and partitions_time_attributes
                         and DataStore.verify_path_partition_level(url, partitions)
                     ):
@@ -448,7 +437,7 @@ class DataStore(BaseRemoteClient):
                         kwargs,
                     )
                     if (
-                        apply_discovery_urls
+                        optimize_discovery
                         and partitions_time_attributes
                         and DataStore.verify_path_partition_level(url, partitions)
                     ):
@@ -485,9 +474,10 @@ class DataStore(BaseRemoteClient):
         file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
         file_system = self.filesystem
-        apply_discovery_urls = kwargs.pop(
-            "apply_discovery_urls", True
-        )  # allow to disable discovery urls
+
+        # Feature flag optimize partition discovery by providing specific partition levels urls to the parquet reader
+        optimize_discovery = kwargs.pop("optimize_discovery", True)
+
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
@@ -549,7 +539,7 @@ class DataStore(BaseRemoteClient):
                 start_time,
                 end_time,
                 additional_filters,
-                apply_discovery_urls,
+                optimize_discovery,
             )
 
         elif file_url.endswith(".json") or format == "json":
@@ -616,24 +606,22 @@ class DataStore(BaseRemoteClient):
             return False
 
     @staticmethod
-    def verify_path_partition_level(path: str, partitions: list[str]) -> bool:
+    def verify_path_partition_level(base_path: str, partitions: list[str]) -> bool:
         if not partitions:
             return False
 
-        path_parts = urlparse(path).path.strip("/").split("/")
+        path_parts = urlparse(base_path).path.strip("/").split("/")
         path_parts = [part.split("=")[0] for part in path_parts if "=" in part]
         if "hour" in partitions:
             hour_index = partitions.index("hour")
         else:
             return False
         for i, part in enumerate(partitions):
-            if (
+            if not (
                 part in path_parts
                 or part in ["year", "month", "day", "hour"]
                 or i > hour_index
             ):
-                continue
-            else:
                 return False
         return True
 

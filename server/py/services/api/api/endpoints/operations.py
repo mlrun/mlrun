@@ -194,26 +194,31 @@ def _create_refresh_smtp_configuration_background_task(
 
 
 async def _perform_refresh_smtp(session: str):
-    iguazio_client_instance = iguazio_client.Client()
-    try:
-        returned_smtp_configuration = iguazio_client_instance.get_smtp_configuration(
-            session
-        )
-    except mlrun.errors.MLRunInternalServerError as exc:
-        logger.warning(
-            "Failed to get SMTP configuration from Iguazio",
-            exc=mlrun.errors.err_to_str(exc),
-        )
-        raise
+    # if running in iguazio, get the SMTP configuration from iguazio and store it in k8s secret store
+    # on igz4 / ce - simply read the k8s secret and update the cache
+    if mlrun.mlconf.iguazio_api_url and not mlrun.mlconf.is_iguazio_v4_mode():
+        iguazio_client_instance = iguazio_client.Client()
+        try:
+            returned_smtp_configuration = (
+                iguazio_client_instance.get_smtp_configuration(session)
+            )
+        except mlrun.errors.MLRunInternalServerError as exc:
+            logger.warning(
+                "Failed to get SMTP configuration from Iguazio",
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise
 
-    updated_params = {
-        "server_host": returned_smtp_configuration.host,
-        "server_port": str(returned_smtp_configuration.port),
-        "sender_address": returned_smtp_configuration.sender_address,
-        "username": returned_smtp_configuration.auth_username,
-        "password": returned_smtp_configuration.auth_password,
-    }
-    _store_mail_notifications_default_params_to_secret(updated_params)
+        updated_params = {
+            "server_host": returned_smtp_configuration.host,
+            "server_port": str(returned_smtp_configuration.port),
+            "sender_address": returned_smtp_configuration.sender_address,
+            "username": returned_smtp_configuration.auth_username,
+            "password": returned_smtp_configuration.auth_password,
+        }
+        _store_mail_notifications_default_params_to_secret(updated_params)
+
+    # refresh the mail notification pusher default params cache
     notification_pusher.RunNotificationPusher.get_mail_notification_default_params(
         refresh=True
     )

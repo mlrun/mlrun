@@ -190,11 +190,9 @@ class DataStore(BaseRemoteClient):
             - datetime.timedelta(microseconds=1)
         )
 
-        if (start_time <= partition_start <= end_time) or (
-            start_time <= partition_end <= end_time
-        ):
-            return True
-        return False
+        if end_time < partition_start or start_time > partition_end:
+            return False
+        return True
 
     @staticmethod
     def _list_partition_paths_helper(

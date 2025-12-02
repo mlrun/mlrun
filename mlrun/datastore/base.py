@@ -179,16 +179,22 @@ class DataStore(BaseRemoteClient):
             hour=hour or 0,
             tzinfo=start_time.tzinfo,
         )
-        partition_end = partition_start + relativedelta(
-            years=1 if month is None else 0,
-            months=1 if day is None and month is not None else 0,
-            days=1 if hour is None and day is not None else 0,
-            hours=1 if hour is not None else 0,
+        partition_end = (
+            partition_start
+            + relativedelta(
+                years=1 if month is None else 0,
+                months=1 if day is None and month is not None else 0,
+                days=1 if hour is None and day is not None else 0,
+                hours=1 if hour is not None else 0,
+            )
+            - datetime.timedelta(microseconds=1)
         )
 
-        if end_time < partition_start or start_time > partition_end:
-            return False
-        return True
+        if (start_time <= partition_start <= end_time) or (
+            start_time <= partition_end <= end_time
+        ):
+            return True
+        return False
 
     @staticmethod
     def _list_partition_paths_helper(

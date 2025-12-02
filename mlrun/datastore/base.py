@@ -241,7 +241,7 @@ class DataStore(BaseRemoteClient):
 
     @staticmethod
     def _list_partitioned_paths(
-        base_path: str,
+        base_url: str,
         start_time: datetime.datetime,
         end_time: datetime.datetime,
         partition_level: str,
@@ -250,21 +250,18 @@ class DataStore(BaseRemoteClient):
         paths = []
 
         DataStore._list_partition_paths_helper(
-            paths, start_time, end_time, base_path, partition_level, filesystem
+            paths, start_time, end_time, base_url, partition_level, filesystem
         )
         for i in range(len(paths)):
-            paths[i] = DataStore._reconstruct_path_from_base_path(base_path, paths[i])
+            paths[i] = DataStore._reconstruct_path_from_base_url(base_url, paths[i])
         return paths
 
     @staticmethod
-    def _reconstruct_path_from_base_path(base_path: str, returned_path: str) -> str:
-        base_path = base_path.rstrip("/")
-        strip_path = returned_path.strip("/")
-
-        prefix = base_path.split(":///", 1)[0]
-        schema = prefix + ":///"
-
-        return schema + strip_path
+    def _reconstruct_path_from_base_url(base_path: str, returned_path: str) -> str:
+        parsed_url = urlparse(base_path)
+        scheme = parsed_url.scheme
+        authority = parsed_url.netloc
+        return f'{scheme}://{authority}/{returned_path.lstrip("/")}'
 
     @staticmethod
     def _clean_filters_for_partitions(
@@ -289,7 +286,7 @@ class DataStore(BaseRemoteClient):
 
     @staticmethod
     def _read_partitioned_parquet(
-        base_path: str,
+        base_url: str,
         start_time: datetime.datetime,
         end_time: datetime.datetime,
         partition_keys: list[str],
@@ -301,10 +298,10 @@ class DataStore(BaseRemoteClient):
         Reads only the relevant partitions and concatenates the results.
         Note that partition_keys cannot be empty.
         """
-        logger.debug(f"Starting partition discovery process for {base_path}")
+        logger.debug(f"Starting partition discovery process for {base_url}")
 
         paths = DataStore._list_partitioned_paths(
-            base_path,
+            base_url,
             start_time,
             end_time,
             partition_keys[-1],
@@ -332,7 +329,7 @@ class DataStore(BaseRemoteClient):
         final_df = pd.concat(dfs) if dfs else pd.DataFrame()
         logger.debug(
             "Finished reading partitioned parquet files",
-            url=base_path,
+            url=base_url,
             columns=final_df.columns,
         )
         return final_df
@@ -401,7 +398,9 @@ class DataStore(BaseRemoteClient):
                     if (
                         optimize_discovery
                         and partitions_time_attributes
-                        and DataStore.verify_path_partition_level(url, partitions)
+                        and DataStore._verify_path_partition_level(
+                            urlparse(url).path, partitions
+                        )
                     ):
                         return DataStore._read_partitioned_parquet(
                             url,
@@ -443,7 +442,9 @@ class DataStore(BaseRemoteClient):
                     if (
                         optimize_discovery
                         and partitions_time_attributes
-                        and DataStore.verify_path_partition_level(url, partitions)
+                        and DataStore._verify_path_partition_level(
+                            urlparse(url).path, partitions
+                        )
                     ):
                         return DataStore._read_partitioned_parquet(
                             url,
@@ -610,11 +611,11 @@ class DataStore(BaseRemoteClient):
             return False
 
     @staticmethod
-    def verify_path_partition_level(base_path: str, partitions: list[str]) -> bool:
+    def _verify_path_partition_level(base_path: str, partitions: list[str]) -> bool:
         if not partitions:
             return False
 
-        path_parts = urlparse(base_path).path.strip("/").split("/")
+        path_parts = base_path.strip("/").split("/")
         path_parts = [part.split("=")[0] for part in path_parts if "=" in part]
         if "hour" in partitions:
             hour_index = partitions.index("hour")

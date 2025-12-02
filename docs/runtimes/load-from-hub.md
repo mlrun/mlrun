@@ -1,5 +1,5 @@
 (load-from-hub)=
-# Import modules and functions from the MLRun hub
+# MLRun hub
 
 The [MLRun hub](https://www.mlrun.org/hub/) provides a wide range of pre-developed functions and modules for your projects, for a variety of use cases. Reusing built-in code can significantly speed up your development cycle.
 You can search and filter the categories and kinds to find an item that meets your needs. Every function and module in the hub has complete documentation and examples.

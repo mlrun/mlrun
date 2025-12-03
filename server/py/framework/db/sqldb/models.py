@@ -945,7 +945,7 @@ with warnings.catch_warnings():
         activation_time = Column(
             framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=False
         )
-        partition_key = Column(Integer, nullable=False, default=0)
+        partition_key = Column(Integer, nullable=False)
 
         name = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         project = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
@@ -1157,7 +1157,7 @@ def set_alert_activations_partition_key(
     __: Connection,
     target: AlertActivation,
 ):
-    if not target.partition_key:
+    if target.partition_key is None:
         target.partition_key = target.compute_partition_key()
 
 

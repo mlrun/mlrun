@@ -15,7 +15,6 @@ import math
 import os
 from datetime import datetime, timedelta
 
-import mlrun.common.db.dialects
 import mlrun.common.types
 
 
@@ -108,15 +107,15 @@ class PartitionInterval(mlrun.common.types.StrEnum):
         self,
         current_datetime: datetime,
     ) -> int:
-        if self == PartitionInterval.DAY:
-            return int(current_datetime.strftime("%Y%m%d"))
-        elif self == PartitionInterval.MONTH:
-            return int(current_datetime.strftime("%Y%m"))
-        elif self == PartitionInterval.YEARWEEK:
+        format_string = PARTITION_INTERVAL_STRFTIME_FORMATS.get(self)
+        if format_string is not None:
+            return int(current_datetime.strftime(format_string))
+
+        if self == PartitionInterval.YEARWEEK:
             year, week, _ = current_datetime.isocalendar()
             return int(f"{year}{week:02d}")
-        else:
-            raise ValueError(f"Unsupported PartitionInterval: {self}")
+
+        raise ValueError(f"Unsupported PartitionInterval: {self}")
 
     def get_partition_name(
         self,
@@ -124,37 +123,24 @@ class PartitionInterval(mlrun.common.types.StrEnum):
     ) -> str:
         return f"p{self.get_partition_key_value(current_datetime)}"
 
-    def get_partition_expression(
-        self,
-        column_name: str,
-        dialect: str = mlrun.common.db.dialects.Dialects.MYSQL,
-    ) -> str:
-        """
-        Convert *column_name* to an integer key that works for RANGE partitioning.
 
-        Only used for legacy MySQL dialects migrations.
-        """
+def get_mysql_partition_key_sql(self, column_name: str) -> str:
+    """
+    Convert *column_name* into an integer partition key suitable for MySQL RANGE
+    partitioning. Produces one of:
+      - CAST(DATE_FORMAT(column_name, '%Y%m%d') AS UNSIGNED)
+      - CAST(DATE_FORMAT(column_name, '%Y%m') AS UNSIGNED)
+      - YEARWEEK(column_name, 3)
+    """
+    format_string = PARTITION_INTERVAL_STRFTIME_FORMATS.get(self)
+    if format_string is not None:
+        return f"CAST(DATE_FORMAT({column_name}, '{format_string}') AS UNSIGNED)"
 
-        if dialect.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
-            if self == PartitionInterval.YEARWEEK:
-                return f"YEARWEEK({column_name}, 1)"
+    if self == PartitionInterval.YEARWEEK:
+        # mode=3 → ISO-like weeks, matches datetime.isocalendar()
+        return f"YEARWEEK({column_name}, 3)"
 
-            if self == PartitionInterval.DAY:
-                return (
-                    f"YEAR({column_name}) * 10000 + "
-                    f"MONTH({column_name}) * 100 + "
-                    f"DAY({column_name})"
-                )
-
-            if self == PartitionInterval.MONTH:
-                return f"YEAR({column_name}) * 100 + MONTH({column_name})"
-
-            raise ValueError(f"Unsupported PartitionInterval: {self}")
-        else:
-            raise ValueError(
-                f"Unsupported dialect: {dialect}. Supported dialects are: "
-                f"{mlrun.common.db.dialects.Dialects.MYSQL}"
-            )
+    raise ValueError(f"Unsupported PartitionInterval: {self}")
 
     def get_number_of_partitions(self, days: int) -> int:
         # Calculate the number partitions based on given number of days
@@ -179,3 +165,9 @@ class PartitionInterval(mlrun.common.types.StrEnum):
                 f"PARTITION_INTERVAL must be one of {PartitionInterval.valid_intervals()}, got {name}"
             )
         return PartitionInterval(name)
+
+
+PARTITION_INTERVAL_STRFTIME_FORMATS = {
+    PartitionInterval.DAY: "%Y%m%d",
+    PartitionInterval.MONTH: "%Y%m",
+}

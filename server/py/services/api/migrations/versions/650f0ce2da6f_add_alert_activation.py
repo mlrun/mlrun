@@ -18,6 +18,7 @@ Revision ID: 650f0ce2da6f
 Revises: 63a7eec6d034
 Create Date: 2024-10-30 16:38:07.592754
 
+Only supports MySQL
 """
 
 from datetime import datetime
@@ -96,15 +97,11 @@ def upgrade():
     # Calculate the date of next partitioning interval
     now_utc = datetime.utcnow()
 
-    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval(
-        partition_interval
-    )
-
     partition_name, partition_value = (
         partition_interval.get_partition_names_and_boundaries(now_utc)[0]
     )
-    partition_expression = partition_interval.get_partition_expression(
-        column_name="activation_time"
+    partition_expression = partition_interval.get_mysql_partition_key_sql(
+        column_name="activation_time",
     )
 
     # Construct SQL for partitioning

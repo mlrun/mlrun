@@ -15,7 +15,6 @@ import sqlalchemy as sa
 from alembic import op
 
 import mlrun.common.schemas.partition_interval
-
 import framework.db.sqldb.sql_types
 
 """
@@ -26,8 +25,6 @@ for alert_activations in table_partition_interval.
 
 revision = "c25e56faecce"
 down_revision = "6d1d53f60e90"
-
-PRIMARY_KEY_NAME = "_alert_activation_uc"
 
 
 def _update_partition_keys_bulk(
@@ -70,8 +67,12 @@ def upgrade() -> None:
     connection = op.get_bind()
     is_mysql = connection.dialect.name == "mysql"
 
-    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
+    partition_interval = (
+        mlrun.common.schemas.partition_interval.PartitionInterval
+        .get_partition_interval_from_env()
+    )
 
+    # Save configured interval for this table
     table_partition_interval = sa.table(
         "table_partition_interval",
         sa.column("table_name"),
@@ -84,21 +85,23 @@ def upgrade() -> None:
         )
     )
 
-    # On non-MySQL dialects we only persist the interval; no schema / data changes
+    # Only MySQL requires schema + data changes
     if not is_mysql:
         return
 
-    # MySQL-specific: add partition_key nullable, backfill, and then enforce NOT NULL + new PK
+    # 1. Add column nullable
     op.add_column(
         "alert_activations",
         sa.Column("partition_key", sa.Integer(), nullable=True),
     )
 
+    # 2. Backfill values
     _update_partition_keys_bulk(
         connection=connection,
         partition_interval=partition_interval,
     )
 
+    # 3. Make NOT NULL
     op.alter_column(
         "alert_activations",
         "partition_key",
@@ -106,32 +109,29 @@ def upgrade() -> None:
         nullable=False,
     )
 
-    op.drop_constraint(
-        PRIMARY_KEY_NAME,
-        "alert_activations",
-        type_="primary",
-    )
-    op.create_primary_key(
-        PRIMARY_KEY_NAME,
-        "alert_activations",
-        ["id", "activation_time", "partition_key"],
+    # 4. Replace PK in a *single* ALTER TABLE so MySQL does not complain
+    #    about leaving the AUTO_INCREMENT column without a key.
+    op.execute(
+        """
+        ALTER TABLE alert_activations
+        DROP PRIMARY KEY,
+        ADD PRIMARY KEY (id, activation_time, partition_key)
+        """
     )
 
 
 def downgrade() -> None:
-    engine = op.get_bind()
-    is_mysql = engine.dialect.name == "mysql"
+    connection = op.get_bind()
+    is_mysql = connection.dialect.name == "mysql"
 
     if is_mysql:
-        op.drop_constraint(
-            PRIMARY_KEY_NAME,
-            "alert_activations",
-            type_="primary",
-        )
-        op.create_primary_key(
-            PRIMARY_KEY_NAME,
-            "alert_activations",
-            ["id", "activation_time"],
+        # Reverse PK change, also as a single ALTER TABLE
+        op.execute(
+            """
+            ALTER TABLE alert_activations
+            DROP PRIMARY KEY,
+            ADD PRIMARY KEY (id, activation_time)
+            """
         )
         op.drop_column("alert_activations", "partition_key")
 

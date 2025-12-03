@@ -128,14 +128,11 @@ aggregate_run = aggregate_function.run(
 ## Modules
 There are two types of modules: generic and model monitoring application. You can also add modules to your own hub, making them easily accessible for sharing.
 
-The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
-
-There are two types of modules: generic and model monitoring. The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
+The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs. Each module in the hub has an accompanying example notebook with complete usage examples.
 
 There are two means of using modules from the hub:
 - [Import a module](#import-a-module)
 - [Import a model monitoring application](#import-a-model-monitoring-application)
-
 
 (import-a-module)=
 ### Import a module

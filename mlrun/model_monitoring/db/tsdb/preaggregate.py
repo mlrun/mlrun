@@ -15,7 +15,7 @@
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import mlrun.errors
 import mlrun.utils
@@ -24,31 +24,104 @@ import mlrun.utils
 _INTERVAL_PATTERN = re.compile(r"(\d+)([mhdwM])")
 
 
+def _config_to_list(config_value: Any) -> list[str]:
+    """Convert mlrun Config value to a list of strings.
+
+    Handles mlrun.config.Config objects which store values in a _cfg dict.
+    """
+    if not config_value:
+        return []
+    if hasattr(config_value, "_cfg"):
+        cfg = getattr(config_value, "_cfg", None)
+        if cfg:
+            return [str(v) for v in cfg.values()]
+        return []
+    try:
+        return [str(v) for v in config_value]
+    except TypeError:
+        return []
+
+
+def _config_to_dict(config_value: Any) -> dict[str, str]:
+    """Convert mlrun Config value to a dict of strings.
+
+    Handles mlrun.config.Config objects which have to_dict() or _cfg attribute.
+    """
+    if not config_value:
+        return {}
+    if hasattr(config_value, "to_dict"):
+        return getattr(config_value, "to_dict")()
+    if hasattr(config_value, "_cfg"):
+        cfg = getattr(config_value, "_cfg", None)
+        return {str(k): str(v) for k, v in cfg.items()} if cfg else {}
+    try:
+        return {str(k): str(v) for k, v in config_value.items()}
+    except (TypeError, AttributeError):
+        return {}
+
+
 @dataclass
 class PreAggregateConfig:
     """Configuration for pre-aggregated tables and retention policies."""
 
-    aggregate_intervals: list[str] = None
-    agg_functions: list[str] = None
-    retention_policy: dict[str, str] = None
+    aggregate_intervals: Optional[list[str]] = None
+    agg_functions: Optional[list[str]] = None
+    retention_policy: Optional[dict[str, str]] = None
 
-    def __post_init__(self):
-        if self.aggregate_intervals is None:
-            self.aggregate_intervals = ["10m", "1h", "6h", "1d", "1w", "1M"]
+    @classmethod
+    def from_mlrun_config(cls) -> Optional["PreAggregateConfig"]:
+        """
+        Load pre-aggregate configuration from mlrun.mlconf.
 
-        if self.agg_functions is None:
-            self.agg_functions = ["sum", "avg", "min", "max", "count", "last"]
+        Reads the TSDB pre-aggregate configuration from the global MLRun config
+        system, allowing configuration via environment variables or config files.
 
-        if self.retention_policy is None:
-            self.retention_policy = {
-                "raw": "7d",
-                "10m": "30d",
-                "1h": "1y",
-                "6h": "1y",
-                "1d": "5y",
-                "1w": "5y",
-                "1M": "5y",
-            }
+        :return: PreAggregateConfig if enabled in config, None if disabled
+        :raises mlrun.errors.MLRunInvalidArgumentError: If config is malformed
+        """
+        import mlrun.config
+
+        try:
+            pre_agg_config = (
+                mlrun.config.config.model_endpoint_monitoring.tsdb.pre_aggregate
+            )
+        except AttributeError as e:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Pre-aggregate config section not found in mlrun.mlconf: {e}"
+            ) from e
+
+        # Check if pre-aggregation is enabled
+        enabled = pre_agg_config.enabled
+        if isinstance(enabled, str):
+            enabled = enabled.lower() in ("true", "1", "yes")
+
+        if not enabled:
+            return None
+
+        # Convert Config objects to proper Python types
+        aggregate_intervals = _config_to_list(pre_agg_config.aggregate_intervals)
+        agg_functions = _config_to_list(pre_agg_config.agg_functions)
+        retention_policy = _config_to_dict(pre_agg_config.retention_policy)
+
+        # Validate required fields
+        if not aggregate_intervals:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Pre-aggregate config missing 'aggregate_intervals'"
+            )
+        if not agg_functions:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Pre-aggregate config missing 'agg_functions'"
+            )
+        if not retention_policy:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Pre-aggregate config missing 'retention_policy'"
+            )
+
+        return cls(
+            aggregate_intervals=aggregate_intervals,
+            agg_functions=agg_functions,
+            retention_policy=retention_policy,
+        )
 
 
 class PreAggregateManager:
@@ -75,19 +148,18 @@ class PreAggregateManager:
                 "Pre-aggregate configuration not available. Cannot use interval or agg_function parameters."
             )
 
-        if interval and interval not in self._pre_aggregate_config.aggregate_intervals:
+        intervals = self._pre_aggregate_config.aggregate_intervals or []
+        if interval and interval not in intervals:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Interval '{interval}' not available in pre-aggregate configuration. "
-                f"Available intervals: {self._pre_aggregate_config.aggregate_intervals}"
+                f"Available intervals: {intervals}"
             )
 
-        if (
-            agg_function
-            and agg_function not in self._pre_aggregate_config.agg_functions
-        ):
+        functions = self._pre_aggregate_config.agg_functions or []
+        if agg_function and agg_function not in functions:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Aggregation function '{agg_function}' not available in pre-aggregate configuration. "
-                f"Available functions: {self._pre_aggregate_config.agg_functions}"
+                f"Available functions: {functions}"
             )
 
     def can_use_pre_aggregates(
@@ -97,13 +169,13 @@ class PreAggregateManager:
         if not self._pre_aggregate_config or not interval:
             return False
 
-        if interval not in self._pre_aggregate_config.aggregate_intervals:
+        intervals = self._pre_aggregate_config.aggregate_intervals or []
+        if interval not in intervals:
             return False
 
         if agg_funcs:
-            return all(
-                func in self._pre_aggregate_config.agg_functions for func in agg_funcs
-            )
+            functions = self._pre_aggregate_config.agg_functions or []
+            return all(func in functions for func in agg_funcs)
 
         return True
 
@@ -217,18 +289,27 @@ class PreAggregateManager:
 
     def get_available_intervals(self) -> list[str]:
         """Get list of available intervals for pre-aggregation."""
-        if not self._pre_aggregate_config:
+        if (
+            not self._pre_aggregate_config
+            or not self._pre_aggregate_config.aggregate_intervals
+        ):
             return []
         return self._pre_aggregate_config.aggregate_intervals.copy()
 
     def get_available_functions(self) -> list[str]:
         """Get list of available aggregation functions."""
-        if not self._pre_aggregate_config:
+        if (
+            not self._pre_aggregate_config
+            or not self._pre_aggregate_config.agg_functions
+        ):
             return []
         return self._pre_aggregate_config.agg_functions.copy()
 
     def get_retention_policy(self) -> dict[str, str]:
         """Get the retention policy configuration."""
-        if not self._pre_aggregate_config:
+        if (
+            not self._pre_aggregate_config
+            or not self._pre_aggregate_config.retention_policy
+        ):
             return {}
         return self._pre_aggregate_config.retention_policy.copy()

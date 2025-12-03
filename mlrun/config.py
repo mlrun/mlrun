@@ -675,6 +675,25 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         "model_endpoint_creation_check_period": 15,
+        # TSDB configuration for model monitoring metrics storage
+        "tsdb": {
+            "pre_aggregate": {
+                # Enable/disable pre-aggregation (continuous aggregates)
+                "enabled": True,
+                # Available aggregation intervals for pre-computed views
+                "aggregate_intervals": ["1h", "6h", "12h", "24h"],
+                # Available aggregation functions
+                "agg_functions": ["min", "max", "avg", "count"],
+                # Retention policy for raw and aggregated data
+                "retention_policy": {
+                    "raw": "3 months",
+                    "1h": "6 months",
+                    "6h": "6 months",
+                    "12h": "6 months",
+                    "24h": "6 months",
+                },
+            },
+        },
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory

@@ -15,7 +15,6 @@
 import enum
 import typing
 
-import mlrun.common.schemas.secret
 import mlrun.datastore.datastore_profile
 import mlrun.errors
 import mlrun.model_monitoring.helpers
@@ -52,9 +51,19 @@ class ObjectTSDBFactory(enum.Enum):
             return V3IOTSDBConnector(project=project, **kwargs)
 
         if self == self.timescaledb:
+            from .preaggregate import PreAggregateConfig
             from .timescaledb.timescaledb_connector import TimescaleDBConnector
 
-            return TimescaleDBConnector(project=project, profile=profile, **kwargs)
+            pre_aggregate_config = PreAggregateConfig.from_mlrun_config()
+            return TimescaleDBConnector(
+                project=project,
+                profile=typing.cast(
+                    mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+                    profile,
+                ),
+                pre_aggregate_config=pre_aggregate_config,
+                **kwargs,
+            )
 
         if self == self.tdengine:
             from .tdengine.tdengine_connector import TDEngineConnector

@@ -20,6 +20,7 @@ import pytest
 import mlrun.errors
 import mlrun.utils
 from mlrun.model_monitoring.db.tsdb.preaggregate import (
+    PreAggregateConfig,
     PreAggregateManager,
 )
 
@@ -336,3 +337,101 @@ class TestPreAggregateManager:
         result = handler.align_time_to_interval(dt, "1M", align_start=False)
         expected = datetime(2025, 3, 1, 0, 0, 0)
         assert result == expected
+
+
+class TestPreAggregateConfig:
+    """Test suite for PreAggregateConfig dataclass."""
+
+    def test_default_values_are_none(self):
+        """Test that default values are None (config.py provides defaults)."""
+        config = PreAggregateConfig()
+
+        assert config.aggregate_intervals is None
+        assert config.agg_functions is None
+        assert config.retention_policy is None
+
+    def test_custom_values(self):
+        """Test that custom values are accepted."""
+        config = PreAggregateConfig(
+            aggregate_intervals=["1h", "24h"],
+            agg_functions=["avg", "count"],
+            retention_policy={"raw": "30d", "1h": "90d", "24h": "180d"},
+        )
+
+        assert config.aggregate_intervals == ["1h", "24h"]
+        assert config.agg_functions == ["avg", "count"]
+        assert config.retention_policy == {"raw": "30d", "1h": "90d", "24h": "180d"}
+
+
+class TestPreAggregateConfigFromMlrunConfig:
+    """Test suite for PreAggregateConfig.from_mlrun_config()."""
+
+    def test_from_mlrun_config_when_enabled(self):
+        """Test from_mlrun_config when pre-aggregation is enabled."""
+        with patch("mlrun.config.config") as mock_config:
+            mock_pre_agg = mock_config.model_endpoint_monitoring.tsdb.pre_aggregate
+            mock_pre_agg.enabled = True
+            mock_pre_agg.aggregate_intervals = ["1h", "6h"]
+            mock_pre_agg.agg_functions = ["avg", "count"]
+            mock_pre_agg.retention_policy._cfg = {"raw": "1 month", "1h": "3 months"}
+
+            # Remove to_dict method to test the _cfg path
+            del mock_pre_agg.retention_policy.to_dict
+
+            result = PreAggregateConfig.from_mlrun_config()
+
+            assert result is not None
+            assert result.aggregate_intervals == ["1h", "6h"]
+            assert result.agg_functions == ["avg", "count"]
+
+    def test_from_mlrun_config_when_disabled(self):
+        """Test from_mlrun_config when pre-aggregation is disabled."""
+        with patch("mlrun.config.config") as mock_config:
+            mock_pre_agg = mock_config.model_endpoint_monitoring.tsdb.pre_aggregate
+            mock_pre_agg.enabled = False
+
+            result = PreAggregateConfig.from_mlrun_config()
+
+            assert result is None
+
+    def test_from_mlrun_config_when_disabled_as_string(self):
+        """Test from_mlrun_config when enabled is 'false' string."""
+        with patch("mlrun.config.config") as mock_config:
+            mock_pre_agg = mock_config.model_endpoint_monitoring.tsdb.pre_aggregate
+            mock_pre_agg.enabled = "false"
+
+            result = PreAggregateConfig.from_mlrun_config()
+
+            assert result is None
+
+    def test_from_mlrun_config_with_to_dict_method(self):
+        """Test from_mlrun_config when retention_policy has to_dict method."""
+        with patch("mlrun.config.config") as mock_config:
+            mock_pre_agg = mock_config.model_endpoint_monitoring.tsdb.pre_aggregate
+            mock_pre_agg.enabled = True
+            mock_pre_agg.aggregate_intervals = ["1h", "24h"]
+            mock_pre_agg.agg_functions = ["min", "max"]
+            mock_pre_agg.retention_policy.to_dict.return_value = {
+                "raw": "2 months",
+                "1h": "6 months",
+            }
+
+            result = PreAggregateConfig.from_mlrun_config()
+
+            assert result is not None
+            assert result.retention_policy == {"raw": "2 months", "1h": "6 months"}
+
+    def test_from_mlrun_config_missing_intervals_raises_error(self):
+        """Test from_mlrun_config raises error when aggregate_intervals is missing."""
+        with patch("mlrun.config.config") as mock_config:
+            mock_pre_agg = mock_config.model_endpoint_monitoring.tsdb.pre_aggregate
+            mock_pre_agg.enabled = True
+            mock_pre_agg.aggregate_intervals = []  # Empty list
+            mock_pre_agg.agg_functions = ["avg"]
+            mock_pre_agg.retention_policy.to_dict.return_value = {"raw": "1 month"}
+
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=r"missing 'aggregate_intervals'",
+            ):
+                PreAggregateConfig.from_mlrun_config()

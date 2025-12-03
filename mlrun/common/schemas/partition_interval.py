@@ -124,23 +124,23 @@ class PartitionInterval(mlrun.common.types.StrEnum):
         return f"p{self.get_partition_key_value(current_datetime)}"
 
 
-def get_mysql_partition_key_sql(self, column_name: str) -> str:
-    """
-    Convert *column_name* into an integer partition key suitable for MySQL RANGE
-    partitioning. Produces one of:
-      - CAST(DATE_FORMAT(column_name, '%Y%m%d') AS UNSIGNED)
-      - CAST(DATE_FORMAT(column_name, '%Y%m') AS UNSIGNED)
-      - YEARWEEK(column_name, 3)
-    """
-    format_string = PARTITION_INTERVAL_STRFTIME_FORMATS.get(self)
-    if format_string is not None:
-        return f"CAST(DATE_FORMAT({column_name}, '{format_string}') AS UNSIGNED)"
+    def get_mysql_partition_key_sql(self, column_name: str) -> str:
+        """
+        Convert *column_name* into an integer partition key suitable for MySQL RANGE
+        partitioning. Produces one of:
+          - CAST(DATE_FORMAT(column_name, '%Y%m%d') AS UNSIGNED)
+          - CAST(DATE_FORMAT(column_name, '%Y%m') AS UNSIGNED)
+          - YEARWEEK(column_name, 3)
+        """
+        format_string = PARTITION_INTERVAL_STRFTIME_FORMATS.get(self)
+        if format_string is not None:
+            return f"CAST(DATE_FORMAT({column_name}, '{format_string}') AS UNSIGNED)"
 
-    if self == PartitionInterval.YEARWEEK:
-        # mode=3 → ISO-like weeks, matches datetime.isocalendar()
-        return f"YEARWEEK({column_name}, 3)"
+        if self == PartitionInterval.YEARWEEK:
+            # mode=3 → ISO-like weeks, matches datetime.isocalendar()
+            return f"YEARWEEK({column_name}, 3)"
 
-    raise ValueError(f"Unsupported PartitionInterval: {self}")
+        raise ValueError(f"Unsupported PartitionInterval: {self}")
 
     def get_number_of_partitions(self, days: int) -> int:
         # Calculate the number partitions based on given number of days

@@ -176,6 +176,49 @@ class TestDatastoreProfilePostgreSQL:
         assert profile.database == "postgres"  # Should default to "postgres"
 
     @staticmethod
+    def test_dsn_with_database_override() -> None:
+        """Test dsn() method with database parameter override."""
+        profile = DatastoreProfilePostgreSQL(
+            name="test-profile",
+            user="postgres",
+            password="password123",
+            host="localhost",
+            port=5432,
+            database="mydb",
+        )
+        # Default behavior - use configured database
+        assert profile.dsn() == "postgresql://postgres:password123@localhost:5432/mydb"
+
+        # Override with different database
+        assert (
+            profile.dsn(database="otherdb")
+            == "postgresql://postgres:password123@localhost:5432/otherdb"
+        )
+
+        # Original database is unchanged
+        assert profile.database == "mydb"
+
+    @staticmethod
+    def test_admin_dsn() -> None:
+        """Test admin_dsn() returns DSN pointing to postgres maintenance database."""
+        profile = DatastoreProfilePostgreSQL(
+            name="test-profile",
+            user="postgres",
+            password="password123",
+            host="localhost",
+            port=5432,
+            database="mydb",
+        )
+        # admin_dsn should point to 'postgres' database for administrative operations
+        assert (
+            profile.admin_dsn()
+            == "postgresql://postgres:password123@localhost:5432/postgres"
+        )
+
+        # Original database is unchanged
+        assert profile.database == "mydb"
+
+    @staticmethod
     def test_datastore_profile_read_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
         profile_name = "test-profile"
         project_name = "test-project"

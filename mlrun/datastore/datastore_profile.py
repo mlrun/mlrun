@@ -500,18 +500,37 @@ class DatastoreProfilePostgreSQL(DatastoreProfile):
     port: int
     database: str = pydantic.v1.Field(
         default="postgres"
-    )  # the default maintenance database
+    )  # Default to postgres maintenance database
 
-    def dsn(self) -> str:
-        """Get the Data Source Name of the configured PostgreSQL profile."""
-        return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+    def dsn(self, database: typing.Optional[str] = None) -> str:
+        """
+        Get the Data Source Name of the configured PostgreSQL profile.
+
+        :param database: Optional database name to use instead of the configured one.
+                        If None, uses the configured database.
+        :return: The DSN string.
+        """
+        db = database if database is not None else self.database
+        return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}/{db}"
+
+    def admin_dsn(self) -> str:
+        """
+        Get DSN for administrative operations using the 'postgres' maintenance database.
+
+        This is useful for operations that need to create/drop databases,
+        as you cannot connect to a database while creating it.
+
+        :return: DSN pointing to the 'postgres' maintenance database.
+        """
+        return self.dsn(database="postgres")
 
     @classmethod
     def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfilePostgreSQL":
         """
         Construct a PostgreSQL profile from DSN (connection string) and a name for the profile.
 
-        :param dsn:          The DSN (Data Source Name) of the PostgreSQL database, e.g.: ``"postgresql://user:password@localhost:5432/mydb"``.
+        :param dsn:          The DSN (Data Source Name) of the PostgreSQL database,
+                            e.g.: ``"postgresql://user:password@localhost:5432/mydb"``.
         :param profile_name: The new profile's name.
         :return:             The PostgreSQL profile.
         """

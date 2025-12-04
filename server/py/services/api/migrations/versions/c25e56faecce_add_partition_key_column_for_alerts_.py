@@ -15,6 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 import mlrun.common.schemas.partition_interval
+
 import framework.db.sqldb.sql_types
 
 """
@@ -67,10 +68,7 @@ def upgrade() -> None:
     connection = op.get_bind()
     is_mysql = connection.dialect.name == "mysql"
 
-    partition_interval = (
-        mlrun.common.schemas.partition_interval.PartitionInterval
-        .get_partition_interval_from_env()
-    )
+    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
 
     # Save configured interval for this table
     table_partition_interval = sa.table(

@@ -123,7 +123,6 @@ class PartitionInterval(mlrun.common.types.StrEnum):
     ) -> str:
         return f"p{self.get_partition_key_value(current_datetime)}"
 
-
     def get_mysql_partition_key_sql(self, column_name: str) -> str:
         """
         Convert *column_name* into an integer partition key suitable for MySQL RANGE

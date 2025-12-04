@@ -217,22 +217,25 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
     def _mount_secret_token_to_runtime(
         runtime: mlrun.runtimes.base.BaseRuntime, token_name: str, username: str
     ):
+        # Validation that the secret exists is done in the ServerSideLauncher
         secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(
             username=username, token_name=token_name
         )
 
-        runtime.apply(
-            mlrun.mounts.mount_secret(
-                secret.metadata.name,
-                mount_path=mlrun.common.constants.MLRUN_AUTH_SECRET_PATH,
-                items=[
-                    {
-                        "key": "tokensFile",
-                        "path": mlrun.common.constants.MLRUN_AUTH_SECRET_FILE,
-                    }
-                ],
+        # In case the secret was not found (which should not happen because of the prior validation), we do not mount it
+        if secret:
+            runtime.apply(
+                mlrun.mounts.mount_secret(
+                    secret.metadata.name,
+                    mount_path=mlrun.common.constants.MLRUN_AUTH_SECRET_PATH,
+                    items=[
+                        {
+                            "key": "tokensFile",
+                            "path": mlrun.common.constants.MLRUN_AUTH_SECRET_FILE,
+                        }
+                    ],
+                )
             )
-        )
 
 
 class DatabricksRuntimeHandler(KubeRuntimeHandler):

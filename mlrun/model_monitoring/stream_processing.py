@@ -232,6 +232,14 @@ class EventStreamProcessor:
             _fn="(event.get('kind', " ") == 'nop_event')",
         )
 
+        # Deduplicate sub-events from batch inference before TSDB writes (ML-11639)
+        # This improves performance for all backends by reducing N writes to 1 per invocation
+        graph.add_step(
+            "mlrun.model_monitoring.db.tsdb.stream_graph_steps.DeduplicateSubEvents",
+            name="DeduplicateSubEvents",
+            after="FilterNOP",
+        )
+
         tsdb_connector.apply_monitoring_stream_steps(
             graph=graph,
             aggregate_windows=self.aggregate_windows,

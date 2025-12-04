@@ -251,7 +251,7 @@ class TDEngineConnector(TSDBConnector):
             graph.add_step(
                 "mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps.ProcessBeforeTDEngine",
                 name="ProcessBeforeTDEngine",
-                after="FilterNOP",
+                after="DeduplicateSubEvents",
             )
 
         def apply_tdengine_target(name, after):

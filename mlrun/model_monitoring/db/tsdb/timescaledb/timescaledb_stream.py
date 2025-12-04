@@ -85,7 +85,7 @@ class TimescaleDBStreamProcessor:
             graph.add_step(
                 "mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_stream_graph_steps.ProcessBeforeTimescaleDB",
                 name="ProcessBeforeTimescaleDB",
-                after="FilterNOP",
+                after="DeduplicateSubEvents",
             )
 
         def apply_timescaledb_target(name: str, after: str):

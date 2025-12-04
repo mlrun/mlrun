@@ -16,6 +16,7 @@ from datetime import datetime
 
 import mlrun.feature_store.steps
 from mlrun.common.schemas.model_monitoring import EventFieldType
+from mlrun.common.schemas.model_monitoring.constants import StreamProcessingEvent
 
 # Import the authoritative database schema constant
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema import (
@@ -25,6 +26,52 @@ from mlrun.utils import logger
 
 # Error truncation log message
 ERROR_TRUNCATION_MESSAGE = "Error message truncated for storage"
+
+
+class DeduplicateSubEvents(mlrun.feature_store.steps.MapClass):
+    """
+    Deduplicate sub-events from batch inference before writing to TSDB (ML-11639).
+
+    When a model invocation processes N samples (batch inference), ProcessEndpointEvent
+    creates N sub-events with identical (endpoint_id, timestamp). This step filters out
+    duplicates, allowing only the first event per (endpoint_id, timestamp) to pass through.
+
+    This improves performance for all TSDB backends by reducing:
+    - Network I/O (N-1 fewer writes)
+    - Serialization overhead
+    - Database operations (even for backends with implicit upsert)
+
+    :returns: Event as a dictionary, or None if duplicate
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Track last seen timestamp per endpoint for deduplication
+        # Key: endpoint_id, Value: last timestamp
+        self._last_timestamp: dict[str, str] = {}
+
+    def do(self, event):
+        endpoint_id = event.get(EventFieldType.ENDPOINT_ID)
+
+        # Determine the timestamp for this event
+        if StreamProcessingEvent.WHEN in event:
+            timestamp = event[StreamProcessingEvent.WHEN]
+        elif EventFieldType.TIMESTAMP in event:
+            timestamp = event[EventFieldType.TIMESTAMP]
+        else:
+            timestamp = None
+
+        # Deduplication: drop sub-events with same (endpoint_id, timestamp) as previous event
+        # This handles batch inference where N samples create N identical sub-events
+        if endpoint_id and timestamp:
+            last_ts = self._last_timestamp.get(endpoint_id)
+            if last_ts == timestamp:
+                # Duplicate sub-event from same batch inference - drop it
+                return None
+            # Update last seen timestamp for this endpoint
+            self._last_timestamp[endpoint_id] = timestamp
+
+        return event
 
 
 class BaseErrorExtractor(mlrun.feature_store.steps.MapClass):

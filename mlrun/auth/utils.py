@@ -14,6 +14,8 @@
 
 import os
 import typing
+from pathlib import PurePosixPath
+from urllib.parse import urljoin
 
 import yaml
 
@@ -331,14 +333,13 @@ def enrich_auth_env(
 
     if mlrun.mlconf.is_iguazio_v4_mode():
         env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
-        env["MLRUN_AUTH_TOKEN_ENDPOINT"] = (
-            mlrun.mlconf.iguazio_api_url + "/api/v1/refresh-access-token"
+        env["MLRUN_AUTH_TOKEN_ENDPOINT"] = urljoin(
+            mlrun.mlconf.iguazio_api_url, "/api/v1/refresh-access-token"
         )
         env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
             mlrun.mlconf.iguazio_api_ssl_verify
         ).lower()
-        env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] = (
-            mlrun.common.constants.MLRUN_AUTH_SECRET_PATH
-            + "/"
-            + mlrun.common.constants.MLRUN_AUTH_SECRET_FILE
+        env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] = str(
+            PurePosixPath(mlrun.common.constants.MLRUN_AUTH_SECRET_PATH)
+            / mlrun.common.constants.MLRUN_AUTH_SECRET_FILE
         )

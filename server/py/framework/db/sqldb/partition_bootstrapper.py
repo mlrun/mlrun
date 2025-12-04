@@ -80,6 +80,24 @@ class PartitionBootstrapper:
         )
         return quoted_table
 
+    def _get_partition_list(
+        self,
+        *,
+        table_name: str,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+        partitions_count: int,
+    ) -> list[tuple[str, int]]:
+        partition_list = self._get_partition_names_and_boundaries(
+            partition_interval=partition_interval,
+            partitions_count=partitions_count,
+        )
+        if not partition_list:
+            mlrun.utils.logger.warning(
+                "No partitions to create for table",
+                table_name=table_name,
+            )
+        return partition_list
+
 
 class PartitionBootstrapperMySQL(PartitionBootstrapper):
     def bootstrap(
@@ -89,15 +107,12 @@ class PartitionBootstrapperMySQL(PartitionBootstrapper):
         partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
         partitions_count: int,
     ):
-        partition_list = self._get_partition_names_and_boundaries(
-            partitions_count=partitions_count,
+        partition_list = self._get_partition_list(
+            table_name=table_name,
             partition_interval=partition_interval,
+            partitions_count=partitions_count,
         )
         if not partition_list:
-            mlrun.utils.logger.warning(
-                "No partitions to create for table",
-                table_name=table_name,
-            )
             return
 
         quoted_table = self._quote_table_name(session, table_name, partition_list[0][0])
@@ -136,15 +151,12 @@ class PartitionBootstrapperPostgres(PartitionBootstrapper):
         partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
         partitions_count: int,
     ):
-        partition_list = self._get_partition_names_and_boundaries(
+        partition_list = self._get_partition_list(
+            table_name=table_name,
             partition_interval=partition_interval,
             partitions_count=partitions_count,
         )
         if not partition_list:
-            mlrun.utils.logger.warning(
-                "No partitions to create for table",
-                table_name=table_name,
-            )
             return
 
         quoted_table = self._quote_table_name(

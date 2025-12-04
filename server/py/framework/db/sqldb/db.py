@@ -8414,6 +8414,13 @@ class SQLDB(DBInterface):
         session: sqlalchemy.orm.Session,
         table_name: str,
     ) -> Optional[mlrun.common.schemas.partition_interval.PartitionInterval]:
+        """
+        Retrieve the partition interval registered for a specific table, if any.
+
+        :param session: The active SQLAlchemy session used for querying metadata.
+        :param table_name: The name of the table to look up.
+        :return: The partition interval assigned to the table, or None if not configured.
+        """
         table_partition_interval = (
             session.query(framework.db.sqldb.models.TablePartitionInterval)
             .filter(
@@ -8432,18 +8439,32 @@ class SQLDB(DBInterface):
         table_name: str,
         partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
     ) -> None:
+        """
+        Register a partition interval for a table, or validate it if already set.
+
+        If the table already has a different interval registered, an exception is raised
+        to prevent inconsistent metadata.
+
+        :param session: The active SQLAlchemy session used for storing metadata.
+        :param table_name: The name of the table to update.
+        :param partition_interval: The partition interval to set or validate.
+        :raises MLRunInvalidArgumentError: If the table already has a conflicting interval.
+        """
         existing_table_partition_interval = self.get_partition_interval_for_table(
             session=session,
             table_name=table_name,
         )
+
         if (
             existing_table_partition_interval is not None
             and existing_table_partition_interval != partition_interval
         ):
             raise mlrun.MLRunInvalidArgumentError(
-                f"Mismatch: table {table_name} is partitioned by {partition_interval} "
-                f"but PARTITION_INTERVAL is {partition_interval}"
+                f"Mismatch: table '{table_name}' is registered with "
+                f"partition interval '{existing_table_partition_interval}' "
+                f"but received '{partition_interval}'."
             )
+
         session.add(
             framework.db.sqldb.models.TablePartitionInterval(
                 table_name=table_name,

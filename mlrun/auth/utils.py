@@ -17,8 +17,8 @@ import typing
 
 import yaml
 
-import mlrun.common.schemas
 import mlrun.common.constants
+import mlrun.common.schemas
 import mlrun.utils.helpers
 from mlrun.config import config as mlconf
 
@@ -337,5 +337,8 @@ def enrich_auth_env(
         env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
             mlrun.mlconf.iguazio_api_ssl_verify
         ).lower()
-        env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] = (mlrun.common.constants.MLRUN_AUTH_SECRET_PATH + "/" + mlrun.common.constants.MLRUN_AUTH_SECRET_FILE)
-
+        env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] = (
+            mlrun.common.constants.MLRUN_AUTH_SECRET_PATH
+            + "/"
+            + mlrun.common.constants.MLRUN_AUTH_SECRET_FILE
+        )

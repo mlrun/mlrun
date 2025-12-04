@@ -18,6 +18,7 @@ import typing
 import yaml
 
 import mlrun.common.schemas
+import mlrun.common.constants
 import mlrun.utils.helpers
 from mlrun.config import config as mlconf
 
@@ -316,8 +317,6 @@ def translate_secret_tokens(
 
 def enrich_auth_env(
     env: dict,
-    db: "mlrun.db.RunDBInterface",
-    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     """
     Enrich the given environment dictionary with authentication information.
@@ -330,17 +329,7 @@ def enrich_auth_env(
     :param auth_info: The AuthInfo object containing authentication details.
     """
 
-    # TODO: Remove this once we implement secret token mounting in jobs (ML-11292)
-    _default_token_name = "default"
-
     if mlrun.mlconf.is_iguazio_v4_mode():
-        if auth_info and auth_info.username:
-            secret = db.get_secret_token(
-                token_name=_default_token_name,
-                username=auth_info.username,
-            )
-            env["MLRUN_AUTH_OFFLINE_TOKEN"] = secret.token
-
         env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
         env["MLRUN_AUTH_TOKEN_ENDPOINT"] = (
             mlrun.mlconf.iguazio_api_url + "/api/v1/refresh-access-token"
@@ -348,3 +337,5 @@ def enrich_auth_env(
         env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
             mlrun.mlconf.iguazio_api_ssl_verify
         ).lower()
+        env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] = (mlrun.common.constants.MLRUN_AUTH_SECRET_PATH + "/" + mlrun.common.constants.MLRUN_AUTH_SECRET_FILE)
+

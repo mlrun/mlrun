@@ -463,7 +463,7 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
 
-        mlrun.auth.utils.enrich_auth_env(runtime_env, self._get_db(), auth_info)
+        mlrun.auth.utils.enrich_auth_env(runtime_env)
 
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(

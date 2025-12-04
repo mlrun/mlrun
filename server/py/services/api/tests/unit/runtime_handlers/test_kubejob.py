@@ -25,14 +25,14 @@ import mlrun.common.schemas
 import tests.conftest
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config
-from mlrun.runtimes import RuntimeKinds
+from mlrun.runtimes import RuntimeKinds, KubejobRuntime
 from mlrun.utils import now_date
 
 import framework.utils.helpers
 import framework.utils.singletons.db
 import services.api.crud
 from framework.utils.singletons.db import get_db
-from services.api.runtime_handlers import get_runtime_handler
+from services.api.runtime_handlers import get_runtime_handler, BaseRuntimeHandler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -1008,3 +1008,32 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pod = pod or self.completed_job_pod
         mocked_responses = self._mock_list_namespaced_pods([[pod]])
         return mocked_responses[0].items
+
+    def test_mount_secret_token_to_runtime(self):
+        runtime_handler = get_runtime_handler("job")
+        runtime = KubejobRuntime()
+        token_name = "test-token"
+        username = "test-user"
+
+        # Prepare the mock secret object
+        mock_secret = unittest.mock.MagicMock()
+        mock_secret.metadata.name = "test-secret"
+
+        # Prepare a mock helper instance that will be returned by get_k8s_helper()
+        mock_helper = unittest.mock.MagicMock()
+        mock_helper._get_user_token_secret.return_value = mock_secret
+
+        # Patch the get_k8s_helper function to return a mock secret
+        with (unittest.mock.patch("framework.utils.singletons.k8s.get_k8s_helper", return_value=mock_helper)):
+            runtime_handler._mount_secret_token_to_runtime(runtime, token_name, username)
+
+            # Verify the runtime has the expected volume and volume mount
+            assert len(runtime.spec.volume_mounts) == 1
+            assert runtime.spec.volume_mounts[0]["mountPath"] == mlrun.common.constants.MLRUN_AUTH_SECRET_PATH
+            assert runtime.spec.volume_mounts[0]["name"] == "secret"
+
+            assert len(runtime.spec.volumes) == 1
+            assert runtime.spec.volumes[0]["name"] == "secret"
+            assert runtime.spec.volumes[0]["secret"]["secretName"] == "test-secret"
+            assert runtime.spec.volumes[0]["secret"]["items"] == [{"key": "tokensFile", "path": mlrun.common.constants.MLRUN_AUTH_SECRET_FILE}]
+

@@ -310,6 +310,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         self._handle_retry(run)
         run = self._pre_run_image_pull_secret_enrichment(run)
+        self._resolve_and_validate_token_name_from_secret(run)
         return self._pre_run_scheduling_constraints_enrichment(runtime, run)
 
     @staticmethod
@@ -695,6 +696,14 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     f"must be less than {staleness_threshold_seconds} seconds, got {max_delay} seconds"
                 )
 
+    # TODO implement tests during ML-11600
+    def _resolve_and_validate_token_name_from_secret(self, run: mlrun.run.RunObject):
+        if run.spec.auth.get("token_name"):
+            #TODO perform token name validation ML-11600
+            pass
+        else:
+            #TODO perform token name resolution and validation ML-11600
+            run.spec.auth["token_name"] = "default"
 
 # Once this file is imported it will set the container server side launcher
 @containers.override(mlrun.launcher.factory.LauncherContainer)

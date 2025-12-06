@@ -57,6 +57,7 @@ from .grafana import (
     GrafanaTable,
 )
 from .model_endpoints import (
+    AggregationConfig,
     ApplicationMetricRecord,
     ApplicationResultRecord,
     Features,
@@ -68,7 +69,9 @@ from .model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringMetricValues,
+    ModelEndpointMonitoringMetricValuesV2,
     ModelEndpointMonitoringResultValues,
+    ModelEndpointMonitoringResultValuesV2,
     ModelEndpointSpec,
     ModelEndpointStatus,
 )

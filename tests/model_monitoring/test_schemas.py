@@ -168,3 +168,173 @@ def test_normalize_dict(event, expected):
 
 def test_empty_dict():
     assert _normalize_dict_for_v3io_frames({}) == {}
+
+
+# V2 API Schema Tests (ML-11445)
+
+
+class TestAggregationConfig:
+    """Tests for AggregationConfig schema."""
+
+    def test_aggregation_config_aggregated_with_period_and_functions(self):
+        """Test AggregationConfig with all fields populated."""
+        from mlrun.common.schemas.model_monitoring import AggregationConfig
+
+        config = AggregationConfig(
+            aggregated=True,
+            period="1h",
+            functions=["avg", "min", "max"],
+        )
+        assert config.aggregated is True
+        assert config.period == "1h"
+        assert config.functions == ["avg", "min", "max"]
+
+    def test_aggregation_config_not_aggregated(self):
+        """Test AggregationConfig for raw (non-aggregated) data."""
+        from mlrun.common.schemas.model_monitoring import AggregationConfig
+
+        config = AggregationConfig(aggregated=False)
+        assert config.aggregated is False
+        assert config.period is None
+        assert config.functions is None
+
+    def test_aggregation_config_serialization_roundtrip(self):
+        """Test AggregationConfig serialization and deserialization."""
+        from mlrun.common.schemas.model_monitoring import AggregationConfig
+
+        config = AggregationConfig(
+            aggregated=True,
+            period="6h",
+            functions=["avg", "count"],
+        )
+        serialized = config.dict()
+        deserialized = AggregationConfig(**serialized)
+        assert deserialized.aggregated == config.aggregated
+        assert deserialized.period == config.period
+        assert deserialized.functions == config.functions
+
+
+class TestModelEndpointMonitoringMetricValuesV2:
+    """Tests for ModelEndpointMonitoringMetricValuesV2 schema."""
+
+    def test_metric_values_v2_aggregated(self):
+        """Test v2 metric values with aggregation."""
+        from datetime import datetime
+
+        from mlrun.common.schemas.model_monitoring import (
+            AggregationConfig,
+            ModelEndpointMonitoringMetricValuesV2,
+        )
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ModelEndpointMonitoringMetricType,
+        )
+
+        config = AggregationConfig(
+            aggregated=True, period="1h", functions=["avg", "min", "max"]
+        )
+        values = ModelEndpointMonitoringMetricValuesV2(
+            full_name="project.app.metric.latency",
+            aggregation_config=config,
+            values=[
+                [datetime(2025, 1, 1, 0, 0), 10.5, 5.0, 20.0],
+                [datetime(2025, 1, 1, 1, 0), 12.3, 6.0, 25.0],
+            ],
+        )
+        assert values.full_name == "project.app.metric.latency"
+        assert values.type == ModelEndpointMonitoringMetricType.METRIC
+        assert values.data is True
+        assert values.aggregation_config.aggregated is True
+        assert len(values.values) == 2
+        assert values.values[0][1] == 10.5  # avg
+        assert values.values[0][2] == 5.0  # min
+        assert values.values[0][3] == 20.0  # max
+
+    def test_metric_values_v2_raw(self):
+        """Test v2 metric values for raw (non-aggregated) data."""
+        from datetime import datetime
+
+        from mlrun.common.schemas.model_monitoring import (
+            AggregationConfig,
+            ModelEndpointMonitoringMetricValuesV2,
+        )
+
+        config = AggregationConfig(aggregated=False)
+        values = ModelEndpointMonitoringMetricValuesV2(
+            full_name="project.app.metric.error_count",
+            aggregation_config=config,
+            values=[
+                [datetime(2025, 1, 1, 0, 0, 0), 1.0],
+                [datetime(2025, 1, 1, 0, 0, 1), 2.0],
+            ],
+        )
+        assert values.aggregation_config.aggregated is False
+        assert len(values.values) == 2
+        assert values.values[0][1] == 1.0
+
+
+class TestModelEndpointMonitoringResultValuesV2:
+    """Tests for ModelEndpointMonitoringResultValuesV2 schema."""
+
+    def test_result_values_v2_aggregated(self):
+        """Test v2 result values with aggregation.
+
+        Note: Aggregated results only contain numeric aggregates (avg, max, etc.)
+        without status or extra_data since those cannot be meaningfully aggregated.
+        """
+        from datetime import datetime
+
+        from mlrun.common.schemas.model_monitoring import (
+            AggregationConfig,
+            ModelEndpointMonitoringResultValuesV2,
+        )
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ModelEndpointMonitoringMetricType,
+            ResultKindApp,
+        )
+
+        config = AggregationConfig(
+            aggregated=True, period="1h", functions=["avg", "max"]
+        )
+        # Aggregated values: [timestamp, avg_value, max_value] - no status/extra_data
+        values = ModelEndpointMonitoringResultValuesV2(
+            full_name="project.histogram-data-drift.result.general_drift",
+            result_kind=ResultKindApp.data_drift,
+            aggregation_config=config,
+            values=[
+                [datetime(2025, 1, 1, 0, 0), 0.15, 0.25],
+                [datetime(2025, 1, 1, 1, 0), 0.18, 0.30],
+            ],
+        )
+        assert values.full_name == "project.histogram-data-drift.result.general_drift"
+        assert values.type == ModelEndpointMonitoringMetricType.RESULT
+        assert values.result_kind == ResultKindApp.data_drift
+        assert values.data is True
+        assert values.aggregation_config.aggregated is True
+        assert len(values.values) == 2
+        # Each row has: timestamp + 2 aggregation values (avg, max)
+        assert len(values.values[0]) == 3
+        assert values.values[0][1] == 0.15  # avg
+        assert values.values[0][2] == 0.25  # max
+
+    def test_result_values_v2_raw(self):
+        """Test v2 result values for raw (non-aggregated) data."""
+        from datetime import datetime
+
+        from mlrun.common.schemas.model_monitoring import (
+            AggregationConfig,
+            ModelEndpointMonitoringResultValuesV2,
+        )
+        from mlrun.common.schemas.model_monitoring.constants import ResultKindApp
+
+        config = AggregationConfig(aggregated=False)
+        values = ModelEndpointMonitoringResultValuesV2(
+            full_name="project.app.result.score",
+            result_kind=ResultKindApp.model_performance,
+            aggregation_config=config,
+            values=[
+                [datetime(2025, 1, 1, 0, 0, 0), 0.95, 0, ""],
+            ],
+        )
+        assert values.aggregation_config.aggregated is False
+        assert values.result_kind == ResultKindApp.model_performance
+        assert len(values.values) == 1

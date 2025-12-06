@@ -345,6 +345,49 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
     data: bool = False
 
 
+# V2 API schemas with aggregation support (ML-11445)
+
+
+class AggregationConfig(BaseModel):
+    """Configuration describing the aggregation applied to metric/result values."""
+
+    aggregated: bool
+    period: Optional[str] = None
+    functions: Optional[list[str]] = None
+
+
+class ModelEndpointMonitoringMetricValuesV2(_ModelEndpointMonitoringMetricValuesBase):
+    """V2 metric values with aggregation support.
+
+    Values format: [[timestamp, agg_value_1, agg_value_2, ...], ...]
+    Where agg_value_N corresponds to aggregation_config.functions[N-1].
+    If not aggregated, values are [[timestamp, value], ...].
+    """
+
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.METRIC
+    aggregation_config: AggregationConfig
+    values: list[list[Any]]
+    data: bool = True
+
+
+class ModelEndpointMonitoringResultValuesV2(_ModelEndpointMonitoringMetricValuesBase):
+    """V2 result values with aggregation support.
+
+    Values format depends on aggregation_config.aggregated:
+    - If aggregated: [[timestamp, agg_value_1, agg_value_2, ...], ...]
+      Where agg_value_N corresponds to aggregation_config.functions[N-1].
+      Note: status and extra_data are NOT included in aggregated results
+      since they cannot be meaningfully aggregated.
+    - If not aggregated (raw): [[timestamp, value, status, extra_data], ...]
+    """
+
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.RESULT
+    result_kind: ResultKindApp
+    aggregation_config: AggregationConfig
+    values: list[list[Any]]
+    data: bool = True
+
+
 class ApplicationBaseRecord(BaseModel):
     type: Literal["metric", "result"]
     value: float

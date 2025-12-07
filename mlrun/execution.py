@@ -100,6 +100,7 @@ class MLClientCtx:
         self._node_selector = {}
         self._tolerations = {}
         self._affinity = {}
+        self._auth = {}
 
         self._function = ""
         self._parameters = {}
@@ -232,6 +233,11 @@ class MLClientCtx:
     def node_selector(self):
         """Dictionary with node selectors (read-only)"""
         return deepcopy(self._node_selector)
+
+    @property
+    def auth(self):
+        """Dictionary with auth (read-only)"""
+        return deepcopy(self._auth)
 
     @property
     def tolerations(self):
@@ -436,6 +442,7 @@ class MLClientCtx:
             self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
             self._retry_spec = spec.get("retry", self._retry_spec)
+            self._auth = spec.get("auth", self._auth)
 
         self._init_dbs(rundb)
 
@@ -1301,6 +1308,7 @@ class MLClientCtx:
                 "node_selector": self._node_selector,
                 "tolerations": self._tolerations,
                 "affinity": self._affinity,
+                "auth": self._auth,
                 "retry": self._retry_spec,
             },
             "status": {

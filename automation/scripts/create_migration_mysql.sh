@@ -39,7 +39,7 @@ docker run \
 	-e MYSQL_ROOT_HOST="%" \
 	-e MYSQL_DATABASE="mlrun" \
 	-d \
-	gcr.io/iguazio/mlrun-mysql:8.0 \
+	"$MLRUN_MYSQL_IMAGE" \
 	--character-set-server=utf8 \
 	--collation-server=utf8_bin
 

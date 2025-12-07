@@ -33,6 +33,9 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # mainly used for mlrun and mlrun-gpu.
 MLRUN_PYTHON_VERSION ?= 3.11
 
+# Centralized MySQL image tag for tests and tooling (overridable)
+MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
+
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
 IGUAZIO_PACKAGE_VERSION ?= 0.0.1a16
 
@@ -226,7 +229,7 @@ install-all-requirements: ## Install all requirements needed for development and
 
 .PHONY: create-migration-mysql
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
-	./automation/scripts/create_migration_mysql.sh
+	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) ./automation/scripts/create_migration_mysql.sh
 
 .PHONY: create-migration
 create-migration: create-migration-mysql
@@ -643,6 +646,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		-e MLRUN_VERSION=$(MLRUN_VERSION) \
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-v /tmp:/tmp \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
@@ -707,6 +711,7 @@ test-integration-dockerized: build-test api ## Run mlrun integration tests in do
 		-e RUN_COVERAGE=$(RUN_COVERAGE) \
 		-e MLRUN_VERSION=$(MLRUN_VERSION) \
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
@@ -716,6 +721,7 @@ test-integration: clean ## Run mlrun integration tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
+	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
@@ -741,6 +747,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-e RUN_COVERAGE=$(RUN_COVERAGE) \
 		-e MLRUN_VERSION=$(MLRUN_VERSION) \
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make RUN_COVERAGE=true test-migrations
 
@@ -748,6 +755,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 test-migrations: clean ## Run mlrun db migrations tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
+	export MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) && \
 	export COVERAGE_FILE && \
 	$(SETUP_COVERAGE) && \
 	bash -c 'set -euo pipefail; \

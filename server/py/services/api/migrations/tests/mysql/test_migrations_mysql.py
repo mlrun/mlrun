@@ -24,3 +24,6 @@ from services.api.migrations.tests.base.migrations_tests import (  # noqa
     test_upgrade,
     test_notification_params_to_secret_params,
 )
+
+if __name__ == "__main__":
+    pass

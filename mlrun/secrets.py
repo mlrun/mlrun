@@ -20,6 +20,7 @@ from typing import Optional, Union
 
 import mlrun.auth.utils
 import mlrun.utils.helpers
+from mlrun.config import is_running_as_api
 
 from .utils import AzureVaultStore, list2dict, logger
 
@@ -53,6 +54,11 @@ class SecretsStore:
                 self._secrets[prefix + k] = str(v)
 
         elif kind == "file":
+            # Ensure files cannot be open from inside the API
+            if is_running_as_api():
+                raise RuntimeError(
+                    "add_source of kind 'file' is not allowed from the API"
+                )
             with open(source) as fp:
                 lines = fp.read().splitlines()
                 secrets_dict = list2dict(lines)

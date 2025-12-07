@@ -14,8 +14,6 @@
 
 import os
 import typing
-from pathlib import PurePosixPath
-from urllib.parse import urljoin
 
 import yaml
 
@@ -340,4 +338,6 @@ def enrich_auth_env(
             mlrun.mlconf.iguazio_api_ssl_verify
         ).lower()
         env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] = os.path.join(
-            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE)
+            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+        )

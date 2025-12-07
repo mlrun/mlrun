@@ -697,9 +697,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 )
 
     # TODO finish function and implement tests during ML-11600
-    def _resolve_and_validate_token_name_from_secret(
-        self, run: mlrun.run.RunObject
-    ):
+    def _resolve_and_validate_token_name_from_secret(self, run: mlrun.run.RunObject):
         auth = run.spec.auth or {}
 
         if auth.get("token_name"):
@@ -723,8 +721,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def _validate_token_name(self, token_name: str, explicit: bool = False):
         # TODO implement token name validation ML-11600
         pass
-
-
 
 
 # Once this file is imported it will set the container server side launcher

@@ -1466,7 +1466,6 @@ def my_func(context):
         # validate that the default project env var is also set for backward compatibility
         assert env["MLRUN_DEFAULT_PROJECT"] == self.project
 
-
     def test_generate_runtime_env_injects_iguazio4_envs(self):
         runtime = self._generate_runtime()
         iguazio_api_url = "https://api.example.com"

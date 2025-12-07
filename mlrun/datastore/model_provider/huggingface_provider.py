@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import threading
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import mlrun
@@ -40,6 +40,9 @@ class HuggingFaceProvider(ModelProvider):
     Note: The pipeline object will download the model (if not already cached) and load it
     into memory for inference. Ensure you have the required CPU/GPU and memory to use this operation.
     """
+
+    #  locks for threading use cases
+    _client_lock = threading.Lock()
 
     def __init__(
         self,
@@ -224,7 +227,8 @@ class HuggingFaceProvider(ModelProvider):
 
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True
-            self._client = pipeline(model=self.model, **self.options)
+            with self._client_lock:
+                self._client = pipeline(model=self.model, **self.options)
             self._expected_operation_type = Pipeline
         except ImportError as exc:
             raise ImportError("transformers package is not installed") from exc

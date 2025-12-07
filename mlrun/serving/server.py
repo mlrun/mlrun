@@ -574,12 +574,30 @@ def _get_top_object_types(top_n=10):
 
         # Filter out very common internal types that are unlikely to be leaks
         ignore_types = {
-            "function", "dict", "list", "tuple", "set", "frozenset",
-            "type", "module", "method", "builtin_function_or_method",
-            "wrapper_descriptor", "method_descriptor", "getset_descriptor",
-            "member_descriptor", "classmethod_descriptor", "staticmethod",
-            "cell", "code", "frame", "traceback", "generator",
-            "weakref", "property", "classmethod",
+            "function",
+            "dict",
+            "list",
+            "tuple",
+            "set",
+            "frozenset",
+            "type",
+            "module",
+            "method",
+            "builtin_function_or_method",
+            "wrapper_descriptor",
+            "method_descriptor",
+            "getset_descriptor",
+            "member_descriptor",
+            "classmethod_descriptor",
+            "staticmethod",
+            "cell",
+            "code",
+            "frame",
+            "traceback",
+            "generator",
+            "weakref",
+            "property",
+            "classmethod",
         }
 
         # Get counts for interesting types only
@@ -660,7 +678,11 @@ def _log_drain_diagnostics(logger, phase, server):
     - Top object types by count (what's growing?)
     - Queue and batch sizes (where is data stuck?)
     """
-    global _drain_count, _previous_controller_id, _previous_flow_id, _previous_object_counts
+    global \
+        _drain_count, \
+        _previous_controller_id, \
+        _previous_flow_id, \
+        _previous_object_counts
 
     memory_mb = _get_process_memory_mb()
     pending_tasks, total_tasks = _count_pending_tasks()
@@ -678,13 +700,9 @@ def _log_drain_diagnostics(logger, phase, server):
 
     # Check if objects changed
     controller_changed = (
-        _previous_controller_id is not None and
-        controller_id != _previous_controller_id
+        _previous_controller_id is not None and controller_id != _previous_controller_id
     )
-    flow_changed = (
-        _previous_flow_id is not None and
-        flow_id != _previous_flow_id
-    )
+    flow_changed = _previous_flow_id is not None and flow_id != _previous_flow_id
 
     logger.info(
         f"ML-11518 DIAG [{phase}]: "
@@ -712,14 +730,19 @@ def _log_drain_diagnostics(logger, phase, server):
             for t in all_tasks:
                 if not t.done():
                     coro = t.get_coro()
-                    name = coro.__qualname__ if hasattr(coro, "__qualname__") else str(coro)
+                    name = (
+                        coro.__qualname__
+                        if hasattr(coro, "__qualname__")
+                        else str(coro)
+                    )
                     task_names[name] = task_names.get(name, 0) + 1
 
-            logger.warning(
+            # Use logger.info since Nuclio logger doesn't have .warning()
+            logger.info(
                 f"ML-11518 DIAG [{phase}]: Pending tasks breakdown: {dict(task_names)}"
             )
         except Exception as e:
-            logger.warning(f"ML-11518 DIAG: Error getting task details: {e}")
+            logger.info(f"ML-11518 DIAG: Error getting task details: {e}")
 
     # Log top object types and changes since last drain
     current_counts = _get_top_object_types(top_n=15)
@@ -735,9 +758,67 @@ def _log_drain_diagnostics(logger, phase, server):
                     growth[obj_type] = f"+{count - prev_count}"
 
             if growth:
-                logger.warning(f"ML-11518 DIAG [{phase}]: Object growth since last: {growth}")
+                # Use logger.info since Nuclio logger doesn't have .warning()
+                logger.info(
+                    f"ML-11518 DIAG [{phase}]: Object growth since last: {growth}"
+                )
 
     return controller_id, flow_id, current_counts
+
+
+def _log_timeout_task_state(logger, server, phase):
+    """
+    ML-11518: Log the state of storey _timeout_task on batching steps.
+
+    This is the key diagnostic - storey's _Batching steps have a _timeout_task
+    that runs _sleep_and_emit(). This task is NOT cancelled on terminate(),
+    causing "Task was destroyed but pending" errors during drain.
+    """
+    try:
+        source = getattr(server.graph, "_async_flow", None)
+        if not source:
+            return
+
+        # Walk the flow to find steps with _timeout_task
+        timeout_tasks = []
+        visited = set()
+
+        def walk_step(step):
+            if step is None or id(step) in visited:
+                return
+            visited.add(id(step))
+
+            step_name = getattr(step, "name", type(step).__name__)
+
+            # Check for _timeout_task (exists on _Batching subclasses)
+            timeout_task = getattr(step, "_timeout_task", None)
+            if timeout_task is not None:
+                task_state = "PENDING" if not timeout_task.done() else "DONE"
+                if timeout_task.cancelled():
+                    task_state = "CANCELLED"
+                timeout_tasks.append(f"{step_name}:{task_state}")
+
+            # Also check batch state
+            batch = getattr(step, "_batch", None)
+            if batch is not None:
+                batch_size = len(batch) if hasattr(batch, "__len__") else "?"
+                timeout_tasks.append(f"{step_name}._batch:{batch_size}")
+
+            # Walk outlets
+            for outlet in getattr(step, "_outlets", []):
+                walk_step(outlet)
+
+        walk_step(source)
+
+        if timeout_tasks:
+            logger.info(
+                f"ML-11518 TIMEOUT_TASK [{phase}]: {', '.join(timeout_tasks)}"
+            )
+        else:
+            logger.info(f"ML-11518 TIMEOUT_TASK [{phase}]: no _timeout_task found")
+
+    except Exception as e:
+        logger.info(f"ML-11518 TIMEOUT_TASK [{phase}]: error checking: {e}")
 
 
 async def _clear_flow_references(logger, source, graph_steps=None):
@@ -825,7 +906,8 @@ async def _clear_flow_references(logger, source, graph_steps=None):
         logger.info(f"ML-11518: Cleared references on {cleared_count} flow steps")
 
     except Exception as e:
-        logger.warning(f"ML-11518: Error clearing flow references: {e}")
+        # Use logger.info since Nuclio logger doesn't have .warning()
+        logger.info(f"ML-11518: Error clearing flow references: {e}")
 
 
 def v2_serving_init(context, namespace=None):
@@ -1193,36 +1275,77 @@ def _set_callbacks(server, context):
         )
 
         async def drain_callback():
-            global _drain_count, _previous_controller_id, _previous_flow_id, _previous_object_counts
+            import time
 
+            global \
+                _drain_count, \
+                _previous_controller_id, \
+                _previous_flow_id, \
+                _previous_object_counts
+
+            drain_start = time.time()
             _drain_count += 1
-            context.logger.info(f"Drain callback called (drain #{_drain_count})")
-
-            # ML-11518: Log diagnostics BEFORE termination
-            _log_drain_diagnostics(context.logger, "BEFORE_TERMINATE", server)
-
-            maybe_coroutine = server.wait_for_completion()
-            if asyncio.iscoroutine(maybe_coroutine):
-                await maybe_coroutine
-
-            # ML-11518: Log diagnostics AFTER termination, BEFORE restart
-            _log_drain_diagnostics(context.logger, "AFTER_TERMINATE", server)
-
             context.logger.info(
-                "Termination of async flow is completed. Rerunning async flow."
+                f"ML-11518 DRAIN START: drain #{_drain_count} at {drain_start:.3f}"
             )
-            # Rerun the flow without reconstructing it
-            server.graph._run_async_flow()
 
-            # ML-11518: Log diagnostics AFTER restart, update tracking state
-            new_ctrl_id, new_flow_id, new_counts = _log_drain_diagnostics(
-                context.logger, "AFTER_RESTART", server
-            )
-            _previous_controller_id = new_ctrl_id
-            _previous_flow_id = new_flow_id
-            _previous_object_counts = new_counts
+            try:
+                # ML-11518: Log diagnostics BEFORE termination
+                _log_drain_diagnostics(context.logger, "BEFORE_TERMINATE", server)
 
-            context.logger.info(f"Async flow restarted (drain #{_drain_count} complete)")
+                # ML-11518: Log _timeout_task state before terminate
+                _log_timeout_task_state(context.logger, server, "BEFORE_TERMINATE")
+
+                terminate_start = time.time()
+                context.logger.info(
+                    f"ML-11518 TERMINATE START: calling wait_for_completion() "
+                    f"at +{(terminate_start - drain_start)*1000:.1f}ms"
+                )
+
+                maybe_coroutine = server.wait_for_completion()
+                if asyncio.iscoroutine(maybe_coroutine):
+                    await maybe_coroutine
+
+                terminate_end = time.time()
+                context.logger.info(
+                    f"ML-11518 TERMINATE END: wait_for_completion() returned "
+                    f"after {(terminate_end - terminate_start)*1000:.1f}ms"
+                )
+
+                # ML-11518: Log _timeout_task state AFTER terminate - this is key!
+                _log_timeout_task_state(context.logger, server, "AFTER_TERMINATE")
+
+                # ML-11518: Log diagnostics AFTER termination, BEFORE restart
+                _log_drain_diagnostics(context.logger, "AFTER_TERMINATE", server)
+
+                context.logger.info(
+                    "Termination of async flow is completed. Rerunning async flow."
+                )
+                # Rerun the flow without reconstructing it
+                server.graph._run_async_flow()
+
+                # ML-11518: Log diagnostics AFTER restart, update tracking state
+                new_ctrl_id, new_flow_id, new_counts = _log_drain_diagnostics(
+                    context.logger, "AFTER_RESTART", server
+                )
+                _previous_controller_id = new_ctrl_id
+                _previous_flow_id = new_flow_id
+                _previous_object_counts = new_counts
+
+                drain_end = time.time()
+                context.logger.info(
+                    f"ML-11518 DRAIN END: drain #{_drain_count} complete "
+                    f"after {(drain_end - drain_start)*1000:.1f}ms total"
+                )
+
+            except Exception as e:
+                context.logger.info(
+                    f"ML-11518 DRAIN ERROR: drain #{_drain_count} failed after "
+                    f"{(time.time() - drain_start)*1000:.1f}ms: {type(e).__name__}: {e}"
+                )
+                import traceback
+                context.logger.info(f"ML-11518 TRACEBACK: {traceback.format_exc()}")
+                raise
 
         context.platform.set_drain_callback(drain_callback)
 

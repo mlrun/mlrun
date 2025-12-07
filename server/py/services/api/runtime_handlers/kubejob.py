@@ -227,11 +227,11 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             runtime.apply(
                 mlrun.mounts.mount_secret(
                     secret.metadata.name,
-                    mount_path=mlrun.common.constants.MLRUN_AUTH_SECRET_PATH,
+                    mount_path=mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
                     items=[
                         {
                             "key": "tokensFile",
-                            "path": mlrun.common.constants.MLRUN_AUTH_SECRET_FILE,
+                            "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
                         }
                     ],
                 )

@@ -1035,7 +1035,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             assert len(runtime.spec.volume_mounts) == 1
             assert (
                 runtime.spec.volume_mounts[0]["mountPath"]
-                == mlrun.common.constants.MLRUN_AUTH_SECRET_PATH
+                == mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH
             )
             assert runtime.spec.volume_mounts[0]["name"] == "secret"
 
@@ -1045,6 +1045,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             assert runtime.spec.volumes[0]["secret"]["items"] == [
                 {
                     "key": "tokensFile",
-                    "path": mlrun.common.constants.MLRUN_AUTH_SECRET_FILE,
+                    "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
                 }
             ]

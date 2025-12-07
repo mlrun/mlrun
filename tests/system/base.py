@@ -486,3 +486,138 @@ class TestMLRunSystem:
                 return parts[0]
 
         raise ValueError(f"Could not extract fork from git URL: {git_url}")
+
+    # =========================================================================
+    # Pod Log Collection for Test Failure Debugging
+    # =========================================================================
+
+    # System pod prefixes - these are shared pods, not project-specific
+    SYSTEM_POD_PREFIXES = ("mlrun-api-chief", "mlrun-api-worker")
+
+    # Default namespace for MLRun pods
+    DEFAULT_NAMESPACE = "default-tenant"
+
+    def _is_kube_client_available(self) -> bool:
+        """Check if kube_client is configured and available."""
+        try:
+            if not hasattr(self, "kube_client") or self.kube_client is None:
+                return False
+            # Test if it's a property that raises
+            _ = self.kube_client.api_client
+            return True
+        except AttributeError:
+            return False
+
+    def _is_project_pod(self, pod_name: str, project_name: str) -> bool:
+        """Check if pod belongs to the test project (name contains project name)."""
+        return project_name in pod_name
+
+    def _is_system_pod(self, pod_name: str) -> bool:
+        """Check if pod is a system pod (mlrun-api-*)."""
+        return pod_name.startswith(self.SYSTEM_POD_PREFIXES)
+
+    def _collect_single_pod_logs(
+        self,
+        pod_name: str,
+        namespace: str,
+        tail_lines: int,
+        since_seconds: typing.Optional[int] = None,
+    ) -> typing.Optional[str]:
+        """Collect logs from a single pod.
+
+        :param pod_name: Name of the pod
+        :param namespace: Kubernetes namespace
+        :param tail_lines: Maximum number of lines to retrieve
+        :param since_seconds: Only return logs newer than this many seconds
+        :returns: Pod logs or error message
+        """
+        try:
+            logs = self.kube_client.read_namespaced_pod_log(
+                name=pod_name,
+                namespace=namespace,
+                tail_lines=tail_lines,
+                since_seconds=since_seconds,
+            )
+            self._logger.debug(
+                f"Collected logs from {pod_name}",
+                lines=len(logs.splitlines()) if logs else 0,
+            )
+            return logs
+        except Exception as e:
+            self._logger.warning(f"Failed to collect logs from {pod_name}: {e}")
+            return f"[Failed to get logs: {e}]"
+
+    def collect_pod_logs_on_failure(
+        self,
+        test_duration_seconds: int,
+        tail_lines: int = 1000,
+        time_buffer_seconds: int = 60,
+        namespace: str = DEFAULT_NAMESPACE,
+    ) -> dict[str, str]:
+        """Collect logs from relevant pods for debugging test failures.
+
+        Collects logs from:
+        - Project pods (name contains project_name): full logs (tail_lines)
+        - System pods (mlrun-api-*): time-bounded logs (since_seconds)
+
+        :param test_duration_seconds: How long the test ran (for since_seconds calc)
+        :param tail_lines: Maximum lines per pod (default 1000)
+        :param time_buffer_seconds: Extra seconds to add to since_seconds (default 60)
+        :param namespace: Kubernetes namespace (default: default-tenant)
+        :returns: Dictionary mapping pod names to their logs
+        """
+        if not self._is_kube_client_available():
+            self._logger.info(
+                "kube_client not available, skipping pod log collection. "
+                "Set MLRUN_SYSTEM_TEST_KUBECONFIG_PATH or MLRUN_SYSTEM_TEST_KUBECONFIG."
+            )
+            return {}
+
+        project_name = self.project_name
+        since_seconds = test_duration_seconds + time_buffer_seconds
+        collected_logs = {}
+
+        try:
+            pods = self.kube_client.list_namespaced_pod(namespace)
+        except Exception as e:
+            self._logger.warning(f"Failed to list pods in {namespace}: {e}")
+            return {}
+
+        for pod in pods.items:
+            pod_name = pod.metadata.name
+
+            if self._is_project_pod(pod_name, project_name):
+                if logs := self._collect_single_pod_logs(
+                    pod_name, namespace, tail_lines, since_seconds=None
+                ):
+                    collected_logs[pod_name] = logs
+
+            elif self._is_system_pod(pod_name):
+                if logs := self._collect_single_pod_logs(
+                    pod_name, namespace, tail_lines, since_seconds=since_seconds
+                ):
+                    collected_logs[f"{pod_name} (last {since_seconds}s)"] = logs
+
+        return collected_logs
+
+    def print_pod_logs(self, logs: dict[str, str]) -> None:
+        """Print collected pod logs for CI visibility.
+
+        :param logs: Dictionary mapping pod names to their logs
+        """
+        if not logs:
+            self._logger.info("No pod logs collected")
+            return
+
+        self._logger.info("=" * 60)
+        self._logger.info("POD LOGS FOR DEBUGGING TEST FAILURE")
+        self._logger.info("=" * 60)
+
+        for pod_name, pod_logs in logs.items():
+            self._logger.info(f"\n--- {pod_name} ---")
+            # Print directly to ensure it appears in CI output
+            print(pod_logs)
+
+        self._logger.info("=" * 60)
+        self._logger.info("END OF POD LOGS")
+        self._logger.info("=" * 60)

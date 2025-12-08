@@ -812,10 +812,6 @@ class Service(framework.service.Service):
         )
 
         if not len(runs):
-            self._logger.debug(
-                "No runs ended during the current window",
-                end_time_from=end_time_from,
-            )
             return
 
         # Unmasking the run parameters from secrets before handing them over to the notification handler
@@ -941,16 +937,14 @@ class Service(framework.service.Service):
         Retry jobs that are in a failed state and have a retry policy configured.
         This function is called periodically to retry jobs that have failed and can be retried.
         """
-        self._logger.debug("Retrying jobs with retry policy configured")
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         fetch_runs_limit = int(mlconf.monitoring.runs.retry.fetch_runs_limit)
         stale_after = mlconf.get_run_retry_staleness_threshold_timedelta()
         now = datetime.datetime.now(datetime.UTC)
         try:
             offset = 0
             while runs := await fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
                 get_db().list_runs,
-                db_session,
                 project="*",
                 states=[mlrun.common.runtimes.constants.RunStates.pending_retry],
                 limit=fetch_runs_limit,
@@ -1044,8 +1038,6 @@ class Service(framework.service.Service):
                 exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     def _submit_run_for_retry(self, run: mlrun.RunObject):
         self._retry_in_progress_run_uids[run.metadata.uid] = datetime.datetime.now(

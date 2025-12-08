@@ -220,7 +220,7 @@ class TimescaleDBOperationsManager:
             if include_aggregates:
                 # Always try to discover and delete aggregates, regardless of config
                 all_deletion_statements.extend(
-                    self._get_aggregate_delete_statements(endpoint_ids)
+                    self._get_aggregate_delete_statements_by_endpoints(endpoint_ids)
                 )
 
             # Execute all deletions in a single transaction
@@ -268,7 +268,7 @@ class TimescaleDBOperationsManager:
 
         return statements
 
-    def _get_aggregate_delete_statements(
+    def _get_aggregate_delete_statements_by_endpoints(
         self, endpoint_ids: list[str]
     ) -> list[Statement]:
         """
@@ -277,10 +277,14 @@ class TimescaleDBOperationsManager:
         This approach discovers all existing aggregate tables rather than relying on configuration,
         ensuring we don't miss any aggregate data.
 
-        :param endpoint_ids: List of endpoint IDs to delete
+        :param endpoint_ids: List of endpoint IDs to delete (must be non-empty)
         :return: List of Statement objects for aggregate data deletion
         """
         statements = []
+
+        # Early return for empty endpoint list - nothing to delete
+        if not endpoint_ids:
+            return statements
 
         try:
             schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema
@@ -299,7 +303,8 @@ class TimescaleDBOperationsManager:
             if not base_patterns:
                 return statements
 
-            # Build query to find all aggregate tables and views
+            # Build query to find all aggregate tables and continuous aggregate views
+            # TimescaleDB continuous aggregates appear as VIEWs in information_schema
             pattern_conditions = []
             parameters = [schema_name]
 
@@ -312,30 +317,16 @@ class TimescaleDBOperationsManager:
                 )
                 parameters.extend(TimescaleDBNaming.get_all_aggregate_patterns(pattern))
 
-            # Build separate pattern conditions for materialized views
-            view_pattern_conditions = []
-            view_parameters = [schema_name]
-
-            for pattern in base_patterns:
-                view_pattern_conditions.append("matviewname LIKE %s")
-                view_parameters.append(TimescaleDBNaming.get_cagg_pattern(pattern))
-
-            # Query for both tables and materialized views
             discovery_stmt = Statement(
                 f"""
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = %s
-                AND table_type = 'BASE TABLE'
+                AND table_type IN ('BASE TABLE', 'VIEW')
                 AND ({' OR '.join(pattern_conditions)})
-                UNION
-                SELECT matviewname as table_name
-                FROM pg_matviews
-                WHERE schemaname = %s
-                AND ({' OR '.join(view_pattern_conditions)})
                 ORDER BY table_name
                 """,
-                tuple([schema_name] + parameters[1:] + view_parameters[1:]),
+                tuple(parameters),
             )
 
             result = self._connection.run(query=discovery_stmt)
@@ -360,12 +351,12 @@ class TimescaleDBOperationsManager:
 
             # Create delete statements for all discovered aggregate objects
             for object_name in discovered_objects:
-                delete_sql = f"DELETE FROM {schema_name}.{object_name} WHERE "
+                delete_sql = f"DELETE FROM {schema_name}.{object_name} WHERE"
                 if len(endpoint_ids) == 1:
-                    f" {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
+                    delete_sql += f" {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
                     stmt = Statement(delete_sql, (endpoint_ids[0],))
                 else:
-                    f" {mm_schemas.WriterEvent.ENDPOINT_ID} = ANY(%s)"
+                    delete_sql += f" {mm_schemas.WriterEvent.ENDPOINT_ID} = ANY(%s)"
                     stmt = Statement(delete_sql, (endpoint_ids,))
 
                 statements.append(stmt)
@@ -713,7 +704,9 @@ class TimescaleDBOperationsManager:
             app_filter = f"{mm_schemas.WriterEvent.APPLICATION_NAME} = %s"
             base_parameters = [application_name]
 
-            if endpoint_ids:
+            # Note: None means "delete all for this application" (no endpoint filter)
+            # Empty list [] would delete nothing, so we treat it same as None
+            if endpoint_ids:  # Non-empty list
                 if len(endpoint_ids) == 1:
                     endpoint_filter = f" AND {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
                     parameters = base_parameters + [endpoint_ids[0]]

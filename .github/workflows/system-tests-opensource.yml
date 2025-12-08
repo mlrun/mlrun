@@ -196,9 +196,7 @@ jobs:
         sudo apt-get install --yes build-essential libpq-dev libffi-dev libssl-dev python3-dev pkg-config curl jq make
         uv venv venv --seed
         source venv/bin/activate
-        make install-requirements install-complete-requirements install-complete-kfp-requirements
-
-        make install-automation-requirements
+        make install-requirements install-complete-requirements install-automation-requirements
 
         # Pin cffi below 2.0.0 to avoid wheels without _cffi_backend on the runner
         # python -m pip install --upgrade --force-reinstall "cffi<2.0.0" cryptography bcrypt paramiko orjson

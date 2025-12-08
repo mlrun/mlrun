@@ -709,6 +709,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         run.spec.auth["token_name"] = "default"
 
+    # TODO implement validation in ML-11600
     def _validate_token_name(self, token_name: str, explicit: bool = False):
         pass
 

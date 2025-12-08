@@ -29,6 +29,7 @@ from mlrun.utils import logger
 import framework.db.base as api_db_base
 import framework.utils.singletons.k8s
 from services.api.runtime_handlers import BaseRuntimeHandler
+import services.api.crud.secrets
 
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
@@ -61,11 +62,9 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         new_meta = self._get_meta(runtime, run)
 
         if mlrun.mlconf.is_iguazio_v4_mode():
-            self._mount_secret_token_to_runtime(
-                runtime,
+            runtime = services.api.crud.secrets.Secrets.mount_secret_token_to_runtime(runtime,
                 token_name=run.spec.auth.get("token_name"),
-                username=auth_info.username,
-            )
+                username=auth_info.username)
 
         self.add_secrets_to_spec_before_running(
             runtime, project_name=run.metadata.project
@@ -212,30 +211,6 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_lifecycle():
         return None
-
-    @staticmethod
-    def _mount_secret_token_to_runtime(
-        runtime: mlrun.runtimes.base.BaseRuntime, token_name: str, username: str
-    ):
-        # Validation that the secret exists is done in the ServerSideLauncher
-        secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(
-            username=username, token_name=token_name
-        )
-
-        # In case the secret was not found (which should not happen because of the prior validation), we do not mount it
-        if secret:
-            runtime.apply(
-                mlrun.mounts.mount_secret(
-                    secret.metadata.name,
-                    mount_path=mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-                    items=[
-                        {
-                            "key": "tokensFile",
-                            "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
-                        }
-                    ],
-                )
-            )
 
 
 class DatabricksRuntimeHandler(KubeRuntimeHandler):

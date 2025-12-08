@@ -179,16 +179,20 @@ class TSDBConnector(ABC):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: Literal["metrics", "results"],
         with_result_extra_data: bool,
+        agg_period: Optional[str] = None,
+        agg_functions: Optional[list[str]] = None,
     ) -> Union[
         list[
             Union[
                 mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringResultValuesV2,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
         ],
         list[
             Union[
                 mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricValuesV2,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
         ],
@@ -203,7 +207,14 @@ class TSDBConnector(ABC):
         :param type:                   "metrics" or "results" - the type of each item in metrics.
         :param with_result_extra_data: Whether to include the extra data in the results, relevant only when
                                        `type="results"`.
-        :return:                        A list of result values or a list of metric values.
+        :param agg_period:             Optional aggregation period (e.g., "1h", "6h", "12h", "24h").
+                                       If None, returns raw data (V1 schemas).
+                                       If provided, returns aggregated data (V2 schemas).
+                                       Not all connectors support aggregation.
+        :param agg_functions:          Optional list of aggregation functions (e.g., ["avg", "min", "max"]).
+                                       Only used when agg_period is specified.
+        :return:                       V1 schemas (MetricValues/ResultValues) when agg_period is None,
+                                       V2 schemas (MetricValuesV2/ResultValuesV2) when agg_period is provided.
         """
 
     @abstractmethod
@@ -507,14 +518,13 @@ class TSDBConnector(ABC):
             )
             del metrics_without_data[full_name]
 
-        for metric in metrics_without_data.values():
-            metrics_values.append(
-                mm_schemas.ModelEndpointMonitoringMetricNoData(
-                    full_name=metric.full_name,
-                    type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
-                )
+        metrics_values.extend(
+            mm_schemas.ModelEndpointMonitoringMetricNoData(
+                full_name=metric.full_name,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
             )
-
+            for metric in metrics_without_data.values()
+        )
         return metrics_values
 
     @staticmethod
@@ -584,18 +594,270 @@ class TSDBConnector(ABC):
                 raise
             del metrics_without_data[full_name]
 
-        for metric in metrics_without_data.values():
-            if metric.full_name == mlrun.model_monitoring.helpers.get_invocations_fqn(
-                project
-            ):
-                continue
-            metrics_values.append(
-                mm_schemas.ModelEndpointMonitoringMetricNoData(
-                    full_name=metric.full_name,
-                    type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
-                )
+        metrics_values.extend(
+            mm_schemas.ModelEndpointMonitoringMetricNoData(
+                full_name=metric.full_name,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
             )
+            for metric in metrics_without_data.values()
+            if metric.full_name
+            != mlrun.model_monitoring.helpers.get_invocations_fqn(project)
+        )
+        return metrics_values
 
+    @staticmethod
+    def _is_aggregated(agg_period: Optional[str]) -> bool:
+        """Check if the aggregation period indicates aggregated data."""
+        return agg_period is not None and agg_period != "raw"
+
+    @staticmethod
+    def _build_aggregation_config(
+        agg_period: Optional[str],
+        agg_functions: Optional[list[str]],
+    ) -> mm_schemas.AggregationConfig:
+        """Build aggregation config based on period and functions."""
+        is_aggregated = TSDBConnector._is_aggregated(agg_period)
+        return mm_schemas.AggregationConfig(
+            aggregated=is_aggregated,
+            period=agg_period if is_aggregated else None,
+            functions=agg_functions if is_aggregated else None,
+        )
+
+    @staticmethod
+    def _build_metric_values_from_df(
+        sub_df: pd.DataFrame,
+        value_column: str,
+        is_aggregated: bool,
+        agg_functions: Optional[list[str]],
+    ) -> list[list]:
+        """Build values list from DataFrame based on aggregation settings."""
+        if not (is_aggregated and agg_functions):
+            # Raw: [[timestamp, value], ...]
+            return [[idx, float(row[value_column])] for idx, row in sub_df.iterrows()]
+        # Aggregated: [[timestamp, agg_val_1, agg_val_2, ...], ...]
+        values = []
+        for idx, row in sub_df.iterrows():
+            row_values = [idx]  # timestamp
+            for func in agg_functions:
+                col_name = f"{func}_{value_column}"
+                if col_name not in row:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Aggregated column '{col_name}' not found in DataFrame. "
+                        f"Available columns: {list(row.index)}"
+                    )
+                row_values.append(float(row[col_name]))
+            values.append(row_values)
+        return values
+
+    @staticmethod
+    def _build_result_values_from_df(
+        sub_df: pd.DataFrame,
+        is_aggregated: bool,
+        agg_functions: Optional[list[str]],
+    ) -> list[list]:
+        """
+        Build result values list from DataFrame based on aggregation settings.
+
+        For aggregated results: [[timestamp, agg_val_1, agg_val_2, ...], ...]
+        For raw results: [[timestamp, value, status, extra_data], ...]
+
+        Note: status and extra_data are only included for raw (non-aggregated) results
+        since those cannot be meaningfully aggregated.
+        """
+        value_column = mm_schemas.ResultData.RESULT_VALUE
+        if not (is_aggregated and agg_functions):
+            # Raw: [[timestamp, value, status, extra_data], ...]
+            return [
+                [
+                    idx,
+                    float(row[value_column]),
+                    int(row[mm_schemas.ResultData.RESULT_STATUS]),
+                    row.get(mm_schemas.ResultData.RESULT_EXTRA_DATA, ""),
+                ]
+                for idx, row in sub_df.iterrows()
+            ]
+        # Aggregated: [[timestamp, agg_val_1, agg_val_2, ...], ...]
+        values = []
+        for idx, row in sub_df.iterrows():
+            row_values = [idx]  # timestamp
+            for func in agg_functions:
+                col_name = f"{func}_{value_column}"
+                if col_name not in row:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Aggregated column '{col_name}' not found in DataFrame. "
+                        f"Available columns: {list(row.index)}"
+                    )
+                row_values.append(float(row[col_name]))
+            values.append(row_values)
+        return values
+
+    @staticmethod
+    def df_to_metrics_values_v2(
+        *,
+        df: pd.DataFrame,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        project: str,
+        agg_period: Optional[str],
+        agg_functions: Optional[list[str]],
+    ) -> list[
+        Union[
+            mm_schemas.ModelEndpointMonitoringMetricValuesV2,
+            mm_schemas.ModelEndpointMonitoringMetricNoData,
+        ]
+    ]:
+        """
+        Parse a time-indexed DataFrame of metrics from the TSDB into v2 response format
+        with aggregation metadata.
+
+        :param df:            The DataFrame to parse (time-indexed).
+        :param metrics:       List of metrics to look for.
+        :param project:       The project name.
+        :param agg_period:    Aggregation period (e.g., "1h") or None for raw data.
+        :param agg_functions: List of aggregation functions (e.g., ["avg", "min"]) or None.
+        :return:              A list of v2 metric values or no-data objects.
+        """
+        metrics_without_data = {metric.full_name: metric for metric in metrics}
+        is_aggregated = TSDBConnector._is_aggregated(agg_period)
+        aggregation_config = TSDBConnector._build_aggregation_config(
+            agg_period, agg_functions
+        )
+
+        metrics_values: list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringMetricValuesV2,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ]
+        ] = []
+
+        if df.empty:
+            logger.debug("No metrics", missing_metrics=metrics_without_data.keys())
+        else:
+            grouped = df.groupby(
+                [
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.MetricData.METRIC_NAME,
+                ],
+                observed=False,
+            )
+            for (app_name, name), sub_df in grouped:
+                full_name = mm_schemas.model_endpoints.compose_full_name(
+                    project=project,
+                    app=app_name,
+                    name=name,
+                    type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+                )
+                values = TSDBConnector._build_metric_values_from_df(
+                    sub_df,
+                    mm_schemas.MetricData.METRIC_VALUE,
+                    is_aggregated,
+                    agg_functions,
+                )
+                metrics_values.append(
+                    mm_schemas.ModelEndpointMonitoringMetricValuesV2(
+                        full_name=full_name,
+                        aggregation_config=aggregation_config,
+                        values=values,
+                    )
+                )
+                del metrics_without_data[full_name]
+
+        metrics_values.extend(
+            mm_schemas.ModelEndpointMonitoringMetricNoData(
+                full_name=metric.full_name,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            )
+            for metric in metrics_without_data.values()
+        )
+        return metrics_values
+
+    @staticmethod
+    def df_to_results_values_v2(
+        *,
+        df: pd.DataFrame,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        project: str,
+        agg_period: Optional[str],
+        agg_functions: Optional[list[str]],
+    ) -> list[
+        Union[
+            mm_schemas.ModelEndpointMonitoringResultValuesV2,
+            mm_schemas.ModelEndpointMonitoringMetricNoData,
+        ]
+    ]:
+        """
+        Parse a time-indexed DataFrame of results from the TSDB into v2 response format
+        with aggregation metadata.
+
+        :param df:            The DataFrame to parse (time-indexed).
+        :param metrics:       List of results to look for.
+        :param project:       The project name.
+        :param agg_period:    Aggregation period (e.g., "1h") or None for raw data.
+        :param agg_functions: List of aggregation functions (e.g., ["avg", "min"]) or None.
+        :return:              A list of v2 result values or no-data objects.
+
+        Note: For aggregated results, only numeric values are returned (no status/extra_data
+        since those cannot be meaningfully aggregated).
+        """
+        metrics_without_data = {metric.full_name: metric for metric in metrics}
+        is_aggregated = TSDBConnector._is_aggregated(agg_period)
+        aggregation_config = TSDBConnector._build_aggregation_config(
+            agg_period, agg_functions
+        )
+
+        metrics_values: list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringResultValuesV2,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ]
+        ] = []
+
+        if df.empty:
+            logger.debug("No results", missing_results=metrics_without_data.keys())
+        else:
+            grouped = df.groupby(
+                [
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.ResultData.RESULT_NAME,
+                ],
+                observed=False,
+            )
+            for (app_name, name), sub_df in grouped:
+                result_kind = mlrun.model_monitoring.db.tsdb.helpers._get_result_kind(
+                    sub_df
+                )
+                full_name = mm_schemas.model_endpoints.compose_full_name(
+                    project=project, app=app_name, name=name
+                )
+                values = TSDBConnector._build_result_values_from_df(
+                    sub_df, is_aggregated, agg_functions
+                )
+                try:
+                    metrics_values.append(
+                        mm_schemas.ModelEndpointMonitoringResultValuesV2(
+                            full_name=full_name,
+                            result_kind=result_kind,
+                            aggregation_config=aggregation_config,
+                            values=values,
+                        )
+                    )
+                except pydantic.v1.ValidationError:
+                    logger.exception(
+                        "Failed to convert data-frame into `ModelEndpointMonitoringResultValuesV2`",
+                        full_name=full_name,
+                        sub_df_json=sub_df.to_json(),
+                    )
+                    raise
+                del metrics_without_data[full_name]
+
+        metrics_values.extend(
+            mm_schemas.ModelEndpointMonitoringMetricNoData(
+                full_name=metric.full_name,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+            )
+            for metric in metrics_without_data.values()
+            if metric.full_name
+            != mlrun.model_monitoring.helpers.get_invocations_fqn(project)
+        )
         return metrics_values
 
     @staticmethod
@@ -660,7 +922,7 @@ class TSDBConnector(ABC):
         # groupby has different behavior for category columns
         df["endpoint_id"] = df["endpoint_id"].astype(str)
         grouped_by_df = df.groupby("endpoint_id")
-        grouped_dict = grouped_by_df.apply(
+        return grouped_by_df.apply(
             lambda group: list(
                 map(
                     lambda record: mm_schemas.ModelEndpointMonitoringMetric(
@@ -668,15 +930,16 @@ class TSDBConnector(ABC):
                         type=type,
                         app=record.get(mm_schemas.WriterEvent.APPLICATION_NAME),
                         name=record.get(name_column),
-                        **{"kind": record.get(mm_schemas.ResultData.RESULT_KIND)}
-                        if type == "result"
-                        else {},
+                        **(
+                            {"kind": record.get(mm_schemas.ResultData.RESULT_KIND)}
+                            if type == "result"
+                            else {}
+                        ),
                     ),
                     group[grouped_by_fields].to_dict(orient="records"),
                 )
             )
         ).to_dict()
-        return grouped_dict
 
     @staticmethod
     def df_to_events_intersection_dict(

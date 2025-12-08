@@ -808,6 +808,8 @@ class V3IOTSDBConnector(TSDBConnector):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: Literal["metrics", "results"] = "results",
         with_result_extra_data: bool = False,
+        agg_period: Optional[str] = None,
+        agg_functions: Optional[list[str]] = None,
     ) -> Union[
         list[
             Union[

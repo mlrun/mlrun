@@ -644,6 +644,8 @@ class TDEngineConnector(TSDBConnector):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: Literal["metrics", "results"],
         with_result_extra_data: bool = False,
+        agg_period: Optional[str] = None,
+        agg_functions: Optional[list[str]] = None,
     ) -> Union[
         list[
             Union[
@@ -1291,7 +1293,7 @@ class TDEngineConnector(TSDBConnector):
             mep: mlrun.common.schemas.ModelEndpoint,
             df_dictionary: dict[str, pd.DataFrame],
         ):
-            for metric in df_dictionary.keys():
+            for metric in df_dictionary:
                 df = df_dictionary.get(metric, pd.DataFrame())
                 if not df.empty:
                     line = df[df["endpoint_id"] == mep.metadata.uid]

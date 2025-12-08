@@ -111,11 +111,14 @@ class PartitionInterval(mlrun.common.types.StrEnum):
         if format_string is not None:
             return int(current_datetime.strftime(format_string))
 
-        if self == PartitionInterval.YEARWEEK:
-            year, week, _ = current_datetime.isocalendar()
-            return int(f"{year}{week:02d}")
+        elif self == PartitionInterval.YEARWEEK:
+            # Match MySQL YEARWEEK(date, 1):
+            # ISO week-based year and week number.
+            iso_year, iso_week, _ = current_datetime.isocalendar()
+            return iso_year * 100 + iso_week
 
-        raise ValueError(f"Unsupported PartitionInterval: {self}")
+        else:
+            raise ValueError(f"Unsupported PartitionInterval: {self}")
 
     def get_partition_name(
         self,
@@ -123,25 +126,29 @@ class PartitionInterval(mlrun.common.types.StrEnum):
     ) -> str:
         return f"p{self.get_partition_key_value(current_datetime)}"
 
-    def get_mysql_partition_key_sql(self, column_name: str) -> str:
+    def get_mysql_partition_key_sql(
+        self,
+        column_name: str,
+    ) -> str:
         """
         Convert *column_name* into an integer partition key suitable for MySQL RANGE
         partitioning. Produces one of:
           - CAST(DATE_FORMAT(column_name, '%Y%m%d') AS UNSIGNED)
           - CAST(DATE_FORMAT(column_name, '%Y%m') AS UNSIGNED)
-          - YEARWEEK(column_name, 3)
+          - YEARWEEK(column_name, 1)
         """
         format_string = PARTITION_INTERVAL_STRFTIME_FORMATS.get(self)
         if format_string is not None:
             return f"CAST(DATE_FORMAT({column_name}, '{format_string}') AS UNSIGNED)"
+        elif self == PartitionInterval.YEARWEEK:
+            return f"YEARWEEK({column_name}, 1)"
+        else:
+            raise ValueError(f"Unsupported PartitionInterval: {self}")
 
-        if self == PartitionInterval.YEARWEEK:
-            # mode=3 → ISO-like weeks, matches datetime.isocalendar()
-            return f"YEARWEEK({column_name}, 3)"
-
-        raise ValueError(f"Unsupported PartitionInterval: {self}")
-
-    def get_number_of_partitions(self, days: int) -> int:
+    def get_number_of_partitions(
+        self,
+        days: int,
+    ) -> int:
         # Calculate the number partitions based on given number of days
         if self == PartitionInterval.DAY:
             return days

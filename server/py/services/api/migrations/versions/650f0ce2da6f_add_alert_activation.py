@@ -84,16 +84,6 @@ def upgrade():
     # ### end Alembic commands ###
 
     partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
-
-    # Validate the partition interval
-    if not mlrun.common.schemas.partition_interval.PartitionInterval.is_valid(
-        partition_interval
-    ):
-        raise ValueError(
-            f"Partition interval can only be one of the following: "
-            f"{mlrun.common.schemas.partition_interval.PartitionInterval.valid_intervals()}"
-        )
-
     # Calculate the date of next partitioning interval
     now_utc = datetime.utcnow()
 

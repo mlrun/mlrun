@@ -229,6 +229,11 @@ class SQLDB(DBInterface):
     def __init__(self, dsn=""):
         self.dsn = dsn
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
+        # Cached partition intervals per table (per-process)
+        self._partition_intervals_by_table: dict[
+            str,
+            mlrun.common.schemas.partition_interval.PartitionInterval,
+        ] = {}
 
     def initialize(self, session):
         if self.dsn and self.dsn.startswith("sqlite:///"):
@@ -7062,7 +7067,12 @@ class SQLDB(DBInterface):
             number_of_events=alert_data.criteria.count,
             data=extra_data,
         )
-
+        self._set_partition_key_from_table_interval(
+            session=session,
+            record=alert_activation_record,
+            table_name=AlertActivation.__tablename__,
+            datetime_attr_name=AlertActivation.activation_time.name,
+        )
         # for auto reset policy reset_time is the same as the activation time
         # for manual reset policy, we keep it empty until the alert is reset
         if alert_data.reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO:
@@ -7088,7 +7098,10 @@ class SQLDB(DBInterface):
         update_reset_time: bool = False,
     ):
         query = self._query(
-            session, AlertActivation, id=activation_id, activation_time=activation_time
+            session,
+            AlertActivation,
+            id=activation_id,
+            activation_time=activation_time,
         )
         activation = query.one_or_none()
         if not activation:
@@ -8490,6 +8503,42 @@ class SQLDB(DBInterface):
                 f"Invalid date type: {type(date)}. Expected str or datetime."
             )
         return date
+
+    def _set_partition_key_from_table_interval(
+        self,
+        session: sqlalchemy.orm.Session,
+        record: object,
+        table_name: str,
+        datetime_attr_name: str,
+        partition_key_attr_name: str = "partition_key",
+    ) -> None:
+        """
+        Set a record's partition key using the table's configured partition interval.
+
+        The partition key is computed from a datetime attribute and is only set if
+        it is currently missing.
+        """
+        partition_key_value = getattr(record, partition_key_attr_name, None)
+        if partition_key_value is not None:
+            return
+
+        interval = self.get_partition_interval_for_table(
+            session,
+            table_name=table_name,
+        )
+
+        datetime_value = getattr(record, datetime_attr_name, None)
+        if datetime_value is None:
+            raise RuntimeError(
+                f"{datetime_attr_name} must be set before computing {partition_key_attr_name} "
+                f"for table '{table_name}'"
+            )
+
+        setattr(
+            record,
+            partition_key_attr_name,
+            interval.get_partition_key_value(datetime_value),
+        )
 
 
 class SQLiteDB(SQLDB):

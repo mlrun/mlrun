@@ -14,6 +14,7 @@
 from datetime import datetime
 
 import pytest
+import sqlalchemy
 import sqlalchemy.orm.session
 
 import mlrun.common.schemas.partition_interval
@@ -24,6 +25,46 @@ import framework.db.sqldb.db
 import framework.db.sqldb.db as sqldb
 import framework.db.sqldb.partition_bootstrapper
 import services.api.utils.db.partitioner
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "date_str",
+    [
+        "2007-12-31",
+        "2008-01-01",
+        "2015-12-31",
+        "2016-01-04",
+        "2019-12-30",
+        "2020-01-01",
+        "2020-12-28",
+        "2021-01-04",
+        "2024-12-31",
+        "2020-06-15",
+        "2021-07-10",
+    ],
+)
+def test_partition_interval_yearweek_matches_mysql_yearweek_mode_1(
+    mysql_db_session: sqlalchemy.orm.session.Session,
+    date_str: str,
+):
+    """
+    Validate that PartitionInterval.YEARWEEK.get_partition_key_value matches
+    MySQL YEARWEEK(date, 1) for selected dates, especially around year boundaries.
+    """
+    date_time = datetime.fromisoformat(date_str)
+    python_value = mlrun.common.schemas.partition_interval.PartitionInterval.YEARWEEK.get_partition_key_value(
+        date_time
+    )
+
+    mysql_value = mysql_db_session.execute(
+        sqlalchemy.text("SELECT YEARWEEK(:date_str, 1)"),
+        {"date_str": date_str},
+    ).scalar_one()
+
+    assert (
+        python_value == mysql_value
+    ), f"{date_str}: python={python_value}, mysql={mysql_value}"
 
 
 @pytest.mark.integration

@@ -25,11 +25,10 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.runtimes.base
 
 import services.api.crud
 import services.api.tests.unit.conftest
-import mlrun.runtimes.base
-
 
 
 def test_store_project_secrets_verifications(
@@ -1166,6 +1165,7 @@ def test_get_secret_token_not_found():
             authenticated_username=username,
         )
 
+
 @pytest.mark.parametrize(
     "initial_volume_mounts,initial_volumes,expected_secret_count",
     [
@@ -1216,9 +1216,7 @@ def test_mount_secret_token_to_runtime(
             runtime, token_name, username
         )
 
-    secret_mounts = [
-        vm for vm in runtime.spec.volume_mounts if vm["name"] == "secret"
-    ]
+    secret_mounts = [vm for vm in runtime.spec.volume_mounts if vm["name"] == "secret"]
     secret_volumes = [v for v in runtime.spec.volumes if v["name"] == "secret"]
 
     assert len(secret_mounts) == 1
@@ -1237,6 +1235,7 @@ def test_mount_secret_token_to_runtime(
     ]
 
     assert len(runtime.spec.volumes) == expected_secret_count
+
 
 def test_mount_secret_token_to_runtime_non_existing_secret():
     token_name = "test-token"
@@ -1261,7 +1260,6 @@ def test_mount_secret_token_to_runtime_non_existing_secret():
     # If the secret does not exist, nothing should be mounted or added
     assert runtime.spec.volume_mounts == []
     assert runtime.spec.volumes == []
-
 
 
 def _generate_token(payload: dict) -> str:

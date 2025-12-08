@@ -21,9 +21,9 @@ from collections import defaultdict
 import jwt
 
 import mlrun.common
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.common.secrets
-import mlrun.common.constants
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.regex
@@ -816,7 +816,7 @@ class Secrets(
 
     @staticmethod
     def mount_secret_token_to_runtime(
-            runtime: mlrun.runtimes.base.BaseRuntime, token_name: str, username: str
+        runtime: mlrun.runtimes.base.BaseRuntime, token_name: str, username: str
     ):
         # Validation that the secret exists is done in the ServerSideLauncher
         secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(

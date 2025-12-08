@@ -310,7 +310,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         self._handle_retry(run)
         run = self._pre_run_image_pull_secret_enrichment(run)
-        self._resolve_and_validate_token_name_from_secret(run)
+        self._enrich_and_validate_auth_token_name(run)
         return self._pre_run_scheduling_constraints_enrichment(runtime, run)
 
     @staticmethod
@@ -696,8 +696,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     f"must be less than {staleness_threshold_seconds} seconds, got {max_delay} seconds"
                 )
 
-    # TODO finish function and implement tests during ML-11600
-    def _resolve_and_validate_token_name_from_secret(self, run: mlrun.run.RunObject):
+    # TODO In ML-11600, implement token name resolution and validation + tests
+    def _enrich_and_validate_auth_token_name(self, run: mlrun.run.RunObject):
         auth = run.spec.auth or {}
 
         if auth.get("token_name"):
@@ -708,18 +708,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
             return
 
         run.spec.auth["token_name"] = "default"
-        # for token_name in services.api.crud.Secrets().list_secret_tokens(self._auth_info.username):
-        #     if self._validate_token_name(token_name):
-        #         run.spec.auth["token_name"] = token_name
-        #         return
-
-        # raise ValueError(
-        #     "No valid authentication token found. "
-        #     "Please create a valid offline token or provide one explicitly."
-        # )
 
     def _validate_token_name(self, token_name: str, explicit: bool = False):
-        # TODO implement token name validation ML-11600
         pass
 
 

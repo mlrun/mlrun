@@ -180,3 +180,30 @@ class TestV2MetricValuesFormat:
         )
         assert len(result.values) == 2
         assert len(result.values[0]) == 4  # [timestamp, value, status, extra_data]
+
+    def test_aggregated_result_values_format(self):
+        """Test that aggregated result values include status aggregations.
+
+        Format: [timestamp, avg_value, min_value, max_value, avg_status, min_status, max_status]
+        Note: extra_data is NOT included for aggregated results since it cannot be meaningfully
+        aggregated. Status IS included (max indicates detection in period).
+        """
+        now = datetime.now(UTC)
+        # Format: [timestamp, avg_val, min_val, max_val, avg_status, min_status, max_status]
+        values = [
+            [now, 0.5, 0.2, 0.8, 1, 0, 2],  # First bucket
+            [now + timedelta(hours=1), 0.6, 0.3, 0.9, 0, 0, 0],  # Second bucket
+        ]
+        result = mm_endpoints.ModelEndpointMonitoringResultValuesV2(
+            full_name="project.app.result_name",
+            result_kind=mm_constants.ResultKindApp.data_drift,
+            aggregation_config=mm_endpoints.AggregationConfig(
+                aggregated=True,
+                period="1h",
+                functions=["avg", "min", "max"],
+            ),
+            values=values,
+        )
+        assert len(result.values) == 2
+        # [timestamp, avg_val, min_val, max_val, avg_status, min_status, max_status] = 7 elements
+        assert len(result.values[0]) == 7

@@ -453,6 +453,7 @@ class TimescaleDBQueryBuilder:
         agg_period: str,
         agg_functions: list[str],
         timestamp_column: Optional[str] = None,
+        additional_agg_columns: Optional[list[str]] = None,
     ) -> "pd.DataFrame":
         """
         Build and execute aggregated read data query from pre-aggregate CAGG view.
@@ -468,6 +469,8 @@ class TimescaleDBQueryBuilder:
         :param agg_period: Aggregation period (e.g., '1h', '6h', '12h', '24h')
         :param agg_functions: List of aggregation functions (e.g., ['avg', 'min', 'max'])
         :param timestamp_column: Optional timestamp column to use for time filtering
+        :param additional_agg_columns: Optional list of additional columns to aggregate
+                                       (e.g., ['result_status'] for results)
         :return: DataFrame with aggregated query results
         """
         # Add grouping columns (must match CAGG view grouping - see timescaledb_schema.py)
@@ -480,6 +483,11 @@ class TimescaleDBQueryBuilder:
 
         # Build aggregated column names for CAGG query
         agg_value_columns = [f"{func}_{value_column}" for func in agg_functions]
+
+        # Add aggregated columns for additional columns (e.g., status for results)
+        if additional_agg_columns:
+            for col in additional_agg_columns:
+                agg_value_columns.extend(f"{func}_{col}" for func in agg_functions)
 
         # Build query for continuous aggregate view
         cagg_view_name = TimescaleDBNaming.get_cagg_view_name(

@@ -440,7 +440,8 @@ class TimescaleDBResultsQueries:
         :param timestamp_column: Optional timestamp column to use for time filtering
         :param agg_period: Optional aggregation period (e.g., '1h', '6h'). If provided,
                           reads from pre-aggregated continuous aggregates.
-                          Note: status and extra_data are NOT included in aggregated results.
+                          Note: extra_data is NOT included in aggregated results, but
+                          status IS aggregated (e.g., max indicates detection in period).
         :param agg_functions: Optional list of aggregation functions to return
                              (e.g., ['avg', 'min', 'max']). Required when agg_period is provided.
         :return: DataFrame with results data
@@ -472,7 +473,7 @@ class TimescaleDBResultsQueries:
         # Two query paths based on agg_period:
         # 1. agg_period with functions (not "raw") → aggregation query from CAGG view (v2 API)
         # 2. agg_period=None or "raw" → raw query returning individual data points (v1 and v2 raw)
-        # Note: Aggregated results do NOT include status or extra_data
+        # Note: Aggregated results include status aggregations but NOT extra_data
         use_aggregation = agg_period and agg_period != "raw" and agg_functions
 
         if use_aggregation:
@@ -488,6 +489,8 @@ class TimescaleDBResultsQueries:
                 agg_period=agg_period,
                 agg_functions=agg_functions,
                 timestamp_column=timestamp_column,
+                # Include status in aggregation (max indicates detection in period)
+                additional_agg_columns=[mm_schemas.ResultData.RESULT_STATUS],
             )
         else:
             # Raw query for both v1 (agg_period=None) and v2 raw (agg_period="raw")

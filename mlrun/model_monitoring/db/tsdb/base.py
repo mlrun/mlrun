@@ -658,28 +658,33 @@ class TSDBConnector(ABC):
         """
         Build result values list from DataFrame based on aggregation settings.
 
-        For aggregated results: [[timestamp, agg_val_1, agg_val_2, ...], ...]
-        For raw results: [[timestamp, value, status, extra_data], ...]
+        For aggregated results:
+            [[timestamp, agg_val_1, agg_val_2, ..., agg_status_1, agg_status_2, ...], ...]
+        For raw results:
+            [[timestamp, value, status, extra_data], ...]
 
-        Note: status and extra_data are only included for raw (non-aggregated) results
-        since those cannot be meaningfully aggregated.
+        Note: extra_data is only included for raw (non-aggregated) results since it
+        cannot be meaningfully aggregated. Status IS aggregated (e.g., max indicates
+        if there was a detection in the period).
         """
         value_column = mm_schemas.ResultData.RESULT_VALUE
+        status_column = mm_schemas.ResultData.RESULT_STATUS
         if not (is_aggregated and agg_functions):
             # Raw: [[timestamp, value, status, extra_data], ...]
             return [
                 [
                     idx,
                     float(row[value_column]),
-                    int(row[mm_schemas.ResultData.RESULT_STATUS]),
+                    int(row[status_column]),
                     row.get(mm_schemas.ResultData.RESULT_EXTRA_DATA, ""),
                 ]
                 for idx, row in sub_df.iterrows()
             ]
-        # Aggregated: [[timestamp, agg_val_1, agg_val_2, ...], ...]
+        # Aggregated: [[timestamp, agg_val_1, ..., agg_status_1, ...], ...]
         values = []
         for idx, row in sub_df.iterrows():
             row_values = [idx]  # timestamp
+            # Add aggregated value columns
             for func in agg_functions:
                 col_name = f"{func}_{value_column}"
                 if col_name not in row:
@@ -688,6 +693,11 @@ class TSDBConnector(ABC):
                         f"Available columns: {list(row.index)}"
                     )
                 row_values.append(float(row[col_name]))
+            # Add aggregated status columns
+            for func in agg_functions:
+                col_name = f"{func}_{status_column}"
+                if col_name in row:
+                    row_values.append(int(row[col_name]))
             values.append(row_values)
         return values
 

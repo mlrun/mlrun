@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+
+import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.utils
 
 
 class TestResultsQueries:
@@ -493,3 +496,135 @@ class TestResultsQueries:
             f"Should return proj1-app2's value ({test_data[1]['result_value']}), "
             f"not proj1-app1's value ({test_data[0]['result_value']})"
         )
+
+
+class TestReadResultsDataV2Api:
+    """Tests for read_results_data_impl with v2 API aggregation parameters."""
+
+    def test_read_results_data_impl_without_aggregation(self, query_test_helper):
+        """Test read_results_data_impl returns raw data including status and extra_data."""
+        now = mlrun.utils.datetime_now()
+        base_time = now - timedelta(hours=1)
+
+        query_test_helper.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.85,
+            mm_schemas.ResultStatusApp.detected.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_time,
+        )
+        query_test_helper.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.75,
+            mm_schemas.ResultStatusApp.potential_detection.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_time + timedelta(minutes=10),
+        )
+
+        results_handler = query_test_helper.create_results_handler()
+
+        df = results_handler.read_results_data_impl(
+            endpoint_id="endpoint_1",
+            start=base_time - timedelta(minutes=5),
+            end=now,
+            metrics=None,
+            with_result_extra_data=True,
+        )
+
+        assert len(df) == 2
+        result_values = sorted(df["result_value"].tolist())
+        assert result_values == [0.75, 0.85]
+        assert all(df["result_name"] == "drift_score")
+        result_statuses = sorted(df["result_status"].tolist())
+        assert result_statuses == [
+            mm_schemas.ResultStatusApp.potential_detection.value,
+            mm_schemas.ResultStatusApp.detected.value,
+        ]
+
+    def test_read_results_data_impl_with_explicit_raw_period(self, query_test_helper):
+        """Test read_results_data_impl with agg_period='raw' returns raw data directly."""
+        now = mlrun.utils.datetime_now()
+        base_time = now - timedelta(hours=1)
+
+        query_test_helper.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.85,
+            mm_schemas.ResultStatusApp.detected.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_time,
+        )
+        query_test_helper.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.75,
+            mm_schemas.ResultStatusApp.potential_detection.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_time + timedelta(minutes=10),
+        )
+
+        results_handler = query_test_helper.create_results_handler()
+
+        df = results_handler.read_results_data_impl(
+            endpoint_id="endpoint_1",
+            start=base_time - timedelta(minutes=5),
+            end=now,
+            metrics=None,
+            agg_period="raw",
+            with_result_extra_data=True,
+        )
+
+        assert len(df) == 2
+        result_values = sorted(df["result_value"].tolist())
+        assert result_values == [0.75, 0.85]
+        assert all(df["result_name"] == "drift_score")
+        result_statuses = sorted(df["result_status"].tolist())
+        assert result_statuses == [
+            mm_schemas.ResultStatusApp.potential_detection.value,
+            mm_schemas.ResultStatusApp.detected.value,
+        ]
+        assert "time_bucket" not in df.columns
+
+    def test_read_results_data_impl_aggregation_requires_cagg(self, query_test_helper):
+        """Test read_results_data_impl with aggregation fails when CAGG doesn't exist."""
+        import psycopg
+
+        now = mlrun.utils.datetime_now()
+        base_time = now - timedelta(hours=2)
+
+        query_test_helper.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.80,
+            mm_schemas.ResultStatusApp.detected.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_time,
+        )
+        query_test_helper.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.85,
+            mm_schemas.ResultStatusApp.potential_detection.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_time + timedelta(minutes=15),
+        )
+
+        results_handler = query_test_helper.create_results_handler()
+
+        with pytest.raises(psycopg.errors.UndefinedTable):
+            results_handler.read_results_data_impl(
+                endpoint_id="endpoint_1",
+                start=base_time - timedelta(minutes=5),
+                end=now,
+                metrics=None,
+                agg_period="1h",
+                agg_functions=["avg"],
+            )

@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
+import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.utils
 
 
 class TestMetricsQueries:
@@ -422,3 +424,113 @@ class TestMetadataMethods:
             f"Should return monitoring-app2's value ({test_data[1]['metric_value']}), "
             f"not monitoring-app1's value ({test_data[0]['metric_value']})"
         )
+
+
+class TestReadMetricsDataV2Api:
+    """Tests for read_metrics_data_impl with v2 API aggregation parameters."""
+
+    def test_read_metrics_data_impl_without_aggregation(self, query_test_helper):
+        """Test read_metrics_data_impl returns raw data when no aggregation specified."""
+        now = mlrun.utils.datetime_now()
+        base_time = now - timedelta(hours=1)
+
+        query_test_helper.write_metric(
+            "endpoint_1", "test_app", "accuracy", 0.95, base_time
+        )
+        query_test_helper.write_metric(
+            "endpoint_1",
+            "test_app",
+            "accuracy",
+            0.96,
+            base_time + timedelta(minutes=10),
+        )
+        query_test_helper.write_metric(
+            "endpoint_1",
+            "test_app",
+            "accuracy",
+            0.97,
+            base_time + timedelta(minutes=20),
+        )
+
+        metrics_handler = query_test_helper.create_metrics_handler()
+
+        df = metrics_handler.read_metrics_data_impl(
+            endpoint_id="endpoint_1",
+            start=base_time - timedelta(minutes=5),
+            end=now,
+            metrics=None,
+        )
+
+        assert len(df) == 3
+        metric_values = sorted(df["metric_value"].tolist())
+        assert metric_values == [0.95, 0.96, 0.97]
+        assert all(df["metric_name"] == "accuracy")
+
+    def test_read_metrics_data_impl_with_explicit_raw_period(self, query_test_helper):
+        """Test read_metrics_data_impl with agg_period='raw' returns raw data directly."""
+        now = mlrun.utils.datetime_now()
+        base_time = now - timedelta(hours=1)
+
+        query_test_helper.write_metric(
+            "endpoint_1", "test_app", "accuracy", 0.95, base_time
+        )
+        query_test_helper.write_metric(
+            "endpoint_1",
+            "test_app",
+            "accuracy",
+            0.96,
+            base_time + timedelta(minutes=10),
+        )
+        query_test_helper.write_metric(
+            "endpoint_1",
+            "test_app",
+            "accuracy",
+            0.97,
+            base_time + timedelta(minutes=20),
+        )
+
+        metrics_handler = query_test_helper.create_metrics_handler()
+
+        df = metrics_handler.read_metrics_data_impl(
+            endpoint_id="endpoint_1",
+            start=base_time - timedelta(minutes=5),
+            end=now,
+            metrics=None,
+            agg_period="raw",
+        )
+
+        assert len(df) == 3
+        metric_values = sorted(df["metric_value"].tolist())
+        assert metric_values == [0.95, 0.96, 0.97]
+        assert all(df["metric_name"] == "accuracy")
+        assert "time_bucket" not in df.columns
+
+    def test_read_metrics_data_impl_aggregation_requires_cagg(self, query_test_helper):
+        """Test read_metrics_data_impl with aggregation fails when CAGG doesn't exist."""
+        import psycopg
+
+        now = mlrun.utils.datetime_now()
+        base_time = now - timedelta(hours=2)
+
+        query_test_helper.write_metric(
+            "endpoint_1", "test_app", "accuracy", 0.90, base_time
+        )
+        query_test_helper.write_metric(
+            "endpoint_1",
+            "test_app",
+            "accuracy",
+            0.92,
+            base_time + timedelta(minutes=15),
+        )
+
+        metrics_handler = query_test_helper.create_metrics_handler()
+
+        with pytest.raises(psycopg.errors.UndefinedTable):
+            metrics_handler.read_metrics_data_impl(
+                endpoint_id="endpoint_1",
+                start=base_time - timedelta(minutes=5),
+                end=now,
+                metrics=None,
+                agg_period="1h",
+                agg_functions=["avg", "min", "max"],
+            )

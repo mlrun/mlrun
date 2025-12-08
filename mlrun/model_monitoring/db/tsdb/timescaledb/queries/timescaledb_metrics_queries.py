@@ -20,6 +20,7 @@ import pandas as pd
 import mlrun
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
+import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     Statement,
 )
@@ -97,42 +98,14 @@ class TimescaleDBMetricsQueries:
             [endpoint_filter, metrics_filter]
         )
 
-        # Use fallback pattern for potential pre-aggregate compatibility issues
-        def build_pre_agg_query():
-            return table_schema._get_records_query(
-                start=start_dt,
-                end=end_dt,
-                columns_to_filter=columns,
-                filter_query=combined_filter,
-                interval=interval,
-                agg_funcs=[agg_function] if agg_function else None,
-                use_pre_aggregates=True,
-            )
-
-        def build_raw_query():
-            return table_schema._get_records_query(
-                start=start_dt,
-                end=end_dt,
-                columns_to_filter=columns,
-                filter_query=combined_filter,
-            )
-
-        # Column mapping rules for pre-aggregate results (if needed)
-        column_mapping_rules = {
-            mm_schemas.MetricData.METRIC_NAME: [mm_schemas.MetricData.METRIC_NAME],
-            mm_schemas.MetricData.METRIC_VALUE: [mm_schemas.MetricData.METRIC_VALUE],
-            table_schema.time_column: [table_schema.time_column],
-        }
-
-        df = self._connection.execute_with_fallback(
-            self._pre_aggregate_manager,
-            build_pre_agg_query,
-            build_raw_query,
-            interval=interval,
-            agg_funcs=[agg_function] if agg_function else None,
-            column_mapping_rules=column_mapping_rules,
-            debug_name="get_model_endpoint_real_time_metrics",
+        # Direct raw query
+        query = table_schema._get_records_query(
+            start=start_dt,
+            end=end_dt,
+            columns_to_filter=columns,
+            filter_query=combined_filter,
         )
+        df = self._connection.run_query_to_df(query)
 
         # Process DataFrame result into expected format: {metric_name: [(timestamp, value), ...]}
         metrics_data = {metric_name: [] for metric_name in metrics}
@@ -159,6 +132,8 @@ class TimescaleDBMetricsQueries:
         end: datetime,
         metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]] = None,
         timestamp_column: Optional[str] = None,
+        agg_period: Optional[str] = None,
+        agg_functions: Optional[list[str]] = None,
     ) -> pd.DataFrame:
         """Read metrics data from TimescaleDB (metrics table only) - returns DataFrame.
 
@@ -167,6 +142,10 @@ class TimescaleDBMetricsQueries:
         :param end: End time
         :param metrics: List of metrics to filter by, or None to get all metrics
         :param timestamp_column: Optional timestamp column to use for time filtering
+        :param agg_period: Optional aggregation period (e.g., '1h', '6h'). If provided,
+                          reads from pre-aggregated continuous aggregates.
+        :param agg_functions: Optional list of aggregation functions to return
+                             (e.g., ['avg', 'min', 'max']). Required when agg_period is provided.
         :return: DataFrame with metrics data
         """
 
@@ -190,24 +169,47 @@ class TimescaleDBMetricsQueries:
         filters = [endpoint_filter, metrics_condition]
         filter_query = TimescaleDBQueryBuilder.combine_filters(filters)
 
-        # Use shared utility for consistent query building with fallback
-        df = TimescaleDBQueryBuilder.build_read_data_with_fallback(
-            connection=self._connection,
-            pre_aggregate_manager=self._pre_aggregate_manager,
-            table_schema=table_schema,
-            start=start,
-            end=end,
-            columns=columns,
-            filter_query=filter_query,
-            name_column=name_column,
-            value_column=value_column,
-            debug_name="read_metrics_data",
-            timestamp_column=timestamp_column,
-        )
+        # Two query paths based on agg_period:
+        # 1. agg_period with functions (not "raw") → aggregation query from CAGG view (v2 API)
+        # 2. agg_period=None or "raw" → raw query returning individual data points (v1 and v2 raw)
+        use_aggregation = agg_period and agg_period != "raw" and agg_functions
+
+        if use_aggregation:
+            df = TimescaleDBQueryBuilder.build_read_data_with_aggregation(
+                connection=self._connection,
+                table_schema=table_schema,
+                start=start,
+                end=end,
+                columns=columns,
+                filter_query=filter_query,
+                name_column=name_column,
+                value_column=value_column,
+                agg_period=agg_period,
+                agg_functions=agg_functions,
+                timestamp_column=timestamp_column,
+            )
+        else:
+            # Raw query for both v1 (agg_period=None) and v2 raw (agg_period="raw")
+            df = TimescaleDBQueryBuilder.build_read_raw_data(
+                connection=self._connection,
+                table_schema=table_schema,
+                start=start,
+                end=end,
+                columns=columns,
+                filter_query=filter_query,
+                timestamp_column=timestamp_column,
+            )
 
         if not df.empty:
-            df[table_schema.time_column] = pd.to_datetime(df[table_schema.time_column])
-            df.set_index(table_schema.time_column, inplace=True)
+            # Use time_bucket for aggregated data, time_column for raw
+            time_col = (
+                timescaledb_schema.TIME_BUCKET_COLUMN
+                if use_aggregation
+                else table_schema.time_column
+            )
+            if time_col in df.columns:
+                df[time_col] = pd.to_datetime(df[time_col])
+                df.set_index(time_col, inplace=True)
 
         return df
 
@@ -238,43 +240,14 @@ class TimescaleDBMetricsQueries:
             mm_schemas.WriterEvent.ENDPOINT_ID,
         ]
 
-        # Use fallback pattern for potential pre-aggregate compatibility issues
-        def build_pre_agg_query():
-            return table_schema._get_records_query(
-                start=start,
-                end=end,
-                columns_to_filter=columns,
-                filter_query=filter_query,
-                interval=interval,
-                use_pre_aggregates=True,
-            )
-
-        def build_raw_query():
-            return table_schema._get_records_query(
-                start=start,
-                end=end,
-                columns_to_filter=columns,
-                filter_query=filter_query,
-            )
-
-        # Column mapping rules for pre-aggregate results (if needed)
-        column_mapping_rules = {
-            mm_schemas.WriterEvent.APPLICATION_NAME: [
-                mm_schemas.WriterEvent.APPLICATION_NAME
-            ],
-            mm_schemas.MetricData.METRIC_NAME: [mm_schemas.MetricData.METRIC_NAME],
-            mm_schemas.WriterEvent.ENDPOINT_ID: [mm_schemas.WriterEvent.ENDPOINT_ID],
-        }
-
-        df = self._connection.execute_with_fallback(
-            self._pre_aggregate_manager,
-            build_pre_agg_query,
-            build_raw_query,
-            interval=interval,
-            agg_funcs=None,
-            column_mapping_rules=column_mapping_rules,
-            debug_name="get_metrics_metadata",
+        # Direct raw query
+        query = table_schema._get_records_query(
+            start=start,
+            end=end,
+            columns_to_filter=columns,
+            filter_query=filter_query,
         )
+        df = self._connection.run_query_to_df(query)
 
         # Get distinct values
         if not df.empty:

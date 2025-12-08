@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
+import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -107,9 +108,7 @@ class TimescaleDBQueryBuilder:
             )
             conditions.append(condition)
 
-        if len(conditions) == 1:
-            return conditions[0]
-        return " OR ".join(conditions)
+        return conditions[0] if len(conditions) == 1 else " OR ".join(conditions)
 
     @staticmethod
     def build_results_filter(
@@ -136,9 +135,7 @@ class TimescaleDBQueryBuilder:
             )
             conditions.append(condition)
 
-        if len(conditions) == 1:
-            return conditions[0]
-        return " OR ".join(conditions)
+        return conditions[0] if len(conditions) == 1 else " OR ".join(conditions)
 
     @staticmethod
     def build_metrics_filter_from_names(metric_names: list[str]) -> str:
@@ -311,79 +308,44 @@ class TimescaleDBQueryBuilder:
         return best_interval
 
     @staticmethod
-    def build_read_data_with_fallback(
+    def build_read_raw_data(
         connection,
-        pre_aggregate_manager,
         table_schema,
-        start: "datetime",  # Use string to avoid import cycle
+        start: "datetime",
         end: "datetime",
         columns: list[str],
         filter_query: Optional[str],
-        name_column: str,
-        value_column: str,
-        debug_name: str = "read_data",
         timestamp_column: Optional[str] = None,
-    ) -> "pd.DataFrame":  # Use string to avoid import cycle
+    ) -> "pd.DataFrame":
         """
-        Build and execute read data query with pre-aggregate fallback pattern.
+        Build and execute direct raw data query without any pre-aggregate fallback.
 
-        This method deduplicates the common pattern used in both metrics and results
-        queries for reading data with pre-aggregate optimization and fallback.
+        This method is used when agg_period="raw" is explicitly specified,
+        bypassing all pre-aggregate optimization logic.
 
         :param connection: Database connection instance
-        :param pre_aggregate_manager: Pre-aggregate handler for optimization
         :param table_schema: Table schema for query building
         :param start: Start datetime for query
         :param end: End datetime for query
         :param columns: List of columns to select
         :param filter_query: WHERE clause conditions
-        :param name_column: Name of the metric/result name column
-        :param value_column: Name of the metric/result value column
-        :param debug_name: Name for debugging purposes
         :param timestamp_column: Optional timestamp column to use for time filtering
-        :return: DataFrame with query results
+        :return: DataFrame with raw query results
         """
-
-        def build_pre_agg_query():
-            return table_schema._get_records_query(
-                start=start,
-                end=end,
-                columns_to_filter=columns,
-                filter_query=filter_query,
-                use_pre_aggregates=True,
-                timestamp_column=timestamp_column,
-            )
-
-        def build_raw_query():
-            return table_schema._get_records_query(
-                start=start,
-                end=end,
-                columns_to_filter=columns,
-                filter_query=filter_query,
-                timestamp_column=timestamp_column,
-            )
-
-        # Column mapping rules for pre-aggregate results
-        import mlrun.common.schemas.model_monitoring as mm_schemas
-
-        column_mapping_rules = {
-            name_column: [name_column],
-            value_column: [value_column],
-            table_schema.time_column: [table_schema.time_column],
-            mm_schemas.WriterEvent.APPLICATION_NAME: [
-                mm_schemas.WriterEvent.APPLICATION_NAME
-            ],
-        }
-
-        return connection.execute_with_fallback(
-            pre_aggregate_manager,
-            build_pre_agg_query,
-            build_raw_query,
-            interval=None,  # No specific interval for this query
-            agg_funcs=None,
-            column_mapping_rules=column_mapping_rules,
-            debug_name=debug_name,
+        from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_dataframe_processor import (
+            TimescaleDBDataFrameProcessor,
         )
+
+        query = table_schema._get_records_query(
+            start=start,
+            end=end,
+            columns_to_filter=columns,
+            filter_query=filter_query,
+            timestamp_column=timestamp_column,
+        )
+
+        result = connection.run(query=query)
+        return TimescaleDBDataFrameProcessor.from_query_result(result)
 
     @staticmethod
     def prepare_time_range_and_interval(
@@ -477,6 +439,71 @@ class TimescaleDBQueryBuilder:
         )
 
         return start_dt, end_dt, interval
+
+    @staticmethod
+    def build_read_data_with_aggregation(
+        connection,
+        table_schema,
+        start: "datetime",
+        end: "datetime",
+        columns: list[str],
+        filter_query: Optional[str],
+        name_column: str,
+        value_column: str,
+        agg_period: str,
+        agg_functions: list[str],
+        timestamp_column: Optional[str] = None,
+    ) -> "pd.DataFrame":
+        """
+        Build and execute aggregated read data query from pre-aggregate CAGG view.
+
+        :param connection: Database connection instance
+        :param table_schema: Table schema for query building
+        :param start: Start datetime for query
+        :param end: End datetime for query
+        :param columns: List of columns to select (used for grouping columns)
+        :param filter_query: WHERE clause conditions
+        :param name_column: Name of the metric/result name column
+        :param value_column: Name of the metric/result value column
+        :param agg_period: Aggregation period (e.g., '1h', '6h', '12h', '24h')
+        :param agg_functions: List of aggregation functions (e.g., ['avg', 'min', 'max'])
+        :param timestamp_column: Optional timestamp column to use for time filtering
+        :return: DataFrame with aggregated query results
+        """
+        # Add grouping columns (must match CAGG view grouping - see timescaledb_schema.py)
+        # Note: result_kind is NOT a grouping column in CAGG, it's aggregated
+        grouping_columns = [
+            mm_schemas.WriterEvent.APPLICATION_NAME,
+            name_column,
+            mm_schemas.WriterEvent.ENDPOINT_ID,
+        ]
+
+        # Build aggregated column names for CAGG query
+        agg_value_columns = [f"{func}_{value_column}" for func in agg_functions]
+
+        # Build query for continuous aggregate view
+        cagg_view_name = TimescaleDBNaming.get_cagg_view_name(
+            table_schema.full_name(), agg_period
+        )
+        time_bucket_col = timescaledb_schema.TIME_BUCKET_COLUMN
+        select_columns = [time_bucket_col, *grouping_columns, *agg_value_columns]
+        time_col = timestamp_column or time_bucket_col
+        where_conditions = [
+            f"{time_col} >= '{start}'",
+            f"{time_col} <= '{end}'",
+        ]
+        if filter_query:
+            where_conditions.append(filter_query)
+        where_clause = " AND ".join(where_conditions)
+
+        query = f"""
+        SELECT {', '.join(select_columns)}
+        FROM {cagg_view_name}
+        WHERE {where_clause}
+        ORDER BY {time_bucket_col}, {name_column}
+        """
+
+        return connection.run_query_to_df(query)
 
     @staticmethod
     def build_endpoint_aggregation_query(

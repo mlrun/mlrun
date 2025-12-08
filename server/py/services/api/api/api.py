@@ -41,6 +41,7 @@ from services.api.api.endpoints import (
     internal,
     logs,
     model_endpoints,
+    model_endpoints_v2,
     model_monitoring,
     nuclio,
     operations,
@@ -226,5 +227,10 @@ api_v2_router.include_router(
 api_v2_router.include_router(
     functions_v2.router,
     tags=["functions"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_v2_router.include_router(
+    model_endpoints_v2.router,
+    tags=["model-endpoints"],
     dependencies=[Depends(deps.authenticate_request)],
 )

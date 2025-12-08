@@ -339,7 +339,7 @@ async def _collect_get_metrics_tasks_results(
     metrics_format=mm_constants.GetEventsFormat.SINGLE,
 ) -> list:
     tasks: list[asyncio.Task] = []
-    if application_result_types == "results" or application_result_types == "all":
+    if application_result_types in {"results", "all"}:
         tasks.append(
             asyncio.create_task(
                 run_in_threadpool(
@@ -351,7 +351,7 @@ async def _collect_get_metrics_tasks_results(
                 )
             )
         )
-    if application_result_types == "metrics" or application_result_types == "all":
+    if application_result_types in {"metrics", "all"}:
         tasks.append(
             asyncio.create_task(
                 run_in_threadpool(
@@ -395,7 +395,7 @@ async def get_model_endpoint_monitoring_metrics(
     )
     for task_result in task_results:
         metrics.extend(task_result)
-    if type == "metrics" or type == "all":
+    if type in ["metrics", "all"]:
         metrics.append(mlrun.model_monitoring.helpers.get_invocations_metric(project))
     return metrics
 
@@ -434,18 +434,16 @@ async def get_metrics_by_multiple_endpoints(
     """
     events_format = events_format or mm_constants.GetEventsFormat.SEPARATION
     events = {}
-    permissions_tasks = []
-    is_metrics_supported = type == "metrics" or type == "all"
+    is_metrics_supported = type in ["metrics", "all"]
     if isinstance(endpoint_ids, str):
         endpoint_ids = [endpoint_ids]
 
-    for endpoint_id in endpoint_ids:
-        permissions_tasks.append(
-            _verify_model_endpoint_read_permission(
-                project=project, name_or_uid=endpoint_id, auth_info=auth_info
-            )
+    permissions_tasks = [
+        _verify_model_endpoint_read_permission(
+            project=project, name_or_uid=endpoint_id, auth_info=auth_info
         )
-
+        for endpoint_id in endpoint_ids
+    ]
     await asyncio.gather(*permissions_tasks)
 
     # verify all endpoints exist in the project
@@ -480,7 +478,7 @@ async def get_metrics_by_multiple_endpoints(
 
     elif events_format == mm_constants.GetEventsFormat.INTERSECTION:
         for task_result in task_results:
-            events.update(task_result)
+            events |= task_result
         if is_metrics_supported:
             metrics_key = mm_constants.INTERSECT_DICT_KEYS[
                 mm_constants.ModelEndpointMonitoringMetricType.METRIC
@@ -706,6 +704,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                         end=params.end,
                         metrics=metrics_without_invocations,
                         type=type,
+                        agg_period="raw",
                     )
                 )
 

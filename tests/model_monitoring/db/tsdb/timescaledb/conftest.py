@@ -27,9 +27,7 @@ def is_timescaledb_available():
     """Check if TimescaleDB connection is available and valid."""
     if not CONNECTION_STRING:
         return False
-    if not CONNECTION_STRING.startswith("postgres"):
-        return False
-    return True
+    return bool(CONNECTION_STRING.startswith("postgres"))
 
 
 # Import TimescaleDB modules only if available
@@ -56,6 +54,7 @@ if is_timescaledb_available():
         TimescaleDBOperationsManager,
     )
     from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_query_builder import (
+        TimescaleDBNaming,
         TimescaleDBQueryBuilder,
     )
 else:
@@ -188,6 +187,76 @@ class QueryTestHelper:
     def write_application_event(self, *args, **kwargs):
         """Convenience method to write application events."""
         return self.operations_handler.write_application_event(*args, **kwargs)
+
+    def write_metric(
+        self,
+        endpoint_id: str,
+        application_name: str,
+        metric_name: str,
+        metric_value: float,
+        timestamp,
+    ):
+        """Write a metric event to the database."""
+        import mlrun.common.schemas.model_monitoring as mm_schemas
+
+        event = {
+            mm_schemas.WriterEvent.END_INFER_TIME: timestamp,
+            mm_schemas.WriterEvent.START_INFER_TIME: timestamp,
+            mm_schemas.WriterEvent.ENDPOINT_ID: endpoint_id,
+            mm_schemas.WriterEvent.APPLICATION_NAME: application_name,
+            mm_schemas.MetricData.METRIC_NAME: metric_name,
+            mm_schemas.MetricData.METRIC_VALUE: metric_value,
+        }
+        self.operations_handler.write_application_event(
+            event, kind=mm_schemas.WriterEventKind.METRIC
+        )
+
+    def write_result(
+        self,
+        endpoint_id: str,
+        application_name: str,
+        result_name: str,
+        result_value: float,
+        result_status: int,
+        result_kind: int,
+        timestamp,
+        result_extra_data: str = "{}",
+    ):
+        """Write a result event to the database."""
+        import mlrun.common.schemas.model_monitoring as mm_schemas
+
+        event = {
+            mm_schemas.WriterEvent.END_INFER_TIME: timestamp,
+            mm_schemas.WriterEvent.START_INFER_TIME: timestamp,
+            mm_schemas.WriterEvent.ENDPOINT_ID: endpoint_id,
+            mm_schemas.WriterEvent.APPLICATION_NAME: application_name,
+            mm_schemas.ResultData.RESULT_NAME: result_name,
+            mm_schemas.ResultData.RESULT_VALUE: result_value,
+            mm_schemas.ResultData.RESULT_STATUS: result_status,
+            mm_schemas.ResultData.RESULT_KIND: result_kind,
+            mm_schemas.ResultData.RESULT_EXTRA_DATA: result_extra_data,
+        }
+        self.operations_handler.write_application_event(
+            event, kind=mm_schemas.WriterEventKind.RESULT
+        )
+
+    def refresh_cagg(self, table_name: str, interval: str):
+        """Manually refresh a continuous aggregate to materialize data.
+
+        This is needed in tests because CAGGs don't immediately materialize data.
+        Uses autocommit connection since refresh cannot run in a transaction.
+        """
+        cagg_view_name = TimescaleDBNaming.get_cagg_view_name(
+            self.table_schemas[table_name].full_name(), interval
+        )
+        # Create a separate autocommit connection for refresh
+        # (refresh_continuous_aggregate cannot run inside a transaction)
+        autocommit_conn = TimescaleDBConnection(
+            self.connection._dsn, max_connections=1, autocommit=True
+        )
+        autocommit_conn.run(
+            statements=f"CALL refresh_continuous_aggregate('{cagg_view_name}', NULL, NULL);"
+        )
 
 
 @pytest.fixture

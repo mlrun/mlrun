@@ -23,7 +23,6 @@ import semver
 from psycopg_pool import ConnectionPool
 
 import mlrun.errors
-from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateManager
 from mlrun.utils import logger
 
 
@@ -285,66 +284,19 @@ class TimescaleDBConnection:
         else:
             return QueryResult([], [])
 
-    def execute_with_fallback(
-        self,
-        pre_aggregate_manager: PreAggregateManager,
-        pre_agg_query_builder: Callable[[], str],
-        raw_query_builder: Callable[[], str],
-        interval: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        column_mapping_rules: Optional[dict[str, list[str]]] = None,
-        debug_name: str = "query",
-    ) -> pd.DataFrame:
+    def run_query_to_df(self, query: str) -> pd.DataFrame:
         """
-        Execute a query with pre-aggregate optimization and automatic fallback.
+        Execute a query and return results as a DataFrame.
 
-        This method encapsulates the common pattern of trying pre-aggregate queries first,
-        then falling back to raw data queries if the pre-aggregate fails.
-
-        :param pre_aggregate_manager: Manager for pre-aggregate operations
-        :param pre_agg_query_builder: Function that returns pre-aggregate query string
-        :param raw_query_builder: Function that returns raw data query string
-        :param interval: Time interval for aggregation
-        :param agg_funcs: List of aggregation functions
-        :param column_mapping_rules: Rules for mapping column names in pre-aggregate results
-        :param debug_name: Name for debugging/logging purposes
+        :param query: SQL query string to execute
         :return: DataFrame with query results
         """
-        # Import locally to avoid circular dependency
         from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_dataframe_processor import (
             TimescaleDBDataFrameProcessor,
         )
 
-        df_processor = TimescaleDBDataFrameProcessor()
-
-        if pre_aggregate_manager.can_use_pre_aggregates(
-            interval=interval, agg_funcs=agg_funcs
-        ):
-            try:
-                # Try pre-aggregate query first
-                query = pre_agg_query_builder()
-                result = self.run(query=query)
-                df = df_processor.from_query_result(result)
-
-                if not df.empty and column_mapping_rules:
-                    # Apply flexible column mapping for pre-aggregate results
-                    mapping = df_processor.build_flexible_column_mapping(
-                        df, column_mapping_rules
-                    )
-                    df = df_processor.apply_column_mapping(df, mapping)
-
-                return df
-
-            except Exception as e:
-                logger.warning(
-                    f"Pre-aggregate {debug_name} query failed, falling back to raw data",
-                    error=mlrun.errors.err_to_str(e),
-                )
-
-        # Fallback to raw data query
-        raw_query = raw_query_builder()
-        result = self.run(query=raw_query)
-        return df_processor.from_query_result(result)
+        result = self.run(query=query)
+        return TimescaleDBDataFrameProcessor.from_query_result(result)
 
     def _execute_with_retry(
         self,

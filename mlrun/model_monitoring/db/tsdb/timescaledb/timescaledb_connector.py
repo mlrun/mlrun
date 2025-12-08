@@ -143,19 +143,45 @@ class TimescaleDBConnector(TSDBConnector):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: str,
         with_result_extra_data: bool = False,
+        agg_period: Optional[str] = None,
+        agg_functions: Optional[list[str]] = None,
     ):
-        """Read metrics or results data from TimescaleDB (cross-cutting coordination)."""
+        """Read metrics or results data from TimescaleDB (cross-cutting coordination).
 
+        :param endpoint_id: The model endpoint identifier.
+        :param start:       Start time for the query.
+        :param end:         End time for the query.
+        :param metrics:     List of metrics to retrieve.
+        :param type:        Type of data: "metrics" or "results".
+        :param with_result_extra_data: Whether to include extra_data for results.
+        :param agg_period:  Optional aggregation period (e.g., '1h', '6h').
+                           If provided, reads from pre-aggregated views and returns V2 schemas.
+        :param agg_functions: Optional list of aggregation functions (e.g., ['avg', 'min']).
+                             Required when agg_period is provided.
+        """
+        # Pass agg_period and agg_functions through as-is to query layer
+        # Query layer handles three paths: None, "raw", or aggregation period
         if type == "metrics":
             df = self._metrics_queries.read_metrics_data_impl(
                 endpoint_id=endpoint_id,
                 start=start,
                 end=end,
                 metrics=metrics,
+                agg_period=agg_period,
+                agg_functions=agg_functions,
             )
-            # Use inherited method to convert DataFrame to domain objects
-            return self.df_to_metrics_values(
-                df=df, metrics=metrics, project=self.project
+            # Use v1 helper only when agg_period is None (backward compatibility)
+            if agg_period is None:
+                return self.df_to_metrics_values(
+                    df=df, metrics=metrics, project=self.project
+                )
+            # Use v2 helper for any explicit agg_period (including "raw")
+            return self.df_to_metrics_values_v2(
+                df=df,
+                metrics=metrics,
+                project=self.project,
+                agg_period=agg_period,
+                agg_functions=agg_functions,
             )
 
         else:  # results
@@ -165,10 +191,21 @@ class TimescaleDBConnector(TSDBConnector):
                 end=end,
                 metrics=metrics,
                 with_result_extra_data=with_result_extra_data,
+                agg_period=agg_period,
+                agg_functions=agg_functions,
             )
-            # Use inherited method to convert DataFrame to domain objects
-            return self.df_to_results_values(
-                df=df, metrics=metrics, project=self.project
+            # Use v1 helper only when agg_period is None (backward compatibility)
+            if agg_period is None:
+                return self.df_to_results_values(
+                    df=df, metrics=metrics, project=self.project
+                )
+            # Use v2 helper for any explicit agg_period (including "raw")
+            return self.df_to_results_values_v2(
+                df=df,
+                metrics=metrics,
+                project=self.project,
+                agg_period=agg_period,
+                agg_functions=agg_functions,
             )
 
     def get_model_endpoint_real_time_metrics(self, *args, **kwargs):

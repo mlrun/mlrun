@@ -17,6 +17,7 @@ import unittest.mock
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
+import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.utils
@@ -706,3 +707,298 @@ class TestEndpointCounting:
         assert (
             result["test_app"] == 2
         )  # Only endpoint_2 and endpoint_3 are within time range and linked to test_app
+
+
+class TestCAGGQueryIntegration:
+    """Tests for read_metrics_data_impl and read_results_data_impl with actual CAGG views."""
+
+    def test_read_metrics_data_impl_with_1h_aggregation(
+        self, query_test_helper_with_aggregates
+    ):
+        """Test read_metrics_data_impl returns aggregated data from CAGG view."""
+        now = mlrun.utils.datetime_now()
+        base_hour = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=2)
+
+        # Bucket 1 (base_hour): 2 data points
+        query_test_helper_with_aggregates.write_metric(
+            "endpoint_1", "test_app", "accuracy", 0.90, base_hour + timedelta(minutes=5)
+        )
+        query_test_helper_with_aggregates.write_metric(
+            "endpoint_1",
+            "test_app",
+            "accuracy",
+            0.92,
+            base_hour + timedelta(minutes=30),
+        )
+        # Bucket 2 (base_hour + 1h): 2 data points
+        query_test_helper_with_aggregates.write_metric(
+            "endpoint_1",
+            "test_app",
+            "accuracy",
+            0.94,
+            base_hour + timedelta(hours=1, minutes=10),
+        )
+        query_test_helper_with_aggregates.write_metric(
+            "endpoint_1",
+            "test_app",
+            "accuracy",
+            0.96,
+            base_hour + timedelta(hours=1, minutes=40),
+        )
+
+        query_test_helper_with_aggregates.refresh_cagg(
+            mm_schemas.TimescaleDBTables.METRICS, "1h"
+        )
+
+        metrics_handler = query_test_helper_with_aggregates.create_metrics_handler()
+
+        df = metrics_handler.read_metrics_data_impl(
+            endpoint_id="endpoint_1",
+            start=base_hour - timedelta(minutes=5),
+            end=now,
+            metrics=None,
+            agg_period="1h",
+            agg_functions=["avg", "max", "count"],
+        )
+
+        # Bucket 1: 0.90, 0.92 → avg=0.91, max=0.92, count=2
+        # Bucket 2: 0.94, 0.96 → avg=0.95, max=0.96, count=2
+        assert len(df) == 2
+        assert "time_bucket" in df.index.names or "time_bucket" in df.columns
+
+        avg_values = sorted(df["avg_metric_value"].tolist())
+        max_values = sorted(df["max_metric_value"].tolist())
+        count_values = sorted(df["count_metric_value"].tolist())
+
+        assert avg_values == [0.91, 0.95]
+        assert max_values == [0.92, 0.96]
+        assert count_values == [2, 2]
+
+    def test_read_results_data_impl_with_1h_aggregation(
+        self, query_test_helper_with_aggregates
+    ):
+        """Test read_results_data_impl returns aggregated data from CAGG view."""
+        now = mlrun.utils.datetime_now()
+        base_hour = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=2)
+
+        # Bucket 1 (base_hour): 2 data points
+        query_test_helper_with_aggregates.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.80,
+            mm_schemas.ResultStatusApp.detected.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_hour + timedelta(minutes=10),
+        )
+        query_test_helper_with_aggregates.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.90,
+            mm_schemas.ResultStatusApp.detected.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_hour + timedelta(minutes=40),
+        )
+        # Bucket 2 (base_hour + 1h): 2 data points
+        query_test_helper_with_aggregates.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.70,
+            mm_schemas.ResultStatusApp.detected.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_hour + timedelta(hours=1, minutes=15),
+        )
+        query_test_helper_with_aggregates.write_result(
+            "endpoint_1",
+            "drift_app",
+            "drift_score",
+            0.50,
+            mm_schemas.ResultStatusApp.detected.value,
+            mm_schemas.ResultKindApp.concept_drift.value,
+            base_hour + timedelta(hours=1, minutes=45),
+        )
+
+        query_test_helper_with_aggregates.refresh_cagg(
+            mm_schemas.TimescaleDBTables.APP_RESULTS, "1h"
+        )
+
+        results_handler = query_test_helper_with_aggregates.create_results_handler()
+
+        df = results_handler.read_results_data_impl(
+            endpoint_id="endpoint_1",
+            start=base_hour - timedelta(minutes=5),
+            end=now,
+            metrics=None,
+            agg_period="1h",
+            agg_functions=["avg"],
+        )
+
+        # Bucket 1: 0.80, 0.90 → avg=0.85
+        # Bucket 2: 0.70, 0.50 → avg=0.60
+        assert len(df) == 2
+        assert "time_bucket" in df.index.names or "time_bucket" in df.columns
+
+        avg_values = sorted(df["avg_result_value"].tolist())
+        assert avg_values == pytest.approx([0.60, 0.85])
+
+
+class TestConnectorReadMetricsDataV2:
+    """Tests for TimescaleDBConnector.read_metrics_data with v2 aggregation."""
+
+    def test_read_metrics_data_v1_returns_v1_schema(self, connector):
+        """Test read_metrics_data without agg_period returns V1 schema."""
+        now = mlrun.utils.datetime_now()
+        base_time = now - timedelta(hours=1)
+
+        connector._operations.write_application_event(
+            {
+                mm_schemas.WriterEvent.END_INFER_TIME: base_time,
+                mm_schemas.WriterEvent.START_INFER_TIME: base_time,
+                mm_schemas.WriterEvent.ENDPOINT_ID: "endpoint_1",
+                mm_schemas.WriterEvent.APPLICATION_NAME: "test_app",
+                mm_schemas.MetricData.METRIC_NAME: "test_metric",
+                mm_schemas.MetricData.METRIC_VALUE: 0.95,
+            },
+            kind=mm_schemas.WriterEventKind.METRIC,
+        )
+
+        metric = mm_schemas.ModelEndpointMonitoringMetric(
+            project=connector.project,
+            app="test_app",
+            name="test_metric",
+            type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+        )
+
+        result = connector.read_metrics_data(
+            endpoint_id="endpoint_1",
+            start=base_time - timedelta(minutes=5),
+            end=now,
+            metrics=[metric],
+            type="metrics",
+            with_result_extra_data=False,
+        )
+
+        assert len(result) == 1
+        item = result[0]
+
+        expected = mm_schemas.ModelEndpointMonitoringMetricValues(
+            full_name=f"{connector.project}.test_app.metric.test_metric",
+            type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            values=item.values,
+        )
+        assert item == expected
+        assert len(item.values) == 1
+
+    def test_read_metrics_data_v2_raw_returns_v2_schema(self, connector):
+        """Test read_metrics_data with agg_period='raw' returns V2 schema (non-aggregated)."""
+        now = mlrun.utils.datetime_now()
+        base_time = now - timedelta(hours=2)
+
+        for value, ts in [
+            (0.90, base_time),
+            (0.92, base_time + timedelta(minutes=30)),
+            (0.95, base_time + timedelta(hours=1)),
+        ]:
+            connector._operations.write_application_event(
+                {
+                    mm_schemas.WriterEvent.END_INFER_TIME: ts,
+                    mm_schemas.WriterEvent.START_INFER_TIME: ts,
+                    mm_schemas.WriterEvent.ENDPOINT_ID: "endpoint_1",
+                    mm_schemas.WriterEvent.APPLICATION_NAME: "test_app",
+                    mm_schemas.MetricData.METRIC_NAME: "test_metric",
+                    mm_schemas.MetricData.METRIC_VALUE: value,
+                },
+                kind=mm_schemas.WriterEventKind.METRIC,
+            )
+
+        metric = mm_schemas.ModelEndpointMonitoringMetric(
+            project=connector.project,
+            app="test_app",
+            name="test_metric",
+            type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+        )
+
+        result = connector.read_metrics_data(
+            endpoint_id="endpoint_1",
+            start=base_time - timedelta(minutes=5),
+            end=now,
+            metrics=[metric],
+            type="metrics",
+            with_result_extra_data=False,
+            agg_period="raw",
+        )
+
+        assert len(result) == 1
+        item = result[0]
+
+        expected = mm_schemas.ModelEndpointMonitoringMetricValuesV2(
+            full_name=f"{connector.project}.test_app.metric.test_metric",
+            type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            data=True,
+            aggregation_config=mm_schemas.AggregationConfig(
+                aggregated=False, period=None, functions=None
+            ),
+            values=item.values,
+        )
+        assert item == expected
+        assert len(item.values) == 3
+
+    def test_read_results_data_v2_raw_returns_v2_schema(self, connector):
+        """Test read_metrics_data for results with agg_period='raw' returns V2 schema."""
+        now = mlrun.utils.datetime_now()
+        base_time = now - timedelta(hours=2)
+
+        for value, ts in [
+            (0.80, base_time),
+            (0.85, base_time + timedelta(minutes=30)),
+            (0.90, base_time + timedelta(hours=1)),
+        ]:
+            connector._operations.write_application_event(
+                {
+                    mm_schemas.WriterEvent.END_INFER_TIME: ts,
+                    mm_schemas.WriterEvent.START_INFER_TIME: ts,
+                    mm_schemas.WriterEvent.ENDPOINT_ID: "endpoint_1",
+                    mm_schemas.WriterEvent.APPLICATION_NAME: "drift_app",
+                    mm_schemas.ResultData.RESULT_NAME: "drift_score",
+                    mm_schemas.ResultData.RESULT_VALUE: value,
+                    mm_schemas.ResultData.RESULT_STATUS: mm_schemas.ResultStatusApp.detected.value,
+                    mm_schemas.ResultData.RESULT_KIND: mm_schemas.ResultKindApp.concept_drift.value,
+                    mm_schemas.ResultData.RESULT_EXTRA_DATA: "{}",
+                },
+                kind=mm_schemas.WriterEventKind.RESULT,
+            )
+
+        result_metric = mm_schemas.ModelEndpointMonitoringMetric(
+            project=connector.project,
+            app="drift_app",
+            name="drift_score",
+            type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+        )
+
+        result = connector.read_metrics_data(
+            endpoint_id="endpoint_1",
+            start=base_time - timedelta(minutes=5),
+            end=now,
+            metrics=[result_metric],
+            type="results",
+            with_result_extra_data=False,
+            agg_period="raw",
+        )
+
+        assert len(result) == 1
+        item = result[0]
+
+        expected = mm_schemas.ModelEndpointMonitoringResultValuesV2(
+            full_name=f"{connector.project}.drift_app.result.drift_score",
+            type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+            result_kind=mm_schemas.ResultKindApp.concept_drift,
+            data=True,
+            aggregation_config=mm_schemas.AggregationConfig(
+                aggregated=False, period=None, functions=None
+            ),
+            values=item.values,
+        )
+        assert item == expected
+        assert len(item.values) == 3

@@ -256,8 +256,6 @@ class TimescaleDBPredictionsQueries:
                 },
             )
 
-            result = self._connection.run(query=query)
-            df = TimescaleDBDataFrameProcessor.from_query_result(result)
         else:
             # Use PostgreSQL DISTINCT ON for raw data - most efficient approach
             query = f"""
@@ -272,9 +270,8 @@ class TimescaleDBPredictionsQueries:
             ORDER BY {mm_schemas.WriterEvent.ENDPOINT_ID}, {table_schema.time_column} DESC;
             """
 
-            result = self._connection.run(query=query)
-            df = TimescaleDBDataFrameProcessor.from_query_result(result)
-
+        result = self._connection.run(query=query)
+        df = TimescaleDBDataFrameProcessor.from_query_result(result)
         # Convert timestamp to proper format (common for both paths)
         if not df.empty and mm_schemas.EventFieldType.LAST_REQUEST in df.columns:
             df[mm_schemas.EventFieldType.LAST_REQUEST] = pd.to_datetime(
@@ -290,93 +287,46 @@ class TimescaleDBPredictionsQueries:
         end: Optional[datetime] = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
-        """Get average latency with automatic pre-aggregate optimization, returning single value per endpoint."""
+        """Get average latency for specified endpoints, returning single value per endpoint."""
+        del get_raw  # Suppress unused variable warning (not implemented)
 
         # Convert single endpoint to list for consistent handling
         if isinstance(endpoint_ids, str):
             endpoint_ids = [endpoint_ids]
 
-        # Set default start time and get end time
+        # Set default start time
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        # Prepare time range with auto-determined interval
-        start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
-            self._pre_aggregate_manager, start, end
-        )
+        start, end = self._pre_aggregate_manager.get_start_end(start, end)
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
-        filter_query = TimescaleDBQueryBuilder.build_endpoint_filter(endpoint_ids)
+        endpoint_filter = TimescaleDBQueryBuilder.build_endpoint_filter(endpoint_ids)
 
-        def build_pre_agg_query():
-            # Calculate overall average in SQL across all time buckets
-            # Use subquery to get time-bucketed data, then AVG over those results
-            subquery = table_schema._get_records_query(
-                start=start,
-                end=end,
-                columns_to_filter=[
-                    timescaledb_schema.TIME_BUCKET_COLUMN,
-                    mm_schemas.ModelEndpointSchema.AVG_LATENCY,
-                    mm_schemas.WriterEvent.ENDPOINT_ID,
-                ],
-                filter_query=filter_query,
-                agg_funcs=["avg"],
-                interval=interval,
-                use_pre_aggregates=True,
-            )
+        # Single aggregated value across entire time range
+        columns = [
+            f"{mm_schemas.WriterEvent.ENDPOINT_ID} AS {mm_schemas.WriterEvent.ENDPOINT_ID}",
+            f"AVG({mm_schemas.EventFieldType.LATENCY}) AS {mm_schemas.ModelEndpointSchema.AVG_LATENCY}",
+        ]
+        group_by_columns = [mm_schemas.WriterEvent.ENDPOINT_ID]
 
-            # Use helper to build endpoint aggregation query
-            return TimescaleDBQueryBuilder.build_endpoint_aggregation_query(
-                subquery=subquery,
-                aggregation_columns={
-                    mm_schemas.ModelEndpointSchema.AVG_LATENCY: f"AVG({mm_schemas.ModelEndpointSchema.AVG_LATENCY})"
-                },
-            )
-
-        def build_raw_query():
-            # Single aggregated value across entire time range
-            columns = [
-                f"{mm_schemas.WriterEvent.ENDPOINT_ID} AS {mm_schemas.WriterEvent.ENDPOINT_ID}",
-                f"AVG({mm_schemas.EventFieldType.LATENCY}) AS {mm_schemas.ModelEndpointSchema.AVG_LATENCY}",
-            ]
-            group_by_columns = [mm_schemas.WriterEvent.ENDPOINT_ID]
-
-            # Add additional filter to exclude invalid latency values
-            latency_col = mm_schemas.EventFieldType.LATENCY
-            latency_filter = f"{latency_col} IS NOT NULL AND {latency_col} > 0"
-            enhanced_filter_query = (
-                f"{filter_query} AND {latency_filter}"
-                if filter_query
-                else latency_filter
-            )
-
-            return table_schema._get_records_query(
-                start=start,
-                end=end,
-                columns_to_filter=columns,
-                filter_query=enhanced_filter_query,
-                group_by=group_by_columns,
-                order_by=mm_schemas.WriterEvent.ENDPOINT_ID,
-            )
-
-        # Column mapping rules for results (both pre-agg and raw return same structure now)
-        column_mapping_rules = {
-            mm_schemas.ModelEndpointSchema.AVG_LATENCY: [
-                mm_schemas.ModelEndpointSchema.AVG_LATENCY,
-                "average_latency",
-                mm_schemas.EventFieldType.LATENCY,
-            ],
-            mm_schemas.WriterEvent.ENDPOINT_ID: [mm_schemas.WriterEvent.ENDPOINT_ID],
-        }
-
-        # Both queries now return single value per endpoint, no post-processing needed
-        return self._connection.execute_with_fallback(
-            self._pre_aggregate_manager,
-            build_pre_agg_query,
-            build_raw_query,
-            interval=interval,
-            agg_funcs=["avg"],
-            column_mapping_rules=column_mapping_rules,
-            debug_name="avg_latency",
+        # Add additional filter to exclude invalid latency values
+        latency_col = mm_schemas.EventFieldType.LATENCY
+        latency_filter = f"{latency_col} IS NOT NULL AND {latency_col} > 0"
+        filter_query = (
+            f"{endpoint_filter} AND {latency_filter}"
+            if endpoint_filter
+            else latency_filter
         )
+
+        query = table_schema._get_records_query(
+            start=start,
+            end=end,
+            columns_to_filter=columns,
+            filter_query=filter_query,
+            group_by=group_by_columns,
+            order_by=mm_schemas.WriterEvent.ENDPOINT_ID,
+        )
+
+        return self._connection.run_query_to_df(query)
 
     def count_processed_model_endpoints(
         self,

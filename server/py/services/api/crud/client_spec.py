@@ -124,6 +124,18 @@ class ClientSpec(
             authentication_mode=self._get_config_value_if_not_default(
                 "httpdb.authentication.mode"
             ),
+            model_endpoint_monitoring_tsdb_aggregation_supported=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.tsdb.pre_aggregate.enabled"
+            ),
+            model_endpoint_monitoring_tsdb_retention_policy=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.tsdb.pre_aggregate.retention_policy"
+            ),
+            model_endpoint_monitoring_tsdb_aggregation_functions=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.tsdb.pre_aggregate.agg_functions"
+            ),
+            model_endpoint_monitoring_tsdb_aggregation_intervals=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.tsdb.pre_aggregate.aggregate_intervals"
+            ),
         )
 
     @staticmethod

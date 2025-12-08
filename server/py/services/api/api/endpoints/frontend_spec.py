@@ -93,20 +93,21 @@ def get_frontend_spec(
             max_preview_size=config.artifacts.limits.max_preview_size,
             max_download_size=config.artifacts.limits.max_download_size,
         ),
+        model_endpoint_monitoring_tsdb_aggregation_supported=config.model_endpoint_monitoring.tsdb.pre_aggregate.enabled,
+        model_endpoint_monitoring_tsdb_aggregation_functions=config.model_endpoint_monitoring.tsdb.pre_aggregate.agg_functions,
+        model_endpoint_monitoring_tsdb_aggregation_intervals=config.model_endpoint_monitoring.tsdb.pre_aggregate.aggregate_intervals,
     )
 
 
 def try_get_grafana_service_url(session):
     if mlrun.mlconf.grafana_url:
         return mlrun.mlconf.grafana_url
-    else:
-        iguazio_client = framework.utils.clients.iguazio.v3.Client()
-        return iguazio_client.try_get_grafana_service_url(session)
+    iguazio_client = framework.utils.clients.iguazio.v3.Client()
+    return iguazio_client.try_get_grafana_service_url(session)
 
 
 def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
-    grafana_service_url = try_get_grafana_service_url(session)
-    if grafana_service_url:
+    if grafana_service_url := try_get_grafana_service_url(session):
         # FIXME: this creates a heavy coupling between mlrun and the grafana dashboard (name and filters) + org id
         return (
             grafana_service_url
@@ -117,8 +118,7 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
 
 
 def _resolve_model_monitoring_dashboard_url(session: str) -> typing.Optional[str]:
-    grafana_service_url = try_get_grafana_service_url(session)
-    if grafana_service_url:
+    if grafana_service_url := try_get_grafana_service_url(session):
         return grafana_service_url + (
             "/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}"
             "&var-MODELENDPOINT={model_endpoint}"

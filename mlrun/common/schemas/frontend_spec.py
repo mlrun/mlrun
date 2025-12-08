@@ -71,3 +71,11 @@ class FrontendSpec(pydantic.v1.BaseModel):
     ce: typing.Optional[dict]
     internal_labels: list[str] = []
     artifact_limits: ArtifactLimits
+    # Model endpoint monitoring TSDB aggregation config
+    model_endpoint_monitoring_tsdb_aggregation_supported: typing.Optional[bool] = None
+    model_endpoint_monitoring_tsdb_aggregation_functions: typing.Optional[list[str]] = (
+        None
+    )
+    model_endpoint_monitoring_tsdb_aggregation_intervals: typing.Optional[list[str]] = (
+        None
+    )

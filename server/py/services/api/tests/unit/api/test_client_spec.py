@@ -150,6 +150,44 @@ def test_client_spec(
     assert response_body["alerts_mode"] == "disabled"
     assert response_body["system_id"] == "12345"
 
+    # Test model endpoint monitoring TSDB aggregation fields
+    # These should be None when using default config (since _get_config_value_if_not_default returns None for defaults)
+    # Let's set non-default values to verify they're returned
+    mlrun.mlconf.model_endpoint_monitoring.tsdb.pre_aggregate.enabled = False
+    mlrun.mlconf.model_endpoint_monitoring.tsdb.pre_aggregate.agg_functions = [
+        "avg",
+        "max",
+    ]
+    mlrun.mlconf.model_endpoint_monitoring.tsdb.pre_aggregate.aggregate_intervals = [
+        "1h",
+        "6h",
+    ]
+    mlrun.mlconf.model_endpoint_monitoring.tsdb.pre_aggregate.retention_policy = {
+        "raw": "7d",
+        "1h": "30d",
+    }
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+
+    assert (
+        response_body["model_endpoint_monitoring_tsdb_aggregation_supported"] is False
+    )
+    assert response_body["model_endpoint_monitoring_tsdb_aggregation_functions"] == [
+        "avg",
+        "max",
+    ]
+    assert response_body["model_endpoint_monitoring_tsdb_aggregation_intervals"] == [
+        "1h",
+        "6h",
+    ]
+    assert response_body["model_endpoint_monitoring_tsdb_retention_policy"] == {
+        "raw": "7d",
+        "1h": "30d",
+    }
+
 
 @pytest.mark.parametrize(
     "server_version, client_version, python_version, expected_dask_kfp",
@@ -232,7 +270,7 @@ def test_get_client_spec_cached(
     ) as mocked_get_client:
         response = client.get("client-spec")
         assert response.status_code == http.HTTPStatus.OK.value
-        for i in range(10):
+        for _ in range(10):
             cached_response = client.get("client-spec")
         assert response.json() == cached_response.json()
         assert mocked_get_client.call_count == 1

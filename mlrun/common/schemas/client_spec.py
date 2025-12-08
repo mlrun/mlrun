@@ -68,3 +68,8 @@ class ClientSpec(pydantic.v1.BaseModel):
     system_id: typing.Optional[str]
     model_endpoint_monitoring_store_prefixes: typing.Optional[dict[str, str]]
     authentication_mode: typing.Optional[str]
+    # Model endpoint monitoring TSDB aggregation config
+    model_endpoint_monitoring_tsdb_aggregation_supported: typing.Optional[bool]
+    model_endpoint_monitoring_tsdb_retention_policy: typing.Optional[dict[str, str]]
+    model_endpoint_monitoring_tsdb_aggregation_functions: typing.Optional[list[str]]
+    model_endpoint_monitoring_tsdb_aggregation_intervals: typing.Optional[list[str]]

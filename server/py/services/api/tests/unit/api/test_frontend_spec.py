@@ -114,6 +114,20 @@ def test_get_frontend_spec(
 
     assert frontend_spec.internal_labels == mlrun.mlconf.internal_labels()
 
+    # Test model endpoint monitoring TSDB aggregation fields
+    assert (
+        frontend_spec.model_endpoint_monitoring_tsdb_aggregation_supported
+        == mlrun.mlconf.model_endpoint_monitoring.tsdb.pre_aggregate.enabled
+    )
+    assert (
+        frontend_spec.model_endpoint_monitoring_tsdb_aggregation_functions
+        == mlrun.mlconf.model_endpoint_monitoring.tsdb.pre_aggregate.agg_functions
+    )
+    assert (
+        frontend_spec.model_endpoint_monitoring_tsdb_aggregation_intervals
+        == mlrun.mlconf.model_endpoint_monitoring.tsdb.pre_aggregate.aggregate_intervals
+    )
+
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

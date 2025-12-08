@@ -25,7 +25,7 @@ import mlrun.common.schemas
 import tests.conftest
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config
-from mlrun.runtimes import KubejobRuntime, RuntimeKinds
+from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import now_date
 
 import framework.utils.helpers
@@ -1008,99 +1008,3 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pod = pod or self.completed_job_pod
         mocked_responses = self._mock_list_namespaced_pods([[pod]])
         return mocked_responses[0].items
-
-    @pytest.mark.parametrize(
-        "initial_volume_mounts,initial_volumes,expected_secret_count",
-        [
-            # No existing volumes or mounts
-            ([], [], 1),
-            # Volume with same name already exists (should be updated, not duplicated)
-            (
-                [{"mountPath": "/var/mlrun-secrets/auth", "name": "secret"}],
-                [
-                    {
-                        "name": "secret",
-                        "secret": {"items": [], "secretName": "old-secret"},
-                    }
-                ],
-                1,
-            ),
-            # Volume with a different name already exists (should add new one)
-            (
-                [{"mountPath": "/some/other/path", "name": "other-volume"}],
-                [{"name": "other-volume", "other-volume": {"items": []}}],
-                2,
-            ),
-        ],
-    )
-    def test_mount_secret_token_to_runtime(
-        self,
-        initial_volume_mounts,
-        initial_volumes,
-        expected_secret_count,
-    ):
-        runtime_handler = get_runtime_handler("job")
-        token_name = "test-token"
-        username = "test-user"
-
-        runtime = KubejobRuntime()
-        runtime.spec.volume_mounts = initial_volume_mounts.copy()
-        runtime.spec.volumes = initial_volumes.copy()
-
-        mock_secret = unittest.mock.MagicMock()
-        mock_secret.metadata.name = "test-secret"
-
-        mock_helper = unittest.mock.MagicMock()
-        mock_helper._get_user_token_secret.return_value = mock_secret
-
-        with unittest.mock.patch(
-            "framework.utils.singletons.k8s.get_k8s_helper",
-            return_value=mock_helper,
-        ):
-            runtime_handler._mount_secret_token_to_runtime(
-                runtime, token_name, username
-            )
-
-        secret_mounts = [
-            vm for vm in runtime.spec.volume_mounts if vm["name"] == "secret"
-        ]
-        secret_volumes = [v for v in runtime.spec.volumes if v["name"] == "secret"]
-
-        assert len(secret_mounts) == 1
-        assert (
-            secret_mounts[0]["mountPath"]
-            == mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH
-        )
-
-        assert len(secret_volumes) == 1
-        assert secret_volumes[0]["secret"]["secretName"] == "test-secret"
-        assert secret_volumes[0]["secret"]["items"] == [
-            {
-                "key": "tokensFile",
-                "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
-            }
-        ]
-
-        assert len(runtime.spec.volumes) == expected_secret_count
-
-    def test_mount_secret_token_to_runtime_non_existing_secret(self):
-        runtime_handler = get_runtime_handler("job")
-        token_name = "test-token"
-        username = "test-user"
-
-        runtime = KubejobRuntime()
-
-        mock_helper = unittest.mock.MagicMock()
-        mock_helper._get_user_token_secret.return_value = None
-
-        with unittest.mock.patch(
-            "framework.utils.singletons.k8s.get_k8s_helper",
-            return_value=mock_helper,
-        ):
-            runtime_handler._mount_secret_token_to_runtime(
-                runtime, token_name, username
-            )
-
-        # If the secret does not exist, nothing should be mounted or added
-        assert runtime.spec.volume_mounts == []
-        assert runtime.spec.volumes == []

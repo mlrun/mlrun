@@ -44,7 +44,7 @@ jobs:
         else
           echo "title=[Requirements-automated] Upgrade lock files" >> "$GITHUB_OUTPUT"
         fi
-    - uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # 7.0.9
+    - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # 7.0.11
       with:
         title: ${{ steps.format-title.outputs.title }}
         body: |

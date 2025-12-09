@@ -39,7 +39,7 @@ fn.invoke("/v2/models/model1/infer", body={"inputs": [5]})
 ```
 
 The serving function supports the same protocol used in KFServing V2 and Triton Serving framework. 
-To invoke the model, to use following url: `<function-host>/v2/models/model1/infer`.
+To invoke the model, use the following url: `<function-host>/v2/models/model1/infer`.
 
 See the [**serving protocol specification**](./model-api.md) for details.
 
@@ -77,14 +77,16 @@ passes the data into a model ensemble, and finishes off with post processing.
 
 **For a complete example, see the [Advanced graph example notebook](./graph-example.ipynb).**
 
-Create a new function of type serving from code and set the graph topology to `async flow`.
+Create a function of type serving from code and set the graph topology to `async flow`.
 
 ```python
 import mlrun
 
-function = mlrun.code_to_function(
+project = mlrun.get_or_create_project("myproj")
+
+function = project.set_function(
     "advanced",
-    filename="demo.py",
+    func="<path to demo.py>",
     kind="serving",
     image="mlrun/mlrun",
     requirements=["storey"],
@@ -151,8 +153,10 @@ See the [full notebook example](./distributed-graph.ipynb).
 
 ```python
 # define a new real-time serving function (from code) with an async graph
-fn = mlrun.code_to_function(
-    "multi-func", filename="./data_prep.py", kind="serving", image="mlrun/mlrun"
+project = mlrun.get_or_create_project("myproj")
+
+fn = project.set_function(
+    "multi-func", func="<path to data_prep.py>", kind="serving", image="mlrun/mlrun"
 )
 graph = fn.set_topology("flow", engine="async")
 

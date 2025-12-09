@@ -7181,11 +7181,11 @@ class SQLDB(DBInterface):
                 lower_partition_key_value = partition_interval_for_alert_activation_table.get_partition_key_value(
                     current_datetime=since,
                 )
-                next_partition_boundary_datetime = partition_interval_for_alert_activation_table.get_next_partition_time(
+                next_partition_boundary = partition_interval_for_alert_activation_table.get_next_partition_time(
                     current_datetime=until,
                 )
                 upper_partition_key_value = partition_interval_for_alert_activation_table.get_partition_key_value(
-                    current_datetime=next_partition_boundary_datetime,
+                    current_datetime=next_partition_boundary,
                 )
                 # This predicate is understood by both MySQL and PostgreSQL partitioning
                 # mechanisms and allows the planner to prune irrelevant partitions.

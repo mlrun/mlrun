@@ -700,7 +700,10 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     _AppData(
                         class_=DemoEvidentlyMonitoringApp,
                         rel_path="assets/custom_evidently_app.py",
-                        requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
+                        requirements=[
+                            f"evidently=={SUPPORTED_EVIDENTLY_VERSION}",
+                            "sniffio",
+                        ],
                         kwargs={
                             "evidently_workspace_path": (
                                 f"/v3io/projects/{self.project_name}/artifacts/evidently-workspace"

@@ -11,6 +11,10 @@ outputs to the databases.
 If you want the application to run automatically ("real-time" application), use the standard
 flow described in {ref}`register-model-monitoring-app`.
 
+```{admonition} Note
+You can also import model monitoring applications from the [MLRun hub](https://www.mlrun.org/hub/). Each application has complete usage instructions.
+```
+
 **In this section**
 
 - [Overview](#overview)
@@ -18,7 +22,7 @@ flow described in {ref}`register-model-monitoring-app`.
 
 ## Overview
 
-The relevant methods of {py:class}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` are:
+The relevant methods of {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` are:
 
 - {py:meth}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate`
 - {py:meth}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.to_job`

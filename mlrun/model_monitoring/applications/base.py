@@ -850,6 +850,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``base_period``, ``int``
         * ``write_output``, ``bool``
         * ``existing_data_handling``, ``str``
+        * ``_init_args``, ``dict`` - the arguments for the application class constructor
+          (equivalent to ``class_arguments``)
+
+        See :py:meth:`~ModelMonitoringApplicationBase.evaluate` for more details
+        about these inputs and params.
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -928,6 +933,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         image: Optional[str] = None,
         with_repo: Optional[bool] = False,
         class_handler: Optional[str] = None,
+        class_arguments: Optional[dict[str, Any]] = None,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
         endpoints: Union[list[tuple[str, str]], list[str], Literal["all"], None] = None,
@@ -963,7 +969,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   You do not need to have a model endpoint to use this option.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
-        :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
+        :param class_handler:     The relative path to the application class, useful when using Git sources or code
+                                  from images.
+        :param class_arguments:   The arguments for the application class constructor. These are passed to the
+                                  class ``__init__``. The values must be JSON-serializable.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
         :param endpoints:         The model endpoints to get the data from. The options are:
@@ -1041,7 +1050,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             project=project,
         )
 
-        params: dict[str, Union[list, str, int, None, ds_profile.DatastoreProfile]] = {}
+        params: dict[
+            str, Union[list, dict, str, int, None, ds_profile.DatastoreProfile]
+        ] = {}
         if endpoints:
             params["endpoints"] = endpoints
             if sample_data is None:
@@ -1076,6 +1087,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     "Passing a `stream_profile` is relevant only when writing the outputs"
                 )
         params["stream_profile"] = stream_profile
+
+        if class_arguments:
+            params["_init_args"] = class_arguments
 
         inputs: dict[str, str] = {}
         for data, identifier in [

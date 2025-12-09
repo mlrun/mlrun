@@ -990,16 +990,6 @@ class Client(
     ) -> Generator[tuple[list[PipelineRun], str], None, None]:
         current_page_token = page_token
         fetched_run_count = 0
-        self.logger.debug(
-            "Paginating runs from KFP",
-            page_token=current_page_token,
-            page_size=page_size,
-            sort_by=sort_by,
-            experiment_id=experiment_id,
-            namespace=namespace,
-            filter_=filter_json,
-        )
-
         runs, next_page_token = self._list_runs(
             page_token=current_page_token,
             page_size=page_size,
@@ -1021,15 +1011,6 @@ class Client(
             fetched_run_count += len(runs)
             current_page_token = next_page_token
             yield runs, next_page_token
-
-        self.logger.debug(
-            "Finished paginating runs from KFP",
-            page_token=current_page_token,
-            page_size=page_size,
-            sort_by=sort_by,
-            filter_json=filter_json,
-            fetched_run_count=fetched_run_count,
-        )
 
 
 def create_list_runs_filter(

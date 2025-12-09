@@ -1745,7 +1745,7 @@ class TestMailNotification:
         notification._get_html = unittest.mock.MagicMock(return_value=self.MOCKED_HTML)
 
         # mock aiosmtplib.send with asyncMock
-        with unittest.mock.patch("aiosmtplib.send", new_callable=unittest.mock.AsyncMock) as send_mock:
+        with unittest.mock.patch("aiosmtplib.send", new_callable=unittest.mock.AsyncMock):
             await notification.push(message, severity, [])
         assert notification.params["subject"] == expected["subject"]
         assert notification.params["body"] == expected["body"]

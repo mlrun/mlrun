@@ -27,7 +27,18 @@ import framework.utils.singletons.db
 
 
 class DBPartitioner:
-    def __init__(self, buffer_multiplier_override: Optional[float] = None):
+    def __init__(
+        self,
+        buffer_multiplier_override: Optional[float] = None,
+    ):
+        """
+        Initialize the partition manager.
+
+        :param buffer_multiplier_override:
+            Fractional buffer applied when pre-creating partitions
+            (e.g. 0.25 = 25% extra). A float is used to allow fractional
+            over-provisioning; the final count is rounded up safely.
+        """
         self._buffer_multiplier = (
             mlrun.mlconf.partitions_buffer_multiplier
             if buffer_multiplier_override is None
@@ -70,6 +81,9 @@ class DBPartitioner:
             partition_interval=partition_interval,
             retention_days=retention_days,
         )
+        # Flush is required to force execution of partition DDL immediately,
+        # ensuring newly created partitions are visible to subsequent operations
+        # in the same session (this is not a commit).
         session.flush()
 
     def create_partitions(
@@ -79,6 +93,14 @@ class DBPartitioner:
         partitions_to_create: int,
         partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
     ) -> None:
+        """
+        Create future partitions for a table, including buffer.
+
+        :param session: SQLAlchemy session for database operations.
+        :param table_name: Name of the table to manage partitions for.
+        :param partitions_to_create: Number of partitions to create before buffering.
+        :param partition_interval: Partition interval configured for the table.
+        """
         partitions_count = max(
             1, math.ceil(partitions_to_create * (1 + self._buffer_multiplier))
         )
@@ -96,10 +118,13 @@ class DBPartitioner:
 
     def get_partition_interval(
         self, session: Session, table_name: str
-    ) -> mlrun.common.schemas.partition_interval.PartitionInterval:
+    ) -> mlrun.common.schemas.partition_interval.PartitionIntervzal:
         """
-        Return the interval recorded for *table_name*.
-        Raises MLRunNotFoundError if the record is missing.
+        Retrieve the partition interval configured for a table.
+
+        :param session: SQLAlchemy session for database operations.
+        :param table_name: Name of the table to look up.
+        :return: The configured partition interval.
         """
         return self._db.get_partition_interval_for_table(session, table_name)
 
@@ -110,6 +135,14 @@ class DBPartitioner:
         partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
         retention_days: int,
     ) -> None:
+        """
+        Drop partitions older than the retention window.
+
+        :param session: SQLAlchemy session for database operations.
+        :param table_name: Name of the table to manage partitions for.
+        :param partition_interval: Partition interval configured for the table.
+        :param retention_days: Number of days to retain partitions.
+        """
         cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
         self._db.drop_partitions(
             session=session,

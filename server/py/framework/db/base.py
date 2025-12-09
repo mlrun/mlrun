@@ -1431,8 +1431,11 @@ class DBInterface(ABC):
         table_name: str,
     ) -> Optional[mlrun.common.schemas.partition_interval.PartitionInterval]:
         """
-        Return the interval recorded for *table_name*.
-        Raises MLRunNotFoundError if the record is missing.
+        Retrieve the partition interval registered for a specific table, if any.
+
+        :param session: The active SQLAlchemy session used for querying metadata.
+        :param table_name: The name of the table to look up.
+        :return: The partition interval assigned to the table, or None if not configured.
         """
         pass
 
@@ -1443,6 +1446,14 @@ class DBInterface(ABC):
         partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
     ) -> None:
         """
-        Set the interval recorded for *table_name*.
+        Register a partition interval for a table, or validate it if already set.
+
+        If the table already has a different interval registered, an exception is raised
+        to prevent inconsistent metadata.
+
+        :param session: The active SQLAlchemy session used for storing metadata.
+        :param table_name: The name of the table to update.
+        :param partition_interval: The partition interval to set or validate.
+        :raises MLRunInvalidArgumentError: If the table already has a conflicting interval.
         """
         pass

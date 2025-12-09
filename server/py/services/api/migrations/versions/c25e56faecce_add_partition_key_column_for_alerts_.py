@@ -68,6 +68,10 @@ def upgrade() -> None:
     connection = op.get_bind()
     is_mysql = connection.dialect.name == "mysql"
 
+    # NOTE: This is the last place where PARTITION_INTERVAL is read from the
+    # environment. From this point onward, the partition interval configuration
+    # is persisted in the `table_partition_interval` table and all runtime and
+    # migration logic must read it from there instead of the environment.
     partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
 
     # Save configured interval for this table
@@ -83,7 +87,10 @@ def upgrade() -> None:
         )
     )
 
-    # Only MySQL requires schema + data changes
+    # This migration is relevant only for MySQL.
+    # Newer PostgreSQL-based installations create the schema directly via
+    # SQLAlchemy (including partitioning-related columns), and therefore do not
+    # require any backfill or primary key alteration at migration time.
     if not is_mysql:
         return
 

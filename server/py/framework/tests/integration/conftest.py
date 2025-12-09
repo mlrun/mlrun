@@ -40,7 +40,7 @@ _postgres_engine = pytest_mock_resources.create_postgres_fixture(
 @pytest.fixture(scope="session")
 def pmr_mysql_config() -> pytest_mock_resources.MysqlConfig:
     return pytest_mock_resources.MysqlConfig(
-        image="mysql:8.0",
+        image=os.getenv("MLRUN_MYSQL_IMAGE", "gcr.io/iguazio/mlrun-mysql:8.4"),
         port=3306,
         username="root",
         password="pass",
@@ -51,7 +51,7 @@ def pmr_mysql_config() -> pytest_mock_resources.MysqlConfig:
 @pytest.fixture(scope="session")
 def pmr_postgres_config() -> pytest_mock_resources.PostgresConfig:
     return pytest_mock_resources.PostgresConfig(
-        image="postgres:17",
+        image=os.getenv("MLRUN_POSTGRES_IMAGE", "postgres:17"),
         port=5432,
         username="root",
         password="pass",

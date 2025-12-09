@@ -7072,6 +7072,7 @@ class SQLDB(DBInterface):
             record=alert_activation_record,
             table_name=AlertActivation.__tablename__,
             datetime_attr_name=AlertActivation.activation_time.name,
+            partition_key_attr_name=AlertActivation.partition_key.name,
         )
         # for auto reset policy reset_time is the same as the activation time
         # for manual reset policy, we keep it empty until the alert is reset
@@ -7154,6 +7155,44 @@ class SQLDB(DBInterface):
         query = self._apply_alert_activation_project_filters(
             query, projects_with_creation_time
         )
+
+        # Optional partition-aware filter for both MySQL and PostgreSQL.
+        # We only apply it when:
+        # - The dialect is MySQL or PostgreSQL (dialects that support partition pruning),
+        # - We have both since and until (so we can bound the partition range precisely), and
+        # - The table has a configured partition interval.
+        if (
+            session.bind is not None
+            and session.bind.dialect.name
+            in (
+                mlrun.common.db.dialects.Dialects.MYSQL,
+                mlrun.common.db.dialects.Dialects.POSTGRESQL,
+            )
+            and since is not None
+            and until is not None
+        ):
+            partition_interval_for_alert_activation_table = (
+                self.get_partition_interval_for_table(
+                    session=session,
+                    table_name=AlertActivation.__tablename__,
+                )
+            )
+            if partition_interval_for_alert_activation_table is not None:
+                lower_partition_key_value = partition_interval_for_alert_activation_table.get_partition_key_value(
+                    current_datetime=since,
+                )
+                next_partition_boundary_datetime = partition_interval_for_alert_activation_table.get_next_partition_time(
+                    current_datetime=until,
+                )
+                upper_partition_key_value = partition_interval_for_alert_activation_table.get_partition_key_value(
+                    current_datetime=next_partition_boundary_datetime,
+                )
+                # This predicate is understood by both MySQL and PostgreSQL partitioning
+                # mechanisms and allows the planner to prune irrelevant partitions.
+                query = query.filter(
+                    AlertActivation.partition_key >= lower_partition_key_value,
+                    AlertActivation.partition_key < upper_partition_key_value,
+                )
 
         if name:
             query = query.filter(

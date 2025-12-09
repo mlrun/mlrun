@@ -962,13 +962,6 @@ with warnings.catch_warnings():
             framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=True
         )
 
-        def compute_partition_key(self) -> int:
-            """
-            Re‑compute the integer partition_key based on self.activation_time
-            """
-            interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
-            return interval.get_partition_key_value(self.activation_time)
-
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"
 
@@ -1145,48 +1138,6 @@ def alert_activations_sqlite_autoincrement(
 
 
 @_event_listen_for_dialects(
-    target=AlertActivation,
-    identifier="before_insert",
-    relevant_dialects=[
-        mlrun.common.db.dialects.Dialects.MYSQL,
-        mlrun.common.db.dialects.Dialects.POSTGRESQL,
-    ],
-)
-def set_alert_activations_partition_key(
-    _: Mapper,
-    __: Connection,
-    target: AlertActivation,
-):
-    if target.partition_key is None:
-        target.partition_key = target.compute_partition_key()
-
-
-@_event_listen_for_dialects(
-    target=AlertActivation.__table__,
-    identifier="after_create",
-    relevant_dialects=[
-        mlrun.common.db.dialects.Dialects.MYSQL,
-        mlrun.common.db.dialects.Dialects.POSTGRESQL,
-    ],
-)
-def set_alert_activations_partition_interval(
-    table: Table,
-    connection: Connection,
-    **_,
-) -> None:
-    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
-    with Session(bind=connection) as session:
-        import framework.db.sqldb.db
-
-        db = framework.db.sqldb.db.SQLDB()
-        db.set_partition_interval_for_table(
-            session=session,
-            table_name=table.name,
-            partition_interval=partition_interval,
-        )
-
-
-@_event_listen_for_dialects(
     target=AlertActivation.__table__,
     identifier="after_create",
     relevant_dialects=[
@@ -1223,6 +1174,32 @@ def postgres_create_utf8_bin(
     connection: Connection,
     **__,
 ):
+    """
+    Ensure a binary, deterministic UTF-8 collation exists in PostgreSQL before
+    schema creation.
+
+    PostgreSQL does not ship with a built-in `utf8_bin` collation equivalent to
+    MySQL's `utf8_bin`. In order to achieve consistent, byte-wise string
+    comparison semantics across databases (case-sensitive, accent-sensitive,
+    and fully deterministic), we explicitly create a custom collation named
+    `utf8_bin`.
+
+    This function is registered as a SQLAlchemy `before_create` event listener
+    and runs once per database initialization *before* any tables are created.
+    The collation is therefore guaranteed to exist when columns later declare:
+
+        Text(collation="utf8_bin")
+
+    Key properties of the created collation:
+    - Uses the `libc` provider with locale `C` for byte-wise comparisons
+    - Marked as `deterministic` so it is safe for indexes and constraints
+    - Created conditionally (`IF NOT EXISTS`) to allow repeated runs and
+      parallel migrations without failure
+
+    This is part of the cross-dialect compatibility layer that allows
+    `Utf8BinText` columns to behave consistently on MySQL, PostgreSQL, and
+    SQLite.
+    """
     connection.execute(
         text(
             "CREATE COLLATION IF NOT EXISTS utf8_bin "

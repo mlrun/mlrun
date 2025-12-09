@@ -54,14 +54,38 @@ class PartitionInterval(mlrun.common.types.StrEnum):
         partitions_count: int = 1,
     ) -> list[tuple[str, int]]:
         """
-        Returns a list of partition details for a specified number of partitions starting from a given datetime.
+        Generate partition names together with their corresponding RANGE partition
+        boundaries, starting from a given datetime.
 
-        :param start_datetime: The starting datetime used for generating partition details.
-        :param partitions_count: The number of partitions to generate details for.
+        This method is typically used when creating or extending RANGE-partitioned
+        database tables (e.g. MySQL / PostgreSQL), where each partition is defined as:
 
-        :return: A list of tuples:
-            - partition_name: The name for the partition.
-            - partition_value: The "LESS THAN" value for the next partition boundary.
+            PARTITION <name> VALUES LESS THAN (<boundary_value>)
+
+        For each partition:
+        1. A partition name is derived from the *current* datetime
+           (e.g. by day / month / yearweek, depending on the PartitionInterval).
+        2. The next partition boundary datetime is calculated by advancing one
+           partition interval forward.
+        3. That boundary datetime is converted into an integer partition key value,
+           which becomes the `VALUES LESS THAN` boundary for the current partition.
+        4. The current datetime is advanced to the boundary, and the process repeats.
+
+        This ensures that each partition fully covers its intended time range and
+        that boundaries are strictly increasing.
+
+        :param start_datetime:
+            The datetime from which partition generation begins. This represents
+            the *start* of the first partition's range.
+        :param partitions_count:
+            How many consecutive partitions to generate starting from
+            `start_datetime`.
+
+        :return:
+            A list of `(partition_name, partition_boundary_value)` tuples, where:
+            - `partition_name` is the generated partition name.
+            - `partition_boundary_value` is the integer value used in
+              `VALUES LESS THAN (...)` for that partition.
         """
         current_datetime = start_datetime
         partition_names_and_values = []
@@ -163,8 +187,43 @@ class PartitionInterval(mlrun.common.types.StrEnum):
     @classmethod
     def get_partition_interval_from_env(cls) -> "PartitionInterval":
         """
-        Parse PARTITION_INTERVAL once, validate, then cache.
+        Resolve the partition interval from an environment variable.
+
+        This method intentionally reads the partition interval from the
+        `PARTITION_INTERVAL` *environment variable* rather than from MLRun
+        configuration for the following reasons:
+
+        1. **Historic Alembic migrations**
+           This logic is used by legacy / historic Alembic migration scripts that
+           operate outside the normal MLRun runtime configuration flow. At migration
+           time, MLRun configuration may not be fully initialized or available, while
+           environment variables are guaranteed to be accessible.
+
+        2. **QA-only override**
+           `PARTITION_INTERVAL` is an *undocumented* environment variable intended
+           solely for QA and testing scenarios. It allows tests to simulate different
+           partitioning behaviors without changing production configuration or code.
+           End users are not expected to set or rely on this value.
+
+        3. **Explicit non-configurability**
+           Partitioning strategy is a structural database concern and **not** a
+           runtime-tunable configuration option. Reading this value from MLRun
+           configuration would imply that users can change it dynamically and expect
+           the partitioning scheme to change accordingly — which is not supported
+           and would be unsafe for existing data.
+
+        For these reasons, the value is:
+        - Read once from the environment
+        - Validated strictly against supported partition intervals
+        - Intentionally disconnected from MLRun configuration mechanisms
+
+        If the variable is not set, the default partition interval (`YEARWEEK`) is
+        used.
+
+        :raises ValueError:
+            If `PARTITION_INTERVAL` is set to an unsupported value.
         """
+
         name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
         if not PartitionInterval.is_valid(name):
             raise ValueError(

@@ -1,5 +1,5 @@
 (load-from-hub)=
-# Import modules and functions from the MLRun hub
+# MLRun hub
 
 The [MLRun hub](https://www.mlrun.org/hub/) provides a wide range of pre-developed functions and modules for your projects, for a variety of use cases. Reusing built-in code can significantly speed up your development cycle.
 You can search and filter the categories and kinds to find an item that meets your needs. Every function and module in the hub has complete documentation and examples.
@@ -8,9 +8,8 @@ The examples in this page assume that you are working in a project and that all 
 
 <br>
 
-<img src="../_static/images/marketplace-ui.png" width="550">
+<img src="../_static/images/marketplace-ui.png" width="550"></br></br>
 
-</br>
 
 **In this section**
 
@@ -128,14 +127,11 @@ aggregate_run = aggregate_function.run(
 ## Modules
 There are two types of modules: generic and model monitoring application. You can also add modules to your own hub, making them easily accessible for sharing.
 
-The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
-
-There are two types of modules: generic and model monitoring. The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs.
+The modules are categorized and their associated versions are listed, so you can easily find a suitable module for your needs. Each module in the hub has an accompanying example notebook with complete usage examples.
 
 There are two means of using modules from the hub:
 - [Import a module](#import-a-module)
 - [Import a model monitoring application](#import-a-model-monitoring-application)
-
 
 (import-a-module)=
 ### Import a module

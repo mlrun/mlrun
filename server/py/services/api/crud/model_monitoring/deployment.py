@@ -1005,12 +1005,17 @@ class MonitoringDeployment:
 
         if include_latest_metrics:
             # Enrich the function summary with latest metrics
-            function_summary[0].stats["metrics"] = await run_in_threadpool(
+            latest_metrics = await run_in_threadpool(
                 self._tsdb_connector.calculate_latest_metrics,
                 start=start,
                 end=end,
                 application_names=[name],
             )
+            # Map the 'kind' to its string representation
+            for metric in latest_metrics:
+                if metric.type == "result":
+                    metric.kind = metric.kind.name
+            function_summary[0].stats["metrics"] = latest_metrics
 
         return function_summary[0]
 

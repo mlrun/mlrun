@@ -1784,21 +1784,18 @@ class TestMailNotification:
         )
 
         assert send_mock.await_count == 1
-        call = send_mock.await_args
-        args, kwargs = call.args, call.kwargs
-
-        assert kwargs["hostname"] == "smtp.example.com"
-        assert kwargs["port"] == 25
-        assert kwargs["use_tls"] is False
-        assert kwargs["start_tls"] is False
-        assert kwargs["validate_certs"] is True
+        assert send_mock.await_args.kwargs["hostname"] == "smtp.example.com"
+        assert send_mock.await_args.kwargs["port"] == 25
+        assert send_mock.await_args.kwargs["use_tls"] is False
+        assert send_mock.await_args.kwargs["start_tls"] is False
+        assert send_mock.await_args.kwargs["validate_certs"] is True
 
         for key, value in expected_auth_kwargs.items():
-            assert kwargs.get(key) == value
+            assert send_mock.await_args.kwargs.get(key) == value
 
         for key in ("username", "password"):
             if key not in expected_auth_kwargs:
-                assert key not in kwargs
+                assert key not in send_mock.await_args.kwargs
 
 
 class DummyResponse:

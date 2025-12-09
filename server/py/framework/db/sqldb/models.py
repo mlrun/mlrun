@@ -1177,7 +1177,9 @@ def set_alert_activations_partition_interval(
     connection: Connection,
     **_,
 ) -> None:
-    """This is required for integration tests, as they dont set the partition interval for alert_activations via alembic migration"""
+    """This is required for integration tests,as they don't set the partition interval for
+    alert_activations via alembic migration.
+    """
     partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
     with Session(bind=connection) as session:
         import framework.db.sqldb.db

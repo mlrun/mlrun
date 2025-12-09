@@ -1,7 +1,8 @@
 (install-remote)=
 # Set up your environment <!-- omit in toc -->
 
-Learn about MLRun non-root user support and version compatibility requirements, essential information for MLRun developers and operators.
+This guide will walk you through the steps required to set up your MLRun client environment, 
+making sure you're ready to get started with building and managing AI workflow with MLRun.
 
 **In this section**
 - [Prerequisites](#prerequisites)

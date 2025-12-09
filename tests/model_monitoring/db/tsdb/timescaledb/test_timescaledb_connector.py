@@ -19,6 +19,8 @@ import uuid
 
 import pytest
 
+import mlrun
+
 
 class TestTimescaleDBConnectorDatabaseCreation:
     """Test database auto-creation functionality in TimescaleDBConnector."""
@@ -37,7 +39,8 @@ class TestTimescaleDBConnectorDatabaseCreation:
             dsn=connection_string, profile_name="test_profile"
         )
 
-    def _force_drop_database(self, admin_connection, database_name):
+    @staticmethod
+    def _force_drop_database(admin_connection, database_name):
         """Force drop a database by terminating all connections first.
 
         Silently ignores all errors to ensure cleanup doesn't fail tests.
@@ -64,14 +67,13 @@ class TestTimescaleDBConnectorDatabaseCreation:
                 statements=[f'DROP DATABASE IF EXISTS "{database_name}"']
             )
 
+    @staticmethod
     @contextlib.contextmanager
-    def _config_context(self, system_id=None, auto_create=None):
+    def _config_context(system_id=None, auto_create=None):
         """Context manager that saves and restores mlrun config.
 
         Always restores config even if test fails.
         """
-        import mlrun
-
         original_system_id = mlrun.mlconf.system_id
         original_auto_create = (
             mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database
@@ -103,15 +105,13 @@ class TestTimescaleDBConnectorDatabaseCreation:
         )
 
         expected_db_name = f"mlrun_mm_{test_system_id}"
-        connector = None
 
         with self._config_context(system_id=test_system_id, auto_create=True):
+            connector = TimescaleDBConnector(
+                project=project_name,
+                profile=profile,
+            )
             try:
-                # Create connector - should create database
-                connector = TimescaleDBConnector(
-                    project=project_name,
-                    profile=profile,
-                )
                 connector.create_tables()
 
                 # Verify database was created by querying pg_database
@@ -125,10 +125,8 @@ class TestTimescaleDBConnectorDatabaseCreation:
 
             finally:
                 # Cleanup resources - ignore errors
-                if connector:
-                    with contextlib.suppress(Exception):
-                        connector.delete_tsdb_resources()
-                # Force drop database
+                with contextlib.suppress(Exception):
+                    connector.delete_tsdb_resources()
                 self._force_drop_database(admin_connection, expected_db_name)
 
     def test_auto_create_database_disabled_uses_existing_database(
@@ -165,20 +163,19 @@ class TestTimescaleDBConnectorDatabaseCreation:
         self, project_name, profile
     ):
         """Test that auto_create_database=True without system_id raises error."""
-        import mlrun
         from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connector import (
             TimescaleDBConnector,
         )
 
         with self._config_context(system_id="", auto_create=True):
             # Should raise error - no cleanup needed since connector creation fails
-            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError, match="system_id is not set"
+            ):
                 TimescaleDBConnector(
                     project=project_name,
                     profile=profile,
                 )
-
-            assert "system_id is not set" in str(exc_info.value)
 
     def test_auto_create_database_idempotent(
         self, project_name, test_system_id, profile, admin_connection
@@ -228,5 +225,4 @@ class TestTimescaleDBConnectorDatabaseCreation:
                 if connector2:
                     with contextlib.suppress(Exception):
                         connector2.delete_tsdb_resources()
-                # Force drop database
                 self._force_drop_database(admin_connection, expected_db_name)

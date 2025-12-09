@@ -87,9 +87,9 @@ class TimescaleDBConnector(TSDBConnector):
             logger.info(
                 "Auto-generated database name for TimescaleDB",
                 original_database=profile.database,
-                target_database=self.database,
+                database=self.database,
             )
-            # Create a new profile with the target database
+            # Create a new profile with the generated database
             profile = DatastoreProfilePostgreSQL(
                 name=profile.name,
                 user=profile.user,
@@ -163,7 +163,7 @@ class TimescaleDBConnector(TSDBConnector):
 
         if not auto_create:
             # Use database from profile as-is
-            return profile.database or "postgres"
+            return profile.database
 
         # Auto-create mode: generate database name using system_id
         if not mlrun.mlconf.system_id:

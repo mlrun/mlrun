@@ -116,30 +116,34 @@ class TimescaleDBOperationsManager:
             autocommit=True,  # DDL requires autocommit
         )
 
-        # Check if database exists using parameterized Statement
-        check_stmt = Statement(
-            sql="SELECT 1 FROM pg_database WHERE datname = %s",
-            parameters=(database_name,),
-        )
-        result = admin_connection.run(query=check_stmt)
+        try:
+            # Check if database exists using parameterized Statement
+            check_stmt = Statement(
+                sql="SELECT 1 FROM pg_database WHERE datname = %s",
+                parameters=(database_name,),
+            )
+            result = admin_connection.run(query=check_stmt)
 
-        if not result or not result.data:
-            # Database doesn't exist, create it
-            # Note: CREATE DATABASE cannot be parameterized, but database_name
-            # comes from our own profile, not user input
-            admin_connection.run(statements=[f'CREATE DATABASE "{database_name}"'])
-            logger.info(
-                "Created TimescaleDB database",
-                project=self.project,
-                database=database_name,
-            )
-        else:
-            logger.debug(
-                "TimescaleDB database already exists",
-                project=self.project,
-                database=database_name,
-            )
-        # Note: TimescaleDBConnection uses connection pooling - no explicit close needed
+            if not result or not result.data:
+                # Database doesn't exist, create it
+                # Note: CREATE DATABASE cannot be parameterized, but database_name
+                # comes from our own profile, not user input
+                admin_connection.run(statements=[f'CREATE DATABASE "{database_name}"'])
+                logger.info(
+                    "Created TimescaleDB database",
+                    project=self.project,
+                    database=database_name,
+                )
+            else:
+                logger.debug(
+                    "TimescaleDB database already exists",
+                    project=self.project,
+                    database=database_name,
+                )
+        finally:
+            # Close the admin connection pool to avoid resource leak
+            if admin_connection._pool:
+                admin_connection._pool.close()
 
     def create_tables(
         self, pre_aggregate_config: Optional[PreAggregateConfig] = None

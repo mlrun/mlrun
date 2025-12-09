@@ -498,9 +498,7 @@ class DatastoreProfilePostgreSQL(DatastoreProfile):
     password: typing.Optional[str]
     host: str
     port: int
-    database: str = pydantic.v1.Field(
-        default="postgres"
-    )  # Default to postgres maintenance database
+    database: str = "postgres"  # Default to postgres maintenance database
 
     def dsn(self, database: typing.Optional[str] = None) -> str:
         """
@@ -510,17 +508,18 @@ class DatastoreProfilePostgreSQL(DatastoreProfile):
                         If None, uses the configured database.
         :return: The DSN string.
         """
-        db = database if database is not None else self.database
+        db = database or self.database
         return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}/{db}"
 
     def admin_dsn(self) -> str:
         """
-        Get DSN for administrative operations using the 'postgres' maintenance database.
+        Get DSN for administrative operations using the 'postgres' database.
 
-        This is useful for operations that need to create/drop databases,
-        as you cannot connect to a database while creating it.
+        PostgreSQL's 'postgres' database always exists and is used for admin
+        tasks like creating/dropping databases (you cannot connect to a database
+        while creating it).
 
-        :return: DSN pointing to the 'postgres' maintenance database.
+        :return: DSN pointing to the 'postgres' database.
         """
         return self.dsn(database="postgres")
 
@@ -541,7 +540,7 @@ class DatastoreProfilePostgreSQL(DatastoreProfile):
             password=parsed_url.password,
             host=parsed_url.hostname,
             port=parsed_url.port,
-            database=parsed_url.path.lstrip("/") if parsed_url.path else "postgres",
+            database=parsed_url.path.lstrip("/") or "postgres",
         )
 
 

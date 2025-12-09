@@ -118,7 +118,7 @@ class DBPartitioner:
 
     def get_partition_interval(
         self, session: Session, table_name: str
-    ) -> mlrun.common.schemas.partition_interval.PartitionIntervzal:
+    ) -> mlrun.common.schemas.partition_interval.PartitionInterval:
         """
         Retrieve the partition interval configured for a table.
 

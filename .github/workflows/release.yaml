@@ -117,6 +117,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: prepare-inputs
     steps:
+      - name: Generate GitHub App Token for ui repo
+        id: ui-app-token
+
+        # the condition is here and not on job because some other jobs "needs" this job to be done (and not skipped)
+        if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
       - uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
 
         # since some steps relay on the ui image, we need to wait for it to finish building
@@ -125,7 +136,7 @@ jobs:
         with:
           owner: ${{ github.repository_owner }}
           repo: ui
-          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          github_token: ${{ steps.ui-app-token.outputs.token }}
           workflow_file_name: build.yaml
           ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
           wait_interval: 60
@@ -167,13 +178,22 @@ jobs:
           commit: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
+      - name: Generate GitHub App Token for ui repo
+        if: github.event.inputs.skip_create_tag_release != 'true'
+        id: ui-release-app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
       - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           repo: ui
           tag: v${{ needs.prepare-inputs.outputs.version }}
           commit: ${{ github.ref_name }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          token: ${{ steps.ui-release-app-token.outputs.token }}
           # experienced 500 errors when trying to create release notes for ui repo with `prerelease flag`
           # prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
 

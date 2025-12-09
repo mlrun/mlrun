@@ -176,14 +176,18 @@ class MailNotification(base.NotificationBase):
         message["Subject"] = subject
         message.attach(MIMEText(body, "html"))
 
-        # Send the email
-        await aiosmtplib.send(
-            message,
-            hostname=server_host,
-            port=server_port,
-            username=username,
-            password=password,
-            use_tls=use_tls,
-            validate_certs=validate_certs,
-            start_tls=start_tls,
-        )
+        send_kwargs = {
+            "hostname": server_host,
+            "port": server_port,
+            "use_tls": use_tls,
+            "validate_certs": validate_certs,
+            "start_tls": start_tls,
+        }
+
+        # Only include auth parameters when provided to avoid forcing SMTP AUTH
+        if username is not None:
+            send_kwargs["username"] = username
+        if password is not None:
+            send_kwargs["password"] = password
+
+        await aiosmtplib.send(message, **send_kwargs)

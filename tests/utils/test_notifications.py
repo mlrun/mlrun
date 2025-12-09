@@ -1732,6 +1732,52 @@ class TestMailNotification:
         assert notification.params["subject"] == expected["subject"]
         assert notification.params["body"] == expected["body"]
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ["username", "password", "expected_auth_kwargs"],
+        [
+            (None, None, {}),
+            ("user", None, {"username": "user"}),
+            ("user", "pass", {"username": "user", "password": "pass"}),
+        ],
+    )
+    async def test_send_email_auth_handling(
+        self, username, password, expected_auth_kwargs, monkeypatch: pytest.MonkeyPatch
+    ):
+        send_mock = unittest.mock.AsyncMock()
+        monkeypatch.setattr(mail.aiosmtplib, "send", send_mock)
+
+        await mail.MailNotification._send_email(
+            email_addresses="a@example.com",
+            sender_address="sender@example.com",
+            server_host="smtp.example.com",
+            server_port=25,
+            username=username,
+            password=password,
+            use_tls=False,
+            start_tls=False,
+            validate_certs=True,
+            subject="subject",
+            body="body",
+        )
+
+        assert send_mock.await_count == 1
+        call = send_mock.await_args
+        args, kwargs = call.args, call.kwargs
+
+        assert kwargs["hostname"] == "smtp.example.com"
+        assert kwargs["port"] == 25
+        assert kwargs["use_tls"] is False
+        assert kwargs["start_tls"] is False
+        assert kwargs["validate_certs"] is True
+
+        for key, value in expected_auth_kwargs.items():
+            assert kwargs.get(key) == value
+
+        for key in ("username", "password"):
+            if key not in expected_auth_kwargs:
+                assert key not in kwargs
+
 
 class DummyResponse:
     def __init__(self) -> None:

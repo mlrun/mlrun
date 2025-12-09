@@ -69,10 +69,30 @@ class ResourceCache:
             from storey import Driver, Table, V3ioDriver
         except ImportError:
             raise ImportError("storey package is not installed, use pip install storey")
+
+
         if uri in self._tabels:
             return self._tabels[uri]
         if uri in [".", ""] or uri.startswith("$"):  # $.. indicates in-mem table
-            self._tabels[uri] = Table("", Driver())
+            from mlrun.utils.debug import wrap_object_with_tracing
+
+            table = Table("", Driver())
+            wrap_object_with_tracing(
+                table,
+                include_private=True,
+                include_patterns=[
+                    r"_init_flush_task",
+                    r"_set_aggregations_attrs",
+                    r"_flush_worker",
+                    r"_terminate",
+                    r"_persist$",
+                    r"_flush_pending",
+                    r"_lazy_load_key_with_aggregates",
+                    r"_aggregate$",
+                    r"^close$",  # Table.close() - called via _closeables
+                ],
+            )
+            self._tabels[uri] = table
             return self._tabels[uri]
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):

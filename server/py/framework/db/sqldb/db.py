@@ -226,7 +226,10 @@ class SQLDB(DBInterface):
                 raise ValueError("Unsupported database dialect: " + scheme)
         return super().__new__(cls)
 
-    def __init__(self, dsn=""):
+    def __init__(
+        self,
+        dsn: str = "",
+    ):
         self.dsn = dsn
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
         # Cached partition intervals per table (per-process)

@@ -13,14 +13,18 @@
 # limitations under the License.
 
 import os
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 import sqlalchemy.engine
 import sqlalchemy.orm
 
 import mlrun.common.db.dialects
+import mlrun.common.schemas as schemas
+import mlrun.common.schemas.alert as alert_objects
+import mlrun.common.schemas.notification as notification_objects
 import mlrun.common.schemas.partition_interval
+import server.py.framework.db.sqldb.db
 import server.py.framework.db.sqldb.models
 import tests.common_fixtures
 
@@ -43,28 +47,79 @@ def test_insert_populates_partition_key(
     os.environ["PARTITION_INTERVAL"] = interval_name
     server.py.framework.db.sqldb.models.Base.metadata.create_all(db_engine)
 
-    current_time: datetime = datetime.now(UTC)
-    activation: server.py.framework.db.sqldb.models.AlertActivation = (
-        server.py.framework.db.sqldb.models.AlertActivation(
-            id=id_val,
-            activation_time=current_time,
-            project="project_a",
-            name="alert_b",
-            entity_id="entity_2",
-            entity_kind="kind_2",
-            event_kind="event_2",
-            severity="low",
-            number_of_events=2,
+    db = server.py.framework.db.sqldb.db.SQLDB(
+        dsn=db_engine.url.render_as_string(
+            hide_password=False,
         )
     )
-
     with sqlalchemy.orm.Session(db_engine) as session:
-        session.add(activation)
-        session.flush()  # fires before_insert listener
+        current_time: datetime = datetime.now()
+
+        event_entities = alert_objects.EventEntities(
+            kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            project="project_a",
+            ids=["entity_2"],
+        )
+
+        alert_config_data = schemas.AlertConfig(
+            project="project_a",
+            name="alert_b",
+            description="test alert for store_alert_activation",
+            summary="test summary",
+            severity=alert_objects.AlertSeverity.LOW,
+            entities=event_entities,
+            trigger=alert_objects.AlertTrigger(
+                events=[alert_objects.EventKind.FAILED],
+                prometheus_alert="test",
+            ),
+            criteria=alert_objects.AlertCriteria(
+                count=2,
+                period="1d",
+            ),
+            reset_policy=alert_objects.ResetPolicy.AUTO,
+            notifications=[
+                alert_objects.AlertNotification(
+                    notification=notification_objects.Notification(
+                        kind=notification_objects.NotificationKind.slack,
+                        name="test-slack",
+                        message="Test alert",
+                        severity=notification_objects.NotificationSeverity.INFO,
+                        when=["completed"],
+                        params={"webhook": "https://example.com/hook"},
+                        status=notification_objects.NotificationStatus.PENDING,
+                    ),
+                    cooldown_period="1d",
+                )
+            ],
+            state=alert_objects.AlertActiveState.INACTIVE,
+            count=0,
+        )
+
+        event_data_object: schemas.Event = schemas.Event(
+            kind=alert_objects.EventKind.FAILED,
+            timestamp=current_time,
+            entity=event_entities,
+            value_dict={},
+        )
+
+        alert_activation_id = db.store_alert_activation(
+            session=session,
+            alert_data=alert_config_data,
+            event_data=event_data_object,
+        )
+        stored = (
+            session.query(server.py.framework.db.sqldb.models.AlertActivation)
+            .filter(
+                server.py.framework.db.sqldb.models.AlertActivation.id
+                == alert_activation_id
+            )
+            .one()
+        )
+
         interval = mlrun.common.schemas.partition_interval.PartitionInterval(
             interval_name
         )
         expected_key = interval.get_partition_key_value(
             current_datetime=current_time,
         )
-        assert activation.partition_key == expected_key
+        assert stored.partition_key == expected_key

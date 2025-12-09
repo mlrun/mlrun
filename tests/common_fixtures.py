@@ -58,7 +58,22 @@ from tests.conftest import logs_path, results, root_path, rundb_path
 session_maker: Callable
 
 
-class FrozenDatetime(_orig_datetime):
+class FrozenDateTimeMeta(type):
+    def __instancecheck__(cls, instance):
+        """Treat anything whose MRO contains the built-in datetime.datetime
+        as a datetime, to prevent calling isinstance() on datetime and getting a recursion error."""
+        for base in type(instance).mro():
+            if base.__module__ == "datetime" and base.__name__ == "datetime":
+                return True
+
+        # Also treat our own class as datetime
+        return type(instance).__name__ == "FrozenDatetime"
+
+
+class FrozenDatetime(
+    _orig_datetime,
+    metaclass=FrozenDateTimeMeta,
+):
     """
     `datetime` subclass whose .now()/ .utcnow() always return `_frozen_now`.
     Tests may mutate `FrozenDatetime._frozen_now` on-the-fly.

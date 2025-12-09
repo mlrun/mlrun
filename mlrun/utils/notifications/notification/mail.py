@@ -91,6 +91,12 @@ class MailNotification(base.NotificationBase):
         )
         self.params["body"] = runs_html
 
+        # if username or password not in self.params, set them with None
+        # this to ensure send_email function will not fail if username or password were not provided
+        for param in ["username", "password"]:
+            if param not in self.params:
+                self.params[param] = None
+
         if message_body_override:
             self.params["body"] = message_body_override.replace(
                 "{{ runs }}", runs_html

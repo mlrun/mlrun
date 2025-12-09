@@ -1674,6 +1674,19 @@ class TestMailNotification:
         ["name", "params", "message", "severity", "expected"],
         [
             (
+                "no_username_or_password",
+                {},
+                "test-message",
+                "info",
+                {
+                    "subject": "[info] test-message",
+                    "body": MOCKED_HTML,
+                    # commented out to reflect the fact that username and password are not required
+                    # "username": None,
+                    # "password": None,
+                },
+            ),
+            (
                 "empty_params",
                 {},
                 "test-message",
@@ -1724,11 +1737,16 @@ class TestMailNotification:
         ],
     )
     async def test_push(self, name, params, message, severity, expected):
-        mlrun.utils.logger.debug(f"Testing {name}")
+        params.update({
+            "sender_address": "test@example.com",
+            "server_host": "smtp.example.com",
+        })
         notification = mail.MailNotification(params=params)
-        notification._send_email = unittest.mock.AsyncMock()
         notification._get_html = unittest.mock.MagicMock(return_value=self.MOCKED_HTML)
-        await notification.push(message, severity, [])
+
+        # mock aiosmtplib.send with asyncMock
+        with unittest.mock.patch("aiosmtplib.send", new_callable=unittest.mock.AsyncMock) as send_mock:
+            await notification.push(message, severity, [])
         assert notification.params["subject"] == expected["subject"]
         assert notification.params["body"] == expected["body"]
 

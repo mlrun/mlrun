@@ -8572,12 +8572,11 @@ class SQLDB(DBInterface):
                 f"{datetime_attr_name} must be set before computing {partition_key_attr_name} "
                 f"for table '{table_name}'"
             )
-        if interval is not None:
-            setattr(
-                record,
-                partition_key_attr_name,
-                interval.get_partition_key_value(datetime_value),
-            )
+        setattr(
+            record,
+            partition_key_attr_name,
+            interval.get_partition_key_value(datetime_value),
+        )
 
 
 class SQLiteDB(SQLDB):

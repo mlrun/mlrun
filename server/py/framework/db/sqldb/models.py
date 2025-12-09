@@ -1165,6 +1165,32 @@ def bootstrap_partitions(
 
 
 @_event_listen_for_dialects(
+    target=AlertActivation.__table__,
+    identifier="after_create",
+    relevant_dialects=[
+        mlrun.common.db.dialects.Dialects.MYSQL,
+        mlrun.common.db.dialects.Dialects.POSTGRESQL,
+    ],
+)
+def set_alert_activations_partition_interval(
+    table: Table,
+    connection: Connection,
+    **_,
+) -> None:
+    """This is required for integration tests, as they dont set the partition interval for alert_activations via alembic migration"""
+    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
+    with Session(bind=connection) as session:
+        import framework.db.sqldb.db
+
+        db = framework.db.sqldb.db.SQLDB()
+        db.set_partition_interval_for_table(
+            session=session,
+            table_name=table.name,
+            partition_interval=partition_interval,
+        )
+
+
+@_event_listen_for_dialects(
     target=Base.metadata,
     identifier="before_create",
     relevant_dialects=[mlrun.common.db.dialects.Dialects.POSTGRESQL],

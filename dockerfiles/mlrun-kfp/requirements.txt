@@ -1,2 +1,2 @@
 kfp==1.8.23
-mlrun-pipelines-kfp-v1-8[kfp]~=0.5.8
+mlrun-pipelines-kfp-v1-8[kfp]~=0.6.0

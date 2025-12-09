@@ -152,6 +152,7 @@ async def test_perform_refresh_smtp(
     monkeypatch.setattr(
         framework.utils.singletons.k8s, "get_k8s_helper", lambda: k8s_secrets_mock
     )
+    mlrun.mlconf.iguazio_api_url = "https://some-iguazio-url.com"
     await services.api.api.endpoints.operations._perform_refresh_smtp("")
     mail_notification_default_params = (
         notification_pusher.RunNotificationPusher.mail_notification_default_params
@@ -177,6 +178,7 @@ async def test_failed_perform_refresh_smtp(
         "get_smtp_configuration",
         raise_exception,
     )
+    mlrun.mlconf.iguazio_api_url = "https://some-iguazio-url.com"
     with pytest.raises(mlrun.errors.MLRunInternalServerError):
         await services.api.api.endpoints.operations._perform_refresh_smtp("")
 

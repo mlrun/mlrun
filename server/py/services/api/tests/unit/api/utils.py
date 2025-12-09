@@ -88,7 +88,9 @@ def assert_pagination_info(
     entity_name: str,
     entity_identifier_name: str,
 ):
-    assert response.status_code == HTTPStatus.OK.value
+    assert (
+        response.status_code == HTTPStatus.OK.value
+    ), f"Unexpected status code: {response.status_code}, response: {response.text}"
 
     pagination = response.json().get("pagination")
     assert (

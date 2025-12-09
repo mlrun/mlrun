@@ -315,6 +315,7 @@ def test_partition_filtering_year_month():
             end_time=end_time,
             time_column=time_column,
             format="parquet",
+            optimize_discovery=False,
         )
 
         # Calculate expected results manually
@@ -329,3 +330,141 @@ def test_partition_filtering_year_month():
             check_dtype=False,
             check_categorical=False,
         )
+
+
+@pytest.mark.parametrize(
+    "with_time_zone",
+    [True, False],
+)
+@pytest.mark.parametrize(
+    "description, start_time_args, end_time_args, partition_args, expected",
+    [
+        # ----------------------------
+        # YEAR ONLY PARTITIONS
+        # ----------------------------
+        (
+            "Year fully inside range",
+            (2024, 1, 1, 0, 0),
+            (2024, 12, 31, 23, 59),
+            dict(year=2024),
+            True,
+        ),
+        (
+            "Year fully before range",
+            (2024, 1, 1, 0, 0),
+            (2024, 12, 31, 23, 59),
+            dict(year=2023),
+            False,
+        ),
+        (
+            "Year fully after range",
+            (2024, 1, 1, 0, 0),
+            (2024, 12, 31, 23, 59),
+            dict(year=2025),
+            False,
+        ),
+        (
+            "Year boundary overlap",
+            (2023, 12, 31, 23, 59),
+            (2024, 1, 1, 0, 0),
+            dict(year=2024),
+            True,
+        ),
+        # ----------------------------
+        # YEAR + MONTH PARTITIONS
+        # ----------------------------
+        (
+            "Month inside full-year range",
+            (2024, 1, 1, 0, 0),
+            (2024, 12, 31, 23, 59),
+            dict(year=2024, month=2),
+            True,
+        ),
+        (
+            "Month outside (previous year)",
+            (2024, 1, 1, 0, 0),
+            (2024, 12, 31, 23, 59),
+            dict(year=2023, month=12),
+            False,
+        ),
+        (
+            "Month crossing year boundary (Dec → Jan)",
+            (2023, 12, 1, 0, 0),
+            (2024, 1, 1, 0, 0),
+            dict(year=2023, month=12),
+            True,
+        ),
+        (
+            "Exact boundary: range start == partition_end",
+            (2024, 1, 1, 0, 0),
+            (2024, 1, 1, 0, 0),
+            dict(year=2024, month=1),
+            True,
+        ),
+        # ----------------------------
+        # YEAR + MONTH + DAY PARTITIONS
+        # ----------------------------
+        (
+            "Day inside range",
+            (2024, 5, 1, 0, 0),
+            (2024, 12, 31, 0, 0),
+            dict(year=2024, month=5, day=15),
+            True,
+        ),
+        (
+            "Day outside range",
+            (2024, 5, 16, 0, 0),
+            (2024, 12, 31, 0, 0),
+            dict(year=2023, month=5, day=15),
+            False,
+        ),
+        (
+            "Day boundary exact-touch",
+            (2024, 5, 15, 0, 0),
+            (2024, 5, 16, 0, 0),
+            dict(year=2024, month=5, day=15),
+            True,
+        ),
+        # ----------------------------
+        # YEAR + MONTH + DAY + HOUR PARTITIONS
+        # ----------------------------
+        (
+            "Hour inside range",
+            (2024, 6, 10, 4, 0),
+            (2024, 6, 30, 0, 0),
+            dict(year=2024, month=6, day=10, hour=5),
+            True,
+        ),
+        (
+            "Hour outside range",
+            (2024, 6, 10, 6, 0),
+            (2024, 6, 30, 0, 0),
+            dict(year=2024, month=7, day=10, hour=5),
+            False,
+        ),
+        (
+            "Hour partition touches range start",
+            (2024, 6, 10, 6, 0),
+            (2024, 6, 10, 8, 0),
+            dict(year=2024, month=6, day=10, hour=6),
+            True,
+        ),
+    ],
+)
+def test_is_directory_in_range(
+    description,
+    start_time_args,
+    end_time_args,
+    partition_args,
+    expected,
+    with_time_zone,
+):
+    tz = pytz.UTC if with_time_zone else None
+
+    start_time = datetime(*start_time_args, tzinfo=tz)
+    end_time = datetime(*end_time_args, tzinfo=tz)
+
+    result = mlrun.datastore.base.DataStore._is_directory_in_range(
+        start_time, end_time, **partition_args
+    )
+    assert result == expected, f"Failed case: {description} (tz-aware={with_time_zone})"

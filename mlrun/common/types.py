@@ -14,18 +14,10 @@
 
 import enum
 
-
-# TODO: From python 3.11 StrEnum is built-in and this will not be needed
-class StrEnum(str, enum.Enum):
-    def __str__(self):
-        return self.value
-
-    def __repr__(self):
-        return self.value
+# Alias to Python's built-in StrEnum (Python 3.11+)
+StrEnum = enum.StrEnum
 
 
-# Partial backport from Python 3.11
-# https://docs.python.org/3/library/http.html#http.HTTPMethod
 class HTTPMethod(StrEnum):
     GET = "GET"
     POST = "POST"

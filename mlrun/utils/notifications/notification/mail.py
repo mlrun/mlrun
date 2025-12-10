@@ -45,12 +45,7 @@ class MailNotification(base.NotificationBase):
 
     @classmethod
     def validate_params(cls, params):
-        # Normalize empty string username/password to None
-        if not params.get("username"):
-            params["username"] = None
-        if not params.get("password"):
-            params["password"] = None
-
+        cls._enrich_params(params)
         for required_param in cls.required_params:
             if required_param not in params:
                 raise ValueError(
@@ -90,6 +85,8 @@ class MailNotification(base.NotificationBase):
             message, severity, runs, custom_html, alert, event_data
         )
         self.params["body"] = runs_html
+
+        self._enrich_params(self.params)
 
         if message_body_override:
             self.params["body"] = message_body_override.replace(
@@ -176,14 +173,27 @@ class MailNotification(base.NotificationBase):
         message["Subject"] = subject
         message.attach(MIMEText(body, "html"))
 
-        # Send the email
-        await aiosmtplib.send(
-            message,
-            hostname=server_host,
-            port=server_port,
-            username=username,
-            password=password,
-            use_tls=use_tls,
-            validate_certs=validate_certs,
-            start_tls=start_tls,
-        )
+        send_kwargs = {
+            "hostname": server_host,
+            "port": server_port,
+            "use_tls": use_tls,
+            "validate_certs": validate_certs,
+            "start_tls": start_tls,
+        }
+
+        # Only include auth parameters when provided to avoid forcing SMTP AUTH
+        if username is not None:
+            send_kwargs["username"] = username
+        if password is not None:
+            send_kwargs["password"] = password
+
+        await aiosmtplib.send(message, **send_kwargs)
+
+    @staticmethod
+    def _enrich_params(params):
+        # if username/password are not provided or empty strings, set them to None.
+        # this ensures consistent behavior in _send_email and avoids
+        # forcing SMTP auth when the server does not require authentication.
+        for param in ["username", "password"]:
+            if param not in params or not params[param]:
+                params[param] = None

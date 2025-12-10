@@ -1185,7 +1185,12 @@ def test_get_secret_token_not_found():
         # Volume with a different name already exists (should add new one)
         (
             [{"mountPath": "/some/other/path", "name": "other-volume"}],
-            [{"name": "other-volume", "other-volume": {"items": []}}],
+            [
+                {
+                    "name": "other-volume",
+                    "secret": {"items": [], "secretName": "old-secret"},
+                }
+            ],
             2,
         ),
     ],
@@ -1242,9 +1247,6 @@ def test_mount_secret_token_to_runtime_non_existing_secret():
     username = "test-user"
 
     runtime = mlrun.runtimes.kubejob.KubejobRuntime()
-    # # Runtime that inherit from BaseRuntime already have existing volumes/mounts
-    # runtime.spec.volume_mounts = []
-    # runtime.spec.volumes = []
 
     mock_helper = unittest.mock.MagicMock()
     mock_helper._get_user_token_secret.return_value = None

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import pathlib
 import typing
 
@@ -21,6 +22,7 @@ import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.run
 from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
+from mlrun.common.types import StrEnum
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import (
     min_nuclio_versions,
@@ -33,6 +35,19 @@ from mlrun.runtimes.nuclio.api_gateway import (
 )
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
 from mlrun.utils import is_valid_port, logger, update_in
+
+
+class ProbeType(StrEnum):
+    READINESS = "readiness"
+    LIVENESS = "liveness"
+    STARTUP = "startup"
+
+
+PROBES_KEYS = {
+    ProbeType.READINESS.value: "readinessProbe",
+    ProbeType.LIVENESS.value: "livenessProbe",
+    ProbeType.STARTUP.value: "startupProbe",
+}
 
 
 class ApplicationSpec(NuclioSpec):
@@ -296,6 +311,103 @@ class ApplicationRuntime(RemoteRuntime):
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
 
+    def set_probe(
+        self,
+        type: ProbeType,
+        initial_delay_seconds: int | None = None,
+        period_seconds: int | None = None,
+        failure_threshold: int | None = None,
+        timeout_seconds: int | None = None,
+        http_path: str | None = None,
+        http_port: int | None = None,
+        http_scheme: str | None = None,
+        config: dict | None = None,
+    ):
+        """Set a Kubernetes probe configuration for the sidecar container
+
+        The config parameter serves as the base configuration, and individual parameters
+        override values in config. If http_path is provided without http_port and config
+        is not provided, the port will be enriched from the internal application port
+        just before deployment.
+
+        :param type:                 Probe type - one of "readiness", "liveness", "startup"
+        :param initial_delay_seconds: Number of seconds after the container has started before probes are initiated
+        :param period_seconds:         How often (in seconds) to perform the probe
+        :param failure_threshold:     Minimum consecutive failures for the probe to be considered failed
+        :param timeout_seconds:       Number of seconds after which the probe times out
+        :param http_path:            If provided, use an HTTP probe with this path
+        :param http_port:            If HTTP probe is used and no port provided, the internal application port will be used
+        :param http_scheme:           "http" or "https" for HTTP probe. Defaults to "http"
+        :param config:                A full dict with the probe configuration (used as base, overridden by individual parameters)
+
+        :return: function object (self)
+        """
+        # Validate probe type
+        if not isinstance(type, ProbeType):
+            try:
+                type = ProbeType(type.value if hasattr(type, "value") else type)
+            except (ValueError, AttributeError):
+                raise ValueError(
+                    f"Invalid probe type: {type}. Must be one of: {[p.value for p in ProbeType]}"
+                )
+
+        # Start with config as base
+        probe_config = copy.deepcopy(config) if config else {}
+
+        # Build HTTP probe configuration if http_path is provided
+        # Note: If http_path is None, all HTTP-related parameters (http_port, http_scheme) are ignored
+        if http_path:
+            http_probe = probe_config.get("httpGet", {})
+            http_probe["path"] = http_path
+            if http_port is not None:
+                http_probe["port"] = http_port
+            http_probe["scheme"] = http_scheme or http_probe.get("scheme", "http")
+            probe_config["httpGet"] = http_probe
+
+        # Override timing parameters from explicit arguments
+        if initial_delay_seconds is not None:
+            probe_config["initialDelaySeconds"] = initial_delay_seconds
+        if period_seconds is not None:
+            probe_config["periodSeconds"] = period_seconds
+        if failure_threshold is not None:
+            probe_config["failureThreshold"] = failure_threshold
+        if timeout_seconds is not None:
+            probe_config["timeoutSeconds"] = timeout_seconds
+
+        # Store probe configuration in the sidecar
+        sidecar = self._set_sidecar(self._get_sidecar_name())
+        probe_key = PROBES_KEYS[type.value]
+        sidecar[probe_key] = probe_config
+
+        return self
+
+    def delete_probe(
+        self,
+        type: ProbeType,
+    ):
+        """Delete a Kubernetes probe configuration from the sidecar container
+
+        :param type: Probe type - one of "readiness", "liveness", "startup"
+
+        :return: function object (self)
+        """
+        # Validate probe type
+        if not isinstance(type, ProbeType):
+            try:
+                type = ProbeType(type.value if hasattr(type, "value") else type)
+            except (ValueError, AttributeError):
+                raise ValueError(
+                    f"Invalid probe type: {type}. Must be one of: {[p.value for p in ProbeType]}"
+                )
+
+        sidecar = self._get_sidecar()
+        if sidecar:
+            probe_key = PROBES_KEYS[type.value]
+            if probe_key in sidecar:
+                del sidecar[probe_key]
+
+        return self
+
     def with_sidecar(
         self,
         name: typing.Optional[str] = None,
@@ -423,6 +535,7 @@ class ApplicationRuntime(RemoteRuntime):
         self.spec.add_templated_ingress_host_mode = (
             NuclioIngressAddTemplatedIngressModes.never
         )
+        self._enrich_sidecar_probe_ports()
 
         super().deploy(
             project=project,
@@ -885,3 +998,60 @@ class ApplicationRuntime(RemoteRuntime):
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
         self.status.api_gateway.wait_for_readiness()
         self.url = self.status.api_gateway.invoke_url
+
+    def _enrich_sidecar_probe_ports(self):
+        """Enrich sidecar probe configurations with internal application port if needed
+
+        This method is called just before deployment to automatically enrich HTTP probes
+        in the sidecar container that were configured without an explicit port.
+
+        Enrichment logic:
+        - Only enriches HTTP probes (httpGet) that don't already have a port specified
+        - If the user explicitly provided http_port in set_probe(), enrichment is skipped
+        - If the user provided a port in the config dict, enrichment is skipped
+        - Enrichment happens just before deployment to ensure the latest internal_application_port
+          value is used, even if it was modified after set_probe() was called
+        """
+        internal_port = None
+        if hasattr(self.spec, "internal_application_port"):
+            internal_port = self.spec.internal_application_port
+
+        # Check each probe type and enrich missing HTTP ports
+        sidecar = self._get_sidecar()
+        if not sidecar:
+            return
+
+        for probe_type in ProbeType:
+            probe_key = PROBES_KEYS[probe_type.value]
+            probe_config = sidecar.get(probe_key)
+
+            if probe_config and isinstance(probe_config, dict):
+                http_get = probe_config.get("httpGet")
+                if http_get and isinstance(http_get, dict) and "port" not in http_get:
+                    if internal_port is None:
+                        raise ValueError(
+                            f"Cannot enrich {probe_type.value} probe: HTTP probe requires a port, "
+                            "but internal_application_port is not set. "
+                            "Please set the internal_application_port or provide http_port in set_probe()."
+                        )
+                    http_get["port"] = internal_port
+                    sidecar[probe_key] = probe_config
+
+    def _get_sidecar(self) -> dict | None:
+        """Get the sidecar container for ApplicationRuntime
+
+        Returns the sidecar dict if found, None otherwise.
+        """
+        sidecar_name = self._get_sidecar_name()
+        if not hasattr(self.spec, "config") or "spec.sidecars" not in self.spec.config:
+            return None
+
+        sidecars = self.spec.config["spec.sidecars"]
+        for sidecar in sidecars:
+            if sidecar.get("name") == sidecar_name:
+                return sidecar
+
+        return None
+
+    def _get_sidecar_name(self):
+        return f"{self.metadata.name}-sidecar"

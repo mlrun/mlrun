@@ -1074,6 +1074,20 @@ class RemoteRuntime(KubeResource):
             sidecar["resources"] = self.spec.resources
             self.spec.resources = None
 
+    def set_probe(self, *args, **kwargs):
+        """Set a Kubernetes probe configuration for the sidecar container
+
+        This method is only available for ApplicationRuntime.
+        """
+        raise ValueError("set_probe() is only supported for ApplicationRuntime. ")
+
+    def delete_probe(self, *args, **kwargs):
+        """Delete a Kubernetes probe configuration from the sidecar container
+
+        This method is only available for ApplicationRuntime.
+        """
+        raise ValueError("delete_probe() is only supported for ApplicationRuntime.")
+
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])
         sidecars = self.spec.config["spec.sidecars"]

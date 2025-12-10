@@ -1757,6 +1757,7 @@ class TestMailNotification:
     @pytest.mark.parametrize(
         ["username", "password", "expected_auth_kwargs"],
         [
+            ("", "", {}),
             (None, None, {}),
             ("user", None, {"username": "user"}),
             ("user", "pass", {"username": "user", "password": "pass"}),
@@ -1768,18 +1769,20 @@ class TestMailNotification:
         send_mock = unittest.mock.AsyncMock()
         monkeypatch.setattr(mail.aiosmtplib, "send", send_mock)
 
-        await mail.MailNotification._send_email(
-            email_addresses="a@example.com",
-            sender_address="sender@example.com",
-            server_host="smtp.example.com",
-            server_port=25,
-            username=username,
-            password=password,
-            use_tls=False,
-            start_tls=False,
-            validate_certs=True,
-            subject="subject",
-            body="body",
+        await mail.MailNotification(
+            params={
+                "server_host": "smtp.example.com",
+                "server_port": 25,
+                "sender_address": "",
+                "username": username,
+                "password": password,
+                "use_tls": False,
+                "validate_certs": True,
+                "start_tls": False,
+            }
+        ).push(
+            message="Test Message",
+            severity="info",
         )
 
         assert send_mock.await_count == 1

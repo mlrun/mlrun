@@ -45,12 +45,7 @@ class MailNotification(base.NotificationBase):
 
     @classmethod
     def validate_params(cls, params):
-        # Normalize empty string username/password to None
-        if not params.get("username"):
-            params["username"] = None
-        if not params.get("password"):
-            params["password"] = None
-
+        cls._enrich_params(params)
         for required_param in cls.required_params:
             if required_param not in params:
                 raise ValueError(
@@ -91,11 +86,7 @@ class MailNotification(base.NotificationBase):
         )
         self.params["body"] = runs_html
 
-        # if username or password not in self.params, set them with None
-        # this to ensure send_email function will not fail if username or password were not provided
-        for param in ["username", "password"]:
-            if param not in self.params:
-                self.params[param] = None
+        self._enrich_params(self.params)
 
         if message_body_override:
             self.params["body"] = message_body_override.replace(
@@ -197,3 +188,12 @@ class MailNotification(base.NotificationBase):
             send_kwargs["password"] = password
 
         await aiosmtplib.send(message, **send_kwargs)
+
+    @staticmethod
+    def _enrich_params(params):
+        # if username/password are not provided or empty strings, set them to None.
+        # this ensures consistent behavior in _send_email and avoids
+        # forcing SMTP auth when the server does not require authentication.
+        for param in ["username", "password"]:
+            if param not in params or not params[param]:
+                params[param] = None

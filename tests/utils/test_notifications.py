@@ -1746,7 +1746,6 @@ class TestMailNotification:
         notification = mail.MailNotification(params=params)
         notification._get_html = unittest.mock.MagicMock(return_value=self.MOCKED_HTML)
 
-        # mock aiosmtplib.send with asyncMock
         with unittest.mock.patch(
             "aiosmtplib.send", new_callable=unittest.mock.AsyncMock
         ):

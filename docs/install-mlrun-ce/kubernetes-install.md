@@ -149,7 +149,7 @@ Make sure to save your changes in the `data` folder within the Jupyter Lab. The 
 
 ## Configuring the remote environment
 
-You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your environment](https://docs.mlrun.org/en/latest//setup-guide/remote.md.html) for more information.
+You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your environment](../setup-guide.md) for more information.
 
 ### Installing on Docker Desktop
 

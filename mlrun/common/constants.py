@@ -38,6 +38,9 @@ JOB_TYPE_PROJECT_LOADER = "project-loader"
 JOB_TYPE_RERUN_WORKFLOW_RUNNER = "rerun-workflow-runner"
 MLRUN_ACTIVE_PROJECT = "MLRUN_ACTIVE_PROJECT"
 
+MLRUN_JOB_AUTH_SECRET_PATH = "/var/mlrun-secrets/auth"
+MLRUN_JOB_AUTH_SECRET_FILE = ".igz.yml"
+
 
 class MLRunInternalLabels:
     ### dask

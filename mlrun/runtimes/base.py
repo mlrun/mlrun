@@ -156,8 +156,6 @@ class BaseRuntime(ModelObj):
     _default_fields_to_strip = ModelObj._default_fields_to_strip + [
         "status",  # Function status describes the state rather than configuration
     ]
-    # TODO: Remove this once we implement secret token mounting in jobs (ML-11292)
-    _default_token_name = "default"
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -463,7 +461,7 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
 
-        mlrun.auth.utils.enrich_auth_env(runtime_env, self._get_db(), auth_info)
+        mlrun.auth.utils.enrich_auth_env(runtime_env)
 
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(

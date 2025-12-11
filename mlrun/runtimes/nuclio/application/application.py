@@ -330,9 +330,11 @@ class ApplicationRuntime(RemoteRuntime):
         :param failure_threshold:     Minimum consecutive failures for the probe to be considered failed
         :param timeout_seconds:       Number of seconds after which the probe times out
         :param http_path:            If provided, use an HTTP probe with this path
-        :param http_port:            If HTTP probe is used and no port provided, the internal application port will be used
+        :param http_port:            If HTTP probe is used and no port provided,
+                                     the internal application port will be used
         :param http_scheme:           "http" or "https" for HTTP probe. Defaults to "http"
-        :param config:                A full dict with the probe configuration (used as base, overridden by individual parameters)
+        :param config:                A full dict with the probe configuration
+                                     (used as base, overridden by individual parameters)
 
         :return: function object (self)
         """

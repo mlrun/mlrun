@@ -102,9 +102,9 @@ def _validate_schema(
         "int": lambda v: isinstance(v, int)
         or (isinstance(v, float) and v.is_integer()),
         "bool": lambda v: isinstance(v, bool),
-        "datetime": lambda v: isinstance(v, (str, dict)),
-        "date": lambda v: isinstance(v, (str, dict)),
-        "object": lambda v: isinstance(v, (str, dict)),
+        "datetime": lambda v: isinstance(v, str | dict),
+        "date": lambda v: isinstance(v, str | dict),
+        "object": lambda v: isinstance(v, str | dict),
     }
 
     def _is_compatible(field_value: typing.Any, expected_field_type: str) -> bool:
@@ -164,7 +164,7 @@ def _validate_http_probe(
         return f"{probe_type} in sidecar '{sidecar_name}': httpGet.path is required"
     if not http_get.get("port"):
         return f"{probe_type} in sidecar '{sidecar_name}': httpGet.port is required"
-    if not isinstance(http_get.get("port"), (int, str)):
+    if not isinstance(http_get.get("port"), int | str):
         return (
             f"{probe_type} in sidecar '{sidecar_name}': httpGet.port must be int or str"
         )

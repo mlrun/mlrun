@@ -1321,7 +1321,7 @@ def test_mrs_direct_batch_input(multiple_models, raise_exception):
     graph = function.set_topology("flow", engine="async")
     step = graph
     model_runner_step = ModelRunnerStep(name="my_model_runner")
-    messages = (
+    inputs = (
         [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
         if raise_exception
         else [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
@@ -1353,9 +1353,9 @@ def test_mrs_direct_batch_input(multiple_models, raise_exception):
                 RuntimeError,
                 match=".*The feature names should match those that were passed during fit.*",
             ):
-                server.test(body=messages)
+                server.test(body=inputs)
         else:
-            resp = server.test(body=messages)
+            resp = server.test(body=inputs)
             if multiple_models:
                 assert resp == {
                     endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],

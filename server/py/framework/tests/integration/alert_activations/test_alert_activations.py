@@ -144,8 +144,6 @@ def test_drop_partitions_drops_old_rows_without_reorganizing(
         )
     )
 
-    interval = mlrun.common.schemas.partition_interval.PartitionInterval("DAY")
-
     with sqlalchemy.orm.Session(db_engine) as session:
         base_time = datetime(2025, 1, 10)
         times = [

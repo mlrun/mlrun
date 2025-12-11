@@ -297,7 +297,7 @@ class PartitionBootstrapperMySQL(PartitionBootstrapper):
         """
         Build a single PARTITION ... VALUES LESS THAN (...) clause for MySQL.
         """
-        return f"PARTITION {quoted_partition} " f"VALUES LESS THAN ({boundary_value})"
+        return f"PARTITION {quoted_partition} VALUES LESS THAN ({boundary_value})"
 
 
 class PartitionBootstrapperPostgres(PartitionBootstrapper):

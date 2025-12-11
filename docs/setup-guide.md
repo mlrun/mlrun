@@ -8,7 +8,6 @@ making sure you're ready to get started with building and managing AI workflow w
 - [Prerequisites](#prerequisites)
 - [MLRun client supported OS](#mlrun-client-supported-os)
 - [MLRun client backward compatibility](#MLRun-client-backward-compatibility)
-- [Non root user support](#non-root-user-support)
 - [Set up your client environment](#set-up-your-client-environment)
 - [Configure remote environment](#configure-remote-environment)
 
@@ -40,16 +39,6 @@ For example, when running this command `pip install mlrun==1.8.0` you must updat
 ```{admonition} Important
 The feature store is not backward compatible. 
 ```
-
-## Non-root user support
-
-By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, which is implemented by Iguazio during installation, and applied system-wide:
-
-- **Override**: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1 and higher.
-- **Disabled**: Security context is not auto applied (the system applies the root user). (default)
-
-See also {ref}`images-usage`.
-
 
 ## Set up your client environment
 
@@ -293,6 +282,3 @@ If you created a new configuration in the previous step, your `launch.json` woul
     ]
 }
 ```
-
-<br>
-<img class="dark-light" src="_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>

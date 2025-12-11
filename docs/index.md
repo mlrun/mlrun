@@ -12,6 +12,7 @@ See the supported data stores, development tools, services, platforms, etc., sup
 
 **In this section**
 - [Deployemnt options](#deployment-options)
+- [Set up your client](#set-up-your-client)
 - [Gen AI tasks](#gen-ai-tasks) 
 - [MLOps tasks](#mlops-tasks)
 - [MLRun core components](#mlrun-core-components)
@@ -23,6 +24,13 @@ The deployment options are:
 - {ref}`AWS cluster<aws-install>`: Deploys the MLRun CE server on an AWS cluster.
 - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
+
+## Set up your client
+
+You can work with your favorite IDE (e.g. PyCharm, VSCode, Jupyter, Colab, etc.). Read how to configure your client against the deployed
+MLRun server in {ref}`install-remote`.
+
+Once you have installed and configured MLRun, follow the {ref}`quick-start-ml` and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
 
 ## Gen AI tasks
 

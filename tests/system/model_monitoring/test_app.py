@@ -704,7 +704,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                         rel_path="assets/custom_evidently_app.py",
                         requirements=[
                             f"evidently=={SUPPORTED_EVIDENTLY_VERSION}",
-                            "sniffio>={SUPPORTED_SNIFFIO_VERSION}", # Due to litestar bug (11640)
+                            "sniffio>={SUPPORTED_SNIFFIO_VERSION}",  # Due to litestar bug (ML-11640)
                         ],
                         kwargs={
                             "evidently_workspace_path": (

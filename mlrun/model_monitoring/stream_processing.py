@@ -200,6 +200,13 @@ class EventStreamProcessor:
                 after="ProcessEndpointEvent",
             )
 
+            graph.add_step(
+                "storey.Filter",
+                "FilterNOPTSDB",
+                after="filter_none",
+                _fn="(event.get('kind', " ") != 'nop_event')",
+            )
+
             # flatten the events
             graph.add_step(
                 "storey.FlatMap", "flatten_events", _fn="(event)", after="filter_none"

@@ -242,7 +242,7 @@ class V3IOTSDBConnector(TSDBConnector):
                     }
                 ],
                 name=EventFieldType.LATENCY,
-                after="FilterNOP",
+                after="FilterNOPTSDB",
                 step_name="Aggregates",
                 table=".",
                 key_field=EventFieldType.ENDPOINT_ID,
@@ -263,7 +263,7 @@ class V3IOTSDBConnector(TSDBConnector):
         graph.add_step(
             "storey.TSDBTarget",
             name="tsdb_predictions",
-            after="FilterNOP",
+            after="FilterNOPTSDB",
             path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.PREDICTIONS]}",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,

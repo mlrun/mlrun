@@ -24,20 +24,28 @@ import semver
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
+from kubernetes.client import (
+    V1ExecAction,
+    V1GRPCAction,
+    V1HTTPGetAction,
+    V1Probe,
+    V1TCPSocketAction,
+)
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+from mlrun.common.runtimes.constants import (
+    PROBE_KEYS,
+    PROBE_TIMING_FAILURE_THRESHOLD,
+    PROBE_TIMING_INITIAL_DELAY_SECONDS,
+    PROBE_TIMING_PERIOD_SECONDS,
+    PROBE_TIMING_SUCCESS_THRESHOLD,
+    PROBE_TIMING_TIMEOUT_SECONDS,
+)
 from mlrun.common.schemas.serving import DeployResponse
 from mlrun.config import config
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
-from kubernetes.client import (
-    V1Probe,
-    V1HTTPGetAction,
-    V1ExecAction,
-    V1TCPSocketAction,
-    V1GRPCAction,
-)
 
 import framework.api.utils
 import framework.db.session
@@ -85,11 +93,14 @@ def _get_schema(class_name: str) -> dict:
     return schema
 
 
-def _validate_schema(data: dict, schema: dict, schema_class_name: str) -> tuple[bool, str]:
+def _validate_schema(
+    data: dict, schema: dict, schema_class_name: str
+) -> tuple[bool, str]:
     """Recursively validate dict against Kubernetes API schema."""
     _type_checkers = {
         "str": lambda v: isinstance(v, str),
-        "int": lambda v: isinstance(v, int) or (isinstance(v, float) and v.is_integer()),
+        "int": lambda v: isinstance(v, int)
+        or (isinstance(v, float) and v.is_integer()),
         "bool": lambda v: isinstance(v, bool),
         "datetime": lambda v: isinstance(v, (str, dict)),
         "date": lambda v: isinstance(v, (str, dict)),
@@ -114,7 +125,10 @@ def _validate_schema(data: dict, schema: dict, schema_class_name: str) -> tuple[
             if value is None:
                 continue
             if not isinstance(value, dict):
-                return False, f"{schema_class_name}.{key}: expected dict, got {type(value).__name__}"
+                return (
+                    False,
+                    f"{schema_class_name}.{key}: expected dict, got {type(value).__name__}",
+                )
             try:
                 nested_schema = _get_schema(expected_type)
                 is_valid, error = _validate_schema(value, nested_schema, expected_type)
@@ -124,7 +138,10 @@ def _validate_schema(data: dict, schema: dict, schema_class_name: str) -> tuple[
                 return False, f"{schema_class_name}.{key}: {str(e)}"
 
         elif not _is_compatible(value, expected_type):
-            return False, f"{schema_class_name}.{key}: invalid type {type(value).__name__}"
+            return (
+                False,
+                f"{schema_class_name}.{key}: invalid type {type(value).__name__}",
+            )
 
     return True, ""
 
@@ -133,9 +150,9 @@ def _validate_http_probe(
     http_get: dict, probe_type: str, sidecar_name: str
 ) -> str | None:
     """Validate HTTP probe configuration.
-    
+
     Only path and port are mandatory if httpGet is configured.
-    
+
     :param http_get: The httpGet configuration dict from the probe
     :param probe_type: The type of probe (readinessProbe, livenessProbe, startupProbe)
     :param sidecar_name: The name of the sidecar container
@@ -148,7 +165,9 @@ def _validate_http_probe(
     if not http_get.get("port"):
         return f"{probe_type} in sidecar '{sidecar_name}': httpGet.port is required"
     if not isinstance(http_get.get("port"), (int, str)):
-        return f"{probe_type} in sidecar '{sidecar_name}': httpGet.port must be int or str"
+        return (
+            f"{probe_type} in sidecar '{sidecar_name}': httpGet.port must be int or str"
+        )
     scheme = http_get.get("scheme")
     if scheme and scheme not in ["HTTP", "HTTPS"]:
         return f"{probe_type} in sidecar '{sidecar_name}': httpGet.scheme must be HTTP or HTTPS"
@@ -157,15 +176,29 @@ def _validate_http_probe(
 
 def _validate_sidecar_probes(sidecars: list[dict]) -> None:
     """Validate probe configurations in sidecars against Kubernetes V1Probe schema."""
-    probe_types = ["readinessProbe", "livenessProbe", "startupProbe"]
     # Minimum values are based on Kubernetes probe configuration documentation:
     # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
     timing_fields = {
-        "initialDelaySeconds": (lambda v: isinstance(v, int) and v >= 0, "non-negative integer (minimum 0)"),
-        "periodSeconds": (lambda v: isinstance(v, int) and v >= 1, "integer >= 1 (minimum 1)"),
-        "timeoutSeconds": (lambda v: isinstance(v, int) and v >= 1, "integer >= 1 (minimum 1)"),
-        "failureThreshold": (lambda v: isinstance(v, int) and v >= 1, "integer >= 1 (minimum 1)"),
-        "successThreshold": (lambda v: isinstance(v, int) and v >= 1, "integer >= 1 (minimum 1)"),
+        PROBE_TIMING_INITIAL_DELAY_SECONDS: (
+            lambda v: isinstance(v, int) and v >= 0,
+            "non-negative integer (minimum 0)",
+        ),
+        PROBE_TIMING_PERIOD_SECONDS: (
+            lambda v: isinstance(v, int) and v >= 1,
+            "integer >= 1 (minimum 1)",
+        ),
+        PROBE_TIMING_TIMEOUT_SECONDS: (
+            lambda v: isinstance(v, int) and v >= 1,
+            "integer >= 1 (minimum 1)",
+        ),
+        PROBE_TIMING_FAILURE_THRESHOLD: (
+            lambda v: isinstance(v, int) and v >= 1,
+            "integer >= 1 (minimum 1)",
+        ),
+        PROBE_TIMING_SUCCESS_THRESHOLD: (
+            lambda v: isinstance(v, int) and v >= 1,
+            "integer >= 1 (minimum 1)",
+        ),
     }
 
     try:
@@ -176,7 +209,7 @@ def _validate_sidecar_probes(sidecars: list[dict]) -> None:
     for sidecar in sidecars:
         sidecar_name = sidecar.get("name", "unknown")
 
-        for probe_type in probe_types:
+        for probe_type in PROBE_KEYS:
             probe = sidecar.get(probe_type)
             if not probe:
                 continue

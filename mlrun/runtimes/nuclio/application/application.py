@@ -21,8 +21,15 @@ import nuclio.auth
 import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.run
-from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
-from mlrun.common.types import StrEnum
+from mlrun.common.runtimes.constants import (
+    PROBE_KEYS,
+    PROBE_TIMING_FAILURE_THRESHOLD,
+    PROBE_TIMING_INITIAL_DELAY_SECONDS,
+    PROBE_TIMING_PERIOD_SECONDS,
+    PROBE_TIMING_TIMEOUT_SECONDS,
+    NuclioIngressAddTemplatedIngressModes,
+    ProbeType,
+)
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import (
     min_nuclio_versions,
@@ -35,19 +42,6 @@ from mlrun.runtimes.nuclio.api_gateway import (
 )
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
 from mlrun.utils import is_valid_port, logger, update_in
-
-
-class ProbeType(StrEnum):
-    READINESS = "readiness"
-    LIVENESS = "liveness"
-    STARTUP = "startup"
-
-
-PROBES_KEYS = {
-    ProbeType.READINESS.value: "readinessProbe",
-    ProbeType.LIVENESS.value: "livenessProbe",
-    ProbeType.STARTUP.value: "startupProbe",
-}
 
 
 class ApplicationSpec(NuclioSpec):
@@ -366,17 +360,17 @@ class ApplicationRuntime(RemoteRuntime):
 
         # Override timing parameters from explicit arguments
         if initial_delay_seconds is not None:
-            probe_config["initialDelaySeconds"] = initial_delay_seconds
+            probe_config[PROBE_TIMING_INITIAL_DELAY_SECONDS] = initial_delay_seconds
         if period_seconds is not None:
-            probe_config["periodSeconds"] = period_seconds
+            probe_config[PROBE_TIMING_PERIOD_SECONDS] = period_seconds
         if failure_threshold is not None:
-            probe_config["failureThreshold"] = failure_threshold
+            probe_config[PROBE_TIMING_FAILURE_THRESHOLD] = failure_threshold
         if timeout_seconds is not None:
-            probe_config["timeoutSeconds"] = timeout_seconds
+            probe_config[PROBE_TIMING_TIMEOUT_SECONDS] = timeout_seconds
 
         # Store probe configuration in the sidecar
         sidecar = self._set_sidecar(self._get_sidecar_name())
-        probe_key = PROBES_KEYS[type.value]
+        probe_key = PROBE_KEYS[type.value]
         sidecar[probe_key] = probe_config
 
         return self
@@ -402,7 +396,7 @@ class ApplicationRuntime(RemoteRuntime):
 
         sidecar = self._get_sidecar()
         if sidecar:
-            probe_key = PROBES_KEYS[type.value]
+            probe_key = PROBE_KEYS[type.value]
             if probe_key in sidecar:
                 del sidecar[probe_key]
 
@@ -1022,7 +1016,7 @@ class ApplicationRuntime(RemoteRuntime):
             return
 
         for probe_type in ProbeType:
-            probe_key = PROBES_KEYS[probe_type.value]
+            probe_key = PROBE_KEYS[probe_type.value]
             probe_config = sidecar.get(probe_key)
 
             if probe_config and isinstance(probe_config, dict):

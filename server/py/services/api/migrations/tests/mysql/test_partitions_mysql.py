@@ -75,7 +75,8 @@ def test_create_partitions_mysql(
     table = "dyn_table"
 
     mysql_db_session.execute(
-        sqlalchemy.text(f"""
+        sqlalchemy.text(
+            f"""
         CREATE TABLE `{table}` (
             id            INT NOT NULL,
             partition_key INT NOT NULL,
@@ -83,7 +84,15 @@ def test_create_partitions_mysql(
         ) PARTITION BY RANGE (partition_key) (
             PARTITION p0 VALUES LESS THAN (1)
         );
-    """)
+    """
+        )
+    )
+
+    initial_partition_names = set(
+        framework.db.sqldb.db.MySQLDB._get_partition_metadata(
+            session=mysql_db_session,
+            table_name=table,
+        ).keys()
     )
 
     services.api.utils.db.partitioner.DBPartitioner(
@@ -96,18 +105,29 @@ def test_create_partitions_mysql(
     )
 
     day_interval = mlrun.common.schemas.partition_interval.PartitionInterval.DAY
-    expected_names = {
+    expected_new_partition_names = {
         day_interval.get_partition_name(datetime(2025, 1, 1)),
         day_interval.get_partition_name(datetime(2025, 1, 2)),
     }
 
-    actual_names = set(
+    actual_partition_names = set(
         framework.db.sqldb.db.MySQLDB._get_partition_metadata(
             session=mysql_db_session,
             table_name=table,
         ).keys()
     )
-    assert expected_names == actual_names
+
+    # all original partitions must remain
+    assert initial_partition_names <= actual_partition_names
+
+    # all expected new partitions must exist
+    assert expected_new_partition_names <= actual_partition_names
+
+    # no unexpected partitions
+    assert (
+        actual_partition_names == initial_partition_names | expected_new_partition_names
+    )
+
     mysql_db_session.close()
 
 

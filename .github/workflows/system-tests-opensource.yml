@@ -222,7 +222,8 @@ jobs:
         helm-version: v3.17.2
         # Simple disk eviction config: Reserve 5% = 95% allocatable ephemeral storage
         # Change the 5% value to increase/decrease allocatable storage
-        extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5%'
+        # Disable egress-selector to avoid connectivity issues
+        extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5% --egress-selector-mode=disabled'
 
 
 

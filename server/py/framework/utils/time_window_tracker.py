@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import datetime
 import typing
 
@@ -109,19 +110,18 @@ async def run_with_time_window_tracker(
         key=key,
         max_window_size_seconds=max_window_size_seconds,
     )
-    # Although the methods below would not be using the db_session in parallel, for some reason, reusing it
-    # causes a segmentation fault so we create new ones for the time window ops
-    await run_in_threadpool(
-        framework.db.session.run_function_with_new_db_session, cycle_tracker.initialize
-    )
+
+    def initialize_and_get_window(session):
+        cycle_tracker.initialize(session)
+        return cycle_tracker.get_window(session)
+
     last_update_time = await run_in_threadpool(
-        framework.db.session.run_function_with_new_db_session, cycle_tracker.get_window
+        framework.db.session.run_function_with_new_db_session, initialize_and_get_window
     )
     now = datetime.datetime.now(datetime.UTC)
-    db_session = await run_in_threadpool(framework.db.session.create_session)
     try:
-        await framework.utils.asyncio.maybe_coroutine(
-            callback(db_session, last_update_time, *args, **kwargs)
+        await framework.db.session.run_async_function_with_new_db_session(
+            callback, last_update_time, *args, **kwargs
         )
         await run_in_threadpool(
             framework.db.session.run_function_with_new_db_session,
@@ -131,7 +131,6 @@ async def run_with_time_window_tracker(
         # The window update succeeded above, no need to ensure it
         ensure_window_update = False
     finally:
-        await run_in_threadpool(framework.db.session.close_session, db_session)
         if ensure_window_update:
             # Sessions are not thread-safe, so we need to create a new one
             await run_in_threadpool(
@@ -139,3 +138,34 @@ async def run_with_time_window_tracker(
                 cycle_tracker.update_window,
                 now,
             )
+
+
+def run_with_time_window_tracker_sync(
+        key: TimeWindowTrackerKeys,
+        max_window_size_seconds: int,
+        ensure_window_update: bool,
+        callback: typing.Callable,
+        *args,
+        **kwargs,
+):
+    cycle_tracker = TimeWindowTracker(
+        key=key,
+        max_window_size_seconds=max_window_size_seconds,
+    )
+
+    # ensure callback is not synchronous
+    if asyncio.iscoroutinefunction(callback):
+        raise ValueError("callback must be a synchronous function")
+
+    with framework.db.session.get_db_session() as session:
+        cycle_tracker.initialize(session)
+        last_update_time = cycle_tracker.get_window(session)
+        now = datetime.datetime.now(datetime.UTC)
+        try:
+            callback(session, last_update_time, *args, **kwargs)
+            cycle_tracker.update_window(session, now)
+            # The window update succeeded above, no need to ensure it
+            ensure_window_update = False
+        finally:
+            if ensure_window_update:
+                cycle_tracker.update_window(session, now)

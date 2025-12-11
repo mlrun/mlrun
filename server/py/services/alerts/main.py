@@ -614,9 +614,9 @@ class Service(framework.service.Service):
                 self._generate_events,
             )
 
-    async def _generate_events(self):
+    def _generate_events(self):
         try:
-            await framework.utils.time_window_tracker.run_with_time_window_tracker(
+            framework.utils.time_window_tracker.run_with_time_window_tracker_sync(
                 key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.events_generation,
                 max_window_size_seconds=int(
                     # TODO: This needs to be aligned with chief

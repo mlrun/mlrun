@@ -689,10 +689,10 @@ class TestCollectRunSLogs:
 
     @pytest.mark.asyncio
     async def test_verify_log_collection_started_no_runs(
-            self,
-            db: sqlalchemy.orm.session.Session,
-            client: fastapi.testclient.TestClient,
-            monkeypatch,
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
     ):
         """Test _verify_log_collection_started when there are no runs to collect"""
         update_runs_requested_logs_mock = unittest.mock.Mock()
@@ -705,7 +705,7 @@ class TestCollectRunSLogs:
         # Mock _list_runs_uids_to_collect_logs to return empty list
         list_runs_uids_mock = unittest.mock.Mock(return_value=[])
         with unittest.mock.patch.object(
-                daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
+            daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
         ):
             await daemon.service._verify_log_collection_started(
                 db, datetime.datetime.now(datetime.UTC), self.start_log_limit
@@ -716,10 +716,10 @@ class TestCollectRunSLogs:
 
     @pytest.mark.asyncio
     async def test_verify_log_collection_started_with_runs(
-            self,
-            db: sqlalchemy.orm.session.Session,
-            client: fastapi.testclient.TestClient,
-            monkeypatch,
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
     ):
         """Test _verify_log_collection_started with runs that need log collection"""
         log_collector = framework.utils.clients.log_collector.LogCollectorClient()
@@ -772,10 +772,10 @@ class TestCollectRunSLogs:
 
     @pytest.mark.asyncio
     async def test_verify_log_collection_started_with_runs_over_limit(
-            self,
-            db: sqlalchemy.orm.session.Session,
-            client: fastapi.testclient.TestClient,
-            monkeypatch,
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
     ):
         """Test _verify_log_collection_started when runs exceed the startup limit"""
         log_collector = framework.utils.clients.log_collector.LogCollectorClient()
@@ -847,10 +847,10 @@ class TestCollectRunSLogs:
 
     @pytest.mark.asyncio
     async def test_initiate_logs_collection_no_runs(
-            self,
-            db: sqlalchemy.orm.session.Session,
-            client: fastapi.testclient.TestClient,
-            monkeypatch,
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
     ):
         """Test _initiate_logs_collection when there are no runs to collect"""
         update_runs_requested_logs_mock = unittest.mock.Mock()
@@ -863,7 +863,7 @@ class TestCollectRunSLogs:
         # Mock _list_runs_uids_to_collect_logs to return empty list
         list_runs_uids_mock = unittest.mock.Mock(return_value=[])
         with unittest.mock.patch.object(
-                daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
+            daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
         ):
             await daemon.service._initiate_logs_collection(self.start_log_limit)
 
@@ -872,10 +872,10 @@ class TestCollectRunSLogs:
 
     @pytest.mark.asyncio
     async def test_initiate_logs_collection_with_runs(
-            self,
-            db: sqlalchemy.orm.session.Session,
-            client: fastapi.testclient.TestClient,
-            monkeypatch,
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
     ):
         """Test _initiate_logs_collection with runs that need log collection"""
 
@@ -921,10 +921,10 @@ class TestCollectRunSLogs:
 
     @pytest.mark.asyncio
     async def test_initiate_logs_collection_uses_async_session(
-            self,
-            db: sqlalchemy.orm.session.Session,
-            client: fastapi.testclient.TestClient,
-            monkeypatch,
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
     ):
         """Test that _initiate_logs_collection uses async session context manager"""
         # Mock get_db_session_async to track if it's called
@@ -939,12 +939,12 @@ class TestCollectRunSLogs:
                 yield session
 
         with unittest.mock.patch(
-                "framework.db.session.get_db_session_async", mock_get_db_session_async
+            "framework.db.session.get_db_session_async", mock_get_db_session_async
         ):
             # Mock _list_runs_uids_to_collect_logs to return empty list
             list_runs_uids_mock = unittest.mock.Mock(return_value=[])
             with unittest.mock.patch.object(
-                    daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
+                daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
             ):
                 await daemon.service._initiate_logs_collection(self.start_log_limit)
 
@@ -953,10 +953,10 @@ class TestCollectRunSLogs:
 
     @pytest.mark.asyncio
     async def test_verify_log_collection_started_with_last_update_time(
-            self,
-            db: sqlalchemy.orm.session.Session,
-            client: fastapi.testclient.TestClient,
-            monkeypatch,
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
     ):
         """Test _verify_log_collection_started with a specific last_update_time"""
         update_runs_requested_logs_mock = unittest.mock.Mock()
@@ -969,7 +969,7 @@ class TestCollectRunSLogs:
         # Mock _list_runs_uids_to_collect_logs to verify it's called with correct params
         list_runs_uids_mock = unittest.mock.Mock(return_value=[])
         with unittest.mock.patch.object(
-                daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
+            daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
         ):
             last_update_time = datetime.datetime.now(datetime.UTC)
             await daemon.service._verify_log_collection_started(

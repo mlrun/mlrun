@@ -118,7 +118,7 @@ class Service(framework.service.Service):
 
     async def _base_handler(
         self,
-            request,
+        request,
         *args,
         **kwargs,
     ):
@@ -401,9 +401,9 @@ class Service(framework.service.Service):
                 _run_uid_start_log_request_counters.pop(run_uid, None)
 
     def _list_runs_uids_to_collect_logs(
-            self,
-            db_session: sqlalchemy.orm.Session,
-            last_update_time: typing.Optional[datetime.datetime] = None,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        last_update_time: typing.Optional[datetime.datetime] = None,
     ):
         # list all the runs currently still running in the system which we didn't request logs collection for yet
         runs_uids = get_db().list_distinct_runs_uids(
@@ -842,7 +842,7 @@ class Service(framework.service.Service):
                 services.api.crud.Runs().abort_run(session, **stale_run)
 
         with concurrent.futures.ThreadPoolExecutor(
-                max_workers=semaphore,
+            max_workers=semaphore,
         ) as pool:
             futures = [pool.submit(abort_run, _stale_run) for _stale_run in stale_runs]
             for future in concurrent.futures.as_completed(futures):

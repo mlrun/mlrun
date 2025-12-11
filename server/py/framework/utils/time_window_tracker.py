@@ -141,12 +141,12 @@ async def run_with_time_window_tracker(
 
 
 def run_with_time_window_tracker_sync(
-        key: TimeWindowTrackerKeys,
-        max_window_size_seconds: int,
-        ensure_window_update: bool,
-        callback: typing.Callable,
-        *args,
-        **kwargs,
+    key: TimeWindowTrackerKeys,
+    max_window_size_seconds: int,
+    ensure_window_update: bool,
+    callback: typing.Callable,
+    *args,
+    **kwargs,
 ):
     cycle_tracker = TimeWindowTracker(
         key=key,

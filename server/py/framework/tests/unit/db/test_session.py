@@ -65,7 +65,7 @@ class TestRunAsyncFunctionWithNewDbSession(TestDatabaseBase):
 
     @pytest.mark.asyncio
     async def test_run_async_function_with_new_db_session_async_func_with_exception(
-            self,
+        self,
     ):
         """Test that exceptions in async functions are properly propagated"""
         error_msg = "Test error"
@@ -80,7 +80,7 @@ class TestRunAsyncFunctionWithNewDbSession(TestDatabaseBase):
 
     @pytest.mark.asyncio
     async def test_run_async_function_with_new_db_session_sync_func_with_exception(
-            self,
+        self,
     ):
         """Test that exceptions in sync functions are properly propagated"""
         error_msg = "Test error"
@@ -132,7 +132,7 @@ class TestRunAsyncFunctionWithNewDbSession(TestDatabaseBase):
 
     @pytest.mark.asyncio
     async def test_run_async_function_with_new_db_session_session_cleanup_on_error(
-            self,
+        self,
     ):
         """Test that session context manager properly handles cleanup on error"""
         session = None

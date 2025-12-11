@@ -169,42 +169,6 @@ class TestDfToMetricsValuesV2:
         )
         assert result[0] == expected
 
-    def test_metrics_v2_raw_period_treated_as_not_aggregated(self):
-        """Test that agg_period='raw' is treated as non-aggregated."""
-        df = self._create_metrics_df(
-            [
-                {
-                    WriterEvent.END_INFER_TIME: "2025-01-01 00:00:00",
-                    WriterEvent.APPLICATION_NAME: "my-app",
-                    MetricData.METRIC_NAME: "latency",
-                    MetricData.METRIC_VALUE: 10.5,
-                },
-            ]
-        )
-
-        metrics = [self._create_metric("test-project", "my-app", "latency")]
-
-        result = TSDBConnector.df_to_metrics_values_v2(
-            df=df,
-            metrics=metrics,
-            project="test-project",
-            agg_period="raw",
-            agg_functions=None,
-        )
-
-        assert len(result) == 1
-        expected = ModelEndpointMonitoringMetricValuesV2(
-            full_name="test-project.my-app.metric.latency",
-            type=ModelEndpointMonitoringMetricType.METRIC,
-            data=True,
-            aggregation_config=AggregationConfig(
-                aggregated=False, period=None, functions=None
-            ),
-            # Raw format: [timestamp, value]
-            values=[[pd.Timestamp("2025-01-01 00:00:00"), 10.5]],
-        )
-        assert result[0] == expected
-
     def test_metrics_v2_raises_error_when_aggregated_column_missing(self):
         """Test that an error is raised when expected aggregated column is missing."""
         # DataFrame with raw data but we claim it's aggregated
@@ -320,8 +284,8 @@ class TestDfToResultsValuesV2:
         )
         assert result[0] == expected
 
-    def test_results_v2_aggregated_data_no_status_or_extra_data(self):
-        """Test that aggregated results do NOT include status or extra_data."""
+    def test_results_v2_aggregated_data_with_max_status(self):
+        """Test that aggregated results include max_status but NOT extra_data."""
         df = self._create_results_df(
             [
                 {
@@ -330,6 +294,7 @@ class TestDfToResultsValuesV2:
                     ResultData.RESULT_NAME: "general_drift",
                     f"avg_{ResultData.RESULT_VALUE}": 0.20,
                     f"max_{ResultData.RESULT_VALUE}": 0.35,
+                    f"max_{ResultData.RESULT_STATUS}": 0,  # max status in period
                     ResultData.RESULT_KIND: ResultKindApp.data_drift.value,
                 },
                 {
@@ -338,6 +303,7 @@ class TestDfToResultsValuesV2:
                     ResultData.RESULT_NAME: "general_drift",
                     f"avg_{ResultData.RESULT_VALUE}": 0.50,
                     f"max_{ResultData.RESULT_VALUE}": 0.85,
+                    f"max_{ResultData.RESULT_STATUS}": 2,  # detection in this period
                     ResultData.RESULT_KIND: ResultKindApp.data_drift.value,
                 },
             ]
@@ -364,10 +330,10 @@ class TestDfToResultsValuesV2:
             aggregation_config=AggregationConfig(
                 aggregated=True, period="1h", functions=["avg", "max"]
             ),
-            # Aggregated format: [timestamp, avg, max] - NO status, NO extra_data
+            # Aggregated format: [timestamp, avg, max, max_status] - NO extra_data
             values=[
-                [pd.Timestamp("2025-01-01 00:00:00"), 0.20, 0.35],
-                [pd.Timestamp("2025-01-01 01:00:00"), 0.50, 0.85],
+                [pd.Timestamp("2025-01-01 00:00:00"), 0.20, 0.35, 0],
+                [pd.Timestamp("2025-01-01 01:00:00"), 0.50, 0.85, 2],
             ],
         )
         assert result[0] == expected
@@ -392,50 +358,6 @@ class TestDfToResultsValuesV2:
             full_name="test-project.drift-app.result.general_drift",
             type=ModelEndpointMonitoringMetricType.RESULT,
             data=False,
-        )
-        assert result[0] == expected
-
-    def test_results_v2_raw_period_treated_as_not_aggregated(self):
-        """Test that agg_period='raw' is treated as non-aggregated."""
-        df = self._create_results_df(
-            [
-                {
-                    WriterEvent.END_INFER_TIME: "2025-01-01 00:00:00",
-                    WriterEvent.APPLICATION_NAME: "drift-app",
-                    ResultData.RESULT_NAME: "general_drift",
-                    ResultData.RESULT_VALUE: 0.15,
-                    ResultData.RESULT_STATUS: 0,
-                    ResultData.RESULT_EXTRA_DATA: '{"info": "test"}',
-                    ResultData.RESULT_KIND: ResultKindApp.data_drift.value,
-                },
-            ]
-        )
-
-        metrics = [
-            self._create_result_metric("test-project", "drift-app", "general_drift")
-        ]
-
-        result = TSDBConnector.df_to_results_values_v2(
-            df=df,
-            metrics=metrics,
-            project="test-project",
-            agg_period="raw",
-            agg_functions=None,
-        )
-
-        assert len(result) == 1
-        expected = ModelEndpointMonitoringResultValuesV2(
-            full_name="test-project.drift-app.result.general_drift",
-            type=ModelEndpointMonitoringMetricType.RESULT,
-            result_kind=ResultKindApp.data_drift,
-            data=True,
-            aggregation_config=AggregationConfig(
-                aggregated=False, period=None, functions=None
-            ),
-            # Raw format: [timestamp, value, status, extra_data]
-            values=[
-                [pd.Timestamp("2025-01-01 00:00:00"), 0.15, 0, '{"info": "test"}'],
-            ],
         )
         assert result[0] == expected
 

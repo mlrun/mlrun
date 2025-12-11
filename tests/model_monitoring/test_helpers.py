@@ -70,10 +70,7 @@ class _HistLen(NamedTuple):
 class TemplateFunction(mlrun.runtimes.ServingRuntime):
     def __init__(self):
         super().__init__()
-        self.add_trigger(
-            "cron_interval",
-            spec=nuclio.CronTrigger(interval=f"{1}m"),
-        )
+        self.add_trigger("cron_interval", spec=nuclio.CronTrigger(interval="1m"))
 
 
 @pytest.fixture
@@ -152,7 +149,7 @@ def generate_sample_data(
     data = {}
     for feature in feature_stats.keys():
         data[feature] = []
-        for sample in range(num_samples):
+        for _ in range(num_samples):
             loc = np.random.uniform(
                 low=feature_stats[feature]["hist"][1][0],
                 high=feature_stats[feature]["hist"][1][-1],
@@ -679,3 +676,56 @@ def test_get_start_end():
             start=now + datetime.timedelta(seconds=10),
             end=now,
         )
+
+
+class TestParseIntervalToMinutes:
+    """Tests for interval string parsing."""
+
+    def test_parse_hours(self):
+        """Test parsing hour-based intervals."""
+        from mlrun.model_monitoring.helpers import parse_interval_to_minutes
+
+        assert parse_interval_to_minutes("1h") == 60
+        assert parse_interval_to_minutes("6h") == 360
+        assert parse_interval_to_minutes("12h") == 720
+        assert parse_interval_to_minutes("24h") == 1440
+
+    def test_parse_invalid_format(self):
+        """Test that invalid formats return None."""
+        from mlrun.model_monitoring.helpers import parse_interval_to_minutes
+
+        assert parse_interval_to_minutes("invalid") is None
+        assert parse_interval_to_minutes("1d") is None  # days not supported
+        assert parse_interval_to_minutes("1m") is None  # minutes not supported
+        assert parse_interval_to_minutes("h") is None  # no number
+        assert parse_interval_to_minutes("abch") is None  # non-numeric
+
+
+class TestBuildIntervalMinutesMapping:
+    """Tests for building interval-to-minutes mapping."""
+
+    def test_builds_mapping_from_intervals(self):
+        """Test building mapping from interval list."""
+        from mlrun.model_monitoring.helpers import build_interval_minutes_mapping
+
+        intervals = ["1h", "6h", "12h", "24h"]
+        result = build_interval_minutes_mapping(intervals)
+
+        assert isinstance(result, dict)
+        assert result == {"1h": 60, "6h": 360, "12h": 720, "24h": 1440}
+
+    def test_filters_invalid_intervals(self):
+        """Test that invalid intervals are filtered out."""
+        from mlrun.model_monitoring.helpers import build_interval_minutes_mapping
+
+        intervals = ["1h", "invalid", "6h", "1d"]
+        result = build_interval_minutes_mapping(intervals)
+
+        assert result == {"1h": 60, "6h": 360}
+
+    def test_empty_input_returns_empty_dict(self):
+        """Test that empty input returns empty dict."""
+        from mlrun.model_monitoring.helpers import build_interval_minutes_mapping
+
+        result = build_interval_minutes_mapping([])
+        assert result == {}

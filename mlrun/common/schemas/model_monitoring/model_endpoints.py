@@ -127,9 +127,7 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
 
     @validator("uid", pre=True)
     def _uid_to_str(cls, v):  # noqa: N805
-        if isinstance(v, UUID):
-            return str(v)
-        return v
+        return str(v) if isinstance(v, UUID) else v
 
     @validator("mode", pre=True, always=True)
     def _set_mode_based_on_endpoint_type(cls, v, values):  # noqa: N805
@@ -359,9 +357,10 @@ class AggregationConfig(BaseModel):
 class ModelEndpointMonitoringMetricValuesV2(_ModelEndpointMonitoringMetricValuesBase):
     """V2 metric values with aggregation support.
 
-    Values format: [[timestamp, agg_value_1, agg_value_2, ...], ...]
-    Where agg_value_N corresponds to aggregation_config.functions[N-1].
-    If not aggregated, values are [[timestamp, value], ...].
+    Values format depends on aggregation_config.aggregated:
+    - If aggregated: [[timestamp, agg_value_1, agg_value_2, ...], ...]
+      Where agg_value_N corresponds to aggregation_config.functions[N-1].
+    - If not aggregated (raw): [[timestamp, value], ...]
     """
 
     type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.METRIC
@@ -374,10 +373,9 @@ class ModelEndpointMonitoringResultValuesV2(_ModelEndpointMonitoringMetricValues
     """V2 result values with aggregation support.
 
     Values format depends on aggregation_config.aggregated:
-    - If aggregated: [[timestamp, agg_value_1, agg_value_2, ...], ...]
+    - If aggregated: [[timestamp, agg_value_1, agg_value_2, ..., max_status], ...]
       Where agg_value_N corresponds to aggregation_config.functions[N-1].
-      Note: status and extra_data are NOT included in aggregated results
-      since they cannot be meaningfully aggregated.
+      Status uses only max (indicates detection in period). extra_data is NOT included.
     - If not aggregated (raw): [[timestamp, value, status, extra_data], ...]
     """
 

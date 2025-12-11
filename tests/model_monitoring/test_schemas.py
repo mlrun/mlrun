@@ -278,8 +278,9 @@ class TestModelEndpointMonitoringResultValuesV2:
     def test_result_values_v2_aggregated(self):
         """Test v2 result values with aggregation.
 
-        Note: Aggregated results only contain numeric aggregates (avg, max, etc.)
-        without status or extra_data since those cannot be meaningfully aggregated.
+        Note: Aggregated results contain numeric aggregates (avg, max, etc.) plus max_status.
+        extra_data is NOT included since it cannot be meaningfully aggregated.
+        Status uses only max (indicates detection in period).
         """
         from datetime import datetime
 
@@ -295,14 +296,19 @@ class TestModelEndpointMonitoringResultValuesV2:
         config = AggregationConfig(
             aggregated=True, period="1h", functions=["avg", "max"]
         )
-        # Aggregated values: [timestamp, avg_value, max_value] - no status/extra_data
+        # Aggregated values: [timestamp, avg_value, max_value, max_status] - no extra_data
         values = ModelEndpointMonitoringResultValuesV2(
             full_name="project.histogram-data-drift.result.general_drift",
             result_kind=ResultKindApp.data_drift,
             aggregation_config=config,
             values=[
-                [datetime(2025, 1, 1, 0, 0), 0.15, 0.25],
-                [datetime(2025, 1, 1, 1, 0), 0.18, 0.30],
+                [
+                    datetime(2025, 1, 1, 0, 0),
+                    0.15,
+                    0.25,
+                    0,
+                ],  # max_status=0 (no detection)
+                [datetime(2025, 1, 1, 1, 0), 0.18, 0.30, 2],  # max_status=2 (detection)
             ],
         )
         assert values.full_name == "project.histogram-data-drift.result.general_drift"
@@ -311,10 +317,11 @@ class TestModelEndpointMonitoringResultValuesV2:
         assert values.data is True
         assert values.aggregation_config.aggregated is True
         assert len(values.values) == 2
-        # Each row has: timestamp + 2 aggregation values (avg, max)
-        assert len(values.values[0]) == 3
+        # Each row has: timestamp + 2 aggregation values (avg, max) + max_status
+        assert len(values.values[0]) == 4
         assert values.values[0][1] == 0.15  # avg
         assert values.values[0][2] == 0.25  # max
+        assert values.values[0][3] == 0  # max_status
 
     def test_result_values_v2_raw(self):
         """Test v2 result values for raw (non-aggregated) data."""

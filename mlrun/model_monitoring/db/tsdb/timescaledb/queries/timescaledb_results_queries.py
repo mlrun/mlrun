@@ -440,8 +440,8 @@ class TimescaleDBResultsQueries:
         :param timestamp_column: Optional timestamp column to use for time filtering
         :param agg_period: Optional aggregation period (e.g., '1h', '6h'). If provided,
                           reads from pre-aggregated continuous aggregates.
-                          Note: extra_data is NOT included in aggregated results, but
-                          status IS aggregated (e.g., max indicates detection in period).
+                          Note: extra_data is NOT included in aggregated results.
+                          Status is aggregated using only max (indicates detection in period).
         :param agg_functions: Optional list of aggregation functions to return
                              (e.g., ['avg', 'min', 'max']). Required when agg_period is provided.
         :return: DataFrame with results data
@@ -471,10 +471,10 @@ class TimescaleDBResultsQueries:
         filter_query = TimescaleDBQueryBuilder.combine_filters(filters)
 
         # Two query paths based on agg_period:
-        # 1. agg_period with functions (not "raw") → aggregation query from CAGG view (v2 API)
-        # 2. agg_period=None or "raw" → raw query returning individual data points (v1 and v2 raw)
-        # Note: Aggregated results include status aggregations but NOT extra_data
-        use_aggregation = agg_period and agg_period != "raw" and agg_functions
+        # - agg_period is not None with functions → aggregation query from CAGG view
+        # - agg_period is None → raw query returning individual data points
+        # Aggregated results include max_status (only max, not all functions) but NOT extra_data
+        use_aggregation = agg_period is not None and agg_functions
 
         if use_aggregation:
             df = TimescaleDBQueryBuilder.build_read_data_with_aggregation(
@@ -493,7 +493,7 @@ class TimescaleDBResultsQueries:
                 additional_agg_columns=[mm_schemas.ResultData.RESULT_STATUS],
             )
         else:
-            # Raw query for both v1 (agg_period=None) and v2 raw (agg_period="raw")
+            # Raw query (agg_period=None)
             df = TimescaleDBQueryBuilder.build_read_raw_data(
                 connection=self._connection,
                 table_schema=table_schema,

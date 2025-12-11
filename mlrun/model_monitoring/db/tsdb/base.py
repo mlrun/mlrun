@@ -607,8 +607,11 @@ class TSDBConnector(ABC):
 
     @staticmethod
     def _is_aggregated(agg_period: Optional[str]) -> bool:
-        """Check if the aggregation period indicates aggregated data."""
-        return agg_period is not None and agg_period != "raw"
+        """Check if the aggregation period indicates aggregated data.
+
+        Note: "raw" is resolved at the API layer to None before reaching TSDB.
+        """
+        return agg_period is not None
 
     @staticmethod
     def _build_aggregation_config(
@@ -659,13 +662,13 @@ class TSDBConnector(ABC):
         Build result values list from DataFrame based on aggregation settings.
 
         For aggregated results:
-            [[timestamp, agg_val_1, agg_val_2, ..., agg_status_1, agg_status_2, ...], ...]
+            [[timestamp, agg_val_1, agg_val_2, ..., max_status], ...]
         For raw results:
             [[timestamp, value, status, extra_data], ...]
 
         Note: extra_data is only included for raw (non-aggregated) results since it
-        cannot be meaningfully aggregated. Status IS aggregated (e.g., max indicates
-        if there was a detection in the period).
+        cannot be meaningfully aggregated. Status is aggregated using only max
+        (indicating if there was a detection in the period).
         """
         value_column = mm_schemas.ResultData.RESULT_VALUE
         status_column = mm_schemas.ResultData.RESULT_STATUS
@@ -680,8 +683,9 @@ class TSDBConnector(ABC):
                 ]
                 for idx, row in sub_df.iterrows()
             ]
-        # Aggregated: [[timestamp, agg_val_1, ..., agg_status_1, ...], ...]
+        # Aggregated: [[timestamp, agg_val_1, ..., max_status], ...]
         values = []
+        max_status_col = f"max_{status_column}"
         for idx, row in sub_df.iterrows():
             row_values = [idx]  # timestamp
             # Add aggregated value columns
@@ -693,11 +697,9 @@ class TSDBConnector(ABC):
                         f"Available columns: {list(row.index)}"
                     )
                 row_values.append(float(row[col_name]))
-            # Add aggregated status columns
-            for func in agg_functions:
-                col_name = f"{func}_{status_column}"
-                if col_name in row:
-                    row_values.append(int(row[col_name]))
+            # Add max_status (only max, indicates detection in period)
+            if max_status_col in row:
+                row_values.append(int(row[max_status_col]))
             values.append(row_values)
         return values
 

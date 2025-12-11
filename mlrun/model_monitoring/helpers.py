@@ -60,10 +60,10 @@ def _is_results_regex_match(
         )
         return False
     existing_result_name = ".".join(existing_result_name.split(".")[i] for i in [1, 3])
-    for result_name_filter in result_name_filters:
-        if fnmatchcase(existing_result_name, result_name_filter):
-            return True
-    return False
+    return any(
+        fnmatchcase(existing_result_name, result_name_filter)
+        for result_name_filter in result_name_filters
+    )
 
 
 def filter_results_by_regex(
@@ -101,13 +101,14 @@ def filter_results_by_regex(
             )
         else:
             validated_filters.append(result_name_filter)
-    filtered_metrics_names = []
-    for existing_result_name in existing_result_names:
+    filtered_metrics_names = [
+        existing_result_name
+        for existing_result_name in existing_result_names
         if _is_results_regex_match(
             existing_result_name=existing_result_name,
             result_name_filters=validated_filters,
-        ):
-            filtered_metrics_names.append(existing_result_name)
+        )
+    ]
     return list(set(filtered_metrics_names))
 
 
@@ -171,14 +172,12 @@ def get_monitoring_parquet_path(
     :return:           Monitoring parquet target path.
     """
     artifact_path = project.spec.artifact_path
-    # Generate monitoring parquet path value
-    parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+    return mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project.name,
         kind=kind,
         target="offline",
         artifact_path=artifact_path,
     )
-    return parquet_path
 
 
 def get_monitoring_stats_directory_path(
@@ -193,11 +192,10 @@ def get_monitoring_stats_directory_path(
     :param kind:        indicate the kind of the stats path
     :return:            Monitoring stats target path.
     """
-    stats_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+    return mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=kind,
     )
-    return stats_path
 
 
 def _get_monitoring_current_stats_file_path(project: str, endpoint_id: str) -> str:
@@ -256,16 +254,16 @@ def _get_profile(
     :param profile_name_key: The profile name key in the secret store.
     :return:                 Datastore profile.
     """
-    profile_name = mlrun.get_secret_or_env(
+    if profile_name := mlrun.get_secret_or_env(
         key=profile_name_key, secret_provider=secret_provider
-    )
-    if not profile_name:
+    ):
+        return mlrun.datastore.datastore_profile.datastore_profile_read(
+            url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
+        )
+    else:
         raise mlrun.errors.MLRunNotFoundError(
             f"Not found `{profile_name_key}` profile name for project '{project}'"
         )
-    return mlrun.datastore.datastore_profile.datastore_profile_read(
-        url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
-    )
 
 
 _get_tsdb_profile = functools.partial(
@@ -637,7 +635,7 @@ def get_start_end(
         # If both start and end are provided, delta is ignored
         pass
     elif delta:
-        if start and not end:
+        if start:
             end = start + delta
         else:
             end = end or mlrun.utils.datetime_now()
@@ -683,3 +681,36 @@ def validate_time_range(
             "the current time is used by default."
         )
     return start, end
+
+
+# Aggregation interval helpers
+
+
+def parse_interval_to_minutes(interval: str) -> Optional[int]:
+    """
+    Parse interval string (e.g., '1h', '6h', '24h') to minutes.
+
+    :param interval: Interval string in format like "1h", "6h", "24h"
+    :return: Number of minutes, or None if format is invalid
+    """
+    if interval.endswith("h"):
+        try:
+            hours = int(interval[:-1])
+            return hours * 60
+        except ValueError:
+            return None
+    return None
+
+
+def build_interval_minutes_mapping(intervals: list[str]) -> dict[str, int]:
+    """
+    Build a mapping from interval strings to minutes.
+
+    :param intervals: List of interval strings (e.g., ["1h", "6h", "12h", "24h"])
+    :return: Dict mapping interval strings (e.g., "1h") to minutes (e.g., 60)
+    """
+    result = {}
+    for interval in intervals:
+        if minutes := parse_interval_to_minutes(interval):
+            result[interval] = minutes
+    return result

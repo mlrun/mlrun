@@ -320,7 +320,7 @@ class TimescaleDBQueryBuilder:
         """
         Build and execute direct raw data query without any pre-aggregate fallback.
 
-        This method is used when agg_period="raw" is explicitly specified,
+        This method is used when agg_period is None (raw data requested),
         bypassing all pre-aggregate optimization logic.
 
         :param connection: Database connection instance
@@ -484,10 +484,10 @@ class TimescaleDBQueryBuilder:
         # Build aggregated column names for CAGG query
         agg_value_columns = [f"{func}_{value_column}" for func in agg_functions]
 
-        # Add aggregated columns for additional columns (e.g., status for results)
+        # Add max aggregation for additional columns (e.g., status for results)
+        # Status uses only max (indicates detection in period), not all agg_functions
         if additional_agg_columns:
-            for col in additional_agg_columns:
-                agg_value_columns.extend(f"{func}_{col}" for func in agg_functions)
+            agg_value_columns.extend(f"max_{col}" for col in additional_agg_columns)
 
         # Build query for continuous aggregate view
         cagg_view_name = TimescaleDBNaming.get_cagg_view_name(

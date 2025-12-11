@@ -159,8 +159,10 @@ class TimescaleDBConnector(TSDBConnector):
         :param agg_functions: Optional list of aggregation functions (e.g., ['avg', 'min']).
                              Required when agg_period is provided.
         """
-        # Pass agg_period and agg_functions through as-is to query layer
-        # Query layer handles three paths: None, "raw", or aggregation period
+        # Query layer handles two paths:
+        # - None: raw data (v1 backward compat or v2 raw)
+        # - specific period ("1h", "6h", etc.): aggregated data from CAGG views
+        # Note: "raw" is resolved at API layer to None before reaching here
         if type == "metrics":
             df = self._metrics_queries.read_metrics_data_impl(
                 endpoint_id=endpoint_id,
@@ -170,12 +172,12 @@ class TimescaleDBConnector(TSDBConnector):
                 agg_period=agg_period,
                 agg_functions=agg_functions,
             )
-            # Use v1 helper only when agg_period is None (backward compatibility)
+            # Use v1 helper when agg_period is None (backward compatibility)
             if agg_period is None:
                 return self.df_to_metrics_values(
                     df=df, metrics=metrics, project=self.project
                 )
-            # Use v2 helper for any explicit agg_period (including "raw")
+            # Use v2 helper for aggregated data
             return self.df_to_metrics_values_v2(
                 df=df,
                 metrics=metrics,
@@ -194,12 +196,12 @@ class TimescaleDBConnector(TSDBConnector):
                 agg_period=agg_period,
                 agg_functions=agg_functions,
             )
-            # Use v1 helper only when agg_period is None (backward compatibility)
+            # Use v1 helper when agg_period is None (backward compatibility)
             if agg_period is None:
                 return self.df_to_results_values(
                     df=df, metrics=metrics, project=self.project
                 )
-            # Use v2 helper for any explicit agg_period (including "raw")
+            # Use v2 helper for aggregated data
             return self.df_to_results_values_v2(
                 df=df,
                 metrics=metrics,

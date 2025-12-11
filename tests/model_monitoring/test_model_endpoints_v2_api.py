@@ -22,6 +22,70 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 
 
+class TestDetermineOptimalPeriod:
+    """Tests for auto-selection of aggregation period.
+
+    These tests use the default config intervals: ["1h", "6h", "12h", "24h"]
+    """
+
+    def test_short_time_range_selects_smallest_interval(self):
+        """Test that short time range (1 day) selects 1h interval."""
+        from server.py.services.api.api.endpoints.model_endpoints_v2 import (
+            _determine_optimal_period,
+        )
+
+        end = datetime.now(UTC)
+        start = end - timedelta(days=1)
+
+        result = _determine_optimal_period(start, end)
+        # 24 hours = 1440 minutes / 60 (1h) = 24 results << 500 max
+        assert result == "1h"
+
+    def test_medium_time_range_selects_appropriate_interval(self):
+        """Test that medium time range (30 days) selects appropriate interval."""
+        from server.py.services.api.api.endpoints.model_endpoints_v2 import (
+            _determine_optimal_period,
+        )
+
+        end = datetime.now(UTC)
+        start = end - timedelta(days=30)
+
+        result = _determine_optimal_period(start, end)
+        # 30 days = 43200 minutes
+        # 1h (60 min) = 720 results > 500, skip
+        # 6h (360 min) = 120 results < 500, use this
+        assert result == "6h"
+
+    def test_long_time_range_selects_appropriate_interval(self):
+        """Test that long time range (90 days) selects appropriate interval."""
+        from server.py.services.api.api.endpoints.model_endpoints_v2 import (
+            _determine_optimal_period,
+        )
+
+        end = datetime.now(UTC)
+        start = end - timedelta(days=90)
+
+        result = _determine_optimal_period(start, end)
+        # 90 days = 129600 minutes
+        # 1h (60 min) = 2160 results > 500
+        # 6h (360 min) = 360 results < 500
+        assert result == "6h"
+
+    def test_very_long_time_range_falls_back_to_largest(self):
+        """Test that very long time range falls back to largest available."""
+        from server.py.services.api.api.endpoints.model_endpoints_v2 import (
+            _determine_optimal_period,
+        )
+
+        end = datetime.now(UTC)
+        start = end - timedelta(days=365)
+
+        result = _determine_optimal_period(start, end)
+        # 365 days = 525600 minutes
+        # 24h (1440 min) = 365 results < 500
+        assert result == "24h"
+
+
 class TestV2ResultCountLimit:
     """Tests for v2 API result count validation."""
 
@@ -182,17 +246,23 @@ class TestV2MetricValuesFormat:
         assert len(result.values[0]) == 4  # [timestamp, value, status, extra_data]
 
     def test_aggregated_result_values_format(self):
-        """Test that aggregated result values include status aggregations.
+        """Test that aggregated result values include max_status only.
 
-        Format: [timestamp, avg_value, min_value, max_value, avg_status, min_status, max_status]
+        Format: [timestamp, avg_value, min_value, max_value, max_status]
         Note: extra_data is NOT included for aggregated results since it cannot be meaningfully
-        aggregated. Status IS included (max indicates detection in period).
+        aggregated. Status uses only max (indicates detection in period).
         """
         now = datetime.now(UTC)
-        # Format: [timestamp, avg_val, min_val, max_val, avg_status, min_status, max_status]
+        # Format: [timestamp, avg_val, min_val, max_val, max_status]
         values = [
-            [now, 0.5, 0.2, 0.8, 1, 0, 2],  # First bucket
-            [now + timedelta(hours=1), 0.6, 0.3, 0.9, 0, 0, 0],  # Second bucket
+            [now, 0.5, 0.2, 0.8, 2],  # First bucket: max_status=2 (detection)
+            [
+                now + timedelta(hours=1),
+                0.6,
+                0.3,
+                0.9,
+                0,
+            ],  # Second bucket: max_status=0 (no detection)
         ]
         result = mm_endpoints.ModelEndpointMonitoringResultValuesV2(
             full_name="project.app.result_name",
@@ -205,5 +275,5 @@ class TestV2MetricValuesFormat:
             values=values,
         )
         assert len(result.values) == 2
-        # [timestamp, avg_val, min_val, max_val, avg_status, min_status, max_status] = 7 elements
-        assert len(result.values[0]) == 7
+        # [timestamp, avg_val, min_val, max_val, max_status] = 5 elements
+        assert len(result.values[0]) == 5

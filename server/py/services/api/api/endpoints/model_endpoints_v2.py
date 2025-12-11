@@ -21,12 +21,16 @@ from typing import Annotated, Literal, Optional, Union
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.errors
 import mlrun.model_monitoring
-from mlrun.model_monitoring.helpers import validate_time_range
+from mlrun.model_monitoring.helpers import (
+    build_interval_minutes_mapping,
+    validate_time_range,
+)
 from mlrun.utils import logger
 
 import framework.api.deps
@@ -38,6 +42,55 @@ from .model_endpoints import _verify_model_endpoint_read_permission
 _MAX_RESULTS_PER_METRIC = 500
 
 router = APIRouter()
+
+# Singleton cache for sorted interval-to-minutes list (built from config on first use)
+_sorted_intervals_cache: Optional[list[tuple[str, int]]] = None
+
+
+def _get_sorted_intervals_from_config() -> list[tuple[str, int]]:
+    """
+    Get sorted list of (interval, minutes) tuples from mlrun config (singleton).
+
+    The list is built once from config.model_endpoint_monitoring.tsdb.pre_aggregate.aggregate_intervals
+    and sorted by duration (smallest first).
+
+    :return: List of (interval_name, minutes) tuples sorted by duration
+    """
+    global _sorted_intervals_cache
+    if _sorted_intervals_cache is None:
+        intervals = list(
+            mlrun.mlconf.model_endpoint_monitoring.tsdb.pre_aggregate.aggregate_intervals
+        )
+        interval_minutes = build_interval_minutes_mapping(intervals)
+        _sorted_intervals_cache = sorted(interval_minutes.items(), key=lambda x: x[1])
+    return _sorted_intervals_cache
+
+
+def _determine_optimal_period(start: datetime, end: datetime) -> Optional[str]:
+    """
+    Determine optimal aggregation period based on time range and configured intervals.
+
+    Selects the smallest interval that keeps results under _MAX_RESULTS_PER_METRIC.
+
+    :param start: Start datetime
+    :param end: End datetime
+    :return: Optimal interval string, or None if no intervals configured
+    """
+    sorted_intervals = _get_sorted_intervals_from_config()
+    if not sorted_intervals:
+        return None
+
+    time_range_minutes = (end - start).total_seconds() / 60
+
+    # Find smallest interval that keeps results under limit
+    for interval_name, minutes in sorted_intervals:
+        expected_results = time_range_minutes / minutes
+        if expected_results <= _MAX_RESULTS_PER_METRIC:
+            return interval_name
+
+    # If all intervals exceed limit, use largest available
+    return sorted_intervals[-1][0]
+
 
 ProjectAnnotation = api_constants.ProjectAnnotation
 EndpointIDAnnotation = api_constants.EndpointIDAnnotation
@@ -182,9 +235,24 @@ async def get_model_endpoint_monitoring_metrics_values_v2(
         )
         return []
 
-    # Pass user's requested values directly to query methods
-    # Query methods will auto-select period if None, and handle default functions
+    # Resolve aggregation period:
+    # - None (not specified): auto-select optimal period based on time range and config
+    # - "raw": explicitly no aggregation (pass None to query methods)
+    # - specific period ("1h", "6h", etc.): use that period
     agg_period = params.agg_period_requested
+    if agg_period is None:
+        # Auto-select optimal period based on time range and configured intervals
+        agg_period = _determine_optimal_period(params.start, params.end)
+        if agg_period is None:
+            logger.debug(
+                "Auto-selection could not determine optimal period, falling back to raw data",
+                start=params.start,
+                end=params.end,
+            )
+    elif agg_period == "raw":
+        # User explicitly requested raw data - pass None to query methods
+        agg_period = None
+
     agg_functions = params.agg_functions_requested
 
     for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:

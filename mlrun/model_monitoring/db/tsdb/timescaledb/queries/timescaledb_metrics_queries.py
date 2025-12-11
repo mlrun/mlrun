@@ -170,10 +170,10 @@ class TimescaleDBMetricsQueries:
         filter_query = TimescaleDBQueryBuilder.combine_filters(filters)
 
         # Two query paths based on agg_period:
-        # 1. agg_period with functions (not "raw") → aggregation query from CAGG view (v2 API)
-        # 2. agg_period=None or "raw" → raw query returning individual data points (v1 and v2 raw)
-        use_aggregation = agg_period and agg_period != "raw" and agg_functions
-
+        # - agg_period is not None with functions → aggregation query from CAGG view
+        # - agg_period is None → raw query returning individual data points
+        # Note: "raw" is resolved at API layer to None before reaching here
+        use_aggregation = agg_period is not None and agg_functions
         if use_aggregation:
             df = TimescaleDBQueryBuilder.build_read_data_with_aggregation(
                 connection=self._connection,
@@ -189,7 +189,7 @@ class TimescaleDBMetricsQueries:
                 timestamp_column=timestamp_column,
             )
         else:
-            # Raw query for both v1 (agg_period=None) and v2 raw (agg_period="raw")
+            # Raw query (agg_period=None)
             df = TimescaleDBQueryBuilder.build_read_raw_data(
                 connection=self._connection,
                 table_schema=table_schema,

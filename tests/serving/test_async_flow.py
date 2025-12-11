@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import pathlib
+import pickle
 import shutil
 import tempfile
 import time
@@ -252,6 +253,22 @@ class MyRemoteModel(Model):
     async def predict_async(self, body, **kwargs):
         body["async_triggered"] = "Async predict was triggered."
         return body
+
+
+class BatchedModel(Model):
+    def __init__(self, model_path: str, **kwargs):
+        super().__init__(**kwargs)
+        self.model_path = model_path
+        self.model = None
+
+    def load(self) -> None:
+        with open(self.model_path, "rb") as f:
+            self.model = pickle.load(f)
+
+    def predict(self, body, **kwargs):
+        x = pd.DataFrame(body)
+        predictions = self.model.predict(x).tolist()
+        return [round(v, 6) for v in predictions]
 
 
 class MyLLM(LLModel):
@@ -1295,3 +1312,56 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
         ), "Max threads not configured properly"
     server.test(body={"n": 1})
     server.wait_for_completion()
+
+
+@pytest.mark.parametrize("multiple_models", (True, False))
+@pytest.mark.parametrize("raise_exception", (True, False))
+def test_mrs_direct_batch_input(multiple_models, raise_exception):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    step = graph
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    messages = (
+        [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
+        if raise_exception
+        else [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
+    )
+    model_path = str(pathlib.Path(__file__).parent / "assets" / "linear_model.pkl")
+    model_path2 = str(pathlib.Path(__file__).parent / "assets" / "linear_model2.pkl")
+    endpoint_name = "my_model_1"
+    endpoint_name2 = "my_model_2"
+    model_runner_step.add_model(
+        model_class="BatchedModel",
+        execution_mechanism="naive",
+        endpoint_name=endpoint_name,
+        model_path=model_path,
+    )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="BatchedModel",
+            endpoint_name=endpoint_name2,
+            execution_mechanism="naive",
+            model_path=model_path2,
+        )
+    step.to(model_runner_step).respond()
+    server = function.to_mock_server()
+
+    try:
+        if raise_exception:
+            with pytest.raises(
+                RuntimeError,
+                match=".*The feature names should match those that were passed during fit.*",
+            ):
+                server.test(body=messages)
+        else:
+            resp = server.test(body=messages)
+            if multiple_models:
+                assert resp == {
+                    endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
+                    endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
+                }
+            else:
+                assert resp == [3.0, 5.0, 7.0, 9.0, 11.0]
+    finally:
+        server.wait_for_completion()

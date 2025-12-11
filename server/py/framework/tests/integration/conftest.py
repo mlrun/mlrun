@@ -22,6 +22,9 @@ import sqlalchemy.orm
 import mlrun.common.db.dialects
 import mlrun.utils
 
+import framework.db.sqldb.models
+import framework.utils.singletons.db
+
 logger = mlrun.utils.create_test_logger()
 
 
@@ -104,4 +107,5 @@ def db_engine(
     mlrun.mlconf.reload()
     logger.info("Wiping database", db_type=db_type)
     _wipe_database(engine)
+    framework.utils.singletons.db.initialize_db()
     yield engine

@@ -179,42 +179,76 @@ class TSDBConnector(ABC):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: Literal["metrics", "results"],
         with_result_extra_data: bool,
-        agg_period: Optional[str] = None,
-        agg_functions: Optional[list[str]] = None,
     ) -> Union[
         list[
             Union[
                 mm_schemas.ModelEndpointMonitoringResultValues,
-                mm_schemas.ModelEndpointMonitoringResultValuesV2,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
         ],
         list[
             Union[
                 mm_schemas.ModelEndpointMonitoringMetricValues,
-                mm_schemas.ModelEndpointMonitoringMetricValuesV2,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
         ],
     ]:
         """
-        Read metrics OR results from the TSDB and return as a list.
+        Read metrics OR results from the TSDB and return as a list (V1 API).
 
-        :param endpoint_id: The model endpoint identifier.
+        Always returns V1 schemas (MetricValues/ResultValues).
+
+        :param endpoint_id:            The model endpoint identifier.
         :param start:                  The start time of the query.
         :param end:                    The end time of the query.
         :param metrics:                The list of metrics to get the values for.
         :param type:                   "metrics" or "results" - the type of each item in metrics.
         :param with_result_extra_data: Whether to include the extra data in the results, relevant only when
                                        `type="results"`.
-        :param agg_period:             Optional aggregation period (e.g., "1h", "6h", "12h", "24h").
-                                       If None, returns raw data (V1 schemas).
-                                       If provided, returns aggregated data (V2 schemas).
-                                       Not all connectors support aggregation.
-        :param agg_functions:          Optional list of aggregation functions (e.g., ["avg", "min", "max"]).
-                                       Only used when agg_period is specified.
-        :return:                       V1 schemas (MetricValues/ResultValues) when agg_period is None,
-                                       V2 schemas (MetricValuesV2/ResultValuesV2) when agg_period is provided.
+        :return:                       V1 schemas (MetricValues/ResultValues).
+        """
+
+    @abstractmethod
+    def read_metrics_data_v2(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: Literal["metrics", "results"],
+        agg_period: Optional[str] = None,
+        agg_functions: Optional[list[str]] = None,
+    ) -> Union[
+        list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringResultValuesV2,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringMetricValuesV2,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        """
+        Read metrics OR results from the TSDB and return as a list (V2 API).
+
+        Always returns V2 schemas (MetricValuesV2/ResultValuesV2).
+
+        :param endpoint_id:    The model endpoint identifier.
+        :param start:          The start time of the query.
+        :param end:            The end time of the query.
+        :param metrics:        The list of metrics to get the values for.
+        :param type:           "metrics" or "results" - the type of each item in metrics.
+        :param agg_period:     Optional aggregation period (e.g., "1h", "6h", "12h", "24h").
+                               If None, returns raw data in V2 format.
+                               If provided, returns aggregated data in V2 format.
+        :param agg_functions:  Optional list of aggregation functions (e.g., ["avg", "min", "max"]).
+                               Required when agg_period is specified.
+        :return:               V2 schemas (MetricValuesV2/ResultValuesV2).
         """
 
     @abstractmethod
@@ -606,20 +640,12 @@ class TSDBConnector(ABC):
         return metrics_values
 
     @staticmethod
-    def _is_aggregated(agg_period: Optional[str]) -> bool:
-        """Check if the aggregation period indicates aggregated data.
-
-        Note: "raw" is resolved at the API layer to None before reaching TSDB.
-        """
-        return agg_period is not None
-
-    @staticmethod
     def _build_aggregation_config(
         agg_period: Optional[str],
         agg_functions: Optional[list[str]],
     ) -> mm_schemas.AggregationConfig:
         """Build aggregation config based on period and functions."""
-        is_aggregated = TSDBConnector._is_aggregated(agg_period)
+        is_aggregated = agg_period is not None
         return mm_schemas.AggregationConfig(
             aggregated=is_aggregated,
             period=agg_period if is_aggregated else None,
@@ -729,7 +755,7 @@ class TSDBConnector(ABC):
         :return:              A list of v2 metric values or no-data objects.
         """
         metrics_without_data = {metric.full_name: metric for metric in metrics}
-        is_aggregated = TSDBConnector._is_aggregated(agg_period)
+        is_aggregated = agg_period is not None
         aggregation_config = TSDBConnector._build_aggregation_config(
             agg_period, agg_functions
         )
@@ -811,7 +837,7 @@ class TSDBConnector(ABC):
         since those cannot be meaningfully aggregated).
         """
         metrics_without_data = {metric.full_name: metric for metric in metrics}
-        is_aggregated = TSDBConnector._is_aggregated(agg_period)
+        is_aggregated = agg_period is not None
         aggregation_config = TSDBConnector._build_aggregation_config(
             agg_period, agg_functions
         )

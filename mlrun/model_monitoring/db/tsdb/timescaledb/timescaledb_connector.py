@@ -143,10 +143,10 @@ class TimescaleDBConnector(TSDBConnector):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: str,
         with_result_extra_data: bool = False,
-        agg_period: Optional[str] = None,
-        agg_functions: Optional[list[str]] = None,
     ):
-        """Read metrics or results data from TimescaleDB (cross-cutting coordination).
+        """Read metrics or results data from TimescaleDB (V1 API).
+
+        Always returns V1 schemas (MetricValues/ResultValues).
 
         :param endpoint_id: The model endpoint identifier.
         :param start:       Start time for the query.
@@ -154,36 +154,18 @@ class TimescaleDBConnector(TSDBConnector):
         :param metrics:     List of metrics to retrieve.
         :param type:        Type of data: "metrics" or "results".
         :param with_result_extra_data: Whether to include extra_data for results.
-        :param agg_period:  Optional aggregation period (e.g., '1h', '6h').
-                           If provided, reads from pre-aggregated views and returns V2 schemas.
-        :param agg_functions: Optional list of aggregation functions (e.g., ['avg', 'min']).
-                             Required when agg_period is provided.
         """
-        # Query layer handles two paths:
-        # - None: raw data (v1 backward compat or v2 raw)
-        # - specific period ("1h", "6h", etc.): aggregated data from CAGG views
-        # Note: "raw" is resolved at API layer to None before reaching here
         if type == "metrics":
             df = self._metrics_queries.read_metrics_data_impl(
                 endpoint_id=endpoint_id,
                 start=start,
                 end=end,
                 metrics=metrics,
-                agg_period=agg_period,
-                agg_functions=agg_functions,
+                agg_period=None,
+                agg_functions=None,
             )
-            # Use v1 helper when agg_period is None (backward compatibility)
-            if agg_period is None:
-                return self.df_to_metrics_values(
-                    df=df, metrics=metrics, project=self.project
-                )
-            # Use v2 helper for aggregated data
-            return self.df_to_metrics_values_v2(
-                df=df,
-                metrics=metrics,
-                project=self.project,
-                agg_period=agg_period,
-                agg_functions=agg_functions,
+            return self.df_to_metrics_values(
+                df=df, metrics=metrics, project=self.project
             )
 
         else:  # results
@@ -193,15 +175,69 @@ class TimescaleDBConnector(TSDBConnector):
                 end=end,
                 metrics=metrics,
                 with_result_extra_data=with_result_extra_data,
+                agg_period=None,
+                agg_functions=None,
+            )
+            return self.df_to_results_values(
+                df=df, metrics=metrics, project=self.project
+            )
+
+    def read_metrics_data_v2(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: str,
+        agg_period: Optional[str] = None,
+        agg_functions: Optional[list[str]] = None,
+    ):
+        """Read metrics or results data from TimescaleDB (V2 API).
+
+        Always returns V2 schemas (MetricValuesV2/ResultValuesV2).
+
+        :param endpoint_id: The model endpoint identifier.
+        :param start:       Start time for the query.
+        :param end:         End time for the query.
+        :param metrics:     List of metrics to retrieve.
+        :param type:        Type of data: "metrics" or "results".
+        :param agg_period:  Optional aggregation period (e.g., '1h', '6h').
+                           If None, returns raw data in V2 format.
+                           If provided, returns aggregated data from CAGG views.
+        :param agg_functions: Optional list of aggregation functions (e.g., ['avg', 'min']).
+                             Required when agg_period is provided.
+        """
+        if type == "metrics":
+            df = self._metrics_queries.read_metrics_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=metrics,
                 agg_period=agg_period,
                 agg_functions=agg_functions,
             )
-            # Use v1 helper when agg_period is None (backward compatibility)
-            if agg_period is None:
-                return self.df_to_results_values(
-                    df=df, metrics=metrics, project=self.project
-                )
-            # Use v2 helper for aggregated data
+            return self.df_to_metrics_values_v2(
+                df=df,
+                metrics=metrics,
+                project=self.project,
+                agg_period=agg_period,
+                agg_functions=agg_functions,
+            )
+
+        else:  # results
+            # For v2 results, we don't include extra_data in aggregated mode
+            # (it can't be meaningfully aggregated)
+            with_result_extra_data = agg_period is None
+            df = self._results_queries.read_results_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=metrics,
+                with_result_extra_data=with_result_extra_data,
+                agg_period=agg_period,
+                agg_functions=agg_functions,
+            )
             return self.df_to_results_values_v2(
                 df=df,
                 metrics=metrics,

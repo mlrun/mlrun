@@ -920,14 +920,13 @@ class TestConnectorReadMetricsDataV2:
             type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
         )
 
-        result = connector.read_metrics_data(
+        result = connector.read_metrics_data_v2(
             endpoint_id="endpoint_1",
             start=base_time - timedelta(minutes=5),
             end=now,
             metrics=[metric],
             type="metrics",
-            with_result_extra_data=False,
-            agg_period="raw",
+            agg_period=None,  # None means raw data in V2 format
         )
 
         assert len(result) == 1
@@ -977,14 +976,13 @@ class TestConnectorReadMetricsDataV2:
             type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
         )
 
-        result = connector.read_metrics_data(
+        result = connector.read_metrics_data_v2(
             endpoint_id="endpoint_1",
             start=base_time - timedelta(minutes=5),
             end=now,
             metrics=[result_metric],
             type="results",
-            with_result_extra_data=False,
-            agg_period="raw",
+            agg_period=None,  # None means raw data in V2 format
         )
 
         assert len(result) == 1

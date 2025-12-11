@@ -490,15 +490,10 @@ class V3IOTSDBConnector(TSDBConnector):
             )
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed to write application result to TSDB: {err}"
-            )
+            ) from err
 
     def delete_tsdb_resources(self, table: Optional[str] = None):
-        if table:
-            # Delete a specific table
-            tables = [table]
-        else:
-            # Delete all tables
-            tables = mm_schemas.V3IOTSDBTables.list()
+        tables = [table] if table else mm_schemas.V3IOTSDBTables.list()
         for table_to_delete in tables:
             if table_to_delete in self.tables:
                 try:
@@ -757,14 +752,11 @@ class V3IOTSDBConnector(TSDBConnector):
             kind=mm_schemas.FileTargetKind.EVENTS,
         )
 
-        # Generate the main directory with the V3IO resources
-        source_directory = (
+        return (
             mlrun.common.model_monitoring.helpers.parse_model_endpoint_project_prefix(
                 events_table_full_path, self.project
             )
         )
-
-        return source_directory
 
     @staticmethod
     def _get_v3io_frames_client(
@@ -808,8 +800,6 @@ class V3IOTSDBConnector(TSDBConnector):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: Literal["metrics", "results"] = "results",
         with_result_extra_data: bool = False,
-        agg_period: Optional[str] = None,
-        agg_functions: Optional[list[str]] = None,
     ) -> Union[
         list[
             Union[
@@ -825,9 +815,10 @@ class V3IOTSDBConnector(TSDBConnector):
         ],
     ]:
         """
-        Read metrics OR results from the TSDB and return as a list.
+        Read metrics OR results from the TSDB and return as a list (V1 API).
         Note: the type must match the actual metrics in the `metrics` parameter.
         If the type is "results", pass only results in the `metrics` parameter.
+        Always returns V1 schemas.
         """
 
         if type == "metrics":
@@ -885,6 +876,102 @@ class V3IOTSDBConnector(TSDBConnector):
 
         return df_handler(df=df, metrics=metrics, project=self.project)
 
+    def read_metrics_data_v2(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: Literal["metrics", "results"] = "results",
+        agg_period: Optional[str] = None,
+        agg_functions: Optional[list[str]] = None,
+    ) -> Union[
+        list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringResultValuesV2,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringMetricValuesV2,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        """
+        Read metrics OR results from the TSDB and return as a list (V2 API).
+        Note: the type must match the actual metrics in the `metrics` parameter.
+        If the type is "results", pass only results in the `metrics` parameter.
+        Always returns V2 schemas.
+
+        Note: V3IO does not support pre-aggregation, so agg_period and agg_functions
+        are used only for formatting the response, not for server-side aggregation.
+        """
+
+        if type == "metrics":
+            table_path = self.tables[mm_schemas.V3IOTSDBTables.METRICS]
+            name = mm_schemas.MetricData.METRIC_NAME
+            columns = [mm_schemas.MetricData.METRIC_VALUE]
+            df_handler = self.df_to_metrics_values_v2
+        elif type == "results":
+            table_path = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]
+            name = mm_schemas.ResultData.RESULT_NAME
+            columns = [
+                mm_schemas.ResultData.RESULT_VALUE,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_KIND,
+            ]
+            # For v2 results, include extra_data only when not aggregating
+            if agg_period is None:
+                columns.append(mm_schemas.ResultData.RESULT_EXTRA_DATA)
+            df_handler = self.df_to_results_values_v2
+        else:
+            raise ValueError(f"Invalid {type = }")
+
+        query = self._get_sql_query(
+            endpoint_id=endpoint_id,
+            metric_and_app_names=[(metric.app, metric.name) for metric in metrics],
+            table_path=table_path,
+            name=name,
+            columns=columns,
+        )
+
+        logger.debug("Querying V3IO TSDB", query=query)
+
+        df: pd.DataFrame = self.frames_client.read(
+            backend=_TSDB_BE,
+            start=start,
+            end=end,
+            query=query,
+        )
+
+        logger.debug(
+            "Converting a DataFrame to a list of metrics or results values (v2)",
+            table=table_path,
+            project=self.project,
+            endpoint_id=endpoint_id,
+            is_empty=df.empty,
+            agg_period=agg_period,
+        )
+
+        # For v2 results without aggregation, ensure extra_data column exists
+        if (
+            type == "results"
+            and agg_period is None
+            and mm_schemas.ResultData.RESULT_EXTRA_DATA not in df.columns
+        ):
+            df[mm_schemas.ResultData.RESULT_EXTRA_DATA] = ""
+
+        return df_handler(
+            df=df,
+            metrics=metrics,
+            project=self.project,
+            agg_period=agg_period,
+            agg_functions=agg_functions,
+        )
+
     @staticmethod
     def _get_sql_query(
         *,
@@ -908,11 +995,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 "Cannot provide both metric_and_app_names and application_names"
             )
 
-        if columns:
-            selection = ",".join(columns)
-        else:
-            selection = "*"
-
+        selection = ",".join(columns) if columns else "*"
         with StringIO() as query:
             where_added = False
             query.write(f"SELECT {selection} FROM '{table_path}'")
@@ -1042,9 +1125,6 @@ class V3IOTSDBConnector(TSDBConnector):
                     container=self.container,
                     table_path=self.last_request_table,
                 ).all()
-                last_request_timestamps.update(
-                    {d["__name"]: d["last_request_timestamp"] for d in res}
-                )
             else:
                 filter_expression = " OR ".join(
                     [f"__name=='{endpoint_id}'" for endpoint_id in endpoint_ids]
@@ -1054,9 +1134,9 @@ class V3IOTSDBConnector(TSDBConnector):
                     table_path=self.last_request_table,
                     filter_expression=filter_expression,
                 ).all()
-                last_request_timestamps.update(
-                    {d["__name"]: d["last_request_timestamp"] for d in res}
-                )
+            last_request_timestamps |= {
+                d["__name"]: d["last_request_timestamp"] for d in res
+            }
         except Exception as e:
             logger.warning(
                 "Failed to get last request timestamp from V3IO KV table.",
@@ -1551,17 +1631,14 @@ class V3IOTSDBConnector(TSDBConnector):
         if not aggregated_data:
             return mm_schemas.ModelEndpointDriftValues(values=[])
 
-        # Filter to only include entries with max result_status >= 1
-        filtered_data = [
+        if filtered_data := [
             (endpoint_id, timestamp, max_status)
             for endpoint_id, timestamp, max_status in aggregated_data
             if max_status >= 1
-        ]
-
-        if not filtered_data:
+        ]:
+            return self._convert_drift_data_to_values(aggregated_data=filtered_data)
+        else:
             return mm_schemas.ModelEndpointDriftValues(values=[])
-
-        return self._convert_drift_data_to_values(aggregated_data=filtered_data)
 
     @staticmethod
     def _aggregate_raw_drift_data(
@@ -1594,7 +1671,7 @@ class V3IOTSDBConnector(TSDBConnector):
             timestamps = frame.indices()[0].times
 
             # Combine data from this frame
-            for i, (status, timestamp) in enumerate(zip(result_statuses, timestamps)):
+            for status, timestamp in zip(result_statuses, timestamps):
                 # V3IO TSDB returns timestamps in nanoseconds
                 timestamp_dt = pd.Timestamp(
                     timestamp, unit="ns", tzinfo=UTC

@@ -477,10 +477,9 @@ class TDEngineConnector(TSDBConnector):
             "Deleting all project resources using the TDEngine connector",
             project=self.project,
         )
-        drop_statements = []
-        for table in self.tables:
-            drop_statements.append(self.tables[table].drop_supertable_query())
-
+        drop_statements = [
+            self.tables[table].drop_supertable_query() for table in self.tables
+        ]
         try:
             self.connection.run(
                 statements=drop_statements,
@@ -630,7 +629,7 @@ class TDEngineConnector(TSDBConnector):
         except taosws.QueryError as e:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Failed to query table {table} in database {self.database}, {str(e)}"
-            )
+            ) from e
 
         df_columns = [field.name for field in query_result.fields]
         return pd.DataFrame(query_result.data, columns=df_columns)
@@ -644,8 +643,6 @@ class TDEngineConnector(TSDBConnector):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: Literal["metrics", "results"],
         with_result_extra_data: bool = False,
-        agg_period: Optional[str] = None,
-        agg_functions: Optional[list[str]] = None,
     ) -> Union[
         list[
             Union[
@@ -725,6 +722,109 @@ class TDEngineConnector(TSDBConnector):
             df[mm_schemas.ResultData.RESULT_EXTRA_DATA] = ""
 
         return df_handler(df=df, metrics=metrics, project=self.project)
+
+    def read_metrics_data_v2(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: Literal["metrics", "results"],
+        agg_period: Optional[str] = None,
+        agg_functions: Optional[list[str]] = None,
+    ) -> Union[
+        list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringResultValuesV2,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringMetricValuesV2,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        """
+        Read metrics OR results from the TSDB and return as a list (V2 API).
+        Always returns V2 schemas.
+
+        Note: TDEngine does not support pre-aggregation, so agg_period and agg_functions
+        are used only for formatting the response, not for server-side aggregation.
+        """
+        timestamp_column = mm_schemas.WriterEvent.END_INFER_TIME
+        columns = [timestamp_column, mm_schemas.WriterEvent.APPLICATION_NAME]
+        if type == "metrics":
+            table = self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table
+            name = mm_schemas.MetricData.METRIC_NAME
+            columns += [name, mm_schemas.MetricData.METRIC_VALUE]
+            df_handler = self.df_to_metrics_values_v2
+        elif type == "results":
+            table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table
+            name = mm_schemas.ResultData.RESULT_NAME
+            columns += [
+                name,
+                mm_schemas.ResultData.RESULT_VALUE,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_KIND,
+            ]
+            # For v2 results, include extra_data only when not aggregating
+            if agg_period is None:
+                columns.append(mm_schemas.ResultData.RESULT_EXTRA_DATA)
+            df_handler = self.df_to_results_values_v2
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid type {type}, must be either 'metrics' or 'results'."
+            )
+
+        metrics_condition = " OR ".join(
+            [
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME}='{metric.app}' AND {name}='{metric.name}')"
+                for metric in metrics
+            ]
+        )
+        filter_query = f"(endpoint_id='{endpoint_id}') AND ({metrics_condition})"
+
+        df = self._get_records(
+            table=table,
+            start=start,
+            end=end,
+            filter_query=filter_query,
+            timestamp_column=timestamp_column,
+            columns=columns,
+        )
+
+        df[mm_schemas.WriterEvent.END_INFER_TIME] = pd.to_datetime(
+            df[mm_schemas.WriterEvent.END_INFER_TIME]
+        )
+        df.set_index(mm_schemas.WriterEvent.END_INFER_TIME, inplace=True)
+
+        logger.debug(
+            "Converting a DataFrame to a list of metrics or results values (v2)",
+            table=table,
+            project=self.project,
+            endpoint_id=endpoint_id,
+            is_empty=df.empty,
+            agg_period=agg_period,
+        )
+
+        # For v2 results without aggregation, ensure extra_data column exists
+        if (
+            type == "results"
+            and agg_period is None
+            and mm_schemas.ResultData.RESULT_EXTRA_DATA not in df.columns
+        ):
+            df[mm_schemas.ResultData.RESULT_EXTRA_DATA] = ""
+
+        return df_handler(
+            df=df,
+            metrics=metrics,
+            project=self.project,
+            agg_period=agg_period,
+            agg_functions=agg_functions,
+        )
 
     def read_predictions(
         self,

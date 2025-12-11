@@ -31,6 +31,13 @@ from mlrun.common.schemas.serving import DeployResponse
 from mlrun.config import config
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
+from kubernetes.client import (
+    V1Probe,
+    V1HTTPGetAction,
+    V1ExecAction,
+    V1TCPSocketAction,
+    V1GRPCAction,
+)
 
 import framework.api.utils
 import framework.db.session
@@ -47,6 +54,153 @@ from services.api.crud.secrets import Secrets, SecretsClientType
 from services.api.utils.endpoints import start_model_endpoint_creation_background_task
 
 router = APIRouter()
+
+# Kubernetes probe validation
+_K8S_CLASSES = {
+    "V1HTTPGetAction": V1HTTPGetAction,
+    "V1ExecAction": V1ExecAction,
+    "V1TCPSocketAction": V1TCPSocketAction,
+    "V1GRPCAction": V1GRPCAction,
+    "V1Probe": V1Probe,
+}
+_SCHEMA_CACHE: dict[str, dict] = {}
+
+
+def _get_schema(class_name: str) -> dict:
+    """Get and cache Kubernetes class schema."""
+    if class_name in _SCHEMA_CACHE:
+        return _SCHEMA_CACHE[class_name]
+
+    k8s_class = _K8S_CLASSES.get(class_name)
+    if not k8s_class:
+        raise ValueError(f"Unknown Kubernetes class: {class_name}")
+
+    schema = getattr(k8s_class, "openapi_types", None) or getattr(
+        k8s_class, "swagger_types", None
+    )
+    if not schema:
+        raise RuntimeError(f"No schema found for {class_name}")
+
+    _SCHEMA_CACHE[class_name] = schema
+    return schema
+
+
+def _validate_schema(data: dict, schema: dict, schema_class_name: str) -> tuple[bool, str]:
+    """Recursively validate dict against Kubernetes API schema."""
+    _type_checkers = {
+        "str": lambda v: isinstance(v, str),
+        "int": lambda v: isinstance(v, int) or (isinstance(v, float) and v.is_integer()),
+        "bool": lambda v: isinstance(v, bool),
+        "datetime": lambda v: isinstance(v, (str, dict)),
+        "date": lambda v: isinstance(v, (str, dict)),
+        "object": lambda v: isinstance(v, (str, dict)),
+    }
+
+    def _is_compatible(field_value: typing.Any, expected_field_type: str) -> bool:
+        if field_value is None:
+            return True
+        if expected_field_type in _type_checkers:
+            return _type_checkers[expected_field_type](field_value)
+        return False
+
+    for key, value in data.items():
+        if key not in schema:
+            return False, f"{schema_class_name}: unknown field '{key}'"
+
+        expected_type = schema[key]
+
+        # Handle nested Kubernetes classes
+        if isinstance(expected_type, str) and expected_type in _K8S_CLASSES:
+            if value is None:
+                continue
+            if not isinstance(value, dict):
+                return False, f"{schema_class_name}.{key}: expected dict, got {type(value).__name__}"
+            try:
+                nested_schema = _get_schema(expected_type)
+                is_valid, error = _validate_schema(value, nested_schema, expected_type)
+                if not is_valid:
+                    return False, error
+            except (RuntimeError, ValueError) as e:
+                return False, f"{schema_class_name}.{key}: {str(e)}"
+
+        elif not _is_compatible(value, expected_type):
+            return False, f"{schema_class_name}.{key}: invalid type {type(value).__name__}"
+
+    return True, ""
+
+
+def _validate_http_probe(
+    http_get: dict, probe_type: str, sidecar_name: str
+) -> str | None:
+    """Validate HTTP probe configuration.
+    
+    Only path and port are mandatory if httpGet is configured.
+    
+    :param http_get: The httpGet configuration dict from the probe
+    :param probe_type: The type of probe (readinessProbe, livenessProbe, startupProbe)
+    :param sidecar_name: The name of the sidecar container
+    :return: Error message string if validation fails, None if validation passes
+    """
+    if not isinstance(http_get, dict):
+        return f"{probe_type} in sidecar '{sidecar_name}': httpGet must be a dict"
+    if not http_get.get("path"):
+        return f"{probe_type} in sidecar '{sidecar_name}': httpGet.path is required"
+    if not http_get.get("port"):
+        return f"{probe_type} in sidecar '{sidecar_name}': httpGet.port is required"
+    if not isinstance(http_get.get("port"), (int, str)):
+        return f"{probe_type} in sidecar '{sidecar_name}': httpGet.port must be int or str"
+    scheme = http_get.get("scheme")
+    if scheme and scheme not in ["HTTP", "HTTPS"]:
+        return f"{probe_type} in sidecar '{sidecar_name}': httpGet.scheme must be HTTP or HTTPS"
+    return None
+
+
+def _validate_sidecar_probes(sidecars: list[dict]) -> None:
+    """Validate probe configurations in sidecars against Kubernetes V1Probe schema."""
+    probe_types = ["readinessProbe", "livenessProbe", "startupProbe"]
+    # Minimum values are based on Kubernetes probe configuration documentation:
+    # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
+    timing_fields = {
+        "initialDelaySeconds": (lambda v: isinstance(v, int) and v >= 0, "non-negative integer (minimum 0)"),
+        "periodSeconds": (lambda v: isinstance(v, int) and v >= 1, "integer >= 1 (minimum 1)"),
+        "timeoutSeconds": (lambda v: isinstance(v, int) and v >= 1, "integer >= 1 (minimum 1)"),
+        "failureThreshold": (lambda v: isinstance(v, int) and v >= 1, "integer >= 1 (minimum 1)"),
+        "successThreshold": (lambda v: isinstance(v, int) and v >= 1, "integer >= 1 (minimum 1)"),
+    }
+
+    try:
+        probe_schema = _get_schema("V1Probe")
+    except (RuntimeError, ValueError) as e:
+        raise mlrun.errors.MLRunBadRequestError(f"Failed to load probe schema: {e}")
+
+    for sidecar in sidecars:
+        sidecar_name = sidecar.get("name", "unknown")
+
+        for probe_type in probe_types:
+            probe = sidecar.get(probe_type)
+            if not probe:
+                continue
+
+            # Schema validation
+            is_valid, error = _validate_schema(probe, probe_schema, "V1Probe")
+            if not is_valid:
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Invalid {probe_type} in sidecar '{sidecar_name}': {error}"
+                )
+
+            # HTTP probe validation - only path and port are mandatory if httpGet is configured
+            http_get = probe.get("httpGet")
+            if http_get:
+                error = _validate_http_probe(http_get, probe_type, sidecar_name)
+                if error:
+                    raise mlrun.errors.MLRunBadRequestError(error)
+
+            # Timing parameters validation
+            for field, (validator, desc) in timing_fields.items():
+                if field in probe and not validator(probe[field]):
+                    raise mlrun.errors.MLRunBadRequestError(
+                        f"{probe_type} in sidecar '{sidecar_name}': {field} must be a {desc} integer"
+                    )
 
 
 @router.get(
@@ -485,6 +639,12 @@ def _deploy_function(
 
         # after saving function to DB, we need to restore the original config so that the sensitive data won't be stored
         fn.spec.config = raw_config
+
+        # Validate sidecar probe configurations before deployment
+        sidecars = fn.spec.config.get("spec.sidecars") or []
+        if sidecars:
+            _validate_sidecar_probes(sidecars)
+
         fn = _deploy_nuclio_runtime(
             auth_info,
             builder_env,

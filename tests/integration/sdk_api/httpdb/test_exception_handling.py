@@ -78,9 +78,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             mlrun.errors.MLRunRuntimeError,
             match=r"HTTPConnectionPool\(host=['\"]localhost['\"], port=23456\): Max retries exceeded with url: "
             rf"/{mlrun.get_run_db().get_api_path_prefix()}/projects/some-project "
-            r"\(Caused by NewConnectionError\((?P<q>['\"])"
-            r"(?:<urllib3\.connection\.HTTPConnection object at \S+>|HTTPConnection"
-            r"\(host=['\"]localhost['\"], port=23456\)): Failed to establish a new connection: "
-            r"\[Errno \d+\] .*?(?P=q)\)\): Failed retrieving project some-project"
+            r"\(Caused by NewConnectionError\(['\"]HTTPConnection\(host=['\"]localhost['\"], port=23456\): "
+            r"Failed to establish a new connection: \[Errno \d+\] .*?['\"]\)\): Failed retrieving project some-project"
         ):
             mlrun.get_run_db().get_project("some-project")

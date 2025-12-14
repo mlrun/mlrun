@@ -353,7 +353,7 @@ class ApplicationRuntime(RemoteRuntime):
             http_probe["path"] = http_path
             if http_port is not None:
                 http_probe["port"] = http_port
-            http_probe["scheme"] = http_scheme or http_probe.get("scheme", "http")
+            http_probe["scheme"] = http_scheme or http_probe.get("scheme", "HTTP")
             probe_config["httpGet"] = http_probe
 
         # Override timing parameters from explicit arguments

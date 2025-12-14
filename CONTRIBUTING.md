@@ -131,7 +131,7 @@ make fmt
 
 * System tests - see dedicated section below
 
-## Patch code to remote system
+## Patch code to remote Iguazio system
 
 * Deploy current code to a remote system
     ```shell script

@@ -206,7 +206,7 @@ install-automation-requirements: ## Install automation-requirements relevant for
 		-r automation/requirements.txt
 
 .PHONY: patch-remote
-patch-remote: ## Deploy local mlrun-api code on a remote system (see automation/patch_igz/README.md)
+patch-remote: ## Deploy local code on a remote system (see automation/patch_igz/README.md)
 	./automation/patch_igz/patch_remote.py
 
 .PHONY: install-docs-requirements

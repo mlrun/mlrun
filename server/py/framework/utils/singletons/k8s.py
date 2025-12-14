@@ -1573,7 +1573,7 @@ class BasePod:
         self.args = args
         self._volumes = []
         self._mounts = []
-        self.env: list[client.V1EnvVar] = []
+        self.env = None
         self.node_selector = None
         self.project = project
         self._labels = {

@@ -602,8 +602,8 @@ class MLRunPatcher:
         return stdout
 
     def _resolve_overwrite_registry(self):
-        docker_registry = self._config["DOCKER_REGISTRY"]
-        overwrite_registry = self._config["OVERWRITE_IMAGE_REGISTRY"]
+        docker_registry = self._config.get("DOCKER_REGISTRY")
+        overwrite_registry = self._config.get("OVERWRITE_IMAGE_REGISTRY")
         if docker_registry:
             docker_registry = docker_registry.rstrip("/")
         if overwrite_registry:

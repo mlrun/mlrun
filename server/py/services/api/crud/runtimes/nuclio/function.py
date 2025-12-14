@@ -249,7 +249,12 @@ def _compile_function_config(
 
     :return: function name, project name, nuclio function config
     """
-
+    if mlrun.mlconf.is_iguazio_v4_mode():
+        function = services.api.crud.secrets.Secrets.mount_secret_token_to_runtime(
+            function,
+            token_name=function.spec.auth.get("token_name"),
+            username=auth_info.username,
+        )
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
     env_dict, external_source_env_dict = _resolve_env_vars(function, auth_info)
 

@@ -310,7 +310,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         self._handle_retry(run)
         run = self._pre_run_image_pull_secret_enrichment(run)
-        self._enrich_and_validate_auth_token_name(run)
+        self.enrich_and_validate_auth_token_name_on_object(run)
         return self._pre_run_scheduling_constraints_enrichment(runtime, run)
 
     @staticmethod
@@ -697,20 +697,31 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 )
 
     # TODO In ML-11600, implement token name resolution and validation + tests
-    def _enrich_and_validate_auth_token_name(self, run: mlrun.run.RunObject):
-        auth = run.spec.auth or {}
+    def enrich_and_validate_auth_token_name_on_object(
+        self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
+    ):
+        # Ensure the auth dictionary exists
+        if object.spec.auth is None:
+            object.spec.auth = {}
 
-        if auth.get("token_name"):
-            self._validate_token_name(
-                auth["token_name"],
-                explicit=True,
-            )
-            return
+        # Get the provided token name, if any
+        provided_token_name = object.spec.auth.get("token_name")
 
-        run.spec.auth["token_name"] = "default"
+        # Resolve token name
+        if provided_token_name:
+            token_name = provided_token_name
+            self._validate_token_name(token_name, raise_error_on_failure=True)
+        else:
+            token_name = "default"
+            self._validate_token_name(token_name, raise_error_on_failure=False)
+
+        # Set the token name without overwriting other auth fields
+        object.spec.auth["token_name"] = token_name
 
     # TODO implement validation in ML-11600
-    def _validate_token_name(self, token_name: str, explicit: bool = False):
+    def _validate_token_name(
+        self, token_name: str, raise_error_on_failure: bool = False
+    ):
         pass
 
 

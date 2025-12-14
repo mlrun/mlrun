@@ -1193,6 +1193,20 @@ def test_get_secret_token_not_found():
             ],
             2,
         ),
+        (
+            # Existing auth secret volume should be removed and replaced
+            [{"mountPath": "/var/mlrun-secrets/auth", "name": "old-secret"}],
+            [
+                {
+                    "name": "old-secret",
+                    "secret": {
+                        "secretName": "mlrun-auth-secrets-oldhash",
+                        "items": [{"key": "tokensFile", "path": ".igz.yml"}],
+                    },
+                }
+            ],
+            1,
+        ),
     ],
 )
 def test_mount_secret_token_to_runtime(
@@ -1240,6 +1254,11 @@ def test_mount_secret_token_to_runtime(
     ]
 
     assert len(runtime.spec.volumes) == expected_secret_count
+
+    assert not any(
+        v["secret"]["secretName"].startswith("mlrun-auth-secrets-oldhash")
+        for v in runtime.spec.volumes
+    )
 
 
 def test_mount_secret_token_to_runtime_non_existing_secret():

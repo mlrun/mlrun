@@ -823,6 +823,9 @@ class Secrets(
             username=username, token_name=token_name
         )
 
+        # Remove any existing auth secret volumes/mounts
+        services.api.crud.secrets.Secrets._remove_auth_secret_volumes(runtime)
+
         # In case the secret was not found (which should not happen because of the prior validation), we do not mount it
         if secret:
             runtime.apply(
@@ -838,6 +841,33 @@ class Secrets(
                 )
             )
         return runtime
+
+    @staticmethod
+    def _remove_auth_secret_volumes(runtime):
+        volumes = runtime.spec.volumes or []
+        mounts = runtime.spec.volume_mounts or []
+
+        volumes_to_remove = set()
+
+        # Identify volumes to remove
+        for vol in volumes:
+            if "secret" in vol:
+                secret = vol["secret"]
+                secret_name = secret.get("secretName", "")
+
+                # Pattern of auth secret volumes
+                if secret_name.startswith("mlrun-auth-secrets"):
+                    volumes_to_remove.add(vol["name"])
+
+        # Filter out only the matched volumes
+        runtime.spec.volumes = [
+            v for v in volumes if v["name"] not in volumes_to_remove
+        ]
+
+        # Filter out matching mounts
+        runtime.spec.volume_mounts = [
+            m for m in mounts if m["name"] not in volumes_to_remove
+        ]
 
 
 def get_project_secret_provider(project: str) -> typing.Callable:

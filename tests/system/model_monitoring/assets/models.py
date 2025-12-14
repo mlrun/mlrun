@@ -11,13 +11,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pickle
 import typing
 
+import fsspec
 import numpy as np
+import pandas as pd
 from cloudpickle import load
 
 import mlrun.artifacts
 import mlrun.serving
+
+
+class BatchedModel(mlrun.serving.states.Model):
+    def __init__(self, model_path: str, **kwargs):
+        super().__init__(**kwargs)
+        self.model_path = model_path
+        self.model = None
+
+    def load(self) -> None:
+        with fsspec.open(self.model_path, "rb") as f:
+            self.model = pickle.load(f)
+
+    def predict(self, body, **kwargs):
+        x = pd.DataFrame(body)
+        predictions = self.model.predict(x).tolist()
+        return [round(v, 6) for v in predictions]
 
 
 class OneToOne(mlrun.serving.V2ModelServer):

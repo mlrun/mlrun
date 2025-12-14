@@ -739,7 +739,6 @@ class Service(framework.service.Service):
                 max_window_size_seconds=int(
                     mlconf.runtime_resources_deletion_grace_period
                 ),
-                ensure_window_update=False,
                 callback=self._push_terminal_run_notifications,
                 db=db,
             )

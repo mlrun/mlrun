@@ -125,7 +125,9 @@ async def run_with_time_window_tracker(
 
     try:
         async with framework.db.session.get_db_session_async() as session:
-            last_update_time = await run_in_threadpool(initialize_and_get_window, session)
+            last_update_time = await run_in_threadpool(
+                initialize_and_get_window, session
+            )
             now = datetime.datetime.now(datetime.UTC)
             await callback(session, last_update_time, *args, **kwargs)
             await run_in_threadpool(cycle_tracker.update_window, session, now)
@@ -144,16 +146,17 @@ async def run_with_time_window_tracker(
 def run_with_time_window_tracker_sync(
     key: TimeWindowTrackerKeys,
     max_window_size_seconds: int,
-    ensure_window_update: bool,
     callback: typing.Callable,
     *args,
     **kwargs,
 ):
     """
-    Synchronous version of run_with_time_window_tracker
-    This function reduces the overhead of running synchronous code in an async context by
-    avoiding unnecessary thread switching.
-    Use this function when your callback is synchronous.
+    Synchronous version of run_with_time_window_tracker with some differences:
+    1. This function reduces the overhead of running synchronous code in an async context by avoiding unnecessary
+    thread switching.
+    2. No need for ensure_window_update parameter.
+
+    NOTE: Use this function when your callback is synchronous.
     """
     cycle_tracker = TimeWindowTracker(
         key=key,
@@ -168,11 +171,5 @@ def run_with_time_window_tracker_sync(
         cycle_tracker.initialize(session)
         last_update_time = cycle_tracker.get_window(session)
         now = datetime.datetime.now(datetime.UTC)
-        try:
-            callback(session, last_update_time, *args, **kwargs)
-            cycle_tracker.update_window(session, now)
-            # The window update succeeded above, no need to ensure it
-            ensure_window_update = False
-        finally:
-            if ensure_window_update:
-                cycle_tracker.update_window(session, now)
+        callback(session, last_update_time, *args, **kwargs)
+        cycle_tracker.update_window(session, now)

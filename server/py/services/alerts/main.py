@@ -622,7 +622,6 @@ class Service(framework.service.Service):
                     # TODO: This needs to be aligned with chief
                     mlconf.runtime_resources_deletion_grace_period
                 ),
-                ensure_window_update=False,
                 callback=self._generate_event_on_failed_runs,
             )
         except Exception as exc:

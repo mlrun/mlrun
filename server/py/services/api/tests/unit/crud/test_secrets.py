@@ -1288,7 +1288,6 @@ def test_mount_secret_token_to_runtime_non_existing_secret():
     [
         # No volumes or mounts
         ([], [], [], []),
-
         # Only auth secret volume → removed
         (
             [
@@ -1304,7 +1303,6 @@ def test_mount_secret_token_to_runtime_non_existing_secret():
             [],
             [],
         ),
-
         # Non-auth secret volume → preserved
         (
             [
@@ -1328,7 +1326,6 @@ def test_mount_secret_token_to_runtime_non_existing_secret():
             ],
             [{"name": "user-secret", "mountPath": "/some/path"}],
         ),
-
         # Mixed auth + non-auth → remove only auth
         (
             [

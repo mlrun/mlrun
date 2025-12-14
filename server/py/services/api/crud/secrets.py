@@ -21,6 +21,7 @@ from collections import defaultdict
 import jwt
 
 import mlrun.common
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.errors
@@ -812,6 +813,31 @@ class Secrets(
     @staticmethod
     def _generate_uuid() -> str:
         return str(uuid.uuid4())
+
+    @staticmethod
+    def mount_secret_token_to_runtime(
+        runtime: mlrun.runtimes.base.BaseRuntime, token_name: str, username: str
+    ):
+        # Validation that the secret exists is done in the ServerSideLauncher
+        secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(
+            username=username, token_name=token_name
+        )
+
+        # In case the secret was not found (which should not happen because of the prior validation), we do not mount it
+        if secret:
+            runtime.apply(
+                mlrun.mounts.mount_secret(
+                    secret.metadata.name,
+                    mount_path=mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                    items=[
+                        {
+                            "key": "tokensFile",
+                            "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                        }
+                    ],
+                )
+            )
+        return runtime
 
 
 def get_project_secret_provider(project: str) -> typing.Callable:

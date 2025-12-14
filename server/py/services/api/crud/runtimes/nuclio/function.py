@@ -372,7 +372,7 @@ def _resolve_env_vars(function, auth_info=None):
         _add_secrets_config_to_function_spec(function)
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
-    mlrun.auth.utils.enrich_auth_env(env_dict, function._get_db(), auth_info)
+    mlrun.auth.utils.enrich_auth_env(env_dict)
 
     return env_dict, external_source_env_dict
 

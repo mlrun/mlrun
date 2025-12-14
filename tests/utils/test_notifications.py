@@ -1674,6 +1674,19 @@ class TestMailNotification:
         ["name", "params", "message", "severity", "expected"],
         [
             (
+                "no_username_or_password",
+                {},
+                "test-message",
+                "info",
+                {
+                    "subject": "[info] test-message",
+                    "body": MOCKED_HTML,
+                    # commented out to reflect the fact that username and password are not required
+                    # "username": None,
+                    # "password": None,
+                },
+            ),
+            (
                 "empty_params",
                 {},
                 "test-message",
@@ -1724,13 +1737,67 @@ class TestMailNotification:
         ],
     )
     async def test_push(self, name, params, message, severity, expected):
-        mlrun.utils.logger.debug(f"Testing {name}")
+        params.update(
+            {
+                "sender_address": "test@example.com",
+                "server_host": "smtp.example.com",
+            }
+        )
         notification = mail.MailNotification(params=params)
-        notification._send_email = unittest.mock.AsyncMock()
         notification._get_html = unittest.mock.MagicMock(return_value=self.MOCKED_HTML)
-        await notification.push(message, severity, [])
+
+        with unittest.mock.patch(
+            "aiosmtplib.send", new_callable=unittest.mock.AsyncMock
+        ):
+            await notification.push(message, severity, [])
         assert notification.params["subject"] == expected["subject"]
         assert notification.params["body"] == expected["body"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ["username", "password", "expected_auth_kwargs"],
+        [
+            ("", "", {}),
+            (None, None, {}),
+            ("user", None, {"username": "user"}),
+            ("user", "pass", {"username": "user", "password": "pass"}),
+        ],
+    )
+    async def test_send_email_auth_handling(
+        self, username, password, expected_auth_kwargs, monkeypatch: pytest.MonkeyPatch
+    ):
+        send_mock = unittest.mock.AsyncMock()
+        monkeypatch.setattr(mail.aiosmtplib, "send", send_mock)
+
+        await mail.MailNotification(
+            params={
+                "server_host": "smtp.example.com",
+                "server_port": 25,
+                "sender_address": "",
+                "username": username,
+                "password": password,
+                "use_tls": False,
+                "validate_certs": True,
+                "start_tls": False,
+            }
+        ).push(
+            message="Test Message",
+            severity="info",
+        )
+
+        assert send_mock.await_count == 1
+        assert send_mock.await_args.kwargs["hostname"] == "smtp.example.com"
+        assert send_mock.await_args.kwargs["port"] == 25
+        assert send_mock.await_args.kwargs["use_tls"] is False
+        assert send_mock.await_args.kwargs["start_tls"] is False
+        assert send_mock.await_args.kwargs["validate_certs"] is True
+
+        for key, value in expected_auth_kwargs.items():
+            assert send_mock.await_args.kwargs.get(key) == value
+
+        for key in ("username", "password"):
+            if key not in expected_auth_kwargs:
+                assert key not in send_mock.await_args.kwargs
 
 
 class DummyResponse:

@@ -150,4 +150,4 @@ class TestRunAsyncFunctionWithNewDbSession(TestDatabaseBase):
             await framework.db.session.run_async_function_with_new_db_session(
                 async_func
             )
-            assert session.rollback.called, "Session rollback should be called on error"
+        assert session.rollback.called, "Session rollback should be called on error"

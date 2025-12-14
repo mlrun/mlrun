@@ -1283,5 +1283,102 @@ def test_mount_secret_token_to_runtime_non_existing_secret():
     assert runtime.spec.volumes == []
 
 
+@pytest.mark.parametrize(
+    "initial_volumes,initial_mounts,expected_volumes,expected_mounts",
+    [
+        # No volumes or mounts
+        ([], [], [], []),
+
+        # Only auth secret volume → removed
+        (
+            [
+                {
+                    "name": "secret",
+                    "secret": {
+                        "secretName": "mlrun-auth-secrets-123",
+                        "items": [],
+                    },
+                }
+            ],
+            [{"name": "secret", "mountPath": "/var/mlrun-secrets/auth"}],
+            [],
+            [],
+        ),
+
+        # Non-auth secret volume → preserved
+        (
+            [
+                {
+                    "name": "user-secret",
+                    "secret": {
+                        "secretName": "my-user-secret",
+                        "items": [],
+                    },
+                }
+            ],
+            [{"name": "user-secret", "mountPath": "/some/path"}],
+            [
+                {
+                    "name": "user-secret",
+                    "secret": {
+                        "secretName": "my-user-secret",
+                        "items": [],
+                    },
+                }
+            ],
+            [{"name": "user-secret", "mountPath": "/some/path"}],
+        ),
+
+        # Mixed auth + non-auth → remove only auth
+        (
+            [
+                {
+                    "name": "auth-secret",
+                    "secret": {
+                        "secretName": "mlrun-auth-secrets-abc",
+                        "items": [],
+                    },
+                },
+                {
+                    "name": "other-secret",
+                    "secret": {
+                        "secretName": "other-secret",
+                        "items": [],
+                    },
+                },
+            ],
+            [
+                {"name": "auth-secret", "mountPath": "/var/mlrun-secrets/auth"},
+                {"name": "other-secret", "mountPath": "/some/path"},
+            ],
+            [
+                {
+                    "name": "other-secret",
+                    "secret": {
+                        "secretName": "other-secret",
+                        "items": [],
+                    },
+                }
+            ],
+            [{"name": "other-secret", "mountPath": "/some/path"}],
+        ),
+    ],
+)
+def test_remove_auth_secret_volumes(
+    initial_volumes,
+    initial_mounts,
+    expected_volumes,
+    expected_mounts,
+):
+    runtime = mlrun.runtimes.kubejob.KubejobRuntime()
+    runtime.spec.volumes = initial_volumes.copy()
+    runtime.spec.volume_mounts = initial_mounts.copy()
+
+    services.api.crud.Secrets()._remove_auth_secret_volumes(runtime)
+
+    assert runtime.spec.volumes == expected_volumes
+    assert runtime.spec.volume_mounts == expected_mounts
+
+
 def _generate_token(payload: dict) -> str:
     return jwt.encode(payload, key="dummy", algorithm="HS256")

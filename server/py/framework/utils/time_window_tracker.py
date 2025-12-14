@@ -17,7 +17,6 @@ import datetime
 import typing
 
 import sqlalchemy.orm
-from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.types
 
@@ -125,18 +124,20 @@ async def run_with_time_window_tracker(
 
     try:
         async with framework.db.session.get_db_session_async() as session:
-            last_update_time = await run_in_threadpool(
+            last_update_time = await mlrun.utils.run_in_threadpool(
                 initialize_and_get_window, session
             )
             now = datetime.datetime.now(datetime.UTC)
             await callback(session, last_update_time, *args, **kwargs)
-            await run_in_threadpool(cycle_tracker.update_window, session, now)
+            await mlrun.utils.run_in_threadpool(
+                cycle_tracker.update_window, session, now
+            )
         # The window update succeeded above, no need to ensure it
         ensure_window_update = False
     finally:
         if ensure_window_update:
             # Sessions are not thread-safe, so we need to create a new one
-            await run_in_threadpool(
+            await mlrun.utils.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
                 cycle_tracker.update_window,
                 now,

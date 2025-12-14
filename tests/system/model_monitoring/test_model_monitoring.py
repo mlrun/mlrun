@@ -832,8 +832,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         endpoint_name = "my_model_1"
         endpoint_name2 = "my_model_2"
 
-        artifact_path1 = f"v3io:///projects/{self.project.metadata.name}/{uuid.uuid4()}"
-        artifact_path2 = f"v3io:///projects/{self.project.metadata.name}/{uuid.uuid4()}"
+        artifact_path1 = f"v3io:///projects/{self.project.metadata.name}/test_mrs_direct_batch_input/{uuid.uuid4()}"
+        artifact_path2 = f"v3io:///projects/{self.project.metadata.name}/test_mrs_direct_batch_input/{uuid.uuid4()}"
         f"v3io:///projects/{self.project.metadata.name}/{uuid.uuid4()}"
         model_obj = self.project.log_model(
             "my-model",

@@ -70,6 +70,9 @@ from services.api.utils.singletons.scheduler import (
     start_scheduler,
 )
 
+if typing.TYPE_CHECKING:
+    import fastapi
+
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
 # that keep failing start logs requests.
@@ -118,7 +121,7 @@ class Service(framework.service.Service):
 
     async def _base_handler(
         self,
-        request,
+        request: "fastapi.Request",
         *args,
         **kwargs,
     ):

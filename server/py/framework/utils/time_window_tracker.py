@@ -106,28 +106,29 @@ async def run_with_time_window_tracker(
     *args,
     **kwargs,
 ):
+    """
+    Runs the given callback within a time window tracked by TimeWindowTracker.
+    Use this function when you are in an async context and your callback is async.
+    """
     cycle_tracker = TimeWindowTracker(
         key=key,
         max_window_size_seconds=max_window_size_seconds,
     )
 
-    def initialize_and_get_window(session):
-        cycle_tracker.initialize(session)
-        return cycle_tracker.get_window(session)
+    # ensure callback is not synchronous
+    if not asyncio.iscoroutinefunction(callback):
+        raise ValueError("callback must be an asynchronous function")
 
-    last_update_time = await run_in_threadpool(
-        framework.db.session.run_function_with_new_db_session, initialize_and_get_window
-    )
-    now = datetime.datetime.now(datetime.UTC)
+    def initialize_and_get_window(session_):
+        cycle_tracker.initialize(session_)
+        return cycle_tracker.get_window(session_)
+
     try:
-        await framework.db.session.run_async_function_with_new_db_session(
-            callback, last_update_time, *args, **kwargs
-        )
-        await run_in_threadpool(
-            framework.db.session.run_function_with_new_db_session,
-            cycle_tracker.update_window,
-            now,
-        )
+        async with framework.db.session.get_db_session_async() as session:
+            last_update_time = await run_in_threadpool(initialize_and_get_window, session)
+            now = datetime.datetime.now(datetime.UTC)
+            await callback(session, last_update_time, *args, **kwargs)
+            await run_in_threadpool(cycle_tracker.update_window, session, now)
         # The window update succeeded above, no need to ensure it
         ensure_window_update = False
     finally:
@@ -148,12 +149,18 @@ def run_with_time_window_tracker_sync(
     *args,
     **kwargs,
 ):
+    """
+    Synchronous version of run_with_time_window_tracker
+    This function reduces the overhead of running synchronous code in an async context by
+    avoiding unnecessary thread switching.
+    Use this function when your callback is synchronous.
+    """
     cycle_tracker = TimeWindowTracker(
         key=key,
         max_window_size_seconds=max_window_size_seconds,
     )
 
-    # ensure callback is not synchronous
+    # ensure callback is synchronous
     if asyncio.iscoroutinefunction(callback):
         raise ValueError("callback must be a synchronous function")
 

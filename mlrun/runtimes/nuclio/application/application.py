@@ -22,12 +22,8 @@ import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.run
 from mlrun.common.runtimes.constants import (
-    PROBE_KEYS,
-    PROBE_TIMING_FAILURE_THRESHOLD,
-    PROBE_TIMING_INITIAL_DELAY_SECONDS,
-    PROBE_TIMING_PERIOD_SECONDS,
-    PROBE_TIMING_TIMEOUT_SECONDS,
     NuclioIngressAddTemplatedIngressModes,
+    ProbeTimeConfig,
     ProbeType,
 )
 from mlrun.runtimes import RemoteRuntime
@@ -362,18 +358,19 @@ class ApplicationRuntime(RemoteRuntime):
 
         # Override timing parameters from explicit arguments
         if initial_delay_seconds is not None:
-            probe_config[PROBE_TIMING_INITIAL_DELAY_SECONDS] = initial_delay_seconds
+            probe_config[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] = (
+                initial_delay_seconds
+            )
         if period_seconds is not None:
-            probe_config[PROBE_TIMING_PERIOD_SECONDS] = period_seconds
+            probe_config[ProbeTimeConfig.PERIOD_SECONDS.value] = period_seconds
         if failure_threshold is not None:
-            probe_config[PROBE_TIMING_FAILURE_THRESHOLD] = failure_threshold
+            probe_config[ProbeTimeConfig.FAILURE_THRESHOLD.value] = failure_threshold
         if timeout_seconds is not None:
-            probe_config[PROBE_TIMING_TIMEOUT_SECONDS] = timeout_seconds
+            probe_config[ProbeTimeConfig.TIMEOUT_SECONDS.value] = timeout_seconds
 
         # Store probe configuration in the sidecar
         sidecar = self._set_sidecar(self._get_sidecar_name())
-        probe_key = PROBE_KEYS[type.value]
-        sidecar[probe_key] = probe_config
+        sidecar[type.key] = probe_config
 
         return self
 
@@ -398,9 +395,8 @@ class ApplicationRuntime(RemoteRuntime):
 
         sidecar = self._get_sidecar()
         if sidecar:
-            probe_key = PROBE_KEYS[type.value]
-            if probe_key in sidecar:
-                del sidecar[probe_key]
+            if type.key in sidecar:
+                del sidecar[type.key]
 
         return self
 
@@ -1018,8 +1014,7 @@ class ApplicationRuntime(RemoteRuntime):
             return
 
         for probe_type in ProbeType:
-            probe_key = PROBE_KEYS[probe_type.value]
-            probe_config = sidecar.get(probe_key)
+            probe_config = sidecar.get(probe_type.key)
 
             if probe_config and isinstance(probe_config, dict):
                 http_get = probe_config.get("httpGet")
@@ -1031,7 +1026,7 @@ class ApplicationRuntime(RemoteRuntime):
                             "Please set the internal_application_port or provide http_port in set_probe()."
                         )
                     http_get["port"] = internal_port
-                    sidecar[probe_key] = probe_config
+                    sidecar[probe_type.key] = probe_config
 
     def _get_sidecar(self) -> dict | None:
         """Get the sidecar container for ApplicationRuntime

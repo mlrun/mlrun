@@ -374,15 +374,13 @@ class ProbeType(StrEnum):
     LIVENESS = "liveness"
     STARTUP = "startup"
 
+    @property
+    def key(self):
+        return f"{self.value}Probe"
 
-PROBE_KEYS = {
-    ProbeType.READINESS.value: "readinessProbe",
-    ProbeType.LIVENESS.value: "livenessProbe",
-    ProbeType.STARTUP.value: "startupProbe",
-}
 
-PROBE_TIMING_INITIAL_DELAY_SECONDS = "initialDelaySeconds"
-PROBE_TIMING_PERIOD_SECONDS = "periodSeconds"
-PROBE_TIMING_TIMEOUT_SECONDS = "timeoutSeconds"
-PROBE_TIMING_FAILURE_THRESHOLD = "failureThreshold"
-PROBE_TIMING_SUCCESS_THRESHOLD = "successThreshold"
+class ProbeTimeConfig(StrEnum):
+    INITIAL_DELAY_SECONDS = "initialDelaySeconds"
+    PERIOD_SECONDS = "periodSeconds"
+    TIMEOUT_SECONDS = "timeoutSeconds"
+    FAILURE_THRESHOLD = "failureThreshold"

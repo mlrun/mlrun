@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import os.path
 import pathlib
 import re
@@ -19,6 +18,7 @@ import textwrap
 import typing
 from base64 import b64decode, b64encode
 from collections import defaultdict
+from os import path
 from urllib.parse import urlparse
 
 from kubernetes import client
@@ -425,17 +425,16 @@ def build_image(
     )
 
     if force_build:
-        mlrun.utils.helpers.logger.info("Forcefully building image")
+        mlrun.utils.logger.info("Forcefully building image")
     elif not inline_code and not source and not commands and not requirements:
-        mlrun.utils.helpers.logger.info("Skipping build, nothing to add")
+        mlrun.utils.logger.info("Skipping build, nothing to add")
         return "skipped"
 
     context = "/context"
     to_mount = False
-    is_v3io_source, is_s3_source, is_http_source = False, False, False
+    is_v3io_source, is_http_source = False, False
     if source:
         is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
-        is_s3_source = source.startswith("s3://")
         is_http_source = source.startswith("http")
 
     access_key = builder_env.get(
@@ -456,7 +455,7 @@ def build_image(
         source_to_copy = source
 
     # source is remote
-    elif source and "://" in source and not (is_v3io_source or is_s3_source):
+    elif source and "://" in source and not is_v3io_source:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
@@ -467,15 +466,13 @@ def build_image(
         context = source
         source_to_copy = "."
 
-    # source is local / v3io / s3
+    # source is local / v3io
     else:
         if is_v3io_source:
             source = parsed_url.path
             to_mount = True
-            source_dir_to_mount, source_to_copy = os.path.split(source)
-            source_dir_to_mount = os.path.normpath(source_dir_to_mount)
-        elif is_s3_source:
-            source = parsed_url.path
+            source_dir_to_mount, source_to_copy = path.split(source)
+            source_dir_to_mount = path.normpath(source_dir_to_mount)
 
         # source is a path without a scheme, we allow to copy absolute paths assuming they are valid paths
         # in the image, however, it is recommended to use `workdir` instead in such cases
@@ -483,7 +480,7 @@ def build_image(
         # relative paths are not supported at build time
         # "." and "./" are considered as 'project context'
         # TODO: enrich with project context if pulling on build time
-        elif os.path.isabs(source):
+        elif path.isabs(source):
             source_to_copy = source
 
         else:
@@ -512,7 +509,7 @@ def build_image(
         relative_workdir = source_code_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.build.source_code_target_dir = os.path.join(
+        runtime.spec.build.source_code_target_dir = path.join(
             "/home/mlrun_code", relative_workdir
         )
 
@@ -529,10 +526,7 @@ def build_image(
         project_secrets=project_secrets,
         extra_args=extra_args,
     )
-    if is_s3_source:
-        _enrich_kaniko_env_for_s3_context(
-            env_vars=builder_env_list,
-        )
+
     kpod = make_kaniko_pod(
         project,
         context,
@@ -573,7 +567,7 @@ def build_image(
         return k8s.run_job(kpod)
     else:
         pod, ns = k8s.create_pod(kpod)
-        mlrun.utils.helpers.logger.info(
+        mlrun.utils.logger.info(
             "Build started", pod=pod, namespace=ns, project=project, image=image_target
         )
         return f"build:{pod}"
@@ -702,7 +696,7 @@ def build_runtime(
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
     if skip_deployed and runtime.is_deployed():
-        mlrun.utils.helpers.logger.info(
+        mlrun.utils.logger.info(
             "Skipping build, runtime is already deployed",
             runtime_name=runtime.metadata.name,
             project=project,
@@ -723,7 +717,7 @@ def build_runtime(
         with_mlrun = False
 
     if force_build:
-        mlrun.utils.helpers.logger.info("Forcefully building image")
+        mlrun.utils.logger.info("Forcefully building image")
     elif (
         not build.source
         and not build.commands
@@ -769,7 +763,7 @@ def build_runtime(
     if mlrun_image and build.requirements:
         add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier)
 
-    mlrun.utils.helpers.logger.info(
+    mlrun.utils.logger.info(
         "Building runtime image",
         base_image=enriched_base_image,
         image=build.image,
@@ -816,7 +810,7 @@ def build_runtime(
         runtime.spec.build.base_image = base_image
         return False
 
-    mlrun.utils.helpers.logger.info("Build completed", status=status)
+    mlrun.utils.logger.info("Build completed", status=status)
     if status in ["failed", "error"]:
         runtime.status.state = mlrun.common.schemas.FunctionState.error
         return False
@@ -837,7 +831,7 @@ def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifie
         installed_mlrun_version_command = resolve_mlrun_install_command_version(
             mlrun_version_specifier, client_version=image_tag
         )
-        mlrun.utils.helpers.logger.debug(
+        mlrun.utils.logger.debug(
             "Enriching build requirements with mlrun package",
             enriched_base_image=enriched_base_image,
             installed_mlrun_version_command=installed_mlrun_version_command,
@@ -847,7 +841,7 @@ def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifie
         build.requirements.insert(0, installed_mlrun_version_command)
 
     else:
-        mlrun.utils.helpers.logger.warning(
+        mlrun.utils.logger.warning(
             "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
             base_image=enriched_base_image,
         )
@@ -907,27 +901,24 @@ def resolve_image_target(
 
 
 def _generate_builder_env(
-    project: str,
-    builder_env: list[dict[str, str]],
+    project: str, builder_env: dict
 ) -> (list[client.V1EnvVar], list[client.V1EnvVar]):
     k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
-    builder_env = builder_env or []
+
     # generate env list from builder env and project secrets
-    existing_envs = [env["name"] for env in builder_env]
     project_secrets = []
     for key in existing_secret_keys:
-        if key not in existing_envs:
+        if key not in builder_env:
             value_from = client.V1EnvVarSource(
                 secret_key_ref=client.V1SecretKeySelector(name=secret_name, key=key)
             )
             project_secrets.append(client.V1EnvVar(name=key, value_from=value_from))
-    envs = []
-    envs.extend(
-        [client.V1EnvVar(name=env["name"], value=env["value"]) for env in builder_env]
-    )
-    return envs, project_secrets
+    env = []
+    for key, value in builder_env.items():
+        env.append(client.V1EnvVar(name=key, value=value))
+    return env, project_secrets
 
 
 def _add_kaniko_args_with_all_build_args(
@@ -1185,73 +1176,3 @@ def _resolve_function_image_secret(
         ):
             secret = config.httpdb.builder.docker_registry_secret
     return secret
-
-
-def _enrich_kaniko_env_for_s3_context(
-    env_vars: list[client.V1EnvVar],
-) -> None:
-    if env_vars is None:
-        return
-    """
-    If the build context is s3://:
-    - Determine an effective AWS region:
-        * If AWS_REGION is in env_vars, use it as-is (no changes, no MinIO assumption).
-        * Else, if AWS_DEFAULT_REGION is in env_vars, copy its value into AWS_REGION.
-        * Else, if AWS_REGION / AWS_DEFAULT_REGION exist in the process environment,
-          copy that value into AWS_REGION.
-        * Else, assume MinIO/S3-compatible and fake AWS_REGION="default-region".
-    - Only when we fake a default region (no region anywhere) do we also:
-        * Add S3_FORCE_PATH_STYLE=true (MinIO / path-style assumption).
-    """
-
-    def get_env_var_by_name(
-        env_var_name: str,
-    ) -> typing.Optional[client.V1EnvVar]:
-        return next(
-            (
-                existing_env_var
-                for existing_env_var in env_vars
-                if existing_env_var.name == env_var_name and existing_env_var.value
-            ),
-            None,
-        )
-
-    existing_aws_region_env_var = get_env_var_by_name("AWS_REGION")
-    existing_aws_default_region_env_var = get_env_var_by_name("AWS_DEFAULT_REGION")
-
-    faked_region = False
-
-    if existing_aws_region_env_var:
-        effective_aws_region_value = existing_aws_region_env_var.value
-    elif existing_aws_default_region_env_var:
-        effective_aws_region_value = existing_aws_default_region_env_var.value
-    else:
-        environment_aws_region_value = os.getenv("AWS_REGION") or os.getenv(
-            "AWS_DEFAULT_REGION"
-        )
-        if environment_aws_region_value:
-            effective_aws_region_value = environment_aws_region_value
-        else:
-            effective_aws_region_value = "default-region"
-            faked_region = True
-
-    if not existing_aws_region_env_var:
-        env_vars.append(
-            client.V1EnvVar(
-                name="AWS_REGION",
-                value=effective_aws_region_value,
-            )
-        )
-
-    if faked_region:
-        has_s3_force_path_style_env_var = any(
-            existing_env_var.name == "S3_FORCE_PATH_STYLE" and existing_env_var.value
-            for existing_env_var in env_vars
-        )
-        if not has_s3_force_path_style_env_var:
-            env_vars.append(
-                client.V1EnvVar(
-                    name="S3_FORCE_PATH_STYLE",
-                    value="true",
-                )
-            )

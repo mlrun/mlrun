@@ -85,7 +85,9 @@ docs/contributing.md
 # Local development and configuration files
 # Project configuration and environment files
 project.yaml
-automation/patch_igz/patch[_-]env.yml
+automation/patch_igz/patch[_-]env*.yml
+!automation/patch_igz/patch[_-]env_template.yml
+
 
 # Local playground dir
 playground

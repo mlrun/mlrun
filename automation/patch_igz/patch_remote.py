@@ -289,10 +289,7 @@ class MLRunPatcher:
                 # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
                 # so that workflow pods will use the correct KFP image from the internal registry.
                 _, overwrite_registry = self._resolve_overwrite_registry()
-                docker_registry = self._resolve_docker_registry()
-                kfp_registry = (
-                    overwrite_registry if overwrite_registry else docker_registry
-                )
+                kfp_registry = overwrite_registry or mlrun_docker_registry
                 if kfp_registry:
                     kfp_image_uri = f"{kfp_registry}/{Constants.mlrun_kfp}:{image_tag}"
 
@@ -300,23 +297,13 @@ class MLRunPatcher:
                         "template"
                     ]["spec"]["containers"][0]
                     env_vars = mlrun_api_container.setdefault("env", [])
-                    existing_var = next(
-                        (
-                            var
-                            for var in env_vars
-                            if var.get("name") == "MLRUN_KFP_IMAGE"
-                        ),
-                        None,
-                    )
-
-                    if existing_var:
-                        existing_var["value"] = kfp_image_uri
+                    for var in env_vars:
+                        if var.get("name") == "MLRUN_KFP_IMAGE":
+                            var["value"] = kfp_image_uri
+                            break
                     else:
                         env_vars.append(
-                            {
-                                "name": "MLRUN_KFP_IMAGE",
-                                "value": kfp_image_uri,
-                            }
+                            {"name": "MLRUN_KFP_IMAGE", "value": kfp_image_uri}
                         )
 
             cmd = ["make"]
@@ -618,7 +605,7 @@ class MLRunPatcher:
         return self._config.get("NAMESPACE", Constants.default_namespace)
 
     def _resolve_docker_registry(self):
-        mlrun_docker_registry = self._config["DOCKER_REGISTRY"].rstrip("/")
+        mlrun_docker_registry = self._config.get("DOCKER_REGISTRY").rstrip("/")
         mlrun_docker_repo = self._config.get("DOCKER_REPO")
 
         if mlrun_docker_repo:

@@ -689,6 +689,9 @@ addr = serve.deploy()
 
 ### Batch inferencing
 
+Docs: [Batch inference](./deployment/batch_inference.ipynb)
+
+
 ## Model monitoring and drift detection
 Docs: {ref}`model-monitoring-overview`, [Batch inference](./deployment/batch_inference.ipynb) 
 

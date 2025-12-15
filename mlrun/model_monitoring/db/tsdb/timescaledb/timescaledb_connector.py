@@ -78,7 +78,7 @@ class TimescaleDBConnector(TSDBConnector):
 
         self.profile = profile
 
-        # Determine the target database name
+        # Determine the monitoring database name
         self.database = self._determine_database_name(profile)
 
         # Update profile to use the determined database name

@@ -16,7 +16,7 @@ import ast
 import base64
 import json
 import typing
-from urllib.parse import ParseResult, urlparse
+from urllib.parse import ParseResult, quote, unquote, urlparse
 
 import pydantic.v1
 from deprecated import deprecated
@@ -283,8 +283,9 @@ class DatastoreProfileRedis(DatastoreProfile):
 
     def url_with_credentials(self):
         parsed_url = urlparse(self.endpoint_url)
-        username = self.username
-        password = self.password
+        # URL-encode username and password to handle special characters like @, :, /
+        username = quote(self.username, safe="") if self.username else None
+        password = quote(self.password, safe="") if self.password else None
         netloc = parsed_url.hostname
         if username:
             if password:
@@ -464,7 +465,10 @@ class DatastoreProfileTDEngine(DatastoreProfile):
 
     def dsn(self) -> str:
         """Get the Data Source Name of the configured TDEngine profile."""
-        return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}"
+        # URL-encode user and password to handle special characters like @, :, /
+        user = quote(self.user, safe="")
+        password = quote(self.password or "", safe="")
+        return f"{self.type}://{user}:{password}@{self.host}:{self.port}"
 
     @classmethod
     def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfileTDEngine":
@@ -476,10 +480,13 @@ class DatastoreProfileTDEngine(DatastoreProfile):
         :return:             The TDEngine profile.
         """
         parsed_url = urlparse(dsn)
+        # URL-decode username and password (urlparse doesn't decode them)
+        username = unquote(parsed_url.username) if parsed_url.username else None
+        password = unquote(parsed_url.password) if parsed_url.password else None
         return cls(
             name=profile_name,
-            user=parsed_url.username,
-            password=parsed_url.password,
+            user=username,
+            password=password,
             host=parsed_url.hostname,
             port=parsed_url.port,
         )
@@ -498,7 +505,7 @@ class DatastoreProfilePostgreSQL(DatastoreProfile):
     password: typing.Optional[str]
     host: str
     port: int
-    database: str = "postgres"  # Default to postgres maintenance database
+    database: str = "postgres"  # Default PostgreSQL admin database
 
     def dsn(self, database: typing.Optional[str] = None) -> str:
         """
@@ -509,15 +516,18 @@ class DatastoreProfilePostgreSQL(DatastoreProfile):
         :return: The DSN string.
         """
         db = database or self.database
-        return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}/{db}"
+        # URL-encode credentials and database to handle special characters
+        user = quote(self.user, safe="")
+        password = quote(self.password or "", safe="")
+        db_encoded = quote(db, safe="")
+        return f"{self.type}://{user}:{password}@{self.host}:{self.port}/{db_encoded}"
 
     def admin_dsn(self) -> str:
         """
         Get DSN for administrative operations using the 'postgres' database.
 
-        PostgreSQL's 'postgres' database always exists and is used for admin
-        tasks like creating/dropping databases (you cannot connect to a database
-        while creating it).
+        Assumes the default 'postgres' database exists (standard PostgreSQL setup).
+        Used for admin tasks like creating/dropping databases.
 
         :return: DSN pointing to the 'postgres' database.
         """
@@ -534,13 +544,19 @@ class DatastoreProfilePostgreSQL(DatastoreProfile):
         :return:             The PostgreSQL profile.
         """
         parsed_url = urlparse(dsn)
+        # URL-decode username, password, and database (urlparse doesn't decode them)
+        username = unquote(parsed_url.username) if parsed_url.username else None
+        password = unquote(parsed_url.password) if parsed_url.password else None
+        database = (
+            unquote(parsed_url.path.lstrip("/")) if parsed_url.path else "postgres"
+        )
         return cls(
             name=profile_name,
-            user=parsed_url.username,
-            password=parsed_url.password,
+            user=username,
+            password=password,
             host=parsed_url.hostname,
             port=parsed_url.port,
-            database=parsed_url.path.lstrip("/") or "postgres",
+            database=database or "postgres",
         )
 
 

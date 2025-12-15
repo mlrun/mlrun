@@ -87,9 +87,9 @@ class TimescaleDBOperationsManager:
         """
         Create the database if it does not exist.
 
-        This method connects to the 'postgres' maintenance database to create
-        the target database if it doesn't already exist. It also ensures the
-        TimescaleDB extension is enabled in the target database.
+        This method connects to the default 'postgres' database to create
+        the monitoring database if it doesn't already exist. It also ensures the
+        TimescaleDB extension is enabled in the monitoring database.
 
         Note: Requires a profile to be set during initialization.
         """
@@ -108,7 +108,7 @@ class TimescaleDBOperationsManager:
             database=database_name,
         )
 
-        # Connect to postgres maintenance database to create our target database
+        # Connect to default postgres database to create the monitoring database
         admin_connection = TimescaleDBConnection(
             dsn=self._profile.admin_dsn(),
             min_connections=1,
@@ -142,8 +142,7 @@ class TimescaleDBOperationsManager:
                 )
         finally:
             # Close the admin connection pool to avoid resource leak
-            if admin_connection._pool:
-                admin_connection._pool.close()
+            admin_connection.close()
 
     def create_tables(
         self, pre_aggregate_config: Optional[PreAggregateConfig] = None

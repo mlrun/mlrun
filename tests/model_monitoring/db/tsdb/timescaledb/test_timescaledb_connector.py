@@ -20,6 +20,7 @@ import uuid
 import pytest
 
 import mlrun
+from mlrun.utils import logger
 
 
 class TestTimescaleDBConnectorDatabaseCreation:
@@ -43,14 +44,14 @@ class TestTimescaleDBConnectorDatabaseCreation:
     def _force_drop_database(admin_connection, database_name):
         """Force drop a database by terminating all connections first.
 
-        Silently ignores all errors to ensure cleanup doesn't fail tests.
+        Logs warnings on errors but doesn't fail tests.
         """
         from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
             Statement,
         )
 
         # Terminate all connections to the database
-        with contextlib.suppress(Exception):
+        try:
             admin_connection.run(
                 query=Statement(
                     sql="""
@@ -61,10 +62,23 @@ class TestTimescaleDBConnectorDatabaseCreation:
                     parameters=(database_name,),
                 )
             )
+        except Exception as e:
+            logger.warning(
+                "Failed to terminate connections during test cleanup",
+                database=database_name,
+                error=str(e),
+            )
+
         # Now drop the database
-        with contextlib.suppress(Exception):
+        try:
             admin_connection.run(
                 statements=[f'DROP DATABASE IF EXISTS "{database_name}"']
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to drop database during test cleanup",
+                database=database_name,
+                error=str(e),
             )
 
     @staticmethod

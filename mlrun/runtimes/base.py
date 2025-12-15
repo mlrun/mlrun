@@ -955,5 +955,29 @@ class BaseRuntime(ModelObj):
                             line += f", default={p['default']}"
                         print("    " + line)
 
+    def remove_auth_secret_volumes(self):
+        volumes = self.spec.volumes or []
+        mounts = self.spec.volume_mounts or []
+
+        volumes_to_remove = set()
+
+        # Identify volumes to remove
+        for vol in volumes:
+            if "secret" in vol:
+                secret = vol["secret"]
+                secret_name = secret.get("secretName", "")
+
+                # Pattern of auth secret volumes
+                if secret_name.startswith("mlrun-auth-secrets"):
+                    volumes_to_remove.add(vol["name"])
+
+        # Filter out only the matched volumes
+        self.spec.volumes = [v for v in volumes if v["name"] not in volumes_to_remove]
+
+        # Filter out matching mounts
+        self.spec.volume_mounts = [
+            m for m in mounts if m["name"] not in volumes_to_remove
+        ]
+
     def skip_image_enrichment(self):
         return False

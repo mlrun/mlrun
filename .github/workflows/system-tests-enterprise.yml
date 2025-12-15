@@ -383,7 +383,7 @@ jobs:
         cache-dependency-glob: |
           **/*requirements*.txt
 
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v7
       with:
         name: env
         path: /tmp

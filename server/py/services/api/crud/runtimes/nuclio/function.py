@@ -369,7 +369,7 @@ def _enrich_config_spec(function, username):
     if framework.utils.singletons.k8s.get_k8s_helper(
         silent=True
     ).is_running_inside_kubernetes_cluster():
-        token_name = function.spec.to_dict().get("auth", None).get("token_name", None)
+        token_name = mlrun.utils.get_in(function.spec, "auth.token_name", None)
         _add_secrets_config_to_function_spec(
             function, token_name=token_name, username=username
         )

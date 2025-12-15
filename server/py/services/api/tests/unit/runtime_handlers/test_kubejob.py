@@ -1038,7 +1038,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                     {
                         "name": "old-secret",
                         "secret": {
-                            "secretName": "mlrun-auth-secrets-oldhash",
+                            "secretName": "mlrun-auth-secrets.oldhash",
                             "items": [{"key": "tokensFile", "path": ".igz.yml"}],
                         },
                     }
@@ -1097,7 +1097,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         assert len(runtime.spec.volumes) == expected_secret_count
 
         assert not any(
-            v["secret"]["secretName"].startswith("mlrun-auth-secrets-oldhash")
+            v["secret"]["secretName"].startswith("mlrun-auth-secrets.oldhash")
             for v in runtime.spec.volumes
         )
 

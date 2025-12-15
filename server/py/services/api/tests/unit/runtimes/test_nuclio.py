@@ -2087,7 +2087,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         ) as k8s_helper_mock:
             # fake k8s secret
             secret = unittest.mock.Mock()
-            secret.metadata.name = "mlrun-auth-secrets-123456"
+            secret.metadata.name = "mlrun-auth-secrets.123456"
             k8s_helper_mock.return_value._get_user_token_secret.return_value = secret
 
             _, _, config = (

@@ -338,7 +338,7 @@ class TestAutoMount:
                     {
                         "name": "secret",
                         "secret": {
-                            "secretName": "mlrun-auth-secrets-123",
+                            "secretName": "mlrun-auth-secrets.abc",
                             "items": [],
                         },
                     }
@@ -376,7 +376,7 @@ class TestAutoMount:
                     {
                         "name": "auth-secret",
                         "secret": {
-                            "secretName": "mlrun-auth-secrets-abc",
+                            "secretName": "mlrun-auth-secrets.abc",
                             "items": [],
                         },
                     },

@@ -104,12 +104,12 @@ def get_hub_module(
     )
     if not is_hub_uri:
         raise mlrun.errors.MLRunInvalidArgumentError("Not a valid hub URL")
-    yaml_obj = get_object(url=item_yaml_url, secrets=secrets)
+    yaml_obj = get_object(url=item_yaml_url)
     item_yaml = yaml.safe_load(yaml_obj)
     spec = item_yaml.pop("spec", {})
     hub_module = HubModule(**item_yaml, **spec, url=url)
     if download_files:
-        hub_module.download_files(local_path=local_path, secrets=secrets)
+        hub_module.download_files(local_path=local_path)
     return hub_module
 
 
@@ -125,7 +125,7 @@ def import_module(url="", install_requirements=False, secrets=None, local_path=N
     :return: the module
     """
     hub_module: HubModule = get_hub_module(
-        url=url, download_files=True, secrets=secrets, local_path=local_path
+        url=url, download_files=True, local_path=local_path
     )
     if install_requirements:
         hub_module.install_requirements()

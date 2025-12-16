@@ -24,6 +24,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import tests.conftest
 from mlrun.common.runtimes.constants import PodPhases, RunStates
+from mlrun.common.types import AuthenticationMode
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import now_date
@@ -1065,6 +1066,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         mock_helper = unittest.mock.MagicMock()
         mock_helper._get_user_token_secret.return_value = mock_secret
+
+        mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
 
         with unittest.mock.patch(
             "framework.utils.singletons.k8s.get_k8s_helper",

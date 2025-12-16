@@ -52,13 +52,13 @@ class HubAsset(ModelObj):
         self.url: str = url or ""
 
     def module(self):
-        """Import the module after downloading its fils to local_path"""
+        """Import the code as a module"""
         try:
             return function_to_module(code=self.filename, workdir=self.local_path)
         except FileNotFoundError:
             searched_path = self.local_path or "./"
             raise FileNotFoundError(
-                f"Module file {self.filename} not found in {searched_path}, try calling download_module_files() first"
+                f"Item file {self.filename} not found in {searched_path}, try calling download_files() first"
             )
 
     def install_requirements(self) -> None:
@@ -122,6 +122,6 @@ class HubAsset(ModelObj):
     def get_src_file_path(self):
         if not self.local_path:
             raise MLRunBadRequestError(
-                "module files haven't been downloaded yet, try calling download_module_files() first"
+                "Item files haven't been downloaded yet, try calling download_files() first"
             )
         return str(Path(self.local_path) / self.filename)

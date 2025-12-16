@@ -15,7 +15,7 @@
 from typing import Optional, Union
 
 import yaml
-from .base import HubAsset
+from deprecated import deprecated
 
 import mlrun.common.types
 import mlrun.utils
@@ -23,6 +23,7 @@ from mlrun.common.schemas.hub import HubModuleType, HubSourceType
 from mlrun.run import get_object
 
 from ..utils import extend_hub_uri_if_needed
+from .base import HubAsset
 
 
 class HubModule(HubAsset):
@@ -53,12 +54,25 @@ class HubModule(HubAsset):
         )
         self.kind = kind
 
+    # TODO: Remove this in 1.13.0
+    @deprecated(
+        version="1.11.0",
+        reason="This function is deprecated and will be removed in 1.13. You can download module files by calling download_files() instead.",
+        category=FutureWarning,
+    )
     def download_module_files(self, local_path=None, secrets=None):
         """
         Download this hub module’s files (code file and, if available, an example notebook) to the target directory
         specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when importing the module.
         """
+        super().download_files(
+            asset_type=HubSourceType.modules,
+            local_path=local_path,
+            download_example=True,
+        )
+
+    def download_files(self, local_path: str = None):
         super().download_files(
             asset_type=HubSourceType.modules,
             local_path=local_path,
@@ -85,8 +99,6 @@ def get_hub_module(
 
     :return: HubModule object
     """
-    print("after adding HubAsset") # TODO: remove
-    # TODO: remove secrets
     item_yaml_url, is_hub_uri = extend_hub_uri_if_needed(
         uri=url, asset_type=HubSourceType.modules, file="item.yaml"
     )

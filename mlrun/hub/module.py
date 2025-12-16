@@ -109,7 +109,7 @@ def get_hub_module(
     spec = item_yaml.pop("spec", {})
     hub_module = HubModule(**item_yaml, **spec, url=url)
     if download_files:
-        hub_module.download_module_files(local_path=local_path, secrets=secrets)
+        hub_module.download_files(local_path=local_path, secrets=secrets)
     return hub_module
 
 

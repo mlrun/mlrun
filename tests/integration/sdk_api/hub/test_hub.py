@@ -157,7 +157,7 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         hub_module = mlrun.get_hub_module(hub_prefix + name, download_files=False)
         with pytest.raises(FileNotFoundError):  # didn't download files first
             hub_module.module()
-        hub_module.download_module_files("./temp")
+        hub_module.download_files("./temp")
         mod = hub_module.module()
         assert isinstance(mod, types.ModuleType)
         # delete the temp dir

@@ -240,12 +240,6 @@ class V3IOTSDBConnector(TSDBConnector):
                 project=self.project,
                 after="MapListToSingleDict",
             )
-            graph.add_step(
-                "storey.Map",
-                "PrintEvent",
-                after="MapListToSingleDict",
-                _fn="(print('Event:', event) or event)",
-            )
         apply_list_to_single_dict()
 
         aggregate_windows = aggregate_windows or ["5m", "1h"]

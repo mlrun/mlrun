@@ -249,7 +249,7 @@ def _compile_function_config(
 
     :return: function name, project name, nuclio function config
     """
-    _enrich_config_spec(function, username=auth_info.username)
+    _enrich_config_spec(function, username=auth_info.username if auth_info else None)
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
     env_dict, external_source_env_dict = _resolve_env_vars(function)
 

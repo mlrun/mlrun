@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
+from typing import Optional
 
 import yaml
 
@@ -53,7 +53,6 @@ class HubStep(HubAsset):
         )
         self.class_name = class_name
 
-
     def download_files(self, local_path: str = None, download_example: bool = False):
         super().download_files(
             asset_type=HubSourceType.steps,
@@ -91,4 +90,3 @@ def get_hub_step(
     if download_files:
         hub_step.download_files(local_path=local_path, download_example=include_example)
     return hub_step
-

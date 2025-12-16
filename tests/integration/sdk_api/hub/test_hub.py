@@ -167,7 +167,9 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         with pytest.raises(ValueError):
             mlrun.import_module(hub_prefix + name, local_path="./temp")
 
-    @pytest.mark.skip(reason="Remove this marker after steps are added to the functions repo")
+    @pytest.mark.skip(
+        reason="Remove this marker after steps are added to the functions repo"
+    )
     def test_get_hub_step(self):
         hub_prefix = "hub://"
         source_name = mlrun.mlconf.hub.default_source.name
@@ -199,7 +201,9 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
                 hub_prefix + source_name + "-not" + "/" + name, download_files=False
             )
 
-    @pytest.mark.skip(reason="Remove this marker after steps are added to the functions repo")
+    @pytest.mark.skip(
+        reason="Remove this marker after steps are added to the functions repo"
+    )
     def test_get_hub_step_with_files(self):
         hub_prefix = "hub://"
         source_name = mlrun.mlconf.hub.default_source.name
@@ -212,7 +216,9 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # get_hub_step and call module
         Path.cwd().joinpath("temp").mkdir(exist_ok=True)
-        hub_step = mlrun.get_hub_step(hub_prefix + source_name + "/" + name, download_files=False)
+        hub_step = mlrun.get_hub_step(
+            hub_prefix + source_name + "/" + name, download_files=False
+        )
         with pytest.raises(FileNotFoundError):  # didn't download files first
             hub_step.module()
         hub_step.download_files("./temp")
@@ -223,4 +229,6 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # local_path doesn't exist
         with pytest.raises(ValueError):
-            mlrun.get_hub_step(hub_prefix + source_name + "/" + name, local_path="./temp")
+            mlrun.get_hub_step(
+                hub_prefix + source_name + "/" + name, local_path="./temp"
+            )

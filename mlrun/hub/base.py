@@ -60,7 +60,7 @@ class HubAsset(ModelObj):
         except FileNotFoundError:
             searched_path = self.local_path or "./"
             raise FileNotFoundError(
-                f"File {self.filename} not found in {searched_path}, try calling download_files() first"
+                f"File {self.filename} not found in {searched_path}, try calling download_files() first or set_local_path() with the correct path"
             )
 
     def install_requirements(self) -> None:
@@ -125,6 +125,10 @@ class HubAsset(ModelObj):
         if not self.local_path:
             searched_path = self.local_path or "./"
             raise MLRunBadRequestError(
-                f"File {self.filename} not found in {searched_path}, try calling download_files() first"
+                f"File {self.filename} not found in {searched_path}, try calling download_files() first or set_local_path() with the correct path"
             )
         return str(Path(self.local_path) / self.filename)
+
+    def set_local_path(self, path: str):
+        """Set the local path where the asset's files are stored."""
+        self.local_path = self.verify_directory(path=path)

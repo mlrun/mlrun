@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Release
-
+name: DO NOT USE OLD RELEASE PROCEDURE - USE private-release.yaml INSTEAD
 run-name: Releasing ${{ inputs.version }} (${{ github.ref_name }})
 
 permissions:

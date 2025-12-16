@@ -12,26 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import subprocess
-import sys
-from pathlib import Path
 from typing import Optional, Union
 
 import yaml
+from base import HubAsset
 
 import mlrun.common.types
 import mlrun.utils
 from mlrun.common.schemas.hub import HubModuleType, HubSourceType
-from mlrun.run import function_to_module, get_object
-from mlrun.utils import logger
+from mlrun.run import get_object
 
-from ..errors import MLRunBadRequestError
-from ..model import ModelObj
 from ..utils import extend_hub_uri_if_needed
 
 
-class HubModule(ModelObj):
+class HubModule(HubAsset):
     def __init__(
         self,
         name: str,
@@ -46,40 +40,18 @@ class HubModule(ModelObj):
         url: Optional[str] = None,
         **kwargs,  # catch all for unused args
     ):
-        self.name: str = name
-        self.version: str = version
-        self.kind: HubModuleType = kind
-        self.description: str = description or ""
-        self.categories: list = categories or []
-        self.requirements: list = requirements or []
-        self.local_path: str = local_path or ""
-        self.filename: str = filename or name + ".py"
-        self.example: str = example or ""
-        self.url: str = url or ""
-
-    def module(self):
-        """Import the module after downloading its fils to local_path"""
-        try:
-            return function_to_module(code=self.filename, workdir=self.local_path)
-        except FileNotFoundError:
-            searched_path = self.local_path or "./"
-            raise FileNotFoundError(
-                f"Module file {self.filename} not found in {searched_path}, try calling download_module_files() first"
-            )
-
-    def install_requirements(self) -> None:
-        """
-        Install pip-style requirements (e.g., ["pandas>=2.0.0", "requests==2.31.0"]).
-        """
-        for req in self.requirements:
-            logger.info(f"Installing {req} ...")
-            try:
-                subprocess.run(
-                    [sys.executable, "-m", "pip", "install", req], check=True, text=True
-                )
-                logger.info(f"Installed {req}")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to install {req} (exit code {e.returncode})")
+        super().__init__(
+            name=name,
+            version=version,
+            description=description,
+            categories=categories,
+            requirements=requirements,
+            local_path=local_path,
+            filename=filename,
+            example=example,
+            url=url,
+        )
+        self.kind = kind
 
     def download_module_files(self, local_path=None, secrets=None):
         """
@@ -87,49 +59,14 @@ class HubModule(ModelObj):
         specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when importing the module.
         """
-        self.local_path = self.verify_directory(path=local_path)
-        source_url, _ = extend_hub_uri_if_needed(
-            uri=self.url, asset_type=HubSourceType.modules, file=self.filename
+        super().download_files(
+            asset_type=HubSourceType.modules,
+            local_path=local_path,
+            download_example=True,
         )
-        self._download_object(
-            obj_url=source_url, target_name=self.filename, secrets=secrets
-        )
-        if self.example:
-            example_url, _ = extend_hub_uri_if_needed(
-                uri=self.url, asset_type=HubSourceType.modules, file=self.example
-            )
-            self._download_object(
-                obj_url=example_url, target_name=self.example, secrets=secrets
-            )
-
-    def _download_object(self, obj_url, target_name, secrets=None):
-        data = get_object(url=obj_url, secrets=secrets)
-        target_dir = self.local_path if self.local_path is not None else os.getcwd()
-        target_filepath = os.path.join(target_dir, target_name)
-        with open(target_filepath, "wb") as f:
-            f.write(data)
-
-    @staticmethod
-    def verify_directory(path: Optional[str] = None) -> Path:
-        """
-        Validate that the given path is an existing directory.
-        If no path has been provided, returns current working directory.
-        """
-        if path:
-            path = Path(path)
-            if not path.exists():
-                raise ValueError(f"Path does not exist: {path}")
-            if not path.is_dir():
-                raise ValueError(f"Path is not a directory: {path}")
-            return path
-        return Path(os.getcwd())
 
     def get_module_file_path(self):
-        if not self.local_path:
-            raise MLRunBadRequestError(
-                "module files haven't been downloaded yet, try calling download_module_files() first"
-            )
-        return str(Path(self.local_path) / self.filename)
+        super().get_src_file_path()
 
 
 def get_hub_module(
@@ -148,6 +85,8 @@ def get_hub_module(
 
     :return: HubModule object
     """
+    print("after adding HubAsset") # TODO: remove
+    # TODO: remove secrets
     item_yaml_url, is_hub_uri = extend_hub_uri_if_needed(
         uri=url, asset_type=HubSourceType.modules, file="item.yaml"
     )

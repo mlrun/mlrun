@@ -54,18 +54,18 @@ class HubAsset(ModelObj):
         self.url: str = url or ""
 
     def module(self):
-        """Import the code of the item as a module"""
+        """Import the code of the asset as a module."""
         try:
             return function_to_module(code=self.filename, workdir=self.local_path)
         except FileNotFoundError:
             searched_path = self.local_path or "./"
             raise FileNotFoundError(
-                f"Item file {self.filename} not found in {searched_path}, try calling download_files() first"
+                f"File {self.filename} not found in {searched_path}, try calling download_files() first"
             )
 
     def install_requirements(self) -> None:
         """
-        Install pip-style requirements of the item (e.g., ["pandas>=2.0.0", "requests==2.31.0"]).
+        Install pip-style requirements of the asset (e.g., ["pandas>=2.0.0", "requests==2.31.0"]).
         """
         for req in self.requirements:
             logger.info(f"Installing {req} ...")
@@ -83,7 +83,7 @@ class HubAsset(ModelObj):
         download_example: bool = True,
     ):
         """
-        Download this hub item’s files (code file and, if available and requested, an example notebook) to the target directory
+        Download this hub asset’s files (code file and, if available and requested, an example notebook) to the target directory
         specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when calling module().
         """
@@ -121,9 +121,10 @@ class HubAsset(ModelObj):
         return Path(os.getcwd())
 
     def get_src_file_path(self):
-        """Get the full path to the item's code file."""
+        """Get the full path to the asset's code file."""
         if not self.local_path:
+            searched_path = self.local_path or "./"
             raise MLRunBadRequestError(
-                "Item files haven't been downloaded yet, try calling download_files() first"
+                f"File {self.filename} not found in {searched_path}, try calling download_files() first"
             )
         return str(Path(self.local_path) / self.filename)

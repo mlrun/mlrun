@@ -84,8 +84,8 @@ class HubAsset(ModelObj):
         download_example: bool = True,
     ):
         """
-        Download this hub asset’s files (code file and, if available and requested, an example notebook)
-        to the target directory specified by `local_path` (defaults to the current working directory).
+        Download this hub asset’s files (code file and, if available and requested, an example notebook) to the target
+        directory specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when calling module().
         """
         self.local_path = self.verify_directory(path=local_path)
@@ -99,8 +99,8 @@ class HubAsset(ModelObj):
             )
             self._download_object(obj_url=example_url, target_name=self.example)
 
-    def _download_object(self, obj_url, target_name):
-        data = get_object(url=obj_url)
+    def _download_object(self, obj_url, target_name, secrets=None):
+        data = get_object(url=obj_url, secrets=secrets)
         target_dir = self.local_path if self.local_path is not None else os.getcwd()
         target_filepath = os.path.join(target_dir, target_name)
         with open(target_filepath, "wb") as f:

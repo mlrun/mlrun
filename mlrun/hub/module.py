@@ -69,10 +69,16 @@ class HubModule(HubAsset):
         specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when importing the module.
         """
-        super().download_files(
-            local_path=local_path,
-            download_example=True,
+        self.local_path = self.verify_directory(path=local_path)
+        source_url, _ = extend_hub_uri_if_needed(
+            uri=self.url, asset_type=self.ASSET_TYPE, file=self.filename
         )
+        self._download_object(obj_url=source_url, target_name=self.filename, secrets=secrets)
+        if self.example:
+            example_url, _ = extend_hub_uri_if_needed(
+                uri=self.url, asset_type=self.ASSET_TYPE, file=self.example
+            )
+            self._download_object(obj_url=example_url, target_name=self.example, secrets=secrets)
 
     def download_files(
         self,
@@ -115,12 +121,12 @@ def get_hub_module(
     )
     if not is_hub_uri:
         raise mlrun.errors.MLRunInvalidArgumentError("Not a valid hub URL")
-    yaml_obj = get_object(url=item_yaml_url)
+    yaml_obj = get_object(url=item_yaml_url, secrets=secrets)
     item_yaml = yaml.safe_load(yaml_obj)
     spec = item_yaml.pop("spec", {})
     hub_module = HubModule(**item_yaml, **spec, url=url)
     if download_files:
-        hub_module.download_files(local_path=local_path)
+        hub_module.download_module_files(local_path=local_path, secrets=secrets)
     return hub_module
 
 
@@ -136,7 +142,7 @@ def import_module(url="", install_requirements=False, secrets=None, local_path=N
     :return: the module
     """
     hub_module: HubModule = get_hub_module(
-        url=url, download_files=True, local_path=local_path
+        url=url, download_files=True, secrets=secrets, local_path=local_path
     )
     if install_requirements:
         hub_module.install_requirements()

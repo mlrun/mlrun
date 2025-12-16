@@ -1075,9 +1075,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             )
 
         secret_mounts = [
-            volume_mount for volume_mount in runtime.spec.volume_mounts if volume_mount["name"] == "secret"
+            volume_mount
+            for volume_mount in runtime.spec.volume_mounts
+            if volume_mount["name"] == "secret"
         ]
-        secret_volumes = [volume for volume in runtime.spec.volumes if volume["name"] == "secret"]
+        secret_volumes = [
+            volume for volume in runtime.spec.volumes if volume["name"] == "secret"
+        ]
 
         assert len(secret_mounts) == 1
         assert (

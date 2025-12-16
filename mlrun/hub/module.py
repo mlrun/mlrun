@@ -76,7 +76,7 @@ class HubModule(HubAsset):
 
     def download_files(
         self,
-        local_path: str = None,
+        local_path: Optional[str] = None,
         download_example: bool = True,
     ):
         """

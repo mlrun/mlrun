@@ -80,12 +80,12 @@ class HubAsset(ModelObj):
 
     def download_files(
         self,
-        local_path: str = None,
+        local_path: Optional[str] = None,
         download_example: bool = True,
     ):
         """
-        Download this hub asset’s files (code file and, if available and requested, an example notebook) to the target
-        directory specified by `local_path` (defaults to the current working directory).
+        Download this hub asset’s files (code file and, if available and requested, an example notebook)
+        to the target directory specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when calling module().
         """
         self.local_path = self.verify_directory(path=local_path)

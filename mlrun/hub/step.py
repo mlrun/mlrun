@@ -57,12 +57,12 @@ class HubStep(HubAsset):
 
     def download_files(
         self,
-        local_path: str = None,
+        local_path: Optional[str] = None,
         download_example: bool = False,
     ):
         """
-        Download this hub step’s files (code file and, if available and requested, an example notebook) to the target
-        directory specified by `local_path` (defaults to the current working directory).
+        Download this hub step’s files (code file and, if available and requested, an example notebook)
+        to the target directory specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when calling module().
         """
         super().download_files(

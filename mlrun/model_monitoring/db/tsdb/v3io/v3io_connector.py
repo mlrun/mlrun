@@ -231,7 +231,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 "storey.Map",
                 "MapListToSingleDict",
                 after="FilterNOP",
-                _fn="(event[0] if isinstance(event, list) and event else event)",
+                _fn="(event[0] if isinstance(event, list) else event)",
             )
             graph.add_step(
                 "mlrun.model_monitoring.stream_processing.MapFeatureNames",

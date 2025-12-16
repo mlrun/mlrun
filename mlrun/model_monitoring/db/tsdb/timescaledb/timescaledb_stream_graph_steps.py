@@ -33,7 +33,7 @@ class ProcessBeforeTimescaleDB(mlrun.feature_store.steps.MapClass):
     """
 
     def do(self, event):
-        if event and isinstance(event, list):
+        if isinstance(event, list):
             event = event[0]
         event[EventFieldType.PROJECT] = event[EventFieldType.FUNCTION_URI].split("/")[0]
         event[EventKeyMetrics.CUSTOM_METRICS] = json.dumps(

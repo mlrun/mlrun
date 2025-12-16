@@ -61,8 +61,8 @@ class HubStep(HubAsset):
         download_example: bool = False,
     ):
         """
-        Download this hub step’s files (code file and, if available and requested, an example notebook) to the target directory
-        specified by `local_path` (defaults to the current working directory).
+        Download this hub step’s files (code file and, if available and requested, an example notebook) to the target
+        directory specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when calling module().
         """
         super().download_files(
@@ -83,7 +83,8 @@ def get_hub_step(
     :param local_path: Path to target directory for the step files. Ignored when download_files is set to False.
                        Defaults to the current working directory.
     :param download_files: When set to True, the step code files will be downloaded
-    :param include_example: When set to True, the example notebook will also be downloaded (ignored if download_files is False)
+    :param include_example: When set to True, the example notebook will also be downloaded (ignored if download_files is
+                           False)
 
     :return: HubStep object
     """

@@ -60,7 +60,8 @@ class HubAsset(ModelObj):
         except FileNotFoundError:
             searched_path = self.local_path or "./"
             raise FileNotFoundError(
-                f"File {self.filename} not found in {searched_path}, try calling download_files() first, or set_local_path() with the correct path"
+                f"File {self.filename} not found in {searched_path}, try calling download_files() first, or "
+                "set_local_path() with the correct path"
             )
 
     def install_requirements(self) -> None:
@@ -83,8 +84,8 @@ class HubAsset(ModelObj):
         download_example: bool = True,
     ):
         """
-        Download this hub asset’s files (code file and, if available and requested, an example notebook) to the target directory
-        specified by `local_path` (defaults to the current working directory).
+        Download this hub asset’s files (code file and, if available and requested, an example notebook) to the target
+        directory specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when calling module().
         """
         self.local_path = self.verify_directory(path=local_path)
@@ -125,7 +126,8 @@ class HubAsset(ModelObj):
         if not self.local_path:
             searched_path = self.local_path or "./"
             raise MLRunBadRequestError(
-                f"File {self.filename} not found in {searched_path}, try calling download_files() first, or set_local_path() with the correct path"
+                f"File {self.filename} not found in {searched_path}, try calling download_files() first, or "
+                "set_local_path() with the correct path"
             )
         return str(Path(self.local_path) / self.filename)
 

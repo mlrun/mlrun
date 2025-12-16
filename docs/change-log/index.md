@@ -2,7 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
-- [v1.10.0](#v1100)
+- [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
@@ -24,6 +24,14 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Python: from 3.9 to 3.11.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+
+(v1101)=
+## v1.10.1 (January 2026)
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10488|Validation of mail configuration does not fail on non-required parameters.|
 
 (v1100)=
 ## v1.10.0 (November 2025)

@@ -26,6 +26,8 @@ from .base import HubAsset
 
 
 class HubStep(HubAsset):
+    ASSET_TYPE = HubSourceType.steps
+
     def __init__(
         self,
         name: str,
@@ -53,9 +55,17 @@ class HubStep(HubAsset):
         )
         self.class_name = class_name
 
-    def download_files(self, local_path: str = None, download_example: bool = False):
+    def download_files(
+        self,
+        local_path: str = None,
+        download_example: bool = False,
+    ):
+        """
+        Download this hub step’s files (code file and, if available and requested, an example notebook) to the target directory
+        specified by `local_path` (defaults to the current working directory).
+        This path will be used later to locate the code file when calling module().
+        """
         super().download_files(
-            asset_type=HubSourceType.steps,
             local_path=local_path,
             download_example=download_example,
         )

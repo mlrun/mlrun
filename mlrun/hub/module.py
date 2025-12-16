@@ -27,6 +27,8 @@ from .base import HubAsset
 
 
 class HubModule(HubAsset):
+    ASSET_TYPE = HubSourceType.modules
+
     def __init__(
         self,
         name: str,
@@ -60,26 +62,38 @@ class HubModule(HubAsset):
         reason="This function is deprecated and will be removed in 1.13. You can download module files by calling download_files() instead.",
         category=FutureWarning,
     )
-    def download_module_files(self, local_path=None, secrets=None):
+    def download_module_files(
+            self,
+            local_path=None,
+            secrets=None
+    ):
         """
         Download this hub module’s files (code file and, if available, an example notebook) to the target directory
         specified by `local_path` (defaults to the current working directory).
         This path will be used later to locate the code file when importing the module.
         """
         super().download_files(
-            asset_type=HubSourceType.modules,
             local_path=local_path,
             download_example=True,
         )
 
-    def download_files(self, local_path: str = None):
+    def download_files(
+        self,
+        local_path: str = None,
+        download_example: bool = True,
+    ):
+        """
+        Download this hub module’s files (code file and, if available, an example notebook) to the target directory
+        specified by `local_path` (defaults to the current working directory).
+        This path will be used later to locate the code file when importing the module.
+        """
         super().download_files(
-            asset_type=HubSourceType.modules,
             local_path=local_path,
-            download_example=True,
+            download_example=download_example,
         )
 
     def get_module_file_path(self):
+        """Get the full path to the module's code file."""
         super().get_src_file_path()
 
 

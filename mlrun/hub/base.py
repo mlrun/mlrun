@@ -16,7 +16,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import ClassVar, Optional
 
 from mlrun.common.schemas.hub import HubSourceType
 from mlrun.run import function_to_module, get_object
@@ -28,6 +28,8 @@ from ..utils import extend_hub_uri_if_needed
 
 
 class HubAsset(ModelObj):
+    ASSET_TYPE: ClassVar[HubSourceType]
+
     def __init__(
         self,
         name: str,
@@ -52,7 +54,7 @@ class HubAsset(ModelObj):
         self.url: str = url or ""
 
     def module(self):
-        """Import the code as a module"""
+        """Import the code of the item as a module"""
         try:
             return function_to_module(code=self.filename, workdir=self.local_path)
         except FileNotFoundError:
@@ -63,7 +65,7 @@ class HubAsset(ModelObj):
 
     def install_requirements(self) -> None:
         """
-        Install pip-style requirements (e.g., ["pandas>=2.0.0", "requests==2.31.0"]).
+        Install pip-style requirements of the item (e.g., ["pandas>=2.0.0", "requests==2.31.0"]).
         """
         for req in self.requirements:
             logger.info(f"Installing {req} ...")
@@ -77,7 +79,6 @@ class HubAsset(ModelObj):
 
     def download_files(
         self,
-        asset_type: HubSourceType,
         local_path: str = None,
         download_example: bool = True,
     ):
@@ -88,12 +89,12 @@ class HubAsset(ModelObj):
         """
         self.local_path = self.verify_directory(path=local_path)
         source_url, _ = extend_hub_uri_if_needed(
-            uri=self.url, asset_type=asset_type, file=self.filename
+            uri=self.url, asset_type=self.ASSET_TYPE, file=self.filename
         )
         self._download_object(obj_url=source_url, target_name=self.filename)
         if download_example and self.example:
             example_url, _ = extend_hub_uri_if_needed(
-                uri=self.url, asset_type=asset_type, file=self.example
+                uri=self.url, asset_type=self.ASSET_TYPE, file=self.example
             )
             self._download_object(obj_url=example_url, target_name=self.example)
 
@@ -120,6 +121,7 @@ class HubAsset(ModelObj):
         return Path(os.getcwd())
 
     def get_src_file_path(self):
+        """Get the full path to the item's code file."""
         if not self.local_path:
             raise MLRunBadRequestError(
                 "Item files haven't been downloaded yet, try calling download_files() first"

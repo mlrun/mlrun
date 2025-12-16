@@ -62,11 +62,7 @@ class HubModule(HubAsset):
         reason="This function is deprecated and will be removed in 1.13. You can download module files by calling download_files() instead.",
         category=FutureWarning,
     )
-    def download_module_files(
-            self,
-            local_path=None,
-            secrets=None
-    ):
+    def download_module_files(self, local_path=None, secrets=None):
         """
         Download this hub module’s files (code file and, if available, an example notebook) to the target directory
         specified by `local_path` (defaults to the current working directory).

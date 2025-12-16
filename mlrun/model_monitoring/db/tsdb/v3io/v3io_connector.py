@@ -225,8 +225,8 @@ class V3IOTSDBConnector(TSDBConnector):
         - endpoint_features (Prediction and feature names and values)
         - custom_metrics (user-defined metrics)
         """
-        def apply_list_to_single_dict():
 
+        def apply_list_to_single_dict():
             graph.add_step(
                 "storey.Map",
                 "MapListToSingleDict",
@@ -240,6 +240,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 project=self.project,
                 after="MapListToSingleDict",
             )
+
         apply_list_to_single_dict()
 
         aggregate_windows = aggregate_windows or ["5m", "1h"]

@@ -205,13 +205,15 @@ class EventStreamProcessor:
                 "storey.Filter",
                 "FilterNOP",
                 after="filter_none",
-                _fn="(not (isinstance(event, dict) and event.get('kind', " ") == 'nop_event'))",
+                _fn="(not (isinstance(event, dict) and event.get('kind', "
+                ") == 'nop_event'))",
             )
             graph.add_step(
                 "storey.Filter",
                 "ForwardNOP",
                 after="filter_none",
-                _fn="(isinstance(event, dict) and event.get('kind', " ") == 'nop_event')",
+                _fn="(isinstance(event, dict) and event.get('kind', "
+                ") == 'nop_event')",
             )
 
             # flatten the events

@@ -60,7 +60,7 @@ class HubModule(HubAsset):
     @deprecated(
         version="1.11.0",
         reason="This function is deprecated and will be removed in 1.13. You can download module files by calling "
-               "download_files() instead.",
+        "download_files() instead.",
         category=FutureWarning,
     )
     def download_module_files(self, local_path=None, secrets=None):

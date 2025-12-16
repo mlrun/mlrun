@@ -15,7 +15,7 @@
 from typing import Optional, Union
 
 import yaml
-from base import HubAsset
+from .base import HubAsset
 
 import mlrun.common.types
 import mlrun.utils

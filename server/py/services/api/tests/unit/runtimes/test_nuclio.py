@@ -2070,7 +2070,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                             else url.startswith("http")
                         )
 
-    def test_compile_function_config_iguazio_v4_mounts_auth_secret(self):
+    def test_compile_function_config_with_auth_secret(self):
         function = self._generate_runtime(self.runtime_kind)
 
         # minimal auth spec

@@ -477,9 +477,8 @@ def _deploy_function(
         raw_config = fn.mask_sensitive_data_in_config()
 
         # Add auth token name in function spec
-        if mlrun.mlconf.is_iguazio_v4_mode():
-            # TODO in ML-11600/ML-11599 need to handle redeployment with different auth token name
-            launcher.enrich_and_validate_auth_token_name_on_object(fn)
+        # TODO in ML-11600/ML-11599 need to handle redeployment with different auth token name
+        launcher.enrich_and_validate_auth_token_name(fn)
 
         # save the function to DB
         fn.save(versioned=False)

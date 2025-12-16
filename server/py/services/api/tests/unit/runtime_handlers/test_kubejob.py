@@ -1075,9 +1075,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             )
 
         secret_mounts = [
-            vm for vm in runtime.spec.volume_mounts if vm["name"] == "secret"
+            volume_mount for volume_mount in runtime.spec.volume_mounts if volume_mount["name"] == "secret"
         ]
-        secret_volumes = [v for v in runtime.spec.volumes if v["name"] == "secret"]
+        secret_volumes = [volume for volume in runtime.spec.volumes if volume["name"] == "secret"]
 
         assert len(secret_mounts) == 1
         assert (
@@ -1097,8 +1097,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         assert len(runtime.spec.volumes) == expected_secret_count
 
         assert not any(
-            v["secret"]["secretName"].startswith("mlrun-auth-secrets.oldhash")
-            for v in runtime.spec.volumes
+            volume["secret"]["secretName"].startswith("mlrun-auth-secrets.oldhash")
+            for volume in runtime.spec.volumes
         )
 
     def test_mount_secret_token_to_runtime_non_existing_secret(self):

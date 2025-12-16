@@ -413,8 +413,8 @@ class TestAutoMount:
         expected_mounts,
     ):
         runtime = self._generate_runtime()
-        runtime.spec.volumes = initial_volumes.copy()
-        runtime.spec.volume_mounts = initial_mounts.copy()
+        runtime.spec.volumes = initial_volumes
+        runtime.spec.volume_mounts = initial_mounts
 
         runtime.remove_auth_secret_volumes()
 

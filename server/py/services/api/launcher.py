@@ -310,7 +310,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         self._handle_retry(run)
         run = self._pre_run_image_pull_secret_enrichment(run)
-        self.enrich_and_validate_auth_token_name_on_object(run)
+        self.enrich_and_validate_auth_token_name(run)
         return self._pre_run_scheduling_constraints_enrichment(runtime, run)
 
     @staticmethod
@@ -697,26 +697,24 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 )
 
     # TODO In ML-11600, implement token name resolution and validation + tests
-    def enrich_and_validate_auth_token_name_on_object(
+    def enrich_and_validate_auth_token_name(
         self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
     ):
-        # Ensure the auth dictionary exists
-        if object.spec.auth is None:
-            object.spec.auth = {}
+        if mlrun.mlconf.is_iguazio_v4_mode():
+            if object.spec.auth is None:
+                object.spec.auth = {}
 
-        # Get the provided token name, if any
-        provided_token_name = object.spec.auth.get("token_name")
+            # Get the provided token name, if any
+            provided_token_name = object.spec.auth.get("token_name")
 
-        # Resolve token name
-        if provided_token_name:
-            token_name = provided_token_name
-            self._validate_token_name(token_name, raise_error_on_failure=True)
-        else:
-            token_name = "default"
-            self._validate_token_name(token_name, raise_error_on_failure=False)
+            # Resolve token name and raise error only if token is explicitly provided by the user
+            # in ML-11600, we will implement a proper resolution logic that checks all secret tokens
+            # of the user and finds a valid one if no token name is provided
+            raise_error_on_failure = bool(provided_token_name)
+            token_name = provided_token_name or mlrun.common.constants.MLRUN_JOB_AUTH_DEFAULT_TOKEN_NAME
+            self._validate_token_name(token_name, raise_error_on_failure=raise_error_on_failure)
 
-        # Set the token name without overwriting other auth fields
-        object.spec.auth["token_name"] = token_name
+            object.spec.auth["token_name"] = token_name
 
     # TODO implement validation in ML-11600
     def _validate_token_name(

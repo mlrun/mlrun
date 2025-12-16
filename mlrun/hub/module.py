@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from typing import Optional, Union
 
 import yaml
@@ -73,12 +74,16 @@ class HubModule(HubAsset):
         source_url, _ = extend_hub_uri_if_needed(
             uri=self.url, asset_type=self.ASSET_TYPE, file=self.filename
         )
-        self._download_object(obj_url=source_url, target_name=self.filename, secrets=secrets)
+        self._download_object(
+            obj_url=source_url, target_name=self.filename, secrets=secrets
+        )
         if self.example:
             example_url, _ = extend_hub_uri_if_needed(
                 uri=self.url, asset_type=self.ASSET_TYPE, file=self.example
             )
-            self._download_object(obj_url=example_url, target_name=self.example, secrets=secrets)
+            self._download_object(
+                obj_url=example_url, target_name=self.example, secrets=secrets
+            )
 
     def download_files(
         self,
@@ -126,7 +131,9 @@ def get_hub_module(
     spec = item_yaml.pop("spec", {})
     hub_module = HubModule(**item_yaml, **spec, url=url)
     if download_files:
-        hub_module.download_module_files(local_path=local_path, secrets=secrets)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            hub_module.download_module_files(local_path=local_path, secrets=secrets)
     return hub_module
 
 

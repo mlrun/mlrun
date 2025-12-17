@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Optional
 
 import yaml
 
-import mlrun.common.types
-import mlrun.utils
 from mlrun.common.schemas.hub import HubSourceType
 from mlrun.run import get_object
 
+from ..errors import MLRunInvalidArgumentError
 from ..utils import extend_hub_uri_if_needed
 from .base import HubAsset
 
@@ -36,7 +36,7 @@ class HubStep(HubAsset):
         description: Optional[str] = None,
         categories: Optional[list] = None,
         requirements: Optional[list] = None,
-        local_path: Optional[str] = None,
+        local_path: Optional[Path] = None,
         filename: Optional[str] = None,
         example: Optional[str] = None,
         url: Optional[str] = None,
@@ -93,7 +93,7 @@ def get_hub_step(
         uri=url, asset_type=HubSourceType.steps, file="item.yaml"
     )
     if not is_hub_uri:
-        raise mlrun.errors.MLRunInvalidArgumentError("Not a valid hub URL")
+        raise MLRunInvalidArgumentError("Not a valid hub URL")
     yaml_obj = get_object(url=item_yaml_url)
     item_yaml = yaml.safe_load(yaml_obj)
     spec = item_yaml.pop("spec", {})

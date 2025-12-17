@@ -37,7 +37,7 @@ class HubAsset(ModelObj):
         description: Optional[str] = None,
         categories: Optional[list] = None,
         requirements: Optional[list] = None,
-        local_path: Optional[str] = None,
+        local_path: Optional[Path] = None,
         filename: Optional[str] = None,
         example: Optional[str] = None,
         url: Optional[str] = None,
@@ -48,7 +48,7 @@ class HubAsset(ModelObj):
         self.description: str = description or ""
         self.categories: list = categories or []
         self.requirements: list = requirements or []
-        self.local_path: str = local_path or ""
+        self.local_path: Path = local_path or None
         self.filename: str = filename or name
         self.example: str = example or ""
         self.url: str = url or ""
@@ -99,8 +99,7 @@ class HubAsset(ModelObj):
 
     def _download_object(self, obj_url, target_name, secrets=None):
         data = get_object(url=obj_url, secrets=secrets)
-        target_dir = self.local_path if self.local_path is not None else os.getcwd()
-        target_filepath = os.path.join(target_dir, target_name)
+        target_filepath = os.path.join(self.local_path, target_name)
         with open(target_filepath, "wb") as f:
             f.write(data)
 

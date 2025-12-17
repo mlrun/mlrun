@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import warnings
+from pathlib import Path
 from typing import Optional, Union
 
 import yaml
@@ -38,7 +39,7 @@ class HubModule(HubAsset):
         description: Optional[str] = None,
         categories: Optional[list] = None,
         requirements: Optional[list] = None,
-        local_path: Optional[str] = None,
+        local_path: Optional[Path] = None,
         filename: Optional[str] = None,
         example: Optional[str] = None,
         url: Optional[str] = None,
@@ -64,7 +65,9 @@ class HubModule(HubAsset):
         "download_files() instead.",
         category=FutureWarning,
     )
-    def download_module_files(self, local_path=None, secrets=None):
+    def download_module_files(
+        self, local_path: Optional[str] = None, secrets: Optional[dict] = None
+    ):
         """
         Download this hub module’s files (code file and, if available, an example notebook) to the target directory
         specified by `local_path` (defaults to the current working directory).
@@ -108,7 +111,7 @@ class HubModule(HubAsset):
 
 
 def get_hub_module(
-    url: str = "",
+    url: str,
     download_files: Optional[bool] = True,
     secrets: Optional[dict] = None,
     local_path: Optional[str] = None,
@@ -139,7 +142,12 @@ def get_hub_module(
     return hub_module
 
 
-def import_module(url="", install_requirements=False, secrets=None, local_path=None):
+def import_module(
+    url: str,
+    install_requirements: Optional[bool] = False,
+    secrets: Optional[dict] = None,
+    local_path: Optional[dict] = None,
+):
     """
     Import a module from the hub to use directly.
     :param url: hub module url in the format "hub://[<source>/]<item-name>[:<tag>]"

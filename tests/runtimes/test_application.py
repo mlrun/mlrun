@@ -540,6 +540,7 @@ def test_set_probe_replace_existing():
         type=ProbeType.READINESS,
         http_path="/old/path",
         initial_delay_seconds=10,
+        failure_threshold=5,
     )
 
     fn.set_probe(
@@ -553,6 +554,7 @@ def test_set_probe_replace_existing():
     probe = sidecar[ProbeType.READINESS.key]
     assert probe["httpGet"]["path"] == "/new/path"
     assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 20
+    assert ProbeTimeConfig.FAILURE_THRESHOLD.value not in probe
 
 
 def test_set_probe_invalid_type():

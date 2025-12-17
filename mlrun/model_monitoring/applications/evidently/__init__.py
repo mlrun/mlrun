@@ -15,6 +15,5 @@
 from .base import (
     _HAS_EVIDENTLY,
     SUPPORTED_EVIDENTLY_VERSION,
-    SUPPORTED_SNIFFIO_VERSION,
     EvidentlyModelMonitoringApplicationBase,
 )

@@ -378,6 +378,10 @@ class ProbeType(StrEnum):
     def key(self):
         return f"{self.value}Probe"
 
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        return value in cls._value2member_map_
+
 
 class ProbeTimeConfig(StrEnum):
     INITIAL_DELAY_SECONDS = "initialDelaySeconds"

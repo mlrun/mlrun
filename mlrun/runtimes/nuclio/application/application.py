@@ -335,13 +335,10 @@ class ApplicationRuntime(RemoteRuntime):
         :return: function object (self)
         """
         # Validate probe type
-        if not isinstance(type, ProbeType):
-            try:
-                type = ProbeType(type.value if hasattr(type, "value") else type)
-            except (ValueError, AttributeError):
-                raise ValueError(
-                    f"Invalid probe type: {type}. Must be one of: {[p.value for p in ProbeType]}"
-                )
+        if not ProbeType.is_valid(type):
+            raise ValueError(
+                f"Invalid probe type: {type}. Must be one of: {[p.value for p in ProbeType]}"
+            )
 
         # Start with config as base
         probe_config = copy.deepcopy(config) if config else {}
@@ -357,16 +354,18 @@ class ApplicationRuntime(RemoteRuntime):
             probe_config["httpGet"] = http_probe
 
         # Override timing parameters from explicit arguments
-        if initial_delay_seconds is not None:
-            probe_config[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] = (
-                initial_delay_seconds
-            )
-        if period_seconds is not None:
-            probe_config[ProbeTimeConfig.PERIOD_SECONDS.value] = period_seconds
-        if failure_threshold is not None:
-            probe_config[ProbeTimeConfig.FAILURE_THRESHOLD.value] = failure_threshold
-        if timeout_seconds is not None:
-            probe_config[ProbeTimeConfig.TIMEOUT_SECONDS.value] = timeout_seconds
+        probe_config.update(
+            {
+                config.value: value
+                for config, value in {
+                    ProbeTimeConfig.INITIAL_DELAY_SECONDS: initial_delay_seconds,
+                    ProbeTimeConfig.PERIOD_SECONDS: period_seconds,
+                    ProbeTimeConfig.FAILURE_THRESHOLD: failure_threshold,
+                    ProbeTimeConfig.TIMEOUT_SECONDS: timeout_seconds,
+                }.items()
+                if value is not None
+            }
+        )
 
         # Store probe configuration in the sidecar
         sidecar = self._set_sidecar(self._get_sidecar_name())
@@ -385,13 +384,10 @@ class ApplicationRuntime(RemoteRuntime):
         :return: function object (self)
         """
         # Validate probe type
-        if not isinstance(type, ProbeType):
-            try:
-                type = ProbeType(type.value if hasattr(type, "value") else type)
-            except (ValueError, AttributeError):
-                raise ValueError(
-                    f"Invalid probe type: {type}. Must be one of: {[p.value for p in ProbeType]}"
-                )
+        if not ProbeType.is_valid(type):
+            raise ValueError(
+                f"Invalid probe type: {type}. Must be one of: {[p.value for p in ProbeType]}"
+            )
 
         sidecar = self._get_sidecar()
         if sidecar:
@@ -1004,10 +1000,6 @@ class ApplicationRuntime(RemoteRuntime):
         - Enrichment happens just before deployment to ensure the latest internal_application_port
           value is used, even if it was modified after set_probe() was called
         """
-        internal_port = None
-        if hasattr(self.spec, "internal_application_port"):
-            internal_port = self.spec.internal_application_port
-
         # Check each probe type and enrich missing HTTP ports
         sidecar = self._get_sidecar()
         if not sidecar:
@@ -1019,13 +1011,19 @@ class ApplicationRuntime(RemoteRuntime):
             if probe_config and isinstance(probe_config, dict):
                 http_get = probe_config.get("httpGet")
                 if http_get and isinstance(http_get, dict) and "port" not in http_get:
-                    if internal_port is None:
+                    if self.spec.internal_application_port is None:
                         raise ValueError(
                             f"Cannot enrich {probe_type.value} probe: HTTP probe requires a port, "
                             "but internal_application_port is not set. "
                             "Please set the internal_application_port or provide http_port in set_probe()."
                         )
-                    http_get["port"] = internal_port
+                    http_get["port"] = self.spec.internal_application_port
+                    logger.debug(
+                        "Enriched sidecar probe port",
+                        probe_type=probe_type.value,
+                        port=http_get["port"],
+                        application_name=self.metadata.name,
+                    )
                     sidecar[probe_type.key] = probe_config
 
     def _get_sidecar(self) -> dict | None:

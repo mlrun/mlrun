@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import os
+import os.path
 import tempfile
 import urllib.parse
 from base64 import b64encode
 from copy import copy
-from os import path, remove
 from types import ModuleType
 from typing import Optional, Union
 from urllib.parse import urlparse
@@ -204,16 +205,16 @@ class DataStore(BaseRemoteClient):
         filesystem,
     ):
         directory_split = current_path.rsplit("/", 1)
-        timing = None
+        time_unit = None
         directory_start, directory_end = "", ""
         if len(directory_split) == 2:
             directory_start, directory_end = directory_split
-            timing = directory_end.split("=")[0] if "=" in directory_end else None
+            time_unit = directory_end.split("=")[0] if "=" in directory_end else None
 
-        if not timing and directory_end.endswith((".parquet", ".pq")):
+        if not time_unit and directory_end.endswith((".parquet", ".pq")):
             paths.append(directory_start.rstrip("/"))
             return
-        elif timing and timing == partition_level:
+        elif time_unit and time_unit == partition_level:
             paths.append(current_path.rstrip("/"))
             return
 
@@ -248,20 +249,32 @@ class DataStore(BaseRemoteClient):
         filesystem,
     ):
         paths = []
+        parsed_base_url = urlparse(base_url)
+        base_path = parsed_base_url.path
+
+        if parsed_base_url.scheme not in ["v3io", "v3ios"]:
+            base_path = parsed_base_url.netloc + base_path
 
         DataStore._list_partition_paths_helper(
-            paths, start_time, end_time, base_url, partition_level, filesystem
+            paths, start_time, end_time, base_path, partition_level, filesystem
         )
-        for i in range(len(paths)):
-            paths[i] = DataStore._reconstruct_path_from_base_url(base_url, paths[i])
+        paths = [
+            DataStore._reconstruct_path_from_base_url(parsed_base_url, path)
+            for path in paths
+        ]
         return paths
 
     @staticmethod
-    def _reconstruct_path_from_base_url(base_path: str, returned_path: str) -> str:
-        parsed_url = urlparse(base_path)
-        scheme = parsed_url.scheme
-        authority = parsed_url.netloc
-        return f'{scheme}://{authority}/{returned_path.lstrip("/")}'
+    def _reconstruct_path_from_base_url(
+        parsed_base_url: urllib.parse.ParseResult, returned_path: str
+    ) -> str:
+        scheme = parsed_base_url.scheme
+        authority = parsed_base_url.netloc
+        returned_path = returned_path.lstrip("/")
+        if scheme == "v3io":
+            return f"{scheme}://{authority}/{returned_path}"
+        else:
+            return f"{scheme}://{returned_path}"
 
     @staticmethod
     def _clean_filters_for_partitions(
@@ -570,7 +583,7 @@ class DataStore(BaseRemoteClient):
             temp_file = tempfile.NamedTemporaryFile(delete=False)
             self.download(self._join(subpath), temp_file.name)
             df = reader(temp_file.name, **kwargs)
-            remove(temp_file.name)
+            os.remove(temp_file.name)
 
         if is_json or is_csv:
             # for parquet file the time filtering is executed in `reader`
@@ -682,7 +695,7 @@ class DataItem:
     @property
     def suffix(self):
         """DataItem suffix (file extension) e.g. '.png'"""
-        _, file_ext = path.splitext(self._path)
+        _, file_ext = os.path.splitext(self._path)
         return file_ext
 
     @property
@@ -791,7 +804,7 @@ class DataItem:
             return
 
         if self._local_path:
-            remove(self._local_path)
+            os.remove(self._local_path)
             self._local_path = ""
 
     def as_df(

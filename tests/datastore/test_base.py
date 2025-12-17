@@ -54,15 +54,9 @@ def test_http_fs_parquet_with_params_as_df():
     data_item.as_df()
 
 
-# ML-10075
-# TODO: find another dataset and re-enable this test
-@pytest.mark.skip(
-    reason="Starting with PyArrow 17, this test causes a conflict between partition data and parquet data"
-)
 def test_s3_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(
-        "s3://aws-public-blockchain/v1.0/btc/blocks/date=2023-02-27/"
-        "part-00000-7de4c87e-242f-4568-b5d7-aae4cc75e9ad-c000.snappy.parquet"
+        "s3://coiled-datasets/timeseries/20-years/parquet/part.0.parquet"
     )
     data_item.as_df()
 

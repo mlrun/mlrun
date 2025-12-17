@@ -55,14 +55,11 @@ class HubAsset(ModelObj):
 
     def module(self):
         """Import the code of the asset as a module."""
+        src_path = self.get_src_file_path()
         try:
             return function_to_module(code=self.filename, workdir=self.local_path)
-        except FileNotFoundError:
-            searched_path = self.local_path or "./"
-            raise FileNotFoundError(
-                f"File {self.filename} not found in {searched_path}, try calling download_files() first, or "
-                "set_local_path() with the correct path"
-            )
+        except Exception as e:
+            raise MLRunBadRequestError(f"Failed to import module from {src_path}: {e}")
 
     def install_requirements(self) -> None:
         """
@@ -89,7 +86,7 @@ class HubAsset(ModelObj):
         This path will be used later to locate the code file when calling module().
         """
         self.local_path = self.verify_directory(path=local_path)
-        self.verify_files_dont_exist(download_example)
+        self.verify_files_dont_exist(include_example_check=download_example)
         source_url, _ = extend_hub_uri_if_needed(
             uri=self.url, asset_type=self.ASSET_TYPE, file=self.filename
         )
@@ -122,9 +119,9 @@ class HubAsset(ModelObj):
             return path
         return Path(os.getcwd())
 
-    def verify_files_dont_exist(self, download_example):
+    def verify_files_dont_exist(self, include_example_check):
         files_to_check = [self.filename]
-        if download_example and self.example:
+        if include_example_check and self.example:
             files_to_check.append(self.example)
         existing_files = []
         for fname in files_to_check:
@@ -140,12 +137,18 @@ class HubAsset(ModelObj):
     def get_src_file_path(self):
         """Get the full path to the asset's code file."""
         if not self.local_path:
-            searched_path = self.local_path or "./"
             raise MLRunBadRequestError(
-                f"File {self.filename} not found in {searched_path}, try calling download_files() first, or "
-                "set_local_path() with the correct path"
+                f"Local path not set. Call download_files() first to download the asset files, or "
+                f"set_local_path() with the directory containing {self.filename}"
             )
-        return str(Path(self.local_path) / self.filename)
+        src_path = Path(self.local_path) / self.filename
+        if not src_path.exists():
+            raise FileNotFoundError(
+                f"File {self.filename} not found in {self.local_path}. Call download_files() first to download the "
+                f"asset files, or set_local_path() with the directory containing {self.filename}"
+            )
+
+        return str(src_path)
 
     def set_local_path(self, path: str):
         """Set the local path where the asset's files are stored."""

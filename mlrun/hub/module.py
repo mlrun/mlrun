@@ -71,7 +71,7 @@ class HubModule(HubAsset):
         This path will be used later to locate the code file when importing the module.
         """
         self.local_path = self.verify_directory(path=local_path)
-        self.verify_files_dont_exist(True)
+        self.verify_files_dont_exist(include_example_check=True)
         source_url, _ = extend_hub_uri_if_needed(
             uri=self.url, asset_type=self.ASSET_TYPE, file=self.filename
         )
@@ -92,9 +92,10 @@ class HubModule(HubAsset):
         download_example: bool = True,
     ):
         """
-        Download this hub module’s files (code file and, if available, an example notebook) to the target directory
-        specified by `local_path` (defaults to the current working directory).
-        This path will be used later to locate the code file when importing the module.
+        Download this hub module’s code file.
+        :param local_path: Target directory to download the module files to. Defaults to the current working directory.
+                           This path will be used to locate the code file when importing it as a module.
+        :param download_example: Whether to download the example notebook if available. Defaults to True.
         """
         super().download_files(
             local_path=local_path,
@@ -103,7 +104,7 @@ class HubModule(HubAsset):
 
     def get_module_file_path(self):
         """Get the full path to the module's code file."""
-        super().get_src_file_path()
+        return super().get_src_file_path()
 
 
 def get_hub_module(

@@ -176,7 +176,7 @@ class DataStore(BaseRemoteClient):
             month=month or 1,
             day=day or 1,
             hour=hour or 0,
-            tzinfo=start_time.tzinfo,
+            tzinfo=start_time.tzinfo if start_time else end_time.tzinfo,
         )
         partition_end = (
             partition_start
@@ -189,7 +189,9 @@ class DataStore(BaseRemoteClient):
             - datetime.timedelta(microseconds=1)
         )
 
-        if end_time < partition_start or start_time > partition_end:
+        if (end_time and end_time < partition_start) or (
+            start_time and start_time > partition_end
+        ):
             return False
         return True
 

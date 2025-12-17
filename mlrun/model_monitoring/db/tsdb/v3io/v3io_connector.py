@@ -225,6 +225,24 @@ class V3IOTSDBConnector(TSDBConnector):
         - endpoint_features (Prediction and feature names and values)
         - custom_metrics (user-defined metrics)
         """
+
+        def apply_list_to_single_dict():
+            graph.add_step(
+                "storey.Map",
+                "MapListToSingleDict",
+                after="FilterNOP",
+                _fn="(event[0] if isinstance(event, list) else event)",
+            )
+            graph.add_step(
+                "mlrun.model_monitoring.stream_processing.MapFeatureNames",
+                name="MapFeatureNamesTSDB",
+                infer_columns_from_data=True,
+                project=self.project,
+                after="MapListToSingleDict",
+            )
+
+        apply_list_to_single_dict()
+
         aggregate_windows = aggregate_windows or ["5m", "1h"]
 
         # Calculate number of predictions and average latency
@@ -242,7 +260,7 @@ class V3IOTSDBConnector(TSDBConnector):
                     }
                 ],
                 name=EventFieldType.LATENCY,
-                after="FilterNOP",
+                after="MapFeatureNamesTSDB",
                 step_name="Aggregates",
                 table=".",
                 key_field=EventFieldType.ENDPOINT_ID,
@@ -263,7 +281,7 @@ class V3IOTSDBConnector(TSDBConnector):
         graph.add_step(
             "storey.TSDBTarget",
             name="tsdb_predictions",
-            after="FilterNOP",
+            after="MapFeatureNamesTSDB",
             path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.PREDICTIONS]}",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,

@@ -447,7 +447,7 @@ def test_list_sources_with_filters(
 
     # verifying filtering by item name and good version:
     sources = client.get(
-        "hub/sources", params={"item-name": good_name, "version": "1.1.0"}
+        "hub/sources", params={"item-name": good_name, "version": "1.8.0"}
     ).json()
     assert len(sources) == 1
 
@@ -456,5 +456,5 @@ def test_list_sources_with_filters(
     assert response.status_code == http.HTTPStatus.BAD_REQUEST.value
 
     # verifying bad filtering with version and without item name:
-    response = client.get("hub/sources", params={"version": "1.1.0"})
+    response = client.get("hub/sources", params={"version": "1.8.0"})
     assert response.status_code == http.HTTPStatus.BAD_REQUEST.value

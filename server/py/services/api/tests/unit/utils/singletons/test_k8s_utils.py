@@ -482,7 +482,7 @@ def test_list_pod_events(k8s_helper):
 
 
 def test_store_user_token_secret_created(k8s_helper):
-    k8s_helper.read_secret = mock.MagicMock(return_value=None)
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
 
     username = "test-user"
     token_name = "my-token"
@@ -524,7 +524,7 @@ def test_store_user_token_secret_updated(k8s_helper):
     token_name = "my-token"
     token_value = "abc123"
     new_expiration = 2000
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(username, token_name)
 
     # Existing secret with older expiration
     existing_secret = _make_user_token_secret(
@@ -581,7 +581,7 @@ def test_store_user_token_secret_skipped_and_force_update(
     username = "test-user"
     token_name = "my-token"
     token_value = "abc123"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(username, token_name)
 
     existing_secret = _make_user_token_secret(
         secret_name,
@@ -589,7 +589,7 @@ def test_store_user_token_secret_skipped_and_force_update(
         token_value=token_value,
         expiration=5000,
     )
-    k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[existing_secret])
 
     result = k8s_helper.store_user_token_secret(
         username=username,
@@ -617,13 +617,13 @@ def test_list_secrets_with_labels(k8s_helper):
     secret1 = _make_k8s_secret(
         "secret1",
         labels={
-            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+            mlrun_constants.MLRunInternalLabels.auth_username: "test-user",
         },
     )
     secret2 = _make_k8s_secret(
         "secret2",
         labels={
-            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+            mlrun_constants.MLRunInternalLabels.auth_username: "test-user",
         },
     )
 
@@ -636,9 +636,7 @@ def test_list_secrets_with_labels(k8s_helper):
 
     result = k8s_helper.list_secrets(
         namespace="default",
-        labels={
-            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
-        },
+        labels={mlrun_constants.MLRunInternalLabels.auth_username: "test-user"},
     )
 
     assert result == [secret1, secret2]
@@ -683,10 +681,14 @@ def test_list_user_token_secrets_valid(k8s_helper):
     token1_name = "token1"
     token2_name = "token2"
     username = "test-user"
-    secret1_name = k8s_helper._resolve_user_token_secret_name(username, token1_name)
-    secret2_name = k8s_helper._resolve_user_token_secret_name(username, token2_name)
-    secret1 = _make_user_token_secret(secret1_name, expiration=1111)
-    secret2 = _make_user_token_secret(secret2_name, expiration=2222)
+    secret1_name = k8s_helper._resolve_auth_secret_name(username, token1_name)
+    secret2_name = k8s_helper._resolve_auth_secret_name(username, token2_name)
+    secret1 = _make_user_token_secret(
+        secret1_name, token_name=token1_name, expiration=1111
+    )
+    secret2 = _make_user_token_secret(
+        secret2_name, token_name=token2_name, expiration=2222
+    )
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.list_secrets = mock.MagicMock(return_value=[secret1, secret2])
@@ -701,28 +703,13 @@ def test_list_user_token_secrets_valid(k8s_helper):
 
     k8s_helper.list_secrets.assert_called_once_with(
         namespace="default",
-        labels={
-            mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
-        },
+        labels={mlrun_constants.MLRunInternalLabels.auth_username: "test-user"},
     )
-
-
-def test_list_user_token_secrets_unexpected_name(k8s_helper):
-    bad_secret = _make_user_token_secret("some-other-secret", expiration=1234)
-
-    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
-
-    result = k8s_helper.list_user_token_secrets(
-        username="test-user", namespace="default"
-    )
-
-    assert result == []
 
 
 def test_list_user_token_secrets_invalid_expiration(k8s_helper):
     username = "test-user"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, "token1")
+    secret_name = k8s_helper._resolve_auth_secret_name(username, "token1")
     bad_secret = _make_user_token_secret(
         secret_name=secret_name, expiration=b"not-a-number"
     )
@@ -737,7 +724,7 @@ def test_get_user_token_secret_value_valid(k8s_helper):
     username = "test-user"
     token_name = "my-token"
     token_value = "abc123"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(username, token_name)
 
     # Create a Kubernetes secret with properly encoded tokensFile
     existing_secret = _make_user_token_secret(
@@ -748,7 +735,7 @@ def test_get_user_token_secret_value_valid(k8s_helper):
     )
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[existing_secret])
 
     token_value_from_k8s = k8s_helper.get_user_token_secret_value(
         username=username,
@@ -757,7 +744,7 @@ def test_get_user_token_secret_value_valid(k8s_helper):
     )
 
     assert token_value_from_k8s == token_value
-    k8s_helper.read_secret.assert_called_once()
+    k8s_helper.list_secrets.assert_called_once()
 
 
 def test_get_user_token_secret_value_not_found(k8s_helper):
@@ -765,23 +752,7 @@ def test_get_user_token_secret_value_not_found(k8s_helper):
     token_name = "my-token"
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.read_secret = mock.MagicMock(return_value=None)
-
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        k8s_helper.get_user_token_secret_value(
-            username, token_name, namespace="default"
-        )
-
-
-def test_get_user_token_secret_value_token_missing(k8s_helper):
-    username = "test-user"
-    token_name = "my-token"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
-
-    # Secret exists but tokensFile does not contain the requested token
-    secret = _make_user_token_secret(secret_name, token_name="other-token")
-    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.read_secret = mock.MagicMock(return_value=secret)
+    k8s_helper.list_secrets = mock.MagicMock(return_value=None)
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         k8s_helper.get_user_token_secret_value(
@@ -792,7 +763,7 @@ def test_get_user_token_secret_value_token_missing(k8s_helper):
 def test_get_user_token_secret_value_invalid_base64(k8s_helper):
     username = "test-user"
     token_name = "my-token"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(username, token_name)
 
     # Create a secret with an invalid base64 tokensFile
     bad_secret = _make_k8s_secret(secret_name)
@@ -813,7 +784,7 @@ def test_get_user_token_secret_value_invalid_base64(k8s_helper):
 def test_get_user_token_secret_value_invalid_yaml(k8s_helper):
     username = "test-user"
     token_name = "my-token"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(username, token_name)
 
     # Base64 encoded string but invalid YAML
     bad_yaml = base64.b64encode(b"{invalid_yaml: ]").decode()
@@ -831,7 +802,7 @@ def test_get_user_token_secret_value_invalid_yaml(k8s_helper):
 def test_delete_user_token_secret_success(k8s_helper):
     username = "test-user"
     token_name = "token1"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(username, token_name)
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock()
@@ -849,7 +820,7 @@ def test_delete_user_token_secret_success(k8s_helper):
 def test_delete_user_token_secret_not_found(k8s_helper):
     username = "test-user"
     token_name = "missing"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(username, token_name)
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
@@ -872,7 +843,7 @@ def test_delete_user_token_secret_not_found(k8s_helper):
 def test_delete_user_token_secret_api_error(k8s_helper):
     username = "test-user"
     token_name = "badtoken"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(username, token_name)
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
@@ -895,7 +866,7 @@ def test_delete_user_token_secret_api_error(k8s_helper):
 def test_delete_user_token_secret_unexpected_error(k8s_helper):
     username = "test-user"
     token_name = "oops"
-    secret_name = k8s_helper._resolve_user_token_secret_name(username, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(username, token_name)
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.v1api.delete_namespaced_secret = mock.MagicMock(
@@ -923,7 +894,8 @@ def _make_user_token_secret(
     labels=None,
 ):
     labels = labels or {
-        mlrun_constants.MLRunInternalLabels.user_token_secret_label_key: "test-user"
+        mlrun_constants.MLRunInternalLabels.auth_username: "test-user",
+        mlrun_constants.MLRunInternalLabels.auth_token_name: token_name,
     }
     secret = _make_k8s_secret(secret_name, labels)
 

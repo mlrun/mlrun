@@ -476,6 +476,10 @@ def _deploy_function(
         # which later in Nuclio will be masked and saved to secrets
         raw_config = fn.mask_sensitive_data_in_config()
 
+        # Add auth token name in function spec
+        # TODO in ML-11600/ML-11599 need to handle redeployment with different auth token name
+        launcher.enrich_and_validate_auth_token_name(fn)
+
         # save the function to DB
         fn.save(versioned=False)
 

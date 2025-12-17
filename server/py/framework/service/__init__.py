@@ -22,7 +22,6 @@ import anyio
 import anyio.lowlevel
 import anyio.to_thread
 import fastapi
-import fastapi.concurrency
 import fastapi.exception_handlers
 import semver
 from dependency_injector import containers, providers
@@ -34,13 +33,13 @@ import mlrun.utils.version
 from mlrun import mlconf
 
 import framework.api.utils
+import framework.db.session
 import framework.middlewares
 import framework.utils.clients.chief
 import framework.utils.clients.messaging
 import framework.utils.pagination
 import framework.utils.periodic
-from framework.db.session import run_async_function_with_new_db_session
-from framework.utils.singletons.db import initialize_db
+import framework.utils.singletons.db
 
 
 class Service(ABC):
@@ -66,7 +65,9 @@ class Service(ABC):
 
     async def move_service_to_online(self):
         self._logger.info("Moving service to online", service_name=self.service_name)
-        await run_async_function_with_new_db_session(self._sync_system_metadata)
+        await framework.db.session.run_async_function_with_new_db_session(
+            self._sync_system_metadata
+        )
         await self._move_service_to_online()
 
     # https://fastapi.tiangolo.com/advanced/events/
@@ -180,7 +181,7 @@ class Service(ABC):
             max_workers=anyio.to_thread.current_default_thread_limiter().total_tokens,
         )
 
-        await fastapi.concurrency.run_in_threadpool(initialize_db)
+        await mlrun.utils.run_in_threadpool(framework.utils.singletons.db.initialize_db)
         await self._custom_setup_service()
 
         if (

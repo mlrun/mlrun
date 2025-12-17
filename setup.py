@@ -72,7 +72,7 @@ setup(
         "machine-learning",
         "experiment-tracking",
     ],
-    python_requires=">=3.9, <3.12",
+    python_requires=">=3.11, <3.12",
     install_requires=dependencies.base_requirements(),
     extras_require=dependencies.extra_requirements(),
     classifiers=[
@@ -82,7 +82,6 @@ setup(
         "Operating System :: Microsoft :: Windows",
         "Operating System :: MacOS",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",

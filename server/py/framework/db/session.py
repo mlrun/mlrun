@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import contextlib
 import inspect
 
-import fastapi.concurrency
 from sqlalchemy.orm import Session
 
-import mlrun.utils.helpers
+import mlrun.utils
 
 import framework.db.sqldb.sql_session
 
@@ -36,12 +37,8 @@ def run_function_with_new_db_session(func, *args, **kwargs):
     However, any changes made by the new session will not be visible to old sessions until the old sessions commit
     due to isolation level.
     """
-    session = create_session()
-    try:
-        result = func(session, *args, **kwargs)
-        return result
-    finally:
-        close_session(session)
+    with get_db_session(commit=False) as session:
+        return func(session, *args, **kwargs)
 
 
 async def run_async_function_with_new_db_session(func, *args, **kwargs):
@@ -56,18 +53,52 @@ async def run_async_function_with_new_db_session(func, *args, **kwargs):
 
     # function is async. wrap its execution with a new db session
     if inspect.iscoroutinefunction(func):
-        session = await mlrun.utils.helpers.run_in_threadpool(create_session)
-        try:
-            result = await func(session, *args, **kwargs)
-            return result
-        finally:
-            await mlrun.utils.helpers.run_in_threadpool(close_session, session)
+        # commit is set to False as this function lets the caller handle committing/rolling back the session
+        async with get_db_session_async(commit=False) as session:
+            return await func(session, *args, **kwargs)
 
     # function is sync running in async context,
     # move all together to a thread and execute it non-blocking
-    return await fastapi.concurrency.run_in_threadpool(
-        framework.db.session.run_function_with_new_db_session,
+    return await mlrun.utils.run_in_threadpool(
+        run_function_with_new_db_session,
         func,
         *args,
         **kwargs,
     )
+
+
+@contextlib.asynccontextmanager
+async def get_db_session_async(commit=True):
+    """
+    Async context manager that provides a database session and handles commit/rollback.
+    :param commit: Whether to commit the session on successful completion. Defaults to True.
+    """
+    session = await asyncio.to_thread(create_session)
+    try:
+        yield session
+        if commit:
+            await asyncio.to_thread(session.commit)
+    except Exception:
+        await asyncio.to_thread(session.rollback)
+        raise
+    finally:
+        await asyncio.to_thread(session.close)
+
+
+@contextlib.contextmanager
+def get_db_session(commit=True):
+    """
+    Context manager that provides a database session and handles commit/rollback.
+
+    :param commit: Whether to commit the session on successful completion. Defaults to True.
+    """
+    session = create_session()
+    try:
+        yield session
+        if commit:
+            session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

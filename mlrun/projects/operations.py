@@ -405,6 +405,7 @@ def deploy_function(
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
     """
     engine, function = _get_engine_and_function(function, project_object)
+    # TODO in ML-11599 need to handle redeployment with different auth token name
     if function.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "deploy is used with real-time functions, for other kinds use build_function()"

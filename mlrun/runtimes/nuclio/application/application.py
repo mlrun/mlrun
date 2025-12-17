@@ -88,6 +88,7 @@ class ApplicationSpec(NuclioSpec):
         track_models=None,
         internal_application_port=None,
         application_ports=None,
+        auth=None,
     ):
         super().__init__(
             command=command,
@@ -133,6 +134,7 @@ class ApplicationSpec(NuclioSpec):
             track_models=track_models,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
+            auth=auth,
         )
 
         # Override default min/max replicas (don't assume application is stateless)

@@ -675,6 +675,12 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         "model_endpoint_creation_check_period": 15,
+        # TSDB (TimescaleDB) configuration
+        "tsdb": {
+            # When True, automatically create/generate database name using system_id if not explicitly
+            # specified in the connection string. When False, use the database from connection string as-is.
+            "auto_create_database": True,
+        },
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -703,7 +709,6 @@ default_config = {
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
-            "user_token_secret_name": "mlrun-auth-{username}-{token_name}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
         },

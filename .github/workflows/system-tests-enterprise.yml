@@ -127,7 +127,7 @@ jobs:
         output-credentials: true
 
     - name: Install uv
-      uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
+      uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # 7.1.5
       with:
         enable-cache: true
         python-version: 3.11
@@ -310,7 +310,7 @@ jobs:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Upload env file
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: env
         path: "${{ steps.encrypt_file.outputs.env_file_path }}"
@@ -376,14 +376,14 @@ jobs:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
+      uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # 7.1.5
       with:
         enable-cache: true
         python-version: 3.11
         cache-dependency-glob: |
           **/*requirements*.txt
 
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v7
       with:
         name: env
         path: /tmp
@@ -411,7 +411,7 @@ jobs:
         uv venv venv --seed
         . venv/bin/activate
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
-          make install-requirements install-complete-kfp-requirements update-version-file
+          make install-requirements install-complete-requirements update-version-file
 
     - name: Run System Tests
       run: |

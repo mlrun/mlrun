@@ -16,4 +16,4 @@ memray~=1.12; sys_platform != 'win32'
 aiosmtplib~=3.0
 # until https://github.com/fastapi/fastapi/issues/10360 is solved
 pydantic>=1,<2
-mlrun-pipelines-kfp-v1-8~=0.5.8
+mlrun-pipelines-kfp-v1-8~=0.6.0

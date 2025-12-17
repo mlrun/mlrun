@@ -517,7 +517,6 @@ class Client(
         :param run_id: The unique ID of the run to retrieve.
         :return: An ApiRun object with the run details.
         """
-        self.logger.info("Getting details for run", run_id=run_id)
         return self._run_api.get_run(
             run_id=run_id,
         )
@@ -936,16 +935,6 @@ class Client(
         filter_json = filter_json or ""
         sort_by = sort_by or ""
 
-        self.logger.debug(
-            "Listing runs from KFP",
-            page_token=page_token,
-            page_size=page_size,
-            sort_by=sort_by,
-            experiment_id=experiment_id,
-            namespace=namespace,
-            filter_json=filter_json,
-        )
-
         if experiment_id is not None:
             response = self._run_api.list_runs(
                 page_token=page_token,
@@ -990,16 +979,6 @@ class Client(
     ) -> Generator[tuple[list[PipelineRun], str], None, None]:
         current_page_token = page_token
         fetched_run_count = 0
-        self.logger.debug(
-            "Paginating runs from KFP",
-            page_token=current_page_token,
-            page_size=page_size,
-            sort_by=sort_by,
-            experiment_id=experiment_id,
-            namespace=namespace,
-            filter_=filter_json,
-        )
-
         runs, next_page_token = self._list_runs(
             page_token=current_page_token,
             page_size=page_size,
@@ -1021,15 +1000,6 @@ class Client(
             fetched_run_count += len(runs)
             current_page_token = next_page_token
             yield runs, next_page_token
-
-        self.logger.debug(
-            "Finished paginating runs from KFP",
-            page_token=current_page_token,
-            page_size=page_size,
-            sort_by=sort_by,
-            filter_json=filter_json,
-            fetched_run_count=fetched_run_count,
-        )
 
 
 def create_list_runs_filter(

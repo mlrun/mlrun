@@ -7743,6 +7743,9 @@ class SQLDB(DBInterface):
         current_page: int,
         page_size: int,
         kwargs: dict,
+        pagination_cache_record: typing.Optional[
+            framework.db.sqldb.models.PaginationCache
+        ] = None,
     ):
         self._validate_integer_max_value(
             PaginationCache.__table__.c.current_page, current_page
@@ -7755,11 +7758,15 @@ class SQLDB(DBInterface):
         key = hashlib.sha256(
             f"{user}/{function}/{page_size}/{kwargs}".encode()
         ).hexdigest()
-        existing_record = self.get_paginated_query_cache_record(session, key)
-        if existing_record:
-            existing_record.current_page = current_page
-            existing_record.last_accessed = datetime.now(UTC)
-            param_record = existing_record
+        if not pagination_cache_record:
+            # in this case, we just lock for update to make sure no one else is writing to it
+            pagination_cache_record = self.get_paginated_query_cache_record(
+                session, key=key, for_update=True
+            )
+        if pagination_cache_record:
+            pagination_cache_record.current_page = current_page
+            pagination_cache_record.last_accessed = datetime.now(UTC)
+            param_record = pagination_cache_record
         else:
             param_record = PaginationCache(
                 key=key,
@@ -7777,8 +7784,12 @@ class SQLDB(DBInterface):
         self,
         session,
         key: str,
-    ):
-        return self._query(session, PaginationCache, key=key).one_or_none()
+        for_update: bool = False,
+    ) -> typing.Optional[PaginationCache]:
+        query = self._query(session, PaginationCache, key=key)
+        if for_update:
+            query = query.populate_existing().with_for_update()
+        return query.one_or_none()
 
     def list_paginated_query_cache_record(
         self,

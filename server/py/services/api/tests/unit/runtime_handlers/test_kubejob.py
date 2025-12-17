@@ -1055,7 +1055,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         expected_secret_count,
     ):
         token_name = "test-token"
-        username = "test-user"
+        auth_info = mlrun.common.schemas.AuthInfo(username = "test-user")
 
         runtime = mlrun.runtimes.kubejob.KubejobRuntime()
         runtime.spec.volume_mounts = initial_volume_mounts.copy()
@@ -1074,7 +1074,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             return_value=mock_helper,
         ):
             self.runtime_handler._mount_secret_token_to_runtime(
-                runtime, token_name, username
+                runtime, token_name, auth_info
             )
 
         secret_mounts = [
@@ -1110,7 +1110,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     def test_mount_secret_token_to_runtime_non_existing_secret(self):
         token_name = "test-token"
-        username = "test-user"
+        auth_info = mlrun.common.schemas.AuthInfo(username = "test-user")
 
         runtime = mlrun.runtimes.kubejob.KubejobRuntime()
 
@@ -1122,7 +1122,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             return_value=mock_helper,
         ):
             self.runtime_handler._mount_secret_token_to_runtime(
-                runtime, token_name, username
+                runtime, token_name, auth_info
             )
 
         # If the secret does not exist, nothing should be mounted or added

@@ -20,6 +20,7 @@ import typing
 import nuclio
 import nuclio.utils
 import requests
+from typing import Optional
 
 import mlrun
 import mlrun.auth.utils
@@ -249,7 +250,7 @@ def _compile_function_config(
 
     :return: function name, project name, nuclio function config
     """
-    _enrich_config_spec(function, username=auth_info.username if auth_info else None)
+    _enrich_config_spec(function, auth_info=auth_info)
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
     env_dict, external_source_env_dict = _resolve_env_vars(function)
 
@@ -362,7 +363,7 @@ def _apply_escaped_config(config, parent_key, items: dict):
         mlrun.utils.update_in(config, f"{parent_key}.\\{key}\\", value)
 
 
-def _enrich_config_spec(function, username):
+def _enrich_config_spec(function, auth_info: Optional[mlrun.common.schemas.AuthInfo] = None):
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
@@ -371,7 +372,7 @@ def _enrich_config_spec(function, username):
     ).is_running_inside_kubernetes_cluster():
         token_name = mlrun.utils.get_in(function.spec, "auth.token_name", None)
         _add_secrets_config_to_function_spec(
-            function, token_name=token_name, username=username
+            function, token_name, auth_info
         )
 
 
@@ -680,8 +681,8 @@ def _set_function_name(function, config, project, tag):
 
 def _add_secrets_config_to_function_spec(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
-    token_name=None,
-    username=None,
+    token_name: str,
+    auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
 ):
     handler = services.api.runtime_handlers.BaseRuntimeHandler
     if function.kind in [
@@ -698,7 +699,7 @@ def _add_secrets_config_to_function_spec(
             project_name=function.metadata.project,
             encode_key_names=False,
             token_name=token_name,
-            username=username,
+            auth_info=auth_info
         )
 
     elif function.kind == mlrun.runtimes.RuntimeKinds.serving:
@@ -720,7 +721,7 @@ def _add_secrets_config_to_function_spec(
                 function,
                 project_name=function.metadata.project,
                 token_name=token_name,
-                username=username,
+                auth_info=auth_info
             )
         else:
             handler.add_k8s_secrets_to_spec(
@@ -728,7 +729,7 @@ def _add_secrets_config_to_function_spec(
                 function,
                 project_name=function.metadata.project,
                 token_name=token_name,
-                username=username,
+                auth_info=auth_info
             )
 
     else:

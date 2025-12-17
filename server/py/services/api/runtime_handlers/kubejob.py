@@ -63,7 +63,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             runtime,
             project_name=run.metadata.project,
             token_name=(run.spec.auth or {}).get("token_name"),
-            username=auth_info.username,
+            auth_info=auth_info,
         )
         workdir = self._resolve_workdir(runtime)
 

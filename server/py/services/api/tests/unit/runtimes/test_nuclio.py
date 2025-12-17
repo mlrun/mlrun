@@ -2100,9 +2100,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         volumes = mlrun.utils.get_in(config, "spec.volumes", [])
 
         auth_volumes = [
-            v
-            for v in volumes
-            if v.get("volume", {})
+            volume
+            for volume in volumes
+            if volume.get("volume", {})
             .get("secret", {})
             .get("secretName", "")
             .startswith("mlrun-auth-secrets")
@@ -2142,8 +2142,8 @@ class TestNuclioRuntime(TestRuntimeBase):
         volumes = mlrun.utils.get_in(config, "spec.volumes", [])
 
         assert not any(
-            v.get("secret", {}).get("secretName", "").startswith("mlrun-auth-secrets")
-            for v in volumes
+            volume.get("secret", {}).get("secretName", "").startswith("mlrun-auth-secrets")
+            for volume in volumes
         )
 
 

@@ -300,7 +300,7 @@ class BaseRuntimeHandler(ABC):
         runtime: mlrun.runtimes.pod.KubeResource,
         project_name: Optional[str] = None,
         token_name: Optional[str] = None,
-        username: Optional[str] = None,
+        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
     ):
         if runtime._secrets:
             if runtime._secrets.has_vault_source():
@@ -316,7 +316,7 @@ class BaseRuntimeHandler(ABC):
                 runtime,
                 project_name=project_name,
                 token_name=token_name,
-                username=username,
+                auth_info=auth_info,
             )
         else:
             self.add_k8s_secrets_to_spec(
@@ -324,7 +324,7 @@ class BaseRuntimeHandler(ABC):
                 runtime,
                 project_name=project_name,
                 token_name=token_name,
-                username=username,
+                auth_info=auth_info,
             )
 
     @staticmethod
@@ -413,10 +413,10 @@ class BaseRuntimeHandler(ABC):
         project_name: Optional[str] = None,
         encode_key_names: bool = True,
         token_name: Optional[str] = None,
-        username: Optional[str] = None,
+        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
     ):
         # In IG4, we add auth token secret as volumes and volumes mounts
-        BaseRuntimeHandler._mount_secret_token_to_runtime(runtime, token_name, username)
+        BaseRuntimeHandler._mount_secret_token_to_runtime(runtime, token_name, auth_info)
 
         # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
         # project secrets, to allow project secret keys to override them
@@ -482,10 +482,12 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _mount_secret_token_to_runtime(
-        runtime: mlrun.runtimes.base.BaseRuntime, token_name: str, username: str
+        runtime: mlrun.runtimes.base.BaseRuntime, token_name: str, auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
     ):
         if not mlrun.mlconf.is_iguazio_v4_mode():
             return
+
+        username = auth_info.username if auth_info else None
 
         # Validation that the secret exists is done in the ServerSideLauncher
         secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(

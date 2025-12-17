@@ -300,7 +300,7 @@ class BaseRuntimeHandler(ABC):
         runtime: mlrun.runtimes.pod.KubeResource,
         project_name: Optional[str] = None,
         token_name: Optional[str] = None,
-        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
+        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
     ):
         if runtime._secrets:
             if runtime._secrets.has_vault_source():
@@ -413,10 +413,12 @@ class BaseRuntimeHandler(ABC):
         project_name: Optional[str] = None,
         encode_key_names: bool = True,
         token_name: Optional[str] = None,
-        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
+        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
     ):
         # In IG4, we add auth token secret as volumes and volumes mounts
-        BaseRuntimeHandler._mount_secret_token_to_runtime(runtime, token_name, auth_info)
+        BaseRuntimeHandler._mount_secret_token_to_runtime(
+            runtime, token_name, auth_info
+        )
 
         # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
         # project secrets, to allow project secret keys to override them
@@ -482,7 +484,9 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _mount_secret_token_to_runtime(
-        runtime: mlrun.runtimes.base.BaseRuntime, token_name: str, auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
+        runtime: mlrun.runtimes.base.BaseRuntime,
+        token_name: str,
+        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
     ):
         if not mlrun.mlconf.is_iguazio_v4_mode():
             return

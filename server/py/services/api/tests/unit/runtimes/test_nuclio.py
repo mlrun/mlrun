@@ -2142,7 +2142,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         volumes = mlrun.utils.get_in(config, "spec.volumes", [])
 
         assert not any(
-            volume.get("secret", {}).get("secretName", "").startswith("mlrun-auth-secrets")
+            volume.get("secret", {})
+            .get("secretName", "")
+            .startswith("mlrun-auth-secrets")
             for volume in volumes
         )
 

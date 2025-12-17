@@ -443,6 +443,20 @@ def test_partition_filtering_year_month():
             dict(year=2024, month=6, day=10, hour=6),
             True,
         ),
+        (
+            "No start time",
+            None,
+            (2024, 6, 10, 8, 0),
+            dict(year=2024, month=6, day=10, hour=6),
+            True,
+        ),
+        (
+            "No end time",
+            (2024, 6, 10, 6, 0),
+            None,
+            dict(year=2024, month=6, day=10, hour=6),
+            True,
+        ),
     ],
 )
 def test_is_directory_in_range(
@@ -455,8 +469,8 @@ def test_is_directory_in_range(
 ):
     tz = pytz.UTC if with_time_zone else None
 
-    start_time = datetime(*start_time_args, tzinfo=tz)
-    end_time = datetime(*end_time_args, tzinfo=tz)
+    start_time = datetime(*start_time_args, tzinfo=tz) if start_time_args else None
+    end_time = datetime(*end_time_args, tzinfo=tz) if end_time_args else None
 
     result = mlrun.datastore.base.DataStore._is_directory_in_range(
         start_time, end_time, **partition_args

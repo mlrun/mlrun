@@ -826,8 +826,10 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         step = graph
         model_runner_step = ModelRunnerStep(name="my_model_runner")
 
-        inputs = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
-        invalid_inputs = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
+        inputs_raw_list = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
+        invalid_raw_list = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
+        wrapped_inputs = [{'input': item} for item in inputs_raw_list]
+        wrapped_invalid = [{'input': item} for item in invalid_raw_list]
 
         endpoint_name = "my_model_1"
         endpoint_name2 = "my_model_2"
@@ -873,15 +875,22 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             RuntimeError,
             match=".*The feature names should match those that were passed during fit.*",
         ):
-            function.invoke("/", invalid_inputs)
-        resp = function.invoke("/", body=inputs)
-        if multiple_models:
-            assert resp == {
-                endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
-                endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
-            }
-        else:
-            assert resp == [3.0, 5.0, 7.0, 9.0, 11.0]
+            function.invoke("/", invalid_raw_list)
+        with pytest.raises(
+            RuntimeError,
+            match=".*The feature names should match those that were passed during fit.*",
+        ):
+            function.invoke("/", wrapped_invalid)
+        resp = function.invoke("/", body=inputs_raw_list)
+        resp2 = function.invoke("/", body=wrapped_inputs)
+        for respond in (resp, resp2):
+            if multiple_models:
+                assert respond == {
+                    endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
+                    endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
+                }
+            else:
+                assert respond == [3.0, 5.0, 7.0, 9.0, 11.0]
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

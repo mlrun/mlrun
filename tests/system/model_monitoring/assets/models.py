@@ -34,10 +34,22 @@ class BatchedModel(mlrun.serving.states.Model):
             self.model = pickle.load(f)
 
     def predict(self, body, **kwargs):
-        x = pd.DataFrame(body)
+        invocation_body = body.get("input")
+        if isinstance(invocation_body, dict):
+            # example of single invocation
+            x = pd.DataFrame([invocation_body])
+        elif isinstance(invocation_body, list):
+            x = pd.DataFrame(invocation_body)
+        else:
+            x = invocation_body
         predictions = self.model.predict(x).tolist()
         return [round(v, 6) for v in predictions]
-
+    @staticmethod
+    def format_batch(body: typing.Any):
+        batched_body = {"input":[]}
+        for item in body:
+            batched_body["input"].append(item.get("input",item))
+        return batched_body
 
 class OneToOne(mlrun.serving.V2ModelServer):
     """

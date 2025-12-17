@@ -266,10 +266,23 @@ class BatchedModel(Model):
             self.model = pickle.load(f)
 
     def predict(self, body, **kwargs):
-        x = pd.DataFrame(body)
+        invocation_body = body.get("input")
+        if isinstance(invocation_body, dict):
+            # example of single invocation
+            x = pd.DataFrame([invocation_body])
+        elif isinstance(invocation_body, list):
+            x = pd.DataFrame(invocation_body)
+        else:
+            x = invocation_body
         predictions = self.model.predict(x).tolist()
         return [round(v, 6) for v in predictions]
 
+    @staticmethod
+    def format_batch(body: typing.Any):
+        batched_body = {"input":[]}
+        for item in body:
+            batched_body["input"].append(item.get("input",item))
+        return batched_body
 
 class MyLLM(LLModel):
     def predict(self, body, **kwargs):
@@ -1316,16 +1329,30 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
 
 @pytest.mark.parametrize("multiple_models", (True, False))
 @pytest.mark.parametrize("raise_exception", (True, False))
-def test_mrs_direct_batch_input(multiple_models, raise_exception):
+@pytest.mark.parametrize("batching_format", ("raw_list", "input_list"))
+def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_format):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     step = graph
     model_runner_step = ModelRunnerStep(name="my_model_runner")
-    inputs = (
-        [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
-        if raise_exception
-        else [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
-    )
+    if batching_format == "raw_list":
+        if raise_exception:
+            inputs = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
+        else:
+            inputs = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
+    else:
+        if raise_exception:
+            inputs = [{'input': {'z': 1}},
+                     {'input': {'z': 2}},
+                     {'input': {'z': 3}},
+                     {'input': {'z': 4}},
+                     {'input': {'z': 5}}]
+        else:
+            inputs = [{'input': {'x': 1}},
+                     {'input': {'x': 2}},
+                     {'input': {'x': 3}},
+                     {'input': {'x': 4}},
+                     {'input': {'x': 5}}]
     model_path = str(pathlib.Path(__file__).parent / "assets" / "linear_model.pkl")
     model_path2 = str(pathlib.Path(__file__).parent / "assets" / "linear_model2.pkl")
     endpoint_name = "my_model_1"

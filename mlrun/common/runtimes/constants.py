@@ -368,7 +368,7 @@ class FunctionEnvironmentVariables:
     auth_session = f"{_env_prefix}AUTH_SESSION"
 
 
-# Kubernetes probe type keys
+# Kubernetes probe types
 class ProbeType(StrEnum):
     READINESS = "readiness"
     LIVENESS = "liveness"
@@ -379,8 +379,13 @@ class ProbeType(StrEnum):
         return f"{self.value}Probe"
 
     @classmethod
-    def is_valid(cls, value: str) -> bool:
-        return value in cls._value2member_map_
+    def is_valid(cls, value: str, raise_on_error: bool = False) -> bool:
+        valid_value = value in cls._value2member_map_
+        if not valid_value and raise_on_error:
+            raise ValueError(
+                f"Invalid probe type: {value}. Must be one of: {[p.value for p in ProbeType]}"
+            )
+        return valid_value
 
 
 class ProbeTimeConfig(StrEnum):

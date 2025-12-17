@@ -33,7 +33,7 @@ class HubAsset(ModelObj):
     def __init__(
         self,
         name: str,
-        version: Optional[str] = None,
+        version: str,
         description: Optional[str] = None,
         categories: Optional[list] = None,
         requirements: Optional[list] = None,
@@ -48,7 +48,7 @@ class HubAsset(ModelObj):
         self.description: str = description or ""
         self.categories: list = categories or []
         self.requirements: list = requirements or []
-        self.local_path: Path = local_path or None
+        self.local_path: Optional[Path] = local_path
         self.filename: str = filename or name
         self.example: str = example or ""
         self.url: str = url or ""

@@ -31,8 +31,8 @@ class HubStep(HubAsset):
     def __init__(
         self,
         name: str,
+        version: str,
         class_name: str,
-        version: Optional[str] = None,
         description: Optional[str] = None,
         categories: Optional[list] = None,
         requirements: Optional[list] = None,
@@ -73,7 +73,7 @@ class HubStep(HubAsset):
 
 
 def get_hub_step(
-    url: str = "",
+    url: str,
     local_path: Optional[str] = None,
     download_files: bool = True,
     include_example: bool = False,
@@ -83,7 +83,7 @@ def get_hub_step(
     :param url: Hub step url in the format "hub://[<source>/]<item-name>[:<tag>]"
     :param local_path: Path to target directory for the step files. Ignored when download_files is set to False.
                        Defaults to the current working directory.
-    :param download_files: When set to True, the step code files will be downloaded
+    :param download_files: When set to True, the step code files are downloaded
     :param include_example: When set to True, the example notebook will also be downloaded (ignored if download_files is
                            False)
 
@@ -97,7 +97,7 @@ def get_hub_step(
     yaml_obj = get_object(url=item_yaml_url)
     item_yaml = yaml.safe_load(yaml_obj)
     spec = item_yaml.pop("spec", {})
-    class_name = item_yaml.get("className", "")
+    class_name = item_yaml.pop("className", "")
     hub_step = HubStep(**item_yaml, **spec, class_name=class_name, url=url)
     if download_files:
         hub_step.download_files(local_path=local_path, download_example=include_example)

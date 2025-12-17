@@ -34,8 +34,8 @@ class HubModule(HubAsset):
     def __init__(
         self,
         name: str,
+        version: str,
         kind: Union[HubModuleType, str],
-        version: Optional[str] = None,
         description: Optional[str] = None,
         categories: Optional[list] = None,
         requirements: Optional[list] = None,
@@ -112,7 +112,7 @@ class HubModule(HubAsset):
 
 def get_hub_module(
     url: str,
-    download_files: Optional[bool] = True,
+    download_files: bool = True,
     secrets: Optional[dict] = None,
     local_path: Optional[str] = None,
 ) -> HubModule:
@@ -144,9 +144,9 @@ def get_hub_module(
 
 def import_module(
     url: str,
-    install_requirements: Optional[bool] = False,
+    install_requirements: bool = False,
     secrets: Optional[dict] = None,
-    local_path: Optional[dict] = None,
+    local_path: Optional[str] = None,
 ):
     """
     Import a module from the hub to use directly.

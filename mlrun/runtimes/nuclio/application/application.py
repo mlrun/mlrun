@@ -303,7 +303,7 @@ class ApplicationRuntime(RemoteRuntime):
 
     def set_probe(
         self,
-        type: ProbeType,
+        type: str,
         initial_delay_seconds: int | None = None,
         period_seconds: int | None = None,
         failure_threshold: int | None = None,
@@ -335,10 +335,8 @@ class ApplicationRuntime(RemoteRuntime):
         :return: function object (self)
         """
         # Validate probe type
-        if not ProbeType.is_valid(type):
-            raise ValueError(
-                f"Invalid probe type: {type}. Must be one of: {[p.value for p in ProbeType]}"
-            )
+        ProbeType.is_valid(type, raise_on_error=True)
+        type = ProbeType(type)
 
         # Start with config as base
         probe_config = copy.deepcopy(config) if config else {}
@@ -375,7 +373,7 @@ class ApplicationRuntime(RemoteRuntime):
 
     def delete_probe(
         self,
-        type: ProbeType,
+        type: str,
     ):
         """Delete a Kubernetes probe configuration from the sidecar container
 
@@ -384,10 +382,8 @@ class ApplicationRuntime(RemoteRuntime):
         :return: function object (self)
         """
         # Validate probe type
-        if not ProbeType.is_valid(type):
-            raise ValueError(
-                f"Invalid probe type: {type}. Must be one of: {[p.value for p in ProbeType]}"
-            )
+        ProbeType.is_valid(type, raise_on_error=True)
+        type = ProbeType(type)
 
         sidecar = self._get_sidecar()
         if sidecar:

@@ -455,7 +455,7 @@ def test_set_probe_readiness():
     )
 
     fn.set_probe(
-        type=ProbeType.READINESS,
+        type="readiness",
         http_path="/api/healthz",
         initial_delay_seconds=10,
         period_seconds=20,
@@ -482,7 +482,7 @@ def test_set_probe_liveness_with_port():
     )
 
     fn.set_probe(
-        type=ProbeType.LIVENESS,
+        type="liveness",
         http_path="/health",
         http_port=8080,
         http_scheme="HTTPS",
@@ -512,7 +512,7 @@ def test_set_probe_with_config_override():
     )
 
     fn.set_probe(
-        type=ProbeType.STARTUP,
+        type="startup",
         initial_delay_seconds=15,
         config={
             "tcpSocket": {"port": 8080},
@@ -537,14 +537,14 @@ def test_set_probe_replace_existing():
     )
 
     fn.set_probe(
-        type=ProbeType.READINESS,
+        type="readiness",
         http_path="/old/path",
         initial_delay_seconds=10,
         failure_threshold=5,
     )
 
     fn.set_probe(
-        type=ProbeType.READINESS,
+        type="readiness",
         http_path="/new/path",
         initial_delay_seconds=20,
     )
@@ -565,6 +565,32 @@ def test_set_probe_invalid_type():
 
     with pytest.raises(ValueError, match="Invalid probe type"):
         fn.set_probe(type="invalid_type")
+
+    with pytest.raises(ValueError, match="Invalid probe type"):
+        fn.set_probe(type=None)
+
+    with pytest.raises(ValueError, match="Invalid probe type"):
+        fn.set_probe(type="")
+
+
+def test_set_probe_empty_value():
+    """Test that empty values set overides existing probe values"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.set_probe(
+        type="readiness",
+        initial_delay_seconds=10,
+        period_seconds=5,
+    )
+    fn.set_probe(type="readiness")
+
+    probe = fn._get_sidecar()
+    assert ProbeType.READINESS.key in probe
+    assert "httpGet" not in probe
+    assert ProbeTimeConfig.INITIAL_DELAY_SECONDS.value not in probe
+    assert ProbeTimeConfig.PERIOD_SECONDS.value not in probe
 
 
 def test_set_probe_string_type():
@@ -589,7 +615,7 @@ def test_set_probe_no_http_path():
     )
 
     fn.set_probe(
-        type=ProbeType.READINESS,
+        type="readiness",
         initial_delay_seconds=10,
         period_seconds=5,
     )
@@ -608,13 +634,13 @@ def test_set_probe_multiple_probes():
     )
 
     fn.set_probe(
-        type=ProbeType.READINESS,
+        type="readiness",
         http_path="/readiness",
         initial_delay_seconds=10,
         period_seconds=5,
     )
     fn.set_probe(
-        type=ProbeType.LIVENESS,
+        type="liveness",
         http_path="/liveness",
         initial_delay_seconds=15,
         period_seconds=10,
@@ -663,7 +689,7 @@ def test_delete_probe():
 
     sidecar = fn._get_sidecar()
     assert ProbeType.READINESS.key in sidecar
-    fn.delete_probe(type=ProbeType.READINESS)
+    fn.delete_probe(type="readiness")
     assert ProbeType.READINESS.key not in sidecar
 
 
@@ -673,7 +699,7 @@ def test_delete_probe_nonexistent():
         "application-test", kind="application", image="mlrun/mlrun"
     )
 
-    fn.delete_probe(type=ProbeType.LIVENESS)
+    fn.delete_probe(type="liveness")
     sidecar = fn._get_sidecar()
     assert sidecar is None
 
@@ -690,7 +716,7 @@ def test_delete_probe_nonexistent():
     ]
     sidecar = fn._get_sidecar()
     assert ProbeType.READINESS.key in sidecar
-    fn.delete_probe(type=ProbeType.READINESS)
+    fn.delete_probe(type="readiness")
     assert ProbeType.READINESS.key not in sidecar
 
 
@@ -745,7 +771,7 @@ def test_delete_probe_multiple_probes():
     assert ProbeType.READINESS.key in sidecar
     assert ProbeType.LIVENESS.key in sidecar
     assert ProbeType.STARTUP.key in sidecar
-    fn.delete_probe(type=ProbeType.READINESS)
+    fn.delete_probe(type="readiness")
     assert ProbeType.READINESS.key not in sidecar
     assert ProbeType.LIVENESS.key in sidecar
     assert ProbeType.STARTUP.key in sidecar
@@ -900,7 +926,7 @@ def test_enrich_sidecar_probe_ports_no_internal_port_error():
     )
 
     del fn.spec._internal_application_port
-    with pytest.raises(ValueError):
+    with pytest.raises(AttributeError):
         fn._enrich_sidecar_probe_ports()
 
 

@@ -828,8 +828,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
         inputs_raw_list = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
         invalid_raw_list = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
-        wrapped_inputs = [{'input': item} for item in inputs_raw_list]
-        wrapped_invalid = [{'input': item} for item in invalid_raw_list]
+        wrapped_inputs = [{"input": item} for item in inputs_raw_list]
+        wrapped_invalid = [{"input": item} for item in invalid_raw_list]
 
         endpoint_name = "my_model_1"
         endpoint_name2 = "my_model_2"

@@ -279,10 +279,11 @@ class BatchedModel(Model):
 
     @staticmethod
     def format_batch(body: typing.Any):
-        batched_body = {"input":[]}
+        batched_body = {"input": []}
         for item in body:
-            batched_body["input"].append(item.get("input",item))
+            batched_body["input"].append(item.get("input", item))
         return batched_body
+
 
 class MyLLM(LLModel):
     def predict(self, body, **kwargs):
@@ -1342,17 +1343,21 @@ def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_forma
             inputs = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
     else:
         if raise_exception:
-            inputs = [{'input': {'z': 1}},
-                     {'input': {'z': 2}},
-                     {'input': {'z': 3}},
-                     {'input': {'z': 4}},
-                     {'input': {'z': 5}}]
+            inputs = [
+                {"input": {"z": 1}},
+                {"input": {"z": 2}},
+                {"input": {"z": 3}},
+                {"input": {"z": 4}},
+                {"input": {"z": 5}},
+            ]
         else:
-            inputs = [{'input': {'x': 1}},
-                     {'input': {'x': 2}},
-                     {'input': {'x': 3}},
-                     {'input': {'x': 4}},
-                     {'input': {'x': 5}}]
+            inputs = [
+                {"input": {"x": 1}},
+                {"input": {"x": 2}},
+                {"input": {"x": 3}},
+                {"input": {"x": 4}},
+                {"input": {"x": 5}},
+            ]
     model_path = str(pathlib.Path(__file__).parent / "assets" / "linear_model.pkl")
     model_path2 = str(pathlib.Path(__file__).parent / "assets" / "linear_model2.pkl")
     endpoint_name = "my_model_1"

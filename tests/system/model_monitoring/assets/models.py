@@ -44,12 +44,14 @@ class BatchedModel(mlrun.serving.states.Model):
             x = invocation_body
         predictions = self.model.predict(x).tolist()
         return [round(v, 6) for v in predictions]
+
     @staticmethod
     def format_batch(body: typing.Any):
-        batched_body = {"input":[]}
+        batched_body = {"input": []}
         for item in body:
-            batched_body["input"].append(item.get("input",item))
+            batched_body["input"].append(item.get("input", item))
         return batched_body
+
 
 class OneToOne(mlrun.serving.V2ModelServer):
     """

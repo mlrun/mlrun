@@ -23,6 +23,7 @@ import mlrun
 import mlrun.common.schemas
 import tests.integration.sdk_api.base
 from mlrun.utils import normalize_name
+from mlrun.errors import MLRunBadRequestError
 
 
 class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
@@ -155,9 +156,14 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         # get_hub_module and module
         Path.cwd().joinpath("temp").mkdir(exist_ok=True)
         hub_module = mlrun.get_hub_module(hub_prefix + name, download_files=False)
-        with pytest.raises(FileNotFoundError):  # didn't download files first
+        with pytest.raises(MLRunBadRequestError):  # didn't download files first
+            hub_module.module()
+        hub_module.set_local_path("./temp")
+        with pytest.raises(FileNotFoundError):  # local_path is set but files not downloaded
             hub_module.module()
         hub_module.download_files("./temp")
+        with pytest.raises(FileExistsError): # re-download should raise
+            hub_module.download_files("./temp")
         mod = hub_module.module()
         assert isinstance(mod, types.ModuleType)
         # delete the temp dir
@@ -219,9 +225,14 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         hub_step = mlrun.get_hub_step(
             hub_prefix + source_name + "/" + name, download_files=False
         )
-        with pytest.raises(FileNotFoundError):  # didn't download files first
+        with pytest.raises(MLRunBadRequestError):  # didn't download files first
+            hub_step.module()
+        hub_step.set_local_path("./temp")
+        with pytest.raises(FileNotFoundError):  # local_path is set but files not downloaded
             hub_step.module()
         hub_step.download_files("./temp")
+        with pytest.raises(FileExistsError): # re-download should raise
+            hub_step.download_files("./temp")
         mod = hub_step.module()
         assert isinstance(mod, types.ModuleType)
         # delete the temp dir

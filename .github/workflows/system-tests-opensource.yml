@@ -176,11 +176,6 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    # since github-actions gives us 14G only, and fills it up with some garbage
-    - name: Freeing up disk space
-      run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-
     - name: Install uv
       uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a
       with:
@@ -227,7 +222,10 @@ jobs:
         helm-version: v3.17.2
         # Simple disk eviction config: Reserve 5% = 95% allocatable ephemeral storage
         # Change the 5% value to increase/decrease allocatable storage
-        extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5%'
+        # Disable egress-selector to avoid connectivity issues
+        extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5% --egress-selector-mode=disabled'
+
+
 
     - name: Verify K3S kubelet configuration
       run: |
@@ -261,27 +259,62 @@ jobs:
         # it will wait until the user disconnects before finishing up the job.
         detached: true
 
-    - name: Setup Local Docker Registry
+    - name: Configure K3S Containerd Registries with Docker Hub Authentication
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
       run: |
-        sudo tee "/etc/rancher/k3s/registries.yaml" << EOF
+        echo "=== Creating K3S registries configuration ==="
+        
+        # Create the K3S config directory if it doesn't exist
+        sudo mkdir -p /etc/rancher/k3s
+        
+        # Create registries.yaml with Docker Hub authentication
+        # This configures containerd to authenticate when pulling from docker.io
+        # and sets up a local registry mirror for testing
+        sudo tee "/etc/rancher/k3s/registries.yaml" > /dev/null << EOF
         mirrors:
           registry.localhost:
             endpoint:
             - http://registry.localhost:80
+          docker.io:
+            endpoint:
+            - https://registry-1.docker.io
+        configs:
+          "registry-1.docker.io":
+            auth:
+              username: ${DOCKER_USERNAME}
+              password: ${DOCKER_PASSWORD}
         EOF
+        
+        echo "✓ Registries configuration created at /etc/rancher/k3s/registries.yaml"
+        
+        # Show the config (with credentials masked)
+        echo "=== Configuration preview (credentials masked) ==="
+        sudo sed 's/username:.*/username: ***/' /etc/rancher/k3s/registries.yaml | \
+          sed 's/password:.*/password: ***/'
 
-        # restart k3s to apply the changes
+    - name: Apply Registries Configuration and Setup Local Registry
+      run: |
+        echo "=== Restarting K3S to apply registry configuration ==="
         sudo systemctl restart k3s
 
         # wait ~30s for k3s to stabilize
+        echo "Waiting for K3S to stabilize..."
         sleep 30
 
+        echo "=== Verifying K3S is ready ==="
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s
+
+        echo "=== Deploying local Docker registry ==="
         # create the docker-registry namespace and deploy the registry
         kubectl create namespace docker-registry --dry-run=client -o yaml | kubectl apply -f -
         kubectl apply -f automation/system_test/k3s_docker_registry.yaml
 
-        # restart coredns to apply the changes
+        echo "=== Restarting CoreDNS to apply DNS changes ==="
         kubectl -n kube-system rollout restart deployment coredns
+        
+        echo "✓ Registry configuration applied successfully"
 
     - name: Setup K3S storage and check cluster health
       run: |
@@ -351,49 +384,60 @@ jobs:
           --openai-api-key "${{ secrets.OPENAI_API_KEY }}"  
 
     - name: Install MLRun CE helm chart
-      run: |
-        # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
-        source venv/bin/activate
-        
-        python automation/deployment/ce.py deploy \
-            --verbose \
-            --registry-url="registry.localhost" \
-            --skip-registry-validation \
-            --namespace=${NAMESPACE} \
-            --registry-secret-name="" \
-            --devel \
-            --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-            --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
-            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
-            --set jupyterNotebook.enabled=false \
-            --set kube-prometheus-stack.enabled=false
-        
-          # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
-          echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
+      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+      with:
+        timeout_minutes: 45
+        max_attempts: 3
+        retry_wait_seconds: 120
+        command: |
+          # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
+          source venv/bin/activate
+          
+          # Cleanup any existing helm release before retry
+          helm uninstall mlrun-ce -n ${NAMESPACE} || true
+          
+          # Wait a bit for cleanup to complete
+          sleep 30
+          
+          python automation/deployment/ce.py deploy \
+              --verbose \
+              --registry-url="registry.localhost" \
+              --skip-registry-validation \
+              --namespace=${NAMESPACE} \
+              --registry-secret-name="" \
+              --devel \
+              --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
+              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
+              --set jupyterNotebook.enabled=false \
+              --set kube-prometheus-stack.enabled=false
+          
+            # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
+            echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
 
-          # Wait up to 30 minutes (1800 seconds) for all pods to be ready
-          timeout=1800
-          interval=60
-          elapsed=0
+            # Wait up to 30 minutes (1800 seconds) for all pods to be ready
+            timeout=1800
+            interval=60
+            elapsed=0
 
-          while true; do
-            not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
-            if [ "$not_ready" -eq 0 ]; then
-              echo "All pods in namespace ${NAMESPACE} are ready."
-              break
-            fi
-            if [ "$elapsed" -ge "$timeout" ]; then
-              echo "Timeout reached waiting for pods to be ready."
-              kubectl get pods -n ${NAMESPACE}
-              exit 1
-            fi
-            echo "Waiting for pods to be ready... (${elapsed}/${timeout}s)"
-            sleep $interval
-            elapsed=$((elapsed + interval))
-          done
+            while true; do
+              not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
+              if [ "$not_ready" -eq 0 ]; then
+                echo "All pods in namespace ${NAMESPACE} are ready."
+                break
+              fi
+              if [ "$elapsed" -ge "$timeout" ]; then
+                echo "Timeout reached waiting for pods to be ready."
+                kubectl get pods -n ${NAMESPACE}
+                exit 1
+              fi
+              echo "Waiting for pods to be ready... (${elapsed}/${timeout}s)"
+              sleep $interval
+              elapsed=$((elapsed + interval))
+            done
 
     - name: Run system tests
       run: |

@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.runtimes.nuclio.function
@@ -2068,6 +2069,84 @@ class TestNuclioRuntime(TestRuntimeBase):
                             if expected_url
                             else url.startswith("http")
                         )
+
+    def test_compile_function_config_with_auth_secret(self):
+        function = self._generate_runtime(self.runtime_kind)
+
+        # minimal auth spec
+        function.spec.auth = {"token_name": "default"}
+
+        auth_info = unittest.mock.Mock()
+        auth_info.username = "test-user"
+        mlrun.mlconf.httpdb.authentication.mode = (
+            mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+        )
+
+        with unittest.mock.patch(
+            "framework.utils.singletons.k8s.get_k8s_helper"
+        ) as k8s_helper_mock:
+            # fake k8s secret
+            secret = unittest.mock.Mock()
+            secret.metadata.name = "mlrun-auth-secrets.123456"
+            k8s_helper_mock.return_value._get_user_token_secret.return_value = secret
+
+            _, _, config = (
+                services.api.crud.runtimes.nuclio.function._compile_function_config(
+                    function=function,
+                    auth_info=auth_info,
+                )
+            )
+
+        volumes = mlrun.utils.get_in(config, "spec.volumes", [])
+
+        auth_volumes = [
+            volume
+            for volume in volumes
+            if volume.get("volume", {})
+            .get("secret", {})
+            .get("secretName", "")
+            .startswith("mlrun-auth-secrets")
+        ]
+
+        assert len(auth_volumes) == 1
+
+        auth_volume = auth_volumes[0]
+
+        assert auth_volume["volume"]["secret"]["items"] == [
+            {
+                "key": "tokensFile",
+                "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+            }
+        ]
+
+        assert auth_volume["volumeMount"]["mountPath"] == (
+            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH
+        )
+
+    def test_compile_function_config_non_iguazio_v4(self):
+        function = self._generate_runtime(self.runtime_kind)
+
+        auth_info = unittest.mock.Mock()
+        auth_info.username = "test-user"
+        mlrun.mlconf.httpdb.authentication.mode = (
+            mlrun.common.types.AuthenticationMode.IGUAZIO
+        )
+
+        _, _, config = (
+            services.api.crud.runtimes.nuclio.function._compile_function_config(
+                function=function,
+                auth_info=auth_info,
+            )
+        )
+
+        volumes = mlrun.utils.get_in(config, "spec.volumes", [])
+
+        assert not any(
+            volume.get("secret", {})
+            .get("secretName", "")
+            .startswith("mlrun-auth-secrets")
+            for volume in volumes
+        )
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

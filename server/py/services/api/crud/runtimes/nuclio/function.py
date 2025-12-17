@@ -16,6 +16,7 @@ import asyncio
 import base64
 import shlex
 import typing
+from typing import Optional
 
 import nuclio
 import nuclio.utils
@@ -249,9 +250,9 @@ def _compile_function_config(
 
     :return: function name, project name, nuclio function config
     """
-
+    _enrich_config_spec(function, auth_info=auth_info)
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
-    env_dict, external_source_env_dict = _resolve_env_vars(function, auth_info)
+    env_dict, external_source_env_dict = _resolve_env_vars(function)
 
     project = function.metadata.project
     tag = function.metadata.tag
@@ -362,15 +363,20 @@ def _apply_escaped_config(config, parent_key, items: dict):
         mlrun.utils.update_in(config, f"{parent_key}.\\{key}\\", value)
 
 
-def _resolve_env_vars(function, auth_info=None):
+def _enrich_config_spec(
+    function, auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
+):
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
     if framework.utils.singletons.k8s.get_k8s_helper(
         silent=True
     ).is_running_inside_kubernetes_cluster():
-        _add_secrets_config_to_function_spec(function)
+        token_name = mlrun.utils.get_in(function.spec, "auth.token_name", None)
+        _add_secrets_config_to_function_spec(function, token_name, auth_info)
 
+
+def _resolve_env_vars(function):
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
     mlrun.auth.utils.enrich_auth_env(env_dict)
 
@@ -675,6 +681,8 @@ def _set_function_name(function, config, project, tag):
 
 def _add_secrets_config_to_function_spec(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
+    token_name: str,
+    auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
 ):
     handler = services.api.runtime_handlers.BaseRuntimeHandler
     if function.kind in [
@@ -690,6 +698,8 @@ def _add_secrets_config_to_function_spec(
             function,
             project_name=function.metadata.project,
             encode_key_names=False,
+            token_name=token_name,
+            auth_info=auth_info,
         )
 
     elif function.kind == mlrun.runtimes.RuntimeKinds.serving:
@@ -710,10 +720,16 @@ def _add_secrets_config_to_function_spec(
                 function._secrets.get_k8s_secrets(),
                 function,
                 project_name=function.metadata.project,
+                token_name=token_name,
+                auth_info=auth_info,
             )
         else:
             handler.add_k8s_secrets_to_spec(
-                None, function, project_name=function.metadata.project
+                None,
+                function,
+                project_name=function.metadata.project,
+                token_name=token_name,
+                auth_info=auth_info,
             )
 
     else:

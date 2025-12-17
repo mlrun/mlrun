@@ -114,6 +114,7 @@ class NuclioSpec(KubeResourceSpec):
         "service_type",
         "add_templated_ingress_host_mode",
         "disable_default_http_trigger",
+        "auth",
     ]
 
     def __init__(
@@ -161,6 +162,7 @@ class NuclioSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        auth=None,
     ):
         super().__init__(
             command=command,
@@ -217,6 +219,7 @@ class NuclioSpec(KubeResourceSpec):
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
+        self.auth = auth or {}
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []

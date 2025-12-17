@@ -65,6 +65,9 @@ class HubAsset(ModelObj):
         """
         Install pip-style requirements of the asset (e.g., ["pandas>=2.0.0", "requests==2.31.0"]).
         """
+        if not self.requirements or len(self.requirements) == 0:
+            logger.info("No requirements to install.")
+            return
         for req in self.requirements:
             logger.info(f"Installing {req} ...")
             try:

@@ -19,10 +19,9 @@ permissions:
   packages: write
 
 on:
-  pull_request:
+   pull_request:
     branches:
-    - development
-
+      - development
    workflow_dispatch:
     inputs:
       pr_number:

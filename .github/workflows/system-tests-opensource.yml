@@ -235,6 +235,22 @@ jobs:
         echo "mlrun_commit_hash=$(git rev-parse --short=8 $GITHUB_SHA)" >> $GITHUB_OUTPUT
         echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
 
+    - name: Install nerdctl (Docker-compatible CLI for containerd)
+      if: github.event.pull_request.head.repo.fork == true
+      run: |
+        echo "Installing nerdctl for containerd..."
+        NERDCTL_VERSION="1.7.6"
+        curl -fsSL "https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-${NERDCTL_VERSION}-linux-amd64.tar.gz" | sudo tar -xz -C /usr/local/bin
+        
+        # Create docker symlink to nerdctl for Makefile compatibility
+        sudo ln -sf /usr/local/bin/nerdctl /usr/local/bin/docker
+        
+        # Verify installation
+        nerdctl --version
+        docker --version
+        
+        echo "✓ nerdctl installed and docker symlink created"
+
     - name: Resolve docker cache tag (fork PR only)
       if: github.event.pull_request.head.repo.fork == true
       id: docker_cache
@@ -303,8 +319,8 @@ jobs:
         fi
         
         echo ""
-        echo "✅ All images built successfully - available in local Docker daemon"
-        docker images | grep -E "mlrun|api|log-collector"
+        echo "✅ All images built successfully - available in local containerd"
+        nerdctl images | grep -E "mlrun|api|log-collector"
 
     - name: Verify K3S kubelet configuration
       run: |

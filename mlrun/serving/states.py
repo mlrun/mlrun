@@ -348,6 +348,7 @@ class BaseStep(ModelObj):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = None,
+        cycle_to: Optional[list[str]] = None,
         **class_args,
     ):
         """add a step right after this step and return the new step
@@ -386,6 +387,7 @@ class BaseStep(ModelObj):
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
 
+        :param cycle_to:    list of step names to create a cycle to (for cyclic graphs)
         :param class_args:  class init arguments
         """
         if hasattr(self, "steps"):
@@ -420,7 +422,35 @@ class BaseStep(ModelObj):
             # check that its not the root, todo: in future may gave nested flows
             step.after_step(self.name)
         parent._last_added = step
+        step.cycle_to(cycle_to or [])
         return step
+
+    def cycle_to(self, step_names: Union[str, list[str]]):
+        """create a cycle in the graph to the specified step names
+
+        example:
+            in the below example, a cycle is created from 'step3' to 'step1':
+            graph.to('step1')\
+                 .to('step2')\
+                 .to('step3')\
+                 .cycle_to(['step1'])  # creates a cycle from step3 to step1
+
+        :param step_names: list of step names to create a cycle to (for cyclic graphs)
+        """
+        root = self._extract_root_step()
+        if not isinstance(root, RootFlowStep):
+            raise GraphError("cycle_to() can only be called on a step within a graph")
+        if not root.allow_cyclic:
+            raise GraphError("cyclic graphs are not allowed, enable allow_cyclic")
+        step_names = [step_names] if isinstance(step_names, str) else step_names
+
+        for step_name in step_names:
+            if step_name not in root:
+                raise GraphError(
+                    f"step {step_name} doesnt exist in the graph under {self._parent.fullname}"
+                )
+            root[step_name].after_step(self.name, append=True)
+        return self
 
     def set_flow(
         self,
@@ -692,6 +722,7 @@ class TaskStep(BaseStep):
         self.handler = handler
         self.function = function
         self._handler = None
+        self._outlets_selector = None
         self._object = None
         self._async_object = None
         self.skip_context = None
@@ -759,6 +790,8 @@ class TaskStep(BaseStep):
                     handler = "do"
             if handler:
                 self._handler = getattr(self._object, handler, None)
+            if hasattr(self._object, "select_outlets"):
+                self._outlets_selector = self._object.select_outlets
 
         self._set_error_handler()
         if mode != "skip":
@@ -2160,6 +2193,7 @@ class ModelRunnerStep(MonitoredStep):
             max_processes=self.max_processes,
             max_threads=self.max_threads,
             pool_factor=self.pool_factor,
+            **extra_kwargs,
         )
 
 
@@ -2248,6 +2282,7 @@ class QueueStep(BaseStep, StepToDict):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = None,
+        cycle_to: Optional[list[str]] = None,
         **class_args,
     ):
         if not function:
@@ -2300,6 +2335,7 @@ class FlowStep(BaseStep):
         after: Optional[list] = None,
         engine=None,
         final_step=None,
+        allow_cyclic: bool = False,
     ):
         super().__init__(name, after)
         self._steps = None
@@ -2313,6 +2349,7 @@ class FlowStep(BaseStep):
         self._wait_for_result = False
         self._source = None
         self._start_steps = []
+        self._allow_cyclic = allow_cyclic
 
     def get_children(self):
         return self._steps.values()
@@ -2331,6 +2368,14 @@ class FlowStep(BaseStep):
     def steps(self, steps):
         self._steps = ObjectDict.from_dict(classes_map, steps, "task")
 
+    @property
+    def allow_cyclic(self) -> bool:
+        return self._allow_cyclic
+
+    @allow_cyclic.setter
+    def allow_cyclic(self, allow_cyclic: list[str]):
+        self._allow_cyclic = allow_cyclic
+
     def add_step(
         self,
         class_name=None,
@@ -2346,6 +2391,7 @@ class FlowStep(BaseStep):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = None,
+        cycle_to: Optional[list[str]] = None,
         **class_args,
     ):
         """add task, queue or router step/class to the flow
@@ -2388,6 +2434,7 @@ class FlowStep(BaseStep):
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
 
+        :param cycle_to:    list of step names to create a cycle to (for cyclic graphs)
         :param class_args:  class init arguments
         """
 
@@ -2413,6 +2460,7 @@ class FlowStep(BaseStep):
         after_list = after if isinstance(after, list) else [after]
         for after in after_list:
             self.insert_step(name, step, after, before)
+        step.cycle_to(cycle_to or [])
         return step
 
     def insert_step(self, key, step, after, before=None):
@@ -2512,7 +2560,7 @@ class FlowStep(BaseStep):
                         f"synchronous flow engine doesnt support branches use async for step {step.name}"
                     )
                 loop_step = has_loop(step, [])
-                if loop_step:
+                if loop_step and not self.allow_cyclic:
                     raise GraphError(
                         f"Error, loop detected in step {loop_step}, graph must be acyclic (DAG)"
                     )
@@ -2613,6 +2661,9 @@ class FlowStep(BaseStep):
         def process_step(state, step, root):
             if not state._is_local_function(self.context) or state._visited:
                 return
+            state._visited = (
+                True  # mark visited to avoid re-visit in case of multiple uplinks
+            )
             for item in state.next or []:
                 next_state = root[item]
                 if next_state.async_object:
@@ -2854,6 +2905,7 @@ class RootFlowStep(FlowStep):
         "shared_models",
         "shared_models_mechanism",
         "pool_factor",
+        "allow_cyclic",
     ]
 
     def __init__(
@@ -2863,14 +2915,9 @@ class RootFlowStep(FlowStep):
         after: Optional[list] = None,
         engine=None,
         final_step=None,
+        allow_cyclic: bool = False,
     ):
-        super().__init__(
-            name,
-            steps,
-            after,
-            engine,
-            final_step,
-        )
+        super().__init__(name, steps, after, engine, final_step, allow_cyclic)
         self._models = set()
         self._route_models = set()
         self._track_models = False
@@ -3517,6 +3564,7 @@ def _init_async_objects(context, steps):
                     name=step.name,
                     context=context,
                     pass_context=step._inject_context,
+                    fn_select_outlets=step._outlets_selector,
                 )
             if (
                 respond_supported

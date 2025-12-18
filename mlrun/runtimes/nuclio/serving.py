@@ -253,6 +253,7 @@ class ServingRuntime(RemoteRuntime):
         class_name=None,
         engine=None,
         exist_ok=False,
+        allow_cyclic: bool = False,
         **class_args,
     ) -> Union[RootFlowStep, RouterStep]:
         """set the serving graph topology (router/flow) and root class or params
@@ -283,6 +284,7 @@ class ServingRuntime(RemoteRuntime):
         :param class_name:   - optional for router, router class name/path or router object
         :param engine:       - optional for flow, sync or async engine
         :param exist_ok:     - allow overriding existing topology
+        :param allow_cyclic: - allow cyclic graphs (only for async flow)
         :param class_args:   - optional, router/flow class init args
 
         :return: graph object (fn.spec.graph)
@@ -304,7 +306,11 @@ class ServingRuntime(RemoteRuntime):
                 step = RouterStep(class_name=class_name, class_args=class_args)
             self.spec.graph = step
         elif topology == StepKinds.flow:
-            self.spec.graph = RootFlowStep(engine=engine or "async")
+            engine = engine or "async"
+            self.spec.graph = RootFlowStep(
+                engine=engine,
+                allow_cyclic=allow_cyclic if engine == "async" else False,
+            )
             self.spec.graph.track_models = self.spec.track_models
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

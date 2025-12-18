@@ -440,7 +440,7 @@ class BaseStep(ModelObj):
         root = self._extract_root_step()
         if not isinstance(root, RootFlowStep):
             raise GraphError("cycle_to() can only be called on a step within a graph")
-        if not root.allow_cyclic:
+        if not root.allow_cyclic and step_names:
             raise GraphError("cyclic graphs are not allowed, enable allow_cyclic")
         step_names = [step_names] if isinstance(step_names, str) else step_names
 

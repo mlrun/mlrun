@@ -109,7 +109,7 @@ class ModelClassList(V2ModelServer):
 
 
 class Route:
-    def do(self, event: dict):
+    def do(self, event):
         print("Before routing", event)
         return event
 

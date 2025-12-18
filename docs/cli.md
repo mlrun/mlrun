@@ -10,6 +10,8 @@ Learn about the CLI commands and how to use them with Git and source archives.
 <a id="cli-commands"></a>
 ## CLI commands
 
+Test
+
 Use the following commands of the MLRun command-line interface (CLI) &mdash; `mlrun` &mdash; to build and run MLRun functions:
 
 - [`build`](#build)

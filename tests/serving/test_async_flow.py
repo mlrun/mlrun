@@ -1177,8 +1177,8 @@ def test_using_model_without_predict_implementation(execution_mechanism: str):
         function.to_mock_server()
     method_name = "predict()" if execution_mechanism != "asyncio" else "predict_async()"
     expected_msg = (
-        f"'model_without_predict is running with {execution_mechanism} execution_mechanism but "
-        f"{method_name} is not implemented'"
+        f"model_without_predict is running with {execution_mechanism} execution_mechanism but "
+        f"{method_name} is not implemented"
     )
     assert expected_msg in str(exc_info.value)
 
@@ -1218,8 +1218,8 @@ def test_shared_using_model_without_predict_implementation(execution_mechanism: 
             "predict()" if execution_mechanism != "asyncio" else "predict_async()"
         )
         expected_msg = (
-            f"'model_without_predict_shared is running with {execution_mechanism} execution_mechanism but "
-            f"{method_name} is not implemented'"
+            f"model_without_predict_shared is running with {execution_mechanism} execution_mechanism but "
+            f"{method_name} is not implemented"
         )
         assert expected_msg in str(exc_info.value)
 

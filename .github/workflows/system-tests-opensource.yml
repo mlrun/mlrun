@@ -229,30 +229,66 @@ jobs:
         extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5% --egress-selector-mode=disabled'
 
     - name: Extract git hash and version info
-      if: github.event.pull_request.head.repo.fork == true
       id: git_info
       run: |
         echo "mlrun_commit_hash=$(git rev-parse --short=8 $GITHUB_SHA)" >> $GITHUB_OUTPUT
         echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
 
-    - name: Install Docker (fork PR only)
-      if: github.event.pull_request.head.repo.fork == true
+    - name: Install Docker
       run: |
         if ! command -v docker &> /dev/null; then
           echo "Docker not found, installing..."
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
-          sudo usermod -aG docker $USER
-          sudo systemctl start docker
-          sudo systemctl enable docker
           echo "Docker installed successfully"
         else
           echo "Docker is already installed"
         fi
+        
+        # Install prerequisites for rootless Docker
+        echo "Installing rootless Docker prerequisites..."
+        sudo apt-get update
+        sudo apt-get install -y uidmap
+        
+        # Set up rootless Docker
+        echo "Setting up rootless Docker..."
+        sudo systemctl disable --now docker.service docker.socket || true
+        
+        # Install rootless Docker
+        dockerd-rootless-setuptool.sh install
+        
+        # Set environment variables for rootless Docker (as recommended by the installer)
+        export XDG_RUNTIME_DIR=/home/iguazio/.docker/run
+        export PATH=/usr/bin:$PATH
+        export DOCKER_HOST=unix:///home/iguazio/.docker/run/docker.sock
+        
+        # Start rootless Docker daemon in the background
+        echo "Starting rootless Docker daemon..."
+        mkdir -p $XDG_RUNTIME_DIR
+        nohup dockerd-rootless.sh > /tmp/dockerd.log 2>&1 &
+        
+        # Wait for Docker to be ready
+        echo "Waiting for Docker to start..."
+        for i in {1..30}; do
+          if docker info &> /dev/null; then
+            echo "Docker is ready"
+            break
+          fi
+          echo "Waiting... ($i/30)"
+          sleep 1
+        done
+        
+        # Export environment variables for subsequent steps
+        echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" >> $GITHUB_ENV
+        echo "PATH=/usr/bin:$PATH" >> $GITHUB_ENV
+        echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
+        
         docker --version
+        docker info
+        
+        echo "✓ Rootless Docker configured"
 
-    - name: Resolve docker cache tag (fork PR only)
-      if: github.event.pull_request.head.repo.fork == true
+    - name: Resolve docker cache tag 
       id: docker_cache
       run: |
         export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
@@ -260,68 +296,14 @@ jobs:
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
         echo "no_cache=" >> $GITHUB_OUTPUT
 
-    - name: Set computed versions params (fork PR only)
-      if: github.event.pull_request.head.repo.fork == true
+    - name: Set computed versions params
       id: computed_params
       run: |
         echo "mlrun_docker_tag=${{ steps.git_info.outputs.unstable_version_prefix }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
         echo "mlrun_version=${{ steps.git_info.outputs.unstable_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_repo=$(echo ${{ github.event.pull_request.head.repo.owner.login || github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_registries=ghcr.io/" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_repo=" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_registries=registry.localhost" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
-
-    - name: Build MLRun images locally (fork PR only)
-      if: github.event.pull_request.head.repo.fork == true
-      run: |
-        echo "Fork PR detected - building all images in parallel"
-        matrix='${{ needs.matrix_prep.outputs.matrix }}'
-        
-        # Start all builds in parallel as background jobs
-        pids=()
-        echo "$matrix" | jq -c '.include[]' | while read -r item; do
-          image_name=$(echo "$item" | jq -r '.["image-name"]')
-          python_version=$(echo "$item" | jq -r '.["python-version"]')
-          include_suffix=$(echo "$item" | jq -r '.["include-suffix"]')
-          
-          echo "Starting build for $image_name (Python: $python_version)..."
-          
-          # Build in background - output goes directly to console
-          (
-            echo "=== Building $image_name at $(date) ==="
-            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-            MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registries }} \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-            MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
-            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
-            MLRUN_PYTHON_VERSION="$python_version" \
-            INCLUDE_PYTHON_VERSION_SUFFIX="$include_suffix" \
-            make $image_name
-            
-            echo "=== Completed $image_name at $(date) ==="
-          ) &
-          pids+=($!)
-        done
-        
-        # Wait for all background builds to complete
-        echo "Waiting for all builds to complete..."
-        failed=0
-        for pid in "${pids[@]}"; do
-          if ! wait "$pid"; then
-            failed=1
-          fi
-        done
-        
-        if [ $failed -eq 1 ]; then
-          echo ""
-          echo "❌ Some builds failed"
-          exit 1
-        fi
-        
-        echo ""
-        echo "✅ All images built successfully - available in local Docker daemon"
-        docker images | grep -E "mlrun|api|log-collector"
 
     - name: Verify K3S kubelet configuration
       run: |
@@ -412,6 +394,70 @@ jobs:
         
         echo "✓ Registry configuration applied successfully"
 
+
+    - name: Build MLRun images locally 
+      run: |
+        echo "Fork PR detected - building all images in parallel"
+        
+        # Activate the venv to make python available
+        source venv/bin/activate
+        
+        matrix='${{ needs.matrix_prep.outputs.matrix }}'
+        
+        # Parse matrix into bash array to avoid subshell issue with while read
+        mapfile -t items < <(echo "$matrix" | jq -c '.include[]')
+        
+        # Start all builds in parallel as background jobs
+        pids=()
+        for item in "${items[@]}"; do
+          image_name=$(echo "$item" | jq -r '.["image-name"]')
+          python_version=$(echo "$item" | jq -r '.["python-version"]')
+          include_suffix=$(echo "$item" | jq -r '.["include-suffix"]')
+          
+          echo "Starting build for $image_name (Python: $python_version)..."
+          
+          # Build in background - output goes directly to console
+          (
+            # Activate venv in subshell too
+            source venv/bin/activate
+            
+            echo "=== Building $image_name at $(date) ==="
+            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+            MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registries }}/ \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
+            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
+            MLRUN_PYTHON_VERSION="$python_version" \
+            INCLUDE_PYTHON_VERSION_SUFFIX="$include_suffix" \
+            make $image_name
+            
+            echo "=== Completed $image_name at $(date) ==="
+          ) &
+          pids+=($!)
+        done
+        
+        # Wait for all background builds to complete
+        echo "Waiting for all builds to complete..."
+        failed=0
+        for pid in "${pids[@]}"; do
+          if ! wait "$pid"; then
+            echo "Build process $pid failed"
+            failed=1
+          fi
+        done
+        
+        if [ $failed -eq 1 ]; then
+          echo ""
+          echo "❌ Some builds failed"
+          exit 1
+        fi
+        
+        echo ""
+        echo "✅ All images built successfully - available in local Docker daemon"
+        docker images | grep -E "mlrun|api|log-collector"
+
+
     - name: Setup K3S storage and check cluster health
       run: |
         echo "=== Checking K3S storage configuration ==="
@@ -495,12 +541,9 @@ jobs:
           # Wait a bit for cleanup to complete
           sleep 30
           
-          # Determine which images to use based on fork status
-          # Fork PR: use locally built images
           DOCKER_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registries }}"
-          DOCKER_REPO="${{ steps.computed_params.outputs.mlrun_docker_repo }}"
           DOCKER_TAG="${{ steps.computed_params.outputs.mlrun_docker_tag }}"
-          echo "Using locally built fork images: ${DOCKER_REGISTRY}${DOCKER_REPO}/mlrun-api:${DOCKER_TAG}"
+          echo "Using locally built fork images: ${DOCKER_REGISTRY}/mlrun-api:${DOCKER_TAG}"
 
           
           python automation/deployment/ce.py deploy \
@@ -510,8 +553,8 @@ jobs:
               --namespace=${NAMESPACE} \
               --registry-secret-name="" \
               --devel \
-              --override-mlrun-api-image="${DOCKER_REGISTRY}${DOCKER_REPO}/mlrun-api:${DOCKER_TAG}" \
-              --override-mlrun-log-collector-image="${DOCKER_REGISTRY}${DOCKER_REPO}/log-collector:${DOCKER_TAG}" \
+              --override-mlrun-api-image="${DOCKER_REGISTRY}/mlrun-api:${DOCKER_TAG}" \
+              --override-mlrun-log-collector-image="${DOCKER_REGISTRY}/log-collector:${DOCKER_TAG}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${DOCKER_REGISTRY}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \

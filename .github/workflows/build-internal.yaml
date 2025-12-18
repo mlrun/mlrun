@@ -172,8 +172,12 @@ jobs:
       # to use it and run much faster
       if: ${{ matrix.image-name != 'test' }}
       run: |
+        echo "MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }}"
+        echo "MLRUN_DOCKER_REGISTRY will be set per registry in loop"
+        
         for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
           do \
+            echo "Building for registry: $registry"
             MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=$registry \
             MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \

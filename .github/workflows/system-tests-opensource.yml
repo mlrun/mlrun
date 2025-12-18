@@ -306,50 +306,6 @@ jobs:
         echo "✅ All images built successfully - available in local Docker daemon"
         docker images | grep -E "mlrun|api|log-collector"
 
-    - name: Pull cache, build and push image
-
-      # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
-      # to use it and run much faster
-      if: ${{ matrix.image-name != 'test' }}
-      run: |
-        echo "MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }}"
-        echo "MLRUN_DOCKER_REGISTRY will be set per registry in loop"
-        
-        for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
-          do \
-            echo "Building for registry: $registry"
-            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-            MLRUN_DOCKER_REGISTRY=$registry \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-            MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
-            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
-            MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
-            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
-            make push-${{ matrix.image-name }}; \
-          done;
-
-
-
-      # we don't need to have unstable tag for the test image
-      # And we don't need to run this when triggered manually (workflow dispatch)
-      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
-      run: |
-        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
-          do \
-            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-            MLRUN_DOCKER_REGISTRY=$registry \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-            MLRUN_VERSION=unstable \
-            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
-            make push-${{ matrix.image-name }}; \
-          done;
- 
     - name: Verify K3S kubelet configuration
       run: |
         echo "=== Waiting for node to be ready ==="

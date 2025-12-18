@@ -2506,6 +2506,11 @@ class FlowStep(BaseStep):
             step._next = None
             step._visited = False
             if step.after:
+                has_illegal_branches = len(step.after) > 1 and self.engine == "sync"
+                if has_illegal_branches:
+                    raise GraphError(
+                        f"synchronous flow engine doesnt support branches use async for step {step.name}"
+                    )
                 loop_step = has_loop(step, [])
                 if loop_step:
                     raise GraphError(

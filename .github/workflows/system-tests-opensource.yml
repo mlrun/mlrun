@@ -19,6 +19,9 @@ permissions:
   packages: write
 
 on:
+   pull_request:
+    branches:
+      - development
    workflow_dispatch:
     inputs:
       pr_number:

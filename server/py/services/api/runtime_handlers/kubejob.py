@@ -28,7 +28,6 @@ from mlrun.utils import logger
 
 import framework.db.base as api_db_base
 import framework.utils.singletons.k8s
-import services.api.crud.secrets
 from services.api.runtime_handlers import BaseRuntimeHandler
 
 
@@ -60,16 +59,11 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         if run.metadata.iteration:
             runtime.store_run(run)
         new_meta = self._get_meta(runtime, run)
-
-        if mlrun.mlconf.is_iguazio_v4_mode():
-            runtime = services.api.crud.secrets.Secrets.mount_secret_token_to_runtime(
-                runtime,
-                token_name=run.spec.auth.get("token_name"),
-                username=auth_info.username,
-            )
-
         self.add_secrets_to_spec_before_running(
-            runtime, project_name=run.metadata.project
+            runtime,
+            project_name=run.metadata.project,
+            token_name=(run.spec.auth or {}).get("token_name"),
+            auth_info=auth_info,
         )
         workdir = self._resolve_workdir(runtime)
 

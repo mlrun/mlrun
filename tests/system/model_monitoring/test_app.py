@@ -61,10 +61,7 @@ from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
     histogram_data_drift,
 )
-from mlrun.model_monitoring.applications.evidently import (
-    SUPPORTED_EVIDENTLY_VERSION,
-    SUPPORTED_SNIFFIO_VERSION,
-)
+from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.utils.logger import Logger
 from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
@@ -703,10 +700,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     _AppData(
                         class_=DemoEvidentlyMonitoringApp,
                         rel_path="assets/custom_evidently_app.py",
-                        requirements=[
-                            f"evidently=={SUPPORTED_EVIDENTLY_VERSION}",
-                            f"sniffio>={SUPPORTED_SNIFFIO_VERSION}",  # Due to litestar bug (ML-11640)
-                        ],
+                        requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                         kwargs={
                             "evidently_workspace_path": (
                                 f"/v3io/projects/{self.project_name}/artifacts/evidently-workspace"

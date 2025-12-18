@@ -57,10 +57,6 @@ on:
         description: 'The suffix to add to the cache tag'
         default: ''
         type: string
-      runner:
-        description: 'The GitHub runner to use for building images (e.g., ubuntu-latest, self-hosted)'
-        default: 'ubuntu-latest'
-        type: string
 
 jobs:
   matrix_prep:
@@ -76,21 +72,12 @@ jobs:
 
   build-images:
     name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
-    runs-on: ${{ inputs.runner }}
+    runs-on: ubuntu-latest
     needs: matrix_prep
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
     steps:
-    # TODO remove the clean up as it is not needed
-    - name: Cleanup build artifacts from previous runs
-      run: |
-        # Remove any root-owned build artifacts from previous runs using Docker
-        # This works even when files are owned by root
-        if [ -d "$GITHUB_WORKSPACE/server" ]; then
-          docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
-        fi
-        
     - uses: actions/checkout@v6
       if: github.event.inputs.pr_number == ''
 
@@ -102,14 +89,11 @@ jobs:
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
-      if: inputs.runner == 'ubuntu-latest'
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install curl and jq
-      # TODO it BACK HERE
-      if: false
-      run: sudo apt-get install -y curl jq
+      run: sudo apt-get install curl jq
 
     - name: Extract git hash, ref and latest version
       id: git_info
@@ -174,14 +158,6 @@ jobs:
         registry: registry.hub.docker.com
         username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
-
-    - name: Docker login (Artifactory)
-      if: contains(inputs.docker_registries, 'artifactory.iguazeng.com')
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-      with:
-        registry: artifactory.iguazeng.com:6555
-        username: ${{ secrets.ARTIFACTORY_USERNAME }}
-        password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
     - name: Pull cache, build and push image
 

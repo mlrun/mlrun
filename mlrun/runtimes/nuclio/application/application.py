@@ -334,8 +334,7 @@ class ApplicationRuntime(RemoteRuntime):
 
         :return: function object (self)
         """
-        # Validate probe type
-        ProbeType.is_valid(type, raise_on_error=True)
+        self._validate_set_probes_input(locals())
         type = ProbeType(type)
 
         # Start with config as base
@@ -1038,5 +1037,19 @@ class ApplicationRuntime(RemoteRuntime):
 
         return None
 
-    def _get_sidecar_name(self):
+    def _get_sidecar_name(self) -> str:
         return f"{self.metadata.name}-sidecar"
+
+    @staticmethod
+    def _validate_set_probes_input(params: dict):
+        # Validate probe type
+        ProbeType.is_valid(params.get("type"), raise_on_error=True)
+
+        # At least one optional parameter must be provided
+        optional_params = {
+            k: v for k, v in params.items() if (k != "type" and k != "self")
+        }
+        if all(v is None for v in optional_params.values()):
+            raise ValueError(
+                "Empty probe configuration: at least one parameter must be set"
+            )

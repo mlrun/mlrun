@@ -574,23 +574,16 @@ def test_set_probe_invalid_type():
 
 
 def test_set_probe_empty_value():
-    """Test that empty values set overides existing probe values"""
+    """Test that empty values set raise an error"""
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image="mlrun/mlrun"
     )
 
-    fn.set_probe(
-        type="readiness",
-        initial_delay_seconds=10,
-        period_seconds=5,
-    )
-    fn.set_probe(type="readiness")
-
-    probe = fn._get_sidecar()
-    assert ProbeType.READINESS.key in probe
-    assert "httpGet" not in probe
-    assert ProbeTimeConfig.INITIAL_DELAY_SECONDS.value not in probe
-    assert ProbeTimeConfig.PERIOD_SECONDS.value not in probe
+    with pytest.raises(
+        ValueError,
+        match="Empty probe configuration: at least one parameter must be set",
+    ):
+        fn.set_probe(type="readiness")
 
 
 def test_set_probe_string_type():

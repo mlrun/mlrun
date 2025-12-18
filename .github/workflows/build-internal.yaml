@@ -86,12 +86,6 @@ jobs:
       with:
         fetch-depth: 0
         ref: refs/pull/${{ github.event.inputs.pr_number }}/merge
-
-    # since github-actions gives us 14G only, and fills it up with some garbage
-    - name: Freeing up disk space
-      run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-
     - name: Install curl and jq
       run: sudo apt-get install curl jq
 
@@ -123,7 +117,7 @@ jobs:
           echo ${input_mlrun_version:-`echo $default_mlrun_version`})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_repo=$( \
           input_docker_repo=$INPUT_DOCKER_VERSION && \
-          default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
+          default_docker_repo=$(echo ${{ github.event.pull_request.head.repo.owner.login || github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
           echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registries=$( \
           input_docker_registries=$INPUT_DOCKER_REGISTRIES && \
@@ -134,13 +128,6 @@ jobs:
         INPUT_DOCKER_VERSION: ${{ inputs.docker_repo }}
         INPUT_DOCKER_REGISTRIES: ${{ inputs.docker_registries }}
 
-    - name: Docker login (Artifactory)
-      if: contains(inputs.docker_registries, 'artifactory.iguazeng.com')
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-      with:
-        registry: artifactory.iguazeng.com:6555
-        username: ${{ secrets.ARTIFACTORY_USERNAME }}
-        password: ${{ secrets.ARTIFACTORY_PASSWORD }}
     - name: Docker login (ghcr)
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:

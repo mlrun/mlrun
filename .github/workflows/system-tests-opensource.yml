@@ -28,7 +28,6 @@ on:
       - development
       - '[0-9]+.[0-9]+.x'
 
-
    workflow_dispatch:
     inputs:
       pr_number:

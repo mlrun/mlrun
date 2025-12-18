@@ -18,10 +18,16 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
 on:
    pull_request:
     branches:
       - development
+      - release/*
+
    workflow_dispatch:
     inputs:
       pr_number:

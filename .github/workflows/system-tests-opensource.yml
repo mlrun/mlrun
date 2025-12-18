@@ -235,40 +235,21 @@ jobs:
         echo "mlrun_commit_hash=$(git rev-parse --short=8 $GITHUB_SHA)" >> $GITHUB_OUTPUT
         echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
 
-    - name: Install nerdctl (Docker-compatible CLI for containerd)
+    - name: Install Docker (fork PR only)
       if: github.event.pull_request.head.repo.fork == true
       run: |
-        echo "Installing nerdctl for containerd..."
-        NERDCTL_VERSION="1.7.6"
-        curl -fsSL "https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-${NERDCTL_VERSION}-linux-amd64.tar.gz" | sudo tar -xz -C /usr/local/bin
-        
-        # Install CNI plugins (required for nerdctl networking)
-        CNI_VERSION="1.4.0"
-        sudo mkdir -p /opt/cni/bin
-        curl -fsSL "https://github.com/containernetworking/plugins/releases/download/v${CNI_VERSION}/cni-plugins-linux-amd64-v${CNI_VERSION}.tgz" | sudo tar -xz -C /opt/cni/bin
-        
-        # Configure nerdctl to use K3S containerd socket
-        sudo mkdir -p /etc/nerdctl
-        cat << 'EOF' | sudo tee /etc/nerdctl/nerdctl.toml > /dev/null
-        address = "unix:///run/k3s/containerd/containerd.sock"
-        namespace = "k8s.io"
-        snapshotter = "overlayfs"
-        cgroup_manager = "systemd"
-        EOF
-        
-        # Create wrapper script that uses K3S containerd
-        cat << 'EOF' | sudo tee /usr/local/bin/docker > /dev/null
-        #!/bin/bash
-        exec nerdctl --address unix:///run/k3s/containerd/containerd.sock --namespace k8s.io "$@"
-        EOF
-        sudo chmod +x /usr/local/bin/docker
-        
-        # Verify installation
-        nerdctl --version
-        echo "Testing nerdctl with K3S containerd..."
-        sudo nerdctl --address unix:///run/k3s/containerd/containerd.sock --namespace k8s.io version
-        
-        echo "✓ nerdctl installed and configured to use K3S containerd"
+        if ! command -v docker &> /dev/null; then
+          echo "Docker not found, installing..."
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sudo sh get-docker.sh
+          sudo usermod -aG docker $USER
+          sudo systemctl start docker
+          sudo systemctl enable docker
+          echo "Docker installed successfully"
+        else
+          echo "Docker is already installed"
+        fi
+        docker --version
 
     - name: Resolve docker cache tag (fork PR only)
       if: github.event.pull_request.head.repo.fork == true
@@ -283,6 +264,7 @@ jobs:
       if: github.event.pull_request.head.repo.fork == true
       id: computed_params
       run: |
+        echo "mlrun_docker_tag=${{ steps.git_info.outputs.unstable_version_prefix }}-${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
         echo "mlrun_version=${{ steps.git_info.outputs.unstable_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
         echo "mlrun_docker_repo=$(echo ${{ github.event.pull_request.head.repo.owner.login || github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registries=ghcr.io/" >> $GITHUB_OUTPUT
@@ -338,8 +320,8 @@ jobs:
         fi
         
         echo ""
-        echo "✅ All images built successfully - available in local containerd"
-        sudo nerdctl --address unix:///run/k3s/containerd/containerd.sock --namespace k8s.io images | grep -E "mlrun|api|log-collector"
+        echo "✅ All images built successfully - available in local Docker daemon"
+        docker images | grep -E "mlrun|api|log-collector"
 
     - name: Verify K3S kubelet configuration
       run: |
@@ -513,6 +495,14 @@ jobs:
           # Wait a bit for cleanup to complete
           sleep 30
           
+          # Determine which images to use based on fork status
+          # Fork PR: use locally built images
+          DOCKER_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registries }}"
+          DOCKER_REPO="${{ steps.computed_params.outputs.mlrun_docker_repo }}"
+          DOCKER_TAG="${{ steps.computed_params.outputs.mlrun_docker_tag }}"
+          echo "Using locally built fork images: ${DOCKER_REGISTRY}${DOCKER_REPO}/mlrun-api:${DOCKER_TAG}"
+
+          
           python automation/deployment/ce.py deploy \
               --verbose \
               --registry-url="registry.localhost" \
@@ -520,10 +510,10 @@ jobs:
               --namespace=${NAMESPACE} \
               --registry-secret-name="" \
               --devel \
-              --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --override-mlrun-api-image="${DOCKER_REGISTRY}${DOCKER_REPO}/mlrun-api:${DOCKER_TAG}" \
+              --override-mlrun-log-collector-image="${DOCKER_REGISTRY}${DOCKER_REPO}/log-collector:${DOCKER_TAG}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
-              --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${DOCKER_REGISTRY}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
               --set jupyterNotebook.enabled=false \

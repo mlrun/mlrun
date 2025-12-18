@@ -57,6 +57,14 @@ on:
         description: 'The suffix to add to the cache tag'
         default: ''
         type: string
+      docker_cache_from_registry:
+        description: 'Docker registry to pull cache from (default: ghcr.io/)'
+        default: 'ghcr.io/'
+        type: string
+      runner:
+        description: 'The GitHub runner to use for building images (default: ubuntu-latest)'
+        default: 'ubuntu-latest'
+        type: string
 
 jobs:
   matrix_prep:
@@ -72,7 +80,7 @@ jobs:
 
   build-images:
     name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     needs: matrix_prep
     strategy:
       fail-fast: false
@@ -128,11 +136,15 @@ jobs:
         echo "mlrun_docker_registries=$( \
           input_docker_registries=$INPUT_DOCKER_REGISTRIES && \
           echo ${input_docker_registries:-ghcr.io/})" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_cache_from_registry=$( \
+          input_cache_from_registry=$INPUT_DOCKER_CACHE_FROM_REGISTRY && \
+          echo ${input_cache_from_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
       env:
         INPUT_VERSION: ${{ inputs.version }}
         INPUT_DOCKER_VERSION: ${{ inputs.docker_repo }}
         INPUT_DOCKER_REGISTRIES: ${{ inputs.docker_registries }}
+        INPUT_DOCKER_CACHE_FROM_REGISTRY: ${{ inputs.docker_cache_from_registry }}
 
     - name: Docker login (ghcr)
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
@@ -159,6 +171,15 @@ jobs:
         username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
 
+    - name: Docker login (Artifactory)
+      if: contains(inputs.docker_registries, 'artifactory.iguazeng.com')
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+      with:
+        registry: artifactory.iguazeng.com:6555
+        username: ${{ secrets.ARTIFACTORY_USERNAME }}
+        password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
+
     - name: Pull cache, build and push image
 
       # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
@@ -169,7 +190,7 @@ jobs:
           do \
             MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=$registry \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_cache_from_registry }} \
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
@@ -190,7 +211,7 @@ jobs:
           do \
             MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=$registry \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_cache_from_registry }} \
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=unstable \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
@@ -204,7 +225,7 @@ jobs:
       run: |
         MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+        MLRUN_DOCKER_CACHE_FROM_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_cache_from_registry }} \
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
         MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \

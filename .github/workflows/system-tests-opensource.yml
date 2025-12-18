@@ -146,8 +146,8 @@ jobs:
           fi
           echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
           
-          echo "mlrun_docker_registry=ghcr.io/" >> $GITHUB_OUTPUT
-          echo "mlrun_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_registry=artifactory.iguazeng.com:6555/" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_repo=private-mlrun" >> $GITHUB_OUTPUT
           
           echo "mlrun_system_tests_clean_resources=$( \
             input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
@@ -170,6 +170,8 @@ jobs:
       docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
       version: ${{ needs.prepare-inputs.outputs.mlrun_version }}
       cache_tag_suffix:  ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
+      runner: mlrun-ce
+      docker_cache_from_registry: artifactory.iguazeng.com:6555/
 
       # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
       # by overriding the version specifier, we allow using mlrun/mlrun as well.

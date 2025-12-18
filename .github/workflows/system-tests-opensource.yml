@@ -146,7 +146,7 @@ jobs:
           fi
           echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
           
-          echo "mlrun_docker_registry=artifactory.iguazeng.com:6555/" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_registry=registry.hub.docker.com/" >> $GITHUB_OUTPUT
           echo "mlrun_docker_repo=private-mlrun" >> $GITHUB_OUTPUT
           
           echo "mlrun_system_tests_clean_resources=$( \
@@ -170,8 +170,8 @@ jobs:
       docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
       version: ${{ needs.prepare-inputs.outputs.mlrun_version }}
       cache_tag_suffix:  ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
-      runner: mlrun-ce
-      docker_cache_from_registry: artifactory.iguazeng.com:6555/
+      runner: ubuntu-latest
+      docker_cache_from_registry: registry.hub.docker.com/
 
       # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
       # by overriding the version specifier, we allow using mlrun/mlrun as well.

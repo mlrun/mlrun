@@ -171,15 +171,6 @@ jobs:
         username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
 
-    - name: Docker login (Artifactory)
-      if: contains(inputs.docker_registries, 'artifactory.iguazeng.com')
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-      with:
-        registry: artifactory.iguazeng.com:6555
-        username: ${{ secrets.ARTIFACTORY_USERNAME }}
-        password: ${{ secrets.ARTIFACTORY_PASSWORD }}
-
-
     - name: Pull cache, build and push image
 
       # we don't really want per-commit test image we just want to build and push the cache image so CI will be able

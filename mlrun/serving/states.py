@@ -1210,7 +1210,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         uri = proxy_uri or self.artifact_uri
         if uri:
             if mlrun.datastore.is_store_uri(uri):
-                artifact, _ = mlrun.store_manager.get_store_artifact(uri)
+                artifact, _ = mlrun.store_manager.get_store_artifact(
+                    uri, allow_empty_resources=True
+                )
                 return artifact
             else:
                 raise ValueError(
@@ -1418,6 +1420,13 @@ class LLModel(Model):
                 model_provider_type=type(self.model_provider).__name__,
             )
         return body
+
+    def init(self):
+        super().init()
+        if not self.model_provider and type(self).predict is LLModel.predict:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Model provider could not be determined for model {self.name}"
+            )
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)

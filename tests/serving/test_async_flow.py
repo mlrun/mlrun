@@ -273,6 +273,11 @@ class DummyAsyncLLM(LLModel):
         return body
 
 
+class DummyAsyncLLMWithoutAsyncPredict(LLModel):
+    def predict(self, body: typing.Any, **kwargs):
+        return body
+
+
 class MyPklModel(Model):
     def __init__(self, name, raise_exception, artifact_uri, **kwargs):
         super().__init__(
@@ -1309,10 +1314,20 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
 
 @pytest.mark.parametrize(
     "model_class, raise_exception",
-    [("LLModel", True), ("DummyLLM", False), ("DummyAsyncLLM", False)],
+    [
+        ("LLModel", True),
+        ("DummyAsyncLLMWithoutAsyncPredict", True),
+        ("DummyLLM", False),
+        ("DummyAsyncLLM", False),
+    ],
 )
 def test_llmodel_without_model_artifact(model_class, raise_exception):
-    execution_mechanism = "asyncio" if model_class == "DummyAsyncLLM" else "naive"
+    #  LLModel should raise error because predict was not overridden
+    #  DummyAsyncLLMWithoutAsyncPredict should raise error because async_predict was not overridden
+
+    is_async = model_class in ("DummyAsyncLLM", "DummyAsyncLLMWithoutAsyncPredict")
+    execution_mechanism = "asyncio" if is_async else "naive"
+    predict_function_name = "predict_async" if is_async else "predict"
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="model-runner")
@@ -1341,7 +1356,8 @@ def test_llmodel_without_model_artifact(model_class, raise_exception):
             if raise_exception:
                 with pytest.raises(
                     mlrun.errors.MLRunRuntimeError,
-                    match="Model provider could not be determined for model",
+                    match=f"Model provider could not be determined for model 'my-model', and the"
+                    f" {predict_function_name} function was not overridden",
                 ):
                     server = function.to_mock_server()
             else:

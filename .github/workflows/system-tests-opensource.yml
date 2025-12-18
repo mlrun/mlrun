@@ -160,29 +160,22 @@ jobs:
         run: |
           echo "mlrun_hash value: ${{ steps.computed_params.outputs.mlrun_hash }}"
 
-  build-mlrun:
-    if: github.event_name == 'pull_request' || github.event.inputs.pr_number != ''
-    name: Build MLRun
-    uses: ./.github/workflows/build-internal.yaml
-    needs: prepare-inputs
-    with:
-      docker_registries: ${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}
-      docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
-      version: ${{ needs.prepare-inputs.outputs.mlrun_version }}
-      cache_tag_suffix:  ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
-
-      # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
-      # by overriding the version specifier, we allow using mlrun/mlrun as well.
-      # TODO: support patching jupyter as well (maybe on demand?)
-      # and use --override-mlrun-jupyter-image when patching mlrun ce
-      skip_images: test,mlrun-gpu,jupyter
-    secrets: inherit
+  matrix_prep:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: set-matrix
+        uses: ./.github/actions/image-matrix-prep
+        with:
+          skip_images: 'test,mlrun-gpu,jupyter'
 
   run-system-tests-opensource-ci:
     name: Run System Tests Open Source
     runs-on:
       group: mlrun-ce
-    needs: [prepare-inputs, build-mlrun]
+    needs: [prepare-inputs, matrix_prep]
     steps:
     - uses: actions/checkout@v6
 
@@ -235,8 +228,128 @@ jobs:
         # Disable egress-selector to avoid connectivity issues
         extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5% --egress-selector-mode=disabled'
 
+    - name: Extract git hash and version info
+      if: github.event.pull_request.head.repo.fork == true
+      id: git_info
+      run: |
+        echo "mlrun_commit_hash=$(git rev-parse --short=8 $GITHUB_SHA)" >> $GITHUB_OUTPUT
+        echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
+
+    - name: Resolve docker cache tag (fork PR only)
+      if: github.event.pull_request.head.repo.fork == true
+      id: docker_cache
+      run: |
+        export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
+        export unstable_tag="unstable-cache${version_suffix:+-$version_suffix}"
+        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+        echo "no_cache=" >> $GITHUB_OUTPUT
+
+    - name: Set computed versions params (fork PR only)
+      if: github.event.pull_request.head.repo.fork == true
+      id: computed_params
+      run: |
+        echo "mlrun_version=${{ steps.git_info.outputs.unstable_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_repo=$(echo ${{ github.event.pull_request.head.repo.owner.login || github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_registries=ghcr.io/" >> $GITHUB_OUTPUT
+        echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
+
+    - name: Build MLRun images locally (fork PR only)
+      if: github.event.pull_request.head.repo.fork == true
+      run: |
+        echo "Fork PR detected - building all images in parallel"
+        matrix='${{ needs.matrix_prep.outputs.matrix }}'
+        
+        # Start all builds in parallel as background jobs
+        pids=()
+        echo "$matrix" | jq -c '.include[]' | while read -r item; do
+          image_name=$(echo "$item" | jq -r '.["image-name"]')
+          python_version=$(echo "$item" | jq -r '.["python-version"]')
+          include_suffix=$(echo "$item" | jq -r '.["include-suffix"]')
+          
+          echo "Starting build for $image_name (Python: $python_version)..."
+          
+          # Build in background - output goes directly to console
+          (
+            echo "=== Building $image_name at $(date) ==="
+            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+            MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registries }} \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+            MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
+            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
+            MLRUN_PYTHON_VERSION="$python_version" \
+            INCLUDE_PYTHON_VERSION_SUFFIX="$include_suffix" \
+            make $image_name
+            
+            echo "=== Completed $image_name at $(date) ==="
+          ) &
+          pids+=($!)
+        done
+        
+        # Wait for all background builds to complete
+        echo "Waiting for all builds to complete..."
+        failed=0
+        for pid in "${pids[@]}"; do
+          if ! wait "$pid"; then
+            failed=1
+          fi
+        done
+        
+        if [ $failed -eq 1 ]; then
+          echo ""
+          echo "❌ Some builds failed"
+          exit 1
+        fi
+        
+        echo ""
+        echo "✅ All images built successfully - available in local Docker daemon"
+        docker images | grep -E "mlrun|api|log-collector"
+
+    - name: Pull cache, build and push image
+
+      # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
+      # to use it and run much faster
+      if: ${{ matrix.image-name != 'test' }}
+      run: |
+        echo "MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }}"
+        echo "MLRUN_DOCKER_REGISTRY will be set per registry in loop"
+        
+        for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
+          do \
+            echo "Building for registry: $registry"
+            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+            MLRUN_DOCKER_REGISTRY=$registry \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+            MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
+            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
+            MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
+            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
+            make push-${{ matrix.image-name }}; \
+          done;
 
 
+
+      # we don't need to have unstable tag for the test image
+      # And we don't need to run this when triggered manually (workflow dispatch)
+      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
+      run: |
+        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
+          do \
+            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+            MLRUN_DOCKER_REGISTRY=$registry \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+            MLRUN_VERSION=unstable \
+            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
+            make push-${{ matrix.image-name }}; \
+          done;
+ 
     - name: Verify K3S kubelet configuration
       run: |
         echo "=== Waiting for node to be ready ==="

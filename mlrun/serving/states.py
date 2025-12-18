@@ -1423,9 +1423,13 @@ class LLModel(Model):
 
     def init(self):
         super().init()
-        if not self.model_provider and type(self).predict is LLModel.predict:
+        if not self.model_provider and (
+            type(self).predict is LLModel.predict
+            and type(self).predict_async is LLModel.predict_async
+        ):
             raise mlrun.errors.MLRunRuntimeError(
-                f"Model provider could not be determined for model {self.name}"
+                f"Model provider could not be determined for model '{self.name}',"
+                f" and the predict functions was not overridden."
             )
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:

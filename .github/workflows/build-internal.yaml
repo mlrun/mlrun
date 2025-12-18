@@ -17,8 +17,6 @@ name: Build (internal)
 run-name: Building ${{ inputs.version }} ${{ github.ref_name }}
 
 permissions:
-
-  # Allow the action to upload images to ghcr
   packages: write
 
 on:
@@ -64,6 +62,10 @@ on:
       runner:
         description: 'The GitHub runner to use for building images (default: ubuntu-latest)'
         default: 'ubuntu-latest'
+        type: string
+      ghcr_username:
+        description: 'GHCR username for authentication (default: github.repository_owner)'
+        default: ''
         type: string
 
 jobs:
@@ -150,8 +152,8 @@ jobs:
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
         registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        username: ${{ inputs.ghcr_username || github.repository_owner }}
+        password: ${{ secrets.PERSONAL_GITHUB_TOKEN_FOR_GHCR || secrets.GITHUB_TOKEN }}
 
     - name: Docker login (quay.io)
       continue-on-error: true

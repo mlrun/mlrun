@@ -27,6 +27,9 @@ on:
     branches:
       - development
       - '[0-9]+.[0-9]+.x'
+   push:
+    branches:
+      - feat/*
 
 
    workflow_dispatch:
@@ -81,6 +84,7 @@ jobs:
       mlrun_system_tests_clean_resources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
       mlrun_version: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrun_version_specifier: ${{ steps.computed_params.outputs.mlrun_version_specifier }}
+      ghcr_username: ${{ steps.computed_params.outputs.ghcr_username }}
     steps:
       - uses: actions/checkout@v6
 
@@ -146,8 +150,17 @@ jobs:
           fi
           echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
           
-          echo "mlrun_docker_registry=registry.hub.docker.com/" >> $GITHUB_OUTPUT
-          echo "mlrun_docker_repo=private-mlrun" >> $GITHUB_OUTPUT
+          # Use source repository owner for registry (e.g., pioardi for fork PR)
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            REPO_OWNER="${{ github.event.pull_request.head.repo.owner.login }}"
+          else
+            REPO_OWNER="${{ github.repository_owner }}"
+          fi
+          
+          echo "REPO_OWNER=$REPO_OWNER"
+
+          echo "mlrun_docker_registry=artifactory.iguazeng.com:6555/" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_repo=mlrun" >> $GITHUB_OUTPUT
           
           echo "mlrun_system_tests_clean_resources=$( \
             input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
@@ -164,14 +177,14 @@ jobs:
     if: github.event_name == 'pull_request' || github.event.inputs.pr_number != ''
     name: Build MLRun
     uses: ./.github/workflows/build-internal.yaml
-    needs: prepare-inputs
+    needs: [prepare-inputs]
     with:
       docker_registries: ${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}
       docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
       version: ${{ needs.prepare-inputs.outputs.mlrun_version }}
       cache_tag_suffix:  ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
       runner: ubuntu-latest
-      docker_cache_from_registry: registry.hub.docker.com/
+      docker_cache_from_registry: artifactory.iguazeng.com:6555/
 
       # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
       # by overriding the version specifier, we allow using mlrun/mlrun as well.
@@ -224,6 +237,7 @@ jobs:
 
     - name: Check and cleanup any previous K3S installation
       uses: ./.github/actions/cleanup-k3s
+      
 
     - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
       name: "Start a local k8s cluster"
@@ -236,8 +250,6 @@ jobs:
         # Change the 5% value to increase/decrease allocatable storage
         # Disable egress-selector to avoid connectivity issues
         extra-setup-args: '--kubelet-arg=eviction-hard=nodefs.available\<5% --egress-selector-mode=disabled'
-
-
 
     - name: Verify K3S kubelet configuration
       run: |
@@ -275,20 +287,19 @@ jobs:
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+        GHCR_USERNAME: ${{ needs.prepare-inputs.outputs.ghcr_username }}
+        GHCR_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN_FOR_GHCR }}
       run: |
         echo "=== Creating K3S registries configuration ==="
         
         # Create the K3S config directory if it doesn't exist
         sudo mkdir -p /etc/rancher/k3s
         
-        # Create registries.yaml with Docker Hub authentication
-        # This configures containerd to authenticate when pulling from docker.io
+        # Create registries.yaml with Docker Hub and GHCR authentication
+        # This configures containerd to authenticate when pulling from docker.io and ghcr.io
         # and sets up a local registry mirror for testing
         sudo tee "/etc/rancher/k3s/registries.yaml" > /dev/null << EOF
         mirrors:
-          registry.localhost:
-            endpoint:
-            - http://registry.localhost:80
           docker.io:
             endpoint:
             - https://registry-1.docker.io
@@ -413,7 +424,7 @@ jobs:
           
           python automation/deployment/ce.py deploy \
               --verbose \
-              --registry-url="registry.localhost" \
+              --registry-url="artifactory.iguazeng.com:6555" \
               --skip-registry-validation \
               --namespace=${NAMESPACE} \
               --registry-secret-name="" \

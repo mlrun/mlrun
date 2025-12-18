@@ -263,6 +263,16 @@ class MyLLM(LLModel):
         return body
 
 
+class DummyLLM(LLModel):
+    def predict(self, body: typing.Any, **kwargs):
+        return body
+
+
+class DummyAsyncLLM(LLModel):
+    async def predict_async(self, body: typing.Any, **kwargs):
+        return body
+
+
 class MyPklModel(Model):
     def __init__(self, name, raise_exception, artifact_uri, **kwargs):
         super().__init__(
@@ -1295,3 +1305,49 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
         ), "Max threads not configured properly"
     server.test(body={"n": 1})
     server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    "model_class, raise_exception",
+    [("LLModel", True), ("DummyLLM", False), ("DummyAsyncLLM", False)],
+)
+def test_llmodel_without_model_artifact(model_class, raise_exception):
+    execution_mechanism = "asyncio" if model_class == "DummyAsyncLLM" else "naive"
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="model-runner")
+    project = mlrun.new_project("llmodel-without-model-artifact", save=False)
+    llm_artifact = project.log_llm_prompt(
+        "my_llm",
+        prompt_template=[
+            {"role": "user", "content": "What is the capital city of {country}?"}
+        ],
+        prompt_legend={"country": {"field": None, "description": "Great"}},
+    )
+
+    model_runner_step.add_model(
+        model_class=model_class,
+        execution_mechanism=execution_mechanism,
+        endpoint_name="my-model",
+        model_artifact=llm_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    server = None
+    with unittest.mock.patch(
+        "mlrun.datastore.datastore.get_store_resource",
+        return_value=llm_artifact,
+    ):
+        try:
+            if raise_exception:
+                with pytest.raises(
+                    mlrun.errors.MLRunRuntimeError,
+                    match="Model provider could not be determined for model",
+                ):
+                    server = function.to_mock_server()
+            else:
+                server = function.to_mock_server()
+                resp = server.test(body={"country": "france"})
+                assert resp == {"country": "france"}
+        finally:
+            if server:
+                server.wait_for_completion()

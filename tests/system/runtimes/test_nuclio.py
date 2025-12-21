@@ -43,7 +43,7 @@ from tests.system.runtimes.assets.function_with_model import DummyModel, MyModel
 class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     project_name = "test-nuclio-runtime"
 
-    image: str = "mlrun/mlrun"
+    image: str = "artifactory.iguazeng.com:10557/davids/mlrun:1.11.0"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")
@@ -566,6 +566,35 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         assert isinstance(resp, dict)
         assert "endpoints" in resp
         assert isinstance(resp["endpoints"], list)
+
+    def test_serving_with_cyclic_graph(self):
+        code_path = str(self.assets_path / "cyclic_function.py")
+        function = mlrun.code_to_function(
+            name="function-with-cyclic-graph",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        graph = function.set_topology(
+            "flow", engine="async", allow_cyclic=True, max_iterations=6
+        )
+        graph.to(name="start", class_name="Echo").to(
+            class_name="Counter", name="count"
+        ).to(name="route", class_name="Route", cycle_to="count").to(
+            name="end", class_name="Echo"
+        ).respond()
+
+        # Deploy the function
+        function.deploy()
+
+        resp = function.invoke(path="/", body={"counter": 1})
+        assert resp["counter"] == 5
+
+        with pytest.raises(
+            RuntimeError, match=r"Max iterations exceeded in step 'count'"
+        ):
+            function.invoke(path="/", body={"counter": -5})
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

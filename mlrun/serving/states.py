@@ -142,6 +142,7 @@ class BaseStep(ModelObj):
         name: Optional[str] = None,
         after: Optional[list] = None,
         shape: Optional[str] = None,
+        max_iterations: Optional[int] = None,
     ):
         self.name = name
         self._parent = None
@@ -155,6 +156,7 @@ class BaseStep(ModelObj):
         self.model_endpoint_creation_strategy = (
             schemas.ModelEndpointCreationStrategy.SKIP
         )
+        self._max_iterations = max_iterations
 
     def get_shape(self):
         """graphviz shape"""
@@ -2344,7 +2346,7 @@ class FlowStep(BaseStep):
         allow_cyclic: bool = False,
         max_iterations: Optional[int] = None,
     ):
-        super().__init__(name, after)
+        super().__init__(name, after, max_iterations=max_iterations)
         self._steps = None
         self.steps = steps
         self.engine = engine
@@ -2357,7 +2359,6 @@ class FlowStep(BaseStep):
         self._source = None
         self._start_steps = []
         self._allow_cyclic = allow_cyclic
-        self._max_iterations = max_iterations
 
     def get_children(self):
         return self._steps.values()
@@ -2375,22 +2376,6 @@ class FlowStep(BaseStep):
     @steps.setter
     def steps(self, steps):
         self._steps = ObjectDict.from_dict(classes_map, steps, "task")
-
-    @property
-    def allow_cyclic(self) -> bool:
-        return self._allow_cyclic
-
-    @allow_cyclic.setter
-    def allow_cyclic(self, allow_cyclic: list[str]):
-        self._allow_cyclic = allow_cyclic
-
-    @property
-    def max_iterations(self) -> int:
-        return self._max_iterations
-
-    @max_iterations.setter
-    def max_iterations(self, max_iterations: int):
-        self._max_iterations = max_iterations
 
     def add_step(
         self,
@@ -2949,6 +2934,22 @@ class RootFlowStep(FlowStep):
         self._shared_max_processes = None
         self._shared_max_threads = None
         self._pool_factor = None
+
+    @property
+    def max_iterations(self) -> int:
+        return self._max_iterations
+
+    @max_iterations.setter
+    def max_iterations(self, max_iterations: int):
+        self._max_iterations = max_iterations
+
+    @property
+    def allow_cyclic(self) -> bool:
+        return self._allow_cyclic
+
+    @allow_cyclic.setter
+    def allow_cyclic(self, allow_cyclic: bool):
+        self._allow_cyclic = allow_cyclic
 
     def add_shared_model(
         self,
@@ -3512,6 +3513,7 @@ def _init_async_objects(context, steps, root):
 
     for step in steps:
         if hasattr(step, "async_object") and step._is_local_function(context):
+            max_iterations = step._max_iterations or root.max_iterations
             if step.kind == StepKinds.queue:
                 skip_stream = context.is_mock and step.next
                 if step.path and not skip_stream:
@@ -3535,15 +3537,15 @@ def _init_async_objects(context, steps, root):
                             step._async_object = KafkaStoreyTarget(
                                 path=stream_path,
                                 context=context,
-                                max_iterations=step.max_iterations
-                                or root.max_iterations**options,
+                                max_iterations=max_iterations,
+                                **options,
                             )
                         elif isinstance(datastore_profile, DatastoreProfileV3io):
                             step._async_object = StreamStoreyTarget(
                                 stream_path=stream_path,
                                 context=context,
-                                max_iterations=step.max_iterations
-                                or root.max_iterations**options,
+                                max_iterations=max_iterations,
+                                **options,
                             )
                         else:
                             raise mlrun.errors.MLRunValueError(
@@ -3562,13 +3564,13 @@ def _init_async_objects(context, steps, root):
                             brokers=brokers,
                             producer_options=kafka_producer_options,
                             context=context,
-                            max_iterations=step.max_iterations
-                            or root.max_iterations**options,
+                            max_iterations=max_iterations,
+                            **options,
                         )
                     elif stream_path.startswith("dummy://"):
                         step._async_object = _DummyStream(
                             context=context,
-                            max_iterations=step.max_iterations or root.max_iterations,
+                            max_iterations=max_iterations,
                             **options,
                         )
                     else:
@@ -3579,13 +3581,13 @@ def _init_async_objects(context, steps, root):
                             storey.V3ioDriver(endpoint or config.v3io_api),
                             stream_path,
                             context=context,
-                            max_iterations=step.max_iterations
-                            or root.max_iterations**options,
+                            max_iterations=max_iterations,
+                            **options,
                         )
                 else:
                     step._async_object = storey.Map(
                         lambda x: x,
-                        max_iterations=step.max_iterations or root.max_iterations,
+                        max_iterations=max_iterations,
                     )
 
             elif not step.async_object or not hasattr(step.async_object, "_outlets"):
@@ -3599,7 +3601,7 @@ def _init_async_objects(context, steps, root):
                     context=context,
                     pass_context=step._inject_context,
                     fn_select_outlets=step._outlets_selector,
-                    max_iterations=step.max_iterations or root.max_iterations,
+                    max_iterations=max_iterations,
                 )
             if (
                 respond_supported

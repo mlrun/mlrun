@@ -254,6 +254,7 @@ class ServingRuntime(RemoteRuntime):
         engine=None,
         exist_ok=False,
         allow_cyclic: bool = False,
+        max_iterations: Optional[int] = None,
         **class_args,
     ) -> Union[RootFlowStep, RouterStep]:
         """set the serving graph topology (router/flow) and root class or params
@@ -285,6 +286,7 @@ class ServingRuntime(RemoteRuntime):
         :param engine:       - optional for flow, sync or async engine
         :param exist_ok:     - allow overriding existing topology
         :param allow_cyclic: - allow cyclic graphs (only for async flow)
+        :param max_iterations: - optional, max iterations for cyclic graphs (only for async flow)
         :param class_args:   - optional, router/flow class init args
 
         :return: graph object (fn.spec.graph)
@@ -310,6 +312,7 @@ class ServingRuntime(RemoteRuntime):
             self.spec.graph = RootFlowStep(
                 engine=engine,
                 allow_cyclic=allow_cyclic if engine == "async" else False,
+                max_iterations=max_iterations,
             )
             self.spec.graph.track_models = self.spec.track_models
         else:

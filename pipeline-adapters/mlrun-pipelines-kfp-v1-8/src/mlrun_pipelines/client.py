@@ -517,7 +517,6 @@ class Client(
         :param run_id: The unique ID of the run to retrieve.
         :return: An ApiRun object with the run details.
         """
-        self.logger.info("Getting details for run", run_id=run_id)
         return self._run_api.get_run(
             run_id=run_id,
         )
@@ -935,16 +934,6 @@ class Client(
         page_token = page_token or ""
         filter_json = filter_json or ""
         sort_by = sort_by or ""
-
-        self.logger.debug(
-            "Listing runs from KFP",
-            page_token=page_token,
-            page_size=page_size,
-            sort_by=sort_by,
-            experiment_id=experiment_id,
-            namespace=namespace,
-            filter_json=filter_json,
-        )
 
         if experiment_id is not None:
             response = self._run_api.list_runs(

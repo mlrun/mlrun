@@ -47,7 +47,7 @@ from .v3io import V3ioStore
 in_memory_store = InMemoryStore()
 
 
-def schema_to_store(schema) -> DataStore.__subclasses__():
+def schema_to_store(schema) -> type[DataStore]:
     # import store classes inside to enable making their dependencies optional (package extras)
 
     if not schema or schema in get_local_file_schema():

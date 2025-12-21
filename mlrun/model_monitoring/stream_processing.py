@@ -200,9 +200,25 @@ class EventStreamProcessor:
                 after="ProcessEndpointEvent",
             )
 
+            # split the graph between NOP event to regular event
+            graph.add_step(
+                "storey.Filter",
+                "FilterNOP",
+                after="filter_none",
+                _fn="(not (isinstance(event, dict) and event.get('kind', "
+                ") == 'nop_event'))",
+            )
+            graph.add_step(
+                "storey.Filter",
+                "ForwardNOP",
+                after="filter_none",
+                _fn="(isinstance(event, dict) and event.get('kind', "
+                ") == 'nop_event')",
+            )
+
             # flatten the events
             graph.add_step(
-                "storey.FlatMap", "flatten_events", _fn="(event)", after="filter_none"
+                "storey.FlatMap", "flatten_events", _fn="(event)", after="FilterNOP"
             )
 
         apply_storey_filter_and_flatmap()
@@ -218,19 +234,6 @@ class EventStreamProcessor:
             )
 
         apply_map_feature_names()
-        # split the graph between event with error vs valid event
-        graph.add_step(
-            "storey.Filter",
-            "FilterNOP",
-            after="MapFeatureNames",
-            _fn="(event.get('kind', " ") != 'nop_event')",
-        )
-        graph.add_step(
-            "storey.Filter",
-            "ForwardNOP",
-            after="MapFeatureNames",
-            _fn="(event.get('kind', " ") == 'nop_event')",
-        )
 
         tsdb_connector.apply_monitoring_stream_steps(
             graph=graph,
@@ -244,7 +247,7 @@ class EventStreamProcessor:
             graph.add_step(
                 "ProcessBeforeParquet",
                 name="ProcessBeforeParquet",
-                after="FilterNOP",
+                after="MapFeatureNames",
                 _fn="(event)",
             )
 
@@ -370,7 +373,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             logger.debug(
                 "Skipped nop event inside of ProcessEndpointEvent", event=event
             )
-            full_event.body = [event]
             return full_event
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id

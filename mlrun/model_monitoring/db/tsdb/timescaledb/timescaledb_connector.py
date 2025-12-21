@@ -56,9 +56,16 @@ class TimescaleDBConnector(TSDBConnector):
     - TimescaleDBMetricsQueries, TimescaleDBPredictionsQueries, TimescaleDBResultsQueries: Direct query operations
     - TimescaleDBOperationsManager: Table management and write operations
     - TimescaleDBStreamProcessor: Stream processing operations
+
+    Database naming (controlled by mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database):
+    - When auto_create_database=True (default): generates database name using system_id: 'mlrun_mm_{system_id}'
+    - When auto_create_database=False: uses the database from the profile/connection string as-is
     """
 
     type: str = mm_schemas.TSDBTarget.TimescaleDB
+
+    # Default database name prefix for auto-generated names
+    _DEFAULT_DB_PREFIX = "mlrun_mm"
 
     def __init__(
         self,
@@ -70,6 +77,28 @@ class TimescaleDBConnector(TSDBConnector):
         super().__init__(project=project)
 
         self.profile = profile
+
+        # Determine the monitoring database name
+        self.database = self._determine_database_name(profile)
+
+        # Update profile to use the determined database name
+        # This ensures the connection uses the correct database
+        if profile.database != self.database:
+            logger.info(
+                "Auto-generated database name for TimescaleDB",
+                original_database=profile.database,
+                database=self.database,
+            )
+            # Create a new profile with the generated database
+            profile = DatastoreProfilePostgreSQL(
+                name=profile.name,
+                user=profile.user,
+                password=profile.password,
+                host=profile.host,
+                port=profile.port,
+                database=self.database,
+            )
+            self.profile = profile
 
         # Create shared connection
         self._connection = TimescaleDBConnection(
@@ -110,6 +139,7 @@ class TimescaleDBConnector(TSDBConnector):
             project=project,
             connection=self._connection,
             pre_aggregate_config=pre_aggregate_config,
+            profile=profile,
         )
 
         self._stream = TimescaleDBStreamProcessor(
@@ -117,6 +147,34 @@ class TimescaleDBConnector(TSDBConnector):
         )
 
         self._pre_aggregate_config = pre_aggregate_config
+
+    def _determine_database_name(self, profile: DatastoreProfilePostgreSQL) -> str:
+        """
+        Determine the database name to use.
+
+        Behavior depends on `mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database`:
+        - When True (default): auto-generate database name using system_id
+        - When False: use the database from the profile as-is
+
+        :param profile: The PostgreSQL profile
+        :return: The database name to use
+        """
+        auto_create = mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database
+
+        if not auto_create:
+            # Use database from profile as-is
+            return profile.database
+
+        # Auto-create mode: generate database name using system_id
+        if not mlrun.mlconf.system_id:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "system_id is not set in mlrun.mlconf. "
+                "TimescaleDBConnector requires system_id for auto-generating database name "
+                "when auto_create_database is enabled. "
+                "Either set system_id in MLRun configuration or disable auto_create_database "
+                "and provide an explicit database in the PostgreSQL connection string."
+            )
+        return f"{self._DEFAULT_DB_PREFIX}_{mlrun.mlconf.system_id}"
 
     # Delegate operations methods
     def create_tables(self, *args, **kwargs) -> None:

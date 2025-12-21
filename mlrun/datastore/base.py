@@ -162,8 +162,8 @@ class DataStore(BaseRemoteClient):
 
     @staticmethod
     def _is_directory_in_range(
-        start_time: datetime.datetime,
-        end_time: datetime.datetime,
+        start_time: Optional[datetime.datetime],
+        end_time: Optional[datetime.datetime],
         year: int,
         month: Optional[int] = None,
         day: Optional[int] = None,
@@ -178,7 +178,7 @@ class DataStore(BaseRemoteClient):
             month=month or 1,
             day=day or 1,
             hour=hour or 0,
-            tzinfo=start_time.tzinfo,
+            tzinfo=start_time.tzinfo if start_time else end_time.tzinfo,
         )
         partition_end = (
             partition_start
@@ -191,15 +191,17 @@ class DataStore(BaseRemoteClient):
             - datetime.timedelta(microseconds=1)
         )
 
-        if end_time < partition_start or start_time > partition_end:
+        if (end_time and end_time < partition_start) or (
+            start_time and start_time > partition_end
+        ):
             return False
         return True
 
     @staticmethod
     def _list_partition_paths_helper(
         paths: list[str],
-        start_time,
-        end_time,
+        start_time: Optional[datetime.datetime],
+        end_time: Optional[datetime.datetime],
         current_path: str,
         partition_level: str,
         filesystem,
@@ -243,8 +245,8 @@ class DataStore(BaseRemoteClient):
     @staticmethod
     def _list_partitioned_paths(
         base_url: str,
-        start_time: datetime.datetime,
-        end_time: datetime.datetime,
+        start_time: Optional[datetime.datetime],
+        end_time: Optional[datetime.datetime],
         partition_level: str,
         filesystem,
     ):
@@ -300,8 +302,8 @@ class DataStore(BaseRemoteClient):
     @staticmethod
     def _read_partitioned_parquet(
         base_url: str,
-        start_time: datetime.datetime,
-        end_time: datetime.datetime,
+        start_time: Optional[datetime.datetime],
+        end_time: Optional[datetime.datetime],
         partition_keys: list[str],
         df_module: ModuleType,
         filesystem: fsspec.AbstractFileSystem,
@@ -414,6 +416,7 @@ class DataStore(BaseRemoteClient):
                         and DataStore._verify_path_partition_level(
                             urlparse(url).path, partitions
                         )
+                        and (start_time or end_time)
                     ):
                         return DataStore._read_partitioned_parquet(
                             url,

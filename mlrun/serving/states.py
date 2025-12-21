@@ -427,7 +427,7 @@ class BaseStep(ModelObj):
             step.after_step(self.name)
         parent._last_added = step
         step.cycle_to(cycle_to or [])
-        step.max_iterations = max_iterations
+        step._max_iterations = max_iterations
         return step
 
     def cycle_to(self, step_names: Union[str, list[str]]):
@@ -2488,7 +2488,7 @@ class FlowStep(BaseStep):
         for after in after_list:
             self.insert_step(name, step, after, before)
         step.cycle_to(cycle_to or [])
-        step.max_iterations = max_iterations
+        step._max_iterations = max_iterations
         return step
 
     def insert_step(self, key, step, after, before=None):

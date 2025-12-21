@@ -263,6 +263,21 @@ class MyLLM(LLModel):
         return body
 
 
+class DummyLLM(LLModel):
+    def predict(self, body: typing.Any, **kwargs):
+        return body
+
+
+class DummyAsyncLLM(LLModel):
+    async def predict_async(self, body: typing.Any, **kwargs):
+        return body
+
+
+class DummyAsyncLLMWithoutAsyncPredict(LLModel):
+    def predict(self, body: typing.Any, **kwargs):
+        return body
+
+
 class MyPklModel(Model):
     def __init__(self, name, raise_exception, artifact_uri, **kwargs):
         super().__init__(
@@ -1167,8 +1182,8 @@ def test_using_model_without_predict_implementation(execution_mechanism: str):
         function.to_mock_server()
     method_name = "predict()" if execution_mechanism != "asyncio" else "predict_async()"
     expected_msg = (
-        f"'model_without_predict is running with {execution_mechanism} execution_mechanism but "
-        f"{method_name} is not implemented'"
+        f"model_without_predict is running with {execution_mechanism} execution_mechanism but "
+        f"{method_name} is not implemented"
     )
     assert expected_msg in str(exc_info.value)
 
@@ -1208,8 +1223,8 @@ def test_shared_using_model_without_predict_implementation(execution_mechanism: 
             "predict()" if execution_mechanism != "asyncio" else "predict_async()"
         )
         expected_msg = (
-            f"'model_without_predict_shared is running with {execution_mechanism} execution_mechanism but "
-            f"{method_name} is not implemented'"
+            f"model_without_predict_shared is running with {execution_mechanism} execution_mechanism but "
+            f"{method_name} is not implemented"
         )
         assert expected_msg in str(exc_info.value)
 
@@ -1295,3 +1310,61 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
         ), "Max threads not configured properly"
     server.test(body={"n": 1})
     server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    "model_class, raise_exception",
+    [
+        (
+            "LLModel",
+            True,
+        ),  #  LLModel should raise error because predict was not overridden
+        #  DummyAsyncLLMWithoutAsyncPredict should raise error because async_predict was not overridden:
+        ("DummyAsyncLLMWithoutAsyncPredict", True),
+        ("DummyLLM", False),
+        ("DummyAsyncLLM", False),
+    ],
+)
+def test_llmodel_without_model_artifact(model_class, raise_exception):
+    is_async = model_class in ("DummyAsyncLLM", "DummyAsyncLLMWithoutAsyncPredict")
+    execution_mechanism = "asyncio" if is_async else "naive"
+    predict_function_name = "predict_async" if is_async else "predict"
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="model-runner")
+    project = mlrun.new_project("llmodel-without-model-artifact", save=False)
+    llm_artifact = project.log_llm_prompt(
+        "my_llm",
+        prompt_template=[
+            {"role": "user", "content": "What is the capital city of {country}?"}
+        ],
+        prompt_legend={"country": {"field": None, "description": "Great"}},
+    )
+
+    model_runner_step.add_model(
+        model_class=model_class,
+        execution_mechanism=execution_mechanism,
+        endpoint_name="my-model",
+        model_artifact=llm_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    server = None
+    with unittest.mock.patch(
+        "mlrun.datastore.datastore.get_store_resource",
+        return_value=llm_artifact,
+    ):
+        try:
+            if raise_exception:
+                with pytest.raises(
+                    mlrun.errors.MLRunRuntimeError,
+                    match=f"Model provider could not be determined for model 'my-model', and the"
+                    f" {predict_function_name} function was not overridden",
+                ):
+                    server = function.to_mock_server()
+            else:
+                server = function.to_mock_server()
+                resp = server.test(body={"country": "france"})
+                assert resp == {"country": "france"}
+        finally:
+            if server:
+                server.wait_for_completion()

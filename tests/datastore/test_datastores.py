@@ -14,7 +14,7 @@
 
 import os
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pandas as pd
 import pytest
@@ -24,6 +24,7 @@ import mlrun.errors
 from mlrun.artifacts import ModelArtifact
 from mlrun.artifacts.base import LinkArtifact
 from mlrun.datastore.inmem import InMemoryStore
+from mlrun.datastore.store_resources import ResourceCache
 from tests.conftest import rundb_path
 
 mlrun.mlconf.dbpath = rundb_path
@@ -383,39 +384,17 @@ def test_item_to_real_path_map(virtual_path: str, tmpdir: Path) -> None:
 
 
 def test_resource_cache_get_table_caches_by_original_uri():
-    """Test that ResourceCache.get_table() caches tables under the original URI.
-
-    Regression test for ML-11518: parse_path() was overwriting the uri variable,
-    causing tables to be stored under the parsed path instead of the original URI.
-    This led to cache misses on subsequent calls with the same URI.
-    """
-    from unittest.mock import MagicMock, patch
-
-    from mlrun.datastore.store_resources import ResourceCache
-
-    # Arrange
+    """Test that ResourceCache.get_table() caches tables under the original URI."""
     cache = ResourceCache()
     test_uri = "v3io://webapi.default-tenant.app.cluster/container/path/to/table"
     mock_table_instance = MagicMock(name="MockTable")
 
     with patch("storey.Table", return_value=mock_table_instance) as mock_table_class:
         with patch("storey.V3ioDriver"):
-            # Act - First call creates the table
             first_result = cache.get_table(test_uri)
-
-            # Assert - Table created and cached under original URI (not parsed path)
             mock_table_class.assert_called_once()
             assert first_result is mock_table_instance
-            assert test_uri in cache._tabels, (
-                f"Table should be cached under original URI '{test_uri}', "
-                f"but cache contains: {list(cache._tabels.keys())}"
-            )
 
-            # Act - Second call with same URI should return cached table
             second_result = cache.get_table(test_uri)
-
-            # Assert - No additional Table creation, same instance returned
-            assert (
-                mock_table_class.call_count == 1
-            ), "Table should be cached - second call should not create new Table"
+            assert mock_table_class.call_count == 1
             assert second_result is first_result

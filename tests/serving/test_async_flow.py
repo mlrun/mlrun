@@ -1315,7 +1315,10 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
 @pytest.mark.parametrize(
     "model_class, raise_exception",
     [
-        ("LLModel", True), #  LLModel should raise error because predict was not overridden
+        (
+            "LLModel",
+            True,
+        ),  #  LLModel should raise error because predict was not overridden
         #  DummyAsyncLLMWithoutAsyncPredict should raise error because async_predict was not overridden:
         ("DummyAsyncLLMWithoutAsyncPredict", True),
         ("DummyLLM", False),

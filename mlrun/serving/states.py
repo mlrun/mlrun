@@ -1428,20 +1428,20 @@ class LLModel(Model):
     def init(self):
         super().init()
 
-        unchanged_predict = (
-            type(self).predict is LLModel.predict
-            and self._execution_mechanism != storey.ParallelExecutionMechanisms.asyncio
-        )
-        unchanged_async_predict = (
-            type(self).predict_async is LLModel.predict_async
-            and self._execution_mechanism == storey.ParallelExecutionMechanisms.asyncio
-        )
-        if not self.model_provider and (unchanged_predict or unchanged_async_predict):
-            predict_function_name = "predict" if unchanged_predict else "predict_async"
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Model provider could not be determined for model '{self.name}',"
-                f" and the {predict_function_name} function was not overridden."
-            )
+        if not self.model_provider:
+            if self._execution_mechanism != storey.ParallelExecutionMechanisms.asyncio:
+                unchanged_predict = self.__class__.predict is LLModel.predict
+                predict_function_name = "predict"
+            else:
+                unchanged_predict = (
+                    self.__class__.predict_async is LLModel.predict_async
+                )
+                predict_function_name = "predict_async"
+            if unchanged_predict:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Model provider could not be determined for model '{self.name}',"
+                    f" and the {predict_function_name} function was not overridden."
+                )
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)

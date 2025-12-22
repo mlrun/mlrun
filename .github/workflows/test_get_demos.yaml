@@ -35,13 +35,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
-            mlrun_version="${GITHUB_REF_NAME#v}"
-          else
-            # version_file.py may output local version segment (e.g. "+my-feature").
-            # Strip it to keep get_demos.py input in the expected format.
-            mlrun_version="$(python automation/version/version_file.py current-version | sed 's/+.*$//')"
-          fi
+          mlrun_version="1.11.0"
+          # if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+          #   mlrun_version="${GITHUB_REF_NAME#v}"
+          # else
+          #   # version_file.py may output local version segment (e.g. "+my-feature").
+          #   # Strip it to keep get_demos.py input in the expected format.
+          #   mlrun_version="$(python automation/version/version_file.py current-version | sed 's/+.*$//')"
+          # fi
 
           echo "mlrun_version=$mlrun_version" >> "$GITHUB_OUTPUT"
           echo "Resolved mlrun_version: $mlrun_version"

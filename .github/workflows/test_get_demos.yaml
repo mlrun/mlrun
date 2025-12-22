@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          mlrun_version="1.11.0"
+          mlrun_version="1.10.0"
           # if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
           #   mlrun_version="${GITHUB_REF_NAME#v}"
           # else

@@ -315,10 +315,9 @@ class ServingRuntime(RemoteRuntime):
                 step = RouterStep(class_name=class_name, class_args=class_args)
             self.spec.graph = step
         elif topology == StepKinds.flow:
-            engine = engine or "async"
             self.spec.graph = RootFlowStep(
-                engine=engine,
-                allow_cyclic=allow_cyclic if engine == "async" else False,
+                engine=engine or "async",
+                allow_cyclic=allow_cyclic,
                 max_iterations=max_iterations,
             )
             self.spec.graph.track_models = self.spec.track_models

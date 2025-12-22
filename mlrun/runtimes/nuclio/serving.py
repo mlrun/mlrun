@@ -298,8 +298,7 @@ class ServingRuntime(RemoteRuntime):
             )
         if allow_cyclic and (
             topology == StepKinds.router
-            or topology == StepKinds.flow
-            and engine == "sync"
+            or (topology == StepKinds.flow and engine == "sync")
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cyclic graphs are only supported in flow topology with async engine"

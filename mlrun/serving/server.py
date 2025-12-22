@@ -649,7 +649,7 @@ async def async_execute_graph(
 
     if df.empty:
         context.logger.warn("Job terminated due to empty inputs (0 rows)")
-        return []
+        return
 
     track_models = spec.get("track_models")
 
@@ -779,30 +779,49 @@ async def async_execute_graph(
         model_endpoint_uids=model_endpoint_uids,
     )
 
-    # log the results as artifacts
-    num_of_meps_in_the_graph = len(server.graph.model_endpoints_names)
-    artifact_path = None
-    if (
-        "{{run.uid}}" not in context.artifact_path
-    ):  # TODO: delete when IG-22841 is resolved
-        artifact_path = "+/{{run.uid}}"  # will be concatenated to the context's path in extend_artifact_path
-    if num_of_meps_in_the_graph <= 1:
+    has_responder = False
+    for step in server.graph.steps.values():
+        if getattr(step, "responder", False):
+            has_responder = True
+            break
+
+    if has_responder:
+        # log the results as a dataset artifact
+        artifact_path = None
+        if (
+            "{{run.uid}}" not in context.artifact_path
+        ):  # TODO: delete when IG-22841 is resolved
+            artifact_path = "+/{{run.uid}}"  # will be concatenated to the context's path in extend_artifact_path
         context.log_dataset(
             "prediction", df=pd.DataFrame(responses), artifact_path=artifact_path
         )
-    else:
-        # turn this list of samples into a dict of lists, one per model endpoint
-        grouped = defaultdict(list)
-        for sample in responses:
-            for model_name, features in sample.items():
-                grouped[model_name].append(features)
-        # create a dataframe per model endpoint and log it
-        for model_name, features in grouped.items():
-            context.log_dataset(
-                f"prediction_{model_name}",
-                df=pd.DataFrame(features),
-                artifact_path=artifact_path,
-            )
+
+        # if we got responses that appear to be in the right format, try to log per-model datasets too
+        if (
+            responses
+            and responses[0]
+            and isinstance(responses[0], dict)
+            and isinstance(next(iter(responses[0].values())), dict | list)
+        ):
+            try:
+                # turn this list of samples into a dict of lists, one per model endpoint
+                grouped = defaultdict(list)
+                for sample in responses:
+                    for model_name, features in sample.items():
+                        grouped[model_name].append(features)
+                # create a dataframe per model endpoint and log it
+                for model_name, features in grouped.items():
+                    context.log_dataset(
+                        f"prediction_{model_name}",
+                        df=pd.DataFrame(features),
+                        artifact_path=artifact_path,
+                    )
+            except Exception as e:
+                context.logger.warning(
+                    "Failed to log per-model prediction datasets",
+                    error=err_to_str(e),
+                )
+
     context.log_result("num_rows", run_call_count)
 
 

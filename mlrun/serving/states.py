@@ -134,7 +134,14 @@ def new_remote_endpoint(
 class BaseStep(ModelObj):
     kind = "BaseStep"
     default_shape = "ellipse"
-    _dict_fields = ["kind", "comment", "after", "on_error", "max_iterations"]
+    _dict_fields = [
+        "kind",
+        "comment",
+        "after",
+        "on_error",
+        "max_iterations",
+        "_cycle_to",
+    ]
     _default_fields_to_strip = _default_fields_to_strip_from_step
 
     def __init__(
@@ -157,6 +164,7 @@ class BaseStep(ModelObj):
             schemas.ModelEndpointCreationStrategy.SKIP
         )
         self._max_iterations = max_iterations
+        self._cycle_to = []
 
     def get_shape(self):
         """graphviz shape"""
@@ -455,6 +463,8 @@ class BaseStep(ModelObj):
                     f"step {step_name} doesnt exist in the graph under {self._parent.fullname}"
                 )
             root[step_name].after_step(self.name, append=True)
+            root[step_name]._cycle_to.append(self.name)
+
         return self
 
     def set_flow(
@@ -2591,7 +2601,7 @@ class FlowStep(BaseStep):
         for step in self._steps.values():
             step._next = None
             step._visited = False
-            if step.after:
+            if step.after and not step._cycle_to:
                 has_illegal_branches = len(step.after) > 1 and self.engine == "sync"
                 if has_illegal_branches:
                     raise GraphError(
@@ -2602,6 +2612,10 @@ class FlowStep(BaseStep):
                     raise GraphError(
                         f"Error, loop detected in step {loop_step}, graph must be acyclic (DAG)"
                     )
+            elif (
+                step.after and step._cycle_to and set(step.after) == set(step._cycle_to)
+            ):
+                start_steps.append(step.name)
             else:
                 start_steps.append(step.name)
 

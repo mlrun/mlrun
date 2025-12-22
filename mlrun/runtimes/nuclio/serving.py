@@ -296,6 +296,14 @@ class ServingRuntime(RemoteRuntime):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "graph topology is already set, cannot be overwritten"
             )
+        if allow_cyclic and (
+            topology == StepKinds.router
+            or topology == StepKinds.flow
+            and engine == "sync"
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cyclic graphs are only supported in flow topology with async engine"
+            )
 
         if topology == StepKinds.router:
             if class_name and hasattr(class_name, "to_dict"):

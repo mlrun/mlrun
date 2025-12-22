@@ -2955,7 +2955,7 @@ class RootFlowStep(FlowStep):
         engine=None,
         final_step=None,
         allow_cyclic: bool = False,
-        max_iterations: Optional[int] = 10,
+        max_iterations: Optional[int] = 10_000,
     ):
         super().__init__(
             name, steps, after, engine, final_step, allow_cyclic, max_iterations

@@ -945,7 +945,7 @@ class RemoteRuntime(KubeResource):
     def invoke(
         self,
         path: str,
-        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
+        body: typing.Optional[typing.Union[str, bytes, dict, list]] = None,
         method: typing.Optional[str] = None,
         headers: typing.Optional[dict] = None,
         force_external_address: bool = False,

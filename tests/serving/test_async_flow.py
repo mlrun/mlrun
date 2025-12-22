@@ -1467,6 +1467,9 @@ def test_max_iter_of_cyclic_graph(method, max_iter):
     try:
         with pytest.raises(RuntimeError, match=rf"{expected_error}"):
             server.test(body={"counter": 1})
+    finally:
+        server.wait_for_completion()
+
 
 @pytest.mark.parametrize("multiple_models", (True, False))
 @pytest.mark.parametrize("raise_exception", (True, False))

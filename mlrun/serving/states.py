@@ -134,7 +134,14 @@ def new_remote_endpoint(
 class BaseStep(ModelObj):
     kind = "BaseStep"
     default_shape = "ellipse"
-    _dict_fields = ["kind", "comment", "after", "on_error"]
+    _dict_fields = [
+        "kind",
+        "comment",
+        "after",
+        "on_error",
+        "max_iterations",
+        "_cycle_to",
+    ]
     _default_fields_to_strip = _default_fields_to_strip_from_step
 
     def __init__(
@@ -142,6 +149,7 @@ class BaseStep(ModelObj):
         name: Optional[str] = None,
         after: Optional[list] = None,
         shape: Optional[str] = None,
+        max_iterations: Optional[int] = None,
     ):
         self.name = name
         self._parent = None
@@ -155,6 +163,8 @@ class BaseStep(ModelObj):
         self.model_endpoint_creation_strategy = (
             schemas.ModelEndpointCreationStrategy.SKIP
         )
+        self._max_iterations = max_iterations
+        self._cycle_from = []
 
     def get_shape(self):
         """graphviz shape"""
@@ -348,6 +358,8 @@ class BaseStep(ModelObj):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = None,
+        cycle_to: Optional[list[str]] = None,
+        max_iterations: Optional[int] = None,
         **class_args,
     ):
         """add a step right after this step and return the new step
@@ -386,6 +398,8 @@ class BaseStep(ModelObj):
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
 
+        :param cycle_to:    list of step names to create a cycle to (for cyclic graphs)
+        :param max_iterations: maximum number of iterations for this step in case of a cycle graph
         :param class_args:  class init arguments
         """
         if hasattr(self, "steps"):
@@ -420,7 +434,38 @@ class BaseStep(ModelObj):
             # check that its not the root, todo: in future may gave nested flows
             step.after_step(self.name)
         parent._last_added = step
+        step.cycle_to(cycle_to or [])
+        step._max_iterations = max_iterations
         return step
+
+    def cycle_to(self, step_names: Union[str, list[str]]):
+        """create a cycle in the graph to the specified step names
+
+        example:
+            in the below example, a cycle is created from 'step3' to 'step1':
+            graph.to('step1')\
+                 .to('step2')\
+                 .to('step3')\
+                 .cycle_to(['step1'])  # creates a cycle from step3 to step1
+
+        :param step_names: list of step names to create a cycle to (for cyclic graphs)
+        """
+        root = self._extract_root_step()
+        if not isinstance(root, RootFlowStep):
+            raise GraphError("cycle_to() can only be called on a step within a graph")
+        if not root.allow_cyclic and step_names:
+            raise GraphError("cyclic graphs are not allowed, enable allow_cyclic")
+        step_names = [step_names] if isinstance(step_names, str) else step_names
+
+        for step_name in step_names:
+            if step_name not in root:
+                raise GraphError(
+                    f"step {step_name} doesnt exist in the graph under {self._parent.fullname}"
+                )
+            root[step_name].after_step(self.name, append=True)
+            root[step_name]._cycle_from.append(self.name)
+
+        return self
 
     def set_flow(
         self,
@@ -692,6 +737,7 @@ class TaskStep(BaseStep):
         self.handler = handler
         self.function = function
         self._handler = None
+        self._outlets_selector = None
         self._object = None
         self._async_object = None
         self.skip_context = None
@@ -759,6 +805,8 @@ class TaskStep(BaseStep):
                     handler = "do"
             if handler:
                 self._handler = getattr(self._object, handler, None)
+            if hasattr(self._object, "select_outlets"):
+                self._outlets_selector = self._object.select_outlets
 
         self._set_error_handler()
         if mode != "skip":
@@ -2190,6 +2238,7 @@ class ModelRunnerStep(MonitoredStep):
             max_processes=self.max_processes,
             max_threads=self.max_threads,
             pool_factor=self.pool_factor,
+            **extra_kwargs,
         )
 
 
@@ -2282,6 +2331,8 @@ class QueueStep(BaseStep, StepToDict):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = None,
+        cycle_to: Optional[list[str]] = None,
+        max_iterations: Optional[int] = None,
         **class_args,
     ):
         if not function:
@@ -2299,6 +2350,8 @@ class QueueStep(BaseStep, StepToDict):
             input_path,
             result_path,
             model_endpoint_creation_strategy,
+            cycle_to,
+            max_iterations,
             **class_args,
         )
 
@@ -2334,8 +2387,10 @@ class FlowStep(BaseStep):
         after: Optional[list] = None,
         engine=None,
         final_step=None,
+        allow_cyclic: bool = False,
+        max_iterations: Optional[int] = None,
     ):
-        super().__init__(name, after)
+        super().__init__(name, after, max_iterations=max_iterations)
         self._steps = None
         self.steps = steps
         self.engine = engine
@@ -2347,6 +2402,7 @@ class FlowStep(BaseStep):
         self._wait_for_result = False
         self._source = None
         self._start_steps = []
+        self._allow_cyclic = allow_cyclic
 
     def get_children(self):
         return self._steps.values()
@@ -2380,6 +2436,8 @@ class FlowStep(BaseStep):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = None,
+        cycle_to: Optional[list[str]] = None,
+        max_iterations: Optional[int] = None,
         **class_args,
     ):
         """add task, queue or router step/class to the flow
@@ -2422,6 +2480,8 @@ class FlowStep(BaseStep):
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
 
+        :param cycle_to:    list of step names to create a cycle to (for cyclic graphs)
+        :param max_iterations: maximum number of iterations for this step in case of a cycle graph
         :param class_args:  class init arguments
         """
 
@@ -2447,6 +2507,8 @@ class FlowStep(BaseStep):
         after_list = after if isinstance(after, list) else [after]
         for after in after_list:
             self.insert_step(name, step, after, before)
+        step.cycle_to(cycle_to or [])
+        step._max_iterations = max_iterations
         return step
 
     def insert_step(self, key, step, after, before=None):
@@ -2539,18 +2601,24 @@ class FlowStep(BaseStep):
         for step in self._steps.values():
             step._next = None
             step._visited = False
-            if step.after:
+            if step.after and not step._cycle_from:
                 has_illegal_branches = len(step.after) > 1 and self.engine == "sync"
                 if has_illegal_branches:
                     raise GraphError(
                         f"synchronous flow engine doesnt support branches use async for step {step.name}"
                     )
                 loop_step = has_loop(step, [])
-                if loop_step:
+                if loop_step and not self.allow_cyclic:
                     raise GraphError(
                         f"Error, loop detected in step {loop_step}, graph must be acyclic (DAG)"
                     )
-            else:
+            elif (
+                step.after
+                and step._cycle_from
+                and set(step.after) == set(step._cycle_from)
+            ):
+                start_steps.append(step.name)
+            elif not step._cycle_from:
                 start_steps.append(step.name)
 
         responders = []
@@ -2647,6 +2715,9 @@ class FlowStep(BaseStep):
         def process_step(state, step, root):
             if not state._is_local_function(self.context) or state._visited:
                 return
+            state._visited = (
+                True  # mark visited to avoid re-visit in case of multiple uplinks
+            )
             for item in state.next or []:
                 next_state = root[item]
                 if next_state.async_object:
@@ -2657,7 +2728,7 @@ class FlowStep(BaseStep):
             )
 
         default_source, self._wait_for_result = _init_async_objects(
-            self.context, self._steps.values()
+            self.context, self._steps.values(), self
         )
 
         source = self._source or default_source
@@ -2888,6 +2959,8 @@ class RootFlowStep(FlowStep):
         "shared_models",
         "shared_models_mechanism",
         "pool_factor",
+        "allow_cyclic",
+        "max_iterations",
     ]
 
     def __init__(
@@ -2897,13 +2970,11 @@ class RootFlowStep(FlowStep):
         after: Optional[list] = None,
         engine=None,
         final_step=None,
+        allow_cyclic: bool = False,
+        max_iterations: Optional[int] = 10_000,
     ):
         super().__init__(
-            name,
-            steps,
-            after,
-            engine,
-            final_step,
+            name, steps, after, engine, final_step, allow_cyclic, max_iterations
         )
         self._models = set()
         self._route_models = set()
@@ -2913,6 +2984,22 @@ class RootFlowStep(FlowStep):
         self._shared_max_processes = None
         self._shared_max_threads = None
         self._pool_factor = None
+
+    @property
+    def max_iterations(self) -> int:
+        return self._max_iterations
+
+    @max_iterations.setter
+    def max_iterations(self, max_iterations: int):
+        self._max_iterations = max_iterations
+
+    @property
+    def allow_cyclic(self) -> bool:
+        return self._allow_cyclic
+
+    @allow_cyclic.setter
+    def allow_cyclic(self, allow_cyclic: bool):
+        self._allow_cyclic = allow_cyclic
 
     def add_shared_model(
         self,
@@ -3461,7 +3548,7 @@ def params_to_step(
     return name, step
 
 
-def _init_async_objects(context, steps):
+def _init_async_objects(context, steps, root):
     try:
         import storey
     except ImportError:
@@ -3476,6 +3563,7 @@ def _init_async_objects(context, steps):
 
     for step in steps:
         if hasattr(step, "async_object") and step._is_local_function(context):
+            max_iterations = step._max_iterations or root.max_iterations
             if step.kind == StepKinds.queue:
                 skip_stream = context.is_mock and step.next
                 if step.path and not skip_stream:
@@ -3499,12 +3587,14 @@ def _init_async_objects(context, steps):
                             step._async_object = KafkaStoreyTarget(
                                 path=stream_path,
                                 context=context,
+                                max_iterations=max_iterations,
                                 **options,
                             )
                         elif isinstance(datastore_profile, DatastoreProfileV3io):
                             step._async_object = StreamStoreyTarget(
                                 stream_path=stream_path,
                                 context=context,
+                                max_iterations=max_iterations,
                                 **options,
                             )
                         else:
@@ -3524,10 +3614,15 @@ def _init_async_objects(context, steps):
                             brokers=brokers,
                             producer_options=kafka_producer_options,
                             context=context,
+                            max_iterations=max_iterations,
                             **options,
                         )
                     elif stream_path.startswith("dummy://"):
-                        step._async_object = _DummyStream(context=context, **options)
+                        step._async_object = _DummyStream(
+                            context=context,
+                            max_iterations=max_iterations,
+                            **options,
+                        )
                     else:
                         if stream_path.startswith("v3io://"):
                             endpoint, stream_path = parse_path(step.path)
@@ -3536,10 +3631,14 @@ def _init_async_objects(context, steps):
                             storey.V3ioDriver(endpoint or config.v3io_api),
                             stream_path,
                             context=context,
+                            max_iterations=max_iterations,
                             **options,
                         )
                 else:
-                    step._async_object = storey.Map(lambda x: x)
+                    step._async_object = storey.Map(
+                        lambda x: x,
+                        max_iterations=max_iterations,
+                    )
 
             elif not step.async_object or not hasattr(step.async_object, "_outlets"):
                 # if regular class, wrap with storey Map
@@ -3551,6 +3650,8 @@ def _init_async_objects(context, steps):
                     name=step.name,
                     context=context,
                     pass_context=step._inject_context,
+                    fn_select_outlets=step._outlets_selector,
+                    max_iterations=max_iterations,
                 )
             if (
                 respond_supported

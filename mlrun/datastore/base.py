@@ -397,7 +397,7 @@ class DataStore(BaseRemoteClient):
 
             if start_time or end_time or additional_filters:
                 partitions_time_attributes, partitions = find_partitions(
-                    url, file_system
+                    url, file_system, True
                 )
                 logger.debug("Partitioned parquet read", partitions=partitions)
                 set_filters(

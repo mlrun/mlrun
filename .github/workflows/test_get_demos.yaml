@@ -54,7 +54,7 @@ jobs:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
-      - name: Debug: Show configuration
+      - name: Show configuration
         shell: bash
         run: |
           echo "=== get_demos.py Configuration ==="

@@ -1,30 +1,9 @@
 name: Test get_demos.py
 
-run-name: get_demos.py ${{ inputs.mlrun_version }}
+run-name: get_demos.py (${{ github.ref_name }})
 
 on:
-  workflow_dispatch:
-    inputs:
-      mlrun_version:
-        description: "MLRun version to align demos with (e.g. 1.9.0 or 1.9.0-rc1)"
-        required: true
-        type: string
-      org:
-        description: "GitHub org for the demo repositories"
-        required: false
-        default: "mlrun"
-        type: string
-      dest:
-        description: "Destination folder name"
-        required: false
-        default: "demos"
-        type: string
-      use_github_app_token:
-        description: "Use GitHub App token (requires secrets GH_APP_ID and GH_APP_PRIVATE_KEY)"
-        required: false
-        default: "false"
-        type: choice
-        options: ["true", "false"]
+  push:
 
 permissions:
   contents: read
@@ -36,7 +15,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 1
+          # Fetch history and tags, so version resolution based on git tags can work
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -48,19 +28,55 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install requests packaging tqdm
+
+      - name: Resolve mlrun version
+        id: resolve-version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            mlrun_version="${GITHUB_REF_NAME#v}"
+          else
+            # version_file.py may output local version segment (e.g. "+my-feature").
+            # Strip it to keep get_demos.py input in the expected format.
+            mlrun_version="$(python automation/version/version_file.py current-version | sed 's/+.*$//')"
+          fi
+
+          echo "mlrun_version=$mlrun_version" >> "$GITHUB_OUTPUT"
+          echo "Resolved mlrun_version: $mlrun_version"
+
       - name: Create GitHub App token
         id: app-token
-        if: ${{ inputs.use_github_app_token == 'true' }}
+        if: ${{ secrets.GH_APP_ID != '' && secrets.GH_APP_PRIVATE_KEY != '' }}
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
+      - name: Debug: Show configuration
+        shell: bash
+        run: |
+          echo "=== get_demos.py Configuration ==="
+          echo "mlrun_version: ${{ steps.resolve-version.outputs.mlrun_version }}"
+          echo "org: mlrun (default from get_demos.py)"
+          echo "dest: demos (default from get_demos.py)"
+          if [[ -n "${{ steps.app-token.outputs.token }}" ]]; then
+            echo "token_type: GitHub App installation token"
+            echo "token_available: yes"
+          else
+            echo "token_type: github.token (workflow default)"
+            if [[ -n "${{ github.token }}" ]]; then
+              echo "token_available: yes"
+            else
+              echo "token_available: no"
+            fi
+          fi
+          echo "=================================="
+
       - name: Run get_demos.py
         env:
-          # Use GitHub App token if requested, otherwise fall back to the workflow token
+          # Use GitHub App token if available, otherwise fall back to the workflow token
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
         run: |
-          python automation/scripts/get_demos.py "${{ inputs.mlrun_version }}" \
-            --org "${{ inputs.org }}" \
-            --dest "${{ inputs.dest }}"
+          python automation/scripts/get_demos.py "${{ steps.resolve-version.outputs.mlrun_version }}"

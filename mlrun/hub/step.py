@@ -33,6 +33,7 @@ class HubStep(HubAsset):
         name: str,
         version: str,
         class_name: str,
+        default_handler: str,
         description: Optional[str] = None,
         categories: Optional[list] = None,
         requirements: Optional[list] = None,
@@ -54,6 +55,7 @@ class HubStep(HubAsset):
             url=url,
         )
         self.class_name = class_name
+        self.default_handler = default_handler
 
     def download_files(
         self,
@@ -98,7 +100,14 @@ def get_hub_step(
     item_yaml = yaml.safe_load(yaml_obj)
     spec = item_yaml.pop("spec", {})
     class_name = item_yaml.pop("className", "")
-    hub_step = HubStep(**item_yaml, **spec, class_name=class_name, url=url)
+    default_handler = item_yaml.pop("defaultHandler", "")
+    hub_step = HubStep(
+        **item_yaml,
+        **spec,
+        class_name=class_name,
+        default_handler=default_handler,
+        url=url,
+    )
     if download_files:
         hub_step.download_files(local_path=local_path, download_example=include_example)
     return hub_step

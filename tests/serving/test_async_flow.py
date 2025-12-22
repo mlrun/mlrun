@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import pathlib
+import pickle
 import shutil
 import tempfile
 import time
@@ -254,12 +255,57 @@ class MyRemoteModel(Model):
         return body
 
 
+class BatchedModel(Model):
+    def __init__(self, model_path: str, **kwargs):
+        super().__init__(**kwargs)
+        self.model_path = model_path
+        self.model = None
+
+    def load(self) -> None:
+        with open(self.model_path, "rb") as f:
+            self.model = pickle.load(f)
+
+    def predict(self, body, **kwargs):
+        invocation_body = body.get("input")
+        if isinstance(invocation_body, dict):
+            # example of single invocation
+            x = pd.DataFrame([invocation_body])
+        elif isinstance(invocation_body, list):
+            x = pd.DataFrame(invocation_body)
+        else:
+            x = invocation_body
+        predictions = self.model.predict(x).tolist()
+        return [round(v, 6) for v in predictions]
+
+    @staticmethod
+    def format_batch(body: typing.Any):
+        batched_body = {"input": []}
+        for item in body:
+            batched_body["input"].append(item.get("input", item))
+        return batched_body
+
+
 class MyLLM(LLModel):
     def predict(self, body, **kwargs):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
         body["invocation_config"] = kwargs.get("invocation_config")
         body["prompt"] = kwargs.get("messages")
+        return body
+
+
+class DummyLLM(LLModel):
+    def predict(self, body: typing.Any, **kwargs):
+        return body
+
+
+class DummyAsyncLLM(LLModel):
+    async def predict_async(self, body: typing.Any, **kwargs):
+        return body
+
+
+class DummyAsyncLLMWithoutAsyncPredict(LLModel):
+    def predict(self, body: typing.Any, **kwargs):
         return body
 
 
@@ -1167,8 +1213,8 @@ def test_using_model_without_predict_implementation(execution_mechanism: str):
         function.to_mock_server()
     method_name = "predict()" if execution_mechanism != "asyncio" else "predict_async()"
     expected_msg = (
-        f"'model_without_predict is running with {execution_mechanism} execution_mechanism but "
-        f"{method_name} is not implemented'"
+        f"model_without_predict is running with {execution_mechanism} execution_mechanism but "
+        f"{method_name} is not implemented"
     )
     assert expected_msg in str(exc_info.value)
 
@@ -1208,8 +1254,8 @@ def test_shared_using_model_without_predict_implementation(execution_mechanism: 
             "predict()" if execution_mechanism != "asyncio" else "predict_async()"
         )
         expected_msg = (
-            f"'model_without_predict_shared is running with {execution_mechanism} execution_mechanism but "
-            f"{method_name} is not implemented'"
+            f"model_without_predict_shared is running with {execution_mechanism} execution_mechanism but "
+            f"{method_name} is not implemented"
         )
         assert expected_msg in str(exc_info.value)
 
@@ -1295,3 +1341,132 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
         ), "Max threads not configured properly"
     server.test(body={"n": 1})
     server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    "model_class, raise_exception",
+    [
+        (
+            "LLModel",
+            True,
+        ),  #  LLModel should raise error because predict was not overridden
+        #  DummyAsyncLLMWithoutAsyncPredict should raise error because async_predict was not overridden:
+        ("DummyAsyncLLMWithoutAsyncPredict", True),
+        ("DummyLLM", False),
+        ("DummyAsyncLLM", False),
+    ],
+)
+def test_llmodel_without_model_artifact(model_class, raise_exception):
+    is_async = model_class in ("DummyAsyncLLM", "DummyAsyncLLMWithoutAsyncPredict")
+    execution_mechanism = "asyncio" if is_async else "naive"
+    predict_function_name = "predict_async" if is_async else "predict"
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="model-runner")
+    project = mlrun.new_project("llmodel-without-model-artifact", save=False)
+    llm_artifact = project.log_llm_prompt(
+        "my_llm",
+        prompt_template=[
+            {"role": "user", "content": "What is the capital city of {country}?"}
+        ],
+        prompt_legend={"country": {"field": None, "description": "Great"}},
+    )
+
+    model_runner_step.add_model(
+        model_class=model_class,
+        execution_mechanism=execution_mechanism,
+        endpoint_name="my-model",
+        model_artifact=llm_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    server = None
+    with unittest.mock.patch(
+        "mlrun.datastore.datastore.get_store_resource",
+        return_value=llm_artifact,
+    ):
+        try:
+            if raise_exception:
+                with pytest.raises(
+                    mlrun.errors.MLRunRuntimeError,
+                    match=f"Model provider could not be determined for model 'my-model', and the"
+                    f" {predict_function_name} function was not overridden",
+                ):
+                    server = function.to_mock_server()
+            else:
+                server = function.to_mock_server()
+                resp = server.test(body={"country": "france"})
+                assert resp == {"country": "france"}
+        finally:
+            if server:
+                server.wait_for_completion()
+
+
+@pytest.mark.parametrize("multiple_models", (True, False))
+@pytest.mark.parametrize("raise_exception", (True, False))
+@pytest.mark.parametrize("batching_format", ("raw_list", "input_list"))
+def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_format):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    step = graph
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    if batching_format == "raw_list":
+        if raise_exception:
+            inputs = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
+        else:
+            inputs = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
+    else:
+        if raise_exception:
+            inputs = [
+                {"input": {"z": 1}},
+                {"input": {"z": 2}},
+                {"input": {"z": 3}},
+                {"input": {"z": 4}},
+                {"input": {"z": 5}},
+            ]
+        else:
+            inputs = [
+                {"input": {"x": 1}},
+                {"input": {"x": 2}},
+                {"input": {"x": 3}},
+                {"input": {"x": 4}},
+                {"input": {"x": 5}},
+            ]
+    model_path = str(pathlib.Path(__file__).parent / "assets" / "linear_model.pkl")
+    model_path2 = str(pathlib.Path(__file__).parent / "assets" / "linear_model2.pkl")
+    endpoint_name = "my_model_1"
+    endpoint_name2 = "my_model_2"
+    model_runner_step.add_model(
+        model_class="BatchedModel",
+        execution_mechanism="naive",
+        endpoint_name=endpoint_name,
+        model_path=model_path,
+    )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="BatchedModel",
+            endpoint_name=endpoint_name2,
+            execution_mechanism="naive",
+            model_path=model_path2,
+        )
+    step.to(model_runner_step).respond()
+    server = function.to_mock_server()
+
+    try:
+        if raise_exception:
+            with pytest.raises(
+                RuntimeError,
+                match=".*The feature names should match those that were passed during fit.*",
+            ):
+                server.test(body=inputs)
+        else:
+            resp = server.test(body=inputs)
+            if multiple_models:
+                assert resp == {
+                    endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
+                    endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
+                }
+            else:
+                assert resp == [3.0, 5.0, 7.0, 9.0, 11.0]
+    finally:
+        server.wait_for_completion()

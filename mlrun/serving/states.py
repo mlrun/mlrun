@@ -1184,14 +1184,18 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         if self._execution_mechanism == storey.ParallelExecutionMechanisms.asyncio:
             if self.__class__.predict_async is Model.predict_async:
                 raise mlrun.errors.ModelRunnerError(
-                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict_async() "
-                    f"is not implemented"
+                    {
+                        self.name: f"is running with {self._execution_mechanism} "
+                        f"execution_mechanism but predict_async() is not implemented"
+                    }
                 )
         else:
             if self.__class__.predict is Model.predict:
                 raise mlrun.errors.ModelRunnerError(
-                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict() "
-                    f"is not implemented"
+                    {
+                        self.name: f"is running with {self._execution_mechanism} execution_mechanism but predict() "
+                        f"is not implemented"
+                    }
                 )
 
     def _load_artifacts(self) -> None:
@@ -1210,7 +1214,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         uri = proxy_uri or self.artifact_uri
         if uri:
             if mlrun.datastore.is_store_uri(uri):
-                artifact, _ = mlrun.store_manager.get_store_artifact(uri)
+                artifact, _ = mlrun.store_manager.get_store_artifact(
+                    uri, allow_empty_resources=True
+                )
                 return artifact
             else:
                 raise ValueError(
@@ -1231,6 +1237,8 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+        if isinstance(body, list):
+            body = self.format_batch(body)
         return self.predict(body)
 
     async def run_async(
@@ -1268,6 +1276,10 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             )
             return model_file, extra_dataitems
         return None, None
+
+    @staticmethod
+    def format_batch(body: Any):
+        return body
 
 
 class LLModel(Model):
@@ -1418,6 +1430,24 @@ class LLModel(Model):
                 model_provider_type=type(self.model_provider).__name__,
             )
         return body
+
+    def init(self):
+        super().init()
+
+        if not self.model_provider:
+            if self._execution_mechanism != storey.ParallelExecutionMechanisms.asyncio:
+                unchanged_predict = self.__class__.predict is LLModel.predict
+                predict_function_name = "predict"
+            else:
+                unchanged_predict = (
+                    self.__class__.predict_async is LLModel.predict_async
+                )
+                predict_function_name = "predict_async"
+            if unchanged_predict:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Model provider could not be determined for model '{self.name}',"
+                    f" and the {predict_function_name} function was not overridden."
+                )
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
@@ -2174,11 +2204,15 @@ class ModelRunnerErrorRaiser(storey.MapClass):
             errors = {}
             should_raise = False
             if len(self._models_names) == 1:
-                should_raise = event.body.get("error") is not None
-                errors[self._models_names[0]] = event.body.get("error")
+                if isinstance(event.body, dict):
+                    should_raise = event.body.get("error") is not None
+                    errors[self._models_names[0]] = event.body.get("error")
             else:
                 for model in event.body:
-                    errors[model] = event.body.get(model).get("error")
+                    body_by_model = event.body.get(model)
+                    errors[model] = None
+                    if isinstance(body_by_model, dict):
+                        errors[model] = body_by_model.get("error")
                     if errors[model] is not None:
                         should_raise = True
             if should_raise:

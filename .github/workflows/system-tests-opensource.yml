@@ -17,18 +17,8 @@ name: System Tests Open Source
 permissions:
   contents: read
   packages: write
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
   
 on:
-   pull_request:
-    branches:
-      - development
-      - '[0-9]+.[0-9]+.x'
-
-
    workflow_dispatch:
     inputs:
       pr_number:

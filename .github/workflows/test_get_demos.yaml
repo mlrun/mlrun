@@ -48,7 +48,6 @@ jobs:
 
       - name: Create GitHub App token
         id: app-token
-        if: ${{ secrets.GH_APP_ID != '' && secrets.GH_APP_PRIVATE_KEY != '' }}
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.GH_APP_ID }}

@@ -1401,6 +1401,100 @@ def test_llmodel_without_model_artifact(model_class, raise_exception):
                 server.wait_for_completion()
 
 
+@pytest.mark.parametrize("method", ["add_step", "to"])
+def test_cyclic_graph(method):
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+
+    if method == "to":
+        graph.to(name="start", class_name="Echo").to(
+            class_name="Counter", name="count"
+        ).to(name="route", class_name="Route", cycle_to="count").to(
+            name="end", class_name="Echo"
+        ).respond()
+    else:
+        graph.add_step(name="start", class_name="Echo")
+        graph.add_step(name="count", class_name="Counter", after="start")
+        graph.add_step(
+            name="route", class_name="Route", cycle_to="count", after="count"
+        )
+        graph.add_step(name="end", class_name="Echo", after="route").respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={"counter": 1})
+        assert resp["counter"] == 5
+    finally:
+        server.wait_for_completion()
+
+
+@pytest.mark.parametrize("method", ["add_step", "to"])
+def test_cyclic_to_first_step(method):
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+
+    if method == "to":
+        graph.to(class_name="Counter", name="count").to(
+            name="route", class_name="Route", cycle_to="count"
+        ).to(name="end", class_name="Echo").respond()
+    else:
+        graph.add_step(name="count", class_name="Counter")
+        graph.add_step(
+            name="route", class_name="Route", cycle_to="count", after="count"
+        )
+        graph.add_step(name="end", class_name="Echo", after="route").respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={"counter": 1})
+        assert resp["counter"] == 5
+    finally:
+        server.wait_for_completion()
+
+
+@pytest.mark.parametrize("method", ["add_step", "to"])
+@pytest.mark.parametrize("max_iter", ["local", "global"])
+def test_max_iter_of_cyclic_graph(method, max_iter):
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology(
+        "flow",
+        engine="async",
+        allow_cyclic=True,
+        max_iterations=1 if max_iter == "global" else 10,
+    )
+    if method == "to":
+        graph.to(name="start", class_name="Echo").to(
+            class_name="Counter", name="count"
+        ).to(
+            name="route",
+            class_name="Route",
+            cycle_to="count",
+            max_iterations=1 if max_iter == "local" else None,
+        ).to(name="end", class_name="Echo").respond()
+    else:
+        graph.add_step(name="start", class_name="Echo")
+        graph.add_step(name="count", class_name="Counter", after="start")
+        graph.add_step(
+            name="route",
+            class_name="Route",
+            cycle_to="count",
+            after="count",
+            max_iterations=1,
+        )
+        graph.add_step(name="end", class_name="Echo", after="route").respond()
+    if max_iter == "local":
+        expected_error = r"Max iterations exceeded in step 'route'"
+    else:
+        expected_error = r"Max iterations exceeded in step 'count'"
+
+    server = function.to_mock_server()
+    try:
+        with pytest.raises(RuntimeError, match=rf"{expected_error}"):
+            server.test(body={"counter": 1})
+    finally:
+        server.wait_for_completion()
+
+
 @pytest.mark.parametrize("multiple_models", (True, False))
 @pytest.mark.parametrize("raise_exception", (True, False))
 @pytest.mark.parametrize("batching_format", ("raw_list", "input_list"))

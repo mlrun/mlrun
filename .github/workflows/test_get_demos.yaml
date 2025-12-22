@@ -1,0 +1,66 @@
+name: Test get_demos.py
+
+run-name: get_demos.py ${{ inputs.mlrun_version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      mlrun_version:
+        description: "MLRun version to align demos with (e.g. 1.9.0 or 1.9.0-rc1)"
+        required: true
+        type: string
+      org:
+        description: "GitHub org for the demo repositories"
+        required: false
+        default: "mlrun"
+        type: string
+      dest:
+        description: "Destination folder name"
+        required: false
+        default: "demos"
+        type: string
+      use_github_app_token:
+        description: "Use GitHub App token (requires secrets GH_APP_ID and GH_APP_PRIVATE_KEY)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
+
+permissions:
+  contents: read
+
+jobs:
+  get-demos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.9"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests packaging tqdm
+      - name: Create GitHub App token
+        id: app-token
+        if: ${{ inputs.use_github_app_token == 'true' }}
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Run get_demos.py
+        env:
+          # Use GitHub App token if requested, otherwise fall back to the workflow token
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+        run: |
+          python automation/scripts/get_demos.py "${{ inputs.mlrun_version }}" \
+            --org "${{ inputs.org }}" \
+            --dest "${{ inputs.dest }}"

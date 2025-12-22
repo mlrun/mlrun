@@ -164,7 +164,7 @@ class BaseStep(ModelObj):
             schemas.ModelEndpointCreationStrategy.SKIP
         )
         self._max_iterations = max_iterations
-        self._cycle_to = []
+        self._cycle_from = []
 
     def get_shape(self):
         """graphviz shape"""
@@ -463,7 +463,7 @@ class BaseStep(ModelObj):
                     f"step {step_name} doesnt exist in the graph under {self._parent.fullname}"
                 )
             root[step_name].after_step(self.name, append=True)
-            root[step_name]._cycle_to.append(self.name)
+            root[step_name]._cycle_from.append(self.name)
 
         return self
 
@@ -2601,7 +2601,7 @@ class FlowStep(BaseStep):
         for step in self._steps.values():
             step._next = None
             step._visited = False
-            if step.after and not step._cycle_to:
+            if step.after and not step._cycle_from:
                 has_illegal_branches = len(step.after) > 1 and self.engine == "sync"
                 if has_illegal_branches:
                     raise GraphError(
@@ -2613,10 +2613,12 @@ class FlowStep(BaseStep):
                         f"Error, loop detected in step {loop_step}, graph must be acyclic (DAG)"
                     )
             elif (
-                step.after and step._cycle_to and set(step.after) == set(step._cycle_to)
+                step.after
+                and step._cycle_from
+                and set(step.after) == set(step._cycle_from)
             ):
                 start_steps.append(step.name)
-            elif not step._cycle_to:
+            elif not step._cycle_from:
                 start_steps.append(step.name)
 
         responders = []

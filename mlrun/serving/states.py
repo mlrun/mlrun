@@ -1237,6 +1237,8 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+        if isinstance(body, list):
+            body = self.format_batch(body)
         return self.predict(body)
 
     async def run_async(
@@ -1274,6 +1276,10 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             )
             return model_file, extra_dataitems
         return None, None
+
+    @staticmethod
+    def format_batch(body: Any):
+        return body
 
 
 class LLModel(Model):
@@ -2198,11 +2204,15 @@ class ModelRunnerErrorRaiser(storey.MapClass):
             errors = {}
             should_raise = False
             if len(self._models_names) == 1:
-                should_raise = event.body.get("error") is not None
-                errors[self._models_names[0]] = event.body.get("error")
+                if isinstance(event.body, dict):
+                    should_raise = event.body.get("error") is not None
+                    errors[self._models_names[0]] = event.body.get("error")
             else:
                 for model in event.body:
-                    errors[model] = event.body.get(model).get("error")
+                    body_by_model = event.body.get(model)
+                    errors[model] = None
+                    if isinstance(body_by_model, dict):
+                        errors[model] = body_by_model.get("error")
                     if errors[model] is not None:
                         should_raise = True
             if should_raise:

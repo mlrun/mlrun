@@ -17,6 +17,7 @@ import json
 import os
 import typing
 import unittest.mock
+from http import HTTPStatus
 
 import deepdiff
 import kubernetes
@@ -42,6 +43,7 @@ from mlrun.utils import logger
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
+from services.api.api.endpoints.nuclio import _validate_sidecar_probes
 from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 from services.api.utils.functions import build_function
@@ -2147,6 +2149,91 @@ class TestNuclioRuntime(TestRuntimeBase):
             .startswith("mlrun-auth-secrets")
             for volume in volumes
         )
+
+    def test_validate_sidecar_probes_positive_flow(self):
+        # Test 3 sidecars, each with a different health check method
+        sidecars = [
+            {
+                "name": "sidecar-http",
+                "readinessProbe": {
+                    "httpGet": {
+                        "path": "/ready",
+                        "port": 8080,
+                    },
+                    "initialDelaySeconds": 5,
+                    "periodSeconds": 3,
+                },
+            },
+            {
+                "name": "sidecar-exec",
+                "livenessProbe": {
+                    "exec": {
+                        "command": ["/bin/sh", "-c", "cat /tmp/healthy"],
+                    },
+                    "initialDelaySeconds": 10,
+                    "periodSeconds": 5,
+                },
+            },
+            {
+                "name": "sidecar-tcp",
+                "startupProbe": {
+                    "tcpSocket": {
+                        "port": 9090,
+                    },
+                    "initialDelaySeconds": 15,
+                    "periodSeconds": 10,
+                },
+                "livenessProbe": {
+                    "grpc": {
+                        "port": 9091,
+                        "service": "health",
+                    },
+                    "initialDelaySeconds": 20,
+                    "periodSeconds": 5,
+                },
+            },
+        ]
+
+        _validate_sidecar_probes(sidecars)
+
+    def test_validate_sidecar_probes_invalid_configurations(self):
+        # Test various invalid probe configurations - should raise HTTPException
+        invalid_sidecar_configs = [
+            [
+                {
+                    "name": "test-sidecar-missing",
+                    "readinessProbe": {
+                        "initialDelaySeconds": 5,
+                        "periodSeconds": 3,
+                    },
+                }
+            ],
+            [
+                {
+                    "name": "test-sidecar-more-than-one_health-check",
+                    "readinessProbe": {
+                        "initialDelaySeconds": 5,
+                        "periodSeconds": 3,
+                        "tcpSocket": {
+                            "port": 9090,
+                        },
+                        "httpGet": {
+                            "path": "/ready",
+                            "port": 8080,
+                        },
+                    },
+                }
+            ],
+        ]
+
+        for sidecars in invalid_sidecar_configs:
+            with pytest.raises(HTTPException) as exception_result:
+                _validate_sidecar_probes(sidecars)
+
+            assert exception_result.value.status_code == HTTPStatus.BAD_REQUEST.value
+            assert "must have exactly one of" in str(
+                exception_result.value.detail.get("reason", "")
+            )
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

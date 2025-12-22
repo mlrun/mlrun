@@ -2616,7 +2616,7 @@ class FlowStep(BaseStep):
                 step.after and step._cycle_to and set(step.after) == set(step._cycle_to)
             ):
                 start_steps.append(step.name)
-            else:
+            elif not step._cycle_to:
                 start_steps.append(step.name)
 
         responders = []

@@ -783,9 +783,9 @@ executing==2.2.1 \
     --hash=sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4 \
     --hash=sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017
     # via stack-data
-fastapi==0.124.4 \
-    --hash=sha256:0e9422e8d6b797515f33f500309f6e1c98ee4e85563ba0f2debb282df6343763 \
-    --hash=sha256:6d1e703698443ccb89e50abe4893f3c84d9d6689c0cf1ca4fad6d3c15cf69f15
+fastapi==0.127.0 \
+    --hash=sha256:5a9246e03dcd1fdb19f1396db30894867c1d630f5107dc167dcbc5ed1ea7d259 \
+    --hash=sha256:725aa2bb904e2eff8031557cf4b9b77459bfedd63cae8427634744fd199f6a49
     # via mlflow-skinny
 fastjsonschema==2.21.2 \
     --hash=sha256:1c797122d0a86c5cace2e54bf4e819c36223b552017172f32c5c024a6b77e463 \
@@ -1047,9 +1047,9 @@ google-cloud-bigquery==3.14.1 \
     --hash=sha256:a8ded18455da71508db222b7c06197bc12b6dbc6ed5b0b64e7007b76d7016957 \
     --hash=sha256:aa15bd86f79ea76824c7d710f5ae532323c4b3ba01ef4abff42d4ee7a2e9b142
     # via -r extras-requirements.txt
-google-cloud-bigquery-storage==2.35.0 \
-    --hash=sha256:c9bab6b8e41d6cb9806e589e65f320c89ada84f466e61566b7208d87924c1430 \
-    --hash=sha256:f2e3a08882155de1e9ec53c71c5784eb1f25dc6514c535f5796c3c9eeac17d17
+google-cloud-bigquery-storage==2.36.0 \
+    --hash=sha256:1769e568070db672302771d2aec18341de10712aa9c4a8c549f417503e0149f0 \
+    --hash=sha256:d3c1ce9d2d3a4d7116259889dcbe3c7c70506f71f6ce6bbe54aa0a68bbba8f8f
     # via
     #   -r extras-requirements.txt
     #   google-cloud-bigquery
@@ -2001,9 +2001,9 @@ multidict==6.7.0 \
     # via
     #   aiohttp
     #   yarl
-nbclient==0.10.2 \
-    --hash=sha256:4ffee11e788b4a27fabeb7955547e4318a5298f34342a4bfd01f2e1faaeadc3d \
-    --hash=sha256:90b7fc6b810630db87a6d0c2250b1f0ab4cf4d3c27a299b0cde78a4ed3fd9193
+nbclient==0.10.3 \
+    --hash=sha256:0baf171ee246e3bb2391da0635e719f27dc77d99aef59e0b04dcb935ee04c575 \
+    --hash=sha256:39e9bd403504dd2484dd0fd25235bb6a683ce8cd9873356e40d880696adc9e35
     # via nbconvert
 nbconvert==7.16.6 \
     --hash=sha256:1375a7b67e0c2883678c48e506dc320febb57685e5ee67faa51b18a90f3a712b \
@@ -2024,9 +2024,9 @@ nest-asyncio==1.6.0 \
     # via
     #   -r requirements.txt
     #   ipykernel
-nuclio-jupyter==0.11.2 \
-    --hash=sha256:0b1015087fb44fd42bccb59c09b58cad7deea71ca151d2c6e7e0b2faa8fe15f2 \
-    --hash=sha256:b8c637116c0d2eeb39b8f573c5c5d07edfc23559c5465cb9850bd6d57ee3b438
+nuclio-jupyter==0.11.3 \
+    --hash=sha256:65bd0cc9467dfc459073655f1d1437b615f2b29982e4ea18e3ff0aa7432b2be6 \
+    --hash=sha256:eb62c2cc534ea5a5810e525582e06664b061e2e63ada4fd2ac8acfdf4ac48274
     # via -r requirements.txt
 nuclio-sdk==0.6.2 \
     --hash=sha256:1ac96a61410a7c6b6b7791371e1c9bb312fc09338cbe29118d91e3a65d53cc81 \
@@ -3496,9 +3496,9 @@ sortedcontainers==2.4.0 \
     # via
     #   distributed
     #   snowflake-connector-python
-soupsieve==2.8 \
-    --hash=sha256:0cc76456a30e20f5d7f2e14a98a4ae2ee4e5abdc7c5ea0aafe795f344bc7984c \
-    --hash=sha256:e2dd4a40a628cb5f28f6d4b0db8800b8f581b65bb380b97de22ba5ca8d72572f
+soupsieve==2.8.1 \
+    --hash=sha256:4cf733bc50fa805f5df4b8ef4740fc0e0fa6218cf3006269afd3f9d6d80fd350 \
+    --hash=sha256:a11fe2a6f3d76ab3cf2de04eb339c1be5b506a8a47f2ceb6d139803177f85434
     # via beautifulsoup4
 sqlalchemy==2.0.45 \
     --hash=sha256:0209d9753671b0da74da2cfbb9ecf9c02f72a759e4b018b3ab35f244c91842c7 \
@@ -3557,9 +3557,9 @@ sqlalchemy==2.0.45 \
     #   -r extras-requirements.txt
     #   alembic
     #   mlflow
-sqlparse==0.5.4 \
-    --hash=sha256:4396a7d3cf1cd679c1be976cf3dc6e0a51d0111e87787e7a8d780e7d5a998f9e \
-    --hash=sha256:99a9f0314977b76d776a0fcb8554de91b9bb8a18560631d6bc48721d07023dcb
+sqlparse==0.5.5 \
+    --hash=sha256:12a08b3bf3eec877c519589833aed092e2444e68240a3577e8e26148acc7b1ba \
+    --hash=sha256:e20d4a9b0b8585fdf63b10d30066c7c94c5d7a7ec47c889a2d83a3caa93ff28e
     # via mlflow-skinny
 stack-data==0.6.3 \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
@@ -3711,9 +3711,9 @@ urllib3==2.6.2 \
     #   kfp-server-api
     #   kubernetes
     #   requests
-uvicorn==0.38.0 \
-    --hash=sha256:48c0afd214ceb59340075b4a052ea1ee91c16fbc2a9b1469cca0e54566977b02 \
-    --hash=sha256:fd97093bdd120a2609fc0d3afe931d4d4ad688b6e75f0f929fde1bc36fe0e91d
+uvicorn==0.40.0 \
+    --hash=sha256:839676675e87e73694518b5574fd0f24c9d97b46bea16df7b8c05ea1a51071ea \
+    --hash=sha256:c6c8f55bc8bf13eb6fa9ff87ad62308bbbc33d0b67f84293151efe87e0d5f2ee
     # via mlflow-skinny
 v3io==0.7.2 \
     --hash=sha256:1eef6ebbc744c703b7f2fbeec4a47063c6606045c7307587bec2f0b7167a8629

@@ -2,7 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
-- [v1.10.0](#v1100)
+- [v1.11.0](#v1110) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
@@ -24,6 +24,29 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Python: from 3.9 to 3.11.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+
+(v1110)=
+## v1.11.0 
+
+### UI
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11445| In the Model endpointd > Metric tab, you can now select aggregation functions, which then appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. This is not supported for V3IO.|
+|
+
+
+(1.11.0-breaking)=
+### Breaking Changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-   |TDEngine is deprecated and replaced with TimescaleDB. Model monitoring data in TDEngine is not migrated.
+
+
+### Deprecations
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML- | Python 3.9 is not supported
+
 
 (v1100)=
 ## v1.10.0 (November 2025)

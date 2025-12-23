@@ -166,6 +166,7 @@ class Service(ABC):
         Add authorization header support to Swagger UI.
         This allows users to add a custom authorization header in the Swagger UI.
         """
+
         def custom_openapi():
             if self.app.openapi_schema:
                 return self.app.openapi_schema

@@ -134,6 +134,6 @@ Example:
 }
 ```
 
-## Router step
+## RouterStep
 
 {py:class}`~mlrun.serving.RouterStep` implements routing logic for running child routes. See the example in {ref}`graph-example`.

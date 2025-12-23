@@ -186,7 +186,7 @@ class Service(ABC):
                 "type": "apiKey",
                 "in": "header",
                 "name": "Authorization",
-                "description": "Enter your authorization token. Example: Bearer <token>",
+                "description": "Enter your authorization header token. Example: Bearer <token>",
             }
             # Add security requirement at root level to make it available globally
             # Empty array [] means the security is optional (not required)

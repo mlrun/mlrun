@@ -4,7 +4,7 @@ Learn about the ModelRunnerStep and other steps used when serving models.
 
 **In this section**
 - [ModelRunnerStep](#modelrunnerstep)
-- [Router step](#router-step)
+- [RouterStep](#routerstep)
 
 ## ModelRunnerStep
 

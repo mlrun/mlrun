@@ -1486,7 +1486,7 @@ def my_func(context):
         # Iguazio v4 auth envs are injected
         assert env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] == "true"
         assert env["MLRUN_AUTH_TOKEN_ENDPOINT"] == os.path.join(
-            iguazio_api_url, "api/v1/refresh-access-token"
+            iguazio_api_url, "api/v1/authentication/refresh-access-token"
         )
         assert env["MLRUN_HTTPDB__HTTP__VERIFY"] == "false"
         assert env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] == os.path.join(

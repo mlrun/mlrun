@@ -106,3 +106,23 @@ class ModelClassList(V2ModelServer):
         print("predict:", request)
         resp = request["inputs"][0][0] * self.get_param("multiplier", 1)
         return [resp]
+
+
+class Route:
+    def do(self, event):
+        print("Before routing", event)
+        return event
+
+    def select_outlets(self, event):
+        if event.get("go_cyclic"):
+            return ["count"]
+        return ["end"]
+
+
+class Counter:
+    def do(self, event: dict):
+        event["counter"] = event.get("counter", 0) + 1
+        event["go_cyclic"] = True
+        if event["counter"] > 4:
+            event["go_cyclic"] = False
+        return event

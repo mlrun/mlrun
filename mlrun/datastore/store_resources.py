@@ -76,9 +76,9 @@ class ResourceCache:
             return self._tabels[uri]
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):
-            endpoint, uri = parse_path(uri)
+            endpoint, path = parse_path(uri)
             self._tabels[uri] = Table(
-                uri,
+                path,
                 V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
@@ -87,10 +87,10 @@ class ResourceCache:
         if uri.startswith("redis://") or uri.startswith("rediss://"):
             from storey.redis_driver import RedisDriver
 
-            endpoint, uri = parse_path(uri)
+            endpoint, path = parse_path(uri)
             endpoint = endpoint or mlrun.mlconf.redis.url
             self._tabels[uri] = Table(
-                uri,
+                path,
                 RedisDriver(redis_url=endpoint, key_prefix="/"),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )

@@ -14,7 +14,7 @@
 
 import os
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pandas as pd
 import pytest
@@ -24,6 +24,7 @@ import mlrun.errors
 from mlrun.artifacts import ModelArtifact
 from mlrun.artifacts.base import LinkArtifact
 from mlrun.datastore.inmem import InMemoryStore
+from mlrun.datastore.store_resources import ResourceCache
 from tests.conftest import rundb_path
 
 mlrun.mlconf.dbpath = rundb_path
@@ -380,3 +381,20 @@ def test_item_to_real_path_map(virtual_path: str, tmpdir: Path) -> None:
     assert data.get() == b"abc", "failed put/get test"
     assert data.stat().size == 3, "got wrong file size"
     assert os.path.isfile(os.path.join(tmpdir, "test1.txt"))
+
+
+def test_resource_cache_get_table_caches_by_original_uri():
+    """Test that ResourceCache.get_table() caches tables under the original URI."""
+    cache = ResourceCache()
+    test_uri = "v3io://webapi.default-tenant.app.cluster/container/path/to/table"
+    mock_table_instance = MagicMock(name="MockTable")
+
+    with patch("storey.Table", return_value=mock_table_instance) as mock_table_class:
+        with patch("storey.V3ioDriver"):
+            first_result = cache.get_table(test_uri)
+            mock_table_class.assert_called_once()
+            assert first_result is mock_table_instance
+
+            second_result = cache.get_table(test_uri)
+            assert mock_table_class.call_count == 1
+            assert second_result is first_result

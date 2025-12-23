@@ -31,7 +31,8 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-11445| In the Model endpointd > Metric tab, you can now select aggregation functions, which then appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. This is not supported for V3IO.|
+|ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which then appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.html#model-endpoints-metrics)This is not supported for V3IO.|
+
 |
 
 

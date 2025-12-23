@@ -89,7 +89,6 @@ class HubAsset(ModelObj):
         This path will be used later to locate the code file when calling module().
         """
         self.local_path = self.verify_directory(path=local_path)
-        self.verify_files_dont_exist(include_example_check=download_example)
         source_url, _ = extend_hub_uri_if_needed(
             uri=self.url, asset_type=self.ASSET_TYPE, file=self.filename
         )
@@ -120,21 +119,6 @@ class HubAsset(ModelObj):
                 raise ValueError(f"Path is not a directory: {path}")
             return path
         return Path(os.getcwd())
-
-    def verify_files_dont_exist(self, include_example_check):
-        files_to_check = [self.filename]
-        if include_example_check and self.example:
-            files_to_check.append(self.example)
-        existing_files = []
-        for fname in files_to_check:
-            target_path = Path(self.local_path) / fname
-            if target_path.exists():
-                existing_files.append(str(target_path))
-        if existing_files:
-            raise FileExistsError(
-                "The following files already exist and must be deleted before downloading:\n"
-                + "\n".join(existing_files)
-            )
 
     def get_src_file_path(self):
         """Get the full path to the asset's code file."""

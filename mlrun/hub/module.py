@@ -74,7 +74,6 @@ class HubModule(HubAsset):
         This path will be used later to locate the code file when importing the module.
         """
         self.local_path = self.verify_directory(path=local_path)
-        self.verify_files_dont_exist(include_example_check=True)
         source_url, _ = extend_hub_uri_if_needed(
             uri=self.url, asset_type=self.ASSET_TYPE, file=self.filename
         )

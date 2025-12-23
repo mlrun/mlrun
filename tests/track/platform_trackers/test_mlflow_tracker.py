@@ -565,5 +565,7 @@ def _validate_run(run: mlrun.run, run_id: Optional[str] = None):
     logged_models = mlflow.search_logged_models(
         filter_string=f"source_run_id = '{run_to_comp.info.run_id}'"
     )
-    num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id)) + len(logged_models)
+    num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id)) + len(
+        logged_models
+    )
     assert num_artifacts == len(run.status.artifacts), "Wrong number of artifacts"

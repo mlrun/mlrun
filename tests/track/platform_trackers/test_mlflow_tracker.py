@@ -478,10 +478,11 @@ def test_import_model(rundb_mock, handler):
         mlflow_run = mlflow.last_active_run()
 
         logged_models = mlflow.search_logged_models(
-            filter_string=f"source_run_id = '{mlflow_run.info.run_id}'"
+            filter_string=f"source_run_id = '{mlflow_run.info.run_id}'",
+            output_format="list"
         )
 
-        model_uri = logged_models.iloc[0].artifact_location
+        model_uri = logged_models[0].artifact_location
 
         key = "test_model"
         MLFlowTracker().import_model(
@@ -563,7 +564,8 @@ def _validate_run(run: mlrun.run, run_id: Optional[str] = None):
     assert len(run_to_comp.data.params) == len(run.spec.parameters)
     # check the number of artifacts corresponds
     logged_models = mlflow.search_logged_models(
-        filter_string=f"source_run_id = '{run_to_comp.info.run_id}'"
+        filter_string=f"source_run_id = '{run_to_comp.info.run_id}'",
+        output_format="list"
     )
     num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id)) + len(
         logged_models

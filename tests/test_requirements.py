@@ -140,7 +140,7 @@ def test_requirement_specifiers_convention():
         "aioresponses": {"~=0.7"},
         "testcontainers[k3s]": {"~=4.10.0"},
         "scikit-learn": {"~=1.5.2"},
-        "mlflow": {"~=3.0.0"},
+        "mlflow": {"~=3.0"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
         "snowballstemmer": {"!=3.0.0"},

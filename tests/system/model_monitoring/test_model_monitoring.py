@@ -16,6 +16,7 @@ import json
 import os
 import pickle
 import string
+import uuid
 from datetime import UTC, datetime, timedelta
 from random import choice, randint, uniform
 from time import monotonic, sleep
@@ -810,6 +811,86 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         ).endpoints[0]
         assert mep_3.spec.label_names == ["answer", "usage"]
         assert mep_3.spec.model_class == "LLModel"
+
+    @pytest.mark.parametrize("multiple_models", (True, False))
+    def test_mrs_direct_batch_input(self, multiple_models):
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+        step = graph
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+
+        inputs_raw_list = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
+        invalid_raw_list = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
+        wrapped_inputs = [{"input": item} for item in inputs_raw_list]
+        wrapped_invalid = [{"input": item} for item in invalid_raw_list]
+
+        endpoint_name = "my_model_1"
+        endpoint_name2 = "my_model_2"
+
+        artifact_path1 = f"v3io:///projects/{self.project.metadata.name}/test_mrs_direct_batch_input/{uuid.uuid4()}"
+        artifact_path2 = f"v3io:///projects/{self.project.metadata.name}/test_mrs_direct_batch_input/{uuid.uuid4()}"
+        f"v3io:///projects/{self.project.metadata.name}/{uuid.uuid4()}"
+        model_obj = self.project.log_model(
+            "my-model",
+            model_dir=str(self.assets_path),
+            model_file="linear_model.pkl",
+            artifact_path=artifact_path1,
+            tag="latest",
+            upload=True,
+        )
+        model_path = model_obj.target_path + model_obj.model_file
+        model_runner_step.add_model(
+            model_class="BatchedModel",
+            execution_mechanism="naive",
+            endpoint_name=endpoint_name,
+            model_path=model_path,
+        )
+
+        if multiple_models:
+            model_obj2 = self.project.log_model(
+                "my-model2",
+                model_dir=str(self.assets_path),
+                model_file="linear_model2.pkl",
+                artifact_path=artifact_path2,
+                tag="latest",
+                upload=True,
+            )
+            model_path2 = model_obj2.target_path + model_obj2.model_file
+            model_runner_step.add_model(
+                model_class="BatchedModel",
+                endpoint_name=endpoint_name2,
+                execution_mechanism="naive",
+                model_path=model_path2,
+            )
+        step.to(model_runner_step).respond()
+        function.deploy()
+        with pytest.raises(
+            RuntimeError,
+            match=".*The feature names should match those that were passed during fit.*",
+        ):
+            function.invoke("/", invalid_raw_list)
+        with pytest.raises(
+            RuntimeError,
+            match=".*The feature names should match those that were passed during fit.*",
+        ):
+            function.invoke("/", wrapped_invalid)
+        resp = function.invoke("/", body=inputs_raw_list)
+        resp2 = function.invoke("/", body=wrapped_inputs)
+        for respond in (resp, resp2):
+            if multiple_models:
+                assert respond == {
+                    endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
+                    endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
+                }
+            else:
+                assert respond == [3.0, 5.0, 7.0, 9.0, 11.0]
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

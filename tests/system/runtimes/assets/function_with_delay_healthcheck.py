@@ -11,9 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from time import sleep
 
-from .base import (
-    _HAS_EVIDENTLY,
-    SUPPORTED_EVIDENTLY_VERSION,
-    EvidentlyModelMonitoringApplicationBase,
-)
+from flask import Flask
+
+app = Flask(__name__)
+
+
+@app.route("/health")
+def health():
+    sleep(20)
+    return "healthy"
+
+
+@app.route("/external")
+def external():
+    return "test message"

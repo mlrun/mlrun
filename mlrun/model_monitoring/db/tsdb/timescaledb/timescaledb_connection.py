@@ -131,6 +131,12 @@ class TimescaleDBConnection:
             )
         return self._pool
 
+    def close(self) -> None:
+        """Close the connection pool if it exists."""
+        if self._pool is not None:
+            self._pool.close()
+            self._pool = None
+
     def _parse_version(self, version_string: str) -> semver.VersionInfo:
         """Parse TimescaleDB version string using semver."""
         try:

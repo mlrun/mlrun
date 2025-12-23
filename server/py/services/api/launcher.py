@@ -310,7 +310,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         self._handle_retry(run)
         run = self._pre_run_image_pull_secret_enrichment(run)
-        self._enrich_and_validate_auth_token_name(run)
+        self.enrich_and_validate_auth_token_name(run)
         return self._pre_run_scheduling_constraints_enrichment(runtime, run)
 
     @staticmethod
@@ -697,20 +697,34 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 )
 
     # TODO In ML-11600, implement token name resolution and validation + tests
-    def _enrich_and_validate_auth_token_name(self, run: mlrun.run.RunObject):
-        auth = run.spec.auth or {}
+    def enrich_and_validate_auth_token_name(
+        self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
+    ):
+        if mlrun.mlconf.is_iguazio_v4_mode():
+            if object.spec.auth is None:
+                object.spec.auth = {}
 
-        if auth.get("token_name"):
-            self._validate_token_name(
-                auth["token_name"],
-                explicit=True,
+            # Get the provided token name, if any
+            provided_token_name = object.spec.auth.get("token_name")
+
+            # Resolve token name and raise error only if token is explicitly provided by the user
+            # in ML-11600, we will implement a proper resolution logic that checks all secret tokens
+            # of the user and finds a valid one if no token name is provided
+            raise_error_on_failure = bool(provided_token_name)
+            token_name = (
+                provided_token_name
+                or mlrun.common.constants.MLRUN_JOB_AUTH_DEFAULT_TOKEN_NAME
             )
-            return
+            self._validate_token_name(
+                token_name, raise_error_on_failure=raise_error_on_failure
+            )
 
-        run.spec.auth["token_name"] = "default"
+            object.spec.auth["token_name"] = token_name
 
     # TODO implement validation in ML-11600
-    def _validate_token_name(self, token_name: str, explicit: bool = False):
+    def _validate_token_name(
+        self, token_name: str, raise_error_on_failure: bool = False
+    ):
         pass
 
 

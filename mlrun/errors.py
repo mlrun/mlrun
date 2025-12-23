@@ -269,7 +269,9 @@ class ModelRunnerError(MLRunBaseError):
         super().__init__(self.__repr__(), *args)
 
     def __repr__(self):
-        return f"ModelRunnerError: {repr(self.models_errors)}"
+        return "ModelRunnerError: " + ";\n".join(
+            f"{model} {msg}" for model, msg in self.models_errors.items()
+        )
 
     def __copy__(self):
         return type(self)(models_errors=self.models_errors)

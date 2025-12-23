@@ -16,6 +16,7 @@ import typing
 
 import mlrun.common.constants as mlrun_constants
 import mlrun_pipelines.common.models
+from mlrun.common.types import StrEnum
 
 
 class PodPhases:
@@ -365,3 +366,30 @@ class NuclioIngressAddTemplatedIngressModes:
 class FunctionEnvironmentVariables:
     _env_prefix = "MLRUN_"
     auth_session = f"{_env_prefix}AUTH_SESSION"
+
+
+# Kubernetes probe types
+class ProbeType(StrEnum):
+    READINESS = "readiness"
+    LIVENESS = "liveness"
+    STARTUP = "startup"
+
+    @property
+    def key(self):
+        return f"{self.value}Probe"
+
+    @classmethod
+    def is_valid(cls, value: str, raise_on_error: bool = False) -> bool:
+        valid_value = value in cls._value2member_map_
+        if not valid_value and raise_on_error:
+            raise ValueError(
+                f"Invalid probe type: {value}. Must be one of: {[p.value for p in ProbeType]}"
+            )
+        return valid_value
+
+
+class ProbeTimeConfig(StrEnum):
+    INITIAL_DELAY_SECONDS = "initialDelaySeconds"
+    PERIOD_SECONDS = "periodSeconds"
+    TIMEOUT_SECONDS = "timeoutSeconds"
+    FAILURE_THRESHOLD = "failureThreshold"

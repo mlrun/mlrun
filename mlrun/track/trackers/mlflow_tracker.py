@@ -393,10 +393,11 @@ class MLFlowTracker(Tracker):
 
             # get all run model's uri's (artifact_location in mlflow 3.0.0).
             logged_models = mlflow.search_logged_models(
-                filter_string=f"source_run_id = '{run.info.run_id}'"
+                filter_string=f"source_run_id = '{run.info.run_id}'",
+                output_format="list"
             )
-            if not logged_models.empty:
-                model_uris = logged_models["artifact_location"].tolist()
+            for logged_model in logged_models:
+                model_uris.append(logged_model.artifact_location)
 
             for model_uri in model_uris:
                 MLFlowTracker._log_model(
@@ -438,7 +439,7 @@ class MLFlowTracker(Tracker):
 
         # Get the model info from MLFlow:
         model_info = mlflow.models.get_model_info(model_uri=model_uri)
-
+        # Download the model and set the path to local path:
         local_model_path = mlflow.artifacts.download_artifacts(
             artifact_uri=str(model_uri)
         )

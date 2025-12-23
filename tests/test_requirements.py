@@ -142,9 +142,6 @@ def test_requirement_specifiers_convention():
         "setuptools": {">=75.2"},
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
-        "urllib3": {
-            ">=1.26.20",
-        },
         "dask-ml": {"~=2024.4.4"},
     }
 

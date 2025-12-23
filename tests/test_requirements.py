@@ -43,11 +43,13 @@ def test_extras_requirement_file_aligned():
     )
     # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
     # we exclude them from the comparison
+    # mlflow is only present in test image
     excluded_packages = [
         "mlrun_pipelines_kfp_v1_8",
         "mlrun_pipelines_kfp_v1_8[kfp]",
         "pytest-mock-resources[postgres]",
         "mlrun_pipelines_kfp_v2",
+        "mlflow",
     ]
     for package in excluded_packages:
         if package in setup_py_extras_requirements_specifiers_map:
@@ -138,6 +140,7 @@ def test_requirement_specifiers_convention():
         "aioresponses": {"~=0.7"},
         "testcontainers[k3s]": {"~=4.10.0"},
         "scikit-learn": {"~=1.5.2"},
+        "mlflow": {'~=3.0.0'},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
         "snowballstemmer": {"!=3.0.0"},

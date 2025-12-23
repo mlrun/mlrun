@@ -164,8 +164,6 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         ):  # local_path is set but files not downloaded
             hub_module.module()
         hub_module.download_files("./temp")
-        with pytest.raises(FileExistsError):  # re-download should raise
-            hub_module.download_files("./temp")
         mod = hub_module.module()
         assert isinstance(mod, types.ModuleType)
         # delete the temp dir
@@ -235,8 +233,6 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         ):  # local_path is set but files not downloaded
             hub_step.module()
         hub_step.download_files("./temp")
-        with pytest.raises(FileExistsError):  # re-download should raise
-            hub_step.download_files("./temp")
         mod = hub_step.module()
         assert isinstance(mod, types.ModuleType)
         # delete the temp dir

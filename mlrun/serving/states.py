@@ -26,7 +26,7 @@ import pathlib
 import traceback
 import warnings
 from abc import ABC
-from collections.abc import Collection, Sequence
+from collections.abc import Collection
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
@@ -1661,7 +1661,7 @@ class ModelRunnerSelector(ModelObj):
         Called after model execution.
 
         :param event: The event body after model execution
-        Returns the downstream outlets to route the event to.
+        :return: Returns the downstream outlets to route the event to.
         """
         return None
 
@@ -1704,7 +1704,7 @@ class ModelRunner(storey.ParallelExecution):
     Runs multiple Models on each event. See ModelRunnerStep.
 
     :param model_runner_selector: ModelSelector instance whose select() method will be used to select models
-    to run on each event. Optional. If not passed, all models will be run.
+           to run on each event. Optional. If not passed, all models will be run.
     """
 
     def __init__(
@@ -2342,8 +2342,10 @@ class ModelRunnerStep(MonitoredStep):
             model_selector = get_class(model_selector, namespace).from_dict(
                 model_selector_params, init_with_params=True
             )
-            model_runner_selector = self.convert_model_selector_to_model_runner_selctor(
-                model_selector=model_selector
+            model_runner_selector = (
+                self._convert_model_selector_to_model_runner_selector(
+                    model_selector=model_selector
+                )
             )
         elif model_runner_selector:
             model_runner_selector = get_class(
@@ -2388,7 +2390,7 @@ class ModelRunnerStep(MonitoredStep):
             **extra_kwargs,
         )
 
-    def convert_model_selector_to_model_runner_selctor(
+    def _convert_model_selector_to_model_runner_selector(
         self,
         model_selector,
     ) -> "ModelRunnerSelector":
@@ -2402,14 +2404,14 @@ class ModelRunnerStep(MonitoredStep):
 
             def select_models(
                 self, event, available_models
-            ) -> Union[Sequence[str], Sequence[Model]]:
+            ) -> Union[list[str], list[Model]]:
                 # Call old ModelSelector logic
                 return self.selector.select(event, available_models)
 
             def select_outlets(
                 self,
                 event,
-            ) -> Optional[Sequence[str]]:
+            ) -> Optional[list[str]]:
                 # By default, return all outlets (old ModelSelector didn't control routing)
                 return None
 

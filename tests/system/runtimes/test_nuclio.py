@@ -35,6 +35,7 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun.serving import ModelRunnerStep
 from mlrun.serving.remote import MLRunAPIRemoteStep
 from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
+from tests.system.runtimes.assets.function_llm_with_tools import MySelector
 from tests.system.runtimes.assets.function_with_llm import MyLLM
 from tests.system.runtimes.assets.function_with_model import DummyModel, MyModelSelector
 
@@ -43,7 +44,7 @@ from tests.system.runtimes.assets.function_with_model import DummyModel, MyModel
 class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     project_name = "test-nuclio-runtime"
 
-    image: str = "mlrun/mlrun"
+    image: str = "artifactory.iguazeng.com:10557/davids/mlrun:1.11.0"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")
@@ -595,6 +596,49 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             RuntimeError, match=r"Max iterations exceeded in step 'count'"
         ):
             function.invoke(path="/", body={"counter": -5})
+
+    @pytest.mark.parametrize("with_object", [True, False])
+    def test_mrs_with_tools_routing(self, with_object):
+        code_path = str(self.assets_path / "function_llm_with_tools.py")
+        function = mlrun.code_to_function(
+            name="function-with-cyclic-graph",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+        if with_object:
+            model_runner_step = ModelRunnerStep(
+                name="my_model_runner",
+                model_runner_selector=MySelector(tool_a="tool_a", tool_b="tool_b"),
+            )
+        else:
+            model_runner_step = ModelRunnerStep(
+                name="my_model_runner",
+                model_runner_selector="MySelector",
+                model_runner_selector_parameters={
+                    "tool_a": "tool_a",
+                    "tool_b": "tool_b",
+                },
+            )
+        model_runner_step.add_model(
+            model_class="LLModelWithTools",
+            execution_mechanism="naive",
+            endpoint_name="llm_with_tools",
+        )
+        runner = graph.to(model_runner_step)
+        runner.to(name="tool_a", class_name="Tool", cycle_to="my_model_runner")
+        runner.to(name="tool_b", class_name="Tool", cycle_to="my_model_runner")
+        runner.to(name="end", class_name="Echo").respond()
+
+        # Deploy the function
+        function.deploy()
+
+        resp = function.invoke(path="/", body={"counter": 1})
+        assert resp["counter"] == 5
+        assert resp["tool_a"] == 2
+        assert resp["tool_b"] == 2
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

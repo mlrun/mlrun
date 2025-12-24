@@ -713,10 +713,11 @@ def test_model_runner_with_selector(execution_mechanism: str, selector: str):
             model_runner_selector=MyModelRunnerSelector(models=["m1", "m2"]),
         )
     else:
-        model_runner_step = ModelRunnerStep(
-            name="my_model_runner",
-            model_selector=MyModelSelector(models=["m1", "m2"]),
-        )
+        with pytest.warns(FutureWarning, match="model_selector.*deprecated"):
+            model_runner_step = ModelRunnerStep(
+                name="my_model_runner",
+                model_selector=MyModelSelector(models=["m1", "m2"]),
+            )
     model_runner_step.add_model(
         endpoint_name=m1.name,
         model_class=m1,

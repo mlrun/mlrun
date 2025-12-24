@@ -16,8 +16,7 @@ from collections.abc import Sequence
 from copy import copy
 from typing import Any, Optional
 
-from mlrun.serving import Model, V2ModelServer
-from mlrun.serving.states import ModelRunnerSelector
+from mlrun.serving import Model, ModelRunnerSelector, V2ModelServer
 
 
 class BaseClass:

@@ -1665,6 +1665,12 @@ class ModelRunnerSelector(ModelObj):
         return None
 
 
+# TODO: Remove in 1.13.0
+@warnings.deprecated(
+    version="1.11.0",
+    reason="ModelSelector will be removed in 1.13.0, use ModelRunnerSelector instead",
+    category=FutureWarning,
+)
 class ModelSelector(ModelObj):
     """Used to select which models to run on each event."""
 

@@ -1813,11 +1813,6 @@ class ModelRunnerStep(MonitoredStep):
 
     Note see configure_pool_resource method documentation for default number of max threads and max processes.
 
-    :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
-      event. Optional. If not passed, all models will be run.
-    :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
-      an error. If False, the error will appear in the output event.
-
     :raise ModelRunnerError: when a model raises an error the ModelRunnerStep will handle it, collect errors and
                               outputs from added models. If raise_exception is True will raise ModelRunnerError. Else
                               will add the error msg as part of the event body mapped by model name if more than
@@ -1843,6 +1838,22 @@ class ModelRunnerStep(MonitoredStep):
         raise_exception: bool = True,
         **kwargs,
     ):
+        """
+
+        :param name:                                The name of the ModelRunnerStep.
+        :param model_runner_selector:               ModelRunnerSelector instance whose select_models()
+                                                    and select_outlets() methods will be used
+                                                    to select models to run on each event and outlets to
+                                                    route the event to.
+        :param model_runner_selector_parameters:    Parameters for the model_runner_selector, if model_runner_selector
+                                                    is the class name we will use this param when
+                                                    initializing the selector.
+        :param model_selector:                      (Deprecated)
+        :param model_selector_parameters:           (Deprecated)
+        :param raise_exception:                     Determines whether to raise ModelRunnerError when one or more models
+                                                    raise an error during execution.
+                                                    If False, errors will be added to the event body.
+        """
         self.max_processes = None
         self.max_threads = None
         self.pool_factor = None

@@ -363,8 +363,6 @@ class GraphServer(ModelObj):
 def add_error_raiser_step(
     graph: RootFlowStep, monitored_steps: dict[str, MonitoredStep]
 ) -> RootFlowStep:
-    monitored_steps_raisers = {}
-    user_steps = list(graph.steps.values())
     for monitored_step in monitored_steps.values():
         error_step = graph.add_step(
             class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
@@ -379,21 +377,7 @@ def add_error_raiser_step(
         if monitored_step.responder:
             monitored_step.responder = False
             error_step.respond()
-        monitored_steps_raisers[monitored_step.name] = error_step.name
         error_step.on_error = monitored_step.on_error
-    if monitored_steps_raisers:
-        for step in user_steps:
-            if step.after:
-                if isinstance(step.after, list):
-                    for i in range(len(step.after)):
-                        if step.after[i] in monitored_steps_raisers:
-                            step.after[i] = monitored_steps_raisers[step.after[i]]
-                else:
-                    if (
-                        isinstance(step.after, str)
-                        and step.after in monitored_steps_raisers
-                    ):
-                        step.after = monitored_steps_raisers[step.after]
     return graph
 
 

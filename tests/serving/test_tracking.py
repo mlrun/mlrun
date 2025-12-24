@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import json
+import pickle
+import typing
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
@@ -21,6 +23,7 @@ from time import sleep
 from typing import Union, cast
 
 import numpy as np
+import pandas as pd
 import pytest
 
 import mlrun
@@ -59,6 +62,42 @@ class ModelTestingClass(mlrun.serving.V2ModelServer):
 class ModelTestingCustomTrack(ModelTestingClass):
     def logged_results(self, request: dict, response: dict, op: str):
         return [[1]], [self.get_param("multiplier", 1)]
+
+
+class BatchedModel(Model):
+    def __init__(self, model_path: str, return_as_dict: bool, **kwargs):
+        super().__init__(**kwargs)
+        self.model_path = model_path
+        self.model = None
+        self.return_as_dict = return_as_dict
+
+    def load(self) -> None:
+        with open(self.model_path, "rb") as f:
+            self.model = pickle.load(f)
+
+    def predict(self, body, **kwargs):
+        invocation_body = body.get("input")
+        if isinstance(invocation_body, dict):
+            # example of single invocation
+            x = pd.DataFrame([invocation_body])
+        elif isinstance(invocation_body, list):
+            x = pd.DataFrame(invocation_body)
+        else:
+            x = invocation_body
+        predictions = self.model.predict(x).tolist()
+        prediction_results = [round(v, 6) for v in predictions]
+        return (
+            {"output": {"results": prediction_results}}
+            if self.return_as_dict
+            else prediction_results
+        )
+
+    @staticmethod
+    def format_batch(body: typing.Any):
+        batched_body = {"input": []}
+        for item in body:
+            batched_body["input"].append(item.get("input", item))
+        return batched_body
 
 
 def test_tracking(rundb_mock):
@@ -1347,3 +1386,115 @@ def test_serving_stream_profile(
         assert isinstance(server.context.stream.output_stream, output_stream_type)
         server.test("/", {"n": 1})
         server.wait_for_completion()
+
+
+@pytest.mark.parametrize("multiple_models", (True, False))
+@pytest.mark.parametrize("raise_exception", (True, False))
+@pytest.mark.parametrize("return_as_dict", (True, False))
+@pytest.mark.parametrize("batching_format", ("raw_list", "input_list"))
+def test_mrs_direct_batch_input(
+    multiple_models, raise_exception, return_as_dict, batching_format, rundb_mock
+):
+    function = mlrun.new_function("tests", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
+    graph = function.set_topology("flow", engine="async")
+    step = graph
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    if batching_format == "raw_list":
+        if raise_exception:
+            inputs = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
+        else:
+            inputs = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
+    else:
+        if raise_exception:
+            inputs = [
+                {"input": {"z": 1}},
+                {"input": {"z": 2}},
+                {"input": {"z": 3}},
+                {"input": {"z": 4}},
+                {"input": {"z": 5}},
+            ]
+        else:
+            inputs = [
+                {"input": {"x": 1}},
+                {"input": {"x": 2}},
+                {"input": {"x": 3}},
+                {"input": {"x": 4}},
+                {"input": {"x": 5}},
+            ]
+    model_path = str(Path(__file__).parent / "assets" / "linear_model.pkl")
+    model_path2 = str(Path(__file__).parent / "assets" / "linear_model2.pkl")
+    endpoint_name = "my_model_1"
+    endpoint_name2 = "my_model_2"
+    model_runner_step.add_model(
+        model_class="BatchedModel",
+        execution_mechanism="naive",
+        endpoint_name=endpoint_name,
+        model_path=model_path,
+        return_as_dict=return_as_dict,
+        input_path="input.x" if batching_format == "input_list" else "x",
+        result_path="output.results" if return_as_dict else None,
+    )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="BatchedModel",
+            endpoint_name=endpoint_name2,
+            execution_mechanism="naive",
+            model_path=model_path2,
+            return_as_dict=return_as_dict,
+            input_path="input.x" if batching_format == "input_list" else "x",
+            result_path="output.results" if return_as_dict else None,
+        )
+    step.to(model_runner_step).respond()
+    server = function.to_mock_server()
+
+    try:
+        if raise_exception:
+            with pytest.raises(
+                RuntimeError,
+                match=".*The feature names should match those that were passed during fit.*",
+            ):
+                server.test(body=inputs)
+        else:
+            resp = server.test(body=inputs)
+            if multiple_models:
+                if return_as_dict:
+                    assert resp == {
+                        "my_model_1": {
+                            "output": {"results": [3.0, 5.0, 7.0, 9.0, 11.0]}
+                        },
+                        "my_model_2": {
+                            "output": {"results": [5.0, 8.0, 11.0, 14.0, 17.0]}
+                        },
+                    }
+                else:
+                    assert resp == {
+                        endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
+                        endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
+                    }
+            elif return_as_dict:
+                assert resp == {"output": {"results": [3.0, 5.0, 7.0, 9.0, 11.0]}}
+            else:
+                assert resp == [3.0, 5.0, 7.0, 9.0, 11.0]
+    finally:
+        server.wait_for_completion()
+    if not raise_exception:
+        dummy_stream = server.context.stream.output_stream
+        event = dummy_stream.event_list[0]
+        assert event["effective_sample_count"] == 5
+        assert event["labels"] == {}
+        assert event["request"]["inputs"] == [1, 2, 3, 4, 5]
+        assert event["resp"]["outputs"] == [3.0, 5.0, 7.0, 9.0, 11.0]
+        assert event["error"] is None
+        assert event["model"] == endpoint_name
+        assert event["metrics"] is None
+        if multiple_models:
+            event = dummy_stream.event_list[1]
+            assert event["effective_sample_count"] == 5
+            assert event["labels"] == {}
+            assert event["request"]["inputs"] == [1, 2, 3, 4, 5]
+            assert event["resp"]["outputs"] == [5.0, 8.0, 11.0, 14.0, 17.0]
+            assert event["error"] is None
+            assert event["model"] == endpoint_name2
+            assert event["metrics"] is None

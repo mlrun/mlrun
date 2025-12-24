@@ -41,6 +41,15 @@ from mlrun.serving.states import RootFlowStep, RouterStep, StepKinds
 from mlrun.serving.system_steps import MonitoringPreProcessor
 from tests.serving.test_serving import _log_model
 
+from .demo_states import (  # noqa: F401
+    Counter,
+    Echo,
+    LLModelWithTools,
+    MySelector,
+    Route,
+    Tool,
+)
+
 assets_path = str(Path(__file__).parent / "assets")
 testdata = '{"inputs": [[5, 6]]}'
 
@@ -456,6 +465,42 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
         assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
         assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
+    else:
+        assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
+
+    _test_graph_structure(server.graph, enable_tracking)
+
+
+@pytest.mark.parametrize("enable_tracking", [True, False])
+def test_tracked_model_runner_with_tools(rundb_mock, enable_tracking: bool):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", model_runner_selector="MySelector"
+    )
+    model_runner_step.add_model(
+        model_class="LLModelWithTools",
+        execution_mechanism="naive",
+        endpoint_name="llm_with_tools",
+        input_path="counter",
+        result_path="counter",
+    )
+    runner = graph.to(model_runner_step)
+    runner.to(name="tool_a", class_name="Tool", cycle_to="my_model_runner")
+    runner.to(name="tool_b", class_name="Tool", cycle_to="my_model_runner")
+    runner.to(name="end", class_name="Echo").respond()
+    function.set_tracking("dummy://", enable_tracking=enable_tracking)
+    server = function.to_mock_server()
+    server.test("/", {"counter": 0})
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    if enable_tracking:
+        assert len(dummy_stream.event_list) == 5, "expected stream to get 5 messages"
+        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [0]
+        assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [1]
+        assert dummy_stream.event_list[4].get("request", {}).get("inputs") == [4]
+        assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == [5]
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 

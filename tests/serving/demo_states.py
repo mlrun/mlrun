@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
 from copy import copy
+from typing import Any, Optional
 
-from mlrun.serving import V2ModelServer
+from mlrun.serving import Model, ModelRunnerSelector, V2ModelServer
 
 
 class BaseClass:
@@ -125,4 +127,33 @@ class Counter:
         event["go_cyclic"] = True
         if event["counter"] > 4:
             event["go_cyclic"] = False
+        return event
+
+
+class LLModelWithTools(Model):
+    def load(self):
+        pass
+
+    def predict(self, body: Any, **kwargs) -> Any:
+        body["counter"] += 1
+        return body
+
+
+class MySelector(ModelRunnerSelector):
+    def select_outlets(
+        self,
+        event: Any,
+    ) -> Optional[Sequence[str]]:
+        count = event.get("counter", 0)
+        if count < 3:
+            return ["tool_a"]
+        elif count < 5:
+            return ["tool_b"]
+        else:
+            return ["end"]
+
+
+class Tool(BaseClass):
+    def do(self, event: dict) -> dict:
+        event[self.name] = event.get(self.name, 0) + 1
         return event

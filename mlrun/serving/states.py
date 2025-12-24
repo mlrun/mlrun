@@ -1696,8 +1696,8 @@ class ModelRunner(storey.ParallelExecution):
     """
     Runs multiple Models on each event. See ModelRunnerStep.
 
-    :param model_runner_selector: ModelSelector instance whose select() method will be used to select models to run on each
-      event. Optional. If not passed, all models will be run.
+    :param model_runner_selector: ModelSelector instance whose select() method will be used to select models
+    to run on each event. Optional. If not passed, all models will be run.
     """
 
     def __init__(

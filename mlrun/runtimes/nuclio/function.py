@@ -114,6 +114,7 @@ class NuclioSpec(KubeResourceSpec):
         "service_type",
         "add_templated_ingress_host_mode",
         "disable_default_http_trigger",
+        "auth",
     ]
 
     def __init__(
@@ -161,6 +162,7 @@ class NuclioSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        auth=None,
     ):
         super().__init__(
             command=command,
@@ -217,6 +219,7 @@ class NuclioSpec(KubeResourceSpec):
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
+        self.auth = auth or {}
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -942,7 +945,7 @@ class RemoteRuntime(KubeResource):
     def invoke(
         self,
         path: str,
-        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
+        body: typing.Optional[typing.Union[str, bytes, dict, list]] = None,
         method: typing.Optional[str] = None,
         headers: typing.Optional[dict] = None,
         force_external_address: bool = False,
@@ -1070,6 +1073,20 @@ class RemoteRuntime(KubeResource):
         if self.spec.resources:
             sidecar["resources"] = self.spec.resources
             self.spec.resources = None
+
+    def set_probe(self, *args, **kwargs):
+        """Set a Kubernetes probe configuration for the sidecar container
+
+        This method is only available for ApplicationRuntime.
+        """
+        raise ValueError("set_probe() is only supported for ApplicationRuntime. ")
+
+    def delete_probe(self, *args, **kwargs):
+        """Delete a Kubernetes probe configuration from the sidecar container
+
+        This method is only available for ApplicationRuntime.
+        """
+        raise ValueError("delete_probe() is only supported for ApplicationRuntime.")
 
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])

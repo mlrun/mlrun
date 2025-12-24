@@ -172,7 +172,6 @@ class TimescaleDBMetricsQueries:
         # Two query paths based on agg_period:
         # - agg_period is not None with functions → aggregation query from CAGG view
         # - agg_period is None → raw query returning individual data points
-        # Note: "raw" is resolved at API layer to None before reaching here
         use_aggregation = agg_period is not None and agg_functions
         if use_aggregation:
             df = TimescaleDBQueryBuilder.build_read_data_with_aggregation(

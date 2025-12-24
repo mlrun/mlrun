@@ -55,11 +55,12 @@ class HubAsset(ModelObj):
 
     def module(self):
         """Import the code of the asset as a module."""
-        src_path = self.get_src_file_path()
         try:
             return function_to_module(code=self.filename, workdir=self.local_path)
         except Exception as e:
-            raise MLRunBadRequestError(f"Failed to import module from {src_path}: {e}")
+            raise MLRunBadRequestError(
+                f"Failed to import module from {self.get_src_file_path()}: {e}"
+            )
 
     def install_requirements(self) -> None:
         """
@@ -120,7 +121,7 @@ class HubAsset(ModelObj):
             return path
         return Path(os.getcwd())
 
-    def get_src_file_path(self):
+    def get_src_file_path(self) -> str:
         """Get the full path to the asset's code file."""
         if not self.local_path:
             raise MLRunBadRequestError(

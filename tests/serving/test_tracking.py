@@ -41,6 +41,15 @@ from mlrun.serving.states import RootFlowStep, RouterStep, StepKinds
 from mlrun.serving.system_steps import MonitoringPreProcessor
 from tests.serving.test_serving import _log_model
 
+from .demo_states import (  # noqa: F401
+    Counter,
+    Echo,
+    LLModelWithTools,
+    MySelector,
+    Route,
+    Tool,
+)
+
 assets_path = str(Path(__file__).parent / "assets")
 testdata = '{"inputs": [[5, 6]]}'
 

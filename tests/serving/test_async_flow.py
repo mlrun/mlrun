@@ -256,10 +256,11 @@ class MyRemoteModel(Model):
 
 
 class BatchedModel(Model):
-    def __init__(self, model_path: str, **kwargs):
+    def __init__(self, model_path: str, return_as_dict: bool, **kwargs):
         super().__init__(**kwargs)
         self.model_path = model_path
         self.model = None
+        self.return_as_dict = return_as_dict
 
     def load(self) -> None:
         with open(self.model_path, "rb") as f:
@@ -275,7 +276,12 @@ class BatchedModel(Model):
         else:
             x = invocation_body
         predictions = self.model.predict(x).tolist()
-        return [round(v, 6) for v in predictions]
+        prediction_results = [round(v, 6) for v in predictions]
+        return (
+            {"output": {"results": prediction_results}}
+            if self.return_as_dict
+            else prediction_results
+        )
 
     @staticmethod
     def format_batch(body: typing.Any):
@@ -1497,9 +1503,13 @@ def test_max_iter_of_cyclic_graph(method, max_iter):
 
 @pytest.mark.parametrize("multiple_models", (True, False))
 @pytest.mark.parametrize("raise_exception", (True, False))
+@pytest.mark.parametrize("return_as_dict", (True, False))
 @pytest.mark.parametrize("batching_format", ("raw_list", "input_list"))
-def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_format):
+def test_mrs_direct_batch_input(
+    multiple_models, raise_exception, return_as_dict, batching_format, rundb_mock
+):
     function = mlrun.new_function("tests", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
     graph = function.set_topology("flow", engine="async")
     step = graph
     model_runner_step = ModelRunnerStep(name="my_model_runner")
@@ -1534,6 +1544,9 @@ def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_forma
         execution_mechanism="naive",
         endpoint_name=endpoint_name,
         model_path=model_path,
+        return_as_dict=return_as_dict,
+        input_path="input.x" if batching_format == "input_list" else "x",
+        result_path="output.results" if return_as_dict else None,
     )
 
     if multiple_models:
@@ -1542,6 +1555,9 @@ def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_forma
             endpoint_name=endpoint_name2,
             execution_mechanism="naive",
             model_path=model_path2,
+            return_as_dict=return_as_dict,
+            input_path="input.x" if batching_format == "input_list" else "x",
+            result_path="output.results" if return_as_dict else None,
         )
     step.to(model_runner_step).respond()
     server = function.to_mock_server()
@@ -1556,11 +1572,42 @@ def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_forma
         else:
             resp = server.test(body=inputs)
             if multiple_models:
-                assert resp == {
-                    endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
-                    endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
-                }
+                if return_as_dict:
+                    assert resp == {
+                        "my_model_1": {
+                            "output": {"results": [3.0, 5.0, 7.0, 9.0, 11.0]}
+                        },
+                        "my_model_2": {
+                            "output": {"results": [5.0, 8.0, 11.0, 14.0, 17.0]}
+                        },
+                    }
+                else:
+                    assert resp == {
+                        endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
+                        endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
+                    }
+            elif return_as_dict:
+                assert resp == {"output": {"results": [3.0, 5.0, 7.0, 9.0, 11.0]}}
             else:
                 assert resp == [3.0, 5.0, 7.0, 9.0, 11.0]
     finally:
         server.wait_for_completion()
+    if not raise_exception:
+        dummy_stream = server.context.stream.output_stream
+        event = dummy_stream.event_list[0]
+        assert event["effective_sample_count"] == 5
+        assert event["labels"] == {}
+        assert event["request"]["inputs"] == [1, 2, 3, 4, 5]
+        assert event["resp"]["outputs"] == [3.0, 5.0, 7.0, 9.0, 11.0]
+        assert event["error"] is None
+        assert event["model"] == endpoint_name
+        assert event["metrics"] is None
+        if multiple_models:
+            event = dummy_stream.event_list[1]
+            assert event["effective_sample_count"] == 5
+            assert event["labels"] == {}
+            assert event["request"]["inputs"] == [1, 2, 3, 4, 5]
+            assert event["resp"]["outputs"] == [5.0, 8.0, 11.0, 14.0, 17.0]
+            assert event["error"] is None
+            assert event["model"] == endpoint_name2
+            assert event["metrics"] is None

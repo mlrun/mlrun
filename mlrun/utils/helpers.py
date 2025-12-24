@@ -2456,7 +2456,23 @@ def split_path(path: str) -> typing.Union[str, list[str], None]:
     return path
 
 
-def get_data_from_path(path: typing.Union[str, list[str], None], data: dict) -> Any:
+def get_data_from_path(
+    path: typing.Union[str, list[str], None], data: typing.Union[dict, list]
+) -> Any:
+    if data and isinstance(data, list):
+        output_data = []
+        for item in data:
+            output_data.append(get_data_from_dict(path, item))
+        return output_data
+    elif isinstance(data, dict):
+        return get_data_from_dict(path, data)
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected data be of type dict or list of dict"
+        )
+
+
+def get_data_from_dict(path: typing.Union[str, list[str], None], data: dict) -> Any:
     if isinstance(path, str):
         output_data = data.get(path)
     elif isinstance(path, list):

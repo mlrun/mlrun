@@ -1860,11 +1860,35 @@ def test_remove_tag_from_artifact_uri(input_uri, expected_output):
         ),  # nested dict
         ("a.missing", {"a": {"b": 1}}, {}),  # partially missing nested path
         (None, {"x": 1, "y": 2}, {"x": 1, "y": 2}),  # path is None
+        ("x", [{"x": 1}, {"x": 2}], [1, 2]),  # list of dicts with simple key
+        (
+            "a.b",
+            [{"a": {"b": 10}}, {"a": {"b": 20}}],
+            [10, 20],
+        ),  # list of dicts with nested path
+        (None, [{"x": 1}, {"y": 2}], [{"x": 1}, {"y": 2}]),  # list with None path
     ],
 )
 def test_get_data_from_path_parametrized(path, data, expected):
     path_as_list = split_path(path)
     assert get_data_from_path(path_as_list, data) == expected
+
+
+def test_get_data_from_path_invalid_path_type():
+    # Test that invalid path type raises MLRunInvalidArgumentError
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Expected path be of type str or list of str or None",
+    ):
+        get_data_from_path(123, {"x": 1})  # path is int, should raise error
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Expected path be of type str or list of str or None",
+    ):
+        get_data_from_path(
+            {"invalid": "path"}, {"x": 1}
+        )  # path is dict, should raise error
 
 
 @pytest.mark.parametrize(

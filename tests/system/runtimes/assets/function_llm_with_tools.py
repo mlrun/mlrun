@@ -13,19 +13,12 @@
 # limitations under the License.
 from typing import Any, Optional
 
+import storey
+
 from mlrun.serving import Model, ModelRunnerSelector
 
 
-class BaseClass:
-    def __init__(self, context, name=None):
-        self.context = context
-        self.name = name
-
-
-class Echo(BaseClass):
-    def __init__(self, name=None):
-        self.name = name
-
+class Echo(storey.MapClass):
     def do(self, x):
         print("Echo:", self.name, x)
         return x
@@ -45,12 +38,12 @@ class MySelector(ModelRunnerSelector):
         if count < 3:
             return [self.tool_a]
         elif count < 5:
-            return [self.tool_a]
+            return [self.tool_b]
         else:
             return ["end"]
 
 
-class Tool(BaseClass):
+class Tool(storey.MapClass):
     def do(self, event: dict) -> dict:
         event[self.name] = event.get(self.name, 0) + 1
         return event

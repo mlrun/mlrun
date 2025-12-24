@@ -59,3 +59,14 @@ updates:
     commit-message:
       prefix: "[Dependabot-automated] "
     open-pull-requests-limit: 6
+
+  # python pip dependencies
+  - package-ecosystem: "pip"
+
+    # do not create PRs for dockerfile requirements.txt files
+    open-pull-requests-limit: 0
+    directory: "/dockerfiles/**"
+    schedule:
+      interval: "daily"
+    exclude-paths:
+      - "requirements.txt"

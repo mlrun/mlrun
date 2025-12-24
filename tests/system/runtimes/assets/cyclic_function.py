@@ -11,18 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import storey
 
 
-class BaseClass:
-    def __init__(self, context, name=None):
-        self.context = context
-        self.name = name
-
-
-class Echo(BaseClass):
-    def __init__(self, name=None):
-        self.name = name
-
+class Echo(storey.MapClass):
     def do(self, event):
         print("Echo:", self.name, event)
         return event

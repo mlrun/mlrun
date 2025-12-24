@@ -21,6 +21,7 @@ import typing
 import unittest.mock
 from copy import deepcopy
 from datetime import datetime
+from itertools import product
 from types import SimpleNamespace
 from typing import Optional, Union
 
@@ -32,7 +33,14 @@ import mlrun.common.schemas as schemas
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
-from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
+from mlrun.serving import (
+    LLModel,
+    Model,
+    ModelRunnerSelector,
+    ModelRunnerStep,
+    ModelSelector,
+    RouterStep,
+)
 from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results
@@ -666,11 +674,30 @@ class MyModelSelector(ModelSelector):
         return []
 
 
+class MyModelRunnerSelector(ModelRunnerSelector):
+    def __init__(self, models: Union[list[str], list[Model]]):
+        super().__init__()
+        self.models = deepcopy(models)
+
+    def select_models(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        current_models = event.body.get("models")
+        if current_models and set(current_models).issubset(set(self.models)):
+            return current_models
+        return []
+
+
 @pytest.mark.parametrize(
-    "execution_mechanism",
-    ("process_pool", "dedicated_process", "thread_pool", "asyncio", "naive"),
+    ("execution_mechanism", "selector"),
+    list(
+        product(
+            ("process_pool", "dedicated_process", "thread_pool", "asyncio", "naive"),
+            ("new", "old"),
+        )
+    ),
 )
-def test_model_runner_with_selector(execution_mechanism: str):
+def test_model_runner_with_selector(execution_mechanism: str, selector: str):
     m1 = MyModel(
         name="m1",
         execution_mechanism="naive",
@@ -680,10 +707,17 @@ def test_model_runner_with_selector(execution_mechanism: str):
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(
-        name="my_model_runner",
-        model_selector=MyModelSelector(models=["m1", "m2"]),
-    )
+    if selector == "new":
+        model_runner_step = ModelRunnerStep(
+            name="my_model_runner",
+            model_runner_selector=MyModelRunnerSelector(models=["m1", "m2"]),
+        )
+    else:
+        with pytest.warns(FutureWarning, match="model_selector.*deprecated"):
+            model_runner_step = ModelRunnerStep(
+                name="my_model_runner",
+                model_selector=MyModelSelector(models=["m1", "m2"]),
+            )
     model_runner_step.add_model(
         endpoint_name=m1.name,
         model_class=m1,
@@ -1491,6 +1525,32 @@ def test_max_iter_of_cyclic_graph(method, max_iter):
     try:
         with pytest.raises(RuntimeError, match=rf"{expected_error}"):
             server.test(body={"counter": 1})
+    finally:
+        server.wait_for_completion()
+
+
+def test_mrs_with_tools_routing():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", model_runner_selector="MySelector"
+    )
+    model_runner_step.add_model(
+        model_class="LLModelWithTools",
+        execution_mechanism="naive",
+        endpoint_name="llm_with_tools",
+    )
+    runner = graph.to(model_runner_step)
+    runner.to(name="tool_a", class_name="Tool", cycle_to="my_model_runner")
+    runner.to(name="tool_b", class_name="Tool", cycle_to="my_model_runner")
+    runner.to(name="end", class_name="Echo").respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={"counter": 0})
+        assert resp["counter"] == 5
+        assert resp["tool_a"] == 2
+        assert resp["tool_b"] == 2
     finally:
         server.wait_for_completion()
 

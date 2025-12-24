@@ -70,8 +70,16 @@ jobs:
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
     steps:
+      - name: Generate GitHub App token
+        id: mlrun-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v6
         with:
+          token: ${{ steps.mlrun-app-token.outputs.token }}
+          persist-credentials: false
 
           # Fetch all history for all tags and branches
           fetch-depth: 0
@@ -154,7 +162,16 @@ jobs:
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
+      - name: Generate GitHub App token
+        id: mlrun-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v6
+        with:
+          token: ${{ steps.mlrun-app-token.outputs.token }}
+          persist-credentials: false
       - name: Set up uv
         uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # 7.1.5
       - name: Build & push to PyPI
@@ -171,12 +188,18 @@ jobs:
     if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
     needs: [ prepare-inputs, publish-to-pypi ]
     steps:
+      - name: Generate GitHub App token for mlrun repo
+        id: mlrun-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           commit: ${{ github.ref_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.mlrun-app-token.outputs.token }}
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
       - name: Generate GitHub App Token for ui repo
         if: github.event.inputs.skip_create_tag_release != 'true'
@@ -206,9 +229,16 @@ jobs:
     if: needs.prepare-inputs.outputs.is_feature_branch == 'true'
     needs: [ prepare-inputs, trigger-and-wait-for-mlrun-image-building ]
     steps:
+      - name: Generate GitHub App token for mlrun repo
+        id: mlrun-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - name: Create feature branch tag
         uses: actions/github-script@v8
         with:
+          github-token: ${{ steps.mlrun-app-token.outputs.token }}
           script: |
             github.rest.git.createRef({
               owner: context.repo.owner,
@@ -222,7 +252,16 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: mlrun-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v6
+        with:
+          token: ${{ steps.mlrun-app-token.outputs.token }}
+          persist-credentials: false
       - name: Create tutorials tar
         run: |
           wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
@@ -234,7 +273,7 @@ jobs:
         with:
           allowUpdates: true
           tag: v${{ needs.prepare-inputs.outputs.version }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.mlrun-app-token.outputs.token }}
           artifacts: mlrun-tutorials.tar
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
 
@@ -243,7 +282,16 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: mlrun-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v6
+        with:
+          token: ${{ steps.mlrun-app-token.outputs.token }}
+          persist-credentials: false
       - name: Install Python venv
         run: |
           venv="$HOME/.local/share/venv"
@@ -254,7 +302,7 @@ jobs:
           pip install requests packaging tqdm
       - name: Download demos using get_demos script
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.mlrun-app-token.outputs.token }}
         run: |
           python automation/scripts/get_demos.py ${{ needs.prepare-inputs.outputs.version }} \
           --dest demos
@@ -270,7 +318,7 @@ jobs:
         with:
           allowUpdates: true
           tag: v${{ needs.prepare-inputs.outputs.version }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.mlrun-app-token.outputs.token }}
           artifacts: mlrun-demos.tar
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
 
@@ -281,8 +329,16 @@ jobs:
     # runs lastly to avoid conflicts with other release-related jobs
     needs: [ prepare-inputs, update-tutorials, update-demos ]
     steps:
+      - name: Generate GitHub App token
+        id: mlrun-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v6
         with:
+          token: ${{ steps.mlrun-app-token.outputs.token }}
+          persist-credentials: false
           fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
@@ -314,6 +370,6 @@ jobs:
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           body: ${{ steps.resolve-release-notes.outputs.body }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.mlrun-app-token.outputs.token }}
           allowUpdates: true
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}

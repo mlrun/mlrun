@@ -1829,7 +1829,7 @@ class MonitoringDeployment:
                     )
                     # Even if credentials match, ensure TSDB tables exist (ML-11807).
                     # This handles cases where tables were deleted or don't exist yet.
-                    # The create_tables() call is idempotent (uses CREATE TABLE IF NOT EXISTS).
+                    # The create_tables() call is idempotent for all TSDB connectors.
                     if tsdb_profile_name:
                         tsdb_profile = self._validate_and_get_tsdb_profile(
                             tsdb_profile_name

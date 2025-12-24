@@ -231,13 +231,22 @@ def test_batch():
 
 
 class MyModel(Model):
-    def __init__(self, inc: int, gpu_number: Optional[int] = None, **kwargs):
+    def __init__(
+        self, inc: int, gpu_number: Optional[int] = None, err: bool = True, **kwargs
+    ):
         super().__init__(**kwargs)
         self.inc = inc
         self.gpu_number = gpu_number
+        self.err = err
 
     def predict(self, body):
-        body["n"] += self.inc
+        try:
+            body["n"] += self.inc
+        except TypeError:
+            if self.err:
+                raise
+            else:
+                body["n"] = 1
         body.pop("models", None)
         if self.gpu_number is not None:
             body["gpu"] = self.gpu_number
@@ -598,6 +607,7 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
         endpoint_name="my_model_0",
         raise_error=False,
         inc=1,
+        err=False,
     )
     model_runner_step.add_model(
         model_class="MyModel",
@@ -605,10 +615,15 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
         endpoint_name="my_model_1",
         raise_error=False,
         inc=1,
+        err=True,
     )
     graph.to(model_runner_step).respond()
     _test_model_runner_raise_error_output(
-        function, raise_error, with_error, models=["my_model_0", "my_model_1"]
+        function,
+        raise_error,
+        with_error,
+        models=["my_model_0", "my_model_1"],
+        models_with_error=["my_model_1"],
     )
 
 
@@ -637,8 +652,9 @@ def test_model_runner_multiple_downstream_steps(raise_error: bool, with_error: b
 
 
 def _test_model_runner_raise_error_output(
-    function, raise_error, with_error, models=None
+    function, raise_error, with_error, models=None, models_with_error=None
 ):
+    models_with_error = models_with_error or models
     server = function.to_mock_server()
     if with_error:
         if raise_error:
@@ -650,7 +666,7 @@ def _test_model_runner_raise_error_output(
                 assert "error" in body, f"Expected error field in body got {body}"
             else:
                 assert all(
-                    "error" in body.get(model) for model in models
+                    "error" in body.get(model) for model in models_with_error
                 ), f"Expected error field for each model in body got {body}"
     else:
         if models is None or len(models) == 1:

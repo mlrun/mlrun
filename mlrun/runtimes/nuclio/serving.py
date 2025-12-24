@@ -294,7 +294,7 @@ class ServingRuntime(RemoteRuntime):
         topology = topology or StepKinds.router
         if self.spec.graph and not exist_ok:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "graph topology is already set, cannot be overwritten"
+                "graph topology is already set, graph was initialized, use exist_ok=True to override"
             )
         if allow_cyclic and (
             topology == StepKinds.router

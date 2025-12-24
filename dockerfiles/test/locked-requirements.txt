@@ -364,6 +364,7 @@ cachetools==5.5.2 \
     # via
     #   google-auth
     #   mlflow-skinny
+    #   mlflow-tracing
 certifi==2025.11.12 \
     --hash=sha256:97de8790030bbd5c2d96b7ec782fc2f7820ef8dba6db909ccf95449f2d062d4b \
     --hash=sha256:d8ab5478f2ecd78af242878415affce761ca6bc54a22a27e026d7c25357c3316
@@ -826,6 +827,7 @@ cryptography==44.0.3 \
     #   azure-identity
     #   azure-storage-blob
     #   evidently
+    #   mlflow
     #   msal
     #   pyjwt
     #   pyopenssl
@@ -851,6 +853,7 @@ databricks-sdk==0.20.0 \
     # via
     #   -r extras-requirements.txt
     #   mlflow-skinny
+    #   mlflow-tracing
 db-dtypes==1.5.0 \
     --hash=sha256:abdbb2e4eb965800ed6f98af0c5c1cafff9063ace09114be2d26a7f046be2c8a \
     --hash=sha256:ad9e94243f53e104bc77dbf9ae44b580d83a770d3694483aba59c9767966daa5
@@ -1014,6 +1017,12 @@ fire==0.7.1 \
 flask==3.1.2 \
     --hash=sha256:bf656c15c80190ed628ad08cdfd3aaa35beb087855e2f494910aa3774cc4fd87 \
     --hash=sha256:ca1d8112ec8a6158cc29ea4858963350011b5c846a414cdb7a954aa9e967d03c
+    # via
+    #   flask-cors
+    #   mlflow
+flask-cors==6.0.2 \
+    --hash=sha256:6e118f3698249ae33e429760db98ce032a8bf9913638d085ca0f4c5534ad2423 \
+    --hash=sha256:e57544d415dfd7da89a9564e1e3a9e515042df76e12130641ca6f3f2f03b699a
     # via mlflow
 fonttools==4.61.1 \
     --hash=sha256:0de30bfe7745c0d1ffa2b0b7048fb7123ad0d71107e10ee090fa0b16b9452e87 \
@@ -1850,7 +1859,6 @@ jinja2==3.1.6 \
     #   flask
     #   jupyter-server
     #   memray
-    #   mlflow
     #   nbconvert
 jiter==0.12.0 \
     --hash=sha256:048485c654b838140b007390b8182ba9774621103bd4d77c9c3f6f117474ba45 \
@@ -2184,10 +2192,6 @@ mako==1.3.10 \
     --hash=sha256:99579a6f39583fa7e5630a28c3c1f440e4e97a414b80372649c0ce338da2ea28 \
     --hash=sha256:baef24a52fc4fc514a0887ac600f9f1cff3d82c61d4d700a1fa84d597b88db59
     # via alembic
-markdown==3.10 \
-    --hash=sha256:37062d4f2aa4b2b6b32aefb80faa300f82cc790cb949a35b8caede34f2b68c0e \
-    --hash=sha256:b5b99d6951e2e4948d939255596523444c0e677c669700b1d17aa4a8a464cb7c
-    # via mlflow
 markdown-it-py==4.0.0 \
     --hash=sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147 \
     --hash=sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3
@@ -2423,13 +2427,17 @@ mistune==3.1.4 \
     --hash=sha256:93691da911e5d9d2e23bc54472892aff676df27a75274962ff9edc210364266d \
     --hash=sha256:b5a7f801d389f724ec702840c11d8fc48f2b33519102fc7ee739e8177b672164
     # via nbconvert
-mlflow==2.22.4 \
-    --hash=sha256:c37b312060737cc9197c4a956c730fa6c292580787fe464efe736c339e87649a \
-    --hash=sha256:cb8cb3b82ec696dc613bcc347b023c20fc0ed6a82170b36d0ded01d3ba06da97
-    # via -r extras-requirements.txt
-mlflow-skinny==2.22.4 \
-    --hash=sha256:3622115f53806d99fc42b0c2e45f225b16948584feeec7f233e484f08fe6c7f2 \
-    --hash=sha256:d75ef4c6f38b745d84aef4d6dcb26331c8a3c784ee5a284ec89186398c8d927b
+mlflow==3.5.1 \
+    --hash=sha256:32630f2aaadeb6dc6ccbde56247a1500518b38d0a7cc12f714be1703b6ee3ea1 \
+    --hash=sha256:ebbf5fef59787161a15f2878f210877a62d54d943ad6cea140621687b2393f85
+    # via -r dockerfiles/test/requirements.txt
+mlflow-skinny==3.5.1 \
+    --hash=sha256:4358a5489221cdecf53cf045e10df28919dedb9489965434ce3445f7cbabf365 \
+    --hash=sha256:e5f96977d21a093a3ffda789bee90070855dbfe1b9d0703c0c3e34d2f8d7fba8
+    # via mlflow
+mlflow-tracing==3.5.1 \
+    --hash=sha256:4fd685347158e0d2c48f5bec3d15ecfc6fadc1dbb48073cb220ded438408fa65 \
+    --hash=sha256:bca266b1871692ae2ec812ed177cdc108ccef1cb3fb82725a8b959ec98d5fba0
     # via mlflow
 mlrun-pipelines-kfp-common==0.6.0 \
     --hash=sha256:0bc0318ce52999ad068cb7fefdb6a32178baaa4874e627b41fb3f14251f532b8 \
@@ -2850,16 +2858,22 @@ opentelemetry-api==1.39.1 \
     --hash=sha256:fbde8c80e1b937a2c61f20347e91c0c18a1940cecf012d62e65a7caf08967c9c
     # via
     #   mlflow-skinny
+    #   mlflow-tracing
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
 opentelemetry-proto==1.39.1 \
     --hash=sha256:22cdc78efd3b3765d09e68bfbd010d4fc254c9818afd0b6b423387d9dee46007 \
     --hash=sha256:6c8e05144fc0d3ed4d22c2289c6b126e03bcd0e6a7da0f16cedd2e1c2772e2c8
-    # via evidently
+    # via
+    #   evidently
+    #   mlflow-skinny
+    #   mlflow-tracing
 opentelemetry-sdk==1.39.1 \
     --hash=sha256:4d5482c478513ecb0a5d938dcc61394e647066e0cc2676bee9f3af3f3f45f01c \
     --hash=sha256:cf4d4563caf7bff906c9f7967e2be22d0d6b349b908be0d90fb21c8e9c995cc6
-    # via mlflow-skinny
+    # via
+    #   mlflow-skinny
+    #   mlflow-tracing
 opentelemetry-semantic-conventions==0.60b1 \
     --hash=sha256:87c228b5a0669b748c76d76df6c364c369c28f1c465e50f661e39737e84bc953 \
     --hash=sha256:9fa8c8b0c110da289809292b0591220d3a7b53c1526a23021e977d68597893fb
@@ -2991,6 +3005,7 @@ packaging==24.2 \
     #   jupyter-server
     #   matplotlib
     #   mlflow-skinny
+    #   mlflow-tracing
     #   nbconvert
     #   plotly
     #   pytest
@@ -3350,6 +3365,7 @@ protobuf==6.31.1 \
     #   kfp
     #   kfp-pipeline-spec
     #   mlflow-skinny
+    #   mlflow-tracing
     #   opentelemetry-proto
     #   proto-plus
     #   v3io-frames
@@ -3671,6 +3687,7 @@ pydantic==1.10.26 \
     #   igz-mgmt
     #   kfp
     #   mlflow-skinny
+    #   mlflow-tracing
     #   openai
     #   python-on-whales
 pygments==2.19.2 \
@@ -3770,6 +3787,7 @@ python-dotenv==1.2.1 \
     --hash=sha256:b81ee9561e9ca4004139c6cbba3a238c32b03e4894671e181b671e8cb8425d61
     # via
     #   -r requirements.txt
+    #   mlflow-skinny
     #   testcontainers
     #   uvicorn
 python-json-logger==4.0.0 \
@@ -4692,8 +4710,8 @@ statsmodels==0.14.6 \
     --hash=sha256:f4ff0649a2df674c7ffb6fa1a06bffdb82a6adf09a48e90e000a15a6aaa734b0 \
     --hash=sha256:fe76140ae7adc5ff0e60a3f0d56f4fffef484efa803c3efebf2fcd734d72ecb5
     # via evidently
-storey==1.11.3 \
-    --hash=sha256:9bffbdfd9ebfa228d71618e251e94c48f76fe8a8cad3129c81c39210a82c18eb
+storey==1.11.4 \
+    --hash=sha256:2ff41ecd82ed753b4440c241b299a743e32ad97085d53ee3004dae47dcc37400
     # via -r requirements.txt
 strip-hints==0.1.13 \
     --hash=sha256:1feaebde61269ba0dea1e7f093df7ff9d4df4980cce7e3c22ed6d86ae43dbd06 \
@@ -5408,6 +5426,7 @@ werkzeug==3.1.4 \
     --hash=sha256:cd3cd98b1b92dc3b7b3995038826c68097dcb16f9baa63abe35f20eafeb9fe5e
     # via
     #   flask
+    #   flask-cors
     #   pytest-httpserver
 wheel==0.45.1 \
     --hash=sha256:661e1abd9198507b1409a20c02106d9670b2576e916d58f520316666abca6729 \

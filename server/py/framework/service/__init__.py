@@ -159,6 +159,48 @@ class Service(ABC):
             mlrun_service_name=self.service_name,
             mlrun_service=self,
         )
+        self._add_swagger_authorization()
+
+    def _add_swagger_authorization(self):
+        """
+        Add authorization header support to Swagger UI.
+        This allows users to add a custom authorization header in the Swagger UI.
+        """
+
+        def custom_openapi():
+            if self.app.openapi_schema:
+                return self.app.openapi_schema
+            from fastapi.openapi.utils import get_openapi
+
+            openapi_schema = get_openapi(
+                title=self.app.title,
+                version=self.app.version,
+                description=self.app.description,
+                routes=self.app.routes,
+            )
+            openapi_schema.setdefault("components", {})
+
+            # Add security scheme for authorization header
+            # This makes the "Authorize" button appear in Swagger UI
+            openapi_schema["components"].setdefault("securitySchemes", {})
+            openapi_schema["components"]["securitySchemes"]["Authorization"] = {
+                "type": "apiKey",
+                "in": "header",
+                "name": "Authorization",
+                "description": "Enter your authorization header token. Example: Bearer <token>",
+            }
+            # Add security requirement at root level to make it available globally
+            # Empty array [] means the security is optional (not required)
+            # This allows Swagger UI to attach the header to requests when user authorizes,
+            # but won't interfere with cookie-based authentication when user doesn't authorize
+            openapi_schema.setdefault("security", [])
+            auth_security = {"Authorization": []}
+            if auth_security not in openapi_schema["security"]:
+                openapi_schema["security"].append(auth_security)
+            self.app.openapi_schema = openapi_schema
+            return self.app.openapi_schema
+
+        self.app.openapi = custom_openapi
 
     async def _setup_service(self):
         """

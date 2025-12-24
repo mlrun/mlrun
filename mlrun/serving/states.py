@@ -32,6 +32,7 @@ from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
 
 import storey.utils
+from deprecated import deprecated
 from storey import ParallelExecutionMechanisms
 
 import mlrun
@@ -1666,7 +1667,7 @@ class ModelRunnerSelector(ModelObj):
 
 
 # TODO: Remove in 1.13.0
-@warnings.deprecated(
+@deprecated(
     version="1.11.0",
     reason="ModelSelector will be removed in 1.13.0, use ModelRunnerSelector instead",
     category=FutureWarning,

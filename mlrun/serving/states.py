@@ -1623,8 +1623,20 @@ class LLModel(Model):
 
 class ModelRunnerSelector(ModelObj):
     """
-    Client-implemented strategy for controlling model execution selection
-    and downstream routing in ModelRunnerStep.
+    Strategy for controlling model selection and output routing in ModelRunnerStep.
+
+    Subclass this to implement custom logic for agent workflows:
+    - `select_models()`: Called BEFORE execution to choose which models run
+    - `select_outlets()`: Called AFTER execution to route output to downstream steps
+
+    Return `None` from either method to use default behavior (all models / all outlets).
+
+    Example::
+
+        class ToolSelector(ModelRunnerSelector):
+            def select_outlets(self, event):
+                tool = event.get("tool_call")
+                return [tool] if tool else ["final"]
     """
 
     def __init__(self, **kwargs):

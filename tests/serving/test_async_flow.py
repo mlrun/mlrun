@@ -33,7 +33,14 @@ import mlrun.common.schemas as schemas
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
-from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
+from mlrun.serving import (
+    LLModel,
+    Model,
+    ModelRunnerSelector,
+    ModelRunnerStep,
+    ModelSelector,
+    RouterStep,
+)
 from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results

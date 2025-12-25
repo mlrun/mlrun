@@ -50,6 +50,8 @@ from tests.serving.demo_states import (  # noqa: F401
     MySelector,
     Raiser,
     Route,
+    Tool,
+    multiply_input,
 )
 
 
@@ -99,7 +101,6 @@ def test_async_basic():
 
     # plot the graph for test & debug
     flow.plot(f"{results}/serving/async.png")
-
     server = function.to_mock_server()
     server.context.visits = {}
     logger.info(f"\nAsync Flow:\n{flow.to_yaml()}")
@@ -147,11 +148,12 @@ def test_async_nested():
     graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
 
     server = function.to_mock_server()
-
-    # plot the graph for test & debug
-    graph.plot(f"{results}/serving/nested.png")
-    resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
-    server.wait_for_completion()
+    try:
+        # plot the graph for test & debug
+        graph.plot(f"{results}/serving/nested.png")
+        resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
+    finally:
+        server.wait_for_completion()
     # resp should be input (5) * multiply_input (2) * m2 multiplier (200)
     assert resp["outputs"] == 5 * 2 * 200, f"wrong health response {resp}"
 
@@ -165,12 +167,14 @@ def test_on_error():
     ).to("Chain", name="s3")
 
     function.verbose = True
-    server = function.to_mock_server()
+    try:
+        server = function.to_mock_server()
 
-    # plot the graph for test & debug
-    graph.plot(f"{results}/serving/on_error.png")
-    resp = server.test(body=[])
-    server.wait_for_completion()
+        # plot the graph for test & debug
+        graph.plot(f"{results}/serving/on_error.png")
+        resp = server.test(body=[])
+    finally:
+        server.wait_for_completion()
     if isinstance(resp, dict):
         assert (
             resp["error"] and resp["origin_state"] == "Raiser"

@@ -104,6 +104,13 @@ class HubModule(HubAsset):
             download_example=download_example,
         )
 
+    # TODO: Remove this in 1.13.0
+    @deprecated(
+        version="1.11.0",
+        reason="This function is deprecated and will be removed in 1.13. You can get the module source file path by"
+        " calling get_src_file_path() instead.",
+        category=FutureWarning,
+    )
     def get_module_file_path(self):
         """Get the full path to the module's code file."""
         return super().get_src_file_path()

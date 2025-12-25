@@ -1861,6 +1861,8 @@ def test_remove_tag_from_artifact_uri(input_uri, expected_output):
         ("a.missing", {"a": {"b": 1}}, {}),  # partially missing nested path
         (None, {"x": 1, "y": 2}, {"x": 1, "y": 2}),  # path is None
         ("x", [{"x": 1}, {"x": 2}], [1, 2]),  # list of dicts with simple key
+        (None, [1, 2, 3], [1, 2, 3]),  # list with None path
+        (None, [[1, 2], [3, 4]], [[1, 2], [3, 4]]),  # list of lists with None path
         (
             "a.b",
             [{"a": {"b": 10}}, {"a": {"b": 20}}],
@@ -1889,6 +1891,15 @@ def test_get_data_from_path_invalid_path_type():
         get_data_from_path(
             {"invalid": "path"}, {"x": 1}
         )  # path is dict, should raise error
+
+    # Test that using a path with a list of non-dict values raises error
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="If data is a list of non-dict values, path must be None",
+    ):
+        get_data_from_path(
+            ["x"], [1, 2, 3]
+        )  # path with list of ints, should raise error
 
 
 @pytest.mark.parametrize(

@@ -30,22 +30,27 @@ import pytest
 
 import mlrun
 import mlrun.common.schemas as schemas
+import mlrun.serving
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
-from mlrun.serving import (
-    LLModel,
-    Model,
-    ModelRunnerSelector,
-    ModelRunnerStep,
-    ModelSelector,
-    RouterStep,
-)
+from mlrun.serving import LLModel  # noqa F401
 from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results
-
-from .demo_states import *  # noqa
+from tests.serving.demo_states import (  # noqa: F401
+    Chain,
+    ChainWithContext,
+    Counter,
+    Echo,
+    EchoError,
+    LLModelWithTools,
+    ModelClass,
+    MyRemoteModel,
+    MySelector,
+    Raiser,
+    Route,
+)
 
 
 class _DummyStreamRaiser:
@@ -230,7 +235,7 @@ def test_batch():
             prev_ts = batch_ts
 
 
-class MyModel(Model):
+class MyModel(mlrun.serving.Model):
     def __init__(
         self, inc: int, gpu_number: Optional[int] = None, err: bool = True, **kwargs
     ):
@@ -261,18 +266,7 @@ class MyModel(Model):
         return self.predict(event)
 
 
-class MyRemoteModel(Model):
-    def predict(self, body, **kwargs):
-        body["url"] = self.model_artifact.model_url
-        body["default_config"] = self.model_artifact.default_config
-        return body
-
-    async def predict_async(self, body, **kwargs):
-        body["async_triggered"] = "Async predict was triggered."
-        return body
-
-
-class BatchedModel(Model):
+class BatchedModel(mlrun.serving.Model):
     def __init__(self, model_path: str, **kwargs):
         super().__init__(**kwargs)
         self.model_path = model_path
@@ -302,7 +296,7 @@ class BatchedModel(Model):
         return batched_body
 
 
-class MyLLM(LLModel):
+class MyLLM(mlrun.serving.LLModel):
     def predict(self, body, **kwargs):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
@@ -311,26 +305,25 @@ class MyLLM(LLModel):
         return body
 
 
-class DummyLLM(LLModel):
+class DummyLLM(mlrun.serving.LLModel):
     def predict(self, body: typing.Any, **kwargs):
         return body
 
 
-class DummyAsyncLLM(LLModel):
+class DummyAsyncLLM(mlrun.serving.LLModel):
     async def predict_async(self, body: typing.Any, **kwargs):
         return body
 
 
-class DummyAsyncLLMWithoutAsyncPredict(LLModel):
+class DummyAsyncLLMWithoutAsyncPredict(mlrun.serving.LLModel):
     def predict(self, body: typing.Any, **kwargs):
         return body
 
 
-class MyPklModel(Model):
-    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
+class MyPklModel(mlrun.serving.Model):
+    def __init__(self, name, artifact_uri, **kwargs):
         super().__init__(
             name=name,
-            raise_exception=raise_exception,
             artifact_uri=artifact_uri,
             **kwargs,
         )
@@ -348,7 +341,7 @@ class MyPklModel(Model):
         return body
 
 
-class ModelWithoutPredict(Model):
+class ModelWithoutPredict(mlrun.serving.Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -356,7 +349,7 @@ class ModelWithoutPredict(Model):
         return body
 
 
-class ModelWithoutAsyncPredict(Model):
+class ModelWithoutAsyncPredict(mlrun.serving.Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -367,7 +360,7 @@ class ModelWithoutAsyncPredict(Model):
 def test_model_runner():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyModel",
         execution_mechanism="naive",
@@ -390,7 +383,7 @@ def test_model_runner():
 def test_model_runner_add_model(method: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyModel",
         execution_mechanism="naive",
@@ -430,7 +423,7 @@ def test_model_runner_add_model(method: str):
 def test_model_runner_add_model_failure(method: str):
     function = mlrun.new_function("tests", kind="serving")
     function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyModel",
         execution_mechanism="naive",
@@ -452,8 +445,8 @@ def test_model_runner_add_model_failure(method: str):
 
     function_0 = mlrun.new_function("tests_1", kind="serving")
     graph_0 = function_0.set_topology("flow", engine="async")
-    model_runner_step_0 = ModelRunnerStep(name="my_model_runner_0")
-    model_runner_step_1 = ModelRunnerStep(name="my_model_runner_1")
+    model_runner_step_0 = mlrun.serving.ModelRunnerStep(name="my_model_runner_0")
+    model_runner_step_1 = mlrun.serving.ModelRunnerStep(name="my_model_runner_1")
     model_runner_step_0.add_model(
         model_class="MyModel",
         execution_mechanism="naive",
@@ -488,14 +481,14 @@ def test_model_runner_add_model_failure(method: str):
 def test_model_runner_with_route_failure(model_runner_first: bool, method: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyModel",
         execution_mechanism="naive",
         endpoint_name="my_model",
         inc=1,
     )
-    graph.to(class_name=RouterStep())
+    graph.to(class_name=mlrun.serving.RouterStep())
 
     if method == "add_step":
         adding_method = graph.add_step
@@ -533,14 +526,14 @@ def test_model_runner_with_route_failure(model_runner_first: bool, method: str):
 def test_model_runner_with_route(model_runner_first: bool, method: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner_with_route")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner_with_route")
     model_runner_step.add_model(
         model_class="MyModel",
         execution_mechanism="naive",
         endpoint_name="my_model",
         inc=1,
     )
-    graph.to(class_name=RouterStep()).respond()
+    graph.to(class_name=mlrun.serving.RouterStep()).respond()
 
     if method == "add_step":
         adding_method = graph.add_step
@@ -579,7 +572,7 @@ def test_model_runner_with_route(model_runner_first: bool, method: str):
 def test_model_runner_error_raiser(raise_error: bool, with_error: bool):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(
+    model_runner_step = mlrun.serving.ModelRunnerStep(
         name="my_model_runner", raise_exception=raise_error
     )
     model_runner_step.add_model(
@@ -598,7 +591,7 @@ def test_model_runner_error_raiser(raise_error: bool, with_error: bool):
 def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error: bool):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(
+    model_runner_step = mlrun.serving.ModelRunnerStep(
         name="my_model_runner", raise_exception=raise_error
     )
     model_runner_step.add_model(
@@ -615,7 +608,6 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
         endpoint_name="my_model_1",
         raise_error=False,
         inc=1,
-        err=True,
     )
     graph.to(model_runner_step).respond()
     _test_model_runner_raise_error_output(
@@ -632,7 +624,7 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
 def test_model_runner_multiple_downstream_steps(raise_error: bool, with_error: bool):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(
+    model_runner_step = mlrun.serving.ModelRunnerStep(
         name="my_model_runner", raise_exception=raise_error
     )
     model_runner_step.add_model(
@@ -676,28 +668,28 @@ def _test_model_runner_raise_error_output(
     server.wait_for_completion()
 
 
-class MyModelSelector(ModelSelector):
-    def __init__(self, models: Union[list[str], list[Model]]):
+class MyModelSelector(mlrun.serving.ModelSelector):
+    def __init__(self, models: Union[list[str], list[mlrun.serving.Model]]):
         super().__init__()
         self.models = deepcopy(models)
 
     def select(
-        self, event, available_models: list[Model]
-    ) -> Union[list[str], list[Model]]:
+        self, event, available_models: list[mlrun.serving.Model]
+    ) -> Union[list[str], list[mlrun.serving.Model]]:
         current_models = event.body.get("models")
         if current_models and set(current_models).issubset(set(self.models)):
             return current_models
         return []
 
 
-class MyModelRunnerSelector(ModelRunnerSelector):
-    def __init__(self, models: Union[list[str], list[Model]]):
+class MyModelRunnerSelector(mlrun.serving.ModelRunnerSelector):
+    def __init__(self, models: Union[list[str], list[mlrun.serving.Model]]):
         super().__init__()
         self.models = deepcopy(models)
 
     def select_models(
-        self, event, available_models: list[Model]
-    ) -> Union[list[str], list[Model]]:
+        self, event, available_models: list[mlrun.serving.Model]
+    ) -> Union[list[str], list[mlrun.serving.Model]]:
         current_models = event.body.get("models")
         if current_models and set(current_models).issubset(set(self.models)):
             return current_models
@@ -724,13 +716,13 @@ def test_model_runner_with_selector(execution_mechanism: str, selector: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     if selector == "new":
-        model_runner_step = ModelRunnerStep(
+        model_runner_step = mlrun.serving.ModelRunnerStep(
             name="my_model_runner",
             model_runner_selector=MyModelRunnerSelector(models=["m1", "m2"]),
         )
     else:
         with pytest.warns(FutureWarning, match="model_selector.*deprecated"):
-            model_runner_step = ModelRunnerStep(
+            model_runner_step = mlrun.serving.ModelRunnerStep(
                 name="my_model_runner",
                 model_selector=MyModelSelector(models=["m1", "m2"]),
             )
@@ -778,7 +770,7 @@ def test_model_runner_with_gpu_allocation():
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(
+    model_runner_step = mlrun.serving.ModelRunnerStep(
         name="my_model_runner",
     )
     model_runner_step.add_model(
@@ -820,14 +812,16 @@ def test_model_runner_with_remote_model(execution_mechanism, notebook_usage):
         filename = __file__
     function = mlrun.code_to_function("tests", kind="serving", filename=filename)
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyRemoteModel",
         execution_mechanism=execution_mechanism,
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )
-    async_model_runner_step = ModelRunnerStep(name="my_async_model_runner")
+    async_model_runner_step = mlrun.serving.ModelRunnerStep(
+        name="my_async_model_runner"
+    )
     async_model_runner_step.add_model(
         model_class="MyRemoteModel",
         execution_mechanism="asyncio",
@@ -881,14 +875,16 @@ def test_mock_server_invalid_source_path(execution_mechanism):
 
         function = mlrun.code_to_function("tests", kind="serving", filename=file_path)
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner")
+        model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
         model_runner_step.add_model(
             model_class="MyRemoteModel",
             execution_mechanism=execution_mechanism,
             endpoint_name="my_endpoint",
             model_artifact=model_artifact,
         )
-        async_model_runner_step = ModelRunnerStep(name="my_async_model_runner")
+        async_model_runner_step = mlrun.serving.ModelRunnerStep(
+            name="my_async_model_runner"
+        )
         async_model_runner_step.add_model(
             model_class="MyRemoteModel",
             execution_mechanism="asyncio",
@@ -927,7 +923,7 @@ def test_model_runner_with_remote_shared_model():
         model_artifact=model_artifact,
         execution_mechanism="naive",
     )
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
@@ -969,7 +965,7 @@ def test_add_model_after_adding_the_mrs_to_the_graph():
         model_artifact=model_artifact,
         execution_mechanism="naive",
     )
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_shared_model_proxy(
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
@@ -1014,7 +1010,7 @@ def test_get_local_model_path():
     )
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyPklModel",
         execution_mechanism="naive",
@@ -1073,7 +1069,7 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
             llm_artifact_param = llm_artifact
 
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(
+        model_runner_step = mlrun.serving.ModelRunnerStep(
             name="model-runner", raise_exception=raise_exception
         )
         model_class = "LLModel" if llm else "MyRemoteModel"
@@ -1170,7 +1166,9 @@ def test_llm_with_missing_legends(legend: dict):
         ),
     ):
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="model-runner", raise_exception=True)
+        model_runner_step = mlrun.serving.ModelRunnerStep(
+            name="model-runner", raise_exception=True
+        )
 
         model_runner_step.add_model(
             model_class="MyLLM",
@@ -1221,7 +1219,9 @@ def test_llm_with_missing_llm_prompt():
         side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="model-runner", raise_exception=True)
+        model_runner_step = mlrun.serving.ModelRunnerStep(
+            name="model-runner", raise_exception=True
+        )
 
         model_runner_step.add_model(
             model_class="MyLLM",
@@ -1249,7 +1249,7 @@ def test_llm_with_missing_llm_prompt():
 def test_using_model_without_predict_implementation(execution_mechanism: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="model-runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="model-runner")
     model_runner_step.add_model(
         model_class="ModelWithoutPredict"
         if execution_mechanism != "asyncio"
@@ -1287,7 +1287,7 @@ def test_shared_using_model_without_predict_implementation(execution_mechanism: 
         execution_mechanism=execution_mechanism,
         model_artifact=model_artifact,
     )
-    model_runner_step = ModelRunnerStep(name="model-runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="model-runner")
     model_runner_step.add_shared_model_proxy(
         endpoint_name="model_without_predict_shared",
         shared_model_name="model_without_predict_shared",
@@ -1324,7 +1324,7 @@ def test_model_runner_add_proxy_model_failure():
     )
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     with pytest.raises(GraphError, match="Can't find shared model named my_mode"):
         model_runner_step.add_shared_model_proxy(
             endpoint_name="my_endpoint",
@@ -1363,7 +1363,7 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(
+    model_runner_step = mlrun.serving.ModelRunnerStep(
         name="my_model_runner",
     )
     model_runner_step.add_model(
@@ -1412,7 +1412,7 @@ def test_llmodel_without_model_artifact(model_class, raise_exception):
     predict_function_name = "predict_async" if is_async else "predict"
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="model-runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="model-runner")
     project = mlrun.new_project("llmodel-without-model-artifact", save=False)
     llm_artifact = project.log_llm_prompt(
         "my_llm",
@@ -1548,7 +1548,7 @@ def test_max_iter_of_cyclic_graph(method, max_iter):
 def test_mrs_with_tools_routing():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async", allow_cyclic=True)
-    model_runner_step = ModelRunnerStep(
+    model_runner_step = mlrun.serving.ModelRunnerStep(
         name="my_model_runner", model_runner_selector="MySelector"
     )
     model_runner_step.add_model(
@@ -1578,7 +1578,7 @@ def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_forma
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     step = graph
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
     if batching_format == "raw_list":
         if raise_exception:
             inputs = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]

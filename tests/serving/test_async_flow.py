@@ -30,11 +30,17 @@ import pytest
 
 import mlrun
 import mlrun.common.schemas as schemas
-import mlrun.serving
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
-from mlrun.serving import LLModel  # noqa F401
+from mlrun.serving import (  # noqa: F401
+    LLModel,
+    Model,
+    ModelRunnerSelector,
+    ModelRunnerStep,
+    ModelSelector,
+    RouterStep,
+)
 from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results

@@ -1869,6 +1869,7 @@ def test_remove_tag_from_artifact_uri(input_uri, expected_output):
             [10, 20],
         ),  # list of dicts with nested path
         (None, [{"x": 1}, {"y": 2}], [{"x": 1}, {"y": 2}]),  # list with None path
+        (None, ["x"], ["x"]),  # list of strings with None path
     ],
 )
 def test_get_data_from_path_parametrized(path, data, expected):

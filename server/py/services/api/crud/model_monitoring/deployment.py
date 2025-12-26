@@ -1824,9 +1824,17 @@ class MonitoringDeployment:
                 self.check_if_credentials_are_set()
                 if self._is_the_same_cred(stream_profile_name, tsdb_profile_name):
                     logger.debug(
-                        "The same credentials are already set for the project - aborting with no error",
+                        "The same credentials are already set for the project - ensuring TSDB tables exist",
                         project=self.project,
                     )
+                    # Even if credentials match, ensure TSDB tables exist (ML-11807).
+                    # This handles cases where tables were deleted or don't exist yet.
+                    # The create_tables() call is idempotent for all TSDB connectors.
+                    if tsdb_profile_name:
+                        tsdb_profile = self._validate_and_get_tsdb_profile(
+                            tsdb_profile_name
+                        )
+                        self._create_tsdb_tables(tsdb_profile)
                     return
                 raise mlrun.errors.MLRunConflictError(
                     f"For {self.project} the credentials are already set, if you want to set new credentials, "

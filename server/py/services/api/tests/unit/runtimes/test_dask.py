@@ -469,15 +469,29 @@ class TestDaskRuntime(TestRuntimeBase):
             ),
         )
 
-        function.generate_runtime_k8s_env = unittest.mock.Mock(
-            return_value=[
-                {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
-            ]
+        function._generate_runtime_env = unittest.mock.Mock(
+            return_value=(
+                [
+                    {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
+                ],
+                [
+                    {
+                        "name": "MLRUN_RUNTIME_KIND",
+                        "valueFrom": {
+                            "fieldRef": {
+                                "apiVersion": "v1",
+                                "fieldPath": "metadata.labels['mlrun/class']",
+                            }
+                        },
+                    }
+                ],
+            )
         )
 
         # add default envvars that expected to be on enriched pods
         # do it to verify later on it is not duplicated and appears only once
-        function.spec.env.extend(function.generate_runtime_k8s_env())
+        env, _ = function._generate_runtime_env(return_k8s_format=True)
+        function.spec.env.extend(env)
         function.with_preemption_mode("prevent")
 
         expected_resources = {
@@ -486,6 +500,15 @@ class TestDaskRuntime(TestRuntimeBase):
         }
         expected_env = [
             {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
+            {
+                "name": "MLRUN_RUNTIME_KIND",
+                "valueFrom": {
+                    "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.labels['mlrun/class']",
+                    }
+                },
+            },
             k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
             {"name": "TEST_DUP", "value": "A"},
         ]
@@ -553,7 +576,7 @@ class TestDaskRuntime(TestRuntimeBase):
         assert worker_pod.spec.affinity == expected_affinity
 
         # used once by test, once by enrich_dask_cluster
-        assert function.generate_runtime_k8s_env.call_count == 2
+        assert function._generate_runtime_env.call_count == 2
 
     def test_dask_cluster_enriches_image(self):
         """

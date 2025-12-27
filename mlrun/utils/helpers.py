@@ -2578,3 +2578,12 @@ def raise_or_log_error(message: str, raise_on_error: bool = True):
     if raise_on_error:
         raise mlrun.errors.MLRunRuntimeError(message)
     logger.warning(message)
+
+
+def is_running_in_runtime() -> bool:
+    """
+    Check if the code is running inside an MLRun runtime environment.
+    :return: True if running inside an MLRun runtime, False otherwise.
+    """
+    # Check for the presence of the MLRUN_RUNTIME_KIND environment variable
+    return True if os.getenv("MLRUN_RUNTIME_KIND") else False

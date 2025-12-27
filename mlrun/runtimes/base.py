@@ -279,18 +279,6 @@ class BaseRuntime(ModelObj):
             mlrun.model.Credentials.generate_access_key
         )
 
-    def generate_runtime_k8s_env(self, runobj: RunObject = None) -> list[dict]:
-        """
-        Prepares a runtime environment as it's expected by kubernetes.models.V1Container
-
-        :param runobj: Run context object (RunObject) with run metadata and status
-        :return: List of dicts with the structure {"name": "var_name", "value": "var_value"}
-        """
-        return [
-            {"name": k, "value": v}
-            for k, v in self._generate_runtime_env(runobj).items()
-        ]
-
     def run(
         self,
         runspec: Optional[
@@ -444,14 +432,14 @@ class BaseRuntime(ModelObj):
             return task.to_dict()
 
     def _generate_runtime_env(
-        self, runobj: RunObject = None, auth_info: mlrun.common.schemas.AuthInfo = None
-    ) -> dict:
+        self, runobj: RunObject = None, return_k8s_format: bool = False
+    ):
         """
         Prepares all available environment variables for usage on a runtime
         Data will be extracted from several sources and most of them are not guaranteed to be available
 
-        :param runobj: Run context object (RunObject) with run metadata and status
-        :param auth_info: Optional authentication information.
+        :param runobj: Optional run context object (RunObject) with run metadata and status
+        :param return_k8s_format: Whether to return the env vars in Kubernetes format
         :return: Dictionary with all the variables that could be parsed
         """
         active_project = self.metadata.project or config.active_project
@@ -463,21 +451,64 @@ class BaseRuntime(ModelObj):
 
         mlrun.auth.utils.enrich_auth_env(runtime_env)
 
+        if self.metadata.credentials.access_key:
+            runtime_env[
+                mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
+            ] = self.metadata.credentials.access_key
+
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True
             )
-            if runobj.metadata.project:
-                runtime_env[mlrun_constants.MLRUN_ACTIVE_PROJECT] = (
-                    runobj.metadata.project
-                )
             if runobj.spec.verbose:
                 runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
-        return runtime_env
+
+        if return_k8s_format:
+            runtime_env = [{"name": k, "value": v} for k, v in runtime_env.items()]
+
+        external_source_env = self._generate_external_source_runtime_envs(
+            return_k8s_format
+        )
+
+        return runtime_env, external_source_env
+
+    def _generate_external_source_runtime_envs(self, return_k8s_format: bool = False):
+        """
+        Returns non-static env vars to be added to the runtime pod/container.
+        :param return_k8s_format: Whether to return the env vars in Kubernetes format
+        Output formats:
+          - default format:
+                [{ ENV_NAME: value_from }]
+          - Kubernetes format:
+                [{ "name": ENV_NAME, "valueFrom": value_from }]
+        """
+
+        external_envs = [
+            {
+                "name": "MLRUN_RUNTIME_KIND",
+                "value_from": {
+                    "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": f"metadata.labels['{mlrun_constants.MLRunInternalLabels.mlrun_class}']",
+                    }
+                },
+            },
+        ]
+
+        if return_k8s_format:
+            return [
+                {
+                    "name": env["name"],
+                    "valueFrom": env["value_from"],
+                }
+                for env in external_envs
+            ]
+
+        return {env["name"]: env["value_from"] for env in external_envs}
 
     @staticmethod
     def _handle_submit_job_http_error(error: requests.HTTPError):

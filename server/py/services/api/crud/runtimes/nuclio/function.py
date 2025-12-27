@@ -378,8 +378,6 @@ def _enrich_config_spec(
 
 def _resolve_env_vars(function):
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
-    mlrun.auth.utils.enrich_auth_env(env_dict)
-
     return env_dict, external_source_env_dict
 
 

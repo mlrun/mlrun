@@ -1632,7 +1632,7 @@ def test_mrs_direct_batch_str(
             # Missing "text" field will cause empty strings
             inputs = [{"z": 1}, {"z": 2}, {"z": 3}]
         else:
-            inputs = ["hello", "world", "test", "python"]
+            inputs = ["hello", "world", "test", "mlrun", "data", "science"]
     elif batching_format == "input_list":
         if raise_exception:
             inputs = [
@@ -1645,14 +1645,16 @@ def test_mrs_direct_batch_str(
                 {"input": {"text": "hello"}},
                 {"input": {"text": "world"}},
                 {"input": {"text": "test"}},
-                {"input": {"text": "python"}},
+                {"input": {"text": "mlrun"}},
+                {"input": {"text": "data"}},
+                {"input": {"text": "science"}},
             ]
     else:  # list_of_lists (treated as list of strings)
         if raise_exception:
             # Non-string items will cause errors
-            inputs = [[123, 456], [789]]
+            inputs = [[123, 456, 789], [111, 222, 333]]
         else:
-            inputs = [["hello", "world"], ["test", "python"]]
+            inputs = [["hello", "world", "test"], ["mlrun", "data", "science"]]
 
     suffix1 = "_model1"
     suffix2 = "_model2"
@@ -1700,13 +1702,17 @@ def test_mrs_direct_batch_str(
                 "hello_model1",
                 "world_model1",
                 "test_model1",
-                "python_model1",
+                "mlrun_model1",
+                "data_model1",
+                "science_model1",
             ]
             expected_output_2 = [
                 "hello_model2",
                 "world_model2",
                 "test_model2",
-                "python_model2",
+                "mlrun_model2",
+                "data_model2",
+                "science_model2",
             ]
 
             if multiple_models:
@@ -1728,12 +1734,12 @@ def test_mrs_direct_batch_str(
         server.wait_for_completion()
     if not raise_exception:
         expected_inputs = (
-            [["hello", "world"], ["test", "python"]]
+            [["hello", "world", "test"], ["mlrun", "data", "science"]]
             if batching_format == "list_of_lists"
-            else ["hello", "world", "test", "python"]
+            else ["hello", "world", "test", "mlrun", "data", "science"]
         )
 
-        effective_sample_count = 2 if batching_format == "list_of_lists" else 4
+        effective_sample_count = 2 if batching_format == "list_of_lists" else 6
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
         assert event["effective_sample_count"] == effective_sample_count
@@ -1743,7 +1749,9 @@ def test_mrs_direct_batch_str(
             "hello_model1",
             "world_model1",
             "test_model1",
-            "python_model1",
+            "mlrun_model1",
+            "data_model1",
+            "science_model1",
         ]
         assert event["error"] is None
         assert event["model"] == endpoint_name
@@ -1757,7 +1765,9 @@ def test_mrs_direct_batch_str(
                 "hello_model2",
                 "world_model2",
                 "test_model2",
-                "python_model2",
+                "mlrun_model2",
+                "data_model2",
+                "science_model2",
             ]
             assert event["error"] is None
             assert event["model"] == endpoint_name2

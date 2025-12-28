@@ -580,8 +580,24 @@ class TestMLRunSystem:
         try:
             pods = self.kube_client.list_namespaced_pod(namespace)
         except Exception as e:
-            self._logger.warning(f"Failed to list pods in {namespace}: {e}")
-            return {}
+            # EKS exec tokens (aws eks get-token / aws-iam-authenticator) are short lived (~15 minutes).
+            # The kube client can hold a token loaded earlier in the test run, and long running tests can fail
+            # after it expires, causing 401 Unauthorized on log collection. If we detect 401, refresh kubeconfig
+            # (re-run exec) and retry once.
+            status = getattr(e, "status", None)
+            if status == 401 or "Unauthorized" in str(e) or "(401)" in str(e):
+                self._logger.info(
+                    f"Unauthorized listing pods in {namespace}, refreshing kube client and retrying once"
+                )
+                try:
+                    type(self)._setup_k8s_client()
+                    pods = self.kube_client.list_namespaced_pod(namespace)
+                except Exception as e2:
+                    self._logger.warning(f"Failed to list pods in {namespace}: {e2}")
+                    return {}
+            else:
+                self._logger.warning(f"Failed to list pods in {namespace}: {e}")
+                return {}
 
         for pod in pods.items:
             pod_name = pod.metadata.name

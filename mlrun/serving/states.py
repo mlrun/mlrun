@@ -1765,7 +1765,8 @@ class ModelRunner(storey.ParallelExecution):
         else:
             for model in event:
                 body_by_model = event.get(model)
-                return isinstance(body_by_model, dict) and "error" in body_by_model
+                if isinstance(body_by_model, dict) and "error" in body_by_model:
+                    return True
         return False
 
 

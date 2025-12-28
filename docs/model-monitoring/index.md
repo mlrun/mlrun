@@ -82,9 +82,8 @@ For example:
 Model monitoring supports Kafka or V3IO as streaming platforms, and TimescaleDB or V3IO TSDB platforms.
 
 The recommended versions are:
-
-- TimescaleDB: 
-- Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`)
+- TimescaleDB: 2.7.0
+- Kafka: 3.9.0 self-hosted, or Confluent Cloud (tested against 7.9)
 
 Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 See also [Configuring TDengine and Kafka for model monitoring](../install/kubernetes.md#configuring-tdengine-and-kafka-for-model-monitoring).

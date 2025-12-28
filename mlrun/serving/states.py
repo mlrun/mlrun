@@ -690,27 +690,24 @@ class BaseStep(ModelObj):
             )
 
 
-_task_step_fields = BaseStep._dict_fields + [
-    "class_name",
-    "class_args",
-    "handler",
-    "skip_context",
-    "function",
-    "shape",
-    "full_event",
-    "responder",
-    "input_path",
-    "result_path",
-    "model_endpoint_creation_strategy",
-    "endpoint_type",
-]
-
-
 class TaskStep(BaseStep):
     """task execution step, runs a class or handler"""
 
     kind = "task"
-    _dict_fields = _task_step_fields
+    _dict_fields = BaseStep._dict_fields + [
+        "class_name",
+        "class_args",
+        "handler",
+        "skip_context",
+        "function",
+        "shape",
+        "full_event",
+        "responder",
+        "input_path",
+        "result_path",
+        "model_endpoint_creation_strategy",
+        "endpoint_type",
+    ]
     _default_class = ""
 
     def __init__(
@@ -979,7 +976,7 @@ class ErrorStep(TaskStep):
     """error execution step, runs a class or handler"""
 
     kind = "error_step"
-    _dict_fields = _task_step_fields + ["before", "base_step"]
+    _dict_fields = TaskStep._dict_fields + ["before", "base_step"]
     _default_class = ""
 
     def __init__(
@@ -1016,7 +1013,7 @@ class RouterStep(TaskStep):
 
     kind = "router"
     default_shape = "doubleoctagon"
-    _dict_fields = _task_step_fields + ["routes", "name"]
+    _dict_fields = TaskStep._dict_fields + ["routes", "name"]
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(

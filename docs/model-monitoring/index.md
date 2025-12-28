@@ -79,11 +79,11 @@ For example:
 (mm-tsdb-streaming-platforms)=
 ## Selecting the streaming and TSDB platforms
 
-Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO TSDB platforms.
+Model monitoring supports Kafka or V3IO as streaming platforms, and TimescaleDB or V3IO TSDB platforms.
 
 The recommended versions are:
 
-- TDEngine: `3.3.2.0`
+- TimescaleDB: 
 - Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`)
 
 Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.

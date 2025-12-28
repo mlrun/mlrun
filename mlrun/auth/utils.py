@@ -330,7 +330,7 @@ def enrich_auth_env(
     if mlrun.mlconf.is_iguazio_v4_mode():
         env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
         env["MLRUN_AUTH_TOKEN_ENDPOINT"] = os.path.join(
-            mlrun.mlconf.iguazio_api_url, "api/v1/refresh-access-token"
+            mlrun.mlconf.iguazio_api_url, "api/v1/authentication/refresh-access-token"
         )
         env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
             mlrun.mlconf.iguazio_api_ssl_verify

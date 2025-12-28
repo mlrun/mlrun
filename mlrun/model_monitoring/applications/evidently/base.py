@@ -24,7 +24,6 @@ import mlrun.model_monitoring.applications.context as mm_context
 from mlrun.errors import MLRunIncompatibleVersionError, MLRunValueError
 
 SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.7.5")
-SUPPORTED_SNIFFIO_VERSION = semver.Version.parse("1.3.0")
 
 
 def _check_evidently_version(*, cur: semver.Version, ref: semver.Version) -> None:

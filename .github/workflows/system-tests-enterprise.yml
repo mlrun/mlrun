@@ -368,6 +368,16 @@ jobs:
       with:
         node-version: 18
 
+    # Configure AWS credentials in the test job as well, so the kubeconfig can use exec-based auth
+    # (aws eks get-token) and refresh tokens throughout long test runs. This prevents 401s during
+    # pod-log collection on failures.
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708
+      with:
+        role-to-assume: ${{ env.AWS_ROLE_ARN }}
+        role-session-name: mlrun-system-tests-${{ github.run_id }}
+        aws-region: ${{ env.AWS_REGION }}
+
     - uses: actions/checkout@v6
       # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
       # the system tests of the branch that triggered the system tests as it might be in a different version

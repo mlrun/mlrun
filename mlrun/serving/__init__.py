@@ -27,6 +27,7 @@ __all__ = [
     "ModelRunner",
     "Model",
     "ModelSelector",
+    "ModelRunnerSelector",
     "MonitoredStep",
     "LLModel",
 ]
@@ -47,6 +48,7 @@ from .states import (
     ModelRunner,
     Model,
     ModelSelector,
+    ModelRunnerSelector,
     MonitoredStep,
     LLModel,
 )  # noqa

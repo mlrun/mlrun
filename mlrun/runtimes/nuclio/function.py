@@ -17,6 +17,7 @@ import copy
 import json
 import typing
 import warnings
+from dataclasses import dataclass
 from datetime import datetime
 from time import sleep
 from urllib.parse import urlparse, urlunparse
@@ -95,6 +96,12 @@ def min_nuclio_versions(*versions):
         return wrapper
 
     return decorator
+
+
+@dataclass
+class AsyncSpec:
+    enabled: bool
+    max_connections: int = None
 
 
 class NuclioSpec(KubeResourceSpec):
@@ -467,6 +474,7 @@ class RemoteRuntime(KubeResource):
         annotations: typing.Optional[typing.Mapping[str, str]] = None,
         extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
         batching_spec: typing.Optional[BatchingSpec] = None,
+        async_spec: typing.Optional[AsyncSpec] = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -490,6 +498,8 @@ class RemoteRuntime(KubeResource):
         :param extra_attributes: key/value dict of extra nuclio trigger attributes
         :param batching_spec: BatchingSpec object that defines batching configuration.
             By default, batching is disabled.
+        :param async_spec: AsyncSpec object that defines async configuration. if number of max connections won't be set,
+        the default value is 1000.
         :return: function object (self)
         """
         if self.disable_default_http_trigger:
@@ -534,6 +544,15 @@ class RemoteRuntime(KubeResource):
                     "Batching is only supported on Nuclio 1.14.0 and higher"
                 )
             trigger._struct["batch"] = batching_config
+
+        if async_spec:
+            if not validate_nuclio_version_compatibility("1.15.3"):
+                raise mlrun.errors.MLRunValueError(
+                    "Async spec is only supported on Nuclio 1.15.3 and higher"
+                )
+            if async_spec.enabled:
+                trigger._struct["mode"] = "async" if async_spec.enabled else "sync"
+                trigger._struct["async"]["maxConnections"] = async_spec.max_connections
 
         self.add_trigger(trigger_name or "http", trigger)
         return self

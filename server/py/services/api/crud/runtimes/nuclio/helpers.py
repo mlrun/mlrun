@@ -103,7 +103,7 @@ def resolve_function_ingresses(function_spec):
     return ingresses
 
 
-def enrich_function_with_ingress(config, mode, service_type):
+def enrich_function_with_ingress(config, mode, service_type, async_mode):
     # do not enrich with an ingress
     if (
         mode
@@ -133,6 +133,10 @@ def enrich_function_with_ingress(config, mode, service_type):
             "maxWorkers": 1,
             "workerAvailabilityTimeoutMilliseconds": 10000,  # 10 seconds
             "attributes": {},
+            "mode": async_mode or "sync",
+            "async": {
+                "maxConnectionsNumber": None,
+            },
         }
 
     def enrich():

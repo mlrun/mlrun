@@ -572,11 +572,16 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         with_training_set: bool = True,
         with_model_runner: bool = False,
     ) -> datetime:
+        total_inputs = []
+        for i in range(4):
+            inputs = {"inputs": [[0.0] * cls.num_features] * num_events}
+            total_inputs.append(inputs)
+        # body=json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}
         result = serving_fn.invoke(
             path="/"
             if with_model_runner
             else f"v2/models/{cls.model_name}_{with_training_set}/infer",
-            body=json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
+            body=total_inputs,
         )
         assert isinstance(result, dict), "Unexpected result type"
         assert "outputs" in result, "Result should have 'outputs' key"

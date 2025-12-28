@@ -41,9 +41,9 @@ from tests.system.runtimes.assets.function_with_model import DummyModel, MyModel
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
-    project_name = "test-nuclio-runtime-24"
+    project_name = "test-nuclio-runtime"
 
-    image: str = "artifactory.iguazeng.com:10557/davids/mlrun:1.11.0"
+    image: str = "mlrun/mlrun"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")

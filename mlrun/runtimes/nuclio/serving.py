@@ -42,7 +42,7 @@ from mlrun.serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from mlrun.utils import get_caller_globals, logger, set_paths
+from mlrun.utils import get_caller_globals, logger, merge_requirements, set_paths
 
 from .. import KubejobRuntime
 from ..pod import KubeResourceSpec
@@ -726,6 +726,8 @@ class ServingRuntime(RemoteRuntime):
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
+        self._add_steps_requirements()
+
         return super().deploy(
             project,
             tag,
@@ -889,6 +891,8 @@ class ServingRuntime(RemoteRuntime):
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
             )
 
+        self._add_steps_requirements()
+
         spec = KubeResourceSpec(
             image=self.spec.image,
             mode=self.spec.mode,
@@ -964,3 +968,32 @@ class ServingRuntime(RemoteRuntime):
             metadata=job_metadata,
         )
         return job
+
+    def _add_steps_requirements(self):
+        steps = getattr(getattr(self.spec, "graph", {}), "steps", {})
+
+        # extract child function name from self.metadata.name if parent label exists
+        full_name = self.metadata.name
+        parent_label = (
+            self.metadata.labels.get("mlrun/parent-function")
+            if self.metadata.labels
+            else None
+        )
+        current_function = None  # only set if current function is a child
+        if parent_label and full_name.startswith(parent_label + "-"):
+            current_function = full_name[len(parent_label) + 1 :]
+
+        build_reqs = getattr(getattr(self.spec, "build", {}), "requirements", [])
+
+        for step in steps.values():
+            # only add requirements to the function of this step is local to it
+            if hasattr(step, "requirements"):
+                if not step._is_local_function(
+                    context=None, current_function=current_function
+                ):
+                    continue
+                reqs_union = merge_requirements(
+                    reqs_priority=build_reqs,
+                    reqs_secondary=getattr(step, "requirements", []),
+                )
+                self.with_requirements(requirements=reqs_union, overwrite=True)

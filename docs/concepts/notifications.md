@@ -79,11 +79,10 @@ After creating or editing the secret, refresh the MLRun SMTP configuration by ru
 
 ### Create a mail notification object
 
-When creating a notification object, you can use the defaults, or overwrite some/all.  
-You must create the notification object in this format, customized for your requirements.
-Anything not defined in this format will be enriched with the values in the `mlrun-smtp-config` secret.
+The following snippet shows the format of a notification object.
+You can inherit the default `mlrun-smtp-config`, or choose to overwrite parameter/s.
+Any `params` not defined in this format will be enriched with the values in the `mlrun-smtp-config` secret.
 The only mandatory field in `params` is `email_addresses`.
-
 
 ```python
 mail_notification = mlrun.model.Notification(

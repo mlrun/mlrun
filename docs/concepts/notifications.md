@@ -62,7 +62,7 @@ as the default, cluster-wide, SMTP configuration (creates an `mlrun-smtp-config`
 If you edit the configuration on the Iguazio platform, run the `refresh_smtp_configuration` method again.
 
 Three parameters cannot be configured on the Iguazio platform. To set their defaults for the cluster, run these commands with the relevant values:
-```python
+```
 kubectl -n default-tenant patch secret mlrun-smtp-config -p='{"stringData":{"use_tls":"false"}}'
 kubectl -n default-tenant patch secret mlrun-smtp-config -p='{"stringData":{"start_tls":"true"}}'
 kubectl -n default-tenant patch secret mlrun-smtp-config -p='{"stringData":{"validate_certs":"false"}}'
@@ -92,9 +92,6 @@ mail_notification = mlrun.model.Notification(
     condition="",
     severity="verbose",
     params={
-        "start_tls": True,
-        "use_tls": False,
-        "validate_certs": False,
         "email_addresses": ["user.name@domain.com"],
     },
 )

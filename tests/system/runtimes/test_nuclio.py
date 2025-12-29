@@ -579,12 +579,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         graph = function.set_topology(
             "flow", engine="async", allow_cyclic=True, max_iterations=6
         )
-        graph.to(name="start", class_name="Echo").to(
-            class_name="Counter", name="count"
-        ).to(name="route", class_name="Route", cycle_to="count").to(
-            name="end", class_name="Echo"
-        ).respond()
-
+        graph.to(class_name="Counter", name="count").to(
+            name="route", class_name="Route", cycle_to="count"
+        ).to(name="end", class_name="Echo").respond()
         # Deploy the function
         function.deploy()
 

@@ -92,25 +92,6 @@ class StepKinds:
     model_runner = "model_runner"
 
 
-_task_step_fields = [
-    "kind",
-    "class_name",
-    "class_args",
-    "handler",
-    "skip_context",
-    "after",
-    "function",
-    "comment",
-    "shape",
-    "full_event",
-    "on_error",
-    "responder",
-    "input_path",
-    "result_path",
-    "model_endpoint_creation_strategy",
-    "endpoint_type",
-]
-
 _default_fields_to_strip_from_step = [
     "model_endpoint_creation_strategy",
     "endpoint_type",
@@ -142,7 +123,7 @@ class BaseStep(ModelObj):
         "after",
         "on_error",
         "max_iterations",
-        "_cycle_to",
+        "cycle_from",
     ]
     _default_fields_to_strip = _default_fields_to_strip_from_step
 
@@ -166,7 +147,7 @@ class BaseStep(ModelObj):
             schemas.ModelEndpointCreationStrategy.SKIP
         )
         self._max_iterations = max_iterations
-        self._cycle_from = []
+        self.cycle_from = []
 
     def get_shape(self):
         """graphviz shape"""
@@ -465,7 +446,7 @@ class BaseStep(ModelObj):
                     f"step {step_name} doesnt exist in the graph under {self._parent.fullname}"
                 )
             root[step_name].after_step(self.name, append=True)
-            root[step_name]._cycle_from.append(self.name)
+            root[step_name].cycle_from.append(self.name)
 
         return self
 
@@ -713,7 +694,20 @@ class TaskStep(BaseStep):
     """task execution step, runs a class or handler"""
 
     kind = "task"
-    _dict_fields = _task_step_fields
+    _dict_fields = BaseStep._dict_fields + [
+        "class_name",
+        "class_args",
+        "handler",
+        "skip_context",
+        "function",
+        "shape",
+        "full_event",
+        "responder",
+        "input_path",
+        "result_path",
+        "model_endpoint_creation_strategy",
+        "endpoint_type",
+    ]
     _default_class = ""
 
     def __init__(
@@ -982,7 +976,7 @@ class ErrorStep(TaskStep):
     """error execution step, runs a class or handler"""
 
     kind = "error_step"
-    _dict_fields = _task_step_fields + ["before", "base_step"]
+    _dict_fields = TaskStep._dict_fields + ["before", "base_step"]
     _default_class = ""
 
     def __init__(
@@ -1019,7 +1013,7 @@ class RouterStep(TaskStep):
 
     kind = "router"
     default_shape = "doubleoctagon"
-    _dict_fields = _task_step_fields + ["routes", "name"]
+    _dict_fields = TaskStep._dict_fields + ["routes", "name"]
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
@@ -2790,7 +2784,7 @@ class FlowStep(BaseStep):
         for step in self._steps.values():
             step._next = None
             step._visited = False
-            if step.after and not step._cycle_from:
+            if step.after and not step.cycle_from:
                 has_illegal_branches = len(step.after) > 1 and self.engine == "sync"
                 if has_illegal_branches:
                     raise GraphError(
@@ -2803,11 +2797,11 @@ class FlowStep(BaseStep):
                     )
             elif (
                 step.after
-                and step._cycle_from
-                and set(step.after) == set(step._cycle_from)
+                and step.cycle_from
+                and set(step.after) == set(step.cycle_from)
             ):
                 start_steps.append(step.name)
-            elif not step._cycle_from:
+            elif not step.cycle_from:
                 start_steps.append(step.name)
 
         responders = []

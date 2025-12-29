@@ -19,6 +19,7 @@ import psycopg
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
+from mlrun.datastore.datastore_profile import DatastoreProfilePostgreSQL
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     Statement,
@@ -59,17 +60,19 @@ class TimescaleDBOperationsManager:
         project: str,
         connection: TimescaleDBConnection,
         pre_aggregate_config: Optional[PreAggregateConfig] = None,
+        profile: Optional[DatastoreProfilePostgreSQL] = None,
     ):
         """
         Initialize operations handler with a shared connection.
 
         :param project: The project name
-        :param profile: Datastore profile for connection (used for table initialization)
         :param connection: Shared TimescaleDBConnection instance
         :param pre_aggregate_config: Optional pre-aggregation configuration
+        :param profile: Optional datastore profile for admin operations (database creation)
         """
         self.project = project
         self._pre_aggregate_config = pre_aggregate_config
+        self._profile = profile
 
         # Use the injected shared connection
         self._connection = connection
@@ -79,6 +82,67 @@ class TimescaleDBOperationsManager:
 
     def _init_tables(self) -> None:
         self.tables = timescaledb_schema.create_table_schemas(self.project)
+
+    def _create_db_if_not_exists(self) -> None:
+        """
+        Create the database if it does not exist.
+
+        This method connects to the default 'postgres' database to create
+        the monitoring database if it doesn't already exist. It also ensures the
+        TimescaleDB extension is enabled in the monitoring database.
+
+        Note: Requires a profile to be set during initialization.
+        """
+        if not self._profile:
+            logger.debug(
+                "No profile provided, skipping database creation",
+                project=self.project,
+            )
+            return
+
+        database_name = self._profile.database
+
+        logger.debug(
+            "Checking/creating TimescaleDB database",
+            project=self.project,
+            database=database_name,
+        )
+
+        # Connect to default postgres database to create the monitoring database
+        admin_connection = TimescaleDBConnection(
+            dsn=self._profile.admin_dsn(),
+            min_connections=1,
+            max_connections=1,
+            autocommit=True,  # DDL requires autocommit
+        )
+
+        try:
+            # Check if database exists using parameterized Statement
+            check_stmt = Statement(
+                sql="SELECT 1 FROM pg_database WHERE datname = %s",
+                parameters=(database_name,),
+            )
+            result = admin_connection.run(query=check_stmt)
+
+            if not result or not result.data:
+                # Database doesn't exist, create it
+                # Note: CREATE DATABASE cannot be parameterized, but database_name
+                # comes from our own profile, not user input
+                admin_connection.run(statements=[f'CREATE DATABASE "{database_name}"'])
+                logger.info(
+                    "Created TimescaleDB database",
+                    project=self.project,
+                    database=database_name,
+                )
+            else:
+                logger.debug(
+                    "TimescaleDB database already exists",
+                    project=self.project,
+                    database=database_name,
+                )
+        finally:
+            # Close the admin connection pool to avoid resource leak
+            admin_connection.close()
 
     def create_tables(
         self, pre_aggregate_config: Optional[PreAggregateConfig] = None
@@ -90,6 +154,10 @@ class TimescaleDBOperationsManager:
             project=self.project,
             with_pre_aggregates=config is not None,
         )
+
+        # Create database if it doesn't exist
+        self._create_db_if_not_exists()
+
         # Try to create extension, ignore if already exists
         try:
             self._connection.run(

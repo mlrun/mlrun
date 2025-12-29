@@ -13,11 +13,14 @@
 # limitations under the License.
 
 import tempfile
+import time
 import uuid
+from datetime import datetime, timedelta
 
 import fsspec
 import pandas as pd
 import pytest
+import pytz
 from pandas.testing import assert_frame_equal
 
 import mlrun
@@ -73,6 +76,7 @@ class TestAwsS3(TestMLRunSystem):
         self._bucket_name = test_environment["AWS_BUCKET_NAME"]
         self._access_key_id = test_environment["AWS_ACCESS_KEY_ID"]
         self._secret_access_key = test_environment["AWS_SECRET_ACCESS_KEY"]
+        self._endpoint_url = test_environment.get("AWS_ENDPOINT_URL")
 
         object_sub_dir = f"dir_{uuid.uuid4()}"
 
@@ -91,12 +95,15 @@ class TestAwsS3(TestMLRunSystem):
             access_key_id=self._access_key_id,
             secret_key=self._secret_access_key,
             bucket=self._bucket_name,
+            endpoint_url=self._endpoint_url,
         )
         register_temporary_client_datastore_profile(profile)
 
     def custom_teardown(self):
         s3_fs = fsspec.filesystem(
-            "s3", key=self._access_key_id, secret=self._secret_access_key
+            "s3",
+            key=self._access_key_id,
+            secret=self._secret_access_key,
         )
         full_path = self.s3["s3"]["test_dir_path"]
         if s3_fs.exists(full_path):
@@ -110,7 +117,10 @@ class TestAwsS3(TestMLRunSystem):
     def test_ingest_with_parquet_source(self, url_type, target_path):
         #  create source
         s3_fs = fsspec.filesystem(
-            "s3", key=self._access_key_id, secret=self._secret_access_key
+            "s3",
+            key=self._access_key_id,
+            secret=self._secret_access_key,
+            endpoint_url=self._endpoint_url,
         )
         param = self.s3[url_type]
         logger.info(f"Using URL {param['object_sub_dir_url']}")
@@ -156,7 +166,10 @@ class TestAwsS3(TestMLRunSystem):
 
     def test_ingest_ds_default_target(self):
         s3_fs = fsspec.filesystem(
-            "s3", key=self._access_key_id, secret=self._secret_access_key
+            "s3",
+            key=self._access_key_id,
+            secret=self._secret_access_key,
+            endpoint_url=self._endpoint_url,
         )
         param = self.s3["ds_with_bucket"]
         logger.info(f"Using URL {param['parquets_url']}")
@@ -207,3 +220,115 @@ class TestAwsS3(TestMLRunSystem):
         ):
             target.purge()
         assert s3_fs.ls(f"{self._bucket_name}")
+
+    @pytest.mark.parametrize(
+        ("partition_keys", "granularity"),
+        [
+            (["year"], "year"),
+            (["year", "month"], "month"),
+            (["year", "month", "day"], "day"),
+            (["year", "month", "day", "hour"], "hour"),
+        ],
+    )
+    @pytest.mark.parametrize("with_tz", [True, False])
+    # Copied from test_feature_store.py for equivalent testing on S3
+    # ML-11732
+    def test_partitioned_parquet_as_df_time_filtering_optimization(
+        self, partition_keys, granularity, with_tz
+    ):
+        """
+        test reading partitioned parquet target as_df method with time filtering
+        covers:
+          - Partitioned parquet writing via ParquetTarget
+          - Reading & filtering via start_time/end_time
+          - Empty/out-of-range case
+        """
+        key = "patient_id"
+        base_time = datetime(2020, 12, 1, 17, 0)
+        if with_tz:
+            base_time = base_time.replace(tzinfo=pytz.UTC)
+
+        df = pd.DataFrame(
+            [
+                {
+                    key: i + 1,
+                    "timestamp": base_time + timedelta(hours=i),
+                    "value": i * 10,
+                }
+                for i in range(4)
+            ]
+        )
+
+        run_id = uuid.uuid4()
+        target_path = f"s3://{self._bucket_name}/partition_test_{run_id}"
+
+        target = ParquetTarget(
+            name="parquet_target",
+            path=target_path,
+            partitioned=True,
+            time_partitioning_granularity=granularity,
+        )
+
+        start_time = base_time + timedelta(hours=1)
+        end_time = base_time + timedelta(hours=2, minutes=1)
+
+        target.write_dataframe(df, timestamp_key="timestamp")
+
+        expected_df = df[
+            (df["timestamp"] > start_time) & (df["timestamp"] <= end_time)
+        ].copy()
+
+        result_df = target.as_df(
+            start_time=start_time,
+            end_time=end_time,
+            time_column="timestamp",
+        )
+
+        if with_tz:
+            result_df["timestamp"] = (
+                pd.to_datetime(result_df["timestamp"])
+                .dt.tz_convert("UTC")
+                .astype("datetime64[ns, UTC]")
+            )
+        else:
+            result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(
+                "datetime64[ns]"
+            )
+
+        result_df = result_df.sort_values(key).reset_index(drop=True)
+        expected_df = expected_df.sort_values(key).reset_index(drop=True)
+        assert_frame_equal(result_df, expected_df)
+
+        large_base_period_start = base_time - timedelta(days=365)
+        large_base_period_end = base_time + timedelta(days=1)
+        start = time.monotonic()
+        result_df = target.as_df(
+            start_time=large_base_period_start,
+            end_time=large_base_period_end,
+            time_column="timestamp",
+        )
+        end = time.monotonic()
+        assert end - start < 10, "Reading large period took too long"
+        if with_tz:
+            result_df["timestamp"] = (
+                pd.to_datetime(result_df["timestamp"])
+                .dt.tz_convert("UTC")
+                .astype("datetime64[ns, UTC]")
+            )
+        else:
+            result_df["timestamp"] = pd.to_datetime(result_df["timestamp"]).astype(
+                "datetime64[ns]"
+            )
+
+        result_df = result_df.sort_values(key).reset_index(drop=True)
+        assert_frame_equal(result_df, df.sort_values(key).reset_index(drop=True))
+
+        late_start = base_time + timedelta(days=2)
+        late_end = late_start + timedelta(days=1)
+
+        empty_df = target.as_df(
+            start_time=late_start,
+            end_time=late_end,
+            time_column="timestamp",
+        )
+        assert empty_df.empty, "df should be empty for out-of-range time filter"

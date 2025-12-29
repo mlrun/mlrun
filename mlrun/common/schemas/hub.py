@@ -40,6 +40,7 @@ class HubObjectMetadata(BaseModel):
 class HubSourceType(mlrun.common.types.StrEnum):
     functions = "functions"
     modules = "modules"
+    steps = "steps"
 
 
 # Sources-related objects

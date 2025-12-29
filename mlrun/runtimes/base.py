@@ -156,8 +156,6 @@ class BaseRuntime(ModelObj):
     _default_fields_to_strip = ModelObj._default_fields_to_strip + [
         "status",  # Function status describes the state rather than configuration
     ]
-    # TODO: Remove this once we implement secret token mounting in jobs (ML-11292)
-    _default_token_name = "default"
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -463,7 +461,7 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
 
-        mlrun.auth.utils.enrich_auth_env(runtime_env, self._get_db(), auth_info)
+        mlrun.auth.utils.enrich_auth_env(runtime_env)
 
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
@@ -956,6 +954,35 @@ class BaseRuntime(ModelObj):
                         if "default" in p:
                             line += f", default={p['default']}"
                         print("    " + line)
+
+    def remove_auth_secret_volumes(self):
+        secret_name_prefix = (
+            mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+                hashed_access_key=""
+            )
+        )
+        volumes = self.spec.volumes or []
+        mounts = self.spec.volume_mounts or []
+
+        volumes_to_remove = set()
+
+        # Identify volumes to remove
+        for vol in volumes:
+            secret_name = mlrun.utils.get_in(vol, "secret.secretName", "")
+
+            # Pattern of auth secret volumes
+            if secret_name.startswith(secret_name_prefix):
+                volumes_to_remove.add(vol["name"])
+
+        # Filter out only the matched volumes
+        self.spec.volumes = [
+            volume for volume in volumes if volume["name"] not in volumes_to_remove
+        ]
+
+        # Filter out matching mounts
+        self.spec.volume_mounts = [
+            mount for mount in mounts if mount["name"] not in volumes_to_remove
+        ]
 
     def skip_image_enrichment(self):
         return False

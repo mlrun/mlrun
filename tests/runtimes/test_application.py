@@ -21,6 +21,7 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.utils
+from mlrun.common.runtimes.constants import ProbeTimeConfig, ProbeType
 
 assets_path = pathlib.Path(__file__).absolute().parent / "assets"
 
@@ -445,3 +446,524 @@ def _assert_application_post_deploy_spec(fn, image):
     assert fn.get_env("SIDECAR_PORT") == "8050"
     assert fn.status.application_image == image
     assert not fn.spec.image
+
+
+def test_set_probe_readiness():
+    """Test setting a readiness probe with HTTP configuration"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.set_probe(
+        type="readiness",
+        http_path="/api/healthz",
+        initial_delay_seconds=10,
+        period_seconds=20,
+        timeout_seconds=30,
+        failure_threshold=40,
+    )
+
+    sidecar = fn._get_sidecar()
+    assert sidecar is not None
+    assert ProbeType.READINESS.key in sidecar
+    probe = sidecar[ProbeType.READINESS.key]
+    assert probe["httpGet"]["path"] == "/api/healthz"
+    assert probe["httpGet"]["scheme"] == "HTTP"
+    assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 10
+    assert probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 20
+    assert probe[ProbeTimeConfig.TIMEOUT_SECONDS.value] == 30
+    assert probe[ProbeTimeConfig.FAILURE_THRESHOLD.value] == 40
+
+
+def test_set_probe_liveness_with_port():
+    """Test setting a liveness probe with explicit port"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.set_probe(
+        type="liveness",
+        http_path="/health",
+        http_port=8080,
+        http_scheme="HTTPS",
+        initial_delay_seconds=15,
+        period_seconds=10,
+        failure_threshold=3,
+        timeout_seconds=5,
+    )
+
+    sidecar = fn._get_sidecar()
+    assert sidecar is not None
+    assert ProbeType.LIVENESS.key in sidecar
+    probe = sidecar[ProbeType.LIVENESS.key]
+    assert probe["httpGet"]["path"] == "/health"
+    assert probe["httpGet"]["port"] == 8080
+    assert probe["httpGet"]["scheme"] == "HTTPS"
+    assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 15
+    assert probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 10
+    assert probe[ProbeTimeConfig.FAILURE_THRESHOLD.value] == 3
+    assert probe[ProbeTimeConfig.TIMEOUT_SECONDS.value] == 5
+
+
+def test_set_probe_with_config_override():
+    """Test that explicit parameters override config dict values"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.set_probe(
+        type="startup",
+        initial_delay_seconds=15,
+        config={
+            "tcpSocket": {"port": 8080},
+            "initialDelaySeconds": 20,
+            "periodSeconds": 30,
+        },
+    )
+
+    sidecar = fn._get_sidecar()
+    assert sidecar is not None
+    assert ProbeType.STARTUP.key in sidecar
+    probe = sidecar[ProbeType.STARTUP.key]
+    assert probe["tcpSocket"]["port"] == 8080
+    assert probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 30
+    assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 15
+
+
+def test_set_probe_replace_existing():
+    """Test that calling set_probe again replaces the existing configuration"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.set_probe(
+        type="readiness",
+        http_path="/old/path",
+        initial_delay_seconds=10,
+        failure_threshold=5,
+    )
+
+    fn.set_probe(
+        type="readiness",
+        http_path="/new/path",
+        initial_delay_seconds=20,
+    )
+
+    sidecar = fn._get_sidecar()
+    assert ProbeType.READINESS.key in sidecar
+    probe = sidecar[ProbeType.READINESS.key]
+    assert probe["httpGet"]["path"] == "/new/path"
+    assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 20
+    assert ProbeTimeConfig.FAILURE_THRESHOLD.value not in probe
+
+
+def test_set_probe_invalid_type():
+    """Test that invalid probe type raises ValueError"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(ValueError, match="Invalid probe type"):
+        fn.set_probe(type="invalid_type")
+
+    with pytest.raises(ValueError, match="Invalid probe type"):
+        fn.set_probe(type=None)
+
+    with pytest.raises(ValueError, match="Invalid probe type"):
+        fn.set_probe(type="")
+
+
+def test_set_probe_empty_value():
+    """Test that empty values set raise an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Empty probe configuration: at least one parameter must be set",
+    ):
+        fn.set_probe(type="readiness")
+
+
+def test_set_probe_string_type():
+    """Test that string probe type is accepted and converted"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.set_probe(
+        type="readiness",
+        http_path="/health",
+    )
+
+    sidecar = fn._get_sidecar()
+    assert ProbeType.READINESS.key in sidecar
+
+
+def test_set_probe_no_http_path():
+    """Test setting probe without HTTP path (only timing parameters)"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.set_probe(
+        type="readiness",
+        initial_delay_seconds=10,
+        period_seconds=5,
+    )
+
+    sidecar = fn._get_sidecar()
+    probe = sidecar[ProbeType.READINESS.key]
+    assert "httpGet" not in probe
+    assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 10
+    assert probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 5
+
+
+def test_set_probe_multiple_probes():
+    """Test setting multiple different probe types"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.set_probe(
+        type="readiness",
+        http_path="/readiness",
+        initial_delay_seconds=10,
+        period_seconds=5,
+    )
+    fn.set_probe(
+        type="liveness",
+        http_path="/liveness",
+        initial_delay_seconds=15,
+        period_seconds=10,
+        timeout_seconds=3,
+    )
+
+    sidecar = fn._get_sidecar()
+    assert ProbeType.READINESS.key in sidecar
+    readiness_probe = sidecar[ProbeType.READINESS.key]
+    assert readiness_probe["httpGet"]["path"] == "/readiness"
+    assert readiness_probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 10
+    assert readiness_probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 5
+
+    assert ProbeType.LIVENESS.key in sidecar
+    liveness_probe = sidecar[ProbeType.LIVENESS.key]
+    assert liveness_probe["httpGet"]["path"] == "/liveness"
+    assert liveness_probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 15
+    assert liveness_probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 10
+    assert liveness_probe[ProbeTimeConfig.TIMEOUT_SECONDS.value] == 3
+
+
+def test_delete_probe():
+    """Test deleting a probe configuration"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        runtime={
+            "spec": {
+                "config": {
+                    "spec.sidecars": [
+                        {
+                            "name": "application-test-sidecar",
+                            "readinessProbe": {
+                                "httpGet": {
+                                    "path": "/health",
+                                    "scheme": "HTTP",
+                                }
+                            },
+                        }
+                    ]
+                }
+            }
+        },
+    )
+
+    sidecar = fn._get_sidecar()
+    assert ProbeType.READINESS.key in sidecar
+    fn.delete_probe(type="readiness")
+    assert ProbeType.READINESS.key not in sidecar
+
+
+def test_delete_probe_nonexistent():
+    """Test deleting a probe that doesn't exist (should not raise error)"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    fn.delete_probe(type="liveness")
+    sidecar = fn._get_sidecar()
+    assert sidecar is None
+
+    fn.spec.config["spec.sidecars"] = [
+        {
+            "name": "application-test-sidecar",
+            "readinessProbe": {
+                "httpGet": {
+                    "path": "/readiness",
+                    "scheme": "HTTP",
+                }
+            },
+        }
+    ]
+    sidecar = fn._get_sidecar()
+    assert ProbeType.READINESS.key in sidecar
+    fn.delete_probe(type="readiness")
+    assert ProbeType.READINESS.key not in sidecar
+
+
+def test_delete_probe_invalid_type():
+    """Test that invalid probe type raises ValueError"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(ValueError, match="Invalid probe type"):
+        fn.delete_probe(type="invalid_type")
+
+
+def test_delete_probe_multiple_probes():
+    """Test deleting one probe while others remain"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        runtime={
+            "spec": {
+                "config": {
+                    "spec.sidecars": [
+                        {
+                            "name": "application-test-sidecar",
+                            "readinessProbe": {
+                                "httpGet": {
+                                    "path": "/readiness",
+                                    "scheme": "HTTP",
+                                }
+                            },
+                            "livenessProbe": {
+                                "httpGet": {
+                                    "path": "/liveness",
+                                    "scheme": "HTTP",
+                                }
+                            },
+                            "startupProbe": {
+                                "httpGet": {
+                                    "path": "/startup",
+                                    "scheme": "HTTP",
+                                }
+                            },
+                        }
+                    ]
+                }
+            }
+        },
+    )
+
+    sidecar = fn._get_sidecar()
+    assert ProbeType.READINESS.key in sidecar
+    assert ProbeType.LIVENESS.key in sidecar
+    assert ProbeType.STARTUP.key in sidecar
+    fn.delete_probe(type="readiness")
+    assert ProbeType.READINESS.key not in sidecar
+    assert ProbeType.LIVENESS.key in sidecar
+    assert ProbeType.STARTUP.key in sidecar
+
+
+def test_enrich_sidecar_probe_ports_without_port():
+    """Test enriching HTTP probe without port when internal_application_port is set"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        runtime={
+            "spec": {
+                "internal_application_port": 8080,
+                "config": {
+                    "spec.sidecars": [
+                        {
+                            "name": "application-test-sidecar",
+                            "readinessProbe": {
+                                "httpGet": {
+                                    "path": "/health",
+                                    "scheme": "HTTP",
+                                }
+                            },
+                        }
+                    ]
+                },
+            }
+        },
+    )
+
+    fn._enrich_sidecar_probe_ports()
+
+    sidecar = fn._get_sidecar()
+    assert sidecar is not None
+    assert ProbeType.READINESS.key in sidecar
+    probe = sidecar[ProbeType.READINESS.key]
+    assert probe["httpGet"]["port"] == 8080
+    assert probe["httpGet"]["path"] == "/health"
+
+
+def test_enrich_sidecar_probe_ports_with_existing_port():
+    """Test that probes with existing ports are not enriched"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        runtime={
+            "spec": {
+                "internal_application_port": 8080,
+                "config": {
+                    "spec.sidecars": [
+                        {
+                            "name": "application-test-sidecar",
+                            "readinessProbe": {
+                                "httpGet": {
+                                    "path": "/health",
+                                    "port": 9090,
+                                    "scheme": "HTTP",
+                                }
+                            },
+                        }
+                    ]
+                },
+            }
+        },
+    )
+
+    fn._enrich_sidecar_probe_ports()
+    sidecar = fn._get_sidecar()
+    assert ProbeType.READINESS.key in sidecar
+    probe = sidecar[ProbeType.READINESS.key]
+    assert probe["httpGet"]["port"] == 9090
+
+
+def test_enrich_sidecar_probe_ports_multiple_probes():
+    """Test enriching multiple probes, some with ports, some without"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        runtime={
+            "spec": {
+                "internal_application_port": 8080,
+                "config": {
+                    "spec.sidecars": [
+                        {
+                            "name": "application-test-sidecar",
+                            "readinessProbe": {
+                                "httpGet": {
+                                    "path": "/readiness",
+                                    "scheme": "HTTP",
+                                }
+                            },
+                            "livenessProbe": {
+                                "httpGet": {
+                                    "path": "/liveness",
+                                    "port": 9090,
+                                    "scheme": "HTTP",
+                                }
+                            },
+                            "startupProbe": {
+                                "httpGet": {
+                                    "path": "/startup",
+                                    "scheme": "HTTP",
+                                }
+                            },
+                        }
+                    ]
+                },
+            }
+        },
+    )
+
+    fn._enrich_sidecar_probe_ports()
+
+    sidecar = fn._get_sidecar()
+    assert ProbeType.READINESS.key in sidecar
+    readiness_probe = sidecar[ProbeType.READINESS.key]
+    assert readiness_probe["httpGet"]["port"] == 8080
+    assert ProbeType.LIVENESS.key in sidecar
+    liveness_probe = sidecar[ProbeType.LIVENESS.key]
+    assert liveness_probe["httpGet"]["port"] == 9090
+    assert ProbeType.STARTUP.key in sidecar
+    startup_probe = sidecar[ProbeType.STARTUP.key]
+    assert startup_probe["httpGet"]["port"] == 8080
+
+
+def test_enrich_sidecar_probe_ports_no_internal_port_error():
+    """Test that error is raised when internal_application_port is not set and probe needs enrichment"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        runtime={
+            "spec": {
+                "config": {
+                    "spec.sidecars": [
+                        {
+                            "name": "application-test-sidecar",
+                            "readinessProbe": {
+                                "httpGet": {
+                                    "path": "/health",
+                                    "scheme": "HTTP",
+                                }
+                            },
+                        }
+                    ]
+                }
+            }
+        },
+    )
+
+    del fn.spec._internal_application_port
+    with pytest.raises(AttributeError):
+        fn._enrich_sidecar_probe_ports()
+
+
+def test_enrich_sidecar_probe_ports_no_sidecar():
+    """Test that method returns early when there's no sidecar"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        runtime={
+            "spec": {
+                "internal_application_port": 8080,
+            }
+        },
+    )
+
+    fn._enrich_sidecar_probe_ports()
+    sidecar = fn._get_sidecar()
+    assert sidecar is None
+
+
+def test_enrich_sidecar_probe_ports_no_probes():
+    """Test that method handles sidecar with no probes"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        runtime={
+            "spec": {
+                "internal_application_port": 8080,
+                "config": {
+                    "spec.sidecars": [
+                        {
+                            "name": "application-test-sidecar",
+                        }
+                    ]
+                },
+            }
+        },
+    )
+
+    fn._enrich_sidecar_probe_ports()
+    sidecar = fn._get_sidecar()
+    assert sidecar is not None
+    assert ProbeType.READINESS.key not in sidecar
+    assert ProbeType.LIVENESS.key not in sidecar
+    assert ProbeType.STARTUP.key not in sidecar

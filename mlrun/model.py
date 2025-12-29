@@ -236,7 +236,9 @@ class ModelObj:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
 
         if init_with_params:
-            kwargs = {field: struct.pop(field, None) for field in fields}
+            kwargs = {
+                field: struct.pop(field, None) for field in fields if field in struct
+            }
             kwargs.pop("self", None)
             new_obj = cls(**kwargs)
         else:
@@ -1008,6 +1010,7 @@ class RunSpec(ModelObj):
         tolerations=None,
         affinity=None,
         retry=None,
+        auth=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -1049,6 +1052,7 @@ class RunSpec(ModelObj):
         self.tolerations = tolerations or {}
         self.affinity = affinity or {}
         self.retry = retry or {}
+        self.auth = auth or {}
 
     def _serialize_field(
         self, struct: dict, field_name: Optional[str] = None, strip: bool = False

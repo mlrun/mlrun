@@ -1659,7 +1659,6 @@ class V3IOTSDBConnector(TSDBConnector):
                 timestamp_counts[bucket_start_ns] = (count_suspected, count_detected)
 
         # Convert to final format (sorted by timestamp)
-        convert_start = mlrun.utils.datetime_now()
         values = [
             (
                 pd.Timestamp(bucket_ns, unit="ns", tz="UTC").to_pydatetime(),

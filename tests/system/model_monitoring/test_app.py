@@ -878,7 +878,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             with_model_runner=with_model_runner,
         )
 
-        #self._infer_with_error(serving_fn, with_training_set=with_training_set)
+        # self._infer_with_error(serving_fn, with_training_set=with_training_set)
         # wait for the NO-OP event to close the window
         initial_wait = (
             2 * self.app_interval_seconds

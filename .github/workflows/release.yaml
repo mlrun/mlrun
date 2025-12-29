@@ -346,7 +346,8 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: |
-          make install-automation-requirements
+          python -m pip install --upgrade pip
+          pip install -r automation/requirements.txt
       - name: Generate release notes
         id: release-notes
         run: |

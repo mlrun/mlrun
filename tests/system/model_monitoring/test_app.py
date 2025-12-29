@@ -573,8 +573,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         with_model_runner: bool = False,
     ) -> datetime:
         total_inputs = []
-        for i in range(4):
-            inputs = {"inputs": [[0.0] * cls.num_features] * num_events}
+        for i in range(num_events):
+            inputs = {"inputs": [0.0] * cls.num_features}
             total_inputs.append(inputs)
         # body=json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}
         result = serving_fn.invoke(

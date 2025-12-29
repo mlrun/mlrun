@@ -207,7 +207,7 @@ class MyModel(mlrun.serving.Model):
         if isinstance(body, list):
             batched_body = {"inputs": []}
             for item in body:
-                batched_body["inputs"].extend(item.get("inputs", item))
+                batched_body["inputs"].append(item.get("inputs", item))
             return batched_body
         return body
 

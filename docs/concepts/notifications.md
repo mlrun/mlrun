@@ -50,7 +50,9 @@ Inside the notification's `secret_params`, there's a reference to the secret und
 For non-sensitive notification parameters, you can simply use the `params` parameter, which doesn't go through this masking process.
 It's essential to utilize `secret_params` exclusively for handling sensitive information, ensuring secure data management.
 
-## MLRun on Iguazio
+
+## Mail notifications
+### MLRun on Iguazio
 When MLRun is deployed on the Iguazio platform, your IT Admin can [configure the SMTP server in the Iguazio platform](https://www.iguazio.com/docs/latest-release/cluster-mgmt/deployment/post-deployment-howtos/smtp/). To use this as your default configuration, run the following (with privileged user - `IT Admin`):
 ```python
 import mlrun
@@ -69,13 +71,13 @@ kubectl -n default-tenant patch secret mlrun-smtp-config -p='{"stringData":{"val
 ```
 These parameters are maintained when modifying parameters on the Iguazio platform.
 
-## MLRun CE
+### MLRun CE
 In the community edition, you can use your own SMTP server.
 To configure it, manually create the `mlrun-smtp-config` Kubernetes secret with the default
 parameters for the SMTP server (`server_host`, `server_port`, `username`, `password`, `start_tls`, etc.).
 After creating or editing the secret, refresh the MLRun SMTP configuration by running the `refresh_smtp_configuration` method.
 
-## Mail notifications
+### Create a mail notification object
 
 When creating a notification object, you can use the defaults, or overwrite some/all.  
 You must create the notification object in this format, customized for your requirements.

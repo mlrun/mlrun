@@ -248,7 +248,7 @@ If it fails, reinstall the chart:
 1. Remove the current mlrun-ce:
 ```bash
 mkdir ~/tmp
-helm get values -n mlrun mlrun-ce > ~/tmp/mlrun-ce-values.yaml
+helm get values -n mlrun mlrun-ce > ~/tmp/mlrun-ce-values.yaml #edit the values file if needed
 helm uninstall mlrun-ce
 ```
 2.  Reinstall the mlrun-ce, reusing the values:

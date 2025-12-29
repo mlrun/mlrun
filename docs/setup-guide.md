@@ -1,5 +1,5 @@
 (install-remote)=
-# Set up your environment <!-- omit in toc -->
+# Set up your client environment <!-- omit in toc -->
 
 This guide will walk you through the steps required to set up your MLRun client environment, 
 making sure you're ready to get started with building and managing AI workflow with MLRun.

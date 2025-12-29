@@ -8,6 +8,7 @@ This page lists additional steps or configuration options you may need to follow
 - [Opt out of components](#opt-out-of-components)
 - [Using NFS storage](#using-nfs-storage)
 - [Configuring the online feature store](#configuring-the-online-feature-store)
+- [Installing Spark Operator on non mlrun namespace](#installing-spark-operator-on-non-mlrun-namespace)
 
 ## Advanced chart configuration
 
@@ -40,4 +41,9 @@ To deploy a Redis service, refer to the [Redis documentation](https://redis.io/l
 When you have a Redis service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
 ```bash
 --set mlrun.api.extraEnvKeyValue.MLRUN_REDIS__URL=<redis-address>
+```
+## Installing Spark Operator on non mlrun namespace
+# By default Spark Operator jobNamespaces is set to "mlrun" namespace, if you are installing Spark Operator on a different namespace you need to set the jobNamespaces value accordingly:
+```bash
+--set spark-operator.jobNamespaces={your-namespace}
 ```

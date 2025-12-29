@@ -58,7 +58,7 @@ import mlrun
 mlrun.get_run_db().refresh_smtp_configuration()
 ```
 The `refresh_smtp_configuration` method gets the SMTP configuration from the Iguazio platform and sets it
-as the default, cluster-wide, SMTP configuration (creates an `mlrun-smtp-config` with the SMTP configuration).
+as the default, cluster-wide, SMTP configuration (creates an `mlrun-smtp-config` secret with the SMTP configuration).
 If you edit the configuration on the Iguazio platform, run the `refresh_smtp_configuration` method again.
 
 Three parameters cannot be configured on the Iguazio platform. To set their defaults for the cluster, run these commands with the relevant values:
@@ -77,8 +77,11 @@ After creating or editing the secret, refresh the MLRun SMTP configuration by ru
 
 ## Mail notifications
 
-When creating a notification object, you can use the defaults, or overwrite some/all. The only mandatory field in `params` is `email_addresses`. 
-You must create the notification object in this format. Anything not defined in this format will be enriched with the values in the `mlrun-smtp-config` secret.
+When creating a notification object, you can use the defaults, or overwrite some/all.  
+You must create the notification object in this format, customized for your requirements.
+Anything not defined in this format will be enriched with the values in the `mlrun-smtp-config` secret.
+The only mandatory field in `params` is `email_addresses`.
+
 
 ```python
 mail_notification = mlrun.model.Notification(

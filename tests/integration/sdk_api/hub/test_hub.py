@@ -22,6 +22,7 @@ import pytest
 import mlrun
 import mlrun.common.schemas
 import tests.integration.sdk_api.base
+from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import normalize_name
 
 
@@ -155,9 +156,14 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         # get_hub_module and module
         Path.cwd().joinpath("temp").mkdir(exist_ok=True)
         hub_module = mlrun.get_hub_module(hub_prefix + name, download_files=False)
-        with pytest.raises(FileNotFoundError):  # didn't download files first
+        with pytest.raises(MLRunBadRequestError):  # didn't download files first
             hub_module.module()
-        hub_module.download_module_files("./temp")
+        hub_module.set_local_path("./temp")
+        with pytest.raises(
+            FileNotFoundError
+        ):  # local_path is set but files not downloaded
+            hub_module.module()
+        hub_module.download_files("./temp")
         mod = hub_module.module()
         assert isinstance(mod, types.ModuleType)
         # delete the temp dir
@@ -166,3 +172,74 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         # local_path doesn't exist
         with pytest.raises(ValueError):
             mlrun.import_module(hub_prefix + name, local_path="./temp")
+
+    @pytest.mark.skip(
+        reason="Remove this marker after steps are added to the functions repo"
+    )
+    def test_get_hub_step(self):
+        hub_prefix = "hub://"
+        source_name = mlrun.mlconf.hub.default_source.name
+        db = mlrun.get_run_db()
+        steps_catalog = db.get_hub_catalog(
+            source_name, object_type=mlrun.common.schemas.hub.HubSourceType.steps
+        )
+        item = random.choice(steps_catalog.catalog)
+        tag = item.metadata.tag
+        name = item.metadata.name
+        # plain option
+        hub_step = mlrun.get_hub_step(hub_prefix + name, download_files=False)
+        assert normalize_name(hub_step.name) == name
+        # source option
+        hub_step = mlrun.get_hub_step(
+            hub_prefix + source_name + "/" + name, download_files=False
+        )
+        assert normalize_name(hub_step.name) == name
+        # tag option
+        hub_step = mlrun.get_hub_step(
+            hub_prefix + source_name + "/" + name + ":" + tag, download_files=False
+        )
+        assert normalize_name(hub_step.name) == name
+        if tag != "latest":
+            assert hub_step.version == tag
+        # not existed option
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            mlrun.get_hub_step(
+                hub_prefix + source_name + "-not" + "/" + name, download_files=False
+            )
+
+    @pytest.mark.skip(
+        reason="Remove this marker after steps are added to the functions repo"
+    )
+    def test_get_hub_step_with_files(self):
+        hub_prefix = "hub://"
+        source_name = mlrun.mlconf.hub.default_source.name
+        db = mlrun.get_run_db()
+        steps_catalog = db.get_hub_catalog(
+            source_name, object_type=mlrun.common.schemas.hub.HubSourceType.steps
+        )
+        item = random.choice(steps_catalog.catalog)
+        name = item.metadata.name
+
+        # get_hub_step and call module
+        Path.cwd().joinpath("temp").mkdir(exist_ok=True)
+        hub_step = mlrun.get_hub_step(
+            hub_prefix + source_name + "/" + name, download_files=False
+        )
+        with pytest.raises(MLRunBadRequestError):  # didn't download files first
+            hub_step.module()
+        hub_step.set_local_path("./temp")
+        with pytest.raises(
+            FileNotFoundError
+        ):  # local_path is set but files not downloaded
+            hub_step.module()
+        hub_step.download_files("./temp")
+        mod = hub_step.module()
+        assert isinstance(mod, types.ModuleType)
+        # delete the temp dir
+        shutil.rmtree("temp")
+
+        # local_path doesn't exist
+        with pytest.raises(ValueError):
+            mlrun.get_hub_step(
+                hub_prefix + source_name + "/" + name, local_path="./temp"
+            )

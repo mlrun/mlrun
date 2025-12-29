@@ -157,3 +157,14 @@ class Tool(BaseClass):
     def do(self, event: dict) -> dict:
         event[self.name] = event.get(self.name, 0) + 1
         return event
+
+
+class MyRemoteModel(Model):
+    def predict(self, body, **kwargs):
+        body["url"] = self.model_artifact.model_url
+        body["default_config"] = self.model_artifact.default_config
+        return body
+
+    async def predict_async(self, body, **kwargs):
+        body["async_triggered"] = "Async predict was triggered."
+        return body

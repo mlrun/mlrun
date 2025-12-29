@@ -137,7 +137,7 @@ collection = project.get_vector_store_collection(vector_store=vectorstore)
 ```
 
 ### MLRun document artifact
-You can add documents to the collection using either [add_documents()](https://docs.mlrun.org/en/latest/api/mlrun.datastore/index.html#mlrun.datastore.vectorstore.VectorStoreCollection.add_documents), which accepts LangChain document objects, or [add_artifacts()](https://docs.mlrun.org/en/latest/api/mlrun.datastore/index.html#mlrun.datastore.vectorstore.VectorStoreCollection.add_artifacts), which generates documents from artifacts and inserts them into the collection.
+You can add documents to the collection using either {py:meth}`~mlrun.datastore.vectorstore.VectorStoreCollection.add_documents`, which accepts LangChain document objects, or {py:meth}`~mlrun.datastore.vectorstore.VectorStoreCollection.add_artifacts`, which generates documents from artifacts and inserts them into the collection.
 ```python
 # Create a sample document
 def create_sample_document(content, dir=None):

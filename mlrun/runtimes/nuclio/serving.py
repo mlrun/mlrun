@@ -981,7 +981,6 @@ class ServingRuntime(RemoteRuntime):
         if parent_label and full_name.startswith(parent_label + "-"):
             current_function = full_name[len(parent_label) + 1 :]
 
-
         steps = getattr(getattr(self.spec, "graph", {}), "steps", {})
         for step in steps.values():
             # only add requirements to the function if this step is local to it
@@ -990,7 +989,9 @@ class ServingRuntime(RemoteRuntime):
                     context=None, current_function=current_function
                 ):
                     continue
-                build_reqs = getattr(getattr(self.spec, "build", {}), "requirements", [])
+                build_reqs = getattr(
+                    getattr(self.spec, "build", {}), "requirements", []
+                )
                 reqs_union = merge_requirements(
                     reqs_priority=build_reqs,
                     reqs_secondary=getattr(step, "requirements", []),

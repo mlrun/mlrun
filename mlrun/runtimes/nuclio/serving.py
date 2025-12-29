@@ -970,8 +970,6 @@ class ServingRuntime(RemoteRuntime):
         return job
 
     def _add_steps_requirements(self):
-        steps = getattr(getattr(self.spec, "graph", {}), "steps", {})
-
         # extract child function name from self.metadata.name if parent label exists
         full_name = self.metadata.name
         parent_label = (
@@ -983,8 +981,10 @@ class ServingRuntime(RemoteRuntime):
         if parent_label and full_name.startswith(parent_label + "-"):
             current_function = full_name[len(parent_label) + 1 :]
 
+
+        steps = getattr(getattr(self.spec, "graph", {}), "steps", {})
         for step in steps.values():
-            # only add requirements to the function of this step is local to it
+            # only add requirements to the function if this step is local to it
             if hasattr(step, "requirements"):
                 if not step._is_local_function(
                     context=None, current_function=current_function

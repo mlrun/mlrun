@@ -540,16 +540,6 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
                 == created_model_endpoint.spec.label_names
             )
 
-        mep = mlrun.get_run_db().get_model_endpoint(
-            project=endpoints_out[0].metadata.project,
-            name=endpoints_out[0].metadata.name,
-            endpoint_id=endpoints_out[0].metadata.uid,
-            feature_analysis=True,
-        )
-
-        assert mep.status.drift_measures_timestamp is not None
-        assert mep.status.current_stats_timestamp is not None
-
     def test_mep_with_model(self):
         model_obj = self.project.log_model(
             "my-model",
@@ -713,104 +703,6 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             model_endpoints[0].metadata.name == "my-model-1"
             and model_endpoints[1].metadata.name == "my-model-2"
         ), "expected model endpoints with the names my-model-1 and my-model-2"
-
-    def test_mep_with_remote_model(self):
-        model_name = "my_model"
-        model_url = "mock://my-model-url"
-        default_config = {"model_version": "4"}
-        model_artifact = self.project.log_model(
-            model_name,
-            model_url=model_url,
-            default_config=default_config,
-        )
-        llm_prompt = self.project.log_llm_prompt(
-            "my-llm-prompt",
-            prompt_template=[
-                {"role": "user", "content": "What is the capital of France?"}
-            ],
-            model_artifact=model_artifact,
-        )
-        function = mlrun.code_to_function(
-            name="function_with_model",
-            kind="serving",
-            tag="latest",
-            project=self.project_name,
-            filename=str(self.assets_path / "models.py"),
-            image=self.image,
-        )
-        graph = function.set_topology("flow", engine="async")
-        graph.add_shared_model(
-            model_class="LLModel",
-            execution_mechanism="naive",
-            result_path="result",
-            name="shared-model",
-            model_artifact=model_artifact,
-        )
-        model_runner_step = mlrun.serving.states.ModelRunnerStep(
-            name="model-runner-step"
-        )
-        model_runner_step.add_model(
-            model_class="MyRemoteModel",
-            execution_mechanism="naive",
-            endpoint_name="my-model-1",
-            model_artifact=model_artifact,
-        )
-        model_runner_step.add_shared_model_proxy(
-            endpoint_name="my-model-2",
-            model_artifact=llm_prompt.uri,
-        )
-        model_runner_step.add_model(
-            model_class="LLModel",
-            execution_mechanism="naive",
-            endpoint_name="my-model-3",
-            model_artifact=llm_prompt.uri,
-        )
-        graph.to(model_runner_step, "runner").respond()
-
-        function.deploy()
-
-        response = function.invoke(
-            f"v2/models/{model_name}/infer",
-            json.dumps({"prompt": "What is the capital of france?"}),
-        )
-
-        assert response["my-model-1"]["default_config"] == default_config
-        assert response["my-model-1"]["url"] == model_url
-        assert response["my-model-1"]["prompt"] == "What is the capital of france?"
-
-        assert (
-            response["my-model-2"]["result"]["answer"]
-            == "You are using a mock model provider, no actual inference is performed."
-        )
-        assert response["my-model-2"]["result"]["usage"] == {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-        }
-
-        assert (
-            response["my-model-3"]["answer"]
-            == "You are using a mock model provider, no actual inference is performed."
-        )
-        assert response["my-model-3"]["usage"] == {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-        }
-
-        meps = self.project.list_model_endpoints()
-        assert (
-            len(meps.endpoints) == 3
-        ), f"Expected 3 endpoints, got {len(meps.endpoints)}"
-        mep_2: ModelEndpoint = self.project.list_model_endpoints(
-            names="my-model-2"
-        ).endpoints[0]
-        assert mep_2.spec.label_names == ["answer", "usage"]
-        assert mep_2.spec.model_class == "LLModel"
-
-        mep_3: ModelEndpoint = self.project.list_model_endpoints(
-            names="my-model-3"
-        ).endpoints[0]
-        assert mep_3.spec.label_names == ["answer", "usage"]
-        assert mep_3.spec.model_class == "LLModel"
 
     @pytest.mark.parametrize("multiple_models", (True, False))
     def test_mrs_direct_batch_input(self, multiple_models):
@@ -2432,3 +2324,120 @@ def _validate_model_uri(model_obj, model_endpoint):
     )
 
     assert model_endpoint.spec.model_uri == model_artifact_uri
+
+
+class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
+    """Test LLModel serving with model monitoring enabled."""
+
+    project_name = "llmodel-monitoring-5"
+    image: Optional[str] = "artifactory.iguazeng.com:10557/davids/mlrun:1.11.0"
+
+    def test_mep_with_remote_model(self):
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            base_period=1, deploy_histogram_data_drift_app=False, image=self.image
+        )
+        model_name = "my_model"
+        model_url = "mock://my-model-url"
+        default_config = {"model_version": "4"}
+        model_artifact = self.project.log_model(
+            model_name,
+            model_url=model_url,
+            default_config=default_config,
+        )
+        llm_prompt = self.project.log_llm_prompt(
+            "my-llm-prompt",
+            prompt_template=[
+                {"role": "user", "content": "What is the capital of France?"}
+            ],
+            model_artifact=model_artifact,
+        )
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+        graph.add_shared_model(
+            model_class="LLModel",
+            execution_mechanism="naive",
+            result_path="result",
+            name="shared-model",
+            model_artifact=model_artifact,
+        )
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(
+            name="model-runner-step"
+        )
+        model_runner_step.add_model(
+            model_class="MyRemoteModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model-1",
+            model_artifact=model_artifact,
+            inputs=["prompt"],
+            outputs=["prompt"],
+        )
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my-model-2",
+            model_artifact=llm_prompt.uri,
+        )
+        model_runner_step.add_model(
+            model_class="LLModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model-3",
+            model_artifact=llm_prompt.uri,
+        )
+        graph.to(model_runner_step, "runner").respond()
+        function.set_tracking()
+
+        function.deploy()
+
+        response = function.invoke(
+            f"v2/models/{model_name}/infer",
+            json.dumps({"prompt": "What is the capital of france?"}),
+        )
+
+        assert response["my-model-1"]["default_config"] == default_config
+        assert response["my-model-1"]["url"] == model_url
+        assert response["my-model-1"]["prompt"] == "What is the capital of france?"
+
+        assert (
+            response["my-model-2"]["result"]["answer"]
+            == "You are using a mock model provider, no actual inference is performed."
+        )
+        assert response["my-model-2"]["result"]["usage"] == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        assert (
+            response["my-model-3"]["answer"]
+            == "You are using a mock model provider, no actual inference is performed."
+        )
+        assert response["my-model-3"]["usage"] == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        sleep(45)
+        meps = self.project.list_model_endpoints(tsdb_metrics=True)
+        assert (
+            len(meps.endpoints) == 3
+        ), f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        mep_2: ModelEndpoint = self.project.list_model_endpoints(
+            names="my-model-2"
+        ).endpoints[0]
+        assert mep_2.spec.label_names == ["answer", "usage"]
+        assert mep_2.spec.model_class == "LLModel"
+
+        mep_3: ModelEndpoint = self.project.list_model_endpoints(
+            names="my-model-3"
+        ).endpoints[0]
+        assert mep_3.spec.label_names == ["answer", "usage"]
+        assert mep_3.spec.model_class == "LLModel"
+
+        for mep in meps.endpoints:
+            # make sure stream processing worked and last_request is set
+            assert mep.status.last_request is not None

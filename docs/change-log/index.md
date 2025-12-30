@@ -31,15 +31,17 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10488|Validation of mail configuration does not fail on non-required parameters.|
+|ML-10488|Validation of mail configuration does not fail on non-required parameters. See the updated documentation [Mail notifications](../concepts/notifications.html#mail-notifications).|
+|ML-11277|Increased the performance of reading partitioned parquets, thereby preventing lag in processing the model monitoring events.|
 |ML-11383|Monitoring app UI: The Kind column in the Results tab now prints the description, and not the value as previously. |
 |ML-11400|When deploying a serving function as a job, the artifact is now as expected. |
 |ML-11408|After an app runtime reached `max_replicas`, it now scales down to `min_replicas` as expected when load decreases.|
 |ML-11517|Resolved the thread-safety issues that occasionally caused failure during invoke time when serving using 2 Hugging Face models with `thread_pool` execution mechanism.|
 |ML-11530|Model monitoring appplications that have underscores in their names no longer causebreakage when trying to view the counters from the Project view. Underscores in function names will be deprecated in v1.11.0. See [Upcoming changes](#upcoming-changes).|
 |ML-11545|Running a workflow with Jupyter on Iguazio systems, the pipeline UI link now resolves successfully. |
-|ML-11597| The Model monitoring tutorial now runs successfully. Previously it failed with an error "NameError: name 'alert_objects' is not defined".|
+|ML-11597|The Model monitoring tutorial now runs successfully. Previously it failed with an error "NameError: name 'alert_objects' is not defined".|
 |ML-11602|In a Python 3.9 environment on Dask clusters, when running code that specifies the `mlrun/ml-base` image, the image name is now replaced  with `mlrun/mlrun`. |
+|ML-11791|Documentation: Clarified project.save() and function.save(): functions are not saved when you save your project, and how to save functions to the DB. See [A word about saving functions](../runtimes/create-and-use-functions.html#a-word-about-saving-functions).|
 |NA|Security fixes.|
 
 (v1100)=
@@ -742,7 +744,7 @@ To upgrade the MLRun server:
 | ID     | Description                                                                                                                                                                                                                                                      |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3501| Support for running Spark jobs on Databricks cluster. See [Databricks](../runtimes/databricks.ipynb). [View in Git](https://github.com/mlrun/mlrun/pull/3996).                                                                                                   |
-|ML-3854| Support for webhook notification. See {ref}`notifications`} and [view in Git](https://github.com/mlrun/mlrun/pull/3946).                                                                              |
+|ML-3854| Support for webhook notification. See webhook in [Notification Kinds](../concepts/notifications.md#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946).                                                                              |
 |ML-4059| Support for adding env vars or secrets to the docker build during runtime. See [Extra arguments](../runtimes/image-build.md#extra-arguments),  {py:meth}`~mlrun.projects.MlrunProject.build_config` and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 
 #### UI

@@ -3395,7 +3395,7 @@ class RootFlowStep(FlowStep):
             getattr(context.server, "http_trigger", False)
             and not self.have_responder_step()
         ):
-            if self.engine is "async":
+            if self.engine == "async":
                 context.server.wait_for_completion()
             raise GraphError(
                 "no responder step found in graph, cannot handle http events"

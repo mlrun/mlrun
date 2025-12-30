@@ -1443,6 +1443,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
 |ML-9913|UI: There may be a discrepancy in the artifact count between the Project monitoring page and the Artifacts page when running hyper-param jobs without a best-iteration. |Always provide a selection criteria for `best-iteration`.|v1.8.0|
 |ML-11463|The application graph in the model monitoring UI does not present the “dead zones” where no activity happened, and the time axis representation is not consistent.|NA|v1.10.0|
+|ML-11654|MLRun serving graphs with HTTP trigger and no responder. When a serving function is configured with an HTTP trigger only and the graph does not include any `.respond()` step, the function does not return the actual result or error of the graph execution. Instead, it only returns a generic invocation ID (for example, {"id": "<uuid>"}), even if an exception occurred inside the graph.|Add a `.respond()` step.|v1.10.0|
 |ML-11771|In rare circumstances, access to projects is temporarily unavailable.|Restart MLRun.|V1.9.2|
 
 

@@ -955,7 +955,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             ep_id=mep.metadata.uid,
             last_request=mep.status.last_request,
             apps_data=self.apps_data,
-            error_count=self.error_count,
+            error_count=1
+            if model_runner_mode == ModelRunnerMode.BATCH
+            else self.error_count,
         )
 
         self._test_predictions_table(mep.metadata.uid)

@@ -2,7 +2,7 @@
 # MLRun CE overview
 
 MLRun CE is an open-source platform that simplifies the entire lifecycle of your AI project. 
-By installing the MLRun CE Helm chart on your Kubernetes cluster or local laptop, you get a powerful, integrated environment for developing your LLM and ML projects.
+By installing the MLRun CE Helm chart on your Kubernetes cluster or local laptop, you get a powerful, integrated environment for developing your GenAI and ML projects.
 The platform is built on two main applications: MLRun for MLOps orchestration and Nuclio for serverless computing.
 
 **MLRun: the MLOps orchestration framework**
@@ -31,7 +31,7 @@ mlrun-ce-development-notes
 
 - **Open-source MLOps Solution:** MLRun CE is an open-source MLOps platform that you can quickly install on your Kubernetes cluster or local desktop by deploying the mlrun-ce chart.
 
-- **Rapid project development:** Allows you to take your code from a Jupyter Notebook or you local IDE to a scalable k8s based platform, with minimal changes.
+- **Rapid project development:** Allows you to take your code from a Jupyter Notebook or your local IDE to a scalable k8s based platform, with minimal changes.
 This significantly shortens the time-to-production, enabling faster iteration and shortening the development phase.
 
 - **Efficient AI project management:** Gives you tools for experiment tracking, hyperparameter tuning, and model selection, allowing you to easily compare experiments, optimize models, and ensure reproducibility.

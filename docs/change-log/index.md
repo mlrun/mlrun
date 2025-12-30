@@ -949,7 +949,7 @@ python 3.7 have the suffix: `-py37`. The correct version is automatically chosen
 MLRun v1.3.x maintains support for mlrun base images that are based on a python 3.7 environment. To differentiate between the images, the images based on
 python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
 
-For a Python 3.9 environment see [Set up a Python 3.9 client environment](https://docs.mlrun.org/en/v1.8.0/setup-guide/remote.md.html#set-up-a-python-3-9-client-environment).
+For a Python 3.9 environment see [Set up a Python 3.9 client environment](https://docs.mlrun.org/en/v1.8.0/install/remote.html#set-up-a-python-3-9-client-environment).
 
 #### Set up a Python 3.7 client environment (Iguazio versions up to and including v3.5.2)
 

@@ -15,9 +15,9 @@ A default PVC is created during the MLRun installation. If you modified the env 
 import mlrun
 mlrun.mlconf.storage.auto_mount_type = "pvc"
 pvc_params = {
-    "pvc_name": "pvc-fhakn",
-    "volume_name": "pv-zjoij",
-    "volume_mount_path": "/tmp/pv-temp/adcxm",
+    "pvc_name": <your-pvc-name>,
+    "volume_name": <volume-name>,
+    "volume_mount_path": <container mount path>,
 }
 mlrun.mlconf.storage.auto_mount_params = ",".join(
     [f"{key}={value}" for key, value in pvc_params.items()]
@@ -46,15 +46,16 @@ python -m ipykernel install --user --name <myenv> --display-name "Python (<myenv
 ```
 
 ## Configuring TDengine and Kafka for model monitoring
-TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values. It's recommended to change the user/password.
+TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values.
 
+The connections are managed by using [MLRun datastore profiles](https://docs.mlrun.org/en/stable/store/datastore.html#data-store-profiles). datastore profiles manage the connection credentials securely.
 ```py
 # Create and register TSDB profile
 tsdb_profile = DatastoreProfileTDEngine(
     name=tsdb_profile_name,
     user="root",
     password="taosdata",
-    host=f"tdengine-tsdb.{namespace}.svc.cluster.local",
+    host=f"tdengine-tsdb",
     port="6041",
 )
 project.register_datastore_profile(tsdb_profile)
@@ -62,7 +63,7 @@ project.register_datastore_profile(tsdb_profile)
 # Create and register stream profile
 stream_profile = DatastoreProfileKafkaSource(
     name=stream_profile_name,
-    brokers=f"kafka-stream.{namespace}.svc.cluster.local:9092",
+    brokers=f"kafka-stream:9092",
     topics=[],
 )
 

@@ -1,7 +1,7 @@
 (install-on-kubernetes)=
 # Install MLRun CE on Kubernetes
 
-These instructions install the community edition (CE) on your Kubernetes cluster. This procedure installs an EKS cluster, an EBS volume, an S3 bucket, load balancing, etc. When you complete this procedure, you'll have the Community Edition of MLRun running on your EKS cluster.
+These instructions install the community edition (CE) on your Kubernetes cluster.
 
 ```{admonition} Note
 These instructions install the community edition {{ ceversion }}, which currently includes the features in MLRun {{ version }}.</br>
@@ -19,11 +19,11 @@ These instructions install the community edition {{ ceversion }}, which currentl
 ## Prerequisites
 
 - Access to a Kubernetes cluster, version >=1.32. To install MLRun on your cluster, you must have administrator permissions. 
-For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. 
+For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended, see also [Installing on Docker Desktop](#installing-on-docker-desktop) section. 
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
-instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
+instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information, If you choose to use Docker Desktop, you can use its built-in Kubernetes service, which includes the kubectl CLI out of the box.
 - Helm version >=3.16 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
-- An accessible Docker Registry (such as [Docker Hub](https://hub.docker.com)). The Registry's URL and credentials are consumed by the applications via a pre-created secret. If using Docker Hub, the Registry server is `https://registry.hub.docker.com/`. See the [Docker ID documentation](https://docs.docker.com/docker-id/) for details about creating a user with login that you will configure in the secret.
+- An accessible Docker Registry (such as [Docker Hub](https://hub.docker.com)). The Registry's URL and credentials are consumed by the applications via a pre-created secret.
 - Storage: 
   - 8Gi
   - Set a default storage class for the Kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
@@ -99,7 +99,7 @@ helm --namespace mlrun \
     --wait \
     --timeout 960s \
     --set global.registry.url=<registry-url> \
-    --set global.registry.secretName=<registry-credentials> \
+    --set global.registry.secretName=registry-credentials \
     --set global.externalHostAddress=<host-machine-address> \
     mlrun-ce/mlrun-ce
 ```
@@ -224,8 +224,8 @@ $ kubectl --namespace mlrun delete pvc <pvc-name>
 $ kubectl --namespace mlrun get pv
 ...
 
-# To remove a PVC
-$ kubectl --namespace mlrun delete pvc <pv-name>
+# To remove a PV
+$ kubectl --namespace mlrun delete pv <pv-name>
 ...
 ```
 
@@ -257,6 +257,6 @@ helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlru
 ```
 
 ```{admonition} Note
-If your values have fixed mlrun service versions (e.g.: mlrun:1.3.0) then you might want to remove it from the values file to allow newer chart defaults to kick in.
+If your values have fixed mlrun service versions (e.g.: mlrun:1.8.0) then you might want to remove it from the values file to allow newer chart defaults to kick in.
 ```
 

@@ -14,6 +14,7 @@ This page lists additional steps or configuration options you may need to follow
 
 Configurable values are documented in the `values.yaml`, and the `values.yaml` of all sub charts. Override those [in the normal methods](https://helm.sh/docs/chart_template_guide/values_files/).
 
+See also the [MLRun CE values file reference](https://github.com/mlrun/ce/blob/development/charts/mlrun-ce/values.yaml)
 ## Opt out of components
 The chart installs many components. You may not need them all in your deployment depending on your use cases.
 To opt out of some of the components, use the following helm values:

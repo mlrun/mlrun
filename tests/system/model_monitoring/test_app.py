@@ -867,7 +867,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         ), "No drift over time should be detected in the past"
 
     @pytest.mark.parametrize("with_training_set", [True, False])
-    @pytest.mark.parametrize("model_runner_mode", ["True", "False", None])
+    @pytest.mark.parametrize("model_runner_mode", ["single", "batch", None])
     def test_app_flow(self, with_training_set: bool, model_runner_mode: str) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)

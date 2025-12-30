@@ -136,16 +136,6 @@ def enable_model_monitoring(
     base_period: int = 10,
     image: str = "mlrun/mlrun",
     deploy_histogram_data_drift_app: bool = True,
-    # TODO: remove this in 1.11.0
-    rebuild_images: bool = Query(
-        False,
-        deprecated=True,
-        description=(
-            "`rebuild_images` is deprecated as of 1.8.0 and will be removed in 1.11.0. "
-            "To rebuild images, first send a DELETE request to `/projects/{project}/model-monitoring`, "
-            "then send a PUT request to the same endpoint with the updated image."
-        ),
-    ),
     fetch_credentials_from_sys_config: bool = Query(
         False,
         deprecated=True,
@@ -169,8 +159,6 @@ def enable_model_monitoring(
                                               stream functions, which are real time nuclio functions.
                                               By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-    :param rebuild_images:                    Deprecated. If true, force rebuild of model monitoring infrastructure
-                                              images (controller, writer & stream).
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
 
     """

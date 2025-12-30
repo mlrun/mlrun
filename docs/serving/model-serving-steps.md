@@ -4,7 +4,7 @@ Learn about the ModelRunnerStep and other steps used when serving models.
 
 **In this section**
 - [ModelRunnerStep](#modelrunnerstep)
-- [Router step](#router-step)
+- [RouterStep](#routerstep)
 
 ## ModelRunnerStep
 
@@ -134,6 +134,6 @@ Example:
 }
 ```
 
-## Router step
+## RouterStep
 
-{py:class}~`mlrun.serving.RouterStep` implements routing logic for running child routes. See the example in {ref}`graph-example`.
+{py:class}`~mlrun.serving.RouterStep` implements routing logic for running child routes. See the example in {ref}`graph-example`.

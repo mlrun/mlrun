@@ -33,7 +33,7 @@ import mlrun.common.schemas as schemas
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
-from mlrun.serving import (
+from mlrun.serving import (  # noqa: F401
     LLModel,
     Model,
     ModelRunnerSelector,
@@ -44,8 +44,21 @@ from mlrun.serving import (
 from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results
-
-from .demo_states import *  # noqa
+from tests.serving.demo_states import (  # noqa: F401
+    Chain,
+    ChainWithContext,
+    Counter,
+    Echo,
+    EchoError,
+    LLModelWithTools,
+    ModelClass,
+    MyRemoteModel,
+    MySelector,
+    Raiser,
+    Route,
+    Tool,
+    multiply_input,
+)
 
 
 class _DummyStreamRaiser:
@@ -94,7 +107,6 @@ def test_async_basic():
 
     # plot the graph for test & debug
     flow.plot(f"{results}/serving/async.png")
-
     server = function.to_mock_server()
     server.context.visits = {}
     logger.info(f"\nAsync Flow:\n{flow.to_yaml()}")
@@ -142,11 +154,12 @@ def test_async_nested():
     graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
 
     server = function.to_mock_server()
-
-    # plot the graph for test & debug
-    graph.plot(f"{results}/serving/nested.png")
-    resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
-    server.wait_for_completion()
+    try:
+        # plot the graph for test & debug
+        graph.plot(f"{results}/serving/nested.png")
+        resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
+    finally:
+        server.wait_for_completion()
     # resp should be input (5) * multiply_input (2) * m2 multiplier (200)
     assert resp["outputs"] == 5 * 2 * 200, f"wrong health response {resp}"
 
@@ -160,12 +173,14 @@ def test_on_error():
     ).to("Chain", name="s3")
 
     function.verbose = True
-    server = function.to_mock_server()
+    try:
+        server = function.to_mock_server()
 
-    # plot the graph for test & debug
-    graph.plot(f"{results}/serving/on_error.png")
-    resp = server.test(body=[])
-    server.wait_for_completion()
+        # plot the graph for test & debug
+        graph.plot(f"{results}/serving/on_error.png")
+        resp = server.test(body=[])
+    finally:
+        server.wait_for_completion()
     if isinstance(resp, dict):
         assert (
             resp["error"] and resp["origin_state"] == "Raiser"
@@ -231,13 +246,22 @@ def test_batch():
 
 
 class MyModel(Model):
-    def __init__(self, inc: int, gpu_number: Optional[int] = None, **kwargs):
+    def __init__(
+        self, inc: int, gpu_number: Optional[int] = None, err: bool = True, **kwargs
+    ):
         super().__init__(**kwargs)
         self.inc = inc
         self.gpu_number = gpu_number
+        self.err = err
 
     def predict(self, body):
-        body["n"] += self.inc
+        try:
+            body["n"] += self.inc
+        except TypeError:
+            if self.err:
+                raise
+            else:
+                body["n"] = 1
         body.pop("models", None)
         if self.gpu_number is not None:
             body["gpu"] = self.gpu_number
@@ -250,17 +274,6 @@ class MyModel(Model):
 
     def do(self, event):
         return self.predict(event)
-
-
-class MyRemoteModel(Model):
-    def predict(self, body, **kwargs):
-        body["url"] = self.model_artifact.model_url
-        body["default_config"] = self.model_artifact.default_config
-        return body
-
-    async def predict_async(self, body, **kwargs):
-        body["async_triggered"] = "Async predict was triggered."
-        return body
 
 
 class BatchedModel(Model):
@@ -318,10 +331,9 @@ class DummyAsyncLLMWithoutAsyncPredict(LLModel):
 
 
 class MyPklModel(Model):
-    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
+    def __init__(self, name, artifact_uri, **kwargs):
         super().__init__(
             name=name,
-            raise_exception=raise_exception,
             artifact_uri=artifact_uri,
             **kwargs,
         )
@@ -598,6 +610,7 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
         endpoint_name="my_model_0",
         raise_error=False,
         inc=1,
+        err=False,
     )
     model_runner_step.add_model(
         model_class="MyModel",
@@ -608,7 +621,11 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
     )
     graph.to(model_runner_step).respond()
     _test_model_runner_raise_error_output(
-        function, raise_error, with_error, models=["my_model_0", "my_model_1"]
+        function,
+        raise_error,
+        with_error,
+        models=["my_model_0", "my_model_1"],
+        models_with_error=["my_model_1"],
     )
 
 
@@ -637,8 +654,9 @@ def test_model_runner_multiple_downstream_steps(raise_error: bool, with_error: b
 
 
 def _test_model_runner_raise_error_output(
-    function, raise_error, with_error, models=None
+    function, raise_error, with_error, models=None, models_with_error=None
 ):
+    models_with_error = models_with_error or models
     server = function.to_mock_server()
     if with_error:
         if raise_error:
@@ -650,7 +668,7 @@ def _test_model_runner_raise_error_output(
                 assert "error" in body, f"Expected error field in body got {body}"
             else:
                 assert all(
-                    "error" in body.get(model) for model in models
+                    "error" in body.get(model) for model in models_with_error
                 ), f"Expected error field for each model in body got {body}"
     else:
         if models is None or len(models) == 1:

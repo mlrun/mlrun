@@ -142,22 +142,22 @@ def test_project_pattern() -> None:
         # nested dict flattening
         (
             {"outer": {"inner-key": 99}},
-            {"outer.inner_key": 99},
+            {"outer:inner_key": 99},
         ),
         # multiple nested levels
         (
             {"a": {"b": {"c-key": 5}}},
-            {"a.b.c_key": 5},
+            {"a:b:c_key": 5},
         ),
         # mixed dicts and values
         (
             {"root": {"sub1": 1, "sub-2": {"deep-key": "x"}}, "plain": 7},
-            {"root.sub1": 1, "root.sub_2.deep_key": "x", "plain": 7},
+            {"root:sub1": 1, "root:sub_2:deep_key": "x", "plain": 7},
         ),
         # key with digit prefix deep inside
         (
             {"root": {"123abc": {"-bad-key": 1}}},
-            {"root._123abc._bad_key": 1},
+            {"root:_123abc:_bad_key": 1},
         ),
     ],
 )

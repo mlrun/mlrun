@@ -134,10 +134,9 @@ def enrich_function_with_ingress(config, mode, service_type, async_mode):
             "workerAvailabilityTimeoutMilliseconds": 10000,  # 10 seconds
             "attributes": {},
             "mode": async_mode or "sync",
-            "async": {
-                "maxConnectionsNumber": None,
-            },
         }
+        if async_mode == "async":
+            http_trigger["async"] = {"maxConnections": None}
 
     def enrich():
         http_trigger.setdefault("attributes", {}).setdefault("ingresses", {})["0"] = {

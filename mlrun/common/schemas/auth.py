@@ -12,13 +12,64 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import typing
 
 import pydantic.v1
-from nuclio.auth import AuthInfo as NuclioAuthInfo
+import requests.auth
+from nuclio.auth import AuthInfo as _NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun.common.types
+
+
+class NuclioAuthInfo(_NuclioAuthInfo):
+    def __init__(self, token=None, **kwargs):
+        super().__init__(**kwargs)
+        self._token = token
+
+    @classmethod
+    def from_request_headers(cls, headers: dict[str, str]):
+        if not headers:
+            return cls()
+        for key, value in headers.items():
+            if key.lower() == "authorization":
+                if value.lower().startswith("bearer "):
+                    return cls(
+                        token=value[len("bearer ") :],
+                        mode=NuclioAuthKinds.iguazio,
+                    )
+                if value.lower().startswith("basic "):
+                    token = value[len("basic ") :]
+                    decoded_token = base64.b64decode(token).decode("utf-8")
+                    username, password = decoded_token.split(":", 1)
+                    return cls(
+                        username=username,
+                        password=password,
+                        mode=NuclioAuthKinds.iguazio,
+                    )
+        return cls()
+
+    @classmethod
+    def from_envvar(cls):
+        import mlrun.auth.utils
+
+        if mlrun.mlconf.is_iguazio_v4_mode():
+            return _NuclioAuthInfo(
+                password=mlrun.auth.utils.load_offline_token(),
+                mode=NuclioAuthKinds.iguazio,
+            )
+        return super().from_envvar()
+
+    def to_requests_auth(self) -> "requests.auth":
+        if mlrun.mlconf.is_iguazio_v4_mode():
+            # in iguazio v4 mode we use bearer token auth
+            auth = requests.auth.AuthBase()
+            auth.__call__ = lambda r: r.headers.update(
+                {"Authorization": f"Bearer {self._token}"}
+            )
+            return auth
+        return super().to_requests_auth()
 
 
 class ProjectsRole(mlrun.common.types.StrEnum):
@@ -141,7 +192,7 @@ class AuthInfo(pydantic.v1.BaseModel):
 
     def to_nuclio_auth_info(self):
         if mlrun.mlconf.is_iguazio_v4_mode():
-            return NuclioAuthInfoWithHeaders(headers=self.request_headers)
+            return NuclioAuthInfo.from_request_headers(self.request_headers)
         if self.session != "":
             return NuclioAuthInfo(password=self.session, mode=NuclioAuthKinds.iguazio)
         return None
@@ -162,37 +213,3 @@ class AuthInfo(pydantic.v1.BaseModel):
 
 class Credentials(pydantic.v1.BaseModel):
     access_key: typing.Optional[str]
-
-
-class NuclioAuthInfoWithHeaders(NuclioAuthInfo):
-    """ "
-    Nuclio AuthInfo subclass that supports custom headers.
-    This is needed because Nuclio Jupyter is using `to_requests_auth` method, but in Iguazio V4 we need to inject
-    the Auth headers instead of using basic auth
-    """
-
-    def __init__(self, headers=None, **kwargs):
-        super().__init__(**kwargs)
-        self._headers = headers or {}
-
-    def to_requests_auth(self):
-        # Return custom auth handler that applies headers
-        base_auth = super().to_requests_auth()
-        return _CustomAuthWithHeaders(base_auth, self._headers)
-
-
-class _CustomAuthWithHeaders:
-    """
-    Custom requests auth handler that applies additional headers to the request
-    """
-
-    def __init__(self, base_auth, headers):
-        self.base_auth = base_auth
-        self.headers = headers
-
-    def __call__(self, request):
-        if self.base_auth:
-            request = self.base_auth(request)
-        for key, value in self.headers.items():
-            request.headers[key] = value
-        return request

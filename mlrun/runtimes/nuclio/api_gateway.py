@@ -17,13 +17,13 @@ from typing import Optional, Union
 from urllib.parse import urljoin
 
 import requests
-from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas as schemas
+import mlrun.common.schemas.auth
 import mlrun.common.types
 from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
@@ -445,7 +445,7 @@ class APIGateway(ModelObj):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please pass credentials"
                 )
-            auth = NuclioAuthInfo(
+            auth = mlrun.common.schemas.auth.NuclioAuthInfo(
                 username=credentials[0], password=credentials[1]
             ).to_requests_auth()
 
@@ -455,13 +455,17 @@ class APIGateway(ModelObj):
         ):
             # inject access key from env
             if credentials:
-                auth = NuclioAuthInfo(
+                auth = mlrun.common.schemas.auth.NuclioAuthInfo(
                     username=credentials[0],
                     password=credentials[1],
                     mode=NuclioAuthKinds.iguazio,
                 ).to_requests_auth()
             else:
-                auth = NuclioAuthInfo().from_envvar().to_requests_auth()
+                auth = (
+                    mlrun.common.schemas.auth.NuclioAuthInfo()
+                    .from_envvar()
+                    .to_requests_auth()
+                )
             if not auth:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
@@ -470,7 +474,7 @@ class APIGateway(ModelObj):
             self.spec.authentication.authentication_mode
             == schemas.APIGatewayAuthenticationMode.iguazio.value
         ):
-            auth = NuclioAuthInfo().from_envvar().to_requests_auth()
+            auth = mlrun.common.schemas.auth.NuclioAuthInfo.from_envvar().to_requests_auth()
         url = urljoin(self.invoke_url, path or "")
 
         # Determine the correct keyword argument for the body

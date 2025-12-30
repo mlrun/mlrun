@@ -55,14 +55,14 @@ class NuclioAuthInfo(_NuclioAuthInfo):
         import mlrun.auth.utils
 
         if mlrun.mlconf.is_iguazio_v4_mode():
-            return _NuclioAuthInfo(
-                password=mlrun.auth.utils.load_offline_token(),
+            return cls(
+                token=mlrun.auth.utils.load_offline_token(),
                 mode=NuclioAuthKinds.iguazio,
             )
         return super().from_envvar()
 
     def to_requests_auth(self) -> "requests.auth":
-        if mlrun.mlconf.is_iguazio_v4_mode():
+        if self._token:
             # in iguazio v4 mode we use bearer token auth
             auth = requests.auth.AuthBase()
             auth.__call__ = lambda r: r.headers.update(

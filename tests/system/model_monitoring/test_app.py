@@ -77,11 +77,12 @@ from .assets.application import (
 from .assets.custom_evidently_app import DemoEvidentlyMonitoringApp
 
 
-class ModelRunnerMode(mlrun.common.types.StrEnum):
+class ModelMode(mlrun.common.types.StrEnum):
     """Model runner execution modes for testing."""
 
     SINGLE = "single"
     BATCH = "batch"
+    V2ModelServer = "v2_model_server"
 
 
 @dataclass
@@ -524,9 +525,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
     def _deploy_model_serving(
         cls,
         with_training_set: bool,
-        model_runner_mode: typing.Optional[str] = None,
+        model_mode: ModelMode = ModelMode.V2ModelServer,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        if model_runner_mode:
+        if model_mode != ModelMode.V2ModelServer:
             code_path = (
                 f"{str((Path(__file__).parent / 'assets').absolute())}/models.py"
             )
@@ -550,7 +551,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             )
             graph = serving_fn.set_topology("flow", engine="async")
             graph.to(model_runner_step).respond()
-        else:
+        else:  # V2 model server
             serving_fn = typing.cast(
                 mlrun.runtimes.nuclio.serving.ServingRuntime,
                 mlrun.import_function(
@@ -577,18 +578,18 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         *,
         num_events: int,
         with_training_set: bool = True,
-        model_runner_mode: typing.Optional[str] = None,
+        model_mode: ModelMode = ModelMode.V2ModelServer,
     ) -> datetime:
-        if model_runner_mode == ModelRunnerMode.BATCH:
+        if model_mode == ModelMode.BATCH:
             body = []
             for i in range(num_events):
                 inputs = {"inputs": [0.0] * cls.num_features}
                 body.append(inputs)
-        else:  # single or None
+        else:  # single or v2 model server:
             body = json.dumps({"inputs": [[0.0] * cls.num_features] * num_events})
         result = serving_fn.invoke(
             path="/"
-            if model_runner_mode
+            if model_mode
             else f"v2/models/{cls.model_name}_{with_training_set}/infer",
             body=body,
         )
@@ -605,10 +606,10 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
         *,
         with_training_set: bool = True,
-        model_runner_mode: typing.Optional[str] = None,
+        model_mode: ModelMode = ModelMode.V2ModelServer,
     ):
         endpoint = f"v2/models/{cls.model_name}_{with_training_set}/infer"
-        if model_runner_mode == ModelRunnerMode.BATCH:
+        if model_mode == ModelMode.BATCH:
             body = []
             for i in range(cls.error_count):
                 inputs = {"inputs": [0.0] * (cls.num_features + 1)}
@@ -620,7 +621,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
             except Exception:
                 pass
-        else:  # single or None:
+        else:  # single or V2 model server:
             for i in range(cls.error_count):
                 try:
                     serving_fn.invoke(
@@ -875,9 +876,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     @pytest.mark.parametrize(
-        "model_runner_mode", [ModelRunnerMode.SINGLE, ModelRunnerMode.BATCH, None]
+        "model_mode", [ModelMode.SINGLE, ModelMode.BATCH, ModelMode.V2ModelServer]
     )
-    def test_app_flow(self, with_training_set: bool, model_runner_mode: str) -> None:
+    def test_app_flow(self, with_training_set: bool, model_mode: ModelMode) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
 
@@ -889,7 +890,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(
-                self._deploy_model_serving, with_training_set, model_runner_mode
+                self._deploy_model_serving, with_training_set, model_mode
             )
 
         serving_fn = future.result()
@@ -899,13 +900,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             serving_fn,
             num_events=self.num_events,
             with_training_set=with_training_set,
-            model_runner_mode=model_runner_mode,
+            model_mode=model_mode,
         )
 
         self._infer_with_error(
             serving_fn,
             with_training_set=with_training_set,
-            model_runner_mode=model_runner_mode,
+            model_mode=model_mode,
         )
         # wait for the NO-OP event to close the window
         initial_wait = (
@@ -955,9 +956,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             ep_id=mep.metadata.uid,
             last_request=mep.status.last_request,
             apps_data=self.apps_data,
-            error_count=1
-            if model_runner_mode == ModelRunnerMode.BATCH
-            else self.error_count,
+            error_count=1 if model_mode == ModelMode.BATCH else self.error_count,
         )
 
         self._test_predictions_table(mep.metadata.uid)

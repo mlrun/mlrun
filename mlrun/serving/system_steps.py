@@ -247,10 +247,21 @@ class MonitoringPreProcessor(storey.MapClass):
                         when = event._metadata.get(model, {}).get(
                             mm_schemas.StreamProcessingEvent.WHEN
                         )
-                    #  if the body is not a dict, we set it to empty dict to fields extraction
-                    body_by_model = (
-                        event.body[model] if isinstance(event.body[model], dict) else {}
-                    )
+                    #  if the body is not a dict, use empty labels, error and metrics
+                    if isinstance(event.body[model], dict):
+                        body_by_model = event.body[model]
+                        labels = body_by_model.get("labels") or {}
+                        error = body_by_model.get(
+                            mm_schemas.StreamProcessingEvent.ERROR
+                        )
+                        metrics = body_by_model.get(
+                            mm_schemas.StreamProcessingEvent.METRICS
+                        )
+                    else:
+                        labels = {}
+                        error = None
+                        metrics = None
+
                     monitoring_event_list.append(
                         {
                             mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -266,21 +277,14 @@ class MonitoringPreProcessor(storey.MapClass):
                             ].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
                             ),
-                            mm_schemas.StreamProcessingEvent.LABELS: body_by_model.get(
-                                "labels"
-                            )
-                            or {},
+                            mm_schemas.StreamProcessingEvent.LABELS: labels,
                             mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
                             if self.server
                             else None,
                             mm_schemas.StreamProcessingEvent.REQUEST: request,
                             mm_schemas.StreamProcessingEvent.RESPONSE: resp,
-                            mm_schemas.StreamProcessingEvent.ERROR: body_by_model.get(
-                                mm_schemas.StreamProcessingEvent.ERROR
-                            ),
-                            mm_schemas.StreamProcessingEvent.METRICS: body_by_model.get(
-                                mm_schemas.StreamProcessingEvent.METRICS
-                            ),
+                            mm_schemas.StreamProcessingEvent.ERROR: error,
+                            mm_schemas.StreamProcessingEvent.METRICS: metrics,
                         }
                     )
         elif monitoring_data:
@@ -292,7 +296,15 @@ class MonitoringPreProcessor(storey.MapClass):
                 when = event._original_timestamp
             else:
                 when = event._metadata.get(mm_schemas.StreamProcessingEvent.WHEN)
-            event_body = event.body if isinstance(event.body, dict) else {}
+            #  if the body is not a dict, use empty labels, error and metrics
+            if isinstance(event.body, dict):
+                labels = event.body.get("labels") or {}
+                error = event.body.get(mm_schemas.StreamProcessingEvent.ERROR)
+                metrics = event.body.get(mm_schemas.StreamProcessingEvent.METRICS)
+            else:
+                labels = {}
+                error = None
+                metrics = None
             monitoring_event_list.append(
                 {
                     mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -306,20 +318,14 @@ class MonitoringPreProcessor(storey.MapClass):
                     mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                         model
                     ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
-                    mm_schemas.StreamProcessingEvent.LABELS: event_body.get("labels")
-                    or {}
-                    or {},
+                    mm_schemas.StreamProcessingEvent.LABELS: labels,
                     mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
                     if self.server
                     else None,
                     mm_schemas.StreamProcessingEvent.REQUEST: request,
                     mm_schemas.StreamProcessingEvent.RESPONSE: resp,
-                    mm_schemas.StreamProcessingEvent.ERROR: event_body.get(
-                        mm_schemas.StreamProcessingEvent.ERROR
-                    ),
-                    mm_schemas.StreamProcessingEvent.METRICS: event_body.get(
-                        mm_schemas.StreamProcessingEvent.METRICS
-                    ),
+                    mm_schemas.StreamProcessingEvent.ERROR: error,
+                    mm_schemas.StreamProcessingEvent.METRICS: metrics,
                 }
             )
         event.body = monitoring_event_list

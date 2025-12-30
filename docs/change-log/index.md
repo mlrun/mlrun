@@ -48,7 +48,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ## v1.10.0 (November 2025)
 
 ```{admonition} Important
-**This is the last version that supports Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
+**v1.10.x are the last versions that support Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
 TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine will not be migrated.**
 ```
 

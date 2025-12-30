@@ -77,6 +77,13 @@ from .assets.application import (
 from .assets.custom_evidently_app import DemoEvidentlyMonitoringApp
 
 
+class ModelRunnerMode(mlrun.common.types.StrEnum):
+    """Model runner execution modes for testing."""
+
+    SINGLE = "single"
+    BATCH = "batch"
+
+
 @dataclass
 class _AppData:
     class_: type[ModelMonitoringApplicationBase]
@@ -572,7 +579,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         with_training_set: bool = True,
         model_runner_mode: typing.Optional[str] = None,
     ) -> datetime:
-        if model_runner_mode == "batch":
+        if model_runner_mode == ModelRunnerMode.BATCH:
             body = []
             for i in range(num_events):
                 inputs = {"inputs": [0.0] * cls.num_features}
@@ -601,7 +608,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         model_runner_mode: typing.Optional[str] = None,
     ):
         endpoint = f"v2/models/{cls.model_name}_{with_training_set}/infer"
-        if model_runner_mode == "batch":
+        if model_runner_mode == ModelRunnerMode.BATCH:
             body = []
             for i in range(cls.error_count):
                 inputs = {"inputs": [0.0] * (cls.num_features + 1)}
@@ -867,7 +874,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         ), "No drift over time should be detected in the past"
 
     @pytest.mark.parametrize("with_training_set", [True, False])
-    @pytest.mark.parametrize("model_runner_mode", ["single", "batch", None])
+    @pytest.mark.parametrize(
+        "model_runner_mode", [ModelRunnerMode.SINGLE, ModelRunnerMode.BATCH, None]
+    )
     def test_app_flow(self, with_training_set: bool, model_runner_mode: str) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)

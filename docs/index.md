@@ -11,9 +11,9 @@ This page explains how MLRun addresses the [**gen AI tasks**](#gen-ai-tasks), [*
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
 **In this section**
-- [Deployemnt options](#deployment-options)
+- [Deployment options](#deployment-options)
 - [Set up your client](#set-up-your-client)
-- [Gen AI tasks](#gen-ai-tasks) 
+- [GenAI tasks](#gen-ai-tasks) 
 - [MLOps tasks](#mlops-tasks)
 - [MLRun core components](#mlrun-core-components)
 
@@ -30,7 +30,7 @@ The deployment options are:
 You can work with your favorite IDE (e.g. PyCharm, VSCode, Jupyter, Colab, etc.). Read how to configure your client against the deployed
 MLRun server in {ref}`install-remote`.
 
-Once you have installed and configured MLRun, follow the {ref}`quick-start-ml` and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
+Once you have installed and configured MLRun, follow the {ref}`quick-start-ml` and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy GenAI and machine learning applications to production.
 
 ## Gen AI tasks
 

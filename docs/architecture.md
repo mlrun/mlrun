@@ -39,7 +39,7 @@ While each component in MLRun is independent, the integration provides much grea
 
 When one of the components detailed above is updated, it immediately impacts the feature generation, the model serving pipeline, and the monitoring. MLRun applies versioning to each component, as well as versioning and rolling upgrades across components.
 
-## MLRun Non-root user support
+## MLRun non-root user support
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, which is implemented by Iguazio during installation, and applied system-wide:
 

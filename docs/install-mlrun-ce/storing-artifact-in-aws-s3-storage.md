@@ -10,8 +10,7 @@ make `s3://` paths lead to AWS buckets instead.
 
 ```{admonition} Note
 These configurations are only required for AWS S3 storage, due to the usage of the same S3 protocol in MinIO. For other
-storage options (such as GCS, Azure blobs etc.) only the artifact path needs to be modified, and credentials need to
-be provided.
+storage options (such as GCS, Azure blobs etc.) just modify the artifact path and provide credentials.
 ```
 
 ## Setting up S3 credentials and endpoint
@@ -33,8 +32,7 @@ auto-mount adds S3 configurations that point at the MinIO service (refer to
 [**Function storage**](../runtimes/function-storage.md) for more details on auto-mount). This can be done in one
 of following ways:
 
-* Set the client-side MLRun configuration to disable auto-mount. This disables auto-mount for any function run
-  after this command:
+* Set the client-side MLRun configuration to disable auto-mount. This disables auto-mount for any functions you subsequently run:
     ```python
     from mlrun.config import config as mlconf
 

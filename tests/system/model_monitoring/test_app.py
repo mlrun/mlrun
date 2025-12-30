@@ -517,9 +517,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
     def _deploy_model_serving(
         cls,
         with_training_set: bool,
-        with_model_runner: bool = False,
+        model_runner_mode: typing.Optional[str] = None,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        if with_model_runner:
+        if model_runner_mode:
             code_path = (
                 f"{str((Path(__file__).parent / 'assets').absolute())}/models.py"
             )
@@ -570,26 +570,27 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         *,
         num_events: int,
         with_training_set: bool = True,
-        with_model_runner: bool = False,
+        model_runner_mode: typing.Optional[str] = None,
     ) -> datetime:
-        total_inputs = []
-        for i in range(num_events):
-            inputs = {"inputs": [0.0] * cls.num_features}
-            total_inputs.append(inputs)
-        # body=json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}
+        if model_runner_mode == "batch":
+            body = []
+            for i in range(num_events):
+                inputs = {"inputs": [0.0] * cls.num_features}
+                body.append(inputs)
+        else:  # single or None
+            body = json.dumps({"inputs": [[0.0] * cls.num_features] * num_events})
         result = serving_fn.invoke(
             path="/"
-            if with_model_runner
+            if model_runner_mode
             else f"v2/models/{cls.model_name}_{with_training_set}/infer",
-            body=total_inputs,
+            body=body,
         )
-        print(result)
-        # assert isinstance(result, dict), "Unexpected result type"
-        # assert "outputs" in result, "Result should have 'outputs' key"
-        # assert (
-        #     len(result["outputs"]) == num_events
-        # ), "Outputs length does not match inputs"
-        # return datetime.fromisoformat(result["timestamp"])
+        assert isinstance(result, dict), "Unexpected result type"
+        assert "outputs" in result, "Result should have 'outputs' key"
+        assert (
+            len(result["outputs"]) == num_events
+        ), "Outputs length does not match inputs"
+        return datetime.fromisoformat(result["timestamp"])
 
     @classmethod
     def _infer_with_error(
@@ -597,15 +598,30 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
         *,
         with_training_set: bool = True,
+        model_runner_mode: typing.Optional[str] = None,
     ):
-        for i in range(cls.error_count):
+        endpoint = f"v2/models/{cls.model_name}_{with_training_set}/infer"
+        if model_runner_mode == "batch":
+            body = []
+            for i in range(cls.error_count):
+                inputs = {"inputs": [0.0] * (cls.num_features + 1)}
+                body.append(inputs)
             try:
                 serving_fn.invoke(
-                    f"v2/models/{cls.model_name}_{with_training_set}/infer",
-                    json.dumps({"inputs": [[0.0] * (cls.num_features + 1)]}),
+                    endpoint,
+                    body,
                 )
             except Exception:
                 pass
+        else:  # single or None:
+            for i in range(cls.error_count):
+                try:
+                    serving_fn.invoke(
+                        endpoint,
+                        json.dumps({"inputs": [[0.0] * (cls.num_features + 1)]}),
+                    )
+                except Exception:
+                    pass
 
     def _test_artifacts(self, ep_id: str) -> None:
         for app_data in self.apps_data:
@@ -851,8 +867,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         ), "No drift over time should be detected in the past"
 
     @pytest.mark.parametrize("with_training_set", [True, False])
-    @pytest.mark.parametrize("with_model_runner", [True, False])
-    def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
+    @pytest.mark.parametrize("model_runner_mode", ["True", "False", None])
+    def test_app_flow(self, with_training_set: bool, model_runner_mode: str) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
 
@@ -864,21 +880,24 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(
-                self._deploy_model_serving, with_training_set, with_model_runner
+                self._deploy_model_serving, with_training_set, model_runner_mode
             )
 
         serving_fn = future.result()
         self._add_error_alert()
-
         time.sleep(5)
         last_request = self._infer(
             serving_fn,
             num_events=self.num_events,
             with_training_set=with_training_set,
-            with_model_runner=with_model_runner,
+            model_runner_mode=model_runner_mode,
         )
 
-        # self._infer_with_error(serving_fn, with_training_set=with_training_set)
+        self._infer_with_error(
+            serving_fn,
+            with_training_set=with_training_set,
+            model_runner_mode=model_runner_mode,
+        )
         # wait for the NO-OP event to close the window
         initial_wait = (
             2 * self.app_interval_seconds

@@ -486,3 +486,16 @@ def test_sync_flow_with_branches():
     graph.add_step(name="gather", class_name="Gather", after=["s1", "s2"])
     with pytest.raises(mlrun.serving.states.GraphError):
         fn.to_mock_server()
+
+
+@pytest.mark.parametrize("engine", engines)
+def test_flow_without_http(engine):
+    fn = mlrun.new_function("tests", kind="serving", project="x")
+    graph = fn.set_topology("flow", engine=engine)
+    graph.to(name="s1", class_name="Mul")
+
+    with pytest.raises(
+        mlrun.serving.states.GraphError,
+        match=r"no responder step found in graph, cannot handle http events",
+    ):
+        fn.to_mock_server()

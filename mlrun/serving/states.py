@@ -3184,6 +3184,18 @@ class RootFlowStep(FlowStep):
     def allow_cyclic(self, allow_cyclic: bool):
         self._allow_cyclic = allow_cyclic
 
+    def have_responder_step(self):
+        """return whether the graph has a responder step"""
+        for step in self.get_children():
+            if (
+                hasattr(step, "responder")
+                and step.responder
+                and step.kind != "error_step"
+                and not step.next
+            ):
+                return True
+        return False
+
     def add_shared_model(
         self,
         name: str,
@@ -3379,6 +3391,15 @@ class RootFlowStep(FlowStep):
                     model, self._shared_models_mechanism[model.name]
                 )
         super().init_object(context, namespace, mode, reset=reset, **extra_kwargs)
+        if (
+            getattr(context.server, "http_trigger", False)
+            and not self.have_responder_step()
+        ):
+            if self.engine is "async":
+                context.server.wait_for_completion()
+            raise GraphError(
+                "no responder step found in graph, cannot handle http events"
+            )
 
     @property
     def model_endpoints_names(self) -> list[str]:

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from collections import defaultdict
 from datetime import datetime, timedelta
 from io import StringIO
 from typing import Literal, Optional, Union
@@ -1602,7 +1603,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         # Single dictionary to track: bucket_start_ns -> {endpoint_id -> max_status}
         # This allows us to calculate max per endpoint per bucket in one pass
-        bucket_endpoint_status = {}
+        bucket_endpoint_status = defaultdict(dict)
 
         # Single pass through all frames and data points
         total_data_points = 0
@@ -1628,14 +1629,8 @@ class V3IOTSDBConnector(TSDBConnector):
                 bucket_start_ns = start_ns + (bucket_index * interval_ns)
 
                 # Initialize bucket if needed
-                if bucket_start_ns not in bucket_endpoint_status:
-                    bucket_endpoint_status[bucket_start_ns] = {}
-
-                # Update max status for this endpoint in this bucket
-                if endpoint_id not in bucket_endpoint_status[bucket_start_ns]:
-                    bucket_endpoint_status[bucket_start_ns][endpoint_id] = status
-                elif status > bucket_endpoint_status[bucket_start_ns][endpoint_id]:
-                    bucket_endpoint_status[bucket_start_ns][endpoint_id] = status
+                bucket = bucket_endpoint_status[bucket_start_ns]
+                bucket[endpoint_id] = max(bucket.get(endpoint_id, status), status)
 
         if not bucket_endpoint_status:
             return mm_schemas.ModelEndpointDriftValues(values=[])
@@ -1668,47 +1663,6 @@ class V3IOTSDBConnector(TSDBConnector):
             for bucket_ns, (count_suspected, count_detected) in sorted(
                 timestamp_counts.items()
             )
-        ]
-
-        return mm_schemas.ModelEndpointDriftValues(values=values)
-
-    @staticmethod
-    def _convert_drift_data_to_values(
-        aggregated_data: list[tuple[str, datetime, float]],
-    ) -> mm_schemas.ModelEndpointDriftValues:
-        """
-        Convert aggregated drift data to ModelEndpointDriftValues format.
-
-        :param aggregated_data: List of tuples (endpoint_id, timestamp, max_result_status)
-        :return: ModelEndpointDriftValues with counts of suspected and detected per timestamp
-        """
-        suspected_val = mm_schemas.constants.ResultStatusApp.potential_detection.value
-        detected_val = mm_schemas.constants.ResultStatusApp.detected.value
-
-        # Group by timestamp and result status, then count occurrences
-        timestamp_status_counts = {}
-        for _, timestamp, max_status in aggregated_data:
-            key = (timestamp, max_status)
-            timestamp_status_counts[key] = timestamp_status_counts.get(key, 0) + 1
-
-        # Organize by timestamp with counts for suspected and detected
-        timestamp_counts = {}
-        for (timestamp, status), count in timestamp_status_counts.items():
-            if timestamp not in timestamp_counts:
-                timestamp_counts[timestamp] = {
-                    "count_suspected": 0,
-                    "count_detected": 0,
-                }
-
-            if status == suspected_val:
-                timestamp_counts[timestamp]["count_suspected"] = count
-            elif status == detected_val:
-                timestamp_counts[timestamp]["count_detected"] = count
-
-        # Convert to the expected format: list of (timestamp, count_suspected, count_detected)
-        values = [
-            (timestamp, counts["count_suspected"], counts["count_detected"])
-            for timestamp, counts in sorted(timestamp_counts.items())
         ]
 
         return mm_schemas.ModelEndpointDriftValues(values=values)

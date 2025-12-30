@@ -357,12 +357,25 @@ jobs:
         # gcc, make     for installing python packages
         apt-get update -qqy && \
           apt-get install -y \
+            curl \
             gnupg \
             nodejs \
             graphviz \
             git-core \
             gcc \
             make
+
+    - name: Install aws-iam-authenticator
+      # Required when kubeconfig uses exec auth with `command: aws-iam-authenticator`
+      run: |
+        set -euo pipefail
+        export PATH="/usr/local/bin:$PATH"
+        curl -fsSL \
+          -o /usr/local/bin/aws-iam-authenticator \
+          https://amazon-eks.s3-us-west-2.amazonaws.com/1.34.2/2025-11-13/bin/linux/amd64/aws-iam-authenticator
+        chmod +x /usr/local/bin/aws-iam-authenticator
+        command -v aws-iam-authenticator
+        aws-iam-authenticator version
 
     - uses: actions/setup-node@v6
       with:

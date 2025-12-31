@@ -15,8 +15,7 @@ Each of these  MLRun tutorials is a dedicated Jupyter notebook, illustrating dif
 05-model-monitoring
 06-batch-infer
 07-add-mlops-to-code
-../feature-store/basic-demo
-mlflow
+../feature-store/basic-demoß
 ```
 
 ````{card} Make sure you start with the Quick start tutorial to understand the basics

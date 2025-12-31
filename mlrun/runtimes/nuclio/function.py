@@ -552,7 +552,9 @@ class RemoteRuntime(KubeResource):
                 )
             if async_spec.enabled:
                 trigger._struct["mode"] = "async" if async_spec.enabled else "sync"
-                trigger._struct["async"] = {"maxConnections" : async_spec.max_connections}
+                trigger._struct["async"] = {
+                    "maxConnections": async_spec.max_connections
+                }
 
         self.add_trigger(trigger_name or "http", trigger)
         return self

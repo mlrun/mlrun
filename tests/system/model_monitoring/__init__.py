@@ -131,6 +131,7 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
         timeout: Optional[float] = None,
         retry_interval: float = 10.0,
         condition_description: str = "condition to be met",
+        **condition_kwargs,
     ) -> None:
         """Wait for a condition to be met by retrying until success or timeout.
 
@@ -173,7 +174,7 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
             )
 
             try:
-                condition_check()
+                condition_check(**condition_kwargs)
                 # No exception means condition is met
                 cls._logger.info(
                     f"Condition met: {condition_description}",

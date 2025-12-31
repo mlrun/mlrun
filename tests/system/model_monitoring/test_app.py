@@ -571,12 +571,20 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         num_events: int,
         with_training_set: bool = True,
         with_model_runner: bool = False,
+        batch: bool = False,
     ) -> datetime:
+        if batch:
+            body = []
+            for i in range(num_events):
+                inputs = {"inputs": [0.0] * cls.num_features}
+                body.append(inputs)
+        else:
+            body = json.dumps({"inputs": [[0.0] * cls.num_features] * num_events})
         result = serving_fn.invoke(
             path="/"
             if with_model_runner
             else f"v2/models/{cls.model_name}_{with_training_set}/infer",
-            body=json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
+            body=body,
         )
         assert isinstance(result, dict), "Unexpected result type"
         assert "outputs" in result, "Result should have 'outputs' key"
@@ -591,7 +599,31 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
         *,
         with_training_set: bool = True,
+        batch: bool = False,
     ):
+        endpoint = f"v2/models/{cls.model_name}_{with_training_set}/infer"
+        if batch:
+            body = []
+            for i in range(cls.error_count):
+                inputs = {"inputs": [0.0] * (cls.num_features + 1)}
+                body.append(inputs)
+            try:
+                serving_fn.invoke(
+                    endpoint,
+                    body,
+                )
+            except Exception:
+                pass
+        else:
+            for i in range(cls.error_count):
+                try:
+                    serving_fn.invoke(
+                        endpoint,
+                        json.dumps({"inputs": [[0.0] * (cls.num_features + 1)]}),
+                    )
+                except Exception:
+                    pass
+
         for i in range(cls.error_count):
             try:
                 serving_fn.invoke(
@@ -844,6 +876,26 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             len(drift_over_time.values) == 0
         ), "No drift over time should be detected in the past"
 
+    def _check_model_endpoint_data(self, with_training_set, mep_result) -> None:
+        mep = mlrun.db.get_run_db().get_model_endpoint(
+            name=f"{self.model_name}_{with_training_set}",
+            project=self.project.name,
+            function_name="model-serving",
+            function_tag="latest",
+            feature_analysis=True,
+            tsdb_metrics=True,
+        )
+        # Verify endpoint has required data
+        assert mep is not None, "Model endpoint is None"
+        assert mep.status.last_request is not None, "last_request is None"
+
+        # Verify TSDB actually has data (not just endpoint metadata)
+        df = self._tsdb_storage.get_results_metadata(endpoint_id=mep.metadata.uid)
+        assert not df.empty, "TSDB data not yet available"
+
+        # Store for later use (avoids duplicate fetch)
+        mep_result["mep"] = mep
+
     @pytest.mark.parametrize("with_training_set", [True, False])
     @pytest.mark.parametrize("with_model_runner", [True, False])
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
@@ -883,30 +935,12 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
         mep_result = {}
 
-        def check_model_endpoint_data() -> None:
-            mep = mlrun.db.get_run_db().get_model_endpoint(
-                name=f"{self.model_name}_{with_training_set}",
-                project=self.project.name,
-                function_name="model-serving",
-                function_tag="latest",
-                feature_analysis=True,
-                tsdb_metrics=True,
-            )
-            # Verify endpoint has required data
-            assert mep is not None, "Model endpoint is None"
-            assert mep.status.last_request is not None, "last_request is None"
-
-            # Verify TSDB actually has data (not just endpoint metadata)
-            df = self._tsdb_storage.get_results_metadata(endpoint_id=mep.metadata.uid)
-            assert not df.empty, "TSDB data not yet available"
-
-            # Store for later use (avoids duplicate fetch)
-            mep_result["mep"] = mep
-
         self.wait_for_condition(
-            condition_check=check_model_endpoint_data,
+            condition_check=self._check_model_endpoint_data,
             initial_wait=initial_wait,
             condition_description="model endpoint to have monitoring data and TSDB to be populated",
+            with_training_set=with_training_set,
+            mep_result=mep_result,
         )
 
         # Use the endpoint captured during the successful check
@@ -930,6 +964,76 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(mep=mep)
         self._test_error_alert()
+        self._test_function_summaries()
+        self._test_drift_over_time()
+
+    @pytest.mark.parametrize("with_training_set", [True, False])
+    def test_app_batch(self, with_training_set: bool) -> None:
+        self.apps_data = self._get_apps_data(with_training_set)
+        self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+
+        self._log_model(with_training_set)
+
+        self._submit_controller_and_deploy_writer(
+            deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data
+        )
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.submit(self._set_and_deploy_monitoring_apps)
+            future = executor.submit(
+                self._deploy_model_serving, with_training_set, True
+            )
+
+        serving_fn = future.result()
+
+        time.sleep(5)
+        last_request = self._infer(
+            serving_fn,
+            num_events=self.num_events,
+            with_training_set=with_training_set,
+            with_model_runner=True,
+            batch=True,
+        )
+
+        self._infer_with_error(
+            serving_fn, with_training_set=with_training_set, batch=True
+        )
+        # wait for the NO-OP event to close the window
+        initial_wait = (
+            2 * self.app_interval_seconds
+            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+
+        mep_result = {}
+
+        self.wait_for_condition(
+            condition_check=self._check_model_endpoint_data,
+            initial_wait=initial_wait,
+            condition_description="model endpoint to have monitoring data and TSDB to be populated",
+            with_training_set=with_training_set,
+            mep_result=mep_result,
+        )
+
+        # Use the endpoint captured during the successful check
+        mep = mep_result["mep"]
+
+        # Model predict timestamp is slightly differ than storey timestamp
+        assert (
+            (mep.status.last_request - last_request) < timedelta(milliseconds=1)
+        ), "The saved `last_request` in the model endpoint is different than the last result timestamp"
+
+        self._test_v3io_records(
+            ep_id=mep.metadata.uid,
+            last_request=mep.status.last_request,
+            apps_data=self.apps_data,
+            error_count=self.error_count,
+        )
+
+        self._test_predictions_table(mep.metadata.uid)
+        self._test_api(ep_id=mep.metadata.uid, apps_data=self.apps_data)
+        if _DefaultDataDriftAppData in self.apps_data:
+            self._test_model_endpoint_stats(mep=mep)
         self._test_function_summaries()
         self._test_drift_over_time()
 

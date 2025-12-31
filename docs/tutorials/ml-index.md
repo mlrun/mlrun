@@ -36,5 +36,4 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 - {ref}`realtime-monitor-drift-tutor`
 - {ref}`batch-infer-drift-tutor`
 - {ref}`add-mlops-to-code`
-- {ref}`mlflow-tracker`
 - {ref}`basic-demo` 

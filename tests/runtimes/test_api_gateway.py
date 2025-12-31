@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import mlrun
+import mlrun.auth.nuclio
 import mlrun.common.schemas
 import mlrun.common.schemas.auth
 import mlrun.common.types
@@ -111,7 +112,7 @@ def test_from_request_headers(
     headers, expected_token, expected_username, expected_password
 ):
     """Test NuclioAuthInfo.from_request_headers with various header formats"""
-    auth_info = mlrun.common.schemas.auth.NuclioAuthInfo.from_request_headers(headers)
+    auth_info = mlrun.auth.nuclio.NuclioAuthInfo.from_request_headers(headers)
 
     if expected_token:
         assert auth_info._token == expected_token
@@ -140,7 +141,7 @@ def test_from_envvar_iguazio_v4_mode(monkeypatch):
         mock_token_provider.get_token.return_value = "access-v4-token"
         mock_token_provider_cls.return_value = mock_token_provider
 
-        auth_info = mlrun.common.schemas.auth.NuclioAuthInfo.from_envvar()
+        auth_info = mlrun.auth.nuclio.NuclioAuthInfo.from_envvar()
 
         mock_token_provider_cls.assert_called_once_with(
             token_endpoint="https://iguazio.example/api/v1/authentication/refresh-access-token"
@@ -157,7 +158,7 @@ def test_from_envvar_non_iguazio_v4_mode(monkeypatch):
         "mode",
         "none",  # Any non-IGUAZIO_V4 value
     )
-    auth_info = mlrun.common.schemas.auth.NuclioAuthInfo.from_envvar()
+    auth_info = mlrun.auth.nuclio.NuclioAuthInfo.from_envvar()
     # Should call parent's from_envvar which uses V3IO_ACCESS_KEY
     assert auth_info._token is None
     # Parent class stores access_key as password
@@ -166,7 +167,7 @@ def test_from_envvar_non_iguazio_v4_mode(monkeypatch):
 
 def test_to_requests_auth_with_token():
     """Test NuclioAuthInfo.to_requests_auth returns bearer auth when token is set"""
-    auth_info = mlrun.common.schemas.auth.NuclioAuthInfo(token="my-bearer-token")
+    auth_info = mlrun.auth.nuclio.NuclioAuthInfo(token="my-bearer-token")
     auth = auth_info.to_requests_auth()
 
     # Verify it's a valid auth object
@@ -183,9 +184,7 @@ def test_to_requests_auth_with_token():
 
 def test_to_requests_auth_without_token():
     """Test NuclioAuthInfo.to_requests_auth falls back to parent when no token"""
-    auth_info = mlrun.common.schemas.auth.NuclioAuthInfo(
-        username="user", password="pass"
-    )
+    auth_info = mlrun.auth.nuclio.NuclioAuthInfo(username="user", password="pass")
     auth = auth_info.to_requests_auth()
 
     # Parent class should return basic auth
@@ -202,7 +201,7 @@ def test_to_nuclio_auth_info_iguazio_v4_mode_with_bearer(monkeypatch):
     auth_info = mlrun.common.schemas.auth.AuthInfo(
         request_headers={"Authorization": "Bearer my-v4-token"}
     )
-    nuclio_auth = auth_info.to_nuclio_auth_info()
+    nuclio_auth = mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info)
 
     assert nuclio_auth is not None
     assert nuclio_auth._token == "my-v4-token"
@@ -219,7 +218,7 @@ def test_to_nuclio_auth_info_iguazio_v4_mode_with_basic(monkeypatch):
     auth_info = mlrun.common.schemas.auth.AuthInfo(
         request_headers={"Authorization": f"Basic {encoded_creds}"}
     )
-    nuclio_auth = auth_info.to_nuclio_auth_info()
+    nuclio_auth = mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info)
 
     assert nuclio_auth is not None
     assert nuclio_auth._username == "admin"
@@ -234,7 +233,7 @@ def test_to_nuclio_auth_info_non_v4_mode_with_session(monkeypatch):
         "none",  # Any non-IGUAZIO_V4 value
     )
     auth_info = mlrun.common.schemas.auth.AuthInfo(session="my-session-token")
-    nuclio_auth = auth_info.to_nuclio_auth_info()
+    nuclio_auth = mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info)
 
     assert nuclio_auth is not None
     assert nuclio_auth._password == "my-session-token"
@@ -248,7 +247,7 @@ def test_to_nuclio_auth_info_non_v4_mode_no_session(monkeypatch):
         "none",  # Any non-IGUAZIO_V4 value
     )
     auth_info = mlrun.common.schemas.auth.AuthInfo(session="")
-    nuclio_auth = auth_info.to_nuclio_auth_info()
+    nuclio_auth = mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info)
 
     assert nuclio_auth is None
 
@@ -298,9 +297,9 @@ def test_invoke_access_key_auth_from_envvar(monkeypatch):
 
     # Mock from_envvar to return auth with token
     with patch.object(
-        mlrun.common.schemas.auth.NuclioAuthInfo,
+        mlrun.auth.nuclio.NuclioAuthInfo,
         "from_envvar",
-        return_value=mlrun.common.schemas.auth.NuclioAuthInfo(token="env-access-token"),
+        return_value=mlrun.auth.nuclio.NuclioAuthInfo(token="env-access-token"),
     ):
         with patch("requests.request", return_value=mock_response) as mock_request:
             api_gateway.invoke(method="GET", path="/test")
@@ -316,12 +315,12 @@ def test_invoke_access_key_auth_no_credentials_raises(monkeypatch):
 
     # Mock from_envvar to return None (no auth available)
     with patch.object(
-        mlrun.common.schemas.auth.NuclioAuthInfo,
+        mlrun.auth.nuclio.NuclioAuthInfo,
         "from_envvar",
-        return_value=mlrun.common.schemas.auth.NuclioAuthInfo(),
+        return_value=mlrun.auth.nuclio.NuclioAuthInfo(),
     ):
         with patch.object(
-            mlrun.common.schemas.auth.NuclioAuthInfo,
+            mlrun.auth.nuclio.NuclioAuthInfo,
             "to_requests_auth",
             return_value=None,
         ):
@@ -340,7 +339,7 @@ def test_invoke_iguazio_auth_uses_from_envvar(monkeypatch):
 
     mock_auth_result = MagicMock()
     with patch.object(
-        mlrun.common.schemas.auth.NuclioAuthInfo, "from_envvar"
+        mlrun.auth.nuclio.NuclioAuthInfo, "from_envvar"
     ) as mock_from_envvar:
         mock_nuclio_auth = MagicMock()
         mock_nuclio_auth.to_requests_auth.return_value = mock_auth_result

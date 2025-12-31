@@ -20,6 +20,7 @@ import requests
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
+import mlrun.auth.nuclio
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas as schemas
@@ -445,7 +446,7 @@ class APIGateway(ModelObj):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please pass credentials"
                 )
-            auth = mlrun.common.schemas.auth.NuclioAuthInfo(
+            auth = mlrun.auth.nuclio.NuclioAuthInfo(
                 username=credentials[0], password=credentials[1]
             ).to_requests_auth()
 
@@ -455,16 +456,14 @@ class APIGateway(ModelObj):
         ):
             # inject access key from env
             if credentials:
-                auth = mlrun.common.schemas.auth.NuclioAuthInfo(
+                auth = mlrun.auth.nuclio.NuclioAuthInfo(
                     username=credentials[0],
                     password=credentials[1],
                     mode=NuclioAuthKinds.iguazio,
                 ).to_requests_auth()
             else:
                 auth = (
-                    mlrun.common.schemas.auth.NuclioAuthInfo()
-                    .from_envvar()
-                    .to_requests_auth()
+                    mlrun.auth.nuclio.NuclioAuthInfo().from_envvar().to_requests_auth()
                 )
             if not auth:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -474,7 +473,7 @@ class APIGateway(ModelObj):
             self.spec.authentication.authentication_mode
             == schemas.APIGatewayAuthenticationMode.iguazio.value
         ):
-            auth = mlrun.common.schemas.auth.NuclioAuthInfo.from_envvar().to_requests_auth()
+            auth = mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
         url = urljoin(self.invoke_url, path or "")
 
         # Determine the correct keyword argument for the body

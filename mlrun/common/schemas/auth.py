@@ -12,73 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
 import typing
 
 import pydantic.v1
-import requests.auth
-from nuclio.auth import AuthInfo as _NuclioAuthInfo
-from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun.common.types
-
-
-class NuclioAuthInfo(_NuclioAuthInfo):
-    def __init__(self, token=None, **kwargs):
-        super().__init__(**kwargs)
-        self._token = token
-
-    @classmethod
-    def from_request_headers(cls, headers: dict[str, str]):
-        if not headers:
-            return cls()
-        for key, value in headers.items():
-            if key.lower() == "authorization":
-                if value.lower().startswith("bearer "):
-                    return cls(
-                        token=value[len("bearer ") :],
-                        mode=NuclioAuthKinds.iguazio,
-                    )
-                if value.lower().startswith("basic "):
-                    token = value[len("basic ") :]
-                    decoded_token = base64.b64decode(token).decode("utf-8")
-                    username, password = decoded_token.split(":", 1)
-                    return cls(
-                        username=username,
-                        password=password,
-                        mode=NuclioAuthKinds.iguazio,
-                    )
-        return cls()
-
-    @classmethod
-    def from_envvar(cls):
-        import os
-
-        import mlrun.auth.providers
-
-        if mlrun.mlconf.is_iguazio_v4_mode():
-            token_endpoint = mlrun.mlconf.auth_token_endpoint or os.path.join(
-                mlrun.mlconf.iguazio_api_url,
-                "api/v1/authentication/refresh-access-token",
-            )
-            token_provider = mlrun.auth.providers.IGTokenProvider(
-                token_endpoint=token_endpoint
-            )
-            return cls(
-                token=token_provider.get_token(),
-                mode=NuclioAuthKinds.iguazio,
-            )
-        return super().from_envvar()
-
-    def to_requests_auth(self) -> "requests.auth":
-        if self._token:
-            # in iguazio v4 mode we use bearer token auth
-            auth = requests.auth.AuthBase()
-            auth.__call__ = lambda r: r.headers.update(
-                {"Authorization": f"Bearer {self._token}"}
-            )
-            return auth
-        return super().to_requests_auth()
 
 
 class ProjectsRole(mlrun.common.types.StrEnum):
@@ -198,13 +136,6 @@ class AuthInfo(pydantic.v1.BaseModel):
     user_unix_id: typing.Optional[int] = None
     projects_role: typing.Optional[ProjectsRole] = None
     planes: list[str] = []
-
-    def to_nuclio_auth_info(self):
-        if mlrun.mlconf.is_iguazio_v4_mode():
-            return NuclioAuthInfo.from_request_headers(self.request_headers)
-        if self.session != "":
-            return NuclioAuthInfo(password=self.session, mode=NuclioAuthKinds.iguazio)
-        return None
 
     def get_member_ids(self) -> list[str]:
         member_ids = []

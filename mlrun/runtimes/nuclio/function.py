@@ -31,6 +31,7 @@ from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.auth.nuclio
 import mlrun.common.constants
 import mlrun.db
 import mlrun.errors
@@ -1547,7 +1548,7 @@ def get_nuclio_deploy_status(
             verbose,
             resolve_address,
             return_function_status=True,
-            auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
+            auth_info=mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info),
         )
     except requests.exceptions.ConnectionError as exc:
         mlrun.errors.raise_for_status(

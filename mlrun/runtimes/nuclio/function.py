@@ -100,7 +100,7 @@ def min_nuclio_versions(*versions):
 
 @dataclass
 class AsyncSpec:
-    enabled: bool
+    enabled: bool = True
     max_connections: typing.Optional[int] = None
 
 
@@ -553,7 +553,7 @@ class RemoteRuntime(KubeResource):
                     "Async spec is only supported on Nuclio 1.15.3 and higher"
                 )
             if async_spec.enabled:
-                trigger._struct["mode"] = "async" if async_spec.enabled else "sync"
+                trigger._struct["mode"] = "async"
                 trigger._struct["async"] = {
                     "maxConnections": async_spec.max_connections
                 }

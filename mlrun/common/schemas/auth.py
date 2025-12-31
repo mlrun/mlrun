@@ -52,11 +52,20 @@ class NuclioAuthInfo(_NuclioAuthInfo):
 
     @classmethod
     def from_envvar(cls):
-        import mlrun.auth.utils
+        import os
+
+        import mlrun.auth.providers
 
         if mlrun.mlconf.is_iguazio_v4_mode():
+            token_endpoint = mlrun.mlconf.auth_token_endpoint or os.path.join(
+                mlrun.mlconf.iguazio_api_url,
+                "api/v1/authentication/refresh-access-token",
+            )
+            token_provider = mlrun.auth.providers.IGTokenProvider(
+                token_endpoint=token_endpoint
+            )
             return cls(
-                token=mlrun.auth.utils.load_offline_token(),
+                token=token_provider.get_token(),
                 mode=NuclioAuthKinds.iguazio,
             )
         return super().from_envvar()

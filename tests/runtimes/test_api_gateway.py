@@ -130,9 +130,23 @@ def test_from_envvar_iguazio_v4_mode(monkeypatch):
         "mode",
         mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
     )
-    with patch("mlrun.auth.utils.load_offline_token", return_value="offline-v4-token"):
+    monkeypatch.setattr(mlrun.mlconf, "auth_token_endpoint", "")
+    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "https://iguazio.example")
+
+    with patch(
+        "mlrun.auth.providers.IGTokenProvider",
+    ) as mock_token_provider_cls:
+        mock_token_provider = MagicMock()
+        mock_token_provider.get_token.return_value = "access-v4-token"
+        mock_token_provider_cls.return_value = mock_token_provider
+
         auth_info = mlrun.common.schemas.auth.NuclioAuthInfo.from_envvar()
-        assert auth_info._token == "offline-v4-token"
+
+        mock_token_provider_cls.assert_called_once_with(
+            token_endpoint="https://iguazio.example/api/v1/authentication/refresh-access-token"
+        )
+        mock_token_provider.get_token.assert_called_once()
+        assert auth_info._token == "access-v4-token"
 
 
 def test_from_envvar_non_iguazio_v4_mode(monkeypatch):

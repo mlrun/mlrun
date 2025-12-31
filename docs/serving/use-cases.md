@@ -200,13 +200,10 @@ In agentic systems, loops and iterative refinement are common architectural patt
 Cycles are supported for graphs of `flow` topology and `async` engine (storey) with `kind` = `job` and `serving`. You can run it `to_mock_server` and `deploy()`.
 Set a graph as cyclic using `allow_cyclic=True` in `set_topology`, or with `serving.spec.graph.allow_cyclic = True` after the graph is already defined.
 
-Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See in {py:meth}`~mlrun.serving.states.BaseStep.to` and {py:meth}`~mlrun.serving.QueueStep.to`.) 
+Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See {py:meth}`BaseStep to() <~mlrun.serving.states.BaseStep.to>`,  {py:meth}`QueueStep to()<~mlrun.serving.QueueStep.to>` and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.) 
 Example of creating a cycle from step 1 through to step 3, and back to step 1:
 ```python
-graph.to('step1')\
-     .to('step2')\
-     .to('step3')\
-    .cycle_to(['step1']) 
+graph.to("step1").to("step2").to("step3").cycle_to(["step1"])
 ```
 
 Iteration tracking is automatic, you do not need to add counters manually in the step code. If you set `max_iterations` in `set_topology` and in `add_step`, the value in `add_step` takes precedence. The default number of iterations is 10_000.
@@ -225,36 +222,38 @@ When a RuntimeError is raised:
 A typical error is `RuntimeError(f"Max iterations exceeded in step '{self.name}' for event {event.id}")`.
 
 ```python
-    # Define the function
-    function =project.set_function(
-        name="cyclic-function",
-        func="cyclic.py",
-        kind="serving",
-        image="mlrun/mlrun",
-    )
-    # Define the graph (global cap applies unless overridden per-step)
-    graph = function.set_topology(
-        "flow", engine="async", allow_cyclic=True, max_iterations=100
-    )
-    graph.to(name="preprocess", class_name="Processor").to(
-        name="generator", class_name="Generator", after="preprocess", max_iterations=30
-    ).to(name="evaluator", class_name="Evaluator", after="generator").to(
-        name="evaluation-loop",
-        class_name="ChoiceHandler",
-        cycle_to=["generator"],
-        after="evaluator",
-    ).to(name="output", handler="responder", after="evaluation-loop").respond()
-    
-    # Adding error handler to the graph
-    graph.error_handler(class_name="HandleError")
+# Define the function
+function = project.set_function(
+    name="cyclic-function",
+    func="cyclic.py",
+    kind="serving",
+    image="mlrun/mlrun",
+)
+# Define the graph (global cap applies unless overridden per-step)
+graph = function.set_topology(
+    "flow", engine="async", allow_cyclic=True, max_iterations=100
+)
+graph.to(name="preprocess", class_name="Processor").to(
+    name="generator", class_name="Generator", after="preprocess", max_iterations=30
+).to(name="evaluator", class_name="Evaluator", after="generator").to(
+    name="evaluation-loop",
+    class_name="ChoiceHandler",
+    cycle_to=["generator"],
+    after="evaluator",
+).to(
+    name="output", handler="responder", after="evaluation-loop"
+).respond()
 
-    # Mock server
-    mock = graph.to_mock_server()
-    mock.test("/", body={...})
+# Adding error handler to the graph
+graph.error_handler(class_name="HandleError")
 
-    # Kubernetes deployment
-    function.deploy()
-    function.invoke("/", body={...})
+# Mock server
+mock = graph.to_mock_server()
+mock.test("/", body={...})
+
+# Kubernetes deployment
+function.deploy()
+function.invoke("/", body={...})
 ```
 
 

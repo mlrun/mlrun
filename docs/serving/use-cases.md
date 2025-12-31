@@ -9,6 +9,7 @@ Learn how serving graphs can simplify complex workflows as illustrated in these 
 * [Example of a simple model serving router](#example-of-a-simple-model-serving-router)
 * [Example of advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
 * [Example of NLP processing pipeline with real-time streaming](#example-of-an-nlp-processing-pipeline-with-real-time-streaming)
+* [Exanple of a cyclic graph](#exanple-of-a-cyclic-graph)
 * [Data and feature engineering](#data-and-feature-engineering-using-the-feature-store)
 
 In addition to the examples in this section, see the:
@@ -189,6 +190,80 @@ graph.plot()
 ```
 
 Currently queues support Iguazio V3IO and Kafka streams.
+
+## Exanple of a cyclic graph
+In agentic systems, loops and iterative refinement are common architectural patterns. Typical use cases:
+- Evaluator–Optimizer loop: An LLM generates a response, a secondary agent evaluates it, and if unsatisfactory, the generation is retried until quality improves or a cap is reached.
+- Multi-agent orchestration: A controller agent invokes specialized sub-agents (retriever, summarizer, planner), then loops back to coordinate or refine based on their results.
+- Guardrail enforcement: A safety or compliance step checks outputs and, on failure, routes control back to the generator until conditions are met.
+
+Cycles are supported for graphs of `flow` topology and `async` engine (storey) with `kind` = `job`, `serving`, and `nuclio`. YOu can run it `to_mock_server` and `deploy()`.
+Set a graph as cyclic using `allow_cyclic=True` in `set_topology`, or with `serving.spec.graph.allow_cyclic = True` after the graph is already defined.
+
+Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See in {py:meth}`~mlrun.serving.states.BaseStep.to` and {py:meth}`~mlrun.serving.QueueStep.to`.) 
+Example of creating a cycle from step 1 through to step 3, and back to step 1:
+```python
+graph.to('step1')\
+     .to('step2')\
+     .to('step3')\
+    .cycle_to(['step1']) 
+```
+
+Iteration tracking is automatic, you do not need to add counters manually in the step code. If you set `max_iterations` in `set_topology` and in `add_step`, the value in `add_step` takes precedence. The default number of iterations is 10.
+
+```{admonition} Important
+- If stop conditions (`max_iterations`) are misconfigured, cycles can lead to an infinite execution of graph steps.
+- Rerunning steps in a loop can cause unexpected compute spikes and higher costs.
+- Step failures inside a cycle could repeat continuously, amplifying errors.
+Any of these issues make graph execution harder to debug and monitor, and
+increase the risk of resource exhaustion (workers, memory, execution slots).
+```
+
+When a RuntimeError is raised:
+- If you provided an error handler, the event invokes the error handler
+- If you did not provide an error handler, the error is raised to the client
+A typical error is `RuntimeError(f"Max iterations exceeded in step '{self.name}' for event {event.id}")`.
+
+```python
+# Define the function
+fn = project.set_function(
+    name="cyclic-function",
+    func="cyclic.py",
+    kind="serving",
+    image="mlrun/mlrun",
+)
+# Define the graph (global cap applies unless overridden per-step)
+graph = fn.set_topology("flow", engine="async", allow_cyclic=True, max_iterations=3)
+graph.add_step(name="preprocess", class_name="Processor")
+
+# Per step max_iterations override
+graph.add_step(
+    name="generator", class_name="Generator", after="preprocess", max_iterations=5
+)
+graph.add_step(name="evaluator", class_name="Evaluator", after="generator")
+
+# subclasses storey.transformations. Choice under the hood
+loop = graph.add_step(
+    name="evaluation-loop",
+    handler="ChoiceHandler",
+    allowed_outlets=["generator", "output"],
+    after="evaluator",
+)
+
+# Not sure if required, but might be helpful for handling max_iterations reached
+loop.error_handler(class_name="HandleError")
+graph.add_step(name="output", handler="responder", after="evaluation-loop").respond()
+
+# Mock server
+mock = graph.to_mock_server()
+mock.test("/", body={...})
+
+# Kubernetes deployment
+project.deploy_function(fn)
+fn.invoke("/", body={...})
+```
+
+
 ## Data and feature engineering (using the feature store)
 
 You can build a feature set transformation using serving graphs.

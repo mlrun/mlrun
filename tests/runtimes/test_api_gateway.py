@@ -131,8 +131,11 @@ def test_from_envvar_iguazio_v4_mode(monkeypatch):
         "mode",
         mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
     )
-    monkeypatch.setattr(mlrun.mlconf, "auth_token_endpoint", "")
-    monkeypatch.setattr(mlrun.mlconf, "iguazio_api_url", "https://iguazio.example")
+    monkeypatch.setattr(
+        mlrun.mlconf,
+        "auth_token_endpoint",
+        "https://iguazio.example/api/v1/authentication/refresh-access-token",
+    )
 
     with patch(
         "mlrun.auth.providers.IGTokenProvider",

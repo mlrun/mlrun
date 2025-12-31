@@ -77,14 +77,6 @@ from .assets.application import (
 from .assets.custom_evidently_app import DemoEvidentlyMonitoringApp
 
 
-class ModelMode(mlrun.common.types.StrEnum):
-    """Model runner execution modes for testing."""
-
-    SINGLE = "single"
-    BATCH = "batch"
-    V2ModelServer = "v2_model_server"
-
-
 @dataclass
 class _AppData:
     class_: type[ModelMonitoringApplicationBase]
@@ -525,9 +517,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
     def _deploy_model_serving(
         cls,
         with_training_set: bool,
-        model_mode: ModelMode = ModelMode.V2ModelServer,
+        with_model_runner: bool = False,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        if model_mode != ModelMode.V2ModelServer:
+        if with_model_runner:
             code_path = (
                 f"{str((Path(__file__).parent / 'assets').absolute())}/models.py"
             )
@@ -551,7 +543,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             )
             graph = serving_fn.set_topology("flow", engine="async")
             graph.to(model_runner_step).respond()
-        else:  # V2 model server
+        else:
             serving_fn = typing.cast(
                 mlrun.runtimes.nuclio.serving.ServingRuntime,
                 mlrun.import_function(
@@ -578,20 +570,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         *,
         num_events: int,
         with_training_set: bool = True,
-        model_mode: ModelMode = ModelMode.V2ModelServer,
+        with_model_runner: bool = False,
     ) -> datetime:
-        if model_mode == ModelMode.BATCH:
-            body = []
-            for i in range(num_events):
-                inputs = {"inputs": [0.0] * cls.num_features}
-                body.append(inputs)
-        else:  # single or v2 model server:
-            body = json.dumps({"inputs": [[0.0] * cls.num_features] * num_events})
         result = serving_fn.invoke(
             path="/"
-            if model_mode
+            if with_model_runner
             else f"v2/models/{cls.model_name}_{with_training_set}/infer",
-            body=body,
+            body=json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
         )
         assert isinstance(result, dict), "Unexpected result type"
         assert "outputs" in result, "Result should have 'outputs' key"
@@ -606,30 +591,15 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
         *,
         with_training_set: bool = True,
-        model_mode: ModelMode = ModelMode.V2ModelServer,
     ):
-        endpoint = f"v2/models/{cls.model_name}_{with_training_set}/infer"
-        if model_mode == ModelMode.BATCH:
-            body = []
-            for i in range(cls.error_count):
-                inputs = {"inputs": [0.0] * (cls.num_features + 1)}
-                body.append(inputs)
+        for i in range(cls.error_count):
             try:
                 serving_fn.invoke(
-                    endpoint,
-                    body,
+                    f"v2/models/{cls.model_name}_{with_training_set}/infer",
+                    json.dumps({"inputs": [[0.0] * (cls.num_features + 1)]}),
                 )
             except Exception:
                 pass
-        else:  # single or V2 model server:
-            for i in range(cls.error_count):
-                try:
-                    serving_fn.invoke(
-                        endpoint,
-                        json.dumps({"inputs": [[0.0] * (cls.num_features + 1)]}),
-                    )
-                except Exception:
-                    pass
 
     def _test_artifacts(self, ep_id: str) -> None:
         for app_data in self.apps_data:
@@ -875,10 +845,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         ), "No drift over time should be detected in the past"
 
     @pytest.mark.parametrize("with_training_set", [True, False])
-    @pytest.mark.parametrize(
-        "model_mode", [ModelMode.SINGLE, ModelMode.BATCH, ModelMode.V2ModelServer]
-    )
-    def test_app_flow(self, with_training_set: bool, model_mode: ModelMode) -> None:
+    @pytest.mark.parametrize("with_model_runner", [True, False])
+    def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
 
@@ -890,24 +858,21 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(
-                self._deploy_model_serving, with_training_set, model_mode
+                self._deploy_model_serving, with_training_set, with_model_runner
             )
 
         serving_fn = future.result()
         self._add_error_alert()
+
         time.sleep(5)
         last_request = self._infer(
             serving_fn,
             num_events=self.num_events,
             with_training_set=with_training_set,
-            model_mode=model_mode,
+            with_model_runner=with_model_runner,
         )
 
-        self._infer_with_error(
-            serving_fn,
-            with_training_set=with_training_set,
-            model_mode=model_mode,
-        )
+        self._infer_with_error(serving_fn, with_training_set=with_training_set)
         # wait for the NO-OP event to close the window
         initial_wait = (
             2 * self.app_interval_seconds
@@ -956,7 +921,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             ep_id=mep.metadata.uid,
             last_request=mep.status.last_request,
             apps_data=self.apps_data,
-            error_count=1 if model_mode == ModelMode.BATCH else self.error_count,
+            error_count=self.error_count,
         )
 
         self._test_predictions_table(mep.metadata.uid)

@@ -498,8 +498,9 @@ class RemoteRuntime(KubeResource):
         :param extra_attributes: key/value dict of extra nuclio trigger attributes
         :param batching_spec: BatchingSpec object that defines batching configuration.
             By default, batching is disabled.
-        :param async_spec: AsyncSpec object that defines async configuration. if number of max connections won't be set,
-        the default value is 1000.
+        :param async_spec: AsyncSpec object defines async configuration. if number of max connections won't be set, the
+        default value will be set to 1000.
+
         :return: function object (self)
         """
         if self.disable_default_http_trigger:

@@ -882,7 +882,7 @@ def check_if_hub_uri(uri: str) -> bool:
     return uri.startswith(hub_prefix)
 
 
-def lock_hub_uri_version(uri: str, locked_version: str):
+def lock_hub_uri_version(uri: str, locked_version: str) -> str:
     """
     If hub URI has no tag or uses ':latest', replace/add the given version.
     Otherwise, return the URI unchanged.

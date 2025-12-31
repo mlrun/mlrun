@@ -278,7 +278,7 @@ class BaseStep(ModelObj):
         """init the step class"""
         self.context = context
 
-    def _is_local_function(self, context):
+    def _is_local_function(self, context, current_function=None):
         return True
 
     def get_children(self):
@@ -759,7 +759,7 @@ class TaskStep(BaseStep):
         self.model_endpoint_creation_strategy = model_endpoint_creation_strategy
         self.endpoint_type = endpoint_type
 
-    def _init_class_object_and_handler(self, namespace, reset, **extra_kwargs):
+    def _init_class_object_and_handler(self, namespace, reset, **extra_kwargs) -> None:
         if not self._object or reset:
             # init the step class + args
             extracted_class_args = self.get_full_class_args(
@@ -857,10 +857,9 @@ class TaskStep(BaseStep):
                 class_object = get_class(class_name or self._default_class, namespace)
         return class_object, class_name
 
-    def _is_local_function(self, context, current_function=None):
+    def _is_local_function(self, context, current_function=None) -> bool:
         # detect if the class is local (and should be initialized)
-        if not current_function:
-            current_function = get_current_function(context)
+        current_function = current_function or get_current_function(context)
         if current_function == "*":
             return True
         if not self.function and not current_function:

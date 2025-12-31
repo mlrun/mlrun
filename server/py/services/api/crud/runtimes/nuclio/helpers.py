@@ -103,7 +103,7 @@ def resolve_function_ingresses(function_spec):
     return ingresses
 
 
-def enrich_function_with_ingress(config, mode, service_type, graph_engine):
+def enrich_function_with_ingress(config, mode, service_type, graph_engine=None):
     # do not enrich with an ingress
     if (
         mode

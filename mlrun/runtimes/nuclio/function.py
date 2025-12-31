@@ -101,7 +101,7 @@ def min_nuclio_versions(*versions):
 @dataclass
 class AsyncSpec:
     enabled: bool
-    max_connections: int = None
+    max_connections: typing.Optional[int] = None
 
 
 class NuclioSpec(KubeResourceSpec):
@@ -500,7 +500,7 @@ class RemoteRuntime(KubeResource):
             By default, batching is disabled.
 
         :param async_spec: AsyncSpec object defines async configuration. If number of max connections
-            won't be set, the default value will be set to 1000.
+            won't be set, the default value will be set to 1000 according to nuclio default.
 
         :return: function object (self)
         """

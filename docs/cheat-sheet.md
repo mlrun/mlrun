@@ -1149,7 +1149,7 @@ project.deploy_function(fn)
 
 ### Simple model serving router
 
-Docs: [Example of a simple model serving router](./serving/use-cases.md#example-of-a-simple-model-serving-router)
+Docs: [Example of a simple model serving router](./serving/use-cases.md#simple-model-serving-router-example)
 
 ```python
 # load the sklearn model serving function and add models to it

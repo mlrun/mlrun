@@ -191,7 +191,7 @@ graph.plot()
 
 Currently queues support Iguazio V3IO and Kafka streams.
 
-## Exanple of a cyclic graph
+## Cyclic graph example
 In agentic systems, loops and iterative refinement are common architectural patterns. Typical use cases:
 - Evaluator–Optimizer loop: An LLM generates a response, a secondary agent evaluates it, and if unsatisfactory, the generation is retried until quality improves or a cap is reached.
 - Multi-agent orchestration: A controller agent invokes specialized sub-agents (retriever, summarizer, planner), then loops back to coordinate or refine based on their results.

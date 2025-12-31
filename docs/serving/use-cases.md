@@ -197,7 +197,7 @@ In agentic systems, loops and iterative refinement are common architectural patt
 - Multi-agent orchestration: A controller agent invokes specialized sub-agents (retriever, summarizer, planner), then loops back to coordinate or refine based on their results.
 - Guardrail enforcement: A safety or compliance step checks outputs and, on failure, routes control back to the generator until conditions are met.
 
-Cycles are supported for graphs of `flow` topology and `async` engine (storey) with `kind` = `job`, `serving`, and `nuclio`. YOu can run it `to_mock_server` and `deploy()`.
+Cycles are supported for graphs of `flow` topology and `async` engine (storey) with `kind` = `job` and `serving`. You can run it `to_mock_server` and `deploy()`.
 Set a graph as cyclic using `allow_cyclic=True` in `set_topology`, or with `serving.spec.graph.allow_cyclic = True` after the graph is already defined.
 
 Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See in {py:meth}`~mlrun.serving.states.BaseStep.to` and {py:meth}`~mlrun.serving.QueueStep.to`.) 

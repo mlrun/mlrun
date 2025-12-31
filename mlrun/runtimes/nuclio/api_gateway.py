@@ -550,6 +550,7 @@ class APIGateway(ModelObj):
         """
         self.spec.authentication = AccessKeyAuth()
 
+    @min_nuclio_versions("1.15.10")
     def with_iguazio_auth(self):
         """
         Set iguazio authentication for the API gateway.

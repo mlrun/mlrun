@@ -209,7 +209,7 @@ graph.to('step1')\
     .cycle_to(['step1']) 
 ```
 
-Iteration tracking is automatic, you do not need to add counters manually in the step code. If you set `max_iterations` in `set_topology` and in `add_step`, the value in `add_step` takes precedence. The default number of iterations is 10.
+Iteration tracking is automatic, you do not need to add counters manually in the step code. If you set `max_iterations` in `set_topology` and in `add_step`, the value in `add_step` takes precedence. The default number of iterations is 10_000.
 
 ```{admonition} Important
 - If stop conditions (`max_iterations`) are misconfigured, cycles can lead to an infinite execution of graph steps.

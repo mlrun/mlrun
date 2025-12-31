@@ -69,12 +69,18 @@ def verify_api_state(request: Request):
         mlrun.common.schemas.APIStates.waiting_for_chief,
     ]:
         enabled_endpoints = [
+            # allow healthz requests
             "healthz",
+            # for migration purposes
             "background-tasks",
-            "client-spec",
             "migrations",
+            # clusterization purposes
+            "client-spec",
             "clusterization-spec",
+            # debug purposes
             "memory-reports",
+            # allow authentication
+            "user-secrets/tokens",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             message = mlrun.common.schemas.APIStates.description(

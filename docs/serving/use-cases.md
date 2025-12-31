@@ -6,10 +6,10 @@ Learn how serving graphs can simplify complex workflows as illustrated in these 
 <!-- ## Data preparation, ## Model serving -->
 
 **In this section**
-* [Example of a simple model serving router](#example-of-a-simple-model-serving-router)
-* [Example of advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
-* [Example of NLP processing pipeline with real-time streaming](#example-of-an-nlp-processing-pipeline-with-real-time-streaming)
-* [Exanple of a cyclic graph](#exanple-of-a-cyclic-graph)
+* [Simple model serving router ](#simple-model-serving-router-example)
+* [Advanced data processing and serving ensemble example](#advanced-data-processing-and-serving-ensemble-example)
+* [NLP processing pipeline with real-time streaming example](#nlp-processing-pipeline-with-real-time-streaming-example)
+* [Cyclic graph example](#cyclic-graph-example)
 * [Data and feature engineering](#data-and-feature-engineering-using-the-feature-store)
 
 In addition to the examples in this section, see the:
@@ -17,7 +17,7 @@ In addition to the examples in this section, see the:
 - [Advanced model serving graph notebook example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
 - {ref}`MLRun demos <demos>` for additional use cases and full end-to-end examples, including GenAI serving.
 
-## Example of a simple model serving router
+## Simple model serving router example
 
 Graphs are used for serving models with different transformations.
 
@@ -70,7 +70,7 @@ For an example of writing the minimal serving functions, see [Minimal sklearn se
 See the full [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/functions/src/v2_model_server/v2_model_server.ipynb) that 
 tests one or more classifier models against a held-out dataset.
 
-## Example of advanced data processing and serving ensemble
+## Advanced data processing and serving ensemble example
 
 MLRun serving graphs can host advanced pipelines that handle event/data processing, ML functionality, 
  or any custom task. The following example demonstrates an asynchronous pipeline that pre-processes data, 
@@ -143,7 +143,7 @@ And deploy the graph as a real-time Nuclio serverless function with one command:
 If you test a Nuclio function that has a serving graph with the async engine via the Nuclio UI, the UI might not display the logs in the output.
 ```
 
-## Example of an NLP processing pipeline with real-time streaming
+## NLP processing pipeline with real-time streaming example
 
 In some cases it's useful to split your processing to multiple functions and use 
 streaming protocols to connect those functions. In this example the data 

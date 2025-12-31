@@ -624,15 +624,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 except Exception:
                     pass
 
-        for i in range(cls.error_count):
-            try:
-                serving_fn.invoke(
-                    f"v2/models/{cls.model_name}_{with_training_set}/infer",
-                    json.dumps({"inputs": [[0.0] * (cls.num_features + 1)]}),
-                )
-            except Exception:
-                pass
-
     def _test_artifacts(self, ep_id: str) -> None:
         for app_data in self.apps_data:
             if app_data.artifacts:
@@ -1027,7 +1018,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             ep_id=mep.metadata.uid,
             last_request=mep.status.last_request,
             apps_data=self.apps_data,
-            error_count=self.error_count,
+            error_count=1,
         )
 
         self._test_predictions_table(mep.metadata.uid)

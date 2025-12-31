@@ -28,6 +28,18 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 (v1110)=
 ## v1.11.0 
 
+### Runtimes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9209|MLRun supports the Kubernetes readinessProbe and livenessProbe for application runtimes. See [Configure sidecar Kubernetes proble](../runtimes/application.html#configure-sidecar-kubernetes-probes), {py:meth}`~mlrun.runtimes.ApplicationRuntime.set_probe`, and {py:meth}`~mlrun.runtimes.ApplicationRuntime.delete_probe`.|
+
+### Serving Graph
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.html#exanple-of-a-cyclic-graph), {py:meth}`BaseStep to() <~mlrun.serving.states.BaseStep.to>`, {py:meth}`QueueStep to()<~mlrun.serving.QueueStep.to>`, and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
+
+
+
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|

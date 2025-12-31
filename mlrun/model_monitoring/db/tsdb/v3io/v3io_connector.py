@@ -1605,15 +1605,10 @@ class V3IOTSDBConnector(TSDBConnector):
         # This allows us to calculate max per endpoint per bucket in one pass
         bucket_endpoint_status = defaultdict(dict)
 
-        # Single pass through all frames and data points
-        total_data_points = 0
-        filtered_data_points = 0
-
         for frame in raw_frames:
             endpoint_id = frame.column_data(EventFieldType.ENDPOINT_ID)[0]
             result_statuses = frame.column_data(mm_schemas.ResultData.RESULT_STATUS)
             timestamps = frame.indices()[0].times
-            total_data_points += len(result_statuses)
 
             for status, timestamp_ns in zip(result_statuses, timestamps):
                 # Early skip: invalid status or outside time range
@@ -1621,8 +1616,6 @@ class V3IOTSDBConnector(TSDBConnector):
                     continue
                 if not (start_ns <= timestamp_ns < end_ns):
                     continue
-
-                filtered_data_points += 1
 
                 # Calculate bucket using integer arithmetic
                 bucket_index = (timestamp_ns - start_ns) // interval_ns

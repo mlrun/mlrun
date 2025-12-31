@@ -52,13 +52,13 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Breaking Changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-   |TDEngine is deprecated and replaced with TimescaleDB. Model monitoring data in TDEngine is not migrated.
+|ML-11482|TDEngine is deprecated and replaced with TimescaleDB. Model monitoring data in TDEngine is not migrated.
 
 
 ### Deprecations
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML- | Python 3.9 is not supported
+|ML-11065| Python 3.9 is not supported
 
 
 (v1100)=

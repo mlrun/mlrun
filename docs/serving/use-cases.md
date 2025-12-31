@@ -225,42 +225,36 @@ When a RuntimeError is raised:
 A typical error is `RuntimeError(f"Max iterations exceeded in step '{self.name}' for event {event.id}")`.
 
 ```python
-# Define the function
-fn = project.set_function(
-    name="cyclic-function",
-    func="cyclic.py",
-    kind="serving",
-    image="mlrun/mlrun",
-)
-# Define the graph (global cap applies unless overridden per-step)
-graph = fn.set_topology("flow", engine="async", allow_cyclic=True, max_iterations=3)
-graph.add_step(name="preprocess", class_name="Processor")
+    # Define the function
+    function =project.set_function(
+        name="cyclic-function",
+        func="cyclic.py",
+        kind="serving",
+        image="mlrun/mlrun",
+    )
+    # Define the graph (global cap applies unless overridden per-step)
+    graph = function.set_topology(
+        "flow", engine="async", allow_cyclic=True, max_iterations=100
+    )
+    graph.to(name="preprocess", class_name="Processor").to(
+        name="generator", class_name="Generator", after="preprocess", max_iterations=30
+    ).to(name="evaluator", class_name="Evaluator", after="generator").to(
+        name="evaluation-loop",
+        class_name="ChoiceHandler",
+        cycle_to=["generator"],
+        after="evaluator",
+    ).to(name="output", handler="responder", after="evaluation-loop").respond()
+    
+    # Adding error handler to the graph
+    graph.error_handler(class_name="HandleError")
 
-# Per step max_iterations override
-graph.add_step(
-    name="generator", class_name="Generator", after="preprocess", max_iterations=5
-)
-graph.add_step(name="evaluator", class_name="Evaluator", after="generator")
+    # Mock server
+    mock = graph.to_mock_server()
+    mock.test("/", body={...})
 
-# subclasses storey.transformations. Choice under the hood
-loop = graph.add_step(
-    name="evaluation-loop",
-    handler="ChoiceHandler",
-    allowed_outlets=["generator", "output"],
-    after="evaluator",
-)
-
-# Not sure if required, but might be helpful for handling max_iterations reached
-loop.error_handler(class_name="HandleError")
-graph.add_step(name="output", handler="responder", after="evaluation-loop").respond()
-
-# Mock server
-mock = graph.to_mock_server()
-mock.test("/", body={...})
-
-# Kubernetes deployment
-project.deploy_function(fn)
-fn.invoke("/", body={...})
+    # Kubernetes deployment
+    function.deploy()
+    function.invoke("/", body={...})
 ```
 
 

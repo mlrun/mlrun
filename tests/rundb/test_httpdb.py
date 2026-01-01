@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import codecs
 import datetime
+import json
 import sys
 import time
 import typing

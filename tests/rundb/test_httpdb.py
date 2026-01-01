@@ -199,6 +199,16 @@ def create_server(request):
         cleanup()
 
 
+@pytest.fixture
+def token_file(tmp_path):
+    token_file = tmp_path / "token.yaml"
+    token_file.write_text(
+        json.dumps({"secretTokens": [{"name": "default", "token": "jwt_token"}]})
+    )
+    mlrun.mlconf.auth_with_oauth_token.token_file = token_file
+    return token_file
+
+
 def test_log(create_server):
     server: Server = create_server()
     db = server.conn
@@ -462,7 +472,7 @@ def _encode_jwt(payload: dict) -> str:
 
 
 def test_iguazio_v4_oauth_config_is_applied_before_token_provider_init(
-    requests_mock: requests_mock_package.Mocker, monkeypatch
+    requests_mock: requests_mock_package.Mocker, monkeypatch, token_file
 ):
     mlrun.mlconf.auth_with_client_id.enabled = False
     mlrun.mlconf.auth_with_oauth_token.enabled = False
@@ -507,7 +517,7 @@ def test_iguazio_v4_oauth_config_is_applied_before_token_provider_init(
 
 
 def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
-    requests_mock: requests_mock_package.Mocker, monkeypatch
+    requests_mock: requests_mock_package.Mocker, monkeypatch, token_file
 ):
     mlrun.mlconf.auth_with_client_id.enabled = False
     mlrun.mlconf.auth_with_oauth_token.enabled = False

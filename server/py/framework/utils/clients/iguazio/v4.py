@@ -187,10 +187,22 @@ class Client(BaseClient, project_follower.Member):
 
         def _update_owner_or_create_policies():
             self._client.set_override_auth_headers(auth_info.request_headers)
-            if self._project_policies_exist(project.metadata.name, auth_info):
-                self.patch_project(session, name, project.dict(), auth_info=auth_info)
-            else:
+            try:
+                # Try to create policies first
                 self.create_project(session, project, auth_info=auth_info)
+            except httpx.HTTPStatusError as exc:
+                # If policies already exist (409 Conflict), update instead
+                if exc.response.status_code == httpx.codes.CONFLICT:
+                    self._logger.debug(
+                        "Project policies already exist, updating owner instead",
+                        project=project.metadata.name,
+                    )
+                    self.patch_project(
+                        session, name, project.dict(), auth_info=auth_info
+                    )
+                else:
+                    # Unexpected error, re-raise
+                    raise
 
         self._try_callback_with_httpx_exceptions(
             _update_owner_or_create_policies,

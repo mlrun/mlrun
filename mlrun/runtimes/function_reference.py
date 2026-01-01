@@ -121,7 +121,12 @@ class FunctionReference(ModelObj):
             data = mlrun.utils.helpers.encode_user_code(code)
             func.spec.build.functionSourceCode = data
             if kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-                func.spec.default_handler = "handler"
+                func.spec.default_handler = (
+                    "async_handler"
+                    if mlrun.utils.helpers.is_async_serving_graph(self.spec)
+                    and kind == "serving"
+                    else "handler"
+                )
             if self.spec:
                 func = enrich_function_from_dict(func, self.spec)
         elif self.spec:

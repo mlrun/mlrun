@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 
 import mlrun
 import mlrun.common.schemas
@@ -20,9 +19,6 @@ import tests.integration.sdk_api.base
 
 
 class TestServingWithHubSteps(tests.integration.sdk_api.base.TestMLRunIntegration):
-    @pytest.mark.skip(
-        reason="Remove this marker after steps are added to the functions repo"
-    )
     def test_serving_with_hub_steps(self):
         project = mlrun.new_project("test-serving-with-hub-steps", save=False)
         fn = project.set_function(

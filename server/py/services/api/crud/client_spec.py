@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Optional
 
 import mlrun.common.schemas
@@ -37,11 +38,11 @@ class ClientSpec(
         oauth_internal_token_endpoint = None
         oauth_external_token_endpoint = None
         if config.is_iguazio_v4_mode():
-            oauth_external_token_endpoint = self._join_url(
+            oauth_external_token_endpoint = os.path.join(
                 config.iguazio_api_url_ingress,
                 config.httpdb.authentication.iguazio.authentication_endpoint,
             )
-            oauth_internal_token_endpoint = self._join_url(
+            oauth_internal_token_endpoint = os.path.join(
                 config.iguazio_api_url,
                 config.httpdb.authentication.iguazio.authentication_endpoint,
             )

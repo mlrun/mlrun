@@ -46,7 +46,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -95,7 +95,7 @@ jobs:
         python-version: ["3.11"]
         test-suite: ["server", "client"]
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -138,7 +138,7 @@ jobs:
         make test-dockerized
     - name: Upload coverage report
       if: env.RUN_COVERAGE == 'true'
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
         path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
@@ -154,7 +154,7 @@ jobs:
         python-version: ["3.11"]
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
@@ -188,15 +188,16 @@ jobs:
 
     - name: Run Dockerized tests
       run: |
+          MLRUN_VERSION=${{ github.sha }} \
           MLRUN_DOCKER_REGISTRY=ghcr.io/ \
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
           MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
           RUN_COVERAGE=$RUN_COVERAGE \
-          make test-integration-dockerized RUN_COVERAGE=$RUN_COVERAGE
+          make test-integration-dockerized
       timeout-minutes: 90
 
     - name: Upload coverage report
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       if: env.RUN_COVERAGE == 'true'
       with:
          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
@@ -207,7 +208,7 @@ jobs:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -220,9 +221,13 @@ jobs:
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
           echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Dockerized DB Migration tests
-        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized RUN_COVERAGE=true
+        run: |
+          MLRUN_VERSION=${{ github.sha }} \
+          MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+          make test-migrations-dockerized RUN_COVERAGE=true
       - name: Upload coverage report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
           path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
@@ -237,7 +242,7 @@ jobs:
           - python-version: "3.11"
             pipeline-adapter: "kfp-v1-8"
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -259,7 +264,7 @@ jobs:
     name: Build Project Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -274,7 +279,7 @@ jobs:
       - name: Generate HTML docs
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
       - name: Upload generated docs
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: docs
           path: docs/_build/html
@@ -293,12 +298,12 @@ jobs:
         run: |
             echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Checkout PR Base (target) Branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
       - name: Checkout Merge Commit (requested branch merged with the target branch)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: head/mlrun
       - name: Resolve docker cache tag
@@ -310,7 +315,9 @@ jobs:
       - name: Run Backward Compatibility Tests
         run: |
           cd head/mlrun
-          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
+          MLRUN_VERSION=${{ github.sha }} \
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+          make test-backward-compatibility-dockerized
 
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)
@@ -319,7 +326,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -340,7 +347,7 @@ jobs:
         python-version: [ "3.11"]
     needs: [tests, integration-tests, migrations-tests]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Set up Python
@@ -352,24 +359,24 @@ jobs:
         # To save time, install only pytest and coverage-related packages, without mlrun and its dependencies.
         run: make install-dev-requirements
       - name: Download server unit tests coverage report
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_server.coverage
           path: tests/coverage_reports/
       - name: Download client unit tests coverage report
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_client.coverage
           path: tests/coverage_reports/
       - name: Download integration coverage report
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
           
           path: tests/coverage_reports/
 
       - name: Download migration coverage report
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/
@@ -377,7 +384,7 @@ jobs:
         run: make coverage-combine UNIT_TEST_COVERAGE_PATHS="tests/coverage_reports/unit_tests_client.coverage tests/coverage_reports/unit_tests_server.coverage"
         # Save it as an artifact:
       - name: Upload coverage combined report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage_combined_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/combined.coverage
@@ -389,7 +396,7 @@ jobs:
           --show-uncovered \
           --html-report tests/coverage_reports/combined_diff.html
       - name: Upload coverage diff report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage_combined_diff_report_${{ matrix.python-version }}_${{ github.run_id }}.html
           path: tests/coverage_reports/combined_diff.html

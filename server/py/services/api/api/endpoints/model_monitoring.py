@@ -131,21 +131,11 @@ async def _common_parameters(
 
 
 @router.put("/")
-async def enable_model_monitoring(
+def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
     deploy_histogram_data_drift_app: bool = True,
-    # TODO: remove this in 1.11.0
-    rebuild_images: bool = Query(
-        False,
-        deprecated=True,
-        description=(
-            "`rebuild_images` is deprecated as of 1.8.0 and will be removed in 1.11.0. "
-            "To rebuild images, first send a DELETE request to `/projects/{project}/model-monitoring`, "
-            "then send a PUT request to the same endpoint with the updated image."
-        ),
-    ),
     fetch_credentials_from_sys_config: bool = Query(
         False,
         deprecated=True,
@@ -169,8 +159,6 @@ async def enable_model_monitoring(
                                               stream functions, which are real time nuclio functions.
                                               By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-    :param rebuild_images:                    Deprecated. If true, force rebuild of model monitoring infrastructure
-                                              images (controller, writer & stream).
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
 
     """
@@ -183,7 +171,7 @@ async def enable_model_monitoring(
 
 
 @router.patch("/controller")
-async def update_model_monitoring_controller(
+def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
@@ -520,8 +508,10 @@ async def delete_model_endpoints_metrics_values(
         auth_info=commons.auth_info,
     )
     # call delete_application_records of the tsdb connector
-    await commons.get_monitoring_deployment().delete_application_records(
-        application_name=application_name, endpoint_ids=endpoint_id
+    await run_in_threadpool(
+        commons.get_monitoring_deployment().delete_application_records,
+        application_name=application_name,
+        endpoint_ids=endpoint_id,
     )
 
 

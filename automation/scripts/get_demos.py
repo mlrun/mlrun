@@ -20,8 +20,7 @@ import shutil
 import sys
 import tarfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from time import sleep
 
 import requests
@@ -30,6 +29,14 @@ from tqdm import tqdm
 
 TIMEOUT = 30  # seconds
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+)(?:-rc\d+)?$")
+DEFAULT_CONFIG = {
+    "demos": [
+        "demo-fraud",
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent",
+    ]
+}
 
 
 def download_with_retry(url, max_retries=3):
@@ -147,6 +154,10 @@ def validate_versions(all_versions):
     return valid_versions
 
 
+def normalize(v):
+    return re.sub(r"-rc(\d+)$", r"rc\1", v)
+
+
 def download_demo(demo_repo, mlrun_version):
     # Download exact given mlrun version
     log("Starting downloading process", demo_repo)
@@ -159,7 +170,9 @@ def download_demo(demo_repo, mlrun_version):
         )
 
     # Sorting versions
-    sorted_versions = sorted(all_releases, key=Version, reverse=True)
+    sorted_versions = sorted(
+        all_releases, key=lambda x: Version(normalize(x)), reverse=True
+    )
 
     # Check if mlrun version is in the form of x.x.x or x.x.x-rcX
     match = VERSION_PATTERN.match(mlrun_version)
@@ -181,7 +194,7 @@ def download_demo(demo_repo, mlrun_version):
     if matching_demo_releases:
         # Download the release or the latest rc for that mlrun version
         return download_release(demo_repo, mlrun_version) or download_release(
-            demo_repo, max(matching_demo_releases)
+            demo_repo, matching_demo_releases[0]
         )
 
     log(
@@ -189,7 +202,6 @@ def download_demo(demo_repo, mlrun_version):
         demo_repo,
     )
     log("Using latest release", demo_repo)
-
     return download_release(demo_repo, sorted_versions[0])
 
 
@@ -198,7 +210,9 @@ def detect_demo_version(repo, mlrun_version):
     try:
         all_releases = validate_versions(get_all_releases(repo))
         if all_releases:
-            sorted_versions = sorted(all_releases, key=Version, reverse=True)
+            sorted_versions = sorted(
+                all_releases, key=lambda x: Version(normalize(x)), reverse=True
+            )
             match = VERSION_PATTERN.match(mlrun_version)
             if match:
                 base_version = match.group(1)
@@ -242,7 +256,7 @@ def create_manifest(mlrun_version, demo_versions):
     """Create a manifest file with version information for all downloaded demos."""
     manifest = {
         "mlrun_version": mlrun_version,
-        "download_date": datetime.now(timezone.utc).isoformat(),
+        "download_date": datetime.now(UTC).isoformat(),
         "github_org": GITHUB_ORG,
         "demos": demo_versions,
     }
@@ -257,24 +271,36 @@ def create_manifest(mlrun_version, demo_versions):
 
 
 def get_demos(mlrun_version):
-    if not os.path.exists(CONFIG_PATH):
-        raise RuntimeError(f"Configuration file not found: {CONFIG_PATH}")
+    config_url = "https://raw.githubusercontent.com/mlrun/mlrun/refs/heads/development/automation/scripts/demos_config.json"
     try:
-        with Path(CONFIG_PATH).open("r", encoding="utf-8") as f:
-            config = json.load(f)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Invalid JSON in configuration file {CONFIG_PATH}: {e}")
-    except Exception as e:
-        raise RuntimeError(f"Failed to read configuration file {CONFIG_PATH}: {e}")
+        response = requests.get(config_url, timeout=10)
+        response.raise_for_status()  # raise HTTPError if not 200
+        config = json.loads(response.text)
 
-    os.makedirs(DEST_DIR, exist_ok=True)
-    repositories = config.get("demos")
+        version_to_use = VERSION_PATTERN.match(mlrun_version).group(1)
+        if version_to_use not in config.keys():
+            config = config.get("development")
+            log("Using development tag for demos list", "get_demos")
+        else:
+            config = config.get(version_to_use)
+            log(f"Using {version_to_use} tag for demos list", "get_demos")
+
+    except Exception:
+        log("Failed getting config json, using default", "get_demos")
+        config = DEFAULT_CONFIG
+
+    try:
+        os.makedirs(DEST_DIR, exist_ok=True)
+        repositories = config.get("demos")
+    except AttributeError:
+        raise AttributeError("Failed to read configuration file")
+
     if not repositories:
-        raise RuntimeError(f"No 'demos' key found in {CONFIG_PATH}")
+        raise RuntimeError(f"No 'demos' key found in {config_url}")
     if not isinstance(repositories, list):
-        raise RuntimeError(f"'demos' must be a list in {CONFIG_PATH}")
+        raise RuntimeError(f"'demos' must be a list in {config_url}")
     if not all(isinstance(r, str) for r in repositories):
-        raise RuntimeError(f"All demo entries must be strings in {CONFIG_PATH}")
+        raise RuntimeError(f"All demo entries must be strings in {config_url}")
 
     errors = []
     demo_versions = {}
@@ -330,19 +356,13 @@ if __name__ == "__main__":
     # Optional argument
     parser.add_argument("--org", default="mlrun", help="GitHub org")
     parser.add_argument(
-        "--config_path", default="demos_config.json", help="Path to demos config file"
-    )
-    parser.add_argument(
         "--dest", default="demos", help="Folder name to extract demos to"
     )
 
     args = parser.parse_args()
 
     GITHUB_ORG = args.org
-    CONFIG_PATH = args.config_path
     DEST_DIR = args.dest
-
-    get_demos(args.mlrun_version)
 
     try:
         get_demos(args.mlrun_version)

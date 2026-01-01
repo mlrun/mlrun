@@ -26,11 +26,13 @@ import pathlib
 import traceback
 import warnings
 from abc import ABC
+from collections.abc import Collection
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
 
 import storey.utils
+from deprecated import deprecated
 from storey import ParallelExecutionMechanisms
 
 import mlrun
@@ -90,25 +92,6 @@ class StepKinds:
     model_runner = "model_runner"
 
 
-_task_step_fields = [
-    "kind",
-    "class_name",
-    "class_args",
-    "handler",
-    "skip_context",
-    "after",
-    "function",
-    "comment",
-    "shape",
-    "full_event",
-    "on_error",
-    "responder",
-    "input_path",
-    "result_path",
-    "model_endpoint_creation_strategy",
-    "endpoint_type",
-]
-
 _default_fields_to_strip_from_step = [
     "model_endpoint_creation_strategy",
     "endpoint_type",
@@ -134,7 +117,14 @@ def new_remote_endpoint(
 class BaseStep(ModelObj):
     kind = "BaseStep"
     default_shape = "ellipse"
-    _dict_fields = ["kind", "comment", "after", "on_error"]
+    _dict_fields = [
+        "kind",
+        "comment",
+        "after",
+        "on_error",
+        "max_iterations",
+        "cycle_from",
+    ]
     _default_fields_to_strip = _default_fields_to_strip_from_step
 
     def __init__(
@@ -142,6 +132,7 @@ class BaseStep(ModelObj):
         name: Optional[str] = None,
         after: Optional[list] = None,
         shape: Optional[str] = None,
+        max_iterations: Optional[int] = None,
     ):
         self.name = name
         self._parent = None
@@ -155,6 +146,8 @@ class BaseStep(ModelObj):
         self.model_endpoint_creation_strategy = (
             schemas.ModelEndpointCreationStrategy.SKIP
         )
+        self._max_iterations = max_iterations
+        self.cycle_from = []
 
     def get_shape(self):
         """graphviz shape"""
@@ -348,6 +341,8 @@ class BaseStep(ModelObj):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = None,
+        cycle_to: Optional[list[str]] = None,
+        max_iterations: Optional[int] = None,
         **class_args,
     ):
         """add a step right after this step and return the new step
@@ -386,6 +381,8 @@ class BaseStep(ModelObj):
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
 
+        :param cycle_to:    list of step names to create a cycle to (for cyclic graphs)
+        :param max_iterations: maximum number of iterations for this step in case of a cycle graph
         :param class_args:  class init arguments
         """
         if hasattr(self, "steps"):
@@ -420,7 +417,38 @@ class BaseStep(ModelObj):
             # check that its not the root, todo: in future may gave nested flows
             step.after_step(self.name)
         parent._last_added = step
+        step.cycle_to(cycle_to or [])
+        step._max_iterations = max_iterations
         return step
+
+    def cycle_to(self, step_names: Union[str, list[str]]):
+        """create a cycle in the graph to the specified step names
+
+        example:
+            in the below example, a cycle is created from 'step3' to 'step1':
+            graph.to('step1')\
+                 .to('step2')\
+                 .to('step3')\
+                 .cycle_to(['step1'])  # creates a cycle from step3 to step1
+
+        :param step_names: list of step names to create a cycle to (for cyclic graphs)
+        """
+        root = self._extract_root_step()
+        if not isinstance(root, RootFlowStep):
+            raise GraphError("cycle_to() can only be called on a step within a graph")
+        if not root.allow_cyclic and step_names:
+            raise GraphError("cyclic graphs are not allowed, enable allow_cyclic")
+        step_names = [step_names] if isinstance(step_names, str) else step_names
+
+        for step_name in step_names:
+            if step_name not in root:
+                raise GraphError(
+                    f"step {step_name} doesnt exist in the graph under {self._parent.fullname}"
+                )
+            root[step_name].after_step(self.name, append=True)
+            root[step_name].cycle_from.append(self.name)
+
+        return self
 
     def set_flow(
         self,
@@ -649,14 +677,14 @@ class BaseStep(ModelObj):
         if actual_shared_name and actual_shared_name not in step._shared_proxy_mapping:
             step._shared_proxy_mapping[actual_shared_name] = {
                 name: artifact.uri
-                if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                if isinstance(artifact, ModelArtifact | LLMPromptArtifact)
                 else artifact
             }
         elif actual_shared_name:
             step._shared_proxy_mapping[actual_shared_name].update(
                 {
                     name: artifact.uri
-                    if isinstance(artifact, (ModelArtifact, LLMPromptArtifact))
+                    if isinstance(artifact, ModelArtifact | LLMPromptArtifact)
                     else artifact
                 }
             )
@@ -666,7 +694,20 @@ class TaskStep(BaseStep):
     """task execution step, runs a class or handler"""
 
     kind = "task"
-    _dict_fields = _task_step_fields
+    _dict_fields = BaseStep._dict_fields + [
+        "class_name",
+        "class_args",
+        "handler",
+        "skip_context",
+        "function",
+        "shape",
+        "full_event",
+        "responder",
+        "input_path",
+        "result_path",
+        "model_endpoint_creation_strategy",
+        "endpoint_type",
+    ]
     _default_class = ""
 
     def __init__(
@@ -692,6 +733,7 @@ class TaskStep(BaseStep):
         self.handler = handler
         self.function = function
         self._handler = None
+        self._outlets_selector = None
         self._object = None
         self._async_object = None
         self.skip_context = None
@@ -759,6 +801,8 @@ class TaskStep(BaseStep):
                     handler = "do"
             if handler:
                 self._handler = getattr(self._object, handler, None)
+            if hasattr(self._object, "select_outlets"):
+                self._outlets_selector = self._object.select_outlets
 
         self._set_error_handler()
         if mode != "skip":
@@ -932,7 +976,7 @@ class ErrorStep(TaskStep):
     """error execution step, runs a class or handler"""
 
     kind = "error_step"
-    _dict_fields = _task_step_fields + ["before", "base_step"]
+    _dict_fields = TaskStep._dict_fields + ["before", "base_step"]
     _default_class = ""
 
     def __init__(
@@ -969,7 +1013,7 @@ class RouterStep(TaskStep):
 
     kind = "router"
     default_shape = "doubleoctagon"
-    _dict_fields = _task_step_fields + ["routes", "name"]
+    _dict_fields = TaskStep._dict_fields + ["routes", "name"]
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
@@ -1184,14 +1228,18 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         if self._execution_mechanism == storey.ParallelExecutionMechanisms.asyncio:
             if self.__class__.predict_async is Model.predict_async:
                 raise mlrun.errors.ModelRunnerError(
-                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict_async() "
-                    f"is not implemented"
+                    {
+                        self.name: f"is running with {self._execution_mechanism} "
+                        f"execution_mechanism but predict_async() is not implemented"
+                    }
                 )
         else:
             if self.__class__.predict is Model.predict:
                 raise mlrun.errors.ModelRunnerError(
-                    f"{self.name} is running with {self._execution_mechanism} execution_mechanism but predict() "
-                    f"is not implemented"
+                    {
+                        self.name: f"is running with {self._execution_mechanism} execution_mechanism but predict() "
+                        f"is not implemented"
+                    }
                 )
 
     def _load_artifacts(self) -> None:
@@ -1210,7 +1258,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         uri = proxy_uri or self.artifact_uri
         if uri:
             if mlrun.datastore.is_store_uri(uri):
-                artifact, _ = mlrun.store_manager.get_store_artifact(uri)
+                artifact, _ = mlrun.store_manager.get_store_artifact(
+                    uri, allow_empty_resources=True
+                )
                 return artifact
             else:
                 raise ValueError(
@@ -1231,6 +1281,8 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+        if isinstance(body, list):
+            body = self.format_batch(body)
         return self.predict(body)
 
     async def run_async(
@@ -1268,6 +1320,10 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             )
             return model_file, extra_dataitems
         return None, None
+
+    @staticmethod
+    def format_batch(body: Any):
+        return body
 
 
 class LLModel(Model):
@@ -1419,6 +1475,24 @@ class LLModel(Model):
             )
         return body
 
+    def init(self):
+        super().init()
+
+        if not self.model_provider:
+            if self._execution_mechanism != storey.ParallelExecutionMechanisms.asyncio:
+                unchanged_predict = self.__class__.predict is LLModel.predict
+                predict_function_name = "predict"
+            else:
+                unchanged_predict = (
+                    self.__class__.predict_async is LLModel.predict_async
+                )
+                predict_function_name = "predict_async"
+            if unchanged_predict:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Model provider could not be determined for model '{self.name}',"
+                    f" and the {predict_function_name} function was not overridden."
+                )
+
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
         messages, invocation_config = self.enrich_prompt(
@@ -1541,6 +1615,69 @@ class LLModel(Model):
         return llm_prompt_artifact
 
 
+class ModelRunnerSelector(ModelObj):
+    """
+    Strategy for controlling model selection and output routing in ModelRunnerStep.
+
+    Subclass this to implement custom logic for agent workflows:
+    - `select_models()`: Called BEFORE execution to choose which models run
+    - `select_outlets()`: Called AFTER execution to route output to downstream steps
+
+    Return `None` from either method to use default behavior (all models / all outlets).
+
+    Example::
+
+        class ToolSelector(ModelRunnerSelector):
+            def select_outlets(self, event):
+                tool = event.get("tool_call")
+                return [tool] if tool else ["final"]
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__()
+
+    def __init_subclass__(cls):
+        super().__init_subclass__()
+        cls._dict_fields = list(
+            set(cls._dict_fields)
+            | set(inspect.signature(cls.__init__).parameters.keys())
+        )
+        cls._dict_fields.remove("self")
+
+    def select_models(
+        self,
+        event: Any,
+        available_models: list[Model],
+    ) -> Optional[Union[list[str], list[Model]]]:
+        """
+        Called before model execution.
+
+        :param event: The full event
+        :param available_models: List of available models
+
+        Returns the models to execute (by name or Model objects).
+        """
+        return None
+
+    def select_outlets(
+        self,
+        event: Any,
+    ) -> Optional[list[str]]:
+        """
+        Called after model execution.
+
+        :param event: The event body after model execution
+        :return: Returns the downstream outlets to route the event to.
+        """
+        return None
+
+
+# TODO: Remove in 1.13.0
+@deprecated(
+    version="1.11.0",
+    reason="ModelSelector will be removed in 1.13.0, use ModelRunnerSelector instead",
+    category=FutureWarning,
+)
 class ModelSelector(ModelObj):
     """Used to select which models to run on each event."""
 
@@ -1572,16 +1709,22 @@ class ModelRunner(storey.ParallelExecution):
     """
     Runs multiple Models on each event. See ModelRunnerStep.
 
-    :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
-      event. Optional. If not passed, all models will be run.
+    :param model_runner_selector: ModelSelector instance whose select() method will be used to select models
+           to run on each event. Optional. If not passed, all models will be run.
     """
 
     def __init__(
-        self, *args, context, model_selector: Optional[ModelSelector] = None, **kwargs
+        self,
+        *args,
+        context,
+        model_runner_selector: Optional[ModelRunnerSelector] = None,
+        raise_exception: bool = True,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.model_selector = model_selector or ModelSelector()
+        self.model_runner_selector = model_runner_selector or ModelRunnerSelector()
         self.context = context
+        self._raise_exception = raise_exception
 
     def preprocess_event(self, event):
         if not hasattr(event, "_metadata"):
@@ -1594,7 +1737,31 @@ class ModelRunner(storey.ParallelExecution):
 
     def select_runnables(self, event):
         models = cast(list[Model], self.runnables)
-        return self.model_selector.select(event, models)
+        return self.model_runner_selector.select_models(event, models)
+
+    def select_outlets(self, event) -> Optional[Collection[str]]:
+        sys_outlets = [f"{self.name}_error_raise"]
+        if "background_task_status_step" in self._name_to_outlet:
+            sys_outlets.append("background_task_status_step")
+        if self._raise_exception and self._is_error(event):
+            return sys_outlets
+        user_outlets = self.model_runner_selector.select_outlets(event)
+        if user_outlets:
+            return (
+                user_outlets if isinstance(user_outlets, list) else [user_outlets]
+            ) + sys_outlets
+        return None
+
+    def _is_error(self, event: dict) -> bool:
+        if len(self.runnables) == 1:
+            if isinstance(event, dict):
+                return event.get("error") is not None
+        else:
+            for model in event:
+                body_by_model = event.get(model)
+                if isinstance(body_by_model, dict) and "error" in body_by_model:
+                    return True
+        return False
 
 
 class MonitoredStep(ABC, TaskStep, StepToDict):
@@ -1651,15 +1818,9 @@ class ModelRunnerStep(MonitoredStep):
 
     Note ModelRunnerStep can only be added to a graph that has the flow topology and running with async engine.
 
-    Note see config_pool_resource method documentation for default number of max threads and max processes.
+    Note see configure_pool_resource method documentation for default number of max threads and max processes.
 
-    :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
-      event. Optional. If not passed, all models will be run.
-    :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
-      an error. If False, the error will appear in the output event.
-
-    raise ModelRunnerError -
-                              when a model raises an error the ModelRunnerStep will handle it, collect errors and
+    :raise ModelRunnerError: when a model raises an error the ModelRunnerStep will handle it, collect errors and
                               outputs from added models. If raise_exception is True will raise ModelRunnerError. Else
                               will add the error msg as part of the event body mapped by model name if more than
                               one model was added to the ModelRunnerStep
@@ -1677,38 +1838,97 @@ class ModelRunnerStep(MonitoredStep):
         self,
         *args,
         name: Optional[str] = None,
+        model_runner_selector: Optional[Union[str, ModelRunnerSelector]] = None,
+        model_runner_selector_parameters: Optional[dict] = None,
         model_selector: Optional[Union[str, ModelSelector]] = None,
         model_selector_parameters: Optional[dict] = None,
         raise_exception: bool = True,
         **kwargs,
     ):
+        """
+
+        :param name:                                The name of the ModelRunnerStep.
+        :param model_runner_selector:               ModelRunnerSelector instance whose select_models()
+                                                    and select_outlets() methods will be used
+                                                    to select models to run on each event and outlets to
+                                                    route the event to.
+        :param model_runner_selector_parameters:    Parameters for the model_runner_selector, if model_runner_selector
+                                                    is the class name we will use this param when
+                                                    initializing the selector.
+        :param model_selector:                      (Deprecated)
+        :param model_selector_parameters:           (Deprecated)
+        :param raise_exception:                     Determines whether to raise ModelRunnerError when one or more models
+                                                    raise an error during execution.
+                                                    If False, errors will be added to the event body.
+        """
         self.max_processes = None
         self.max_threads = None
         self.pool_factor = None
 
-        if isinstance(model_selector, ModelSelector) and model_selector_parameters:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Cannot provide a model_selector object as argument to `model_selector` and also provide "
-                "`model_selector_parameters`."
+        if (model_selector or model_selector_parameters) and (
+            model_runner_selector or model_runner_selector_parameters
+        ):
+            raise GraphError(
+                "Cannot provide both `model_selector`/`model_selector_parameters` "
+                "and `model_runner_selector`/`model_runner_selector_parameters`. "
+                "Please use only the latter pair."
             )
-        if model_selector:
-            model_selector_parameters = model_selector_parameters or (
-                model_selector.to_dict()
-                if isinstance(model_selector, ModelSelector)
-                else {}
+        if model_selector or model_selector_parameters:
+            warnings.warn(
+                "`model_selector` and `model_selector_parameters` are deprecated, "
+                "please use `model_runner_selector` and `model_runner_selector_parameters` instead.",
+                # TODO: Remove this in 1.13.0
+                FutureWarning,
             )
-            model_selector = (
-                model_selector
-                if isinstance(model_selector, str)
-                else model_selector.__class__.__name__
-            )
+            if isinstance(model_selector, ModelSelector) and model_selector_parameters:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Cannot provide a model_selector object as argument to `model_selector` and also provide "
+                    "`model_selector_parameters`."
+                )
+            if model_selector:
+                model_selector_parameters = model_selector_parameters or (
+                    model_selector.to_dict()
+                    if isinstance(model_selector, ModelSelector)
+                    else {}
+                )
+                model_selector = (
+                    model_selector
+                    if isinstance(model_selector, str)
+                    else model_selector.__class__.__name__
+                )
+        else:
+            if (
+                isinstance(model_runner_selector, ModelRunnerSelector)
+                and model_runner_selector_parameters
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Cannot provide a model_runner_selector object as argument to `model_runner_selector` "
+                    "and also provide `model_runner_selector_parameters`."
+                )
+            if model_runner_selector:
+                model_runner_selector_parameters = model_runner_selector_parameters or (
+                    model_runner_selector.to_dict()
+                    if isinstance(model_runner_selector, ModelRunnerSelector)
+                    else {}
+                )
+                model_runner_selector = (
+                    model_runner_selector
+                    if isinstance(model_runner_selector, str)
+                    else model_runner_selector.__class__.__name__
+                )
 
         super().__init__(
             *args,
             name=name,
             raise_exception=raise_exception,
             class_name="mlrun.serving.ModelRunner",
-            class_args=dict(model_selector=(model_selector, model_selector_parameters)),
+            class_args=dict(
+                model_selector=(model_selector, model_selector_parameters),
+                model_runner_selector=(
+                    model_runner_selector,
+                    model_runner_selector_parameters,
+                ),
+            ),
             **kwargs,
         )
         self.raise_exception = raise_exception
@@ -1805,14 +2025,14 @@ class ModelRunnerStep(MonitoredStep):
         if shared_model_name and shared_model_name not in self._shared_proxy_mapping:
             self._shared_proxy_mapping[shared_model_name] = {
                 endpoint_name: model_artifact.uri
-                if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                if isinstance(model_artifact, ModelArtifact | LLMPromptArtifact)
                 else model_artifact
             }
         elif override and shared_model_name:
             self._shared_proxy_mapping[shared_model_name].update(
                 {
                     endpoint_name: model_artifact.uri
-                    if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                    if isinstance(model_artifact, ModelArtifact | LLMPromptArtifact)
                     else model_artifact
                 }
             )
@@ -2118,6 +2338,9 @@ class ModelRunnerStep(MonitoredStep):
         model_selector, model_selector_params = self.class_args.get(
             "model_selector", (None, None)
         )
+        model_runner_selector, model_runner_selector_params = self.class_args.get(
+            "model_runner_selector", (None, None)
+        )
         execution_mechanism_by_model_name = self.class_args.get(
             schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM
         )
@@ -2126,6 +2349,15 @@ class ModelRunnerStep(MonitoredStep):
             model_selector = get_class(model_selector, namespace).from_dict(
                 model_selector_params, init_with_params=True
             )
+            model_runner_selector = (
+                self._convert_model_selector_to_model_runner_selector(
+                    model_selector=model_selector
+                )
+            )
+        elif model_runner_selector:
+            model_runner_selector = get_class(
+                model_runner_selector, namespace
+            ).from_dict(model_runner_selector_params, init_with_params=True)
         model_objects = []
         for model, model_params in models.values():
             model_name = model_params.get("name")
@@ -2152,7 +2384,7 @@ class ModelRunnerStep(MonitoredStep):
             )
             model_objects.append(model)
         self._async_object = ModelRunner(
-            model_selector=model_selector,
+            model_runner_selector=model_runner_selector,
             runnables=model_objects,
             execution_mechanism_by_runnable_name=execution_mechanism_by_model_name,
             shared_proxy_mapping=self._shared_proxy_mapping or None,
@@ -2161,7 +2393,36 @@ class ModelRunnerStep(MonitoredStep):
             max_processes=self.max_processes,
             max_threads=self.max_threads,
             pool_factor=self.pool_factor,
+            raise_exception=self.raise_exception,
+            **extra_kwargs,
         )
+
+    def _convert_model_selector_to_model_runner_selector(
+        self,
+        model_selector,
+    ) -> "ModelRunnerSelector":
+        """
+        Wrap a ModelSelector into a ModelRunnerSelector for backward compatibility.
+        """
+
+        class Adapter(ModelRunnerSelector):
+            def __init__(self):
+                self.selector = model_selector
+
+            def select_models(
+                self, event, available_models
+            ) -> Union[list[str], list[Model]]:
+                # Call old ModelSelector logic
+                return self.selector.select(event, available_models)
+
+            def select_outlets(
+                self,
+                event,
+            ) -> Optional[list[str]]:
+                # By default, return all outlets (old ModelSelector didn't control routing)
+                return None
+
+        return Adapter()
 
 
 class ModelRunnerErrorRaiser(storey.MapClass):
@@ -2175,11 +2436,15 @@ class ModelRunnerErrorRaiser(storey.MapClass):
             errors = {}
             should_raise = False
             if len(self._models_names) == 1:
-                should_raise = event.body.get("error") is not None
-                errors[self._models_names[0]] = event.body.get("error")
+                if isinstance(event.body, dict):
+                    should_raise = event.body.get("error") is not None
+                    errors[self._models_names[0]] = event.body.get("error")
             else:
                 for model in event.body:
-                    errors[model] = event.body.get(model).get("error")
+                    body_by_model = event.body.get(model)
+                    errors[model] = None
+                    if isinstance(body_by_model, dict):
+                        errors[model] = body_by_model.get("error")
                     if errors[model] is not None:
                         should_raise = True
             if should_raise:
@@ -2249,6 +2514,8 @@ class QueueStep(BaseStep, StepToDict):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = None,
+        cycle_to: Optional[list[str]] = None,
+        max_iterations: Optional[int] = None,
         **class_args,
     ):
         if not function:
@@ -2266,6 +2533,8 @@ class QueueStep(BaseStep, StepToDict):
             input_path,
             result_path,
             model_endpoint_creation_strategy,
+            cycle_to,
+            max_iterations,
             **class_args,
         )
 
@@ -2301,8 +2570,10 @@ class FlowStep(BaseStep):
         after: Optional[list] = None,
         engine=None,
         final_step=None,
+        allow_cyclic: bool = False,
+        max_iterations: Optional[int] = None,
     ):
-        super().__init__(name, after)
+        super().__init__(name, after, max_iterations=max_iterations)
         self._steps = None
         self.steps = steps
         self.engine = engine
@@ -2314,6 +2585,7 @@ class FlowStep(BaseStep):
         self._wait_for_result = False
         self._source = None
         self._start_steps = []
+        self._allow_cyclic = allow_cyclic
 
     def get_children(self):
         return self._steps.values()
@@ -2347,6 +2619,8 @@ class FlowStep(BaseStep):
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = None,
+        cycle_to: Optional[list[str]] = None,
+        max_iterations: Optional[int] = None,
         **class_args,
     ):
         """add task, queue or router step/class to the flow
@@ -2389,6 +2663,8 @@ class FlowStep(BaseStep):
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
 
+        :param cycle_to:    list of step names to create a cycle to (for cyclic graphs)
+        :param max_iterations: maximum number of iterations for this step in case of a cycle graph
         :param class_args:  class init arguments
         """
 
@@ -2414,6 +2690,8 @@ class FlowStep(BaseStep):
         after_list = after if isinstance(after, list) else [after]
         for after in after_list:
             self.insert_step(name, step, after, before)
+        step.cycle_to(cycle_to or [])
+        step._max_iterations = max_iterations
         return step
 
     def insert_step(self, key, step, after, before=None):
@@ -2506,13 +2784,24 @@ class FlowStep(BaseStep):
         for step in self._steps.values():
             step._next = None
             step._visited = False
-            if step.after:
+            if step.after and not step.cycle_from:
+                has_illegal_branches = len(step.after) > 1 and self.engine == "sync"
+                if has_illegal_branches:
+                    raise GraphError(
+                        f"synchronous flow engine doesnt support branches use async for step {step.name}"
+                    )
                 loop_step = has_loop(step, [])
-                if loop_step:
+                if loop_step and not self.allow_cyclic:
                     raise GraphError(
                         f"Error, loop detected in step {loop_step}, graph must be acyclic (DAG)"
                     )
-            else:
+            elif (
+                step.after
+                and step.cycle_from
+                and set(step.after) == set(step.cycle_from)
+            ):
+                start_steps.append(step.name)
+            elif not step.cycle_from:
                 start_steps.append(step.name)
 
         responders = []
@@ -2609,6 +2898,9 @@ class FlowStep(BaseStep):
         def process_step(state, step, root):
             if not state._is_local_function(self.context) or state._visited:
                 return
+            state._visited = (
+                True  # mark visited to avoid re-visit in case of multiple uplinks
+            )
             for item in state.next or []:
                 next_state = root[item]
                 if next_state.async_object:
@@ -2619,7 +2911,7 @@ class FlowStep(BaseStep):
             )
 
         default_source, self._wait_for_result = _init_async_objects(
-            self.context, self._steps.values()
+            self.context, self._steps.values(), self
         )
 
         source = self._source or default_source
@@ -2850,6 +3142,8 @@ class RootFlowStep(FlowStep):
         "shared_models",
         "shared_models_mechanism",
         "pool_factor",
+        "allow_cyclic",
+        "max_iterations",
     ]
 
     def __init__(
@@ -2859,13 +3153,11 @@ class RootFlowStep(FlowStep):
         after: Optional[list] = None,
         engine=None,
         final_step=None,
+        allow_cyclic: bool = False,
+        max_iterations: Optional[int] = 10_000,
     ):
         super().__init__(
-            name,
-            steps,
-            after,
-            engine,
-            final_step,
+            name, steps, after, engine, final_step, allow_cyclic, max_iterations
         )
         self._models = set()
         self._route_models = set()
@@ -2875,6 +3167,22 @@ class RootFlowStep(FlowStep):
         self._shared_max_processes = None
         self._shared_max_threads = None
         self._pool_factor = None
+
+    @property
+    def max_iterations(self) -> int:
+        return self._max_iterations
+
+    @max_iterations.setter
+    def max_iterations(self, max_iterations: int):
+        self._max_iterations = max_iterations
+
+    @property
+    def allow_cyclic(self) -> bool:
+        return self._allow_cyclic
+
+    @allow_cyclic.setter
+    def allow_cyclic(self, allow_cyclic: bool):
+        self._allow_cyclic = allow_cyclic
 
     def add_shared_model(
         self,
@@ -3423,7 +3731,7 @@ def params_to_step(
     return name, step
 
 
-def _init_async_objects(context, steps):
+def _init_async_objects(context, steps, root):
     try:
         import storey
     except ImportError:
@@ -3438,6 +3746,7 @@ def _init_async_objects(context, steps):
 
     for step in steps:
         if hasattr(step, "async_object") and step._is_local_function(context):
+            max_iterations = step._max_iterations or root.max_iterations
             if step.kind == StepKinds.queue:
                 skip_stream = context.is_mock and step.next
                 if step.path and not skip_stream:
@@ -3456,17 +3765,19 @@ def _init_async_objects(context, steps):
                         datastore_profile = datastore_profile_read(stream_path)
                         if isinstance(
                             datastore_profile,
-                            (DatastoreProfileKafkaTarget, DatastoreProfileKafkaStream),
+                            DatastoreProfileKafkaTarget | DatastoreProfileKafkaStream,
                         ):
                             step._async_object = KafkaStoreyTarget(
                                 path=stream_path,
                                 context=context,
+                                max_iterations=max_iterations,
                                 **options,
                             )
                         elif isinstance(datastore_profile, DatastoreProfileV3io):
                             step._async_object = StreamStoreyTarget(
                                 stream_path=stream_path,
                                 context=context,
+                                max_iterations=max_iterations,
                                 **options,
                             )
                         else:
@@ -3486,10 +3797,15 @@ def _init_async_objects(context, steps):
                             brokers=brokers,
                             producer_options=kafka_producer_options,
                             context=context,
+                            max_iterations=max_iterations,
                             **options,
                         )
                     elif stream_path.startswith("dummy://"):
-                        step._async_object = _DummyStream(context=context, **options)
+                        step._async_object = _DummyStream(
+                            context=context,
+                            max_iterations=max_iterations,
+                            **options,
+                        )
                     else:
                         if stream_path.startswith("v3io://"):
                             endpoint, stream_path = parse_path(step.path)
@@ -3498,10 +3814,14 @@ def _init_async_objects(context, steps):
                             storey.V3ioDriver(endpoint or config.v3io_api),
                             stream_path,
                             context=context,
+                            max_iterations=max_iterations,
                             **options,
                         )
                 else:
-                    step._async_object = storey.Map(lambda x: x)
+                    step._async_object = storey.Map(
+                        lambda x: x,
+                        max_iterations=max_iterations,
+                    )
 
             elif not step.async_object or not hasattr(step.async_object, "_outlets"):
                 # if regular class, wrap with storey Map
@@ -3513,6 +3833,8 @@ def _init_async_objects(context, steps):
                     name=step.name,
                     context=context,
                     pass_context=step._inject_context,
+                    fn_select_outlets=step._outlets_selector,
+                    max_iterations=max_iterations,
                 )
             if (
                 respond_supported

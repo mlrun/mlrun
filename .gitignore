@@ -85,7 +85,9 @@ docs/contributing.md
 # Local development and configuration files
 # Project configuration and environment files
 project.yaml
-automation/patch_igz/patch[_-]env.yml
+automation/patch_igz/patch[_-]env*.yml
+!automation/patch_igz/patch[_-]env_template.yml
+
 
 # Local playground dir
 playground
@@ -111,3 +113,7 @@ tests/coverage_reports/*.xml
 tests/coverage_reports/*.html
 **/test-openai.yml
 **/test-huggingface.yml
+
+mlrun.env
+**/mlrun.env
+tests/system/mlrun.env

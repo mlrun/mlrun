@@ -34,17 +34,18 @@ class MailNotification(base.NotificationBase):
 
     boolean_params = ["use_tls", "start_tls", "validate_certs"]
 
+    optional_auth_params = ["username", "password"]
+
     required_params = [
         "server_host",
         "server_port",
         "sender_address",
-        "username",
-        "password",
         "email_addresses",
     ] + boolean_params
 
     @classmethod
     def validate_params(cls, params):
+        cls._enrich_params(params)
         for required_param in cls.required_params:
             if required_param not in params:
                 raise ValueError(
@@ -56,6 +57,13 @@ class MailNotification(base.NotificationBase):
                 raise ValueError(
                     f"Parameter '{boolean_param}' must be a boolean for MailNotification"
                 )
+
+        # Allow no auth, username only, or username + password
+        # Some SMTP servers allow username without password
+        if params["password"] and not params["username"]:
+            raise ValueError(
+                "Parameter 'username' is required when 'password' is provided for MailNotification"
+            )
 
         cls._validate_emails(params)
 
@@ -77,6 +85,8 @@ class MailNotification(base.NotificationBase):
             message, severity, runs, custom_html, alert, event_data
         )
         self.params["body"] = runs_html
+
+        self._enrich_params(self.params)
 
         if message_body_override:
             self.params["body"] = message_body_override.replace(
@@ -122,7 +132,7 @@ class MailNotification(base.NotificationBase):
     def _validate_emails(cls, params):
         cls._validate_email_address(params["sender_address"])
 
-        if not isinstance(params["email_addresses"], (str, list)):
+        if not isinstance(params["email_addresses"], str | list):
             raise ValueError(
                 "Parameter 'email_addresses' must be a string or a list of strings"
             )
@@ -147,8 +157,8 @@ class MailNotification(base.NotificationBase):
         sender_address: str,
         server_host: str,
         server_port: int,
-        username: str,
-        password: str,
+        username: typing.Optional[str],
+        password: typing.Optional[str],
         use_tls: bool,
         start_tls: bool,
         validate_certs: bool,
@@ -163,14 +173,27 @@ class MailNotification(base.NotificationBase):
         message["Subject"] = subject
         message.attach(MIMEText(body, "html"))
 
-        # Send the email
-        await aiosmtplib.send(
-            message,
-            hostname=server_host,
-            port=server_port,
-            username=username,
-            password=password,
-            use_tls=use_tls,
-            validate_certs=validate_certs,
-            start_tls=start_tls,
-        )
+        send_kwargs = {
+            "hostname": server_host,
+            "port": server_port,
+            "use_tls": use_tls,
+            "validate_certs": validate_certs,
+            "start_tls": start_tls,
+        }
+
+        # Only include auth parameters when provided to avoid forcing SMTP AUTH
+        if username is not None:
+            send_kwargs["username"] = username
+        if password is not None:
+            send_kwargs["password"] = password
+
+        await aiosmtplib.send(message, **send_kwargs)
+
+    @staticmethod
+    def _enrich_params(params):
+        # if username/password are not provided or empty strings, set them to None.
+        # this ensures consistent behavior in _send_email and avoids
+        # forcing SMTP auth when the server does not require authentication.
+        for param in ["username", "password"]:
+            if param not in params or not params[param]:
+                params[param] = None

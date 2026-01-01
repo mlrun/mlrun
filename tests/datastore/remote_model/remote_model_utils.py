@@ -27,6 +27,12 @@ from mlrun.datastore.model_provider.model_provider import (
 from mlrun.serving import ModelRunnerStep
 from mlrun.serving.states import LLModel  # noqa
 
+PROMPT_LEGEND = {
+    "question": {"field": None, "description": None},
+    "depth_level": {"field": None, "description": None},
+    "persona": {"field": None, "description": None},
+    "tone": {"field": None, "description": None},
+}
 INPUT_DATA = [
     {
         "question": "What is the capital of France? Answer with one word first, then provide a historical overview.",
@@ -97,12 +103,7 @@ def setup_remote_model_test(
             "my_llm_prompt",
             prompt_template=PROMPT_TEMPLATE,
             model_artifact=model_artifact,
-            prompt_legend={
-                "question": {"field": None, "description": None},
-                "depth_level": {"field": None, "description": None},
-                "persona": {"field": None, "description": None},
-                "tone": {"field": None, "description": None},
-            },
+            prompt_legend=PROMPT_LEGEND,
         )
     else:
         llm_prompt_artifact = None

@@ -38,6 +38,10 @@ JOB_TYPE_PROJECT_LOADER = "project-loader"
 JOB_TYPE_RERUN_WORKFLOW_RUNNER = "rerun-workflow-runner"
 MLRUN_ACTIVE_PROJECT = "MLRUN_ACTIVE_PROJECT"
 
+MLRUN_JOB_AUTH_SECRET_PATH = "/var/mlrun-secrets/auth"
+MLRUN_JOB_AUTH_SECRET_FILE = ".igz.yml"
+MLRUN_JOB_AUTH_DEFAULT_TOKEN_NAME = "default"
+
 
 class MLRunInternalLabels:
     ### dask
@@ -99,7 +103,8 @@ class MLRunInternalLabels:
     workflow = "workflow"
     feature_vector = "feature-vector"
 
-    user_token_secret_label_key = "mlrun/user"
+    auth_username = f"{MLRUN_LABEL_PREFIX}user"
+    auth_token_name = f"{MLRUN_LABEL_PREFIX}token"
 
     @classmethod
     def all(cls):

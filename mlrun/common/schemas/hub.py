@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Optional
 
 import deepdiff
@@ -40,6 +40,7 @@ class HubObjectMetadata(BaseModel):
 class HubSourceType(mlrun.common.types.StrEnum):
     functions = "functions"
     modules = "modules"
+    steps = "steps"
 
 
 # Sources-related objects
@@ -66,7 +67,7 @@ class HubSource(BaseModel):
         if not mlrun.mlconf.hub.default_source.create:
             return None
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         hub_metadata = HubObjectMetadata(
             name=mlrun.mlconf.hub.default_source.name,
             description=mlrun.mlconf.hub.default_source.description,

@@ -17,8 +17,9 @@ import copy
 import json
 import traceback
 import typing
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 
 import fastapi.concurrency
 import humanfriendly
@@ -1094,7 +1095,7 @@ class Scheduler:
                 )
 
                 project_owner = framework.utils.singletons.project_member.get_project_member().get_project_owner(
-                    db_session, project_name
+                    db_session, project_name, auth_info=auth_info
                 )
                 # Update the schedule with the new auth info so we won't need to do the above again in the next run
                 scheduler.update_schedule(

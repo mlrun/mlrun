@@ -232,7 +232,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 alert.project,
                 notification_object,
                 status=mlrun.common.schemas.NotificationStatus.SENT,
-                sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
+                sent_time=datetime.datetime.now(tz=datetime.UTC),
             )
         except Exception as exc:
             logger.warning(

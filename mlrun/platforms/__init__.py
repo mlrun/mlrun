@@ -25,50 +25,6 @@ from .iguazio import (
 )
 
 
-# TODO: Remove in 1.11.0
-class _DeprecationHelper:
-    """A helper class to deprecate old schemas"""
-
-    def __init__(self, new_target: str, version="1.8.0"):
-        self._new_target = new_target
-        self._version = version
-
-    def __call__(self, *args, **kwargs):
-        self._warn()
-        return self._lazy_load()(*args, **kwargs)
-
-    def __getattr__(self, attr):
-        self._warn()
-        return getattr(self._lazy_load(), attr)
-
-    def _lazy_load(self, *args, **kwargs):
-        import mlrun.runtimes.mounts as mlrun_mounts
-
-        return getattr(mlrun_mounts, self._new_target)
-
-    def _warn(self):
-        warnings.warn(
-            f"mlrun.platforms.{self._new_target} is deprecated since version {self._version}, "
-            f"and will be removed in 1.11.0. Use mlrun.runtimes.mounts.{self._new_target} instead.",
-            FutureWarning,
-        )
-
-
-# TODO: Remove in 1.11.0
-# For backwards compatibility
-VolumeMount = _DeprecationHelper("VolumeMount")
-auto_mount = _DeprecationHelper("auto_mount")
-mount_configmap = _DeprecationHelper("mount_configmap")
-mount_hostpath = _DeprecationHelper("mount_hostpath")
-mount_pvc = _DeprecationHelper("mount_pvc")
-mount_s3 = _DeprecationHelper("mount_s3")
-mount_secret = _DeprecationHelper("mount_secret")
-mount_v3io = _DeprecationHelper("mount_v3io")
-set_env_variables = _DeprecationHelper("set_env_variables")
-v3io_cred = _DeprecationHelper("v3io_cred")
-# eof 'For backwards compatibility'
-
-
 def watch_stream(
     url,
     shard_ids: Optional[list] = None,

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import Callable, Optional
+from typing import Optional
 
 import pandas as pd
 
@@ -56,9 +56,16 @@ class TimescaleDBConnector(TSDBConnector):
     - TimescaleDBMetricsQueries, TimescaleDBPredictionsQueries, TimescaleDBResultsQueries: Direct query operations
     - TimescaleDBOperationsManager: Table management and write operations
     - TimescaleDBStreamProcessor: Stream processing operations
+
+    Database naming (controlled by mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database):
+    - When auto_create_database=True (default): generates database name using system_id: 'mlrun_mm_{system_id}'
+    - When auto_create_database=False: uses the database from the profile/connection string as-is
     """
 
     type: str = mm_schemas.TSDBTarget.TimescaleDB
+
+    # Default database name prefix for auto-generated names
+    _DEFAULT_DB_PREFIX = "mlrun_mm"
 
     def __init__(
         self,
@@ -70,6 +77,28 @@ class TimescaleDBConnector(TSDBConnector):
         super().__init__(project=project)
 
         self.profile = profile
+
+        # Determine the monitoring database name
+        self.database = self._determine_database_name(profile)
+
+        # Update profile to use the determined database name
+        # This ensures the connection uses the correct database
+        if profile.database != self.database:
+            logger.info(
+                "Auto-generated database name for TimescaleDB",
+                original_database=profile.database,
+                database=self.database,
+            )
+            # Create a new profile with the generated database
+            profile = DatastoreProfilePostgreSQL(
+                name=profile.name,
+                user=profile.user,
+                password=profile.password,
+                host=profile.host,
+                port=profile.port,
+                database=self.database,
+            )
+            self.profile = profile
 
         # Create shared connection
         self._connection = TimescaleDBConnection(
@@ -110,6 +139,7 @@ class TimescaleDBConnector(TSDBConnector):
             project=project,
             connection=self._connection,
             pre_aggregate_config=pre_aggregate_config,
+            profile=profile,
         )
 
         self._stream = TimescaleDBStreamProcessor(
@@ -117,6 +147,34 @@ class TimescaleDBConnector(TSDBConnector):
         )
 
         self._pre_aggregate_config = pre_aggregate_config
+
+    def _determine_database_name(self, profile: DatastoreProfilePostgreSQL) -> str:
+        """
+        Determine the database name to use.
+
+        Behavior depends on `mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database`:
+        - When True (default): auto-generate database name using system_id
+        - When False: use the database from the profile as-is
+
+        :param profile: The PostgreSQL profile
+        :return: The database name to use
+        """
+        auto_create = mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database
+
+        if not auto_create:
+            # Use database from profile as-is
+            return profile.database
+
+        # Auto-create mode: generate database name using system_id
+        if not mlrun.mlconf.system_id:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "system_id is not set in mlrun.mlconf. "
+                "TimescaleDBConnector requires system_id for auto-generating database name "
+                "when auto_create_database is enabled. "
+                "Either set system_id in MLRun configuration or disable auto_create_database "
+                "and provide an explicit database in the PostgreSQL connection string."
+            )
+        return f"{self._DEFAULT_DB_PREFIX}_{mlrun.mlconf.system_id}"
 
     # Delegate operations methods
     def create_tables(self, *args, **kwargs) -> None:
@@ -179,11 +237,9 @@ class TimescaleDBConnector(TSDBConnector):
     def get_metrics_metadata(self, *args, **kwargs):
         return self._metrics_queries.get_metrics_metadata(*args, **kwargs)
 
-    async def add_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        project: str,
-        run_in_threadpool: Callable,
         metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
@@ -191,17 +247,10 @@ class TimescaleDBConnector(TSDBConnector):
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
-        :param project:                The name of the project (unused - uses self.project from constructor).
-        :param run_in_threadpool:      A function that runs another function in a thread pool
-                                       (unused - TimescaleDB operations are synchronous).
         :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
-        # Note: project and run_in_threadpool parameters are part of the interface
-        # but unused in TimescaleDB implementation (uses self.project, synchronous operations)
-        del project, run_in_threadpool  # Suppress unused variable warnings
-
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
 
         # Access methods directly from the respective query classes
@@ -297,6 +346,65 @@ class TimescaleDBConnector(TSDBConnector):
 
     def read_predictions(self, *args, **kwargs):
         return self._predictions_queries.read_predictions(*args, **kwargs)
+
+    def _get_records(
+        self,
+        table: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        endpoint_id: Optional[str] = None,
+        columns: Optional[list[str]] = None,
+        timestamp_column: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Get raw records from TimescaleDB as pandas DataFrame.
+
+        This method provides direct access to raw table data.
+
+        :param table: Table name - use TimescaleDBTables enum (METRICS, APP_RESULTS, or PREDICTIONS)
+        :param start: Start time for the query
+        :param end: End time for the query
+        :param endpoint_id: Optional endpoint ID filter (None = all endpoints)
+        :param columns: Optional list of specific columns to return (None = all columns)
+        :param timestamp_column: Optional timestamp column to use for time filtering (None = use table's default)
+        :return: Raw pandas DataFrame with all matching records
+        """
+        if table == mm_schemas.TimescaleDBTables.METRICS:
+            df = self._metrics_queries.read_metrics_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all metrics
+                timestamp_column=timestamp_column,
+            )
+        elif table == mm_schemas.TimescaleDBTables.APP_RESULTS:
+            df = self._results_queries.read_results_data_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=None,  # Get all results
+                with_result_extra_data=True,
+                timestamp_column=timestamp_column,
+            )
+        elif table == mm_schemas.TimescaleDBTables.PREDICTIONS:
+            df = self._predictions_queries.read_predictions_impl(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                columns=columns,
+                timestamp_column=timestamp_column,
+            )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid table '{table}'. Must be METRICS, APP_RESULTS, or PREDICTIONS from TimescaleDBTables enum"
+            )
+
+        if columns is not None and not df.empty:
+            # Filter to requested columns if specified
+            available_columns = [col for col in columns if col in df.columns]
+            df = df[available_columns]
+
+        return df
 
     def get_last_request(self, *args, **kwargs):
         return self._predictions_queries.get_last_request(*args, **kwargs)

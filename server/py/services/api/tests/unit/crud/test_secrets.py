@@ -25,6 +25,7 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.runtimes.base
 
 import services.api.crud
 import services.api.tests.unit.conftest

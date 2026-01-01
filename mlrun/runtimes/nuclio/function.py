@@ -19,6 +19,7 @@ import typing
 import warnings
 from datetime import datetime
 from time import sleep
+from urllib.parse import urlparse, urlunparse
 
 import inflection
 import nuclio
@@ -36,7 +37,7 @@ import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils
 import mlrun.utils.helpers
-from mlrun.common.schemas import AuthInfo
+from mlrun.common.schemas import AuthInfo, BatchingSpec
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
 from mlrun.lists import RunList
@@ -113,6 +114,7 @@ class NuclioSpec(KubeResourceSpec):
         "service_type",
         "add_templated_ingress_host_mode",
         "disable_default_http_trigger",
+        "auth",
     ]
 
     def __init__(
@@ -160,6 +162,7 @@ class NuclioSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        auth=None,
     ):
         super().__init__(
             command=command,
@@ -216,6 +219,7 @@ class NuclioSpec(KubeResourceSpec):
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
+        self.auth = auth or {}
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -300,29 +304,16 @@ class RemoteRuntime(KubeResource):
             return {}
 
         raw_config = copy.deepcopy(self.spec.config)
-
         for key, value in self.spec.config.items():
             if key.startswith("spec.triggers"):
-                trigger_name = key.split(".")[-1]
-
-                for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
-                    # Handle nested keys
-                    nested_keys = path.split("/")
-                    target = value
-                    for sub_key in nested_keys[:-1]:
-                        target = target.get(sub_key, {})
-
-                    last_key = nested_keys[-1]
-                    if last_key in target:
-                        sensitive_field = target[last_key]
-                        if sensitive_field.startswith(
-                            mlrun.model.Credentials.secret_reference_prefix
-                        ):
-                            # already masked
-                            continue
-                        target[last_key] = (
-                            f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
-                        )
+                # support both types depending on the way how it was set
+                # sometimes trigger name is in the same key, sometimes it's nested in the value dict
+                if key == "spec.triggers":
+                    for trigger_name, trigger_config in value.items():
+                        self._mask_trigger_config(trigger_name, trigger_config)
+                else:
+                    trigger_name = key.split(".")[-1]
+                    self._mask_trigger_config(trigger_name, value)
 
         return raw_config
 
@@ -475,6 +466,7 @@ class RemoteRuntime(KubeResource):
         trigger_name: typing.Optional[str] = None,
         annotations: typing.Optional[typing.Mapping[str, str]] = None,
         extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
+        batching_spec: typing.Optional[BatchingSpec] = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -496,6 +488,8 @@ class RemoteRuntime(KubeResource):
         :param trigger_name:    alternative nuclio trigger name
         :param annotations:     key/value dict of ingress annotations
         :param extra_attributes: key/value dict of extra nuclio trigger attributes
+        :param batching_spec: BatchingSpec object that defines batching configuration.
+            By default, batching is disabled.
         :return: function object (self)
         """
         if self.disable_default_http_trigger:
@@ -531,6 +525,16 @@ class RemoteRuntime(KubeResource):
             trigger._struct["workerAvailabilityTimeoutMilliseconds"] = (
                 worker_timeout
             ) * 1000
+
+        if batching_spec and (
+            batching_config := batching_spec.get_nuclio_batch_config()
+        ):
+            if not validate_nuclio_version_compatibility("1.14.0"):
+                raise mlrun.errors.MLRunValueError(
+                    "Batching is only supported on Nuclio 1.14.0 and higher"
+                )
+            trigger._struct["batch"] = batching_config
+
         self.add_trigger(trigger_name or "http", trigger)
         return self
 
@@ -654,8 +658,6 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
-
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
 
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()
@@ -845,9 +847,11 @@ class RemoteRuntime(KubeResource):
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
+        active_project = self.metadata.project or mlconf.active_project
         runtime_env = {
-            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: self.metadata.project
-            or mlconf.active_project,
+            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: active_project,
+            # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
+            "MLRUN_DEFAULT_PROJECT": active_project,
         }
         if mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url
@@ -941,7 +945,7 @@ class RemoteRuntime(KubeResource):
     def invoke(
         self,
         path: str,
-        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
+        body: typing.Optional[typing.Union[str, bytes, dict, list]] = None,
         method: typing.Optional[str] = None,
         headers: typing.Optional[dict] = None,
         force_external_address: bool = False,
@@ -996,7 +1000,7 @@ class RemoteRuntime(KubeResource):
         if not http_client_kwargs:
             http_client_kwargs = {}
         if body:
-            if isinstance(body, (str, bytes)):
+            if isinstance(body, str | bytes):
                 http_client_kwargs["data"] = body
             else:
                 http_client_kwargs["json"] = body
@@ -1070,6 +1074,20 @@ class RemoteRuntime(KubeResource):
             sidecar["resources"] = self.spec.resources
             self.spec.resources = None
 
+    def set_probe(self, *args, **kwargs):
+        """Set a Kubernetes probe configuration for the sidecar container
+
+        This method is only available for ApplicationRuntime.
+        """
+        raise ValueError("set_probe() is only supported for ApplicationRuntime. ")
+
+    def delete_probe(self, *args, **kwargs):
+        """Delete a Kubernetes probe configuration from the sidecar container
+
+        This method is only available for ApplicationRuntime.
+        """
+        raise ValueError("delete_probe() is only supported for ApplicationRuntime.")
+
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])
         sidecars = self.spec.config["spec.sidecars"]
@@ -1079,6 +1097,79 @@ class RemoteRuntime(KubeResource):
 
         sidecars.append({"name": name})
         return sidecars[-1]
+
+    def _mask_trigger_config(self, trigger_name, trigger_config):
+        self._mask_rabbitmq_url(trigger=trigger_config)
+        for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
+            # Handle nested keys
+            nested_keys = path.split("/")
+            target = trigger_config
+            for sub_key in nested_keys[:-1]:
+                target = target.get(sub_key, {})
+
+            last_key = nested_keys[-1]
+            if last_key in target:
+                sensitive_field = target[last_key]
+                if sensitive_field.startswith(
+                    mlrun.model.Credentials.secret_reference_prefix
+                ):
+                    # already masked
+                    continue
+                target[last_key] = (
+                    f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
+                )
+
+    @staticmethod
+    def _mask_rabbitmq_url(trigger):
+        """
+        Extract credentials from RabbitMQ URL and move them to attributes dict.
+        This ensures credentials are not exposed in the URL.
+        """
+
+        # supported only for nuclio higher than 1.14.15
+        if not validate_nuclio_version_compatibility("1.14.15"):
+            return
+        if not isinstance(trigger, dict):
+            return
+
+        if trigger.get("kind") != "rabbit-mq":
+            return
+
+        url = trigger.get("url")
+        if not url or not isinstance(url, str):
+            return
+
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            raise mlrun.errors.MLRunValueError("invalid URL format")
+
+        # Only process if credentials are present in the URL
+        if not (parsed.username or parsed.password):
+            return
+
+        # Extract credentials
+        username = parsed.username or ""
+        password = parsed.password or ""
+
+        # Reconstruct clean URL
+        hostname = parsed.hostname or ""
+        netloc = f"{hostname}:{parsed.port}" if parsed.port else hostname
+
+        clean_url = urlunparse(
+            (
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment,
+            )
+        )
+
+        # Update trigger safely
+        trigger["url"] = clean_url
+        trigger.update({"username": username, "password": password})
 
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:

@@ -161,9 +161,7 @@ class DBBackupUtil:
                 )
 
     def _generate_backup_file_name(self) -> str:
-        return datetime.datetime.now(tz=datetime.timezone.utc).strftime(
-            self._backup_file_format
-        )
+        return datetime.datetime.now(tz=datetime.UTC).strftime(self._backup_file_format)
 
     def _get_backup_file_path(
         self, backup_file_name: str

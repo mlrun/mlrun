@@ -14,7 +14,7 @@
 
 import json
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from sys import executable
 
 import pandas as pd
@@ -29,6 +29,7 @@ import mlrun.feature_store.common
 import mlrun.model
 import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
+from mlrun.serving import ModelRunnerStep
 
 
 def exec_cli(args, action="run"):
@@ -45,7 +46,6 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     image: str = "mlrun/mlrun"
 
-    @pytest.mark.smoke
     def test_deploy_function(self):
         code_path = str(self.assets_path / "kubejob_function.py")
 
@@ -387,7 +387,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert run.output("return") == '{"x": 99}'
 
     def test_list_runs_with_end_time(self):
-        beginning_time = datetime.now(timezone.utc)
+        beginning_time = datetime.now(UTC)
 
         sleep_func = mlrun.code_to_function(
             "sleep-function",
@@ -459,7 +459,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert len(runs) == 1
 
         # list failed runs from now, should not return any
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         runs = mlrun.get_run_db().list_runs(
             project=self.project_name,
             end_time_from=now,
@@ -697,17 +697,13 @@ def print_df(df):
     )
     @pytest.mark.parametrize("local", [True, False])
     def test_job_from_serving_with_mrs(self, execution_mechanism: str, local: bool):
-        import mlrun.serving.states
-
         serving_func_obj = self.project.set_function(
             func=str(self.assets_path / "function_with_model.py"),
             name="srv_fn",
             kind="serving",
             image=self.image,
         )
-        mode_runner_obj = mlrun.serving.states.ModelRunnerStep(
-            name="model_runner_step_name"
-        )
+        mode_runner_obj = ModelRunnerStep(name="model_runner_step_name")
         mode_runner_obj.add_model(
             endpoint_name="my-endpoint",
             model_class="DummyModel",
@@ -734,6 +730,51 @@ def print_df(df):
         assert run_object.status.results == {
             "num_rows": 1,
         }
+        assert run_object.artifact("prediction").as_df().to_dict(orient="records") == [
+            {"x": "a", "y": 1, "extra": 123}
+        ]
+        assert run_object.artifact("prediction_my-endpoint") is None
+
+    def test_job_from_serving_with_multiple_mrs(self):
+        serving_func_obj = self.project.set_function(
+            func=str(self.assets_path / "function_with_model.py"),
+            name="srv_fn",
+            kind="serving",
+            image=self.image,
+        )
+        mode_runner_obj = ModelRunnerStep(name="model_runner_step_name")
+        mode_runner_obj.add_model(
+            endpoint_name="my-endpoint",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+        )
+        mode_runner_obj.add_model(
+            endpoint_name="my-other-endpoint",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+        )
+        graph_obj = serving_func_obj.set_topology("flow", engine="async")
+        graph_obj.to(mode_runner_obj).respond()
+        job = serving_func_obj.to_job()
+        local_input_path = str(self.assets_path / "in.csv")
+        input_path = local_input_path
+        inputs = {"data": input_path}
+        run_object = self.project.run_function(job, inputs=inputs, local=True)
+        assert run_object.status.results == {
+            "num_rows": 1,
+        }
+        assert run_object.artifact("prediction").as_df().to_dict(orient="records") == [
+            {
+                "my-endpoint": {"extra": 123, "x": "a", "y": 1},
+                "my-other-endpoint": {"extra": 123, "x": "a", "y": 1},
+            }
+        ]
+        assert run_object.artifact("prediction_my-endpoint").as_df().to_dict(
+            orient="records"
+        ) == [{"x": "a", "y": 1, "extra": 123}]
+        assert run_object.artifact("prediction_my-other-endpoint").as_df().to_dict(
+            orient="records"
+        ) == [{"x": "a", "y": 1, "extra": 123}]
 
     @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("deploy_original", [True, False])

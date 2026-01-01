@@ -15,8 +15,8 @@
 import os
 import time
 
+import kfp.dsl as dsl
 import pytest
-from kfp import dsl
 
 import mlrun
 import mlrun.runtimes.mounts

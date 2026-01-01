@@ -14,13 +14,15 @@
 import json
 import os
 from ast import literal_eval
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import mlrun.auth.utils
 import mlrun.utils.helpers
+from mlrun.config import is_running_as_api
 
-from .utils import AzureVaultStore, list2dict, logger
+from .utils import AzureVaultStore, list2dict
 
 
 class SecretsStore:
@@ -52,6 +54,11 @@ class SecretsStore:
                 self._secrets[prefix + k] = str(v)
 
         elif kind == "file":
+            # Ensure files cannot be open from inside the API
+            if is_running_as_api():
+                raise RuntimeError(
+                    "add_source of kind 'file' is not allowed from the API"
+                )
             with open(source) as fp:
                 lines = fp.read().splitlines()
                 secrets_dict = list2dict(lines)
@@ -195,7 +202,7 @@ def get_secret_or_env(
         key = f"{prefix}_{key}"
 
     if secret_provider:
-        if isinstance(secret_provider, (dict, SecretsStore)):
+        if isinstance(secret_provider, dict | SecretsStore):
             secret_value = secret_provider.get(key)
         else:
             secret_value = secret_provider(key)
@@ -274,12 +281,9 @@ def sync_secret_tokens() -> None:
 
     secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
 
+    # The import is needed here to prevent a circular import, since this method is called from the mlrun.db connection.
+    from mlrun.db import get_run_db
+
     # The log_warning=False flag ensures the SDK doesn’t log unnecessary warnings about local file updates, since
     # this method reads from the file, not updates it.
-    response = mlrun.get_run_db().store_secret_tokens(secret_tokens, log_warning=False)
-
-    if response.updated_tokens:
-        logger.warning(
-            "Some tokens were updated on the backend due to newer expiration found locally",
-            updated_tokens=response.updated_tokens,
-        )
+    get_run_db().store_secret_tokens(secret_tokens, log_warning=False)

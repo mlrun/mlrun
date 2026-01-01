@@ -190,12 +190,12 @@ def validate_additional_filters(additional_filters):
     for filter_tuple in additional_filters:
         if filter_tuple == () or filter_tuple == []:
             continue
-        if not isinstance(filter_tuple, (list, tuple)):
+        if not isinstance(filter_tuple, list | tuple):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"mlrun supports additional_filters only as a list of tuples."
                 f" Current additional_filters: {additional_filters}"
             )
-        if isinstance(filter_tuple[0], (list, tuple)):
+        if isinstance(filter_tuple[0], list | tuple):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"additional_filters does not support nested list inside filter tuples except in -in- logic."
                 f" Current filter_tuple: {filter_tuple}."
@@ -208,7 +208,7 @@ def validate_additional_filters(additional_filters):
         col_name, op, value = filter_tuple
         if isinstance(value, float) and math.isnan(value):
             raise mlrun.errors.MLRunInvalidArgumentError(nan_error_message)
-        elif isinstance(value, (list, tuple)):
+        elif isinstance(value, list | tuple):
             for sub_value in value:
                 if isinstance(sub_value, float) and math.isnan(sub_value):
                     raise mlrun.errors.MLRunInvalidArgumentError(nan_error_message)

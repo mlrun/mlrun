@@ -46,6 +46,7 @@ Table of Contents
    concepts/alerts-notifications
    concepts/runs-workflows
    serving/serving-graph
+   runtimes/load-from-hub
    feature-store/feature-store
      
 .. toctree::

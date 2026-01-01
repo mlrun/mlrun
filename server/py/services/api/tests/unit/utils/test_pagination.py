@@ -25,6 +25,7 @@ from mlrun.utils import logger
 import framework.db.sqldb.models
 import framework.utils.pagination
 import framework.utils.pagination_cache
+import framework.utils.singletons.db
 
 
 def paginated_method(
@@ -44,13 +45,6 @@ def paginated_method(
 
 @pytest.fixture()
 def mock_paginated_method(monkeypatch):
-    class Schema:
-        def __init__(self, **kwargs):
-            self._dict = kwargs
-
-        def dict(self):
-            return self._dict
-
     monkeypatch.setattr(
         framework.utils.pagination.PaginatedMethods,
         "_method_map",
@@ -243,6 +237,70 @@ async def test_paginate_other_users_token(
 
 
 @pytest.mark.asyncio
+async def test_paginate_call_get_token_once(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+    monkeypatch,
+):
+    """
+    Test that the paginate_request calls get_paginated_query_cache_record only once per request.
+    """
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    page_size = 3
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
+
+    # Get the DB instance to mock its method
+    db_instance = framework.utils.singletons.db.get_db()
+    original_get_paginated_query_cache_record = (
+        db_instance.get_paginated_query_cache_record
+    )
+    call_count = 0
+
+    def mocked_get_paginated_query_cache_record(session, key, for_update=False):
+        nonlocal call_count
+        call_count += 1
+        return original_get_paginated_query_cache_record(session, key, for_update)
+
+    # Patch the DB instance's method to track calls
+    monkeypatch.setattr(
+        db_instance,
+        "get_paginated_query_cache_record",
+        mocked_get_paginated_query_cache_record,
+    )
+
+    paginator = framework.utils.pagination.Paginator()
+
+    logger.info("Requesting first page")
+    # First request with token=None calls get_paginated_query_cache_record once
+    # when creating/checking the pagination cache record
+    response, pagination_info = await paginator.paginate_request(
+        db, paginated_method, auth_info, None, 1, page_size, **method_kwargs
+    )
+    assert (
+        call_count == 1
+    ), "First request with token=None should call get_paginated_query_cache_record once when creating cache record"
+
+    logger.info("Requesting second page")
+    # Second request with token should call get_paginated_query_cache_record once more
+    await paginator.paginate_request(
+        db, paginated_method, auth_info, pagination_info.page_token
+    )
+    assert (
+        call_count == 2
+    ), "Second request with token should call get_paginated_query_cache_record once"
+
+    logger.info("Requesting third page")
+    # Third request with token should call get_paginated_query_cache_record once more
+    await paginator.paginate_request(
+        db, paginated_method, auth_info, pagination_info.page_token
+    )
+    assert (
+        call_count == 3
+    ), "Third request with token should call get_paginated_query_cache_record once more"
+
+
+@pytest.mark.asyncio
 async def test_paginate_no_auth(
     mock_paginated_method,
     cleanup_pagination_cache_on_teardown,
@@ -259,6 +317,7 @@ async def test_paginate_no_auth(
 
     paginator = framework.utils.pagination.Paginator()
 
+    # no-user request
     logger.info("Requesting first page")
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, None, None, 1, page_size, **method_kwargs
@@ -279,39 +338,49 @@ async def test_paginate_no_auth(
         )
     )
     _assert_cache_record(cache_record, None, paginated_method, 1, page_size)
+    no_auth_user_token = pagination_info.page_token
 
-    logger.info("Requesting second page with auth info of some user")
+    logger.info(
+        "Requesting second page with auth info of some user, token from no-auth request"
+    )
     auth_info = mlrun.common.schemas.AuthInfo(user_id="any-user")
-    # save token as it will be overridden with None on the last page
-    old_token = pagination_info.page_token
+
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+        # user cannot access a token that was created without auth info
+        await paginator.paginate_request(
+            db,
+            paginated_method,
+            auth_info,
+            no_auth_user_token,
+        )
+
+    logger.info("Requesting first page with auth info of some user")
     response, pagination_info = await paginator.paginate_request(
-        db, paginated_method, auth_info, pagination_info.page_token
+        db, paginated_method, auth_info, None, 1, page_size, **method_kwargs
     )
     _assert_paginated_response(
         response,
         pagination_info,
-        2,
+        1,
         page_size,
-        ["item3", "item4"],
+        ["item0", "item1", "item2"],
         method_kwargs["since"],
-        last_page=True,
+        last_page=False,
     )
 
     logger.info("Checking old db cache record")
     cache_record = (
         framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
-            db, old_token
+            db, no_auth_user_token
         )
     )
     # The request with AuthInfo creates a new cache record, therefore the old one
     # should still be on page 1 and without a user.
-    # The new one should be on page 2 and with the user, however, since it's on the last page,
-    # we don't get a token back to check.
     _assert_cache_record(cache_record, None, paginated_method, 1, page_size)
 
     logger.info("Requesting second page without auth info")
     response, pagination_info = await paginator.paginate_request(
-        db, paginated_method, None, old_token
+        db, paginated_method, None, no_auth_user_token
     )
     _assert_paginated_response(
         response,
@@ -326,7 +395,7 @@ async def test_paginate_no_auth(
     logger.info("Checking old db cache record again")
     cache_record = (
         framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
-            db, old_token
+            db, no_auth_user_token
         )
     )
     _assert_cache_record(cache_record, None, paginated_method, 2, page_size)
@@ -390,7 +459,7 @@ async def test_pagination_not_supported(
     with pytest.raises(NotImplementedError):
         await paginator.paginate_request(
             db,
-            lambda: paginated_method(5, 1, 3),
+            lambda: None,
             auth_info,
             token=None,
             page=1,
@@ -731,16 +800,26 @@ def _assert_paginated_response(
     since,
     last_page=False,
 ):
-    assert len(response) == len(expected_items)
+    assert len(response) == len(
+        expected_items
+    ), f"Expected {len(expected_items)} items, got {len(response)}"
     for i, item in enumerate(expected_items):
-        assert response[i]["name"] == item
-        assert response[i]["since"] == since
+        assert (
+            response[i]["name"] == item
+        ), f"Expected item name {item}, got {response[i]['name']}"
+        assert (
+            response[i]["since"] == since
+        ), f"Expected since {since}, got {response[i]['since']}"
     if not last_page:
         assert pagination_info.page_token is not None
     else:
         assert pagination_info.page_token is None
-    assert pagination_info.page == page
-    assert pagination_info.page_size == page_size
+    assert (
+        pagination_info.page == page
+    ), f"Expected page {page}, got {pagination_info.page}"
+    assert (
+        pagination_info.page_size == page_size
+    ), f"Expected page size {page_size}, got {pagination_info.page_size}"
 
 
 def _assert_cache_record(
@@ -750,8 +829,14 @@ def _assert_cache_record(
     current_page: int,
     page_size: int,
 ):
-    assert cache_record is not None
-    assert cache_record.user == user
-    assert cache_record.function == method.__name__
-    assert cache_record.current_page == current_page
-    assert cache_record.page_size == page_size
+    assert cache_record is not None, "Cache record should not be None"
+    assert cache_record.user == user, f"Expected user {user}, got {cache_record.user}"
+    assert (
+        cache_record.function == method.__name__
+    ), f"Expected function {method.__name__}, got {cache_record.function}"
+    assert (
+        cache_record.current_page == current_page
+    ), f"Expected current page {current_page}, got {cache_record.current_page}"
+    assert (
+        cache_record.page_size == page_size
+    ), f"Expected page size {page_size}, got {cache_record.page_size}"

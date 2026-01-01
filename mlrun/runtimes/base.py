@@ -16,12 +16,14 @@ import http
 import re
 import typing
 import warnings
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import requests.exceptions
 from nuclio.build import mlrun_footer
 
+import mlrun.auth.utils
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
@@ -154,8 +156,6 @@ class BaseRuntime(ModelObj):
     _default_fields_to_strip = ModelObj._default_fields_to_strip + [
         "status",  # Function status describes the state rather than configuration
     ]
-    # TODO: Remove this once we implement secret token mounting in jobs (ML-11292)
-    _default_token_name = "default"
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -396,8 +396,6 @@ class BaseRuntime(ModelObj):
             )
         output_path = output_path or out_path or artifact_path
 
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
-
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )
@@ -463,21 +461,7 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
 
-        if config.is_iguazio_v4_mode():
-            if auth_info and auth_info.username:
-                secret = self._get_db().get_secret_token(
-                    token_name=self._default_token_name,
-                    username=auth_info.username,
-                )
-                runtime_env["MLRUN_AUTH_OFFLINE_TOKEN"] = secret.token
-
-            runtime_env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
-            runtime_env["MLRUN_AUTH_TOKEN_ENDPOINT"] = (
-                config.iguazio_api_url + "/api/v1/refresh-access-token"
-            )
-            runtime_env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
-                config.iguazio_api_ssl_verify
-            ).lower()
+        mlrun.auth.utils.enrich_auth_env(runtime_env)
 
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
@@ -970,6 +954,35 @@ class BaseRuntime(ModelObj):
                         if "default" in p:
                             line += f", default={p['default']}"
                         print("    " + line)
+
+    def remove_auth_secret_volumes(self):
+        secret_name_prefix = (
+            mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+                hashed_access_key=""
+            )
+        )
+        volumes = self.spec.volumes or []
+        mounts = self.spec.volume_mounts or []
+
+        volumes_to_remove = set()
+
+        # Identify volumes to remove
+        for vol in volumes:
+            secret_name = mlrun.utils.get_in(vol, "secret.secretName", "")
+
+            # Pattern of auth secret volumes
+            if secret_name.startswith(secret_name_prefix):
+                volumes_to_remove.add(vol["name"])
+
+        # Filter out only the matched volumes
+        self.spec.volumes = [
+            volume for volume in volumes if volume["name"] not in volumes_to_remove
+        ]
+
+        # Filter out matching mounts
+        self.spec.volume_mounts = [
+            mount for mount in mounts if mount["name"] not in volumes_to_remove
+        ]
 
     def skip_image_enrichment(self):
         return False

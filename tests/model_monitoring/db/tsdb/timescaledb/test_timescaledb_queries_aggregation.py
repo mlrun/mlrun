@@ -14,7 +14,7 @@
 
 import time
 import unittest.mock
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
@@ -538,10 +538,9 @@ class TestLatestMetricsCalculation:
         )  # DISTINCT ON (result_name) returns 1 record for 'drift_result'
 
         # Verify the exact expected result (latest by timestamp: endpoint_3 at 12:15:00)
-        from datetime import timezone
 
         expected_result = mm_schemas.ApplicationResultRecord(
-            time=datetime(2024, 1, 15, 12, 15, 0, tzinfo=timezone.utc),
+            time=datetime(2024, 1, 15, 12, 15, 0, tzinfo=UTC),
             value=0.6,
             kind=mm_schemas.ResultKindApp.concept_drift,
             status=mm_schemas.ResultStatusApp.potential_detection,

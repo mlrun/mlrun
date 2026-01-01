@@ -15,8 +15,9 @@
 import datetime
 import functools
 import os
+from collections.abc import Callable
 from fnmatch import fnmatchcase
-from typing import TYPE_CHECKING, Callable, Optional, TypedDict, Union, cast
+from typing import TYPE_CHECKING, Optional, TypedDict, Union, cast
 
 import numpy as np
 import pandas as pd

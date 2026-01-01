@@ -271,6 +271,9 @@ class MLRunPatcher:
         targets: list[str],
         image_tag: str,
     ) -> dict[str, str]:
+        mlrun_version = image_tag
+        image_tag = image_tag.replace("+", "-")
+
         for target in targets:
             logger.info(f"Building mlrun docker images: {target}:{image_tag}")
 
@@ -281,7 +284,7 @@ class MLRunPatcher:
         }
         if not self._no_build:
             env = {
-                "MLRUN_VERSION": image_tag,
+                "MLRUN_VERSION": mlrun_version,
                 "MLRUN_DOCKER_REPO": mlrun_docker_registry,
             }
 

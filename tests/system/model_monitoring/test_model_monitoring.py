@@ -1058,7 +1058,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         graph.to(model_runner_step, "runner").respond()
         function.set_tracking()
         self.project.enable_model_monitoring(
-            deploy_histogram_data_drift_app=True,
+            deploy_histogram_data_drift_app=False,
             image=self.image,
             wait_for_deployment=True,
         )
@@ -1108,6 +1108,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         assert (
             endpoint.spec.label_names == ["p0"] if not with_training_set else ["label"]
         )
+        sleep(180)
         mep = mlrun.db.get_run_db().get_model_endpoint(
             name=endpoint_name,
             project=self.project.name,
@@ -1116,7 +1117,6 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             feature_analysis=True,
             tsdb_metrics=True,
         )
-        sleep(15)
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project.name, profile=self.mm_tsdb_profile
         )

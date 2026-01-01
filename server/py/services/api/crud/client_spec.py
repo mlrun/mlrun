@@ -34,6 +34,18 @@ class ClientSpec(
             framework.utils.runtimes.mpijob.resolve_mpijob_crd_version()
         )
 
+        oauth_internal_token_endpoint = None
+        oauth_external_token_endpoint = None
+        if config.is_iguazio_v4_mode():
+            oauth_external_token_endpoint = self._join_url(
+                config.iguazio_api_url_ingress,
+                config.httpdb.authentication.iguazio.authentication_endpoint,
+            )
+            oauth_internal_token_endpoint = self._join_url(
+                config.iguazio_api_url,
+                config.httpdb.authentication.iguazio.authentication_endpoint,
+            )
+
         return mlrun.common.schemas.ClientSpec(
             version=config.version,
             namespace=config.namespace,
@@ -124,6 +136,8 @@ class ClientSpec(
             authentication_mode=self._get_config_value_if_not_default(
                 "httpdb.authentication.mode"
             ),
+            oauth_internal_token_endpoint=oauth_internal_token_endpoint,
+            oauth_external_token_endpoint=oauth_external_token_endpoint,
         )
 
     @staticmethod

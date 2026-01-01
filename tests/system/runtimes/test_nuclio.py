@@ -21,7 +21,6 @@ import pandas as pd
 import pytest
 import requests
 import v3io
-from distributed.metrics import monotonic
 from storey import MapClass
 from v3io.dataplane import RaiseForStatus
 
@@ -651,13 +650,13 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         )
         function.spec.function_handler = "main:async_handler"
 
-        function.with_http(async_spec=AsyncSpec(enabled=True, max_connections=900))
+        function.with_http(async_spec=AsyncSpec(enabled=True, max_connections=200))
 
         self._logger.debug("Deploying nuclio function")
         function.deploy()
 
         self._logger.debug("Triggering nuclio function")
-        start = monotonic()
+        start = time.time()
         with ThreadPoolExecutor(max_workers=100) as executor:
             # Submit tasks
             futures = [
@@ -666,7 +665,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             # Retrieve results as they complete
             for future in as_completed(futures):
                 future.result()
-        end = monotonic()
+        end = time.time()
         timing = end - start
         assert (
             timing < 7

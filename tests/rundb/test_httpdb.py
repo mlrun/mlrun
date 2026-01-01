@@ -27,7 +27,6 @@ from socket import socket
 from subprocess import DEVNULL, PIPE, Popen, run
 from sys import executable
 from tempfile import mkdtemp
-from typing import Optional
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -485,6 +484,11 @@ def test_iguazio_v4_oauth_config_is_applied_before_token_provider_init(
         "oauth_external_token_endpoint": external_token_endpoint,
         "oauth_internal_token_endpoint": internal_token_endpoint,
     }
+
+    # Ensure deterministic endpoint selection (external) regardless of env/CI kubernetes detection
+    monkeypatch.setattr(
+        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: False
+    )
 
     with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):
         with patch.object(HTTPRunDB, "api_call") as api_call:
@@ -1418,7 +1422,7 @@ def _retrieve_all_items_with_pagination(
     return items
 
 
-def _generate_project_and_artifact(project: str = "newproj", tag: Optional[str] = None):
+def _generate_project_and_artifact(project: str = "newproj", tag: str | None = None):
     proj_obj = mlrun.new_project(project)
 
     logged_artifact = proj_obj.log_artifact(

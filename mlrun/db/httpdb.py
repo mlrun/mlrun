@@ -643,7 +643,7 @@ class HTTPRunDB(RunDBInterface):
             # Iguazio V4 OAuth token config auto-initialization
             if (
                 not config.auth_token_endpoint
-                and config.httpdb.authentication.mode
+                and server_cfg.get("authentication_mode")
                 == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
             ):
                 # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
@@ -655,6 +655,8 @@ class HTTPRunDB(RunDBInterface):
                     config.auth_token_endpoint = server_cfg.get(
                         "oauth_external_token_endpoint"
                     )
+
+                config.auth_with_oauth_token.enabled = True
 
         except Exception as exc:
             logger.warning(

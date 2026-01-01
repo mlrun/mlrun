@@ -13,6 +13,7 @@
 # limitations under the License.
 import enum
 import http
+import os
 import re
 import time
 import traceback
@@ -642,8 +643,7 @@ class HTTPRunDB(RunDBInterface):
 
             # Iguazio V4 OAuth token config auto-initialization
             if (
-                not config.auth_token_endpoint
-                and config.httpdb.authentication.mode
+                config.httpdb.authentication.mode
                 == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
             ):
                 # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
@@ -657,6 +657,14 @@ class HTTPRunDB(RunDBInterface):
                     )
 
                 config.auth_with_oauth_token.enabled = True
+
+                # TODO: change to os.getenv("MLRUN_RUNTIME_KIND") when https://github.com/mlrun/mlrun/pull/9121
+                # is merged. The reason we can't do it for all k8s pods is dev-envs like jupyter.
+                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+                    config.auth_with_oauth_token.token_file = os.path.join(
+                        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                    )
 
         except Exception as exc:
             logger.warning(

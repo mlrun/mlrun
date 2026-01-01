@@ -17,7 +17,6 @@ import typing
 
 import yaml
 
-import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.helpers
 from mlrun.config import config as mlconf
@@ -313,30 +312,3 @@ def translate_secret_tokens(
                 raise_on_error,
             )
     return tokens
-
-
-def enrich_auth_env(
-    env: dict,
-):
-    """
-    Enrich the given environment dictionary with authentication information.
-
-    This function adds authentication-related environment variables to the provided
-    environment dictionary based on the given AuthInfo object.
-
-    :param env: The environment dictionary to enrich.
-    """
-
-    if mlrun.mlconf.is_iguazio_v4_mode():
-        env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
-        env["MLRUN_AUTH_TOKEN_ENDPOINT"] = os.path.join(
-            mlrun.mlconf.iguazio_api_url,
-            mlrun.mlconf.httpdb.authentication.iguazio.authentication_endpoint,
-        )
-        env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
-            mlrun.mlconf.iguazio_api_ssl_verify
-        ).lower()
-        env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] = os.path.join(
-            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
-        )

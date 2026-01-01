@@ -1072,7 +1072,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             ],
         )
         with pytest.raises(
-            mlrun.errors.ModelRunnerError,
+            RuntimeError,
             match=".*X has 3 features, but RandomForestClassifier is expecting 4 features as input*",
         ):
             function.invoke(

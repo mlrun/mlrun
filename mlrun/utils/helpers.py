@@ -2578,3 +2578,18 @@ def raise_or_log_error(message: str, raise_on_error: bool = True):
     if raise_on_error:
         raise mlrun.errors.MLRunRuntimeError(message)
     logger.warning(message)
+
+
+def is_async_serving_graph(function_spec) -> bool:
+    """Check if the serving graph contains any async nodes."""
+    if not function_spec:
+        return False
+
+    if (
+        hasattr(function_spec, "graph")
+        and hasattr(function_spec.graph, "engine")
+        and function_spec.graph.engine == "async"
+    ):
+        return True
+
+    return False

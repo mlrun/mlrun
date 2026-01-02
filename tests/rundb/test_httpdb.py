@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import codecs
 import datetime
+import json
 import sys
 import time
 import typing
@@ -25,7 +27,7 @@ from socket import socket
 from subprocess import DEVNULL, PIPE, Popen, run
 from sys import executable
 from tempfile import mkdtemp
-from typing import Optional
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import deepdiff
@@ -42,7 +44,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
-from mlrun.auth.providers import StaticTokenProvider
+from mlrun.auth.providers import IGTokenProvider, StaticTokenProvider
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -195,6 +197,16 @@ def create_server(request):
         yield create
     finally:
         cleanup()
+
+
+@pytest.fixture
+def token_file(tmp_path):
+    token_file = tmp_path / "token.yaml"
+    token_file.write_text(
+        json.dumps({"secretTokens": [{"name": "default", "token": "jwt_token"}]})
+    )
+    mlrun.mlconf.auth_with_oauth_token.token_file = token_file
+    return token_file
 
 
 def test_log(create_server):
@@ -448,6 +460,102 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         db.trigger_migrations()
+
+
+def _encode_jwt(payload: dict) -> str:
+    def _b64(obj: dict) -> str:
+        raw = json.dumps(obj, separators=(",", ":")).encode("utf-8")
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("utf-8")
+
+    header = {"alg": "none", "typ": "JWT"}
+    return f"{_b64(header)}.{_b64(payload)}."
+
+
+def test_iguazio_v4_oauth_config_is_applied_before_token_provider_init(
+    requests_mock: requests_mock_package.Mocker, monkeypatch, token_file
+):
+    mlrun.mlconf.auth_with_client_id.enabled = False
+    mlrun.mlconf.auth_with_oauth_token.enabled = False
+    mlrun.mlconf.auth_token_endpoint = ""
+    external_token_endpoint = "https://dashboard.default-tenant.app.example.com/api/v1/authentication/refresh-access-token"
+    internal_token_endpoint = "https://dashboard.default-tenant.svc.cluster.local/api/v1/authentication/refresh-access-token"
+
+    iat = int(time.time())
+    exp = iat + 3600
+    jwt_token = _encode_jwt({"iat": iat, "exp": exp})
+    requests_mock.post(
+        external_token_endpoint, json={"spec": {"accessToken": jwt_token}}
+    )
+
+    server_cfg = {
+        "version": mlrun.mlconf.version,
+        "authentication_mode": mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value,
+        "oauth_enabled": True,
+        "oauth_external_token_endpoint": external_token_endpoint,
+        "oauth_internal_token_endpoint": internal_token_endpoint,
+    }
+
+    # Ensure deterministic endpoint selection (external) regardless of env/CI kubernetes detection
+    monkeypatch.setattr(
+        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: False
+    )
+
+    with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):
+        with patch.object(HTTPRunDB, "api_call") as api_call:
+            api_response = MagicMock()
+            api_response.json.return_value = server_cfg
+            api_call.return_value = api_response
+
+            db = HTTPRunDB("http://some-server:1919")
+            assert db.token_provider is None
+
+            db.connect()
+            assert mlrun.mlconf.auth_with_oauth_token.enabled is True
+            assert mlrun.mlconf.auth_token_endpoint == external_token_endpoint
+            assert isinstance(db.token_provider, IGTokenProvider)
+            assert db.token_provider.get_token() == jwt_token
+
+
+def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
+    requests_mock: requests_mock_package.Mocker, monkeypatch, token_file
+):
+    mlrun.mlconf.auth_with_client_id.enabled = False
+    mlrun.mlconf.auth_with_oauth_token.enabled = False
+    mlrun.mlconf.auth_token_endpoint = ""
+
+    external_token_endpoint = "https://dashboard.default-tenant.app.example.com/api/v1/authentication/refresh-access-token"
+    internal_token_endpoint = "https://dashboard.default-tenant.svc.cluster.local/api/v1/authentication/refresh-access-token"
+
+    iat = int(time.time())
+    exp = iat + 3600
+    jwt_token = _encode_jwt({"iat": iat, "exp": exp})
+    requests_mock.post(
+        internal_token_endpoint, json={"spec": {"accessToken": jwt_token}}
+    )
+
+    server_cfg = {
+        "version": mlrun.mlconf.version,
+        "authentication_mode": mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value,
+        "oauth_enabled": True,
+        "oauth_external_token_endpoint": external_token_endpoint,
+        "oauth_internal_token_endpoint": internal_token_endpoint,
+    }
+
+    monkeypatch.setattr(
+        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: True
+    )
+
+    with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):
+        with patch.object(HTTPRunDB, "api_call") as api_call:
+            api_response = MagicMock()
+            api_response.json.return_value = server_cfg
+            api_call.return_value = api_response
+
+            db = HTTPRunDB("http://some-server:1919")
+            db.connect()
+            assert mlrun.mlconf.auth_token_endpoint == internal_token_endpoint
+            assert isinstance(db.token_provider, IGTokenProvider)
+            assert db.token_provider.get_token() == jwt_token
 
 
 def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:
@@ -1324,7 +1432,7 @@ def _retrieve_all_items_with_pagination(
     return items
 
 
-def _generate_project_and_artifact(project: str = "newproj", tag: Optional[str] = None):
+def _generate_project_and_artifact(project: str = "newproj", tag: str | None = None):
     proj_obj = mlrun.new_project(project)
 
     logged_artifact = proj_obj.log_artifact(

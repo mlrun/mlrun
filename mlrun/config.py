@@ -85,7 +85,8 @@ default_config = {
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
-    "iguazio_api_url": "",  # the url to iguazio api
+    "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
+    "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
     "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
@@ -428,6 +429,7 @@ default_config = {
             "bearer": {"token": ""},
             "iguazio": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
+                "authentication_endpoint": "api/v1/authentication/refresh-access-token",
             },
         },
         "nuclio": {
@@ -888,6 +890,7 @@ default_config = {
         # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
     },
+    # a runtime computed value. Do not set it manually.
     "auth_token_endpoint": "",
     "services": {
         # The running service name. One of: "api", "alerts"

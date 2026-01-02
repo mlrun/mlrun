@@ -517,7 +517,7 @@ def test_iguazio_v4_oauth_config_is_applied_before_token_provider_init(
 
 
 def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
-    requests_mock: requests_mock_package.Mocker, monkeypatch, token_file
+    requests_mock: requests_mock_package.Mocker, monkeypatch
 ):
     mlrun.mlconf.auth_with_client_id.enabled = False
     mlrun.mlconf.auth_with_oauth_token.enabled = False
@@ -543,6 +543,18 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
 
     monkeypatch.setattr(
         mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: True
+    )
+    monkeypatch.setattr(
+        mlrun.auth.utils,
+        "read_secret_tokens_file",
+        lambda raise_on_error: {
+            "secretTokens": [
+                {
+                    "name": "default",
+                    "token": "offline",
+                }
+            ]
+        },
     )
 
     with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):

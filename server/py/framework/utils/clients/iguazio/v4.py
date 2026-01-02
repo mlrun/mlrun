@@ -189,9 +189,14 @@ class Client(BaseClient, project_follower.Member):
             self._client.set_override_auth_headers(auth_info.request_headers)
             try:
                 # Try to create policies first
-                self.create_project(session, project, auth_info=auth_info)
+                self._client.create_default_project_policies(
+                    project=project.metadata.name
+                )
+                self._logger.info(
+                    "Successfully created default project policies in Iguazio"
+                )
             except httpx.HTTPStatusError as exc:
-                # If policies already exist (409 Conflict), update instead
+                # If policies already exist (409 Conflict), update owner instead
                 if exc.response.status_code == httpx.codes.CONFLICT:
                     self._logger.debug(
                         "Project policies already exist, updating owner instead",

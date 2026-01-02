@@ -181,12 +181,14 @@ class HTTPRunDB(RunDBInterface):
                 timeout=config.auth_with_oauth_token.request_timeout,
             )
         else:
-            _, _, token = mlrun.platforms.add_or_refresh_credentials(
+            username, password, token = mlrun.platforms.add_or_refresh_credentials(
                 self._parsed_url.hostname,
                 self.user,
                 self.password,
                 config.httpdb.token,
             )
+            self.user = username
+            self.password = password
 
             if token:
                 self.token_provider = mlrun.auth.StaticTokenProvider(token)

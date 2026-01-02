@@ -16,6 +16,7 @@ import base64
 import codecs
 import datetime
 import json
+import os
 import sys
 import time
 import typing
@@ -37,6 +38,7 @@ import requests_mock as requests_mock_package
 import mlrun.alerts
 import mlrun.artifacts
 import mlrun.artifacts.base
+import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -568,6 +570,13 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
             assert mlrun.mlconf.auth_token_endpoint == internal_token_endpoint
             assert isinstance(db.token_provider, IGTokenProvider)
             assert db.token_provider.get_token() == jwt_token
+
+            # Verify token_file is set to the expected path when running inside k8s
+            expected_token_file = os.path.join(
+                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+            )
+            assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
 
 
 def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:

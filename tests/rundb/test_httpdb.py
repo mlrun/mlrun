@@ -558,6 +558,68 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
             assert db.token_provider.get_token() == jwt_token
 
 
+def test_init_token_provider_stores_username_and_password_from_add_or_refresh_credentials(
+    monkeypatch,
+):
+    """
+    Test that _init_token_provider stores the username and password returned
+    from add_or_refresh_credentials in self.user and self.password.
+    This ensures credentials are properly propagated for subsequent API calls.
+    """
+    # Disable oauth flows to trigger the add_or_refresh_credentials path
+    monkeypatch.setattr(mlrun.mlconf.auth_with_client_id, "enabled", False)
+    monkeypatch.setattr(mlrun.mlconf.auth_with_oauth_token, "enabled", False)
+    monkeypatch.setattr(mlrun.mlconf.httpdb, "token", "")
+
+    # Mock add_or_refresh_credentials to return specific username and password
+    returned_username = "returned_username"
+    returned_password = "returned_access_key"
+    returned_token = ""
+
+    # _init_token_provider is called during __init__, so we mock before creating the instance
+    with patch(
+        "mlrun.platforms.add_or_refresh_credentials",
+        return_value=(returned_username, returned_password, returned_token),
+    ):
+        db = HTTPRunDB("http://mlrun-api:8080")
+
+        # Verify that user and password are set from add_or_refresh_credentials
+        assert db.user == returned_username
+        assert db.password == returned_password
+        # Since no token was returned, token_provider should be None
+        assert db.token_provider is None
+
+
+def test_init_token_provider_stores_credentials_with_token(monkeypatch):
+    """
+    Test that _init_token_provider stores both credentials and creates
+    a StaticTokenProvider when add_or_refresh_credentials returns a token.
+    """
+    # Disable oauth flows to trigger the add_or_refresh_credentials path
+    monkeypatch.setattr(mlrun.mlconf.auth_with_client_id, "enabled", False)
+    monkeypatch.setattr(mlrun.mlconf.auth_with_oauth_token, "enabled", False)
+    monkeypatch.setattr(mlrun.mlconf.httpdb, "token", "")
+
+    # Mock add_or_refresh_credentials to return username, password, and token
+    returned_username = "my_user"
+    returned_password = "my_access_key"
+    returned_token = "my_auth_token"
+
+    with patch(
+        "mlrun.platforms.add_or_refresh_credentials",
+        return_value=(returned_username, returned_password, returned_token),
+    ):
+        db = HTTPRunDB("http://mlrun-api:8080")
+        db._init_token_provider()
+
+        # Verify credentials are stored
+        assert db.user == returned_username
+        assert db.password == returned_password
+        # Verify token provider is created with the returned token
+        assert isinstance(db.token_provider, StaticTokenProvider)
+        assert db.token_provider.get_token() == returned_token
+
+
 def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:
     runtime = mlrun.runtimes.KubejobRuntime()
     runtime.metadata.name = name

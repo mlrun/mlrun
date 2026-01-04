@@ -686,8 +686,10 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # In ML-11600, we will implement a proper resolution logic that checks all secret tokens
         # of the user and finds a valid one if no token name is provided
-        token_name = mlrun.auth.utils.enrich_and_validate_auth_token_name(
+        # If token name not provided, use default
+        token_name = (
             provided_token_name
+            or mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME
         )
 
         object.spec.auth["token_name"] = token_name

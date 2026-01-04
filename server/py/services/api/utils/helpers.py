@@ -18,6 +18,7 @@ import semver
 
 import mlrun
 import mlrun.auth.utils
+import mlrun.common.constants
 import mlrun.common.schemas
 from mlrun.common.schemas import ProjectOut, WorkflowSpec
 from mlrun.utils import logger
@@ -86,8 +87,12 @@ def resolve_auth_token_secret_name(
     :return: The name of the secret that holds the user's auth token.
     """
     if mlrun.mlconf.is_iguazio_v4_mode():
-        token_name = mlrun.auth.utils.enrich_and_validate_auth_token_name(
+        # In ML-11600, we will implement a proper resolution logic that checks all secret tokens
+        # of the user and finds a valid one if no token name is provided
+        # If token name not provided, use default
+        token_name = (
             provided_token_name
+            or mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME
         )
         secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(
             username=username, token_name=token_name

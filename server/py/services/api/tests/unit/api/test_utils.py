@@ -2047,33 +2047,32 @@ def test_setenv_from_the_project_secret(secret_name, expect_exception, kind):
 
 
 @pytest.mark.parametrize(
-    "provided_token, resolved_token, secret_name, expected",
+    "provided_token, secret_name, expected_secret_name, expected_token_name",
     [
         # default token, secret exists
-        (None, "default-token", "secret-1", "secret-1"),
+        (
+            None,
+            "secret-1",
+            "secret-1",
+            mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME,
+        ),
         # explicit token, secret exists
-        ("custom-token", "custom-token", "secret-2", "secret-2"),
+        ("custom-token", "secret-2", "secret-2", "custom-token"),
         # default token, secret missing
-        (None, "default-token", None, None),
+        (
+            None,
+            None,
+            None,
+            mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME,
+        ),
         # explicit token, secret missing
-        ("custom-token", "custom-token", None, None),
+        ("custom-token", None, None, "custom-token"),
     ],
 )
 def test_resolve_auth_secret_name(
-    monkeypatch,
-    provided_token,
-    resolved_token,
-    secret_name,
-    expected,
+    monkeypatch, provided_token, secret_name, expected_secret_name, expected_token_name
 ):
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
-
-    enrich = unittest.mock.Mock(return_value=resolved_token)
-    monkeypatch.setattr(
-        mlrun.auth.utils,
-        "enrich_and_validate_auth_token_name",
-        enrich,
-    )
 
     secret = None
     if secret_name:
@@ -2092,10 +2091,10 @@ def test_resolve_auth_secret_name(
         provided_token, "test-user"
     )
 
-    assert result == expected
+    assert result == expected_secret_name
 
-    enrich.assert_called_once_with(provided_token)
+    # Verify the function uses the correct token name (default or provided)
     k8s_helper._get_user_token_secret.assert_called_once_with(
         username="test-user",
-        token_name=resolved_token,
+        token_name=expected_token_name,
     )

@@ -2307,8 +2307,8 @@ class HTTPRunDB(RunDBInterface):
         """
         if experiment is not None:
             warnings.warn(
-                "'experiment' parameter is deprecated in 1.11.0 and "
-                "will be removed in 1.13.0. Pipelines are automatically scoped by project.  ",
+                "The 'experiment' parameter is deprecated and will be removed in 1.13.0. "
+                "Pipelines are automatically scoped by project.",
                 # TODO: Remove this in 1.13.0
                 FutureWarning,
             )

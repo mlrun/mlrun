@@ -13,7 +13,6 @@
 # limitations under the License.
 import asyncio
 import inspect
-import time
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any, Optional, Union
@@ -295,7 +294,6 @@ class OpenAIProvider(ModelProvider):
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         max_workers: Optional[int] = None,
-        max_retries: Optional[int] = None,
         **invoke_kwargs,
     ) -> BatchInvokeResponse:
         """
@@ -322,10 +320,6 @@ class OpenAIProvider(ModelProvider):
             Maximum number of parallel threads.
             Adjust based on API rate limits.
 
-        :param max_retries:
-            Number of retries per batch item beyond OpenAI SDK retries.
-            If an item fails after all retries, the entire batch fails.
-
         :param invoke_kwargs:
             Additional keyword arguments passed to each invoke call.
 
@@ -336,7 +330,6 @@ class OpenAIProvider(ModelProvider):
         max_workers = (
             max_workers or mlrun.mlconf.model_providers.openai_batch_max_workers or 5
         )
-        max_retries = max_retries or mlrun.mlconf.model_providers.openai_max_retries
 
         results: BatchInvokeResponse = [None] * len(messages_list)  # type: ignore
 
@@ -346,7 +339,6 @@ class OpenAIProvider(ModelProvider):
                     self._single_invoke,
                     messages,
                     invoke_response_format,
-                    max_retries,
                     **invoke_kwargs,
                 ): idx
                 for idx, messages in enumerate(messages_list)
@@ -363,7 +355,6 @@ class OpenAIProvider(ModelProvider):
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         max_concurrent: Optional[int] = None,
-        max_retries: Optional[int] = None,
         **invoke_kwargs,
     ) -> BatchInvokeResponse:
         """
@@ -391,10 +382,6 @@ class OpenAIProvider(ModelProvider):
             Maximum number of concurrent async requests.
             Adjust based on API rate limits.
 
-        :param max_retries:
-            Number of retries per batch item beyond OpenAI SDK retries.
-            If an item fails after all retries, the entire batch fails.
-
         :param invoke_kwargs:
             Additional keyword arguments passed to each invoke call.
 
@@ -407,14 +394,13 @@ class OpenAIProvider(ModelProvider):
             or mlrun.mlconf.model_providers.openai_batch_max_concurrent
             or 10
         )
-        max_retries = max_retries or mlrun.mlconf.model_providers.openai_max_retries
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def _bounded_invoke(messages):
             """Execute invoke with semaphore control."""
             async with semaphore:
                 return await self._async_single_invoke(
-                    messages, invoke_response_format, max_retries, **invoke_kwargs
+                    messages, invoke_response_format, **invoke_kwargs
                 )
 
         tasks = [_bounded_invoke(messages) for messages in messages_list]
@@ -425,34 +411,13 @@ class OpenAIProvider(ModelProvider):
         self,
         messages: list[dict],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
-        max_retries: Optional[int] = None,
         **invoke_kwargs,
     ) -> InvokeResponse:
         """
-        Internal method for single invocation with retry logic.
+        Internal method for single invocation.
         Used by both invoke and batch_invoke.
-
-        :param max_retries: Number of retry attempts (default from config)
         """
-        max_retries = max_retries or mlrun.mlconf.model_providers.openai_max_retries
-
-        last_exception = None
-        response = None
-        for attempt in range(max_retries + 1):
-            try:
-                response = self.custom_invoke(messages=messages, **invoke_kwargs)
-                break  # Success - exit retry loop
-            except Exception as e:
-                last_exception = e
-                if attempt < max_retries:
-                    # Exponential backoff
-                    time.sleep(2**attempt)
-
-        # If all retries exhausted, raise the last exception
-        if response is None:
-            raise last_exception
-
-        # Process response outside retry loop
+        response = self.custom_invoke(messages=messages, **invoke_kwargs)
         return self._response_handler(
             messages=messages,
             invoke_response_format=invoke_response_format,
@@ -463,36 +428,13 @@ class OpenAIProvider(ModelProvider):
         self,
         messages: list[dict],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
-        max_retries: Optional[int] = None,
         **invoke_kwargs,
     ) -> InvokeResponse:
         """
-        Internal async method for single invocation with retry logic.
+        Internal async method for single invocation.
         Used by both async_invoke and async_batch_invoke.
-
-        :param max_retries: Number of retry attempts (default from config)
         """
-        max_retries = max_retries or mlrun.mlconf.model_providers.openai_max_retries
-
-        last_exception = None
-        response = None
-        for attempt in range(max_retries + 1):
-            try:
-                response = await self.async_custom_invoke(
-                    messages=messages, **invoke_kwargs
-                )
-                break  # Success - exit retry loop
-            except Exception as e:
-                last_exception = e
-                if attempt < max_retries:
-                    # Exponential backoff
-                    await asyncio.sleep(2**attempt)
-
-        # If all retries exhausted, raise the last exception
-        if response is None:
-            raise last_exception
-
-        # Process response outside retry loop
+        response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
         return self._response_handler(
             messages=messages,
             invoke_response_format=invoke_response_format,
@@ -557,8 +499,7 @@ class OpenAIProvider(ModelProvider):
 
         :param invoke_kwargs:
             Additional keyword arguments passed to the OpenAI client.
-            For batch invocations, supports `max_workers` to control parallelism
-            and `max_retries` for per-item retry attempts.
+            For batch invocations, supports `max_workers` to control parallelism.
 
         :return:
             Single invocation: A string, dictionary, or `ChatCompletion` object.
@@ -568,12 +509,10 @@ class OpenAIProvider(ModelProvider):
         # Detect if this is a batch invocation (list of lists)
         if messages and isinstance(messages[0], list):
             max_workers = invoke_kwargs.pop("max_workers", None)
-            max_retries = invoke_kwargs.pop("max_retries", None)
             return self.batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
                 max_workers=max_workers,
-                max_retries=max_retries,
                 **invoke_kwargs,
             )
 
@@ -642,8 +581,7 @@ class OpenAIProvider(ModelProvider):
 
         :param invoke_kwargs:
             Additional keyword arguments passed to the OpenAI client.
-            For batch invocations, supports `max_concurrent` to control parallelism
-            and `max_retries` for per-item retry attempts.
+            For batch invocations, supports `max_concurrent` to control parallelism.
 
         :return:
             Single invocation: A string, dictionary, or `ChatCompletion` object.
@@ -653,12 +591,10 @@ class OpenAIProvider(ModelProvider):
         # Detect if this is a batch invocation (list of lists)
         if messages and isinstance(messages[0], list):
             max_concurrent = invoke_kwargs.pop("max_concurrent", None)
-            max_retries = invoke_kwargs.pop("max_retries", None)
             return await self.async_batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
                 max_concurrent=max_concurrent,
-                max_retries=max_retries,
                 **invoke_kwargs,
             )
 

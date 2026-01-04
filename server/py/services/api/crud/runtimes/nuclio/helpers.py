@@ -125,12 +125,6 @@ def enrich_function_with_ingress(config, mode, service_type, graph_engine=None):
         # function is not invokable
         if config["spec"].get("disableDefaultHTTPTrigger", False):
             return
-        if graph_engine == "async":
-            logger.warning(
-                "Default HTTP trigger will be created in sync mode, to enable async mode please define an HTTP "
-                "trigger explicitly using RemoteRuntime with_http method.",
-                mode=graph_engine,
-            )
         # function has an HTTP trigger without an ingress
         # TODO: read from nuclio-api frontend-spec
         http_trigger = {
@@ -139,10 +133,9 @@ def enrich_function_with_ingress(config, mode, service_type, graph_engine=None):
             "maxWorkers": 1,
             "workerAvailabilityTimeoutMilliseconds": 10000,  # 10 seconds
             "attributes": {},
-            "mode": "sync",  # TODO enable async when NUC-704 is done
+            "mode": graph_engine or "sync",
         }
-        # TODO check graph_engine is async when NUC-704 is done
-        if http_trigger["mode"] == "async":
+        if graph_engine == "async":
             http_trigger["async"] = {"maxConnections": None}
 
     def enrich():

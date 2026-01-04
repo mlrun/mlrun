@@ -46,7 +46,7 @@ from mlrun.utils import get_caller_globals, logger, set_paths
 
 from .. import KubejobRuntime
 from ..pod import KubeResourceSpec
-from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
+from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions, validate_nuclio_version_compatibility
 
 serving_subkind = "serving_v2"
 
@@ -65,12 +65,7 @@ def new_v2_model_server(
     f = ServingRuntime()
     if not image:
         name, spec, code = nuclio.build_file(
-            filename,
-            name=name,
-            handler="handler"
-            if not mlrun.utils.helpers.is_async_serving_graph(f.spec)
-            else "async_handler",
-            kind=serving_subkind,
+            filename, name=name, handler="handler", kind=serving_subkind
         )
         f.spec.base_spec = spec
 
@@ -83,9 +78,7 @@ def new_v2_model_server(
         for name, model_path in models.items():
             f.add_model(name, model_path=model_path, parameters=params)
 
-    f.with_http(
-        workers, host=endpoint, canary=canary
-    )  # TODO Roy check if this should change with workers?
+    f.with_http(workers, host=endpoint, canary=canary)
     if image:
         f.from_image(image)
 
@@ -327,10 +320,6 @@ class ServingRuntime(RemoteRuntime):
                 max_iterations=max_iterations,
             )
             self.spec.graph.track_models = self.spec.track_models
-            print(self.spec.function_handler)
-            self.spec.function_handler = (
-                self.spec.function_handler or "main:async_handler"
-            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"unsupported topology {topology}, use 'router' or 'flow'"
@@ -721,12 +710,16 @@ class ServingRuntime(RemoteRuntime):
             encoded_code = mlrun.utils.helpers.encode_user_code(decoded_code)
             self.spec.build.functionSourceCode = encoded_code
 
-        if mlrun.utils.helpers.is_async_serving_graph(self.spec):
-            if self.spec.function_handler and "nuclio:handler" in self.spec.function_handler:
-                logger.warning(
-                    "Overriding function handler to async_handler for async serving graph"
-                )
-                self.spec.function_handler = "main:async_handler"
+        if validate_nuclio_version_compatibility("1.15.3"):
+            if mlrun.utils.helpers.is_async_serving_graph(self.spec):
+                if self.spec.function_handler and "nuclio:handler" in self.spec.function_handler:
+                    logger.warning(
+                        "Overriding function handler to async_handler for async serving graph"
+                    )
+                    self.spec.function_handler = "main:async_handler"
+                # set async handler if not already set
+                self.spec.function_handler = self.spec.function_handler or "main:async_handler"
+
 
 
         # Handle secret processing before handling child functions, since secrets are transferred to them

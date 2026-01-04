@@ -95,7 +95,7 @@ class OpenAIProvider(ModelProvider):
         return response.choices[0].message.content
 
     @classmethod
-    def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
+    def parse_endpoint_and_path(cls, endpoint, subpath) -> tuple[str, str]:
         if endpoint and subpath:
             endpoint = endpoint + subpath
             #  in openai there is no usage of subpath variable. if the model contains "/", it is part of the model name.
@@ -271,7 +271,7 @@ class OpenAIProvider(ModelProvider):
         response: "ChatCompletion",
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **kwargs,
-    ) -> ["ChatCompletion", str, dict[str, Any]]:
+    ) -> Union["ChatCompletion", str, dict[str, Any]]:
         if InvokeResponseFormat.is_str_response(invoke_response_format.value):
             str_response = self._extract_string_output(response)
             if invoke_response_format == InvokeResponseFormat.STRING:
@@ -319,9 +319,7 @@ class OpenAIProvider(ModelProvider):
         max_workers = (
             max_workers or mlrun.mlconf.model_providers.openai_batch_max_workers or 5
         )
-        results: list[Union[str, ChatCompletion, dict[str, Any]]] = [None] * len(
-            messages_list
-        )  # type: ignore
+        results: list[Union[str, ChatCompletion, dict[str, Any]]] = [None] * len(messages_list)  # type: ignore
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {

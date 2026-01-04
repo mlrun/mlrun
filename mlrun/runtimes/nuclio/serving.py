@@ -327,6 +327,7 @@ class ServingRuntime(RemoteRuntime):
                 max_iterations=max_iterations,
             )
             self.spec.graph.track_models = self.spec.track_models
+            print(self.spec.function_handler)
             self.spec.function_handler = (
                 self.spec.function_handler or "main:async_handler"
             )

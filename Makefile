@@ -857,6 +857,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 	docker run \
 		--rm \
 		-v $(shell pwd)/docs/_build:/mlrun/docs/_build \
+		-e MLRUN_PYTHON_PACKAGE_INSTALLER=$(MLRUN_PYTHON_PACKAGE_INSTALLER) \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		bash -c 'make install-docs-requirements && make html-docs'
 
@@ -969,15 +970,15 @@ endif
 	export MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false' && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
 	cd $(MLRUN_BC_TESTS_BASE_CODE_PATH) && \
-	pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-	pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 && \
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 && \
 	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json && \
 	cd ..
 
 	# Run tests for the head code (feature branch)
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
-	pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-	pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 && \
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 && \
 	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json
 
 	# Run OpenAPI diff to check compatibility
@@ -1085,7 +1086,7 @@ upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 
 .PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
-	@$(MAKE)  \
+	@$(MAKE) \
 		upgrade-mlrun-mlrun-deps-lock \
 		upgrade-mlrun-api-deps-lock \
 		upgrade-mlrun-jupyter-deps-lock \

@@ -15,6 +15,7 @@
 import os
 import typing
 
+import jwt
 import yaml
 
 import mlrun.common.schemas
@@ -214,6 +215,7 @@ def get_offline_token_from_env() -> typing.Optional[str]:
 
 
 def load_and_prepare_secret_tokens(
+    auth_user_id: str | None = None,
     raise_on_error: bool = True,
 ) -> list[mlrun.common.schemas.SecretToken]:
     """
@@ -224,6 +226,7 @@ def load_and_prepare_secret_tokens(
       2. Validate each token for required fields and uniqueness.
       3. Translate validated token dictionaries into SecretToken objects.
 
+    :param auth_user_id: The user ID to filter the tokens by.
     :param raise_on_error: Whether to raise exceptions or log warnings on failure
                            in any of the steps (loading, validation, translation).
     :return: List of SecretToken objects.
@@ -231,7 +234,7 @@ def load_and_prepare_secret_tokens(
     """
     tokens_list = load_secret_tokens_from_file(raise_on_error=raise_on_error)
     validated_tokens = validate_secret_tokens(
-        tokens_list, raise_on_error=raise_on_error
+        tokens_list, auth_user_id=auth_user_id, raise_on_error=raise_on_error
     )
     secret_tokens = translate_secret_tokens(
         validated_tokens, raise_on_error=raise_on_error
@@ -240,7 +243,9 @@ def load_and_prepare_secret_tokens(
 
 
 def validate_secret_tokens(
-    tokens_list: list[dict[str, typing.Any]], raise_on_error: bool = True
+    tokens_list: list[dict[str, typing.Any]],
+    auth_user_id: str | None,
+    raise_on_error: bool = True,
 ) -> list[dict[str, typing.Any]]:
     """
     Validate a list of token dictionaries.
@@ -283,6 +288,15 @@ def validate_secret_tokens(
         seen.add(name)
         valid_tokens.append(token)
 
+    # filter out token with "sub" claim not matching the authenticated user
+    if auth_user_id:
+        matching_tokens = []
+        for token in valid_tokens:
+            name, value = token["name"], token["token"]
+            if get_jwt_subject(value, raise_on_error=raise_on_error) == auth_user_id:
+                matching_tokens.append(token)
+        return matching_tokens
+
     return valid_tokens
 
 
@@ -312,3 +326,24 @@ def translate_secret_tokens(
                 raise_on_error,
             )
     return tokens
+
+
+def get_jwt_subject(token: str, raise_on_error: bool = True) -> typing.Optional[str]:
+    """
+    Extract the 'sub' (subject/user ID) claim from a JWT token.
+
+    The token is decoded without signature verification since it has already
+    been verified earlier during the authentication process.
+
+    :param token: The JWT token string.
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The 'sub' claim value, or None if extraction fails.
+    """
+    try:
+        decoded = jwt.decode(token, options={"verify_signature": False})
+        return decoded.get("sub")
+    except jwt.PyJWTError as exc:
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Failed to decode JWT token: {exc}", raise_on_error
+        )
+        return None

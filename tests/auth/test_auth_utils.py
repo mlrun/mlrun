@@ -24,6 +24,14 @@ import mlrun.errors
 from mlrun.config import config
 
 
+def _create_jwt_token(sub: str) -> str:
+    """Helper to create a JWT token with a given subject (user ID)."""
+    import jwt
+
+    payload = {"sub": sub, "exp": 9999999999, "iat": 1000000000}
+    return jwt.encode(payload, "test-secret", algorithm="HS256")
+
+
 def test_get_offline_token_from_env(monkeypatch):
     monkeypatch.setenv("MLRUN_AUTH_OFFLINE_TOKEN", "env-token")
     token = mlrun.auth.utils.get_offline_token_from_env()
@@ -277,7 +285,9 @@ def test_validate_secret_tokens_invalid_entries(tmp_path, content, monkeypatch):
     monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
     tokens_list = mlrun.auth.utils.load_secret_tokens_from_file(raise_on_error=False)
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        mlrun.auth.utils.validate_secret_tokens(tokens_list)
+        mlrun.auth.utils.validate_secret_tokens(
+            tokens_list, auth_user_id=None, raise_on_error=True
+        )
 
 
 def test_read_secret_tokens_file_non_existent(tmp_path, monkeypatch):
@@ -342,3 +352,56 @@ def _write_file(tmp_path, name: str, content) -> str:
     else:
         file_path.write_text(content)
     return str(file_path)
+
+
+def test_get_jwt_subject():
+    """Test extracting 'sub' claim from JWT token."""
+    token = _create_jwt_token("user-123")
+    result = mlrun.auth.utils.get_jwt_subject(token, raise_on_error=True)
+    assert result == "user-123"
+
+
+@pytest.mark.parametrize(
+    "tokens, auth_user_id, expected_names",
+    [
+        # Case 1: 2 tokens, returns 1 token for matching user
+        (
+            lambda: [
+                {"name": "admin", "token": _create_jwt_token("admin-user")},
+                {"name": "normal-user", "token": _create_jwt_token("normal-user")},
+            ],
+            "normal-user",
+            ["normal-user"],
+        ),
+        # Case 2: 2 tokens, returns 2 tokens - no auth_user_id given (None)
+        (
+            lambda: [
+                {"name": "admin", "token": _create_jwt_token("admin-user")},
+                {"name": "normal-user", "token": _create_jwt_token("normal-user")},
+            ],
+            None,
+            ["admin", "normal-user"],
+        ),
+        # Case 3: 1 token, returns 0 tokens for non-matching user
+        (
+            lambda: [
+                {"name": "admin", "token": _create_jwt_token("admin-user")},
+            ],
+            "different-user",
+            [],
+        ),
+    ],
+)
+def test_validate_secret_tokens_filters_by_auth_user(
+    tokens, auth_user_id, expected_names, monkeypatch
+):
+    """Test that validate_secret_tokens filters tokens by auth_user_id (JWT 'sub' claim)."""
+    # Set a dummy token file path for the function
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", "/tmp/dummy.yml")
+
+    tokens_list = tokens()
+    result = mlrun.auth.utils.validate_secret_tokens(
+        tokens_list, auth_user_id=auth_user_id, raise_on_error=False
+    )
+
+    assert [t.get("name") for t in result] == expected_names

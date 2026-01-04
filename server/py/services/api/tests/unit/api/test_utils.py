@@ -34,6 +34,7 @@ import mlrun.k8s_utils
 import mlrun.runtimes.mounts
 import mlrun.runtimes.pod
 import mlrun.utils
+from mlrun.common.types import AuthenticationMode
 from server.py.framework.api.utils import (
     _generate_function_and_task_from_submit_run_body,
 )
@@ -2043,3 +2044,58 @@ def test_setenv_from_the_project_secret(secret_name, expect_exception, kind):
         else:
             # Should not raise
             framework.api.utils.validate_function_env_vars(function)
+
+
+@pytest.mark.parametrize(
+    "provided_token, resolved_token, secret_name, expected",
+    [
+        # default token, secret exists
+        (None, "default-token", "secret-1", "secret-1"),
+        # explicit token, secret exists
+        ("custom-token", "custom-token", "secret-2", "secret-2"),
+        # default token, secret missing
+        (None, "default-token", None, None),
+        # explicit token, secret missing
+        ("custom-token", "custom-token", None, None),
+    ],
+)
+def test_resolve_auth_secret_name(
+    monkeypatch,
+    provided_token,
+    resolved_token,
+    secret_name,
+    expected,
+):
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
+
+    enrich = unittest.mock.Mock(return_value=resolved_token)
+    monkeypatch.setattr(
+        mlrun.auth.utils,
+        "enrich_and_validate_auth_token_name",
+        enrich,
+    )
+
+    secret = None
+    if secret_name:
+        secret = unittest.mock.Mock()
+        secret.metadata.name = secret_name
+
+    k8s_helper = unittest.mock.Mock()
+    k8s_helper._get_user_token_secret.return_value = secret
+
+    monkeypatch.setattr(
+        "framework.utils.singletons.k8s.get_k8s_helper",
+        lambda: k8s_helper,
+    )
+
+    result = services.api.utils.helpers.resolve_auth_token_secret_name(
+        provided_token, "test-user"
+    )
+
+    assert result == expected
+
+    enrich.assert_called_once_with(provided_token, bool(provided_token))
+    k8s_helper._get_user_token_secret.assert_called_once_with(
+        username="test-user",
+        token_name=resolved_token,
+    )

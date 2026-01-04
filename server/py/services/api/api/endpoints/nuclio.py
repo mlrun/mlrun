@@ -479,7 +479,7 @@ def _deploy_function(
 
         # Add auth token name in function spec
         # TODO in ML-11600/ML-11599 need to handle redeployment with different auth token name
-        launcher.enrich_and_validate_auth_token_name(fn)
+        launcher.enrich_and_validate_auth_token_name_on_object(fn)
 
         # save the function to DB
         fn.save(versioned=False)

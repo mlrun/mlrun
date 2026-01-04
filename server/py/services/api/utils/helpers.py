@@ -86,12 +86,8 @@ def resolve_auth_token_secret_name(
     :return: The name of the secret that holds the user's auth token.
     """
     if mlrun.mlconf.is_iguazio_v4_mode():
-        # If token name is provided, we want to raise error if it's invalid
-        raise_error_on_failure = bool(provided_token_name)
-
-        # Resolve token name and raise error only if token is explicitly provided by the user
         token_name = mlrun.auth.utils.enrich_and_validate_auth_token_name(
-            provided_token_name, raise_error_on_failure
+            provided_token_name
         )
         secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(
             username=username, token_name=token_name

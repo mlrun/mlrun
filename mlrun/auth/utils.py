@@ -315,12 +315,15 @@ def translate_secret_tokens(
     return tokens
 
 
-# TODO In ML-11600, implement a proper resolution logic that checks all secret tokens of the user
-# and validation + tests
+# TODO In ML-11600, implement a proper resolution logic that checks all secret tokens of the user,
+# validation + tests.
 def enrich_and_validate_auth_token_name(
     token_name: typing.Optional[str], raise_error_on_failure: bool = False
 ):
     if mlrun.mlconf.is_iguazio_v4_mode():
+        # Resolve token name and raise error only if token is explicitly provided by the user
+        raise_error_on_failure = bool(token_name)
+
         # If token name not provided, use default
         token_name = (
             token_name or mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME

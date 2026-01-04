@@ -624,7 +624,7 @@ class Pipelines(
         provided_token_name = None
         # Workflows do not go through launcher/runtime handler
         # So enrichment, validation and secret retrieval need to be done here
-        secret_name = services.api.utils.helpers.resolve_auth_token_secret_name(
+        auth_secret_name = services.api.utils.helpers.resolve_auth_token_secret_name(
             provided_token_name=provided_token_name, username=auth_info.username
         )
 
@@ -633,7 +633,7 @@ class Pipelines(
             content_type=content_type,
             env_var_names=["MLRUN_AUTH_SESSION", "V3IO_ACCESS_KEY"],
             secrets_store=services.api.crud.Secrets(),
-            secret_name=secret_name,
+            auth_secret_name=auth_secret_name,
         )
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:

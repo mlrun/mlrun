@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 import inspect
+import threading
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any, Optional, Union
@@ -73,6 +74,20 @@ class OpenAIProvider(ModelProvider):
             default_invoke_kwargs=default_invoke_kwargs,
         )
         self.options = self.get_client_options()
+
+        # Instance-level shared thread pool for batch operations
+        self._executor: Optional[ThreadPoolExecutor] = None
+        self._executor_lock = threading.Lock()
+        # Total pool size (e.g., 20 threads)
+        self._max_workers = (
+            self._get_secret_or_env("OPENAI_BATCH_MAX_WORKERS")
+            or mlrun.mlconf.model_providers.openai_batch_max_workers
+        )
+        # Per-batch limit (e.g., 5 threads per batch)
+        self._max_workers_per_batch = (
+            self._get_secret_or_env("OPENAI_BATCH_MAX_WORKERS_PER_BATCH")
+            or mlrun.mlconf.model_providers.openai_batch_max_workers_per_batch
+        )
 
     @classmethod
     def _import_response_class(cls) -> None:
@@ -289,21 +304,43 @@ class OpenAIProvider(ModelProvider):
                 }
         return response
 
+    def _get_or_create_executor(self) -> ThreadPoolExecutor:
+        """
+        Get or create the instance-level shared thread pool executor.
+        Thread-safe lazy initialization.
+
+        :return: Shared ThreadPoolExecutor instance for this provider.
+        """
+        with self._executor_lock:
+            if self._executor is None:
+                self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
+        return self._executor
+
+    def __del__(self):
+        """
+        Cleanup the shared thread pool executor when the provider instance is destroyed.
+        Ensures graceful shutdown of background threads.
+        """
+        if hasattr(self, "_executor") and self._executor:
+            self._executor.shutdown(wait=False)
+
     def batch_invoke(
         self,
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
-        max_workers: Optional[int] = None,
         **invoke_kwargs,
     ) -> BatchInvokeResponse:
         """
-        Invoke multiple message sets in parallel using a thread pool.
+        Invoke multiple message sets in parallel using a shared thread pool.
 
         Note on worker limits:
-            Creates a new thread pool per call. Multiple concurrent batch_invoke
-            calls will each have their own thread pool, potentially multiplying
-            total workers. To enforce global limits, ensure calls are executed
-            sequentially or use external rate limiting.
+            Uses an instance-level shared thread pool with two levels of control:
+            1. Global pool size (max_workers): Total threads available
+            2. Per-batch limit (max_workers_per_batch): Max threads per batch_invoke call
+
+            This allows multiple batch_invoke calls to run concurrently, each using up to
+            max_workers_per_batch threads from the shared pool, preventing any single batch
+            from monopolizing all threads.
 
         :param messages_list:
             A list of message lists, each to be invoked separately.
@@ -316,10 +353,6 @@ class OpenAIProvider(ModelProvider):
         :param invoke_response_format:
             Specifies the format of the returned response for all invocations.
 
-        :param max_workers:
-            Maximum number of parallel threads.
-            Adjust based on API rate limits.
-
         :param invoke_kwargs:
             Additional keyword arguments passed to each invoke call.
 
@@ -327,28 +360,46 @@ class OpenAIProvider(ModelProvider):
             List of responses in the same order as messages_list.
             Each response format depends on `invoke_response_format`.
         """
-        max_workers = (
-            max_workers or mlrun.mlconf.model_providers.openai_batch_max_workers or 5
-        )
+        executor = self._get_or_create_executor()
+
+        # Semaphore to limit concurrent tasks for THIS batch
+        semaphore = threading.Semaphore(self._max_workers_per_batch)
 
         results: BatchInvokeResponse = [None] * len(messages_list)  # type: ignore
+        futures = {}
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self._single_invoke,
-                    messages,
-                    invoke_response_format,
-                    **invoke_kwargs,
-                ): idx
-                for idx, messages in enumerate(messages_list)
-            }
+        for idx, messages in enumerate(messages_list):
+            # Submit task immediately - semaphore acquired inside worker thread
+            future = executor.submit(
+                self._invoke_with_semaphore,
+                semaphore,
+                messages,
+                invoke_response_format,
+                **invoke_kwargs,
+            )
+            futures[future] = idx
 
-            for future in as_completed(futures):
-                idx = futures[future]
-                results[idx] = future.result()
+        for future in as_completed(futures):
+            idx = futures[future]
+            results[idx] = future.result()
 
         return results
+
+    def _invoke_with_semaphore(
+        self,
+        semaphore: threading.Semaphore,
+        messages: list[dict],
+        invoke_response_format: InvokeResponseFormat,
+        **invoke_kwargs,
+    ) -> InvokeResponse:
+        """
+        Wrapper that acquires semaphore before invoke and releases after.
+        Ensures per-batch concurrency limit is maintained within worker threads.
+        """
+        with semaphore:  # Acquire in worker thread, release automatically
+            return self._single_invoke(
+                messages, invoke_response_format, **invoke_kwargs
+            )
 
     async def async_batch_invoke(
         self,
@@ -362,10 +413,9 @@ class OpenAIProvider(ModelProvider):
 
         Note on concurrency limits:
             Creates a new semaphore per call. Multiple concurrent async_batch_invoke
-            calls (in different event loops or threads) will each have their own
-            semaphore, potentially multiplying total concurrency. To enforce global
-            limits, ensure all calls share the same event loop and are awaited
-            sequentially or use external rate limiting.
+            calls on the same provider instance will each have their own semaphore,
+            potentially multiplying total concurrency. To enforce global limits,
+            ensure calls are awaited sequentially or use external rate limiting.
 
         :param messages_list:
             A list of message lists, each to be invoked separately.
@@ -499,7 +549,6 @@ class OpenAIProvider(ModelProvider):
 
         :param invoke_kwargs:
             Additional keyword arguments passed to the OpenAI client.
-            For batch invocations, supports `max_workers` to control parallelism.
 
         :return:
             Single invocation: A string, dictionary, or `ChatCompletion` object.
@@ -508,11 +557,9 @@ class OpenAIProvider(ModelProvider):
         """
         # Detect if this is a batch invocation (list of lists)
         if messages and isinstance(messages[0], list):
-            max_workers = invoke_kwargs.pop("max_workers", None)
             return self.batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
-                max_workers=max_workers,
                 **invoke_kwargs,
             )
 

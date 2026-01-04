@@ -205,7 +205,8 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             InvokeResponseFormat.USAGE,
         ],
     )
-    def test_batch_invoke(self, invoke_response_format):
+    @pytest.mark.parametrize("run_async", [True, False])
+    async def test_batch_invoke(self, invoke_response_format, run_async):
         model_url = self.url_prefix + self.basic_llm_model
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_tokens": 100}
@@ -215,10 +216,15 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         # Create batch messages (list of lists)
         messages_list = [[msg] for msg in formatted_messages]
 
-        # Execute batch invoke
-        results = model_provider.invoke(
-            messages=messages_list, invoke_response_format=invoke_response_format
-        )
+        # Execute batch invoke (sync or async)
+        if run_async:
+            results = await model_provider.async_invoke(
+                messages=messages_list, invoke_response_format=invoke_response_format
+            )
+        else:
+            results = model_provider.invoke(
+                messages=messages_list, invoke_response_format=invoke_response_format
+            )
 
         # Assert common for all formats
         assert isinstance(results, list)

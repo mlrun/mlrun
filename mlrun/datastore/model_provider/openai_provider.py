@@ -298,6 +298,12 @@ class OpenAIProvider(ModelProvider):
         """
         Invoke multiple message sets in parallel using a thread pool.
 
+        Note on worker limits:
+            Creates a new thread pool per call. Multiple concurrent batch_invoke
+            calls will each have their own thread pool, potentially multiplying
+            total workers. To enforce global limits, ensure calls are executed
+            sequentially or use external rate limiting.
+
         :param messages_list:
             A list of message lists, each to be invoked separately.
             Each inner list should contain message dictionaries in the format::
@@ -351,6 +357,13 @@ class OpenAIProvider(ModelProvider):
     ) -> BatchInvokeResponse:
         """
         Invoke multiple message sets in parallel using asyncio.
+
+        Note on concurrency limits:
+            Creates a new semaphore per call. Multiple concurrent async_batch_invoke
+            calls (in different event loops or threads) will each have their own
+            semaphore, potentially multiplying total concurrency. To enforce global
+            limits, ensure all calls share the same event loop and are awaited
+            sequentially or use external rate limiting.
 
         :param messages_list:
             A list of message lists, each to be invoked separately.

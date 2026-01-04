@@ -4617,7 +4617,6 @@ class MlrunProject(ModelObj):
         iter: Optional[int] = None,
         best_iteration: bool = False,
         tree: Optional[str] = None,
-        limit: Optional[int] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -4651,7 +4650,6 @@ class MlrunProject(ModelObj):
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -4666,7 +4664,6 @@ class MlrunProject(ModelObj):
             best_iteration=best_iteration,
             kind=mlrun.artifacts.model.ModelArtifact.kind,
             tree=tree,
-            limit=limit,
             format_=format_,
         ).to_objects()
 

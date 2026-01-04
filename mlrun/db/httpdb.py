@@ -2296,7 +2296,7 @@ class HTTPRunDB(RunDBInterface):
         :param project:         The project of the pipeline
         :param pipeline:        Pipeline function or path to .yaml/.zip pipeline file.
         :param arguments:       A dictionary of arguments to pass to the pipeline.
-        :param experiment:      A name to assign for the specific experiment.
+        :param experiment:      (deprecated) A name to assign for the specific experiment.
         :param run:             A name for this specific run.
         :param namespace:       Kubernetes namespace to execute the pipeline in.
         :param artifact_path:   A path to artifacts used by this pipeline.
@@ -2305,6 +2305,13 @@ class HTTPRunDB(RunDBInterface):
                                 workflow and all its resources are deleted)
         :param timeout:         Timeout for the API call.
         """
+        if experiment is not None:
+            warnings.warn(
+                "'experiment' parameter is deprecated in 1.11.0 and "
+                "will be removed in 1.13.0. Pipelines are automatically scoped by project.  ",
+                # TODO: Remove this in 1.13.0
+                FutureWarning,
+            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline

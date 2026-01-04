@@ -288,7 +288,7 @@ class OpenAIProvider(ModelProvider):
         self,
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
-        max_workers: int = mlrun.mlconf.openai_batch_max_workers,
+        max_workers: Optional[int] = None,
         **invoke_kwargs,
     ) -> list[Union[str, "ChatCompletion", dict[str, Any]]]:
         """
@@ -316,7 +316,9 @@ class OpenAIProvider(ModelProvider):
             List of responses in the same order as messages_list.
             Each response format depends on `invoke_response_format`.
         """
-
+        max_workers = (
+            max_workers or mlrun.mlconf.model_providers.openai_batch_max_workers or 5
+        )
         results: list[Union[str, ChatCompletion, dict[str, Any]]] = [None] * len(
             messages_list
         )  # type: ignore
@@ -426,7 +428,7 @@ class OpenAIProvider(ModelProvider):
         """
         # Detect if this is a batch invocation (list of lists)
         if messages and isinstance(messages[0], list):
-            max_workers = invoke_kwargs.pop("max_workers", 5)
+            max_workers = invoke_kwargs.pop("max_workers", None)
             return self.batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,

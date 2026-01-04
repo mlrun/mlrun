@@ -197,6 +197,52 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             run_async=run_async,
         )
 
+    @pytest.mark.parametrize(
+        "invoke_response_format",
+        [
+            InvokeResponseFormat.STRING,
+            InvokeResponseFormat.FULL,
+            InvokeResponseFormat.USAGE,
+        ],
+    )
+    def test_batch_invoke(self, invoke_response_format):
+        model_url = self.url_prefix + self.basic_llm_model
+        model_provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 100}
+        )
+        model_provider = cast(OpenAIProvider, model_provider)
+
+        # Create batch messages (list of lists)
+        messages_list = [[msg] for msg in formatted_messages]
+
+        # Execute batch invoke
+        results = model_provider.invoke(
+            messages=messages_list, invoke_response_format=invoke_response_format
+        )
+
+        # Assert common for all formats
+        assert isinstance(results, list)
+        assert len(results) == len(formatted_messages)
+
+        # Assert per result based on format
+        for i, result in enumerate(results):
+            if invoke_response_format == InvokeResponseFormat.STRING:
+                assert isinstance(result, str)
+                assert EXPECTED_RESULTS[i] in result.lower()
+
+            elif invoke_response_format == InvokeResponseFormat.FULL:
+                assert isinstance(result, openai.types.chat.ChatCompletion)
+                assert EXPECTED_RESULTS[i] in result.choices[0].message.content.lower()
+                assert result.usage.completion_tokens == 100
+
+            elif invoke_response_format == InvokeResponseFormat.USAGE:
+                assert isinstance(result, dict)
+                assert UsageResponseKeys.ANSWER in result
+                assert UsageResponseKeys.USAGE in result
+                assert EXPECTED_RESULTS[i] in result[UsageResponseKeys.ANSWER].lower()
+                assert result[UsageResponseKeys.USAGE]["completion_tokens"] == 100
+                assert result[UsageResponseKeys.USAGE]["prompt_tokens"] > 0
+
     async def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.openai_default_model
         if not configurable_model:

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import textwrap
 from unittest.mock import patch
 
@@ -24,12 +25,11 @@ import mlrun.errors
 from mlrun.config import config
 
 
-def _create_jwt_token(sub: str) -> str:
-    """Helper to create a JWT token with a given subject (user ID)."""
+def _create_jwt_token(payload: dict) -> str:
+    """Helper to create a JWT token with a given payload."""
     import jwt
 
-    payload = {"sub": sub, "exp": 9999999999, "iat": 1000000000}
-    return jwt.encode(payload, "test-secret", algorithm="HS256")
+    return jwt.encode(payload, key="test-secret", algorithm="HS256")
 
 
 def test_get_offline_token_from_env(monkeypatch):
@@ -354,11 +354,132 @@ def _write_file(tmp_path, name: str, content) -> str:
     return str(file_path)
 
 
-def test_get_jwt_subject():
-    """Test extracting 'sub' claim from JWT token."""
-    token = _create_jwt_token("user-123")
-    result = mlrun.auth.utils.get_jwt_subject(token, raise_on_error=True)
-    assert result == "user-123"
+@pytest.mark.parametrize(
+    "token_1, token_2, should_raise, expected_err_msg, expected_token_1, expected_token_2, authenticated_id",
+    [
+        # Valid tokens with different names
+        (
+            {
+                "token_name": "token1",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            False,
+            None,
+            {"sub": "user-123", "exp": 9999999999},
+            {"sub": "user-123", "exp": 9999999999},
+            "user-123",
+        ),
+        # Missing expiration claim
+        (
+            {"token_name": "token1", "token_payload": {"sub": "user-123"}},
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            True,
+            "Offline token 'token1' is missing the 'exp' (expiration) claim",
+            None,
+            None,
+            "user-123",
+        ),
+        # Missing subject claim
+        (
+            {"token_name": "token1", "token_payload": {"exp": 9999999999}},
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            True,
+            "Offline token 'token1' is missing the 'sub' (subject) claim",
+            None,
+            None,
+            "user-123",
+        ),
+        # Token from wrong user (not matching authenticated ID)
+        (
+            {
+                "token_name": "token1",
+                "token_payload": {"sub": "different-user", "exp": 9999999999},
+            },
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "different-user", "exp": 9999999999},
+            },
+            True,
+            "Offline token 'token1' does not match the authenticated user ID. Stored tokens can only belong to the"
+            " authenticated user.",
+            None,
+            None,
+            "user-123",
+        ),
+        # Duplicate token names
+        (
+            {
+                "token_name": "token1",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            {
+                "token_name": "token1",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            True,
+            "Invalid or duplicate token name 'token1' found in request payload",
+            None,
+            None,
+            "user-123",
+        ),
+        # Missing token name
+        (
+            {"token_name": "", "token_payload": {"sub": "user-123", "exp": 9999999999}},
+            {
+                "token_name": "token2",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+            },
+            True,
+            "Invalid or duplicate token name '' found in request payload",
+            None,
+            None,
+            "user-123",
+        ),
+    ],
+)
+def test_extract_and_validate_tokens_info(
+    token_1,
+    token_2,
+    should_raise,
+    expected_err_msg,
+    expected_token_1,
+    expected_token_2,
+    authenticated_id,
+):
+    secret_tokens = [
+        mlrun.common.schemas.SecretToken(
+            name=token_1["token_name"],
+            token=_create_jwt_token(token_1["token_payload"]),
+        ),
+        mlrun.common.schemas.SecretToken(
+            name=token_2["token_name"],
+            token=_create_jwt_token(token_2["token_payload"]),
+        ),
+    ]
+
+    if should_raise:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match=re.escape(expected_err_msg)
+        ):
+            mlrun.auth.utils.extract_and_validate_tokens_info(
+                secret_tokens, authenticated_id
+            )
+    else:
+        tokens_info = mlrun.auth.utils.extract_and_validate_tokens_info(
+            secret_tokens, authenticated_id
+        )
+        assert tokens_info["token1"]["token_exp"] == expected_token_1["exp"]
+        assert tokens_info["token2"]["token_exp"] == expected_token_2["exp"]
 
 
 @pytest.mark.parametrize(
@@ -367,8 +488,11 @@ def test_get_jwt_subject():
         # Case 1: 2 tokens, returns 1 token for matching user
         (
             lambda: [
-                {"name": "admin", "token": _create_jwt_token("admin-user")},
-                {"name": "normal-user", "token": _create_jwt_token("normal-user")},
+                {"name": "admin", "token": _create_jwt_token({"sub": "admin-user"})},
+                {
+                    "name": "normal-user",
+                    "token": _create_jwt_token({"sub": "normal-user"}),
+                },
             ],
             "normal-user",
             ["normal-user"],
@@ -376,8 +500,11 @@ def test_get_jwt_subject():
         # Case 2: 2 tokens, returns 2 tokens - no auth_user_id given (None)
         (
             lambda: [
-                {"name": "admin", "token": _create_jwt_token("admin-user")},
-                {"name": "normal-user", "token": _create_jwt_token("normal-user")},
+                {"name": "admin", "token": _create_jwt_token({"sub": "admin-user"})},
+                {
+                    "name": "normal-user",
+                    "token": _create_jwt_token({"sub": "normal-user"}),
+                },
             ],
             None,
             ["admin", "normal-user"],
@@ -385,7 +512,7 @@ def test_get_jwt_subject():
         # Case 3: 1 token, returns 0 tokens for non-matching user
         (
             lambda: [
-                {"name": "admin", "token": _create_jwt_token("admin-user")},
+                {"name": "admin", "token": _create_jwt_token({"sub": "admin-user"})},
             ],
             "different-user",
             [],
@@ -405,3 +532,10 @@ def test_validate_secret_tokens_filters_by_auth_user(
     )
 
     assert [t.get("name") for t in result] == expected_names
+
+
+def test_resolve_jwt_subject():
+    """Test extracting 'sub' claim from JWT token."""
+    token = _create_jwt_token("user-123")
+    result = mlrun.auth.utils.resolve_jwt_subject(token, raise_on_error=True)
+    assert result == "user-123"

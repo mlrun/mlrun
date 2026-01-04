@@ -311,7 +311,7 @@ class IGTokenProvider(DynamicTokenProvider):
 
     @property
     def authenticated_user_id(self) -> typing.Optional[str]:
-        return mlrun.auth.utils.get_jwt_subject(self._token, raise_on_error=True)
+        return mlrun.auth.utils.resolve_jwt_subject(self._token, raise_on_error=True)
 
     def _cleanup(self):
         self._token = None

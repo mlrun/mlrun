@@ -293,7 +293,7 @@ def validate_secret_tokens(
         matching_tokens = []
         for token in valid_tokens:
             name, value = token["name"], token["token"]
-            if get_jwt_subject(value, raise_on_error=raise_on_error) == auth_user_id:
+            if _decode_offline_token(value).get("sub") == auth_user_id:
                 matching_tokens.append(token)
         return matching_tokens
 
@@ -328,7 +328,65 @@ def translate_secret_tokens(
     return tokens
 
 
-def get_jwt_subject(token: str, raise_on_error: bool = True) -> typing.Optional[str]:
+def extract_and_validate_tokens_info(
+    secret_tokens: list[mlrun.common.schemas.SecretToken],
+    authenticated_id: str,
+) -> dict[str, dict[str, typing.Any]]:
+    """
+    Extract and validate tokens info from a list of SecretToken objects.
+
+    :param secret_tokens: List of SecretToken objects.
+    :param authenticated_id: The authenticated user ID.
+    :return: Dictionary of token info with the token name as the key and the token as the value.
+    """
+    token_values = {}
+    for secret_token in secret_tokens:
+        token_name = secret_token.name
+
+        # Validate name is provided and not duplicate
+        if secret_token.name and secret_token.name not in token_values:
+            decoded_token = _decode_offline_token(secret_token.token)
+
+            # Validate token expiration existence
+            if not decoded_token.get("exp"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
+                )
+            # Validate token subject existence
+            if not decoded_token.get("sub"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
+                )
+
+            # Validate token belongs to the authenticated user
+            token_sub = decoded_token.get("sub")
+            if token_sub != authenticated_id:
+                mlrun.utils.logger.warning(
+                    "Offline token subject does not match the authenticated user",
+                    token_name=token_name,
+                    token_sub=token_sub,
+                    user_id=authenticated_id,
+                )
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Offline token '{token_name}' does not match the authenticated user ID. "
+                    "Stored tokens can only belong to the authenticated user."
+                )
+
+            # Store token info
+            token_values[secret_token.name] = {
+                "token_exp": decoded_token.get("exp"),
+                "token": secret_token.token,
+            }
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid or duplicate token name '{secret_token.name}' found in request payload"
+            )
+    return token_values
+
+
+def resolve_jwt_subject(
+    token: str, raise_on_error: bool = True
+) -> typing.Optional[str]:
     """
     Extract the 'sub' (subject/user ID) claim from a JWT token.
 
@@ -340,10 +398,24 @@ def get_jwt_subject(token: str, raise_on_error: bool = True) -> typing.Optional[
     :return: The 'sub' claim value, or None if extraction fails.
     """
     try:
-        decoded = jwt.decode(token, options={"verify_signature": False})
-        return decoded.get("sub")
+        return _decode_offline_token(token).get("sub")
     except jwt.PyJWTError as exc:
         mlrun.utils.helpers.raise_or_log_error(
             f"Failed to decode JWT token: {exc}", raise_on_error
         )
         return None
+
+
+def _decode_offline_token(token: str) -> dict:
+    try:
+        # The token is expected to be a JWT. We don't verify its signature here, because it has already been
+        # verified earlier during the refresh_access_token call.
+        return jwt.decode(token, options={"verify_signature": False})
+    except jwt.DecodeError as exc:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Failed to decode offline token"
+        ) from exc
+    except Exception as exc:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Unexpected error decoding token"
+        ) from exc

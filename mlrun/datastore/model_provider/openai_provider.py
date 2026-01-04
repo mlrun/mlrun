@@ -346,6 +346,7 @@ class OpenAIProvider(ModelProvider):
         self,
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        max_concurrent: Optional[int] = None,
         **invoke_kwargs,
     ) -> BatchInvokeResponse:
         """
@@ -362,6 +363,10 @@ class OpenAIProvider(ModelProvider):
         :param invoke_response_format:
             Specifies the format of the returned response for all invocations.
 
+        :param max_concurrent:
+            Maximum number of concurrent async requests.
+            Adjust based on API rate limits.
+
         :param invoke_kwargs:
             Additional keyword arguments passed to each invoke call.
 
@@ -371,10 +376,20 @@ class OpenAIProvider(ModelProvider):
         """
         import asyncio
 
-        tasks = [
-            self._async_single_invoke(messages, invoke_response_format, **invoke_kwargs)
-            for messages in messages_list
-        ]
+        max_concurrent = (
+            max_concurrent
+            or mlrun.mlconf.model_providers.openai_batch_max_concurrent
+            or 10
+        )
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def _bounded_invoke(messages):
+            async with semaphore:
+                return await self._async_single_invoke(
+                    messages, invoke_response_format, **invoke_kwargs
+                )
+
+        tasks = [_bounded_invoke(messages) for messages in messages_list]
         return await asyncio.gather(*tasks)
 
     def _single_invoke(
@@ -549,6 +564,7 @@ class OpenAIProvider(ModelProvider):
 
         :param invoke_kwargs:
             Additional keyword arguments passed to the OpenAI client.
+            For batch invocations, supports `max_concurrent` to control parallelism.
 
         :return:
             Single invocation: A string, dictionary, or `ChatCompletion` object.
@@ -557,9 +573,11 @@ class OpenAIProvider(ModelProvider):
         """
         # Detect if this is a batch invocation (list of lists)
         if messages and isinstance(messages[0], list):
+            max_concurrent = invoke_kwargs.pop("max_concurrent", None)
             return await self.async_batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
+                max_concurrent=max_concurrent,
                 **invoke_kwargs,
             )
 

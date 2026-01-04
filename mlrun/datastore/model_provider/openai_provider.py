@@ -28,6 +28,10 @@ if TYPE_CHECKING:
     from openai._models import BaseModel  # noqa
     from openai.types.chat.chat_completion import ChatCompletion
 
+# Type aliases for response types
+InvokeResponse = Union["ChatCompletion", str, dict[str, Any]]
+BatchInvokeResponse = list[InvokeResponse]
+
 
 class OpenAIProvider(ModelProvider):
     """
@@ -271,7 +275,7 @@ class OpenAIProvider(ModelProvider):
         response: "ChatCompletion",
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **kwargs,
-    ) -> Union["ChatCompletion", str, dict[str, Any]]:
+    ) -> InvokeResponse:
         if InvokeResponseFormat.is_str_response(invoke_response_format.value):
             str_response = self._extract_string_output(response)
             if invoke_response_format == InvokeResponseFormat.STRING:
@@ -290,7 +294,7 @@ class OpenAIProvider(ModelProvider):
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         max_workers: Optional[int] = None,
         **invoke_kwargs,
-    ) -> list[Union[str, "ChatCompletion", dict[str, Any]]]:
+    ) -> BatchInvokeResponse:
         """
         Invoke multiple message sets in parallel using a thread pool.
 
@@ -319,7 +323,7 @@ class OpenAIProvider(ModelProvider):
         max_workers = (
             max_workers or mlrun.mlconf.model_providers.openai_batch_max_workers or 5
         )
-        results: list[Union[str, ChatCompletion, dict[str, Any]]] = [None] * len(messages_list)  # type: ignore
+        results: BatchInvokeResponse = [None] * len(messages_list)  # type: ignore
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -338,16 +342,67 @@ class OpenAIProvider(ModelProvider):
 
         return results
 
+    async def async_batch_invoke(
+        self,
+        messages_list: list[list[dict]],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **invoke_kwargs,
+    ) -> BatchInvokeResponse:
+        """
+        Invoke multiple message sets in parallel using asyncio.
+
+        :param messages_list:
+            A list of message lists, each to be invoked separately.
+            Each inner list should contain message dictionaries in the format::
+                {
+                    "role": "system" | "user" | "assistant",
+                    "content": "Message content as a string",
+                }
+
+        :param invoke_response_format:
+            Specifies the format of the returned response for all invocations.
+
+        :param invoke_kwargs:
+            Additional keyword arguments passed to each invoke call.
+
+        :return:
+            List of responses in the same order as messages_list.
+            Each response format depends on `invoke_response_format`.
+        """
+        import asyncio
+
+        tasks = [
+            self._async_single_invoke(messages, invoke_response_format, **invoke_kwargs)
+            for messages in messages_list
+        ]
+        return await asyncio.gather(*tasks)
+
     def _single_invoke(
         self,
         messages: list[dict],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[dict[str, Any], str, "ChatCompletion"]:
+    ) -> InvokeResponse:
         """
         Internal method for single invocation. Used by both invoke and batch_invoke.
         """
         response = self.custom_invoke(messages=messages, **invoke_kwargs)
+        return self._response_handler(
+            messages=messages,
+            invoke_response_format=invoke_response_format,
+            response=response,
+        )
+
+    async def _async_single_invoke(
+        self,
+        messages: list[dict],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **invoke_kwargs,
+    ) -> InvokeResponse:
+        """
+        Internal async method for single invocation. Used by both async_invoke and async_batch_invoke.
+        """
+        response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
         return self._response_handler(
             messages=messages,
             invoke_response_format=invoke_response_format,
@@ -359,12 +414,7 @@ class OpenAIProvider(ModelProvider):
         messages: Union[list[dict], list[list[dict]]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[
-        dict[str, Any],
-        str,
-        "ChatCompletion",
-        list[Union[str, "ChatCompletion", dict[str, Any]]],
-    ]:
+    ) -> Union[InvokeResponse, BatchInvokeResponse]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
         Invokes an OpenAI model operation using the synchronous client.
@@ -443,23 +493,29 @@ class OpenAIProvider(ModelProvider):
 
     async def async_invoke(
         self,
-        messages: list[dict],
+        messages: Union[list[dict], list[list[dict]]],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, "ChatCompletion", dict]:
+    ) -> Union[InvokeResponse, BatchInvokeResponse]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
         Invokes an OpenAI model operation using the asynchronous client.
 
+        Supports both single and batch invocations:
+        - If messages is a list of dicts, performs a single invocation.
+        - If messages is a list of lists, performs batch invocation using asyncio.
+
         :param messages:
-            A list of dictionaries representing the conversation history or input messages.
+            Single invocation: A list of dictionaries representing the conversation history.
+            Batch invocation: A list of message lists for parallel processing.
+
             Each dictionary should follow the format::
                 {
                     "role": "system" | "user" | "assistant",
                     "content": "Message content as a string",
                 }
 
-            Example:
+            Example (single):
 
             .. code-block:: json
 
@@ -468,7 +524,14 @@ class OpenAIProvider(ModelProvider):
                     {"role": "user", "content": "What is the capital of France?"}
                 ]
 
-            Defaults to None if no messages are provided.
+            Example (batch):
+
+            .. code-block:: json
+
+                [
+                    [{"role": "user", "content": "What is the capital of France?"}],
+                    [{"role": "user", "content": "What is the capital of Spain?"}]
+                ]
 
         :param invoke_response_format:
             Specifies the format of the returned response. Options:
@@ -488,11 +551,21 @@ class OpenAIProvider(ModelProvider):
             Additional keyword arguments passed to the OpenAI client.
 
         :return:
-            A string, dictionary, or `ChatCompletion` object, depending on `invoke_response_format`.
+            Single invocation: A string, dictionary, or `ChatCompletion` object.
+            Batch invocation: A list of responses in the same order as input messages.
+            Response format depends on `invoke_response_format`.
         """
-        response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
-        return self._response_handler(
+        # Detect if this is a batch invocation (list of lists)
+        if messages and isinstance(messages[0], list):
+            return await self.async_batch_invoke(
+                messages_list=messages,
+                invoke_response_format=invoke_response_format,
+                **invoke_kwargs,
+            )
+
+        # Single invocation
+        return await self._async_single_invoke(
             messages=messages,
             invoke_response_format=invoke_response_format,
-            response=response,
+            **invoke_kwargs,
         )

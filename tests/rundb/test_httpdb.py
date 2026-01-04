@@ -579,6 +579,96 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
             assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
 
 
+@pytest.mark.parametrize(
+    "is_k8s,has_jupyter_env,preconfigured_token_file,expected_token_file_suffix",
+    [
+        # Running in k8s (not Jupyter) - should use k8s secret path
+        (True, False, None, "/var/mlrun-secrets/auth/.igz.yml"),
+        # Running in k8s under Jupyter - should use user home token file
+        (True, True, None, "~/.igz.yml"),
+        # Running locally (not k8s) - should use user home token file
+        (False, False, None, "~/.igz.yml"),
+        # Token file already configured - should not change it
+        (True, False, "/custom/path/token.yml", "/custom/path/token.yml"),
+    ],
+)
+def test_iguazio_v4_oauth_token_file_auto_initialization(
+    requests_mock: requests_mock_package.Mocker,
+    monkeypatch,
+    is_k8s,
+    has_jupyter_env,
+    preconfigured_token_file,
+    expected_token_file_suffix,
+):
+    """
+    Test that token_file is correctly auto-initialized based on environment:
+    - In k8s (not Jupyter): uses /var/mlrun-secrets/auth/.igz.yml
+    - In k8s under Jupyter: uses ~/.igz.yml
+    - Locally: uses ~/.igz.yml
+    - Pre-configured: preserves the existing value
+    """
+
+    mlrun.mlconf.auth_with_oauth_token.token_file = preconfigured_token_file
+
+    external_token_endpoint = "https://dashboard.default-tenant.app.example.com/api/v1/authentication/refresh-access-token"
+    internal_token_endpoint = "https://dashboard.default-tenant.svc.cluster.local/api/v1/authentication/refresh-access-token"
+
+    iat = int(time.time())
+    exp = iat + 3600
+    jwt_token = _encode_jwt({"iat": iat, "exp": exp})
+
+    # Mock token endpoint - use internal if k8s, external otherwise
+    token_endpoint = internal_token_endpoint if is_k8s else external_token_endpoint
+    requests_mock.post(token_endpoint, json={"spec": {"accessToken": jwt_token}})
+
+    server_cfg = {
+        "version": mlrun.mlconf.version,
+        "authentication_mode": mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value,
+        "oauth_enabled": True,
+        "oauth_external_token_endpoint": external_token_endpoint,
+        "oauth_internal_token_endpoint": internal_token_endpoint,
+    }
+
+    # Mock kubernetes detection
+    monkeypatch.setattr(
+        mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: is_k8s
+    )
+
+    # Set or clear Jupyter environment variable
+    if has_jupyter_env:
+        monkeypatch.setenv("JPY_SESSION_NAME", "jupyter-session")
+    else:
+        monkeypatch.delenv("JPY_SESSION_NAME", raising=False)
+
+    # Mock secret tokens reading for k8s environments
+    monkeypatch.setattr(
+        mlrun.auth.utils,
+        "read_secret_tokens_file",
+        lambda raise_on_error: {
+            "secretTokens": [{"name": "default", "token": "offline"}]
+        },
+    )
+
+    # Determine the expected token file path
+    if preconfigured_token_file:
+        expected_token_file = preconfigured_token_file
+    elif expected_token_file_suffix == "~/.igz.yml":
+        expected_token_file = os.path.expanduser("~/.igz.yml")
+    else:
+        expected_token_file = expected_token_file_suffix
+
+    with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):
+        with patch.object(HTTPRunDB, "api_call") as api_call:
+            api_response = MagicMock()
+            api_response.json.return_value = server_cfg
+            api_call.return_value = api_response
+            db = HTTPRunDB("http://some-server:1919")
+            db.connect()
+            assert (
+                mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
+            ), f"Expected token_file to be {expected_token_file}, got {mlrun.mlconf.auth_with_oauth_token.token_file}"
+
+
 def test_init_token_provider_stores_username_and_password_from_add_or_refresh_credentials(
     monkeypatch,
 ):

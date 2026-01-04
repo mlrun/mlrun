@@ -648,6 +648,23 @@ class HTTPRunDB(RunDBInterface):
                 config.httpdb.authentication.mode
                 == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
             ):
+                if not config.auth_with_oauth_token.token_file:
+                    user_token_file = os.path.expanduser("~/.igz.yml")
+
+                    # runtimes
+                    # TODO: change to os.getenv("MLRUN_RUNTIME_KIND")
+                    # when https://github.com/mlrun/mlrun/pull/9121 is done.
+                    if (
+                        mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
+                        and not os.environ.get("JPY_SESSION_NAME")
+                    ):
+                        user_token_file = os.path.join(
+                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                        )
+
+                    config.auth_with_oauth_token.token_file = user_token_file
+
                 # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
                 if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
                     config.auth_token_endpoint = server_cfg.get(
@@ -659,14 +676,6 @@ class HTTPRunDB(RunDBInterface):
                     )
 
                 config.auth_with_oauth_token.enabled = True
-
-                # TODO: change to os.getenv("MLRUN_RUNTIME_KIND") when https://github.com/mlrun/mlrun/pull/9121
-                # is merged. The reason we can't do it for all k8s pods is dev-envs like jupyter.
-                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
-                    config.auth_with_oauth_token.token_file = os.path.join(
-                        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-                        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
-                    )
 
         except Exception as exc:
             logger.warning(

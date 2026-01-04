@@ -885,7 +885,9 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
         "refresh_threshold": 0.75,
-        "token_file": "~/.igz.yml",
+        # Default is empty. automatically set based on configuration (end client vs jupyter vs runtime, etc)
+        # can be set manually set using envvars
+        "token_file": "",
         # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
         # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",

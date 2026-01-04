@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import pathlib
+
 import mlrun
 import mlrun.common.schemas
 import tests.integration.sdk_api.base
@@ -20,10 +22,9 @@ import tests.integration.sdk_api.base
 
 class TestServingWithHubSteps(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_serving_with_hub_steps(self):
+        function_path = str(pathlib.Path(__file__).parent / "assets" / "custom_step.py")
         project = mlrun.new_project("test-serving-with-hub-steps", save=False)
-        fn = project.set_function(
-            "./assets/custom_step.py", name="serving-fn", kind="serving"
-        )
+        fn = project.set_function(function_path, name="serving-fn", kind="serving")
         graph = fn.set_topology("flow", engine="async")
         schema = ["id", "height", "weight"]
         graph.to(class_name="hub://verify_schema", name="verify", schema=schema).to(

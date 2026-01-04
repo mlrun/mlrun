@@ -534,8 +534,15 @@ def test_validate_secret_tokens_filters_by_auth_user(
     assert [t.get("name") for t in result] == expected_names
 
 
-def test_resolve_jwt_subject():
+@pytest.mark.parametrize(
+    "token, expected_sub",
+    [
+        ({}, None),
+        ({"sub": "user-123"}, "user-123"),
+    ],
+)
+def test_resolve_jwt_subject(token, expected_sub):
     """Test extracting 'sub' claim from JWT token."""
-    token = _create_jwt_token("user-123")
-    result = mlrun.auth.utils.resolve_jwt_subject(token, raise_on_error=True)
-    assert result == "user-123"
+    jwt_token = _create_jwt_token(token)
+    result = mlrun.auth.utils.resolve_jwt_subject(jwt_token, raise_on_error=True)
+    assert result == expected_sub

@@ -54,11 +54,6 @@ class Constants:
         mlrun_kfp: mlrun_kfp,
         log_collector: log_collector,
     }
-    python_39_suffix = "-py39"
-    python_39_targets = [
-        mlrun,
-        mlrun_kfp,
-    ]
 
 
 class MLRunPatcher:
@@ -70,7 +65,6 @@ class MLRunPatcher:
         image_tag: str,
         patch_log_collector_image: bool,
         patch_mlrun_image: bool,
-        build_py39: bool,
         skip_patch_api: bool,
         patch_alerts: bool,
         no_build: bool,
@@ -85,7 +79,6 @@ class MLRunPatcher:
         self._patch_log_collector_image = bool(patch_log_collector_image)
         self._validate_config()
         self._patch_mlrun_image = patch_mlrun_image
-        self._build_py39 = build_py39
         self._skip_patch_api = skip_patch_api
         self._patch_alerts = patch_alerts
         self._no_build = no_build
@@ -278,23 +271,20 @@ class MLRunPatcher:
         targets: list[str],
         image_tag: str,
     ) -> dict[str, str]:
+        mlrun_version = image_tag
+        image_tag = image_tag.replace("+", "-")
+
         for target in targets:
             logger.info(f"Building mlrun docker images: {target}:{image_tag}")
 
-        mlrun_docker_registry = self._config["DOCKER_REGISTRY"].rstrip("/")
-        mlrun_docker_repo = self._config.get("DOCKER_REPO")
-
-        if mlrun_docker_repo:
-            mlrun_docker_registry = (
-                f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
-            )
+        mlrun_docker_registry = self._resolve_docker_registry()
         target_to_image = {
             target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
             for target in targets
         }
         if not self._no_build:
             env = {
-                "MLRUN_VERSION": image_tag,
+                "MLRUN_VERSION": mlrun_version,
                 "MLRUN_DOCKER_REPO": mlrun_docker_registry,
             }
 
@@ -302,52 +292,26 @@ class MLRunPatcher:
                 # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
                 # so that workflow pods will use the correct KFP image from the internal registry.
                 _, overwrite_registry = self._resolve_overwrite_registry()
-                kfp_image_uri = (
-                    f"{overwrite_registry}/mlrun/{Constants.mlrun_kfp}:{image_tag}"
-                )
+                kfp_registry = overwrite_registry or mlrun_docker_registry
+                if kfp_registry:
+                    kfp_image_uri = f"{kfp_registry}/{Constants.mlrun_kfp}:{image_tag}"
 
-                mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
-                    "template"
-                ]["spec"]["containers"][0]
-                env_vars = mlrun_api_container.setdefault("env", [])
-                existing_var = next(
-                    (var for var in env_vars if var.get("name") == "MLRUN_KFP_IMAGE"),
-                    None,
-                )
-
-                if existing_var:
-                    existing_var["value"] = kfp_image_uri
-                else:
-                    env_vars.append(
-                        {
-                            "name": "MLRUN_KFP_IMAGE",
-                            "value": kfp_image_uri,
-                        }
-                    )
+                    mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
+                        "template"
+                    ]["spec"]["containers"][0]
+                    env_vars = mlrun_api_container.setdefault("env", [])
+                    for var in env_vars:
+                        if var.get("name") == "MLRUN_KFP_IMAGE":
+                            var["value"] = kfp_image_uri
+                            break
+                    else:
+                        env_vars.append(
+                            {"name": "MLRUN_KFP_IMAGE", "value": kfp_image_uri}
+                        )
 
             cmd = ["make"]
             cmd.extend(targets)
             self._exec_local(cmd, live=True, env=env)
-            if self._build_py39:
-                python_39_targets_to_build = []
-                for python_39_target in Constants.python_39_targets:
-                    if python_39_target in targets:
-                        target_to_image[
-                            f"{python_39_target}`{Constants.python_39_suffix}"
-                        ] = (
-                            f"{mlrun_docker_registry}/{Constants.targets_to_image_name[python_39_target]}:"
-                            f"{image_tag}{Constants.python_39_suffix}"
-                        )
-                        python_39_targets_to_build.append(python_39_target)
-                self._exec_local(
-                    ["make", *python_39_targets_to_build],
-                    live=True,
-                    env={
-                        **env,
-                        "MLRUN_PYTHON_VERSION": "3.9",
-                        "INCLUDE_PYTHON_VERSION_SUFFIX": "true",
-                    },
-                )
 
         return target_to_image
 
@@ -629,12 +593,12 @@ class MLRunPatcher:
         return stdout
 
     def _resolve_overwrite_registry(self):
-        docker_registry = self._config["DOCKER_REGISTRY"]
-        overwrite_registry = self._config["OVERWRITE_IMAGE_REGISTRY"]
-        if docker_registry.endswith("/"):
-            docker_registry = docker_registry[:-1]
-        if overwrite_registry.endswith("/"):
-            overwrite_registry = overwrite_registry[:-1]
+        docker_registry = self._config.get("DOCKER_REGISTRY")
+        overwrite_registry = self._config.get("OVERWRITE_IMAGE_REGISTRY")
+        if docker_registry:
+            docker_registry = docker_registry.rstrip("/")
+        if overwrite_registry:
+            overwrite_registry = overwrite_registry.rstrip("/")
 
         return docker_registry, overwrite_registry
 
@@ -642,6 +606,16 @@ class MLRunPatcher:
         if namespace:
             return namespace
         return self._config.get("NAMESPACE", Constants.default_namespace)
+
+    def _resolve_docker_registry(self):
+        mlrun_docker_registry = self._config.get("DOCKER_REGISTRY").rstrip("/")
+        mlrun_docker_repo = self._config.get("DOCKER_REPO")
+
+        if mlrun_docker_repo:
+            mlrun_docker_registry = (
+                f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
+            )
+        return mlrun_docker_registry
 
 
 @click.command(help="mlrun-api deployer to remote system")
@@ -684,12 +658,6 @@ class MLRunPatcher:
     help="Deploy the mlrun image",
 )
 @click.option(
-    "-39",
-    "--py39",
-    is_flag=True,
-    help="Build Python 3.9 MLRun image",
-)
-@click.option(
     "-sa",
     "--skip-api",
     is_flag=True,
@@ -726,7 +694,6 @@ def main(
     tag: str,
     log_collector: bool,
     mlrun: bool,
-    py39: bool,
     skip_api: bool,
     alerts: bool,
     no_build: bool,
@@ -743,7 +710,6 @@ def main(
         image_tag=tag,
         patch_log_collector_image=log_collector,
         patch_mlrun_image=mlrun,
-        build_py39=py39,
         skip_patch_api=skip_api,
         patch_alerts=alerts,
         no_build=no_build,

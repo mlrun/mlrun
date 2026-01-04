@@ -12,76 +12,62 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import subprocess
-import sys
+import warnings
 from pathlib import Path
 from typing import Optional, Union
 
 import yaml
+from deprecated import deprecated
 
 import mlrun.common.types
 import mlrun.utils
 from mlrun.common.schemas.hub import HubModuleType, HubSourceType
-from mlrun.run import function_to_module, get_object
-from mlrun.utils import logger
+from mlrun.run import get_object
 
-from ..errors import MLRunBadRequestError
-from ..model import ModelObj
 from ..utils import extend_hub_uri_if_needed
+from .base import HubAsset
 
 
-class HubModule(ModelObj):
+class HubModule(HubAsset):
+    ASSET_TYPE = HubSourceType.modules
+
     def __init__(
         self,
         name: str,
+        version: str,
         kind: Union[HubModuleType, str],
-        version: Optional[str] = None,
         description: Optional[str] = None,
         categories: Optional[list] = None,
         requirements: Optional[list] = None,
-        local_path: Optional[str] = None,
+        local_path: Optional[Path] = None,
         filename: Optional[str] = None,
         example: Optional[str] = None,
         url: Optional[str] = None,
         **kwargs,  # catch all for unused args
     ):
-        self.name: str = name
-        self.version: str = version
-        self.kind: HubModuleType = kind
-        self.description: str = description or ""
-        self.categories: list = categories or []
-        self.requirements: list = requirements or []
-        self.local_path: str = local_path or ""
-        self.filename: str = filename or name + ".py"
-        self.example: str = example or ""
-        self.url: str = url or ""
+        super().__init__(
+            name=name,
+            version=version,
+            description=description,
+            categories=categories,
+            requirements=requirements,
+            local_path=local_path,
+            filename=filename,
+            example=example,
+            url=url,
+        )
+        self.kind = kind
 
-    def module(self):
-        """Import the module after downloading its fils to local_path"""
-        try:
-            return function_to_module(code=self.filename, workdir=self.local_path)
-        except FileNotFoundError:
-            searched_path = self.local_path or "./"
-            raise FileNotFoundError(
-                f"Module file {self.filename} not found in {searched_path}, try calling download_module_files() first"
-            )
-
-    def install_requirements(self) -> None:
-        """
-        Install pip-style requirements (e.g., ["pandas>=2.0.0", "requests==2.31.0"]).
-        """
-        for req in self.requirements:
-            logger.info(f"Installing {req} ...")
-            try:
-                subprocess.run(
-                    [sys.executable, "-m", "pip", "install", req], check=True, text=True
-                )
-                logger.info(f"Installed {req}")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to install {req} (exit code {e.returncode})")
-
-    def download_module_files(self, local_path=None, secrets=None):
+    # TODO: Remove this in 1.13.0
+    @deprecated(
+        version="1.11.0",
+        reason="This function is deprecated and will be removed in 1.13. You can download module files by calling "
+        "download_files() instead.",
+        category=FutureWarning,
+    )
+    def download_module_files(
+        self, local_path: Optional[str] = None, secrets: Optional[dict] = None
+    ):
         """
         Download this hub module’s files (code file and, if available, an example notebook) to the target directory
         specified by `local_path` (defaults to the current working directory).
@@ -89,52 +75,50 @@ class HubModule(ModelObj):
         """
         self.local_path = self.verify_directory(path=local_path)
         source_url, _ = extend_hub_uri_if_needed(
-            uri=self.url, asset_type=HubSourceType.modules, file=self.filename
+            uri=self.url, asset_type=self.ASSET_TYPE, file=self.filename
         )
         self._download_object(
             obj_url=source_url, target_name=self.filename, secrets=secrets
         )
         if self.example:
             example_url, _ = extend_hub_uri_if_needed(
-                uri=self.url, asset_type=HubSourceType.modules, file=self.example
+                uri=self.url, asset_type=self.ASSET_TYPE, file=self.example
             )
             self._download_object(
                 obj_url=example_url, target_name=self.example, secrets=secrets
             )
 
-    def _download_object(self, obj_url, target_name, secrets=None):
-        data = get_object(url=obj_url, secrets=secrets)
-        target_dir = self.local_path if self.local_path is not None else os.getcwd()
-        target_filepath = os.path.join(target_dir, target_name)
-        with open(target_filepath, "wb") as f:
-            f.write(data)
-
-    @staticmethod
-    def verify_directory(path: Optional[str] = None) -> Path:
+    def download_files(
+        self,
+        local_path: Optional[str] = None,
+        download_example: bool = True,
+    ):
         """
-        Validate that the given path is an existing directory.
-        If no path has been provided, returns current working directory.
+        Download this hub module’s code file.
+        :param local_path: Target directory to download the module files to. Defaults to the current working directory.
+                           This path will be used to locate the code file when importing it as a module.
+        :param download_example: Whether to download the example notebook if available. Defaults to True.
         """
-        if path:
-            path = Path(path)
-            if not path.exists():
-                raise ValueError(f"Path does not exist: {path}")
-            if not path.is_dir():
-                raise ValueError(f"Path is not a directory: {path}")
-            return path
-        return Path(os.getcwd())
+        super().download_files(
+            local_path=local_path,
+            download_example=download_example,
+        )
 
+    # TODO: Remove this in 1.13.0
+    @deprecated(
+        version="1.11.0",
+        reason="This function is deprecated and will be removed in 1.13. You can get the module source file path by"
+        " calling get_src_file_path() instead.",
+        category=FutureWarning,
+    )
     def get_module_file_path(self):
-        if not self.local_path:
-            raise MLRunBadRequestError(
-                "module files haven't been downloaded yet, try calling download_module_files() first"
-            )
-        return str(Path(self.local_path) / self.filename)
+        """Get the full path to the module's code file."""
+        return super().get_src_file_path()
 
 
 def get_hub_module(
-    url: str = "",
-    download_files: Optional[bool] = True,
+    url: str,
+    download_files: bool = True,
     secrets: Optional[dict] = None,
     local_path: Optional[str] = None,
 ) -> HubModule:
@@ -158,11 +142,18 @@ def get_hub_module(
     spec = item_yaml.pop("spec", {})
     hub_module = HubModule(**item_yaml, **spec, url=url)
     if download_files:
-        hub_module.download_module_files(local_path=local_path, secrets=secrets)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            hub_module.download_module_files(local_path=local_path, secrets=secrets)
     return hub_module
 
 
-def import_module(url="", install_requirements=False, secrets=None, local_path=None):
+def import_module(
+    url: str,
+    install_requirements: bool = False,
+    secrets: Optional[dict] = None,
+    local_path: Optional[str] = None,
+):
     """
     Import a module from the hub to use directly.
     :param url: hub module url in the format "hub://[<source>/]<item-name>[:<tag>]"

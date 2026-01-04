@@ -125,7 +125,7 @@ class TestService(TestAPIBase):
 
         # manually add the run to the retry in progress dictionary to simulate a stale run
         self._service._retry_in_progress_run_uids[run_uid] = datetime.datetime.now(
-            datetime.timezone.utc
+            datetime.UTC
         ) - datetime.timedelta(days=2)
 
         await self._service._retry_jobs()
@@ -171,6 +171,6 @@ class TestService(TestAPIBase):
                 or mlrun.common.runtimes.constants.RunStates.pending_retry,
                 "error": "some error",
                 "retry_count": retry_count,
-                "end_time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "end_time": datetime.datetime.now(datetime.UTC).isoformat(),
             },
         }

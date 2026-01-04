@@ -103,7 +103,8 @@ async def create_model_endpoint(
         _,
         _,
         _,
-    ) = await services.api.crud.ModelEndpoints().create_model_endpoint(
+    ) = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().create_model_endpoint,
         db_session=db_session,
         model_endpoint=model_endpoint,
         creation_strategy=creation_strategy,
@@ -157,7 +158,8 @@ async def patch_model_endpoint(
     )
     attributes = {key: model_endpoint.get(key) for key in attributes_keys}
 
-    return await services.api.crud.ModelEndpoints().patch_model_endpoint(
+    return await run_in_threadpool(
+        services.api.crud.ModelEndpoints().patch_model_endpoint,
         name=model_endpoint.metadata.name,
         project=project,
         function_name=model_endpoint.spec.function_name,
@@ -178,14 +180,6 @@ async def delete_model_endpoint(
     delete_background_task: BackgroundTasks,
     function_name: Optional[str] = Query(None, alias="function-name"),
     function_tag: Optional[str] = Query(None, alias="function-tag"),
-    # TODO: remove in 1.11
-    endpoint_id_old: typing.Optional[EndpointIDAnnotation] = Query(
-        None,
-        alias="endpoint_id",
-        deprecated=True,
-        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0."
-        "Use endpoint-id instead.",
-    ),
     endpoint_id: typing.Optional[EndpointIDAnnotation] = Query(
         None, alias="endpoint-id"
     ),
@@ -203,7 +197,7 @@ async def delete_model_endpoint(
     :param auth_info:              The auth info of the request.
     :param db_session:             A session that manages the current dialog with the database.
     """
-    endpoint_id = endpoint_id or endpoint_id_old or "*"
+    endpoint_id = endpoint_id or "*"
 
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -215,7 +209,8 @@ async def delete_model_endpoint(
         )
     )
 
-    await services.api.crud.ModelEndpoints().delete_model_endpoint(
+    await run_in_threadpool(
+        services.api.crud.ModelEndpoints().delete_model_endpoint,
         project=project,
         name=name,
         function_name=function_name,
@@ -281,7 +276,8 @@ async def list_model_endpoints(
         auth_info=auth_info,
     )
 
-    endpoints = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoints = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         project=project,
         names=names,
         model_name=model_name,
@@ -445,7 +441,8 @@ async def get_metrics_by_multiple_endpoints(
     await asyncio.gather(*permissions_tasks)
 
     # verify all endpoints exist in the project
-    endpoints_data = await services.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoints_data = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
         project=project,
         uids=endpoint_ids,
         db_session=db_session,
@@ -501,25 +498,9 @@ async def get_model_endpoint(
     project: ProjectAnnotation,
     function_name: Optional[str] = Query(None, alias="function-name"),
     function_tag: Optional[str] = Query(None, alias="function-tag"),
-    # TODO: remove in 1.11
-    endpoint_id_old: Optional[EndpointIDAnnotation] = Query(
-        None,
-        alias="endpoint_id",
-        deprecated=True,
-        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
-        "Use endpoint-id instead.",
-    ),
     endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
     metric_list: Optional[list[str]] = Query(None, alias="metric"),
-    # TODO: remove in 1.11
-    feature_analysis_old: bool = Query(
-        False,
-        alias="feature_analysis",
-        deprecated=True,
-        description="'feature_analysis' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
-        "Use feature-analysis instead.",
-    ),
     feature_analysis: bool = Query(False, alias="feature-analysis"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -541,14 +522,12 @@ async def get_model_endpoint(
     :param db_session:          A session that manages the current dialog with the database.
     :return:                    The model endpoint object.
     """
-    endpoint_id = endpoint_id or endpoint_id_old
-    feature_analysis = feature_analysis or feature_analysis_old
-
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=name, auth_info=auth_info
     )
 
-    return await services.api.crud.ModelEndpoints().get_model_endpoint(
+    return await run_in_threadpool(
+        services.api.crud.ModelEndpoints().get_model_endpoint,
         name=name,
         project=project,
         function_name=function_name,

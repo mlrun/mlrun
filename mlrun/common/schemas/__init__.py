@@ -43,6 +43,7 @@ from .artifact import (
 from .auth import (
     AuthInfo,
     AuthorizationAction,
+    AuthorizationResourceNamespace,
     AuthorizationResourceTypes,
     AuthorizationVerificationInput,
     Credentials,
@@ -113,14 +114,18 @@ from .feature_store import (
 )
 from .frontend_spec import (
     ArtifactLimits,
-    AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
     NuclioStreamsFeatureFlag,
     PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
-from .function import FunctionState, PreemptionModes, SecurityContextEnrichmentModes
+from .function import (
+    BatchingSpec,
+    FunctionState,
+    PreemptionModes,
+    SecurityContextEnrichmentModes,
+)
 from .http import HTTPSessionRetryMode
 from .hub import (
     HubCatalog,

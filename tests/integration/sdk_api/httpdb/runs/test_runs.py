@@ -232,24 +232,24 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         statuses = [
             {
                 "state": mlrun.common.runtimes.constants.RunStates.completed,
-                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                "start_time": datetime.datetime.now(datetime.UTC)
                 - datetime.timedelta(days=1),
-                "end_time": datetime.datetime.now(datetime.timezone.utc)
+                "end_time": datetime.datetime.now(datetime.UTC)
                 - datetime.timedelta(hours=5),
             },
             {
                 "state": mlrun.common.runtimes.constants.RunStates.running,
-                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                "start_time": datetime.datetime.now(datetime.UTC)
                 - datetime.timedelta(hours=5),
             },
             {
                 "state": mlrun.common.runtimes.constants.RunStates.running,
-                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                "start_time": datetime.datetime.now(datetime.UTC)
                 - datetime.timedelta(days=1),
             },
             {
                 "state": mlrun.common.runtimes.constants.RunStates.running,
-                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                "start_time": datetime.datetime.now(datetime.UTC)
                 - datetime.timedelta(hours=5),
             },
             {

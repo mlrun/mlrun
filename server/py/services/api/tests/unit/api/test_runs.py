@@ -17,7 +17,7 @@ import copy
 import time
 import unittest.mock
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
 import fastapi
@@ -220,11 +220,11 @@ def test_push_notifications(db: Session, client: TestClient) -> None:
 
 def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     project = "some-project"
-    run_1_start_time = datetime.now(timezone.utc)
+    run_1_start_time = datetime.now(UTC)
 
     time.sleep(0.1)
 
-    run_1_update_time = datetime.now(timezone.utc)
+    run_1_update_time = datetime.now(UTC)
 
     run_1_name = "run_1_name"
     run_1_uid = "run_1_uid"
@@ -242,15 +242,15 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     run.struct = run_1
     get_db()._upsert(db, [run], ignore=True)
 
-    between_run_1_and_2 = datetime.now(timezone.utc)
+    between_run_1_and_2 = datetime.now(UTC)
 
     time.sleep(0.1)
 
-    run_2_start_time = datetime.now(timezone.utc)
+    run_2_start_time = datetime.now(UTC)
 
     time.sleep(0.1)
 
-    run_2_update_time = datetime.now(timezone.utc)
+    run_2_update_time = datetime.now(UTC)
 
     run_2_uid = "run_2_uid"
     run_2_name = "run_2_name"

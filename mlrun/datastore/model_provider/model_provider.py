@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections.abc import Awaitable
-from typing import Any, Callable, Optional, Union
+from collections.abc import Awaitable, Callable
+from typing import Any, Optional, Union
 
 import mlrun.errors
 from mlrun.common.types import StrEnum

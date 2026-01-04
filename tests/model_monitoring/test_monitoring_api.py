@@ -83,7 +83,7 @@ def test_record_result_updates_last_request(
 ) -> None:
     db_mock = Mock(spec=RunDBInterface)
     datetime_mock = datetime.datetime(
-        2011, 11, 4, 0, 5, 23, 283000, tzinfo=datetime.timezone.utc
+        2011, 11, 4, 0, 5, 23, 283000, tzinfo=datetime.UTC
     )
     df_mock = pd.DataFrame(
         {

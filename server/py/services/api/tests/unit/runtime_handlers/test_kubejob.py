@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import unittest.mock
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,6 +24,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import tests.conftest
 from mlrun.common.runtimes.constants import PodPhases, RunStates
+from mlrun.common.types import AuthenticationMode
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import now_date
@@ -643,9 +644,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pending_scheduled_pod.status.conditions = [
             k8s_client.V1PodCondition(type="PodScheduled", status="True")
         ]
-        pending_scheduled_pod.status.start_time = datetime.now(
-            timezone.utc
-        ) - timedelta(
+        pending_scheduled_pod.status.start_time = datetime.now(UTC) - timedelta(
             seconds=framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
             )
@@ -683,7 +682,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             running_overtime_labels,
             PodPhases.running,
         )
-        running_overtime_pod.status.start_time = datetime.now(timezone.utc) - timedelta(
+        running_overtime_pod.status.start_time = datetime.now(UTC) - timedelta(
             seconds=framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.executing
             )
@@ -717,9 +716,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 ),
             )
         ]
-        image_pull_backoff_pod.status.start_time = datetime.now(
-            timezone.utc
-        ) - timedelta(
+        image_pull_backoff_pod.status.start_time = datetime.now(UTC) - timedelta(
             seconds=framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
             )
@@ -1007,6 +1004,130 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler._is_pod_from_outdated_retry(pod.to_dict(), self.run)
             is expected_result
         )
+
+    @pytest.mark.parametrize(
+        "initial_volume_mounts,initial_volumes,expected_secret_count",
+        [
+            # No existing volumes or mounts
+            ([], [], 1),
+            # Volume with same name already exists (should be updated, not duplicated)
+            (
+                [{"mountPath": "/var/mlrun-secrets/auth", "name": "secret"}],
+                [
+                    {
+                        "name": "secret",
+                        "secret": {"items": [], "secretName": "old-secret"},
+                    }
+                ],
+                1,
+            ),
+            # Volume with a different name already exists (should add new one)
+            (
+                [{"mountPath": "/some/other/path", "name": "other-volume"}],
+                [
+                    {
+                        "name": "other-volume",
+                        "secret": {"items": [], "secretName": "old-secret"},
+                    }
+                ],
+                2,
+            ),
+            (
+                # Existing auth secret volume should be removed and replaced
+                [{"mountPath": "/var/mlrun-secrets/auth", "name": "old-secret"}],
+                [
+                    {
+                        "name": "old-secret",
+                        "secret": {
+                            "secretName": "mlrun-auth-secrets.oldhash",
+                            "items": [{"key": "tokensFile", "path": ".igz.yml"}],
+                        },
+                    }
+                ],
+                1,
+            ),
+        ],
+    )
+    def test_mount_secret_token_to_runtime(
+        self,
+        initial_volume_mounts,
+        initial_volumes,
+        expected_secret_count,
+    ):
+        token_name = "test-token"
+        auth_info = mlrun.common.schemas.AuthInfo(username="test-user")
+
+        runtime = mlrun.runtimes.kubejob.KubejobRuntime()
+        runtime.spec.volume_mounts = initial_volume_mounts.copy()
+        runtime.spec.volumes = initial_volumes.copy()
+
+        mock_secret = unittest.mock.MagicMock()
+        mock_secret.metadata.name = "test-secret"
+
+        mock_helper = unittest.mock.MagicMock()
+        mock_helper._get_user_token_secret.return_value = mock_secret
+
+        mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
+
+        with unittest.mock.patch(
+            "framework.utils.singletons.k8s.get_k8s_helper",
+            return_value=mock_helper,
+        ):
+            self.runtime_handler._mount_secret_token_to_runtime(
+                runtime, token_name, auth_info
+            )
+
+        secret_mounts = [
+            volume_mount
+            for volume_mount in runtime.spec.volume_mounts
+            if volume_mount["name"] == "secret"
+        ]
+        secret_volumes = [
+            volume for volume in runtime.spec.volumes if volume["name"] == "secret"
+        ]
+
+        assert len(secret_mounts) == 1
+        assert (
+            secret_mounts[0]["mountPath"]
+            == mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH
+        )
+
+        assert len(secret_volumes) == 1
+        assert secret_volumes[0]["secret"]["secretName"] == "test-secret"
+        assert secret_volumes[0]["secret"]["items"] == [
+            {
+                "key": "tokensFile",
+                "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+            }
+        ]
+
+        assert len(runtime.spec.volumes) == expected_secret_count
+
+        assert not any(
+            volume["secret"]["secretName"].startswith("mlrun-auth-secrets.oldhash")
+            for volume in runtime.spec.volumes
+        )
+
+    def test_mount_secret_token_to_runtime_non_existing_secret(self):
+        token_name = "test-token"
+        auth_info = mlrun.common.schemas.AuthInfo(username="test-user")
+
+        runtime = mlrun.runtimes.kubejob.KubejobRuntime()
+
+        mock_helper = unittest.mock.MagicMock()
+        mock_helper._get_user_token_secret.return_value = None
+
+        with unittest.mock.patch(
+            "framework.utils.singletons.k8s.get_k8s_helper",
+            return_value=mock_helper,
+        ):
+            self.runtime_handler._mount_secret_token_to_runtime(
+                runtime, token_name, auth_info
+            )
+
+        # If the secret does not exist, nothing should be mounted or added
+        assert runtime.spec.volume_mounts == []
+        assert runtime.spec.volumes == []
 
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod

@@ -133,19 +133,21 @@ To specify the topology, router class and class arguments use `.set_topology()` 
 ## Creating a model serving function (service)
 
 To provision a serving function, you need to create an MLRun function of type `serving`.
-This can be done by using the `code_to_function()` call from a notebook. You can also import 
-an existing serving function/template from the Function Hub.
+Use the {py:meth}`~mlrun.projects.MlrunProject.set_function` call from a notebook. You can also import 
+an existing serving function/template from the function hub.
 
-Example (run inside a notebook): this code converts a notebook to a serving function and adding a model to it:
+Example (run inside a notebook): this code converts a notebook to a serving function and adds a model to it:
 
 ```python
-from mlrun import code_to_function
+import mlrun
 
-fn = code_to_function("my-function", kind="serving")
+project = mlrun.get_or_create_project("myproj")
+
+fn = set_function("my-function", kind="serving")
 fn.add_model("m1", model_path="<model-artifact/dir>", class_name="MyClass", x=100)
 ``` 
 
-See ({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`)) docstring for help and parameters.
+See ({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`) docstring for help and parameters.
 
 See the full [Model Server example](https://github.com/mlrun/functions/blob/master/functions/src/v2_model_server/v2_model_server.ipynb).
 
@@ -177,14 +179,13 @@ is used to create real-time dashboards, detect drift, and analyze performance.
 To monitor a deployed model, apply `set_tracking()` on your serving function and specify the function spec attributes:
 
 ```py
-fn.set_tracking(stream_path, batch, sample)
+fn.set_tracking(stream_path, sampling_percentage)
 ```
 
 Optional arguments:
-* **stream_path** &mdash; Enterprise: the v3io stream path (e.g. `v3io:///users/..`); CE: a valid Kafka stream 
+* **stream_path** &mdash; Enterprise: the v3io stream path (e.g. `v3io:///users/..`); CE: a valid Kafka stream
 (e.g. kafka://kafka.default.svc.cluster.local:9092)
-* **sample** &mdash; optional, sample every N requests
-* **batch** &mdash; optional, send micro-batches every N requests
+* **sampling_percentage** &mdash; optional, down sampling events that will be pushed to the monitoring stream based on a specified percentage (e.g. 50 for 50%). By default, all events are pushed.
 
 Before you deploy a model with model monitoring enabled via `fn.set_tracking()`,
 set the credentials for the project:

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -68,8 +68,8 @@ def test_tdengine_connection(use_prepared_statement):
     assert len(data) == 2
     col1, col2 = data
     assert datetime.strptime(col1, "%Y-%m-%d %H:%M:%S.%f %z").astimezone(
-        timezone.utc
-    ) == datetime(2024, 10, 9, 3, 33, 6, 455000, tzinfo=timezone.utc)
+        UTC
+    ) == datetime(2024, 10, 9, 3, 33, 6, 455000, tzinfo=UTC)
     assert col2 == 1
 
 

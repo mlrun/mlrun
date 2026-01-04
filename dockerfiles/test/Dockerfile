@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
-ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_PIP_VERSION=25.0
 ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
 
@@ -21,6 +21,7 @@ FROM --platform=${DOCKER_DEFAULT_PLATFORM} mlrun_common_image:${MLRUN_PYTHON_VER
 
 ARG MLRUN_PYTHON_VERSION
 ARG MLRUN_PIP_VERSION
+ARG IGUAZIO_PACKAGE_VERSION
 
 ENV NO_COLOR=1
 LABEL maintainer="yaronh@iguazio.com"
@@ -87,9 +88,12 @@ ENV PYTHONPATH="/mlrun/tests:/mlrun/automation:/mlrun/server/py/schemas/proto"
 # Install iguazio package from Test PyPI only for Python 3.11
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     if [ "${MLRUN_PYTHON_VERSION}" = "3.11" ]; then \
-      uv pip install --index-url https://test.pypi.org/simple/ \
+      echo "Installing iguazio package version ${IGUAZIO_PACKAGE_VERSION} for Python ${MLRUN_PYTHON_VERSION}..."; \
+      uv pip install \
+        --index-url https://test.pypi.org/simple/ \
         --extra-index-url https://pypi.org/simple \
-        iguazio~=0.0.1a14 --python-version ${MLRUN_PYTHON_VERSION}; \
+        "iguazio~=${IGUAZIO_PACKAGE_VERSION}" \
+        --python-version ${MLRUN_PYTHON_VERSION}; \
     else \
       echo "Skipping iguazio install for Python ${MLRUN_PYTHON_VERSION}"; \
     fi

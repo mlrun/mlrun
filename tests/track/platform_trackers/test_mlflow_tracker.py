@@ -476,7 +476,13 @@ def test_import_model(rundb_mock, handler):
 
         # Access model's uri through mlflow's last run
         mlflow_run = mlflow.last_active_run()
-        model_uri = f"{mlflow_run.info.artifact_uri}/model"
+
+        logged_models = mlflow.search_logged_models(
+            filter_string=f"source_run_id = '{mlflow_run.info.run_id}'",
+            output_format="list",
+        )
+
+        model_uri = logged_models[0].artifact_location
 
         key = "test_model"
         MLFlowTracker().import_model(
@@ -557,5 +563,11 @@ def _validate_run(run: mlrun.run, run_id: Optional[str] = None):
         assert run_to_comp.data.metrics[metric] == run.status.results[metric]
     assert len(run_to_comp.data.params) == len(run.spec.parameters)
     # check the number of artifacts corresponds
-    num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))
+    logged_models = mlflow.search_logged_models(
+        filter_string=f"source_run_id = '{run_to_comp.info.run_id}'",
+        output_format="list",
+    )
+    num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id)) + len(
+        logged_models
+    )
     assert num_artifacts == len(run.status.artifacts), "Wrong number of artifacts"

@@ -1187,7 +1187,8 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
                 expected_runspec,
                 # excluding function attribute as it contains hash of the object, excluding this path because any change
                 # in the structure of the run will require to update the function hash
-                exclude_paths=["root['function']"],
+                # TODO remove the excluded path of 'auth' once ML-11590 is resolved
+                exclude_paths=["root['function']", "root['auth']"],
             )
             == {}
         )

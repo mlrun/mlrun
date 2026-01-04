@@ -30,13 +30,15 @@ class TimescaleDBQueryBuilder:
     """Utility class for building common SQL query components."""
 
     @staticmethod
-    def build_endpoint_filter(endpoint_ids: Union[str, list[str]]) -> str:
+    def build_endpoint_filter(endpoint_ids: Optional[Union[str, list[str]]]) -> str:
         """
         Generate SQL filter for endpoint IDs.
 
-        :param endpoint_ids: Single endpoint ID or list of endpoint IDs
-        :return: SQL WHERE clause fragment for endpoint filtering
+        :param endpoint_ids: Single endpoint ID, list of endpoint IDs, or None for no filtering
+        :return: SQL WHERE clause fragment for endpoint filtering, or empty string if None
         """
+        if endpoint_ids is None:
+            return ""
         if isinstance(endpoint_ids, str):
             return f"{mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_ids}'"
         elif isinstance(endpoint_ids, list):
@@ -81,39 +83,62 @@ class TimescaleDBQueryBuilder:
 
     @staticmethod
     def build_metrics_filter(
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]],
     ) -> str:
         """
-        Generate SQL filter for metrics.
+        Generate SQL filter for metrics using both application_name and metric_name columns.
 
-        :param metrics: List of ModelEndpointMonitoringMetric objects
-        :return: SQL WHERE clause fragment for metrics filtering
+        :param metrics: List of ModelEndpointMonitoringMetric objects, or None for no filtering
+        :return: SQL WHERE clause fragment for metrics filtering, or empty string if None
         """
+        if metrics is None:
+            return ""
         if not metrics:
             raise mlrun.errors.MLRunInvalidArgumentError("Metrics list cannot be empty")
 
-        metric_names = [metric.name for metric in metrics]
-        if len(metric_names) == 1:
-            return f"{mm_schemas.MetricData.METRIC_NAME} = '{metric_names[0]}'"
-        metric_list = "', '".join(metric_names)
-        return f"{mm_schemas.MetricData.METRIC_NAME} IN ('{metric_list}')"
+        # Build filter that includes both application_name and metric_name
+        # Format: (application_name = 'app1' AND metric_name = 'name1') OR
+        # (application_name = 'app2' AND metric_name = 'name2')
+        conditions = []
+        for metric in metrics:
+            condition = (
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' "
+                f"AND {mm_schemas.MetricData.METRIC_NAME} = '{metric.name}')"
+            )
+            conditions.append(condition)
+
+        if len(conditions) == 1:
+            return conditions[0]
+        return " OR ".join(conditions)
 
     @staticmethod
     def build_results_filter(
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]],
     ) -> str:
         """
-        Generate SQL filter for results using result_name column.
-        :param metrics: List of ModelEndpointMonitoringMetric objects
-        :return: SQL WHERE clause fragment for results filtering
+        Generate SQL filter for results using both application_name and result_name columns.
+        :param metrics: List of ModelEndpointMonitoringMetric objects, or None for no filtering
+        :return: SQL WHERE clause fragment for results filtering, or empty string if None
         """
+        if metrics is None:
+            return ""
         if not metrics:
             raise mlrun.errors.MLRunInvalidArgumentError("Metrics list cannot be empty")
-        metric_names = [metric.name for metric in metrics]
-        if len(metric_names) == 1:
-            return f"{mm_schemas.ResultData.RESULT_NAME} = '{metric_names[0]}'"
-        metric_list = "', '".join(metric_names)
-        return f"{mm_schemas.ResultData.RESULT_NAME} IN ('{metric_list}')"
+
+        # Build filter that includes both application_name and result_name
+        # Format: (application_name = 'app1' AND result_name = 'name1') OR
+        # (application_name = 'app2' AND result_name = 'name2')
+        conditions = []
+        for metric in metrics:
+            condition = (
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' "
+                f"AND {mm_schemas.ResultData.RESULT_NAME} = '{metric.name}')"
+            )
+            conditions.append(condition)
+
+        if len(conditions) == 1:
+            return conditions[0]
+        return " OR ".join(conditions)
 
     @staticmethod
     def build_metrics_filter_from_names(metric_names: list[str]) -> str:
@@ -297,6 +322,7 @@ class TimescaleDBQueryBuilder:
         name_column: str,
         value_column: str,
         debug_name: str = "read_data",
+        timestamp_column: Optional[str] = None,
     ) -> "pd.DataFrame":  # Use string to avoid import cycle
         """
         Build and execute read data query with pre-aggregate fallback pattern.
@@ -314,6 +340,7 @@ class TimescaleDBQueryBuilder:
         :param name_column: Name of the metric/result name column
         :param value_column: Name of the metric/result value column
         :param debug_name: Name for debugging purposes
+        :param timestamp_column: Optional timestamp column to use for time filtering
         :return: DataFrame with query results
         """
 
@@ -324,6 +351,7 @@ class TimescaleDBQueryBuilder:
                 columns_to_filter=columns,
                 filter_query=filter_query,
                 use_pre_aggregates=True,
+                timestamp_column=timestamp_column,
             )
 
         def build_raw_query():
@@ -332,6 +360,7 @@ class TimescaleDBQueryBuilder:
                 end=end,
                 columns_to_filter=columns,
                 filter_query=filter_query,
+                timestamp_column=timestamp_column,
             )
 
         # Column mapping rules for pre-aggregate results

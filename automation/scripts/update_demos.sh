@@ -300,16 +300,10 @@ except Exception:
     raise SystemExit(1)
 PY
 
-# Determine which ref to fetch scripts from (tag matching version or development)
-if [ -n "$mlrun_version" ] && echo "$mlrun_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'; then
-    RAW_REF="refs/tags/v${mlrun_version}"
-else
-    RAW_REF="development"
-fi
-
 # Fetch get_demos.py and its config
-GET_DEMOS_URL="https://raw.githubusercontent.com/mlrun/mlrun/${RAW_REF}/automation/scripts/get_demos.py"
-DEMOS_CONFIG_URL="https://raw.githubusercontent.com/mlrun/mlrun/${RAW_REF}/automation/scripts/demos_config.json"
+GET_DEMOS_URL="https://raw.githubusercontent.com/mlrun/mlrun/development/automation/scripts/get_demos.py"
+DEMOS_CONFIG_URL="https://raw.githubusercontent.com/mlrun/mlrun/development/automation/scripts/demos_config.json"
+# This demos_config_url is hard coded also in get_demos.py
 
 fetch_file() {
     local url="$1"; local out="$2"
@@ -328,7 +322,6 @@ temp_demos_dir=$(mktemp -d /tmp/demos.XXXXXXXXXX)
 
 echo "Running get_demos.py (dest=${temp_demos_dir}) ..."
 GITHUB_TOKEN="$GITHUB_TOKEN" $PYTHON_BIN "$work_dir/get_demos.py" ${mlrun_version:+"$mlrun_version"} \
-    --config_path "$work_dir/demos_config.json" \
     --dest "$temp_demos_dir"
 
 if [ -z "${dry_run}" ]; then
@@ -350,7 +343,7 @@ if [ -z "${dry_run}" ]; then
     
     # Add update_demos.sh to the demos directory for future updates
     echo "Adding update_demos.sh to ${demos_dir} for future updates..."
-    UPDATE_DEMOS_URL="https://raw.githubusercontent.com/mlrun/mlrun/${RAW_REF}/automation/scripts/update_demos.sh"
+    UPDATE_DEMOS_URL="https://raw.githubusercontent.com/mlrun/mlrun/development/automation/scripts/update_demos.sh"
     fetch_file "$UPDATE_DEMOS_URL" "${demos_dir}/update_demos.sh" && chmod +x "${demos_dir}/update_demos.sh" || \
         echo "Warning: Could not download update_demos.sh to demos directory"
 else

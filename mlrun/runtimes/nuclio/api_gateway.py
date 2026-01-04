@@ -17,13 +17,14 @@ from typing import Optional, Union
 from urllib.parse import urljoin
 
 import requests
-from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
+import mlrun.auth.nuclio
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas as schemas
+import mlrun.common.schemas.auth
 import mlrun.common.types
 from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
@@ -55,6 +56,11 @@ class Authenticator(typing.Protocol):
             == schemas.APIGatewayAuthenticationMode.access_key.value
         ):
             return AccessKeyAuth()
+        elif (
+            api_gateway_spec.authenticationMode
+            == schemas.APIGatewayAuthenticationMode.iguazio.value
+        ):
+            return IguazioAuth()
         else:
             return NoneAuth()
 
@@ -110,6 +116,16 @@ class AccessKeyAuth(APIGatewayAuthenticator):
     @property
     def authentication_mode(self) -> str:
         return schemas.APIGatewayAuthenticationMode.access_key.value
+
+
+class IguazioAuth(APIGatewayAuthenticator):
+    """
+    An API gateway authenticator with Iguazio authentication.
+    """
+
+    @property
+    def authentication_mode(self) -> str:
+        return schemas.APIGatewayAuthenticationMode.iguazio.value
 
 
 class APIGatewayMetadata(ModelObj):
@@ -430,7 +446,7 @@ class APIGateway(ModelObj):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please pass credentials"
                 )
-            auth = NuclioAuthInfo(
+            auth = mlrun.auth.nuclio.NuclioAuthInfo(
                 username=credentials[0], password=credentials[1]
             ).to_requests_auth()
 
@@ -440,23 +456,30 @@ class APIGateway(ModelObj):
         ):
             # inject access key from env
             if credentials:
-                auth = NuclioAuthInfo(
+                auth = mlrun.auth.nuclio.NuclioAuthInfo(
                     username=credentials[0],
                     password=credentials[1],
                     mode=NuclioAuthKinds.iguazio,
                 ).to_requests_auth()
             else:
-                auth = NuclioAuthInfo().from_envvar().to_requests_auth()
+                auth = (
+                    mlrun.auth.nuclio.NuclioAuthInfo().from_envvar().to_requests_auth()
+                )
             if not auth:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
                 )
+        if (
+            self.spec.authentication.authentication_mode
+            == schemas.APIGatewayAuthenticationMode.iguazio.value
+        ):
+            auth = mlrun.auth.nuclio.NuclioAuthInfo.from_envvar().to_requests_auth()
         url = urljoin(self.invoke_url, path or "")
 
         # Determine the correct keyword argument for the body
         if isinstance(body, dict):
             kwargs["json"] = body
-        elif isinstance(body, (str, bytes)):
+        elif isinstance(body, str | bytes):
             kwargs["data"] = body
 
         return requests.request(
@@ -526,6 +549,13 @@ class APIGateway(ModelObj):
         Set access key authentication for the API gateway.
         """
         self.spec.authentication = AccessKeyAuth()
+
+    @min_nuclio_versions("1.15.10")
+    def with_iguazio_auth(self):
+        """
+        Set iguazio authentication for the API gateway.
+        """
+        self.spec.authentication = IguazioAuth()
 
     def with_canary(
         self,

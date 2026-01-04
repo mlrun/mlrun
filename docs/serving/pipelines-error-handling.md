@@ -1,7 +1,9 @@
 (pipelines-error-handling)=
 # Error handling
    
-You can define exception handling (an error-handling flow) that is triggered on graph or step errors: step: The error handler is appended to the step that, if it fails, triggers the error handling. If you want the graph to continue after an error handler execution, specify the next step in the `before` parameter. If you want the graph to complete after an error handler execution, omit the `before` parameter; and graph: When set on the graph object, the graph completes after the error handler execution.
+You can define exception handling (an error-handling flow) that is triggered on graph or step errors: 
+- step: The error handler is appended to the step that, if it fails, triggers the error handling. If you want the graph to continue after an error handler execution, specify the next step in the `before` parameter. If you want the graph to complete after an error handler execution, omit the `before` parameter.
+- graph: When set on the graph object, the graph completes after the error handler execution.
 
 Example of an exception on a step that only runs when/if the "pre-process" step fails:
 ```

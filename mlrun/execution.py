@@ -15,7 +15,6 @@
 import logging
 import os
 import uuid
-import warnings
 from copy import deepcopy
 from typing import Optional, Union, cast
 
@@ -101,6 +100,7 @@ class MLClientCtx:
         self._node_selector = {}
         self._tolerations = {}
         self._affinity = {}
+        self._auth = {}
 
         self._function = ""
         self._parameters = {}
@@ -233,6 +233,11 @@ class MLClientCtx:
     def node_selector(self):
         """Dictionary with node selectors (read-only)"""
         return deepcopy(self._node_selector)
+
+    @property
+    def auth(self):
+        """Dictionary with auth (read-only)"""
+        return deepcopy(self._auth)
 
     @property
     def tolerations(self):
@@ -437,6 +442,7 @@ class MLClientCtx:
             self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
             self._retry_spec = spec.get("retry", self._retry_spec)
+            self._auth = spec.get("auth", self._auth)
 
         self._init_dbs(rundb)
 
@@ -1141,14 +1147,6 @@ class MLClientCtx:
         self._update_run()
         return item
 
-    def get_cached_artifact(self, key):
-        """Return a logged artifact from cache (for potential updates)"""
-        warnings.warn(
-            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.11.0. Use get_artifact instead.",
-            FutureWarning,
-        )
-        return self.get_artifact(key)
-
     def get_artifact(
         self, key, tag=None, iter=None, tree=None, uid=None
     ) -> Optional[Artifact]:
@@ -1310,6 +1308,7 @@ class MLClientCtx:
                 "node_selector": self._node_selector,
                 "tolerations": self._tolerations,
                 "affinity": self._affinity,
+                "auth": self._auth,
                 "retry": self._retry_spec,
             },
             "status": {
@@ -1511,15 +1510,15 @@ class MLClientCtx:
 
 
 def _cast_result(value):
-    if isinstance(value, (int, str, float)):
+    if isinstance(value, int | str | float):
         return value
     if isinstance(value, list):
         return [_cast_result(v) for v in value]
     if isinstance(value, dict):
         return {k: _cast_result(v) for k, v in value.items()}
-    if isinstance(value, (np.int64, np.integer)):
+    if isinstance(value, np.int64 | np.integer):
         return int(value)
-    if isinstance(value, (np.floating, np.float64)):
+    if isinstance(value, np.floating | np.float64):
         return float(value)
     if isinstance(value, np.ndarray):
         return value.tolist()

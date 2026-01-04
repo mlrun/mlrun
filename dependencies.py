@@ -61,7 +61,6 @@ def extra_requirements() -> dict[str, list[str]]:
             "avro~=1.11",
         ],
         "redis": ["redis~=4.3"],
-        "mlflow": ["mlflow~=2.22"],
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
         "sqlalchemy": ["sqlalchemy~=2.0"],
         "dask": [
@@ -69,12 +68,8 @@ def extra_requirements() -> dict[str, list[str]]:
             # which can cause incompatibilities between the client and the Dask scheduler/worker.
             # (both must be the same version)
             # Reference: https://blog.dask.org/2023/04/14/scheduler-environment-requirements
-            # Note: dask 2023 does not work on Python 3.11, and dask 2024 requires dependencies
-            # that MLRun with Python 3.9 cannot support.
-            'dask~=2023.12.1; python_version < "3.11"',
-            'dask==2024.8; python_version >= "3.11"',
-            'distributed~=2023.12.1; python_version < "3.11"',
-            'distributed==2024.8; python_version >= "3.11"',
+            "dask==2024.8",
+            "distributed==2024.8",
         ],
         "alibaba-oss": ["ossfs==2025.5.0", "oss2==2.18.4"],
         "tdengine": ["taos-ws-py==0.3.2"],
@@ -88,7 +83,8 @@ def extra_requirements() -> dict[str, list[str]]:
     extras_require.update(
         {
             "dev-postgres": ["pytest-mock-resources[postgres]~=2.12"],
-            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.5.8"],
+            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.6.0"],
+            "mlflow": ["mlflow~=3.0"],
             # TODO uncomment when KFP 1.8 support is removed
             # "kfp2": ["mlrun_pipelines_kfp_v2[kfp]>=0.5.0 ; python_version >= '3.11'"],
             "api": api_deps,

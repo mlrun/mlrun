@@ -43,11 +43,13 @@ def test_extras_requirement_file_aligned():
     )
     # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
     # we exclude them from the comparison
+    # mlflow is only present in test image
     excluded_packages = [
         "mlrun_pipelines_kfp_v1_8",
         "mlrun_pipelines_kfp_v1_8[kfp]",
         "pytest-mock-resources[postgres]",
         "mlrun_pipelines_kfp_v2",
+        "mlflow",
     ]
     for package in excluded_packages:
         if package in setup_py_extras_requirements_specifiers_map:
@@ -126,10 +128,10 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "storey": {"~=1.10.16"},
+        "storey": {"~=1.11.4"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
-        "scipy": {"~=1.13.0"},
+        "scipy": {"~=1.16.3"},
         "docstring_parser": {"~=0.16"},
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.6"},
@@ -142,25 +144,7 @@ def test_requirement_specifiers_convention():
         "setuptools": {">=75.2"},
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
-        "urllib3": {
-            ">=1.26.20",
-        },
-        "dask-ml": {
-            '~=1.4,<1.9.0; python_version < "3.11"',
-            '~=2024.4.4; python_version >= "3.11"',
-        },
-        "kfp": {
-            '==1.8.22; python_version < "3.11"',
-            '==1.8.23; python_version >= "3.11"',
-        },
-        "dask": {
-            '~=2023.12.1; python_version < "3.11"',
-            '==2024.8; python_version >= "3.11"',
-        },
-        "distributed": {
-            '~=2023.12.1; python_version < "3.11"',
-            '==2024.8; python_version >= "3.11"',
-        },
+        "dask-ml": {"~=2024.4.4"},
     }
 
     missing_requirements = []
@@ -203,27 +187,6 @@ def test_requirement_specifiers_inconsistencies():
         # and the fact out pydantic currently requires v1
         # on the other hand, mlrun client can have both and thus the inconsistency
         "pydantic": {">=1,<2", ">=1.10.15"},
-        # packages that require specific versions per python version
-        "dask": {
-            '~=2023.12.1; python_version < "3.11"',
-            '==2024.8; python_version >= "3.11"',
-        },
-        "distributed": {
-            '~=2023.12.1; python_version < "3.11"',
-            '==2024.8; python_version >= "3.11"',
-        },
-        "dask-ml": {
-            '~=1.4,<1.9.0; python_version < "3.11"',
-            '~=2024.4.4; python_version >= "3.11"',
-        },
-        "kfp": {
-            '==1.8.22; python_version < "3.11"',
-            '==1.8.23; python_version >= "3.11"',
-        },
-        "v3io-frames": {
-            '~=0.10.16; python_version < "3.11"',
-            '~=0.13.11; python_version >= "3.11"',
-        },
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

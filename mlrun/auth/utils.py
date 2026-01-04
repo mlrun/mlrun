@@ -19,6 +19,10 @@ import yaml
 
 import mlrun.common.schemas
 import mlrun.utils.helpers
+from mlrun.config import config as mlconf
+
+if typing.TYPE_CHECKING:
+    import mlrun.db
 
 
 def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
@@ -75,7 +79,7 @@ def load_secret_tokens_from_file(
              Returns an empty list if parsing fails or no tokens exist.
     :rtype: list[dict[str, Any]]
     """
-    token_file = os.path.expanduser(mlrun.mlconf.auth_with_oauth_token.token_file)
+    token_file = os.path.expanduser(mlconf.auth_with_oauth_token.token_file)
     data = read_secret_tokens_file(raise_on_error=raise_on_error)
     if not data:
         mlrun.utils.helpers.raise_or_log_error(
@@ -105,38 +109,19 @@ def read_secret_tokens_file(
     If the file does not exist or cannot be parsed, it either raises an error or logs a warning based on the
     `raise_on_error` parameter.
 
-    - Supports both ``.yaml`` and ``.yml`` extensions and will attempt to use the
-      alternate extension if the file with the configured extension does not exist.
     - The configured path may use ``~`` to represent the user’s home directory, which
       will be expanded automatically.
 
     :param raise_on_error: Whether to raise an error or log a warning on failure.
     :return: The parsed content of the token file as a dictionary, or None if an error occurs.
     """
-    token_file = os.path.expanduser(mlrun.mlconf.auth_with_oauth_token.token_file)
+    token_file = os.path.expanduser(mlconf.auth_with_oauth_token.token_file)
 
-    # If the file doesn't exist, try the alternative extension
     if not os.path.exists(token_file):
-        base, ext = os.path.splitext(token_file)
-        if ext in [".yml", ".yaml"]:
-            alt_ext = ".yaml" if ext == ".yml" else ".yml"
-            alt_file = base + alt_ext
-            if os.path.exists(alt_file):
-                token_file = alt_file
-            else:
-                mlrun.utils.helpers.raise_or_log_error(
-                    (
-                        f"Configured token file not found: {token_file}. "
-                        f"Tried alternative extension: {alt_file}, also not found."
-                    ),
-                    raise_on_error,
-                )
-                return None
-        else:
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Configured token file not found: {token_file}", raise_on_error
-            )
-            return None
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Configured token file not found: {token_file}", raise_on_error
+        )
+        return None
 
     try:
         with open(token_file) as token_file_io:
@@ -193,9 +178,9 @@ def parse_offline_token_data(
         )
         return None
 
-    name = mlrun.mlconf.auth_with_oauth_token.token_name or "default"
+    name = mlconf.auth_with_oauth_token.token_name or "default"
     matches = [t for t in tokens if t.get("name") == name] or (
-        [tokens[0]] if not mlrun.mlconf.auth_with_oauth_token.token_name else []
+        [tokens[0]] if not mlconf.auth_with_oauth_token.token_name else []
     )
 
     if len(matches) != 1:
@@ -274,7 +259,7 @@ def validate_secret_tokens(
     valid_tokens = []
     seen = set()
 
-    token_file = os.path.expanduser(mlrun.mlconf.auth_with_oauth_token.token_file)
+    token_file = os.path.expanduser(mlconf.auth_with_oauth_token.token_file)
     for token in tokens_list:
         name = token.get("name")
         token_value = token.get("token")
@@ -316,7 +301,7 @@ def translate_secret_tokens(
     :return: List of SecretToken objects created from the input dictionaries.
     :rtype: list[mlrun.common.schemas.SecretToken]
     """
-    token_file = os.path.expanduser(mlrun.mlconf.auth_with_oauth_token.token_file)
+    token_file = os.path.expanduser(mlconf.auth_with_oauth_token.token_file)
     tokens = []
     for token in tokens_list:
         try:

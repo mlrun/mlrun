@@ -45,7 +45,7 @@ MLRun provides two set of images: with Python 3.9 and with Python 3.11. Images w
 ```
 <p align="center"><img src="../_static/images/remote-kfp-engine.png" alt="Remote KFP engine" /></p>
 
-The [Remote-KFP workflows](https://www.kubeflow.org/docs/components/pipelines/overview/pipelines-overview/) are compiled on a pod called "workflow-runner-<workflow-name>" using the workflow file that is stored in a remote source (e.g. Git, tar.gz or zip). This pod is responsible for loading the files from the remote source and running the KFP by using the files from the remote source. Each step runs as a separate pod. Remote KFP workflows support more advanced operations (conditions, branches, etc.).
+The [Remote-KFP workflows](https://www.kubeflow.org/docs/components/pipelines/overview/) are compiled on a pod called "workflow-runner-<workflow-name>" using the workflow file that is stored in a remote source (e.g. Git, tar.gz or zip). This pod is responsible for loading the files from the remote source and running the KFP by using the files from the remote source. Each step runs as a separate pod. Remote KFP workflows support more advanced operations (conditions, branches, etc.).
 If your workflow file imports custom packages, they must be included in the workflow runner image. Use one of the {py:meth}`~mlrun.projects.MlrunProject.build_image` parameters: `requirements` or `requirements_file` to add the packages.
 
 You can modify the:

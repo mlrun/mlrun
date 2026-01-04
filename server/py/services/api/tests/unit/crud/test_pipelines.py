@@ -294,7 +294,7 @@ def test_list_pipelines_project_filtering(project, expected_ids):
         ),
         patch.object(
             services.api.crud.pipelines.Pipelines,
-            "_format_runs",
+            "_format_runs_concurrently",
             side_effect=lambda kfp_client, runs, format_: [
                 {"id": r.id, "name": r.name} for r in runs
             ],

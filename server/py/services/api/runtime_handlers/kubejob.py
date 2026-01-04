@@ -22,6 +22,7 @@ from packaging.version import parse as parse_version
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 
@@ -48,8 +49,9 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         runtime: mlrun.runtimes.KubejobRuntime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        command, args, extra_env = self._get_cmd_args(runtime, run)
+        command, args, extra_env = self._get_cmd_args(runtime, run, auth_info)
         run_node_selector = run.spec.node_selector
         run_tolerations = run.spec.tolerations
         run_affinity = run.spec.affinity
@@ -57,9 +59,11 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         if run.metadata.iteration:
             runtime.store_run(run)
         new_meta = self._get_meta(runtime, run)
-
         self.add_secrets_to_spec_before_running(
-            runtime, project_name=run.metadata.project
+            runtime,
+            project_name=run.metadata.project,
+            token_name=(run.spec.auth or {}).get("token_name"),
+            auth_info=auth_info,
         )
         workdir = self._resolve_workdir(runtime)
 
@@ -99,8 +103,9 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         self,
         runtime: mlrun.runtimes.KubejobRuntime,
         run: mlrun.run.RunObject,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        extra_env = runtime._generate_runtime_env(run)
+        extra_env = runtime._generate_runtime_env(run, auth_info)
         if runtime.spec.pythonpath:
             extra_env["PYTHONPATH"] = runtime.spec.pythonpath
         args = []

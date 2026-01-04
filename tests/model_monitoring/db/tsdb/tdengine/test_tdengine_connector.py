@@ -15,7 +15,7 @@
 import os
 import uuid
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 import taosws
@@ -67,8 +67,8 @@ def test_write_application_event(
     app_name = "my_app"
     result_name = "my_Result"
     result_kind = 0
-    start_infer_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    end_infer_time = datetime(2024, 1, 1, second=1, tzinfo=timezone.utc)
+    start_infer_time = datetime(2024, 1, 1, tzinfo=UTC)
+    end_infer_time = datetime(2024, 1, 1, second=1, tzinfo=UTC)
     result_status = 0
     result_value = 123
     data = {
@@ -88,8 +88,8 @@ def test_write_application_event(
         connector.write_application_event(data)
     connector.create_tables()  # DB is created here
     connector.write_application_event(data)
-    start_read_time = datetime(2023, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
-    end_read_time = datetime(2025, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
+    start_read_time = datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC)
+    end_read_time = datetime(2025, 1, 1, 1, 0, 0, tzinfo=UTC)
     read_data_kwargs = {
         "endpoint_id": endpoint_id,
         "start": start_read_time,
@@ -110,6 +110,9 @@ def test_write_application_event(
     data_v2 = data.copy()
     data_v2["endpoint_id"] = "2"
     data_v2["result_status"] = 2
+    data_v2["result_value"] = 123
+    data_v2["start_infer_time"] = datetime(2024, 1, 1, second=1, tzinfo=UTC)
+    data_v2["end_infer_time"] = datetime(2024, 1, 1, second=2, tzinfo=UTC)
 
     connector.write_application_event(data_v2)
 
@@ -130,71 +133,86 @@ def test_write_application_event(
 
     # Check count results by status
     count_results_by_status = connector.count_results_by_status(
-        start=start_infer_time, end=end_infer_time
+        start=start_read_time, end=end_read_time
     )
+
     assert len(count_results_by_status) == 2
     assert count_results_by_status[(data["application_name"], 0)] == 1
     assert count_results_by_status[(data_v2["application_name"], 2)] == 1
 
     # Check count results by status for specific endpoint_id
     count_results_by_status = connector.count_results_by_status(
-        start=start_infer_time, end=end_infer_time, endpoint_ids=endpoint_id
+        start=start_read_time, end=end_read_time, endpoint_ids=endpoint_id
     )
     assert len(count_results_by_status) == 1
     assert count_results_by_status[(data["application_name"], 0)] == 1
 
     # check processed model endpoints
     processed_model_endpoints = connector.count_processed_model_endpoints(
-        start=start_infer_time, end=end_infer_time
+        start=start_read_time, end=end_read_time
     )
     assert processed_model_endpoints == {"my_app": 2}
 
     # calculate latest metrics
     latest_metrics = connector.calculate_latest_metrics(
-        start=start_infer_time, end=end_infer_time, application_names="my_app"
+        start=start_read_time, end=end_read_time, application_names="my_app"
     )
 
-    assert len(latest_metrics) == 2
+    assert len(latest_metrics) == 1
     first_metric = latest_metrics[0]
-    assert first_metric.status == 0
-    assert first_metric.value == 123
-
-    second_metric = latest_metrics[1]
-    assert second_metric.status == 2
-    assert second_metric.value == 123
+    assert first_metric.status == data_v2["result_status"]  # the latest one
+    assert first_metric.value == data_v2["result_value"]
 
     # now let's write another result with different app and result_status
     data_v3 = data.copy()
-    data_v3["application_name"] = "another_app"
+    data_v3["application_name"] = "aNoThEr_aPp"
     data_v3["result_status"] = 2
     connector.write_application_event(data_v3)
 
     # Check count results by status for specific application_name
     count_results_by_status = connector.count_results_by_status(
-        start=start_infer_time, end=end_infer_time, application_names=["another_app"]
+        start=start_read_time, end=end_read_time, application_names=["aNoThEr_aPp"]
     )
+
     assert len(count_results_by_status) == 1
-    assert count_results_by_status[(data_v3["application_name"], 2)] == 1
+    # Note that the result key is lowercased
+    assert count_results_by_status[(data_v3["application_name"].lower(), 2)] == 1
 
     # Check count results by status for specific result_status
     count_results_by_status = connector.count_results_by_status(
-        start=start_infer_time, end=end_infer_time, result_status_list=[2]
+        start=start_read_time, end=end_read_time, result_status_list=[2]
     )
     assert len(count_results_by_status) == 2
-    assert count_results_by_status[(data_v2["application_name"], 2)] == 1
-    assert count_results_by_status[(data_v3["application_name"], 2)] == 1
+    assert count_results_by_status[(data_v2["application_name"].lower(), 2)] == 1
+    assert count_results_by_status[(data_v3["application_name"].lower(), 2)] == 1
 
     # check processed model endpoints
     processed_model_endpoints = connector.count_processed_model_endpoints(
-        start=start_infer_time, end=end_infer_time
+        start=start_read_time, end=end_read_time
     )
-    assert processed_model_endpoints == {"another_app": 1, "my_app": 2}
+    assert processed_model_endpoints == {"aNoThEr_aPp": 1, "my_app": 2}
 
     # check latest metrics for specific application_name
     latest_metrics = connector.calculate_latest_metrics(
-        start=start_infer_time, end=end_infer_time, application_names="another_app"
+        start=start_read_time, end=end_read_time, application_names="aNoThEr_aPp"
     )
     assert len(latest_metrics) == 1
+
+    # Now let's write a new result for the new app with different name
+    data_v4 = data.copy()
+    data_v4["application_name"] = "aNoThEr_aPp"
+    data_v4["result_name"] = "new_result_name"
+    data_v4["result_status"] = 0
+    data_v4["result_value"] = 456
+
+    connector.write_application_event(data_v4)
+
+    # check latest metrics for specific application_name
+    latest_metrics = connector.calculate_latest_metrics(
+        start=start_read_time, end=end_read_time, application_names="aNoThEr_aPp"
+    )
+
+    assert len(latest_metrics) == 2
 
     # Delete resources and verify that database is deleted
     connector.delete_tsdb_records(endpoint_ids=[endpoint_id, "123"])

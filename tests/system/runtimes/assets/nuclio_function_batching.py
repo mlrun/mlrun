@@ -12,13 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.model_monitoring.applications.histogram_data_drift import (
-    HistogramDataDriftApplication,
-)
 
-
-class HistogramDataDriftApplicationWithArtifacts(HistogramDataDriftApplication):
-    """The same histogram application but with artifacts"""
-
-    def __init__(self) -> None:
-        super().__init__(produce_json_artifact=True, produce_plotly_artifact=True)
+def handler(context, batch: list):
+    context.logger.info_with("Got batched event!")
+    batched_response = []
+    for item in batch:
+        event_id = item.id
+        batched_response.append(
+            context.Response(
+                body=f"Hello {event_id}",
+                headers={},
+                content_type="text/plain",
+                status_code=200,
+                event_id=event_id,
+            )
+        )
+    return batched_response

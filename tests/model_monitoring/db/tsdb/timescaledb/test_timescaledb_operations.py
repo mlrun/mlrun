@@ -641,17 +641,151 @@ class TestTimescaleDBOperationsManagerIntegration:
         test_endpoints = ["endpoint-1", "endpoint-2", "endpoint-3"]
 
         # Test aggregate delete statements generation
-        statements = operations_handler._get_aggregate_delete_statements(test_endpoints)
+        statements = operations_handler._get_aggregate_delete_statements_by_endpoints(
+            test_endpoints
+        )
 
         # Should return a list of statements
         assert isinstance(statements, list), "Should return a list of statements"
 
         # Should handle empty endpoint list gracefully
-        empty_statements = operations_handler._get_aggregate_delete_statements([])
+        empty_statements = (
+            operations_handler._get_aggregate_delete_statements_by_endpoints([])
+        )
         assert isinstance(empty_statements, list), "Should handle empty endpoint list"
 
         # Cleanup
         operations_handler.delete_tsdb_resources()
+
+    def test_aggregate_deletion_sql_where_clause_completeness(
+        self, query_test_helper_with_aggregates
+    ):
+        """Verify DELETE statements for aggregates have proper WHERE clause.
+
+        Uses the existing query_test_helper_with_aggregates fixture which
+        creates continuous aggregates via the standard API.
+        """
+        operations_handler = query_test_helper_with_aggregates.operations_handler
+
+        # Get aggregate delete statements - fixture creates _cagg_ views
+        statements = operations_handler._get_aggregate_delete_statements_by_endpoints(
+            ["test-endpoint-1"]
+        )
+
+        # Should have discovered aggregate objects (continuous aggregates)
+        assert len(statements) > 0, (
+            "Expected to find aggregate objects for deletion. "
+            "Fixture should have created continuous aggregates."
+        )
+
+        # Verify each statement has a complete WHERE clause with endpoint_id = %s
+        for stmt in statements:
+            sql = stmt.sql
+            assert sql.endswith("WHERE endpoint_id = %s"), (
+                f"DELETE statement should end with 'WHERE endpoint_id = %s', "
+                f"got: {sql}"
+            )
+
+        # Also test with multiple endpoints (uses ANY(%s) syntax)
+        multi_statements = (
+            operations_handler._get_aggregate_delete_statements_by_endpoints(
+                ["test-endpoint-1", "test-endpoint-2"]
+            )
+        )
+        assert len(multi_statements) > 0, "Expected statements for multiple endpoints"
+
+        for stmt in multi_statements:
+            sql = stmt.sql
+            assert sql.endswith("WHERE endpoint_id = ANY(%s)"), (
+                f"DELETE statement should end with 'WHERE endpoint_id = ANY(%s)', "
+                f"got: {sql}"
+            )
+
+    def test_aggregate_data_deletion_integration(
+        self, query_test_helper_with_aggregates, admin_connection
+    ):
+        """Integration test: verify data is actually deleted from aggregate tables.
+
+        This test inserts data into the raw table, refreshes continuous aggregates
+        to materialize the data, then deletes by endpoint and verifies data is
+        gone from both raw and aggregate tables.
+
+        Uses admin_connection (autocommit=True) for refresh_continuous_aggregate
+        which cannot run inside a transaction block.
+        """
+        operations_handler = query_test_helper_with_aggregates.operations_handler
+        connection = query_test_helper_with_aggregates.connection
+        predictions_table = operations_handler.tables[
+            mm_schemas.TimescaleDBTables.PREDICTIONS
+        ]
+        schema_name = predictions_table.schema
+
+        test_endpoint = "test-endpoint-for-agg-deletion"
+        other_endpoint = "other-endpoint-keep"
+
+        # Insert test data into raw predictions table for both endpoints
+        for endpoint in [test_endpoint, other_endpoint]:
+            self._insert_prediction_data(connection, predictions_table, endpoint)
+
+        # Verify raw data exists
+        self._verify_table_data(
+            connection, predictions_table, 1, f"endpoint_id = '{test_endpoint}'"
+        )
+        self._verify_table_data(
+            connection, predictions_table, 1, f"endpoint_id = '{other_endpoint}'"
+        )
+
+        # Refresh continuous aggregates to materialize the data
+        # Using admin_connection with autocommit=True (required for CALL statements)
+        cagg_result = connection.run(
+            query=f"""
+            SELECT view_name FROM timescaledb_information.continuous_aggregates
+            WHERE hypertable_schema = '{schema_name}'
+            AND view_name LIKE 'predictions_%'
+            """
+        )
+
+        for row in cagg_result.data:
+            cagg_name = row[0]
+            admin_connection.run(
+                statements=[
+                    f"CALL refresh_continuous_aggregate('{schema_name}.{cagg_name}', NULL, NULL);"
+                ]
+            )
+
+        # Find a predictions continuous aggregate to verify deletion
+        predictions_cagg = next(
+            (row[0] for row in cagg_result.data if "_cagg_" in row[0]),
+            None,
+        )
+        assert (
+            predictions_cagg is not None
+        ), "Expected to find a predictions continuous aggregate"
+
+        # Delete records for test_endpoint including aggregates
+        operations_handler.delete_tsdb_records([test_endpoint], include_aggregates=True)
+
+        # Verify test_endpoint data is deleted from raw table
+        self._verify_table_data(
+            connection, predictions_table, 0, f"endpoint_id = '{test_endpoint}'"
+        )
+
+        # Verify other_endpoint data is NOT deleted from raw table
+        self._verify_table_data(
+            connection, predictions_table, 1, f"endpoint_id = '{other_endpoint}'"
+        )
+
+        # Verify test_endpoint data is deleted from continuous aggregate
+        result = connection.run(
+            query=f"""
+            SELECT COUNT(*) FROM {schema_name}.{predictions_cagg}
+            WHERE endpoint_id = '{test_endpoint}'
+            """
+        )
+        assert result.data[0][0] == 0, (
+            f"Expected 0 records for {test_endpoint} in {predictions_cagg} after deletion, "
+            f"got {result.data[0][0]}"
+        )
 
     def test_application_deletion_statements_generation(self, query_test_helper):
         """Test generation of application-specific deletion statements."""

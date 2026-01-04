@@ -13,7 +13,6 @@
 # limitations under the License.
 import json
 import os
-import warnings
 from base64 import b64decode
 from copy import deepcopy
 from typing import Optional, Union
@@ -23,6 +22,7 @@ from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas as schemas
+import mlrun.common.secrets
 import mlrun.datastore.datastore_profile as ds_profile
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
@@ -154,6 +154,7 @@ class ServingSpec(NuclioSpec):
         disable_default_http_trigger=None,
         model_endpoint_creation_task_name=None,
         serving_spec=None,
+        auth=None,
     ):
         super().__init__(
             command=command,
@@ -195,6 +196,7 @@ class ServingSpec(NuclioSpec):
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             disable_default_http_trigger=disable_default_http_trigger,
             serving_spec=serving_spec,
+            auth=auth,
         )
 
         self.models = models or {}
@@ -250,6 +252,8 @@ class ServingRuntime(RemoteRuntime):
         class_name=None,
         engine=None,
         exist_ok=False,
+        allow_cyclic: bool = False,
+        max_iterations: Optional[int] = None,
         **class_args,
     ) -> Union[RootFlowStep, RouterStep]:
         """set the serving graph topology (router/flow) and root class or params
@@ -280,6 +284,8 @@ class ServingRuntime(RemoteRuntime):
         :param class_name:   - optional for router, router class name/path or router object
         :param engine:       - optional for flow, sync or async engine
         :param exist_ok:     - allow overriding existing topology
+        :param allow_cyclic: - allow cyclic graphs (only for async flow)
+        :param max_iterations: - optional, max iterations for cyclic graphs (only for async flow)
         :param class_args:   - optional, router/flow class init args
 
         :return: graph object (fn.spec.graph)
@@ -287,7 +293,14 @@ class ServingRuntime(RemoteRuntime):
         topology = topology or StepKinds.router
         if self.spec.graph and not exist_ok:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "graph topology is already set, cannot be overwritten"
+                "graph topology is already set, graph was initialized, use exist_ok=True to override"
+            )
+        if allow_cyclic and (
+            topology == StepKinds.router
+            or (topology == StepKinds.flow and engine == "sync")
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cyclic graphs are only supported in flow topology with async engine"
             )
 
         if topology == StepKinds.router:
@@ -301,7 +314,11 @@ class ServingRuntime(RemoteRuntime):
                 step = RouterStep(class_name=class_name, class_args=class_args)
             self.spec.graph = step
         elif topology == StepKinds.flow:
-            self.spec.graph = RootFlowStep(engine=engine or "async")
+            self.spec.graph = RootFlowStep(
+                engine=engine or "async",
+                allow_cyclic=allow_cyclic,
+                max_iterations=max_iterations,
+            )
             self.spec.graph.track_models = self.spec.track_models
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -312,7 +329,6 @@ class ServingRuntime(RemoteRuntime):
     def set_tracking(
         self,
         stream_path: Optional[str] = None,
-        batch: Optional[int] = None,
         sampling_percentage: float = 100,
         stream_args: Optional[dict] = None,
         enable_tracking: bool = True,
@@ -322,7 +338,6 @@ class ServingRuntime(RemoteRuntime):
 
         :param stream_path:                Path/url of the tracking stream e.g. v3io:///users/mike/mystream
                                            you can use the "dummy://" path for test/simulation.
-        :param batch:                      Deprecated. Micro batch size (send micro batches of N records at a time).
         :param sampling_percentage:        Down sampling events that will be pushed to the monitoring stream based on
                                            a specified percentage. e.g. 50 for 50%. By default, all events are pushed.
         :param stream_args:                Stream initialization parameters, e.g. shards, retention_in_hours, ..
@@ -370,13 +385,6 @@ class ServingRuntime(RemoteRuntime):
 
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
-        if batch:
-            warnings.warn(
-                "The `batch` size parameter was deprecated in version 1.8.0 and is no longer used. "
-                "It will be removed in 1.11.",
-                # TODO: Remove this in 1.11
-                FutureWarning,
-            )
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
 
@@ -636,7 +644,12 @@ class ServingRuntime(RemoteRuntime):
 
         :returns: The Runtime (function) object
         """
-
+        if kind == "azure_vault" and isinstance(source, dict):
+            candidate_secret_name = (source.get("k8s_secret") or "").strip()
+            if candidate_secret_name:
+                mlrun.common.secrets.validate_not_forbidden_secret(
+                    candidate_secret_name
+                )
         if kind == "vault" and isinstance(source, list):
             source = {"project": self.metadata.project, "secrets": source}
 
@@ -660,8 +673,6 @@ class ServingRuntime(RemoteRuntime):
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
-        # Validate function name before deploying to k8s
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
 
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:

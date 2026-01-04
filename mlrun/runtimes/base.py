@@ -16,8 +16,9 @@ import http
 import re
 import typing
 import warnings
+from collections.abc import Callable
 from os import environ
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import requests.exceptions
 from nuclio.build import mlrun_footer
@@ -394,8 +395,6 @@ class BaseRuntime(ModelObj):
             )
         output_path = output_path or out_path or artifact_path
 
-        mlrun.utils.helpers.validate_function_name(self.metadata.name)
-
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )
@@ -443,12 +442,15 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _generate_runtime_env(self, runobj: RunObject = None) -> dict:
+    def _generate_runtime_env(
+        self, runobj: RunObject = None, auth_info: mlrun.common.schemas.AuthInfo = None
+    ) -> dict:
         """
         Prepares all available environment variables for usage on a runtime
         Data will be extracted from several sources and most of them are not guaranteed to be available
 
         :param runobj: Run context object (RunObject) with run metadata and status
+        :param auth_info: Optional authentication information.
         :return: Dictionary with all the variables that could be parsed
         """
         active_project = self.metadata.project or config.active_project
@@ -457,6 +459,7 @@ class BaseRuntime(ModelObj):
             # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
+
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True
@@ -948,6 +951,35 @@ class BaseRuntime(ModelObj):
                         if "default" in p:
                             line += f", default={p['default']}"
                         print("    " + line)
+
+    def remove_auth_secret_volumes(self):
+        secret_name_prefix = (
+            mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+                hashed_access_key=""
+            )
+        )
+        volumes = self.spec.volumes or []
+        mounts = self.spec.volume_mounts or []
+
+        volumes_to_remove = set()
+
+        # Identify volumes to remove
+        for vol in volumes:
+            secret_name = mlrun.utils.get_in(vol, "secret.secretName", "")
+
+            # Pattern of auth secret volumes
+            if secret_name.startswith(secret_name_prefix):
+                volumes_to_remove.add(vol["name"])
+
+        # Filter out only the matched volumes
+        self.spec.volumes = [
+            volume for volume in volumes if volume["name"] not in volumes_to_remove
+        ]
+
+        # Filter out matching mounts
+        self.spec.volume_mounts = [
+            mount for mount in mounts if mount["name"] not in volumes_to_remove
+        ]
 
     def skip_image_enrichment(self):
         return False

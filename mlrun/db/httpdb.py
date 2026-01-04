@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import enum
 import http
+import os
 import re
 import time
 import traceback
@@ -40,6 +40,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
+import mlrun.k8s_utils
 import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
@@ -142,24 +143,30 @@ class HTTPRunDB(RunDBInterface):
             version.Version().get_python_version()
         )
 
+        self.user = None
+        self.password = None
+        self.token_provider = None
+        self.base_url = None
+        self._parsed_url = None
+
         self._enrich_and_validate(url)
 
     def _enrich_and_validate(self, url):
-        parsed_url = urlparse(url)
-        scheme = parsed_url.scheme.lower()
-        if scheme not in ("http", "https"):
-            raise ValueError(
-                f"Invalid URL scheme {scheme} for HTTPRunDB, only http(s) is supported"
-            )
-
-        endpoint = parsed_url.hostname
-        if parsed_url.port:
-            endpoint += f":{parsed_url.port}"
-        base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
+        base_url, parsed_url = self._resolve_api_urls(url)
 
         self.base_url = base_url
-        username = parsed_url.username or config.httpdb.user
-        password = parsed_url.password or config.httpdb.password
+        self._parsed_url = parsed_url
+        self.user = parsed_url.username or config.httpdb.user
+        self.password = parsed_url.password or config.httpdb.password
+        self._init_token_provider()
+
+    def _init_token_provider(self):
+        """
+        Initialize token provider according to current config.
+
+        Must be called after `connect()` synced config from server (client-spec), since
+        some auth flows (e.g. Iguazio V4 OAuth token) require values fetched from the API.
+        """
         self.token_provider = None
 
         if config.auth_with_client_id.enabled:
@@ -172,17 +179,20 @@ class HTTPRunDB(RunDBInterface):
         elif config.auth_with_oauth_token.enabled:
             self.token_provider = mlrun.auth.IGTokenProvider(
                 token_endpoint=config.auth_token_endpoint,
+                timeout=config.auth_with_oauth_token.request_timeout,
             )
         else:
             username, password, token = mlrun.platforms.add_or_refresh_credentials(
-                parsed_url.hostname, username, password, config.httpdb.token
+                self._parsed_url.hostname,
+                self.user,
+                self.password,
+                config.httpdb.token,
             )
+            self.user = username
+            self.password = password
 
             if token:
                 self.token_provider = mlrun.auth.StaticTokenProvider(token)
-
-        self.user = username
-        self.password = password
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -464,7 +474,7 @@ class HTTPRunDB(RunDBInterface):
 
         return True
 
-    def connect(self, secrets=None):
+    def connect(self, secrets=None) -> typing.Self:
         """Connect to the MLRun API server. Must be called prior to executing any other method.
         The code utilizes the URL for the API server from the configuration - ``config.dbpath``.
 
@@ -475,7 +485,8 @@ class HTTPRunDB(RunDBInterface):
         """
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
         if "mock-server" in self.base_url:
-            return
+            return self
+
         resp = self.api_call("GET", "client-spec", timeout=5)
         try:
             server_cfg = resp.json()
@@ -632,12 +643,40 @@ class HTTPRunDB(RunDBInterface):
                 or config.httpdb.authentication.mode
             )
 
+            # Iguazio V4 OAuth token config auto-initialization
+            if (
+                config.httpdb.authentication.mode
+                == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
+            ):
+                # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
+                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+                    config.auth_token_endpoint = server_cfg.get(
+                        "oauth_internal_token_endpoint"
+                    )
+                else:
+                    config.auth_token_endpoint = server_cfg.get(
+                        "oauth_external_token_endpoint"
+                    )
+
+                config.auth_with_oauth_token.enabled = True
+
+                # TODO: change to os.getenv("MLRUN_RUNTIME_KIND") when https://github.com/mlrun/mlrun/pull/9121
+                # is merged. The reason we can't do it for all k8s pods is dev-envs like jupyter.
+                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+                    config.auth_with_oauth_token.token_file = os.path.join(
+                        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                        mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                    )
+
         except Exception as exc:
             logger.warning(
                 "Failed syncing config from server",
                 exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
+
+        # Initialize token provider after syncing config from server
+        self._init_token_provider()
 
         if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()
@@ -4182,8 +4221,12 @@ class HTTPRunDB(RunDBInterface):
         Get monitoring function summaries for the specified project.
 
         :param project: The name of the project.
-        :param start: Start time for filtering the results (optional).
-        :param end: End time for filtering the results (optional).
+        :param start: The start time of the monitoring applications’ statistics.
+            If not defined, the default is 24 hours ago.
+            Required timezone, applicable only when `include_stats` is set to True.
+        :param end: The end time of the monitoring applications’ statistics.
+            If not defined, the default is now.
+            Required timezone, applicable only when `include_stats` is set to True.
         :param names: List of function names to filter by (optional).
         :param labels: Labels to filter by (optional).
         :param include_stats: Whether to include statistics in the response (default is False).
@@ -4224,12 +4267,14 @@ class HTTPRunDB(RunDBInterface):
     ) -> FunctionSummary:
         """
         Get a monitoring function summary for the specified project and function.
-        :param project:                The name of the project.
-        :param function_name:          The name of the function.
-        :param start:                  Start time for filtering the results (optional).
-        :param end:                    End time for filtering the results (optional).
-        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
 
+        :param project: The name of the project.
+        :param function_name: The name of the function.
+        :param start: The start time of the monitoring application's statistics.
+            If not defined, the default is 24 hours ago. Required timezone.
+        :param end: The end time of the monitoring application's statistics.
+            If not defined, the default is now. Required timezone.
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
         :return: A FunctionSummary object containing information about the monitoring function.
         """
 
@@ -4438,7 +4483,7 @@ class HTTPRunDB(RunDBInterface):
         :param item_type: The type of item to retrieve from the hub source (e.g: functions, modules).
         :returns: :py:class:`~mlrun.common.schemas.hub.HubItem`.
         """
-        path = (f"hub/sources/{source_name}/items/{item_name}",)
+        path = f"hub/sources/{source_name}/items/{item_name}"
         params = {
             "version": version,
             "tag": tag,
@@ -5355,6 +5400,16 @@ class HTTPRunDB(RunDBInterface):
         )
 
     @mlrun.utils.iguazio_v4_only
+    def get_secret_token(
+        self,
+        token_name: str,
+        username: Optional[str] = None,
+    ) -> mlrun.common.schemas.SecretToken:
+        raise NotImplementedError(
+            "Getting secret token is not supported for security reasons."
+        )
+
+    @mlrun.utils.iguazio_v4_only
     def _store_secret_tokens(
         self,
         secret_tokens: list[mlrun.common.schemas.SecretToken],
@@ -5726,6 +5781,24 @@ class HTTPRunDB(RunDBInterface):
             )
             page_params.pop("limit")
         return page_params
+
+    def _resolve_api_urls(self, url: str) -> tuple[str, str]:
+        """
+        Resolves the base url and parsed url from the given url.
+        """
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme.lower()
+        if scheme not in ("http", "https"):
+            raise ValueError(
+                f"Invalid URL scheme {scheme} for HTTPRunDB, only http(s) is supported"
+            )
+
+        endpoint = parsed_url.hostname
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
+        base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
+
+        return base_url, parsed_url
 
 
 def _as_json(obj):

@@ -67,7 +67,6 @@ default_config = {
     "nuclio_version": "",
     "default_nuclio_runtime": "python:3.11",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
-    "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
     "api_base_version": "v1",
     "version": "",  # will be set to current version
@@ -86,7 +85,9 @@ default_config = {
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
-    "iguazio_api_url": "",  # the url to iguazio api
+    "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
+    "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
+    "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
@@ -428,6 +429,7 @@ default_config = {
             "bearer": {"token": ""},
             "iguazio": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
+                "authentication_endpoint": "api/v1/authentication/refresh-access-token",
             },
         },
         "nuclio": {
@@ -482,6 +484,10 @@ default_config = {
         },
         "authorization": {
             "mode": "none",  # one of none, opa
+            "namespaces": {
+                "resources": "",
+                "mgmt": "mgmt",
+            },
             "opa": {
                 "address": "",
                 "request_timeout": 10,
@@ -654,7 +660,7 @@ default_config = {
         "writer_graph": {
             "max_events": 1000,
             "flush_after_seconds": 30,
-            "writer_version": "v1",  # v1 is the sync version while v2 is async
+            "writer_version": "v2",  # v1 is the sync version while v2 is async
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
@@ -671,6 +677,12 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         "model_endpoint_creation_check_period": 15,
+        # TSDB (TimescaleDB) configuration
+        "tsdb": {
+            # When True, automatically create/generate database name using system_id if not explicitly
+            # specified in the connection string. When False, use the database from connection string as-is.
+            "auto_create_database": True,
+        },
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -699,7 +711,6 @@ default_config = {
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
-            "user_token_secret_name": "mlrun-auth-{username}-{token_name}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
         },
@@ -727,7 +738,7 @@ default_config = {
             # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
             "name": "default",
-            "description": "MLRun global function hub",
+            "description": "MLRun hub",
             "url": "https://mlrun.github.io/marketplace",
             "channel": "master",
         },
@@ -875,8 +886,11 @@ default_config = {
         "request_timeout": 5,
         "refresh_threshold": 0.75,
         "token_file": "~/.igz.yml",
+        # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
+        # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
     },
+    # a runtime computed value. Do not set it manually.
     "auth_token_endpoint": "",
     "services": {
         # The running service name. One of: "api", "alerts"
@@ -975,7 +989,7 @@ class Config:
                     try:
                         config_value.update(value)
                     except AttributeError as exc:
-                        if not isinstance(config_value, (dict, Config)):
+                        if not isinstance(config_value, dict | Config):
                             raise ValueError(
                                 f"Can not update `{key}` config. "
                                 f"Expected a configuration but received {type(value)}"
@@ -1290,10 +1304,7 @@ class Config:
 
     @staticmethod
     def resolve_ui_url():
-        # ui_url is deprecated in favor of the ui.url (we created the ui block)
-        # since the config class is used in a "recursive" way, we can't use property like we used in other places
-        # since the property will need to be url, which exists in other structs as well
-        return config.ui.url or config.ui_url
+        return config.ui.url
 
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
@@ -1592,7 +1603,6 @@ def read_env(env=None, prefix=env_prefix):
             "https://mlrun-api.", "https://framesd."
         )
 
-    uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")
 
     # workaround to try and detect IGZ domain
@@ -1617,10 +1627,6 @@ def read_env(env=None, prefix=env_prefix):
     # effort" to try and determine the URL, we want this "best effort" so overriding the "disabled" value
     if config.get("nuclio_dashboard_url") == "disabled":
         config["nuclio_dashboard_url"] = ""
-
-    if uisvc and not config.get("ui_url"):
-        if igz_domain:
-            config["ui_url"] = f"https://mlrun-ui.{igz_domain}"
 
     if log_level := config.get("log_level"):
         import mlrun.utils.logger

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import contextlib
+import datetime
 import time
 import unittest.mock
 
@@ -684,6 +686,301 @@ class TestCollectRunSLogs:
             )
             == {}
         )
+
+    @pytest.mark.asyncio
+    async def test_verify_log_collection_started_no_runs(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        """Test _verify_log_collection_started when there are no runs to collect"""
+        update_runs_requested_logs_mock = unittest.mock.Mock()
+        monkeypatch.setattr(
+            framework.utils.singletons.db.get_db(),
+            "update_runs_requested_logs",
+            update_runs_requested_logs_mock,
+        )
+
+        # Mock _list_runs_uids_to_collect_logs to return empty list
+        list_runs_uids_mock = unittest.mock.Mock(return_value=[])
+        with unittest.mock.patch.object(
+            daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
+        ):
+            await daemon.service._verify_log_collection_started(
+                db, datetime.datetime.now(datetime.UTC), self.start_log_limit
+            )
+
+        # Should not call update_runs_requested_logs when there are no runs
+        assert update_runs_requested_logs_mock.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_verify_log_collection_started_with_runs(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        """Test _verify_log_collection_started with runs that need log collection"""
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        monkeypatch.setattr(
+            framework.utils.clients.log_collector,
+            "LogCollectorClient",
+            lambda: log_collector,
+        )
+
+        project_name = "some-project"
+        for run_uid in ["uid1", "uid2", "uid3"]:
+            _create_new_run(
+                db,
+                project_name,
+                uid=run_uid,
+                name=run_uid,
+                kind="job",
+                state=mlrun.common.runtimes.constants.RunStates.running,
+            )
+
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
+            db,
+            requested_logs_modes=[None, False],
+            only_uids=False,
+        )
+
+        update_runs_requested_logs_mock = unittest.mock.Mock()
+        monkeypatch.setattr(
+            framework.utils.singletons.db.get_db(),
+            "update_runs_requested_logs",
+            update_runs_requested_logs_mock,
+        )
+        list_runs_mock = unittest.mock.Mock(return_value=runs)
+        monkeypatch.setattr(
+            framework.utils.singletons.db.get_db(), "list_runs", list_runs_mock
+        )
+
+        # Use real _list_runs_uids_to_collect_logs to get actual run UIDs
+        last_update_time = datetime.datetime.now(datetime.UTC)
+        await daemon.service._verify_log_collection_started(
+            db, last_update_time, self.start_log_limit
+        )
+
+        # Should call update_runs_requested_logs at least once for the successful runs
+        # (may be called multiple times if runs are processed in batches)
+        assert update_runs_requested_logs_mock.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_verify_log_collection_started_with_runs_over_limit(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        """Test _verify_log_collection_started when runs exceed the startup limit"""
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        monkeypatch.setattr(
+            framework.utils.clients.log_collector,
+            "LogCollectorClient",
+            lambda: log_collector,
+        )
+
+        project_name = "some-project"
+        num_runs = int(mlrun.mlconf.log_collector.start_logs_startup_run_limit) + 5
+        run_uids = [f"uid_{i}" for i in range(num_runs)]
+        for run_uid in run_uids:
+            _create_new_run(
+                db,
+                project_name,
+                uid=run_uid,
+                name=run_uid,
+                kind="job",
+                state=mlrun.common.runtimes.constants.RunStates.running,
+            )
+
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
+            db,
+            requested_logs_modes=[None, False],
+            only_uids=False,
+        )
+        # Sort runs to ensure consistent ordering
+        runs = sorted(runs, key=lambda run: run["metadata"]["uid"])
+
+        update_runs_requested_logs_mock = unittest.mock.Mock()
+        monkeypatch.setattr(
+            framework.utils.singletons.db.get_db(),
+            "update_runs_requested_logs",
+            update_runs_requested_logs_mock,
+        )
+        list_runs_mock = unittest.mock.Mock(
+            return_value=runs[
+                : int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)
+            ]
+        )
+        monkeypatch.setattr(
+            framework.utils.singletons.db.get_db(), "list_runs", list_runs_mock
+        )
+
+        last_update_time = datetime.datetime.now(datetime.UTC)
+        await daemon.service._verify_log_collection_started(
+            db, last_update_time, self.start_log_limit
+        )
+
+        # Should call update_runs_requested_logs twice:
+        # 1. For runs within limit that were processed
+        # 2. For skipped runs that exceeded the limit
+        assert update_runs_requested_logs_mock.call_count == 2
+
+        # First call should be for runs within limit
+        first_call_uids = update_runs_requested_logs_mock.call_args_list[0][1]["uids"]
+        assert len(first_call_uids) == int(
+            mlrun.mlconf.log_collector.start_logs_startup_run_limit
+        )
+
+        # Second call should be for skipped runs
+        second_call_uids = update_runs_requested_logs_mock.call_args_list[1][1]["uids"]
+        assert len(second_call_uids) == 5  # The excess runs
+
+    @pytest.mark.asyncio
+    async def test_initiate_logs_collection_no_runs(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        """Test _initiate_logs_collection when there are no runs to collect"""
+        update_runs_requested_logs_mock = unittest.mock.Mock()
+        monkeypatch.setattr(
+            framework.utils.singletons.db.get_db(),
+            "update_runs_requested_logs",
+            update_runs_requested_logs_mock,
+        )
+
+        # Mock _list_runs_uids_to_collect_logs to return empty list
+        list_runs_uids_mock = unittest.mock.Mock(return_value=[])
+        with unittest.mock.patch.object(
+            daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
+        ):
+            await daemon.service._initiate_logs_collection(self.start_log_limit)
+
+        # Should not call update_runs_requested_logs when there are no runs
+        assert update_runs_requested_logs_mock.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_initiate_logs_collection_with_runs(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        """Test _initiate_logs_collection with runs that need log collection"""
+
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+
+        project_name = "some-project"
+        run_uids = ["uid1", "uid2", "uid3"]
+        for run_uid in run_uids:
+            _create_new_run(
+                db,
+                project_name,
+                uid=run_uid,
+                name=run_uid,
+                kind="job",
+                state=mlrun.common.runtimes.constants.RunStates.running,
+            )
+
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
+            db,
+            requested_logs_modes=[None, False],
+            only_uids=False,
+        )
+
+        update_runs_requested_logs_mock = unittest.mock.Mock()
+        monkeypatch.setattr(
+            framework.utils.singletons.db.get_db(),
+            "update_runs_requested_logs",
+            update_runs_requested_logs_mock,
+        )
+        list_runs_mock = unittest.mock.Mock(return_value=runs)
+        monkeypatch.setattr(
+            framework.utils.singletons.db.get_db(), "list_runs", list_runs_mock
+        )
+
+        # Use real _list_runs_uids_to_collect_logs - it will be called via run_in_threadpool
+        await daemon.service._initiate_logs_collection(self.start_log_limit)
+
+        # Should call update_runs_requested_logs at least once for the successful runs
+        assert update_runs_requested_logs_mock.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_initiate_logs_collection_uses_async_session(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        """Test that _initiate_logs_collection uses async session context manager"""
+        # Mock get_db_session_async to track if it's called
+        get_db_session_async_called = False
+        original_get_db_session_async = framework.db.session.get_db_session_async
+
+        @contextlib.asynccontextmanager
+        async def mock_get_db_session_async(commit=True):
+            nonlocal get_db_session_async_called
+            get_db_session_async_called = True
+            async with original_get_db_session_async(commit=commit) as session:
+                yield session
+
+        with unittest.mock.patch(
+            "framework.db.session.get_db_session_async", mock_get_db_session_async
+        ):
+            # Mock _list_runs_uids_to_collect_logs to return empty list
+            list_runs_uids_mock = unittest.mock.Mock(return_value=[])
+            with unittest.mock.patch.object(
+                daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
+            ):
+                await daemon.service._initiate_logs_collection(self.start_log_limit)
+
+        # Verify that async session context manager was used
+        assert get_db_session_async_called
+
+    @pytest.mark.asyncio
+    async def test_verify_log_collection_started_with_last_update_time(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        """Test _verify_log_collection_started with a specific last_update_time"""
+        update_runs_requested_logs_mock = unittest.mock.Mock()
+        monkeypatch.setattr(
+            framework.utils.singletons.db.get_db(),
+            "update_runs_requested_logs",
+            update_runs_requested_logs_mock,
+        )
+
+        # Mock _list_runs_uids_to_collect_logs to verify it's called with correct params
+        list_runs_uids_mock = unittest.mock.Mock(return_value=[])
+        with unittest.mock.patch.object(
+            daemon.service, "_list_runs_uids_to_collect_logs", list_runs_uids_mock
+        ):
+            last_update_time = datetime.datetime.now(datetime.UTC)
+            await daemon.service._verify_log_collection_started(
+                db, last_update_time, self.start_log_limit
+            )
+
+        # Verify _list_runs_uids_to_collect_logs was called with correct parameters
+        assert list_runs_uids_mock.call_count == 1
+        call_args = list_runs_uids_mock.call_args
+        assert call_args[0][0] == db  # db_session
+        assert call_args[0][1] == last_update_time  # last_update_time
 
 
 def _create_new_run(

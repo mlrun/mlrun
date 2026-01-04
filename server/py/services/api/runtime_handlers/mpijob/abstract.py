@@ -18,6 +18,7 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 from mlrun.runtimes.base import RuntimeClassMode
@@ -40,6 +41,7 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         runtime: AbstractMPIJobRuntime,
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         if run.metadata.iteration:
             runtime.store_run(run)
@@ -47,10 +49,13 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         meta = self._get_meta(runtime, run, True)
 
         self.add_secrets_to_spec_before_running(
-            runtime, project_name=run.metadata.project
+            runtime,
+            project_name=run.metadata.project,
+            token_name=(run.spec.auth or {}).get("token_name"),
+            auth_info=auth_info,
         )
 
-        job = self._generate_mpi_job(runtime, run, execution, meta)
+        job = self._generate_mpi_job(runtime, run, execution, meta, auth_info=auth_info)
 
         self._submit_mpijob(job, meta.namespace)
 
@@ -120,6 +125,7 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
         meta: client.V1ObjectMeta,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> dict:
         pass
 

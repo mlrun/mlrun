@@ -71,7 +71,7 @@ class Events(
                 f"Invalid event specified {event_name}"
             )
 
-        event_data.timestamp = datetime.datetime.now(datetime.timezone.utc)
+        event_data.timestamp = datetime.datetime.now(datetime.UTC)
 
         if not self.cache_initialized:
             services.alerts.crud.Alerts().process_event_no_cache(

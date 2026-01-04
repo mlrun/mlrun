@@ -24,7 +24,7 @@ import socket
 import traceback
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Optional, Union
 
 import pandas as pd
@@ -303,7 +303,7 @@ class GraphServer(ModelObj):
             if event_path_key in event.headers:
                 event.path = event.headers.get(event_path_key)
 
-        if isinstance(event.body, (str, bytes)) and (
+        if isinstance(event.body, str | bytes) and (
             not event.content_type or event.content_type in ["json", "application/json"]
         ):
             # assume it is json and try to load
@@ -348,7 +348,7 @@ class GraphServer(ModelObj):
         ):
             return body
 
-        if body and not isinstance(body, (str, bytes)):
+        if body and not isinstance(body, str | bytes):
             body = json.dumps(body)
             return context.Response(
                 body=body, content_type="application/json", status_code=200
@@ -363,8 +363,6 @@ class GraphServer(ModelObj):
 def add_error_raiser_step(
     graph: RootFlowStep, monitored_steps: dict[str, MonitoredStep]
 ) -> RootFlowStep:
-    monitored_steps_raisers = {}
-    user_steps = list(graph.steps.values())
     for monitored_step in monitored_steps.values():
         error_step = graph.add_step(
             class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
@@ -379,21 +377,7 @@ def add_error_raiser_step(
         if monitored_step.responder:
             monitored_step.responder = False
             error_step.respond()
-        monitored_steps_raisers[monitored_step.name] = error_step.name
         error_step.on_error = monitored_step.on_error
-    if monitored_steps_raisers:
-        for step in user_steps:
-            if step.after:
-                if isinstance(step.after, list):
-                    for i in range(len(step.after)):
-                        if step.after[i] in monitored_steps_raisers:
-                            step.after[i] = monitored_steps_raisers[step.after[i]]
-                else:
-                    if (
-                        isinstance(step.after, str)
-                        and step.after in monitored_steps_raisers
-                    ):
-                        step.after = monitored_steps_raisers[step.after]
     return graph
 
 
@@ -649,7 +633,7 @@ async def async_execute_graph(
 
     if df.empty:
         context.logger.warn("Job terminated due to empty inputs (0 rows)")
-        return []
+        return
 
     track_models = spec.get("track_models")
 
@@ -676,7 +660,7 @@ async def async_execute_graph(
             start_time = end_time = df["timestamp"].iloc[0].isoformat()
     else:
         # end time will be set from clock time when the batch completes
-        start_time = datetime.now(tz=timezone.utc).isoformat()
+        start_time = datetime.now(tz=UTC).isoformat()
 
     server.graph = add_system_steps_to_graph(
         server.project,
@@ -756,7 +740,7 @@ async def async_execute_graph(
     server = GraphServer.from_dict(spec)
     server.init_states(None, namespace)
 
-    batch_completion_time = datetime.now(tz=timezone.utc).isoformat()
+    batch_completion_time = datetime.now(tz=UTC).isoformat()
 
     if not timestamp_column:
         end_time = batch_completion_time
@@ -779,30 +763,49 @@ async def async_execute_graph(
         model_endpoint_uids=model_endpoint_uids,
     )
 
-    # log the results as artifacts
-    num_of_meps_in_the_graph = len(server.graph.model_endpoints_names)
-    artifact_path = None
-    if (
-        "{{run.uid}}" not in context.artifact_path
-    ):  # TODO: delete when IG-22841 is resolved
-        artifact_path = "+/{{run.uid}}"  # will be concatenated to the context's path in extend_artifact_path
-    if num_of_meps_in_the_graph <= 1:
+    has_responder = False
+    for step in server.graph.steps.values():
+        if getattr(step, "responder", False):
+            has_responder = True
+            break
+
+    if has_responder:
+        # log the results as a dataset artifact
+        artifact_path = None
+        if (
+            "{{run.uid}}" not in context.artifact_path
+        ):  # TODO: delete when IG-22841 is resolved
+            artifact_path = "+/{{run.uid}}"  # will be concatenated to the context's path in extend_artifact_path
         context.log_dataset(
             "prediction", df=pd.DataFrame(responses), artifact_path=artifact_path
         )
-    else:
-        # turn this list of samples into a dict of lists, one per model endpoint
-        grouped = defaultdict(list)
-        for sample in responses:
-            for model_name, features in sample.items():
-                grouped[model_name].append(features)
-        # create a dataframe per model endpoint and log it
-        for model_name, features in grouped.items():
-            context.log_dataset(
-                f"prediction_{model_name}",
-                df=pd.DataFrame(features),
-                artifact_path=artifact_path,
-            )
+
+        # if we got responses that appear to be in the right format, try to log per-model datasets too
+        if (
+            responses
+            and responses[0]
+            and isinstance(responses[0], dict)
+            and isinstance(next(iter(responses[0].values())), dict | list)
+        ):
+            try:
+                # turn this list of samples into a dict of lists, one per model endpoint
+                grouped = defaultdict(list)
+                for sample in responses:
+                    for model_name, features in sample.items():
+                        grouped[model_name].append(features)
+                # create a dataframe per model endpoint and log it
+                for model_name, features in grouped.items():
+                    context.log_dataset(
+                        f"prediction_{model_name}",
+                        df=pd.DataFrame(features),
+                        artifact_path=artifact_path,
+                    )
+            except Exception as e:
+                context.logger.warning(
+                    "Failed to log per-model prediction datasets",
+                    error=err_to_str(e),
+                )
+
     context.log_result("num_rows", run_call_count)
 
 

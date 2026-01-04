@@ -16,6 +16,7 @@ import ast
 import concurrent.futures
 import http
 import tempfile
+import threading
 import traceback
 import typing
 from collections.abc import Iterable
@@ -107,7 +108,7 @@ class Pipelines(
                     target_name=name_contains,
                 )
 
-            page_runs = self._format_runs(
+            page_runs = self._format_runs_concurrently(
                 kfp_client=kfp_client,
                 runs=page_runs,
                 format_=format_,
@@ -692,21 +693,70 @@ class Pipelines(
                 run.error = err
         return mlrun.common.formatters.PipelineFormat.format_obj(run, format_)
 
-    def _format_runs(
+    def _format_runs_concurrently(
         self,
-        runs: Iterable[PipelineRun],
+        kfp_client: mlrun_pipelines.client.Client,
+        runs: list[mlrun_pipelines.models.PipelineRun],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.client.Client = None,
+        *,
+        max_workers: int = 32,
+        queue_size: typing.Optional[int] = None,
     ) -> list[dict]:
-        formatted_runs = []
-        for run in runs:
-            formatted_runs.append(
-                self._format_run(
-                    run=run,
+        """
+        Submit formatting tasks concurrently and emit results in discovery order.
+
+        This function parallelizes run-formatting using a ThreadPoolExecutor.
+        Two separate controls influence concurrency:
+
+        * **max_workers** – limits the number of *active* threads executing
+          formatting tasks at any moment. This caps CPU usage and prevents
+          excessive I/O pressure against the KFP API.
+
+        * **queue_size** – limits the number of *submitted but not yet started*
+          tasks. Without this bound, submitting thousands of runs at once would
+          allocate a large number of pending Future objects and unbounded
+          memory growth. By default, the queue is `max_workers * 2`, providing
+          a small buffer while still preventing runaway task submission.
+
+        The internal **semaphore** enforces the queue bound: each submission
+        acquires the semaphore, and each finished task releases it. This keeps
+        the total number of in-flight tasks (running + waiting) under control,
+        ensuring predictable memory usage even for very large run lists.
+        """
+        if not runs:
+            return []
+        if queue_size is None:
+            queue_size = max_workers * 2
+
+        semaphore = threading.Semaphore(queue_size) if queue_size else None
+        runs = list(runs)
+        futures_by_index = [None] * len(runs)
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=max_workers
+        ) as thread_pool:
+            for run_index, pipeline_run in enumerate(runs):
+                if semaphore:
+                    semaphore.acquire()
+                future = thread_pool.submit(
+                    self._format_run,
+                    run=pipeline_run,
                     format_=format_,
                     kfp_client=kfp_client,
                 )
-            )
+                if semaphore:
+                    future.add_done_callback(lambda _f: semaphore.release())
+                futures_by_index[run_index] = future
+
+            formatted_runs = []
+            for future in futures_by_index:
+                try:
+                    formatted_runs.append(future.result())
+                except Exception:
+                    mlrun.utils.logger.error(
+                        "Run formatting failed; skipping run", exc_info=True
+                    )
+
         return formatted_runs
 
     def _resolve_project_from_command(

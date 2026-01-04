@@ -30,9 +30,15 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
-# mainly used for mlrun and mlrun-gpu. mlrun API version >= 1.3.0 should always have python 3.9
+# mainly used for mlrun and mlrun-gpu.
 MLRUN_PYTHON_VERSION ?= 3.11
-PYTHON_VERSION ?= $(shell python --version)
+
+# Centralized MySQL image tag for tests and tooling (overridable)
+MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
+
+# TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
+IGUAZIO_PACKAGE_VERSION ?= 0.0.1a20
+
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 25.0.0
@@ -100,11 +106,11 @@ MLRUN_CACHE_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_CACHE_FROM_REGISTRY),$(st
 MLRUN_USE_CACHE := $(if $(MLRUN_NO_CACHE),,true)
 MLRUN_DOCKER_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache,)
 MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
-# expected to be in the form of '-py<major><minor>' e.g. '-py39'
+# expected to be in the form of '-py<major><minor>' e.g. '-py311'
 MLRUN_ANACONDA_PYTHON_DISTRIBUTION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1$$2}')
 MLRUN_PYTHON_VERSION_SUFFIX := $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION),)
 
-# expected to be in the form of 'py<major><minor>' e.g. 'py39'
+# expected to be in the form of 'py<major><minor>' e.g. 'py311'
 MLRUN_LINT_PYTHON_VERSION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "py"$$1$$2}')
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
@@ -168,11 +174,11 @@ install-requirements: ## Install all requirements needed for development
 .PHONY: install-iguazio-sdk
 install-iguazio-sdk: ## Install iguazio package from Test PyPI only for Python 3.11
 	@if [ "$(MLRUN_PYTHON_VERSION)" = "3.11" ]; then \
-		echo "Installing iguazio package for Python $(MLRUN_PYTHON_VERSION)..."; \
+		echo "Installing iguazio package version $(IGUAZIO_PACKAGE_VERSION) for Python $(MLRUN_PYTHON_VERSION)..."; \
 		$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) \
 			--index-url https://test.pypi.org/simple/ \
 			--extra-index-url https://pypi.org/simple \
-			"iguazio~=0.0.1a14"; \
+			"iguazio~=$(IGUAZIO_PACKAGE_VERSION)"; \
 	else \
 		echo "Skipping iguazio install (Python $(MLRUN_PYTHON_VERSION))"; \
 	fi
@@ -188,6 +194,17 @@ install-dev-requirements: ## Install dev-requirements relevant for pytest and co
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r dev-requirements.txt
 
+.PHONY: install-dev-requirements
+install-automation-requirements: ## Install automation-requirements relevant for CI and automation scripts
+	# relevant for pip package installer only
+	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
+		$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION); \
+	fi
+
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
+		$(MLRUN_PIP_NO_CACHE_FLAG) \
+		-r automation/requirements.txt
+
 .PHONY: install-docs-requirements
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
@@ -195,24 +212,11 @@ install-docs-requirements: ## Install all requirements needed for compiling mlru
 
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
-ifeq ($(findstring 3.11.,$(PYTHON_VERSION)),3.11.)
 	conda install --yes --file conda-arm64-requirements-python311.txt
-else ifeq ($(findstring 3.9.,$(PYTHON_VERSION)),3.9.)
-	conda install --yes --file conda-arm64-requirements-python39.txt
-else
-	@echo "Unsupported Python version: $(PYTHON_VERSION)" >&2
-	@exit 1
-endif
 	make install-requirements
 
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
-
-.PHONY: install-complete-kfp-requirements
-install-complete-kfp-requirements: ## Install all requirements needed for development and testing + KFP 1.8
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
@@ -225,7 +229,7 @@ install-all-requirements: ## Install all requirements needed for development and
 
 .PHONY: create-migration-mysql
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
-	./automation/scripts/create_migration_mysql.sh
+	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) ./automation/scripts/create_migration_mysql.sh
 
 .PHONY: create-migration
 create-migration: create-migration-mysql
@@ -375,19 +379,10 @@ pull-mlrun-kfp: ## Pull mlrun docker image
 	docker pull $(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 
 MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:$(MLRUN_GPU_CUDA_VERSION)
-MLRUN_GPU_PREBAKED_PY39_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:11.8.0-cudnn8-devel-ubuntu22.04
 MLRUN_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-gpu
 MLRUN_GPU_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-gpu
 MLRUN_GPU_IMAGE_NAME_TAGGED := $(MLRUN_GPU_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-# Choose the GPU base image based on the minor Python version
-MLRUN_GPU_BASE_IMAGE ?= $(shell \
-  PY_MINOR=$$(echo "$(MLRUN_PYTHON_VERSION)" | cut -d. -f2); \
-  if [ "$$PY_MINOR" = "9" ]; then \
-    echo "$(MLRUN_GPU_PREBAKED_PY39_IMAGE_NAME_TAGGED)"; \
-  else \
-    echo "$(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED)"; \
-  fi \
-)
+MLRUN_GPU_BASE_IMAGE ?= $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED)
 MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_GPU_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
 MLRUN_GPU_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
@@ -514,9 +509,6 @@ COMMON_IMAGE_NAME := mlrun_common_image:$(MLRUN_PYTHON_VERSION)
 common-image-3.11:
 	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.11
 
-common-image-3.9:
-	$(MAKE) common-image MLRUN_PYTHON_VERSION=3.9
-
 # --- Build (cached) ----------------------------------------------------------
 ifeq ($(strip $(MLRUN_NO_CACHE)),)
 common-image: $(COMMON_STAMP)
@@ -568,6 +560,7 @@ api: common-image-3.11 compile-schemas update-version-file ## Build mlrun-api do
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--build-arg IGUAZIO_PACKAGE_VERSION=$(IGUAZIO_PACKAGE_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -600,6 +593,7 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
+		--build-arg IGUAZIO_PACKAGE_VERSION=$(IGUAZIO_PACKAGE_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -650,6 +644,9 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		--rm \
 		--network='host' \
 		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		-e MLRUN_VERSION=$(MLRUN_VERSION) \
+		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-v /tmp:/tmp \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
@@ -712,6 +709,9 @@ test-integration-dockerized: build-test api ## Run mlrun integration tests in do
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-e RUN_COVERAGE=$(RUN_COVERAGE) \
+		-e MLRUN_VERSION=$(MLRUN_VERSION) \
+		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
@@ -721,6 +721,7 @@ test-integration: clean ## Run mlrun integration tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
+	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
@@ -744,6 +745,9 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-e RUN_COVERAGE=$(RUN_COVERAGE) \
+		-e MLRUN_VERSION=$(MLRUN_VERSION) \
+		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make RUN_COVERAGE=true test-migrations
 
@@ -751,6 +755,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 test-migrations: clean ## Run mlrun db migrations tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
+	export MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) && \
 	export COVERAGE_FILE && \
 	$(SETUP_COVERAGE) && \
 	bash -c 'set -euo pipefail; \
@@ -786,11 +791,14 @@ test-system: ## Run mlrun system tests
 
 .PHONY: test-system-open-source
 test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration
-	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
+	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
+	MLRUN_SYSTEM_TEST_OPEN_SOURCE=true \
+	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
+		--system-test-open-source \
 		-m $(if $(MLRUN_SYSTEM_TEST_MARKERS),"$(MLRUN_SYSTEM_TEST_MARKERS)","not enterprise") \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
@@ -944,6 +952,8 @@ endif
 	    -v /var/run/docker.sock:/var/run/docker.sock \
 	    --env MLRUN_BC_TESTS_BASE_CODE_PATH=$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
 	    --env MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH=$(shell pwd) \
+		--env MLRUN_VERSION=$(MLRUN_VERSION) \
+		--env MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 	    --workdir=$(shell pwd) \
 	    $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
 

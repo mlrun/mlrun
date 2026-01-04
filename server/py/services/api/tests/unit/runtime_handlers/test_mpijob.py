@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -212,7 +212,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         recently_completed_crd_dict = self._generate_mpijob_crd(
             self.project,
             self.run_uid,
-            self._get_succeeded_crd_status(datetime.now(timezone.utc).isoformat()),
+            self._get_succeeded_crd_status(datetime.now(UTC).isoformat()),
         )
         list_namespaced_crds_calls = [
             [recently_completed_crd_dict],
@@ -390,7 +390,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         for uid, start_time in [
             (
                 image_pull_backoff_job_uid,
-                datetime.now(timezone.utc)
+                datetime.now(UTC)
                 - timedelta(
                     seconds=framework.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
@@ -399,15 +399,15 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             ),
             (
                 running_long_uid,
-                datetime.now(timezone.utc)
+                datetime.now(UTC)
                 - timedelta(
                     seconds=framework.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.executing
                     )
                 ),
             ),
-            (running_short_uid, datetime.now(timezone.utc)),
-            (success_uid, datetime.now(timezone.utc)),
+            (running_short_uid, datetime.now(UTC)),
+            (success_uid, datetime.now(UTC)),
         ]:
             self._store_run(
                 db,
@@ -564,11 +564,11 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # create the runs
         for name, uid, start_time in [
-            ("pending", pending_uid, datetime.now(timezone.utc)),
+            ("pending", pending_uid, datetime.now(UTC)),
             (
                 "pending-scheduled-stale",
                 pending_scheduled_stale_uid,
-                datetime.now(timezone.utc)
+                datetime.now(UTC)
                 - timedelta(
                     seconds=framework.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
@@ -578,7 +578,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             (
                 "pending-scheduled",
                 pending_scheduled_uid,
-                datetime.now(timezone.utc),
+                datetime.now(UTC),
             ),
         ]:
             self._store_run(

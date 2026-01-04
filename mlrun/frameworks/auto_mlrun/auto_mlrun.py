@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 import mlrun
 from mlrun.artifacts import get_model
@@ -58,7 +59,7 @@ def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
 
         from mlrun.frameworks.xgboost import XGBoostModelHandler
 
-        if isinstance(model, (XGBModel, Booster)):
+        if isinstance(model, XGBModel | Booster):
             return XGBoostModelHandler.FRAMEWORK_NAME
     except ModuleNotFoundError:
         pass
@@ -69,7 +70,7 @@ def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
 
         from mlrun.frameworks.lgbm import LGBMModelHandler
 
-        if isinstance(model, (LGBMModel, Booster)):
+        if isinstance(model, LGBMModel | Booster):
             return LGBMModelHandler.FRAMEWORK_NAME
     except ModuleNotFoundError:
         pass

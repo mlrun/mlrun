@@ -65,7 +65,12 @@ def new_v2_model_server(
     f = ServingRuntime()
     if not image:
         name, spec, code = nuclio.build_file(
-            filename, name=name, handler="handler", kind=serving_subkind
+            filename,
+            name=name,
+            handler="handler"
+            if not mlrun.utils.helpers.is_async_serving_graph(f.spec)
+            else "async_handler",
+            kind=serving_subkind,
         )
         f.spec.base_spec = spec
 
@@ -78,7 +83,9 @@ def new_v2_model_server(
         for name, model_path in models.items():
             f.add_model(name, model_path=model_path, parameters=params)
 
-    f.with_http(workers, host=endpoint, canary=canary)
+    f.with_http(
+        workers, host=endpoint, canary=canary
+    )  # TODO Roy check if this should change with workers?
     if image:
         f.from_image(image)
 
@@ -320,6 +327,9 @@ class ServingRuntime(RemoteRuntime):
                 max_iterations=max_iterations,
             )
             self.spec.graph.track_models = self.spec.track_models
+            self.spec.function_handler = (
+                self.spec.function_handler or "main:async_handler"
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"unsupported topology {topology}, use 'router' or 'flow'"

@@ -735,7 +735,7 @@ def process_kfp_workflow_secret_references(
     content_type: str,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    secret_name: typing.Optional[str] = None,
+    auth_secret_name: typing.Optional[str] = None,
 ) -> bytes:
     if content_type.endswith(
         "zip"
@@ -745,7 +745,7 @@ def process_kfp_workflow_secret_references(
             byte_buffer=byte_buffer,
             env_var_names=env_var_names,
             secrets_store=secrets_store,
-            secret_name=secret_name,
+            auth_secret_name=auth_secret_name,
         )
         return modified_zip_bytes
     elif content_type.endswith(("yaml", "plain")):
@@ -753,7 +753,7 @@ def process_kfp_workflow_secret_references(
             yaml_bytes=byte_buffer,
             env_var_names=env_var_names,
             secrets_store=secrets_store,
-            secret_name=secret_name,
+            auth_secret_name=auth_secret_name,
         )
         return modified_yaml_bytes
     else:
@@ -764,12 +764,12 @@ def _enrich_kfp_workflow_credentials_in_subprocess(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    secret_name: typing.Optional[str] = None,
+    auth_secret_name: typing.Optional[str] = None,
 ) -> bytes:
     queue = multiprocessing.Queue()
     process = multiprocessing.Process(
         target=_enrich_wrapper,
-        args=(queue, byte_buffer, env_var_names, secrets_store, secret_name),
+        args=(queue, byte_buffer, env_var_names, secrets_store, auth_secret_name),
     )
     process.start()
     result = queue.get()
@@ -782,13 +782,13 @@ def _enrich_wrapper(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    secret_name: typing.Optional[str] = None,
+    auth_secret_name: typing.Optional[str] = None,
 ):
     result = _enrich_kfp_workflow_zip_credentials(
         byte_buffer=byte_buffer,
         env_var_names=env_var_names,
         secrets_store=secrets_store,
-        secret_name=secret_name,
+        auth_secret_name=auth_secret_name,
     )
     queue.put(result)
 
@@ -797,7 +797,7 @@ def _enrich_kfp_workflow_zip_credentials(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    secret_name: typing.Optional[str] = None,
+    auth_secret_name: typing.Optional[str] = None,
 ) -> bytes:
     in_memory_zip = io.BytesIO(byte_buffer)
     with zipfile.ZipFile(in_memory_zip, "r") as zip_read:
@@ -813,7 +813,7 @@ def _enrich_kfp_workflow_zip_credentials(
                 yaml_bytes=file_data,
                 env_var_names=env_var_names,
                 secrets_store=secrets_store,
-                secret_name=secret_name,
+                auth_secret_name=auth_secret_name,
             )
             files_data[file_name] = modified_yaml
 
@@ -829,7 +829,7 @@ def _enrich_kfp_workflow_yaml_credentials(
     yaml_bytes: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    secret_name: typing.Optional[str] = None,
+    auth_secret_name: typing.Optional[str] = None,
 ) -> bytes:
     """
     Modifies the given workflow YAML to add secret environment variables to container specifications.
@@ -837,7 +837,7 @@ def _enrich_kfp_workflow_yaml_credentials(
     environment variables accordingly.
     """
     workflow_dict = yaml.safe_load(yaml_bytes)
-    workflow_dict = add_auth_mount_to_argo_pods(workflow_dict, secret_name)
+    workflow_dict = add_auth_mount_to_argo_pods(workflow_dict, auth_secret_name)
 
     # Determine the KFP version by checking the 'apiVersion' field
     api_version = (
@@ -879,13 +879,13 @@ def _enrich_kfp_workflow_yaml_credentials(
 
 
 def add_auth_mount_to_argo_pods(
-    workflow_dict: dict, secret_name: typing.Optional[str] = None
+    workflow_dict: dict, auth_secret_name: typing.Optional[str] = None
 ) -> dict:
-    if secret_name:
+    if auth_secret_name:
         volume = {
             "name": "secret",
             "secret": {
-                "secretName": secret_name,
+                "secretName": auth_secret_name,
                 "items": [
                     {
                         "key": "tokensFile",

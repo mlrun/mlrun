@@ -471,14 +471,14 @@ def test_launcher_skips_aborted_or_deleted_run(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "initial_auth, resolved_token, expected_token, raise_error",
+    "initial_auth, resolved_token, expected_token",
     [
         # auth missing → default token
-        (None, "default-token", "default-token", False),
+        (None, "default-token", "default-token"),
         # auth exists but no token_name → default token
-        ({}, "default-token", "default-token", False),
+        ({}, "default-token", "default-token"),
         # explicit token_name → preserved
-        ({"token_name": "custom-token"}, "custom-token", "custom-token", True),
+        ({"token_name": "custom-token"}, "custom-token", "custom-token"),
     ],
 )
 def test_enrich_and_validate_auth_token_name(
@@ -486,7 +486,6 @@ def test_enrich_and_validate_auth_token_name(
     initial_auth,
     resolved_token,
     expected_token,
-    raise_error,
 ):
     launcher = services.api.launcher.ServerSideLauncher(
         auth_info=mlrun.common.schemas.AuthInfo()
@@ -505,4 +504,4 @@ def test_enrich_and_validate_auth_token_name(
 
     assert run.spec.auth["token_name"] == expected_token
     provided_token = None if not initial_auth else initial_auth.get("token_name")
-    enrich.assert_called_once_with(provided_token, raise_error)
+    enrich.assert_called_once_with(provided_token)

@@ -2094,7 +2094,7 @@ def test_resolve_auth_secret_name(
 
     assert result == expected
 
-    enrich.assert_called_once_with(provided_token, bool(provided_token))
+    enrich.assert_called_once_with(provided_token)
     k8s_helper._get_user_token_secret.assert_called_once_with(
         username="test-user",
         token_name=resolved_token,

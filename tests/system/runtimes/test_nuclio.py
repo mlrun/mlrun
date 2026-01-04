@@ -33,7 +33,7 @@ from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.runtimes.nuclio.function import AsyncSpec
 from mlrun.serving import ModelRunnerStep
-from mlrun.serving.remote import MLRunAPIRemoteStep
+from mlrun.serving.remote import MLRunAPIRemoteStep, RemoteStep
 from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
 from tests.system.runtimes.assets.function_llm_with_tools import MySelector
 from tests.system.runtimes.assets.function_with_llm import MyLLM
@@ -670,6 +670,70 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         assert (
             timing < 7
         ), f"running nuclio async mode took {timing} seconds should be < 7"
+
+    @pytest.mark.parametrize("with_code", [True, False])
+    @pytest.mark.parametrize("with_http", [True, False])
+    def test_async_http_mode_serving_graph(self, with_code, with_http):
+        code_path = str(self.assets_path / "async_serving_func.py")
+
+        self._logger.debug("Creating serving function")
+        project = mlrun.get_or_create_project(
+            self.project_name, allow_cross_project=True
+        )
+        serving_function = project.set_function(
+            func=code_path,
+            name="serving-function",
+            kind="serving",
+            image=self.image,
+        )
+        serving_function.spec.function_handler = "main:func_handler"
+        serving_func_graph = serving_function.set_topology("flow", engine="async")
+        serving_func_graph.to(name="preprocess", class_name="PreprocessStep").respond()
+        url = serving_function.deploy()
+        async_function = project.set_function(
+            func=code_path if with_code else None,
+            name="async-http-function-serving-graph",
+            kind="serving",
+            image=self.image,
+        )
+
+        graph = async_function.set_topology("flow", engine="async")
+        graph.to(
+            RemoteStep(
+                name="remote_echo",
+                url=url,
+                body_expression="event['inputs']",
+                result_path="resp",
+                retries=0,
+                max_in_flight=16,
+                timeout=100,
+            )
+        ).respond()
+
+        if with_http:
+            async_function.with_http(
+                async_spec=AsyncSpec(enabled=True, max_connections=200)
+            )
+
+        self._logger.debug("Deploying nuclio function")
+        async_function.deploy()
+
+        self._logger.debug("Triggering async serving function")
+        start = time.time()
+        with ThreadPoolExecutor(max_workers=100) as executor:
+            # Submit tasks
+            futures = [
+                executor.submit(async_function.invoke, path="/", body=[i])
+                for i in range(100)
+            ]
+            # Retrieve results as they complete
+            for future in as_completed(futures):
+                future.result()
+        end = time.time()
+        timing = end - start
+        assert (
+            timing < 7
+        ), f"running serving async mode took {timing} seconds should be < 7"
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

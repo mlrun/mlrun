@@ -481,7 +481,7 @@ def test_launcher_skips_aborted_or_deleted_run(monkeypatch):
         ({"token_name": "custom-token"}, "custom-token", "custom-token", True),
     ],
 )
-def test_enrich_and_validate_auth_token_name_on_object(
+def test_enrich_and_validate_auth_token_name(
     monkeypatch,
     initial_auth,
     resolved_token,
@@ -501,7 +501,7 @@ def test_enrich_and_validate_auth_token_name_on_object(
         enrich,
     )
 
-    launcher.enrich_and_validate_auth_token_name_on_object(run)
+    launcher.enrich_and_validate_auth_token_name(run)
 
     assert run.spec.auth["token_name"] == expected_token
     provided_token = None if not initial_auth else initial_auth.get("token_name")

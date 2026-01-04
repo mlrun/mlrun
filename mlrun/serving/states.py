@@ -3549,15 +3549,15 @@ class HubTaskStep(TaskStep):
             hub_step = mlrun.get_hub_step(self.class_name, local_path=local_path)
             mod = hub_step.module()
 
-        if self.handler and not self.hub_step_class_name:
-            self._handler = getattr(mod, self.handler)
+        if hub_step.default_handler and not hub_step.class_name:
+            self._handler = getattr(mod, hub_step.default_handler)
             args = signature(self._handler).parameters
             if args and "context" in list(args.keys()):
                 self._inject_context = True
             self._set_error_handler()
             return
 
-        self._class_object = getattr(mod, self.hub_step_class_name)
+        self._class_object = getattr(mod, hub_step.class_name)
 
         self._init_class_object_and_handler(namespace, reset, **extra_kwargs)
 

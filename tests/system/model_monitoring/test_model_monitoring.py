@@ -1012,6 +1012,156 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             else ["label"]
         )
 
+    @pytest.mark.parametrize("with_training_set", [False, True])
+    def test_monitoring_with_model_runner_batch_infer(self, with_training_set: bool):
+        function_name = "function-with-model"
+        endpoint_name = "model-1"
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        self.set_mm_credentials()
+
+        # Log a model artifact
+        train_set = None
+        if with_training_set:
+            iris = load_iris()
+            train_set = pd.DataFrame(
+                data=np.c_[iris["data"], iris["target"]],
+                columns=iris.feature_names + ["label"],
+            )
+        model_name = "sklearn_RandomForestClassifier"
+        # Upload the model through the projects API so that it is available to the serving function
+        model = self.project.log_model(
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=train_set,
+            artifact_path=f"v3io:///projects/{self.project.name}",
+            label_column="label" if with_training_set else None,
+        )
+        function.save(versioned=False)
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
+        model_runner_step.add_model(
+            model_class="MyModel",
+            endpoint_name=endpoint_name,
+            input_path="inputs",
+            result_path="outputs",
+            execution_mechanism="naive",
+            model_artifact=model.uri,
+        )
+        graph.to(model_runner_step, "runner").respond()
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            image=self.image,
+            wait_for_deployment=True,
+        )
+        function.deploy()
+        response = function.invoke(
+            "/",
+            body=[
+                {"inputs": [5.1, 3.5, 1.4, 0.2]},
+                {"inputs": [4.9, 3.0, 1.4, 0.2]},
+                {"inputs": [4.7, 3.2, 1.3, 0.2]},
+            ],
+        )
+        with pytest.raises(
+            RuntimeError,
+            match=".*X has 3 features, but RandomForestClassifier is expecting 4 features as input*",
+        ):
+            function.invoke(
+                "/",
+                body=[
+                    {"inputs": [5.1, 3.5, 1.4]},
+                    {"inputs": [4.9, 3.0, 1.4]},
+                    {"inputs": [4.7, 3.2, 1.3]},
+                ],
+            )
+
+        sleep(5)
+        endpoint = (
+            mlrun.get_run_db()
+            .list_model_endpoints(
+                self.project_name, metric_list=["error_count"], tsdb_metrics=True
+            )
+            .endpoints[0]
+        )
+        expected_feature_names = (
+            ["f0", "f1", "f2", "f3"]
+            if not with_training_set
+            else [
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ]
+        )
+        assert expected_feature_names == endpoint.spec.feature_names
+        assert len(response["inputs"]) == 3
+        assert response["outputs"] == [0, 0, 0]
+        assert (
+            endpoint.spec.label_names == ["p0"] if not with_training_set else ["label"]
+        )
+        sleep(180)
+        mep = mlrun.db.get_run_db().get_model_endpoint(
+            name=endpoint_name,
+            project=self.project.name,
+            function_name=function_name,
+            function_tag="latest",
+            feature_analysis=True,
+            tsdb_metrics=True,
+        )
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project.name, profile=self.mm_tsdb_profile
+        )
+        predications = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="now-50m", end="now"
+        )
+        assert len(predications) == 1
+        predication_dict = predications.head(1).to_dict(orient="records")[0]
+        assert (
+            predication_dict["effective_sample_count"]
+            == predication_dict["estimated_prediction_count"]
+            == 3
+        )
+
+        v3io_df = pd.read_parquet(
+            f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet/key={mep.metadata.uid}"
+        )
+        assert len(v3io_df) == 3
+        expected_identical_fields = [
+            "endpoint_name",
+            "timestamp",
+            "request_id",
+            "effective_sample_count",
+            "estimated_prediction_count",
+        ]
+        # Compare each row to the first row
+        assert (
+            (
+                v3io_df[expected_identical_fields]
+                == v3io_df[expected_identical_fields].iloc[0]
+            )
+            .all(axis=1)
+            .all()
+        )
+        v3io_dict = v3io_df.head(1).to_dict(orient="records")[0]
+        assert (
+            v3io_dict["effective_sample_count"]
+            == v3io_dict["estimated_prediction_count"]
+            == 3
+        )
+        error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
+        assert len(error_df) == 1
+        error_dict = error_df.head(1).to_dict(orient="records")[0]
+        assert error_dict["error_count"] == 1
+
     def _assert_model_endpoint_tags_and_labels(
         self,
         endpoint: mlrun.common.schemas.ModelEndpoint,

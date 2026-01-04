@@ -21,6 +21,7 @@ import sys
 import time
 import typing
 from collections import namedtuple
+from contextlib import contextmanager
 from os import environ
 from pathlib import Path
 from shutil import rmtree
@@ -28,7 +29,6 @@ from socket import socket
 from subprocess import DEVNULL, PIPE, Popen, run
 from sys import executable
 from tempfile import mkdtemp
-from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 

@@ -278,11 +278,14 @@ def sync_secret_tokens() -> None:
     if os.getenv("MLRUN_AUTH_OFFLINE_TOKEN"):
         return
 
-    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
-
     # The import is needed here to prevent a circular import, since this method is called from the mlrun.db connection.
     from mlrun.db import get_run_db
 
-    # The log_warning=False flag ensures the SDK doesn’t log unnecessary warnings about local file updates, since
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
+        auth_user_id=get_run_db().token_provider.authenticated_user_id
+    )
+
+    # The log_warning=False flag ensures the SDK doesn't log
+    # unnecessary warnings about local file updates, since
     # this method reads from the file, not updates it.
     get_run_db().store_secret_tokens(secret_tokens, log_warning=False)

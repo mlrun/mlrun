@@ -21,6 +21,7 @@ import sys
 import time
 import typing
 from collections import namedtuple
+from contextlib import contextmanager
 from os import environ
 from pathlib import Path
 from shutil import rmtree
@@ -45,6 +46,7 @@ import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.secrets
 from mlrun import RunObject
 from mlrun.auth.providers import IGTokenProvider, StaticTokenProvider
 from mlrun.db.httpdb import HTTPRunDB
@@ -473,6 +475,18 @@ def _encode_jwt(payload: dict) -> str:
     return f"{_b64(header)}.{_b64(payload)}."
 
 
+@contextmanager
+def _mock_httpdb_connect(server_cfg):
+    """Context manager to mock HTTPRunDB connect flow for iguazio v4 oauth tests."""
+    with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):
+        with patch.object(HTTPRunDB, "api_call") as api_call:
+            with patch.object(mlrun.secrets, "sync_secret_tokens"):
+                api_response = MagicMock()
+                api_response.json.return_value = server_cfg
+                api_call.return_value = api_response
+                yield
+
+
 def test_iguazio_v4_oauth_config_is_applied_before_token_provider_init(
     requests_mock: requests_mock_package.Mocker, monkeypatch, token_file
 ):
@@ -502,20 +516,15 @@ def test_iguazio_v4_oauth_config_is_applied_before_token_provider_init(
         mlrun.k8s_utils, "is_running_inside_kubernetes_cluster", lambda: False
     )
 
-    with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):
-        with patch.object(HTTPRunDB, "api_call") as api_call:
-            api_response = MagicMock()
-            api_response.json.return_value = server_cfg
-            api_call.return_value = api_response
+    with _mock_httpdb_connect(server_cfg):
+        db = HTTPRunDB("http://some-server:1919")
+        assert db.token_provider is None
 
-            db = HTTPRunDB("http://some-server:1919")
-            assert db.token_provider is None
-
-            db.connect()
-            assert mlrun.mlconf.auth_with_oauth_token.enabled is True
-            assert mlrun.mlconf.auth_token_endpoint == external_token_endpoint
-            assert isinstance(db.token_provider, IGTokenProvider)
-            assert db.token_provider.get_token() == jwt_token
+        db.connect()
+        assert mlrun.mlconf.auth_with_oauth_token.enabled is True
+        assert mlrun.mlconf.auth_token_endpoint == external_token_endpoint
+        assert isinstance(db.token_provider, IGTokenProvider)
+        assert db.token_provider.get_token() == jwt_token
 
 
 def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
@@ -559,24 +568,19 @@ def test_iguazio_v4_oauth_config_uses_internal_endpoint_in_cluster(
         },
     )
 
-    with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):
-        with patch.object(HTTPRunDB, "api_call") as api_call:
-            api_response = MagicMock()
-            api_response.json.return_value = server_cfg
-            api_call.return_value = api_response
+    with _mock_httpdb_connect(server_cfg):
+        db = HTTPRunDB("http://some-server:1919")
+        db.connect()
+        assert mlrun.mlconf.auth_token_endpoint == internal_token_endpoint
+        assert isinstance(db.token_provider, IGTokenProvider)
+        assert db.token_provider.get_token() == jwt_token
 
-            db = HTTPRunDB("http://some-server:1919")
-            db.connect()
-            assert mlrun.mlconf.auth_token_endpoint == internal_token_endpoint
-            assert isinstance(db.token_provider, IGTokenProvider)
-            assert db.token_provider.get_token() == jwt_token
-
-            # Verify token_file is set to the expected path when running inside k8s
-            expected_token_file = os.path.join(
-                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-                mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
-            )
-            assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
+        # Verify token_file is set to the expected path when running inside k8s
+        expected_token_file = os.path.join(
+            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+        )
+        assert mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
 
 
 @pytest.mark.parametrize(
@@ -657,16 +661,12 @@ def test_iguazio_v4_oauth_token_file_auto_initialization(
     else:
         expected_token_file = expected_token_file_suffix
 
-    with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):
-        with patch.object(HTTPRunDB, "api_call") as api_call:
-            api_response = MagicMock()
-            api_response.json.return_value = server_cfg
-            api_call.return_value = api_response
-            db = HTTPRunDB("http://some-server:1919")
-            db.connect()
-            assert (
-                mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
-            ), f"Expected token_file to be {expected_token_file}, got {mlrun.mlconf.auth_with_oauth_token.token_file}"
+    with _mock_httpdb_connect(server_cfg):
+        db = HTTPRunDB("http://some-server:1919")
+        db.connect()
+        assert (
+            mlrun.mlconf.auth_with_oauth_token.token_file == expected_token_file
+        ), f"Expected token_file to be {expected_token_file}, got {mlrun.mlconf.auth_with_oauth_token.token_file}"
 
 
 def test_init_token_provider_stores_username_and_password_from_add_or_refresh_credentials(

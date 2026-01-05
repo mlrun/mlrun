@@ -468,3 +468,30 @@ def test_launcher_skips_aborted_or_deleted_run(monkeypatch):
     # Validate result
     assert run.status.state == mlrun.common.runtimes.constants.RunStates.aborted
     assert not runtime_handler_mock.called
+
+
+@pytest.mark.parametrize(
+    "initial_auth, expected_token",
+    [
+        # auth missing → default token
+        (None, mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME),
+        # auth exists but no token_name → default token
+        ({}, mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME),
+        # explicit token_name → preserved
+        ({"token_name": "custom-token"}, "custom-token"),
+    ],
+)
+def test_enrich_and_validate_auth_token_name(
+    initial_auth,
+    expected_token,
+):
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo()
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth=initial_auth),
+    )
+
+    launcher.enrich_and_validate_auth_token_name(run)
+
+    assert run.spec.auth["token_name"] == expected_token

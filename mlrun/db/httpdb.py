@@ -18,7 +18,6 @@ import re
 import time
 import traceback
 import typing
-import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
 from os import environ, path, remove
@@ -1332,7 +1331,6 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: Optional[int] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.ArtifactPartitionByField, str]
         ] = None,
@@ -1385,7 +1383,6 @@ class HTTPRunDB(RunDBInterface):
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
         :param format_: The format in which to return the artifacts. Default is 'full'.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -1409,12 +1406,11 @@ class HTTPRunDB(RunDBInterface):
             tree=tree,
             producer_uri=producer_uri,
             format_=format_,
-            limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            return_all=not limit,
+            return_all=True,
             parent=parent,
         )
         return artifacts
@@ -2305,7 +2301,7 @@ class HTTPRunDB(RunDBInterface):
         :param project:         The project of the pipeline
         :param pipeline:        Pipeline function or path to .yaml/.zip pipeline file.
         :param arguments:       A dictionary of arguments to pass to the pipeline.
-        :param experiment:      A name to assign for the specific experiment.
+        :param experiment:      (deprecated) A name to assign for the specific experiment.
         :param run:             A name for this specific run.
         :param namespace:       Kubernetes namespace to execute the pipeline in.
         :param artifact_path:   A path to artifacts used by this pipeline.
@@ -2314,6 +2310,13 @@ class HTTPRunDB(RunDBInterface):
                                 workflow and all its resources are deleted)
         :param timeout:         Timeout for the API call.
         """
+        if experiment is not None:
+            warnings.warn(
+                "The 'experiment' parameter is deprecated and will be removed in 1.13.0. "
+                "Pipelines are automatically scoped by project.",
+                # TODO: Remove this in 1.13.0
+                FutureWarning,
+            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
@@ -5479,7 +5482,6 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: Optional[int] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.ArtifactPartitionByField, str]
         ] = None,
@@ -5500,13 +5502,6 @@ class HTTPRunDB(RunDBInterface):
         project = project or config.active_project
         labels = self._parse_labels(labels)
 
-        if limit:
-            # TODO: Remove this in 1.11.0
-            warnings.warn(
-                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
-                FutureWarning,
-            )
-
         params = {
             "name": name,
             "tag": tag,
@@ -5520,7 +5515,6 @@ class HTTPRunDB(RunDBInterface):
             "producer_uri": producer_uri,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
-            "limit": limit,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,
@@ -5772,23 +5766,8 @@ class HTTPRunDB(RunDBInterface):
         if page_params.get("page-token") is None and page_params.get("page") is None:
             page_params["page"] = 1
         if page_params.get("page-size") is None:
-            page_size = config.httpdb.pagination.default_page_size
+            page_params["page-size"] = config.httpdb.pagination.default_page_size
 
-            if page_params.get("limit") is not None:
-                page_size = page_params["limit"]
-
-                # limit and page/page size are conflicting
-                page_params.pop("limit")
-            page_params["page-size"] = page_size
-
-        # this may happen only when page-size was explicitly set along with limit
-        # this is to ensure we will not get stopped by API on similar below validation
-        # but rather simply fallback to use page-size.
-        if page_params.get("page-size") and page_params.get("limit"):
-            logger.warning(
-                "Both 'limit' and 'page-size' are provided, using 'page-size'."
-            )
-            page_params.pop("limit")
         return page_params
 
     def _resolve_api_urls(self, url: str) -> tuple[str, str]:

@@ -721,8 +721,8 @@ class ServingRuntime(RemoteRuntime):
                     self.spec.function_handler
                     and "nuclio:handler" in self.spec.function_handler
                 ):
-                    logger.warning(
-                        "Overriding function handler to async_handler for async serving graph"
+                    logger.debug(
+                        "Overriding default function handler, using async_handler for async serving graph"
                     )
                     self.spec.function_handler = "main:async_handler"
                 # set async handler if not already set

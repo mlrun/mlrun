@@ -19,6 +19,7 @@ import semver
 
 import mlrun
 import mlrun.runtimes
+from mlrun.runtimes.nuclio.function import validate_nuclio_version_compatibility
 from mlrun.utils import logger
 
 import framework.utils.clients.nuclio
@@ -133,9 +134,10 @@ def enrich_function_with_ingress(config, mode, service_type, graph_engine=None):
             "maxWorkers": 1,
             "workerAvailabilityTimeoutMilliseconds": 10000,  # 10 seconds
             "attributes": {},
-            "mode": graph_engine or "sync",
         }
-        if graph_engine == "async":
+        if validate_nuclio_version_compatibility("1.15.3") and graph_engine == "async":
+            http_trigger["mode"] = graph_engine or "sync"
+
             http_trigger["async"] = {"maxConnections": None}
 
     def enrich():

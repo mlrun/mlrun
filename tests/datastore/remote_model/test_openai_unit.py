@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent.futures
 import threading
 import time
 import unittest.mock
@@ -84,3 +85,46 @@ class TestOpenAIBatchConcurrency:
 
         # Timing: ideal ~0.4s (20 / 5 * 0.1). Allow some tolerance.
         assert 0.3 <= duration <= 0.6
+
+    def test_global_thread_concurrency_limit(self, mock_single_invoke):
+
+        with unittest.mock.patch(
+            "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._single_invoke",
+            mock_single_invoke,
+        ):
+            provider = mlrun.get_model_provider(
+                url="openai://gpt-4o-mini",
+                secrets={"OPENAI_API_KEY": "test-key"},
+            )
+
+            # 5 batches, each with 5 messages
+            batches = [
+                [[{"role": "user", "content": f"batch{b}-msg{i}"}] for i in range(5)]
+                for b in range(5)
+            ]
+
+            def _run_batch(msgs):
+                return provider.invoke(messages=msgs)
+
+            start = time.perf_counter()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [executor.submit(_run_batch, batch) for batch in batches]
+                results_per_batch = [f.result() for f in futures]
+            duration = time.perf_counter() - start
+
+        state = mock_single_invoke.state
+
+        # Each batch returns 5 results
+        assert len(results_per_batch) == 5
+        assert all(len(batch_results) == 5 for batch_results in results_per_batch)
+        # Total calls across all batches
+        assert state["call_count"] == 25
+        # Global limit: at most 20 concurrent calls across all batches
+        assert state["max_concurrent_observed"] <= 20
+
+        # Rough timing check:
+        # - 25 calls, each 0.1s, with up to 20 concurrent
+        # - First ~20 finish around 0.1s, last 5 add another ~0.1s layer
+        # So total should be in the ~0.2-0.5s range (allow some jitter).
+        assert 0.15 <= duration <= 0.8
+

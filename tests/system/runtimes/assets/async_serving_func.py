@@ -12,17 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 
-import storey
-
-
-class PreprocessStep(storey.MapClass):
+class PreprocessStep:
     async def do(self, event):
         return {"preprocessed_item": event}
-
-
-async def func_handler(context, event):
-    handler = context.mlru
-    await asyncio.sleep(5)
-    return {"message": "Hello from async function!", "input_event": event}

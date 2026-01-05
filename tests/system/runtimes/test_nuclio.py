@@ -44,7 +44,7 @@ from tests.system.runtimes.assets.function_with_model import DummyModel, MyModel
 class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     project_name = "test-nuclio-runtime"
 
-    image: str = "mlrun/mlrun"
+    image: str = "artifactory.iguazeng.com:10557/roys/mlrun:1.11.0"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")
@@ -674,24 +674,23 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     @pytest.mark.parametrize("with_code", [True, False])
     @pytest.mark.parametrize("with_http", [True, False])
     def test_async_http_mode_serving_graph(self, with_code, with_http):
-        code_path = str(self.assets_path / "async_serving_func.py")
+        async_code_path = str(self.assets_path / "async_serving_func.py")
+        code_path = str(self.assets_path / "async_nuclio_func.py")
 
         self._logger.debug("Creating serving function")
         project = mlrun.get_or_create_project(
             self.project_name, allow_cross_project=True
         )
-        serving_function = project.set_function(
+        nuclio_function = project.set_function(
             func=code_path,
             name="serving-function",
-            kind="serving",
+            kind="nuclio",
             image=self.image,
+            handler="main:async_handler",
         )
-        serving_function.spec.function_handler = "main:func_handler"
-        serving_func_graph = serving_function.set_topology("flow", engine="async")
-        serving_func_graph.to(name="preprocess", class_name="PreprocessStep").respond()
-        url = serving_function.deploy()
+        url = nuclio_function.deploy()
         async_function = project.set_function(
-            func=code_path if with_code else None,
+            func=async_code_path if with_code else None,
             name="async-http-function-serving-graph",
             kind="serving",
             image=self.image,
@@ -705,7 +704,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
                 body_expression="event['inputs']",
                 result_path="resp",
                 retries=0,
-                max_in_flight=16,
+                max_in_flight=100,
                 timeout=100,
             )
         ).respond()

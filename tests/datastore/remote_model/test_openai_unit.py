@@ -87,7 +87,6 @@ class TestOpenAIBatchConcurrency:
         assert 0.3 <= duration <= 0.6
 
     def test_global_thread_concurrency_limit(self, mock_single_invoke):
-
         with unittest.mock.patch(
             "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._single_invoke",
             mock_single_invoke,
@@ -127,4 +126,3 @@ class TestOpenAIBatchConcurrency:
         # - First ~20 finish around 0.1s, last 5 add another ~0.1s layer
         # So total should be in the ~0.2-0.5s range (allow some jitter).
         assert 0.15 <= duration <= 0.8
-

@@ -321,7 +321,9 @@ class OpenAIProvider(ModelProvider):
         """
         with cls._global_thread_semaphore_lock:
             if cls._global_thread_semaphore is None:
-                max_workers = mlrun.mlconf.model_providers.openai_batch_max_workers_global
+                max_workers = (
+                    mlrun.mlconf.model_providers.openai_batch_max_workers_global
+                )
                 cls._global_thread_semaphore = threading.Semaphore(max_workers)
         return cls._global_thread_semaphore
 
@@ -336,8 +338,12 @@ class OpenAIProvider(ModelProvider):
         """
         async with cls._global_async_semaphore_lock:
             if cls._global_async_semaphore is None:
-                cls._global_max_concurrent = mlrun.mlconf.model_providers.openai_batch_max_concurrent_global
-                cls._global_async_semaphore = asyncio.Semaphore(cls._global_max_concurrent)
+                cls._global_max_concurrent = (
+                    mlrun.mlconf.model_providers.openai_batch_max_concurrent_global
+                )
+                cls._global_async_semaphore = asyncio.Semaphore(
+                    cls._global_max_concurrent
+                )
         return cls._global_async_semaphore
 
     def batch_invoke(
@@ -417,7 +423,9 @@ class OpenAIProvider(ModelProvider):
         Ensures global concurrency limit is maintained across all batches.
         """
         with global_semaphore:
-            return self._single_invoke(messages, invoke_response_format, **invoke_kwargs)
+            return self._single_invoke(
+                messages, invoke_response_format, **invoke_kwargs
+            )
 
     async def async_batch_invoke(
         self,
@@ -454,11 +462,11 @@ class OpenAIProvider(ModelProvider):
             List of responses in the same order as messages_list.
             Each response format depends on `invoke_response_format`.
         """
-        # Per-batch semaphore (limits THIS batch)
-        batch_semaphore = asyncio.Semaphore(self._max_concurrent_per_batch)
-
         # Global semaphore (shared across ALL batches)
         global_semaphore = await self._get_or_create_global_async_semaphore()
+
+        # Per-batch semaphore (limits THIS batch)
+        batch_semaphore = asyncio.Semaphore(self._max_concurrent_per_batch)
 
         async def _bounded_invoke(messages):
             """Execute invoke with both global and per-batch semaphore control."""

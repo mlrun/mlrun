@@ -203,7 +203,7 @@ default_config = {
         "openai_batch_max_workers": 5,
         "openai_batch_max_workers_global": 20,
         "openai_batch_max_concurrent": 10,
-        "openai_batch_max_concurrent_global": 50,
+        "openai_batch_max_concurrent_global": 200,
         "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
     },
     # default node selector to be applied to all functions - json string base64 encoded format

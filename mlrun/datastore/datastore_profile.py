@@ -571,6 +571,7 @@ class OpenAIProfile(DatastoreProfile):
     max_retries: typing.Optional[int] = None
     batch_max_workers: typing.Optional[int] = None
     batch_max_concurrent: typing.Optional[int] = None
+
     def secrets(self) -> dict:
         res = {}
         if self.api_key:

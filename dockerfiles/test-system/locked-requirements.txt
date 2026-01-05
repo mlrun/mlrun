@@ -200,7 +200,6 @@ anyio==4.12.0 \
     --hash=sha256:dad2376a628f98eeca4881fc56cd06affd18f659b17a747d3ff0307ced94b1bb
     # via
     #   httpx
-    #   jupyter-server
     #   litestar
     #   openai
     #   starlette
@@ -217,37 +216,6 @@ apscheduler==3.11.2 \
     --hash=sha256:2a9966b052ec805f020c8c4c3ae6e6a06e24b1bf19f2e11d91d8cca0473eef41 \
     --hash=sha256:ce005177f741409db4e4dd40a7431b76feb856b9dd69d57e0da49d6715bfd26d
     # via -r dockerfiles/mlrun-api/requirements.txt
-argon2-cffi==25.1.0 \
-    --hash=sha256:694ae5cc8a42f4c4e2bf2ca0e64e51e23a040c6a517a85074683d3959e1346c1 \
-    --hash=sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741
-    # via jupyter-server
-argon2-cffi-bindings==21.2.0 \
-    --hash=sha256:20ef543a89dee4db46a1a6e206cd015360e5a75822f76df533845c3cbaf72670 \
-    --hash=sha256:2c3e3cc67fdb7d82c4718f19b4e7a87123caf8a93fde7e23cf66ac0337d3cb3f \
-    --hash=sha256:3b9ef65804859d335dc6b31582cad2c5166f0c3e7975f324d9ffaa34ee7e6583 \
-    --hash=sha256:3e385d1c39c520c08b53d63300c3ecc28622f076f4c2b0e6d7e796e9f6502194 \
-    --hash=sha256:58ed19212051f49a523abb1dbe954337dc82d947fb6e5a0da60f7c8471a8476c \
-    --hash=sha256:5e00316dabdaea0b2dd82d141cc66889ced0cdcbfa599e8b471cf22c620c329a \
-    --hash=sha256:603ca0aba86b1349b147cab91ae970c63118a0f30444d4bc80355937c950c082 \
-    --hash=sha256:6a22ad9800121b71099d0fb0a65323810a15f2e292f2ba450810a7316e128ee5 \
-    --hash=sha256:8cd69c07dd875537a824deec19f978e0f2078fdda07fd5c42ac29668dda5f40f \
-    --hash=sha256:93f9bf70084f97245ba10ee36575f0c3f1e7d7724d67d8e5b08e61787c320ed7 \
-    --hash=sha256:9524464572e12979364b7d600abf96181d3541da11e23ddf565a32e70bd4dc0d \
-    --hash=sha256:b2ef1c30440dbbcba7a5dc3e319408b59676e2e039e2ae11a8775ecf482b192f \
-    --hash=sha256:b746dba803a79238e925d9046a63aa26bf86ab2a2fe74ce6b009a1c3f5c8f2ae \
-    --hash=sha256:bb89ceffa6c791807d1305ceb77dbfacc5aa499891d2c55661c6459651fc39e3 \
-    --hash=sha256:bd46088725ef7f58b5a1ef7ca06647ebaf0eb4baff7d1d0d177c6cc8744abd86 \
-    --hash=sha256:ccb949252cb2ab3a08c02024acb77cfb179492d5701c7cbdbfd776124d4d2367 \
-    --hash=sha256:d4966ef5848d820776f5f562a7d45fdd70c2f330c961d0d745b784034bd9f48d \
-    --hash=sha256:e415e3f62c8d124ee16018e491a009937f8cf7ebf5eb430ffc5de21b900dad93 \
-    --hash=sha256:ed2937d286e2ad0cc79a7087d3c272832865f779430e0cc2b4f3718d3159b0cb \
-    --hash=sha256:f1152ac548bd5b8bcecfb0b0371f082037e47128653df2e8ba6e914d384f3c3e \
-    --hash=sha256:f9f8b450ed0547e3d473fdc8612083fd08dd2120d6ac8f73828df9b7d45bb351
-    # via argon2-cffi
-arrow==1.4.0 \
-    --hash=sha256:749f0769958ebdc79c173ff0b0670d59051a535fa26e8eba02953dc19eb43205 \
-    --hash=sha256:ed0cc050e98001b8779e84d461b0098c4ac597e88704a655582b21d116e526d7
-    # via isoduration
 asn1crypto==1.5.1 \
     --hash=sha256:13ae38502be632115abf8a24cbe5f4da52e3b5231990aff31123c805306ccb9c \
     --hash=sha256:db4e40728b728508912cbb3d44f19ce188f218e9eba635821bb4b68564f8fd67
@@ -343,7 +311,6 @@ boto3==1.35.36 \
     --hash=sha256:586524b623e4fbbebe28b604c6205eb12f263cc4746bccb011562d07e217a4cb
     # via
     #   -r extras-requirements.txt
-    #   nuclio-jupyter
     #   snowflake-connector-python
 botocore==1.35.36 \
     --hash=sha256:354ec1b766f0029b5d6ff0c45d1a0f9e5007b7d2f3ec89bcdd755b208c5bc797 \
@@ -439,7 +406,6 @@ cffi==1.17.1 \
     --hash=sha256:f7f5baafcc48261359e14bcd6d9bff6d4b28d9103847c9e136694cb0501aef87 \
     --hash=sha256:fc48c783f9c87e60831201f2cce7f3b2e4846bf4d8728eabe54d60700b318a0b
     # via
-    #   argon2-cffi-bindings
     #   azure-datalake-store
     #   cryptography
     #   pyzmq
@@ -1047,10 +1013,6 @@ fonttools==4.61.1 \
     --hash=sha256:fe2efccb324948a11dd09d22136fe2ac8a97d6c1347cf0b58a911dcd529f66b7 \
     --hash=sha256:fff4f534200a04b4a36e7ae3cb74493afe807b517a09e99cb4faa89a34ed6ecd
     # via matplotlib
-fqdn==1.5.1 \
-    --hash=sha256:105ed3677e767fb5ca086a0c1f4bb66ebc3c100be518f0e0d755d9eae164d89f \
-    --hash=sha256:3a179af3761e4df6eb2e026ff9e1a3033d3587bf980a0b1b2e1e5d08d7358014
-    # via jsonschema
 frozenlist==1.8.0 \
     --hash=sha256:0325024fe97f94c41c08872db482cf8ac4800d80e79222c6b0b7b162d5b13686 \
     --hash=sha256:032efa2674356903cd0261c4317a561a6850f3ac864a63fc1583147fb05a79b0 \
@@ -1735,7 +1697,6 @@ idna==3.11 \
     # via
     #   anyio
     #   httpx
-    #   jsonschema
     #   requests
     #   snowflake-connector-python
     #   yarl
@@ -1782,10 +1743,6 @@ isodate==0.7.2 \
     #   azure-keyvault-secrets
     #   azure-storage-blob
     #   msrest
-isoduration==20.11.0 \
-    --hash=sha256:ac2f9015137935279eac671f94f89eb00584f940f5dc49462a0c4ee692ba1bd9 \
-    --hash=sha256:b2904c2a4228c3d44f409c8ae8e2370eb21a26f7ac2ec5446df141dde3452042
-    # via jsonschema
 iterative-telemetry==0.0.10 \
     --hash=sha256:7fde6111de6fa4acf5a95a6190cc9cc5d17d835a815f0a18ece201f6031f4ed6 \
     --hash=sha256:e58ffb60d22c3de8dad6a114697cc61f6c14911cae484bf90df394e0d6553603
@@ -1801,7 +1758,6 @@ jinja2==3.1.6 \
     #   -r requirements.txt
     #   diff-cover
     #   distributed
-    #   jupyter-server
     #   memray
     #   nbconvert
 jiter==0.12.0 \
@@ -1921,15 +1877,10 @@ joblib==1.5.3 \
     # via
     #   nltk
     #   scikit-learn
-jsonpointer==3.0.0 \
-    --hash=sha256:13e088adc14fca8b6aa8177c044e12701e6ad4b28ff10e65f2267a90109c9942 \
-    --hash=sha256:2b2d729f2091522d61c3b31f82e11870f60b68f43fbc705cb76bf4b832af59ef
-    # via jsonschema
 jsonschema==4.25.1 \
     --hash=sha256:3fba0169e345c7175110351d456342c364814cfcf3b964ba4587f22915230a63 \
     --hash=sha256:e4a9655ce0da0c0b67a085847e00a3a51449e1157f4f75e9fb5aa545e122eb85
     # via
-    #   jupyter-events
     #   kfp
     #   nbformat
 jsonschema-specifications==2025.9.1 \
@@ -1941,7 +1892,6 @@ jupyter-client==8.7.0 \
     --hash=sha256:3671a94fd25e62f5f2f554f5e95389c2294d89822378a5f2dd24353e1494a9e0
     # via
     #   ipykernel
-    #   jupyter-server
     #   nbclient
 jupyter-core==5.9.1 \
     --hash=sha256:4d09aaff303b9566c3ce657f580bd089ff5c91f5f89cf7d8846c3cdf465b5508 \
@@ -1949,22 +1899,9 @@ jupyter-core==5.9.1 \
     # via
     #   ipykernel
     #   jupyter-client
-    #   jupyter-server
     #   nbclient
     #   nbconvert
     #   nbformat
-jupyter-events==0.12.0 \
-    --hash=sha256:6464b2fa5ad10451c3d35fabc75eab39556ae1e2853ad0c0cc31b656731a97fb \
-    --hash=sha256:fc3fce98865f6784c9cd0a56a20644fc6098f21c8c33834a8d9fe383c17e554b
-    # via jupyter-server
-jupyter-server==2.17.0 \
-    --hash=sha256:c38ea898566964c888b4772ae1ed58eca84592e88251d2cfc4d171f81f7e99d5 \
-    --hash=sha256:e8cb9c7db4251f51ed307e329b81b72ccf2056ff82d50524debde1ee1870e13f
-    # via nuclio-jupyter
-jupyter-server-terminals==0.5.3 \
-    --hash=sha256:41ee0d7dc0ebf2809c668e0fc726dfaf258fcd3e769568996ca731b6194ae9aa \
-    --hash=sha256:5ae0295167220e9ace0edcfdb212afd2b01ee8d179fe6f23c899590e9b8a5269
-    # via jupyter-server
 jupyterlab-pygments==0.3.0 \
     --hash=sha256:721aca4d9029252b11cfa9d185e5b5af4d54772bb8072f9b7036f4170054d35d \
     --hash=sha256:841a89020971da1d8693f1a99997aefc5dc424bb1b251fd6322462a1b8842780
@@ -2104,10 +2041,6 @@ kubernetes-asyncio==33.3.0 \
     --hash=sha256:25e6e265932ebb1aeecbdb30a107dbef3ee0bcd388ed12d092be70915733982b \
     --hash=sha256:4c59cd4c99b197995ef38ef0c8ff45aab24b84830ebf0ddcb67355caea9674c9
     # via dask-kubernetes
-lark==1.3.1 \
-    --hash=sha256:b426a7a6d6d53189d318f2b6236ab5d6429eaf09259f1ca33eb716eed10d2905 \
-    --hash=sha256:c629b661023a014c37da873b4ff58a817398d12635d3bbb2c5a03be7fe5d1e12
-    # via rfc3987-syntax
 lightgbm==4.6.0 \
     --hash=sha256:2dafd98d4e02b844ceb0b61450a660681076b1ea6c7adb8c566dfd66832aafad \
     --hash=sha256:37089ee95664b6550a7189d887dbf098e3eadab03537e411f52c63c121e3ba4b \
@@ -2687,14 +2620,11 @@ nbclient==0.10.4 \
 nbconvert==7.16.6 \
     --hash=sha256:1375a7b67e0c2883678c48e506dc320febb57685e5ee67faa51b18a90f3a712b \
     --hash=sha256:576a7e37c6480da7b8465eefa66c17844243816ce1ccc372633c6b71c3c0f582
-    # via
-    #   jupyter-server
-    #   nuclio-jupyter
+    # via nuclio-jupyter
 nbformat==5.10.4 \
     --hash=sha256:322168b14f937a5d11362988ecac2a4952d3d8e3a2cbeb2319584631226d5b3a \
     --hash=sha256:3b48d6c8fbca4b299bf3982ea7db1af21580e4fec269ad087b9e81588891200b
     # via
-    #   jupyter-server
     #   nbclient
     #   nbconvert
 nest-asyncio==1.6.0 \
@@ -2707,9 +2637,9 @@ nltk==3.9.2 \
     --hash=sha256:0f409e9b069ca4177c1903c3e843eef90c7e92992fa4931ae607da6de49e1419 \
     --hash=sha256:1e209d2b3009110635ed9709a67a1a3e33a10f799490fa71cf4bec218c11c88a
     # via evidently
-nuclio-jupyter==0.11.3 \
-    --hash=sha256:65bd0cc9467dfc459073655f1d1437b615f2b29982e4ea18e3ff0aa7432b2be6 \
-    --hash=sha256:eb62c2cc534ea5a5810e525582e06664b061e2e63ada4fd2ac8acfdf4ac48274
+nuclio-jupyter==0.12.0 \
+    --hash=sha256:104c13da727a3aceb6a5e228f6e6e5d17248bdb5cea9ad723a70d1264147d52e \
+    --hash=sha256:c7ff3437fe4edcbf891c79f8e4ebf9b84e6ce8627de025e60b75703d480e2a44
     # via -r requirements.txt
 nuclio-sdk==0.6.2 \
     --hash=sha256:1ac96a61410a7c6b6b7791371e1c9bb312fc09338cbe29118d91e3a65d53cc81 \
@@ -2892,10 +2822,6 @@ ossfs==2025.5.0 \
     --hash=sha256:17b92e5cfd636690665969687806ddba0155ab71245a731eb86b17f4c2648dc2 \
     --hash=sha256:722e7044fbcd84cc992e5cd6821d5f19bed334216c140d6e46ffb21979d49ce0
     # via -r extras-requirements.txt
-overrides==7.7.0 ; python_full_version < '3.12' \
-    --hash=sha256:55158fa3d93b98cc75299b1e67078ad9003ca27945c76162c1c0766d6f91820a \
-    --hash=sha256:c7ed9d062f78b8e4c1a7b70bd8796b35ead4d9f510227ef9c5dc7626c60d7e49
-    # via jupyter-server
 packaging==25.0 \
     --hash=sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484 \
     --hash=sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f
@@ -2909,8 +2835,6 @@ packaging==25.0 \
     #   google-cloud-bigquery
     #   huggingface-hub
     #   ipykernel
-    #   jupyter-events
-    #   jupyter-server
     #   matplotlib
     #   nbconvert
     #   plotly
@@ -3111,10 +3035,6 @@ polyfactory==3.2.0 \
     --hash=sha256:5945799cce4c56cd44ccad96fb0352996914553cc3efaa5a286930599f569571 \
     --hash=sha256:879242f55208f023eee1de48522de5cb1f9fd2d09b2314e999a9592829d596d1
     # via litestar
-prometheus-client==0.23.1 \
-    --hash=sha256:6ae8f9081eaaaf153a2e959d2e6c4f4fb57b12ef76c8c7980202f1e57b48b2ce \
-    --hash=sha256:dd1913e6e76b59cfe44e7a4b83e01afc9873c1bdfd2ed8739f1e76aeca115f99
-    # via jupyter-server
 prompt-toolkit==3.0.52 \
     --hash=sha256:28cde192929c8e7321de85de1ddbe736f1375148b02f2e17edd840042b1be855 \
     --hash=sha256:9aac639a3bbd33284347de5ad8d68ecc044b91a762dc39b7c21095fcd6a19955
@@ -3431,12 +3351,10 @@ psycopg2-binary==2.9.11 \
     --hash=sha256:fa0f693d3c68ae925966f0b14b8edda71696608039f4ed61b1fe9ffa468d16db \
     --hash=sha256:fcf21be3ce5f5659daefd2b3b3b6e4727b028221ddc94e6c1523425579664747
     # via -r dockerfiles/mlrun-api/requirements.txt
-ptyprocess==0.7.0 ; os_name != 'nt' or (sys_platform != 'emscripten' and sys_platform != 'win32') \
+ptyprocess==0.7.0 ; sys_platform != 'emscripten' and sys_platform != 'win32' \
     --hash=sha256:4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35 \
     --hash=sha256:5c5d0a3b48ceee0b48485e0c26037c0acd7d29765ca3fbb5cb3831d347423220
-    # via
-    #   pexpect
-    #   terminado
+    # via pexpect
 pure-eval==0.2.3 \
     --hash=sha256:1db8e35b67b3d218d818ae653e27f06c3aa420901fa7b081ca98cbedc874e0d0 \
     --hash=sha256:5f4e983f40564c576c7c8635ae88db5956bb2229d7e9237d03b3c0b0190eaf42
@@ -3674,7 +3592,6 @@ python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
     # via
-    #   arrow
     #   botocore
     #   google-cloud-bigquery
     #   jupyter-client
@@ -3690,10 +3607,6 @@ python-dotenv==1.2.1 \
     #   -r requirements.txt
     #   testcontainers
     #   uvicorn
-python-json-logger==4.0.0 \
-    --hash=sha256:af09c9daf6a813aa4cc7180395f50f2a9e5fa056034c9953aec92e381c5ba1e2 \
-    --hash=sha256:f58e68eb46e1faed27e0f574a55a0455eecd7b8a5b88b85a784519ba3cff047f
-    # via jupyter-events
 python-on-whales==0.72.0 \
     --hash=sha256:092b440f43a34bbe90536b82a41ae3c199018dfc66d7e0dc52d4d659b82683c2 \
     --hash=sha256:280da91724ae728ac2baf503584938ecfdee2f83bb88e65413eed14b1fe74d41
@@ -3726,20 +3639,6 @@ pywin32==311 ; sys_platform == 'win32' \
     --hash=sha256:e286f46a9a39c4a18b319c28f59b61de793654af2f395c102b4f819e584b5852 \
     --hash=sha256:f95ba5a847cba10dd8c4d8fefa9f2a6cf283b8b88ed6178fa8a6c1ab16054d0d
     # via docker
-pywinpty==3.0.2 ; os_name == 'nt' \
-    --hash=sha256:1505cc4cb248af42cb6285a65c9c2086ee9e7e574078ee60933d5d7fa86fb004 \
-    --hash=sha256:18f78b81e4cfee6aabe7ea8688441d30247b73e52cd9657138015c5f4ee13a51 \
-    --hash=sha256:28297cecc37bee9f24d8889e47231972d6e9e84f7b668909de54f36ca785029a \
-    --hash=sha256:327790d70e4c841ebd9d0f295a780177149aeb405bca44c7115a3de5c2054b23 \
-    --hash=sha256:34b55ae9a1b671fe3eae071d86618110538e8eaad18fcb1531c0830b91a82767 \
-    --hash=sha256:3962daf801bc38dd4de872108c424b5338c9a46c6efca5761854cd66370a9022 \
-    --hash=sha256:65db57fd3387d71e8372b6a54269cbcd0f6dfa6d4616a29e0af749ec19f5c558 \
-    --hash=sha256:663383ecfab7fc382cc97ea5c4f7f0bb32c2f889259855df6ea34e5df42d305b \
-    --hash=sha256:99fdd9b455f0ad6419aba6731a7a0d2f88ced83c3c94a80ff9533d95fa8d8a9e
-    # via
-    #   jupyter-server
-    #   jupyter-server-terminals
-    #   terminado
 pyyaml==6.0.3 \
     --hash=sha256:00c4bdeba853cc34e7dd471f16b4114f4162dc03e6b7afcc2128711f0eca823c \
     --hash=sha256:0150219816b6a1fa26fb4699fb7daa9caf09eb1999f3b70fb6e786805e80375a \
@@ -3820,7 +3719,6 @@ pyyaml==6.0.3 \
     #   distributed
     #   evidently
     #   huggingface-hub
-    #   jupyter-events
     #   kfp
     #   kubernetes
     #   kubernetes-asyncio
@@ -3925,7 +3823,6 @@ pyzmq==27.1.0 \
     # via
     #   ipykernel
     #   jupyter-client
-    #   jupyter-server
 redis==4.6.0 \
     --hash=sha256:585dc516b9eb042a619ef0a39c3d7d55fe81bdb4df09a52c9cdde0d07bf1aa7d \
     --hash=sha256:e2b03db868160ee4591de3cb90d40ebb50a90dd302138775937f6a42b7ed183c
@@ -3936,7 +3833,6 @@ referencing==0.37.0 \
     # via
     #   jsonschema
     #   jsonschema-specifications
-    #   jupyter-events
 regex==2025.11.3 \
     --hash=sha256:04d2765516395cf7dda331a244a3282c0f5ae96075f728629287dfa6f76ba70a \
     --hash=sha256:087511f5c8b7dfbe3a03f5d5ad0c2a33861b1fc387f21f6f60825a44865a385a \
@@ -4102,22 +3998,6 @@ requests-toolbelt==1.0.0 \
     --hash=sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6 \
     --hash=sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06
     # via kfp
-rfc3339-validator==0.1.4 \
-    --hash=sha256:138a2abdf93304ad60530167e51d2dfb9549521a836871b88d7f4695d0022f6b \
-    --hash=sha256:24f6ec1eda14ef823da9e36ec7113124b39c04d50a4d3d3a3c2859577e7791fa
-    # via
-    #   jsonschema
-    #   jupyter-events
-rfc3986-validator==0.1.1 \
-    --hash=sha256:2f235c432ef459970b4306369336b9d5dbdda31b510ca1e327636e01f528bfa9 \
-    --hash=sha256:3d44bde7921b3b9ec3ae4e3adca370438eccebc676456449b145d533b240d055
-    # via
-    #   jsonschema
-    #   jupyter-events
-rfc3987-syntax==1.1.0 \
-    --hash=sha256:6c3d97604e4c5ce9f714898e05401a0445a641cfa276432b0a648c80856f6a3f \
-    --hash=sha256:717a62cbf33cffdd16dfa3a497d81ce48a660ea691b1ddd7be710c22f00b4a0d
-    # via jsonschema
 rich==14.2.0 \
     --hash=sha256:73ff50c7c0c1c77c8243079283f4edb376f0f6442433aecb8ce7e6d0b92d1fe4 \
     --hash=sha256:76bc51fe2e57d2b1be1f96c524b890b816e334ab4c1e45888799bfaab0021edd
@@ -4413,10 +4293,6 @@ semver==3.0.4 \
     # via
     #   -r requirements.txt
     #   igz-mgmt
-send2trash==2.0.0 \
-    --hash=sha256:1761421da3f9930bfe51ed7c45343948573383ad4c27e3acebc91be324e7770d \
-    --hash=sha256:e70d5ce41dbb890882cc78bc25d137478330b39a391e756fadf82e34da4d85b8
-    # via jupyter-server
 setuptools==80.9.0 \
     --hash=sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922 \
     --hash=sha256:f36b47402ecde768dbfafc46e8e4207b4360c654f1f3bb84475f0a28628fb19c
@@ -4438,7 +4314,6 @@ six==1.17.0 \
     #   kubernetes-asyncio
     #   oss2
     #   python-dateutil
-    #   rfc3339-validator
 smmap==5.0.2 \
     --hash=sha256:26ea65a03958fa0c8a1c7e8c7a58fdc77221b8910f6be2131affade476898ad5 \
     --hash=sha256:b30115f0def7d7531d22a0fb6502488d879e75b260a9db4d0819cfb25403af5e
@@ -4634,12 +4509,6 @@ termcolor==3.3.0 \
     --hash=sha256:348871ca648ec6a9a983a13ab626c0acce02f515b9e1983332b17af7979521c5 \
     --hash=sha256:cf642efadaf0a8ebbbf4bc7a31cec2f9b5f21a9f726f4ccbb08192c9c26f43a5
     # via fire
-terminado==0.18.1 \
-    --hash=sha256:a4468e1b37bb318f8a86514f65814e1afc977cf29b3992a4500d9dd305dcceb0 \
-    --hash=sha256:de09f2c4b85de4765f7714688fff57d3e75bad1f909b589fde880460c753fd2e
-    # via
-    #   jupyter-server
-    #   jupyter-server-terminals
 testcontainers==4.10.0 \
     --hash=sha256:03f85c3e505d8b4edeb192c72a961cebbcba0dd94344ae778b4a159cb6dcf8d3 \
     --hash=sha256:31ed1a81238c7e131a2a29df6db8f23717d892b592fa5a1977fd0dcd0c23fc23
@@ -4781,8 +4650,6 @@ tornado==6.5.4 \
     #   distributed
     #   ipykernel
     #   jupyter-client
-    #   jupyter-server
-    #   terminado
 tqdm==4.67.1 \
     --hash=sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2 \
     --hash=sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2
@@ -4800,8 +4667,6 @@ traitlets==5.14.3 \
     #   ipython
     #   jupyter-client
     #   jupyter-core
-    #   jupyter-events
-    #   jupyter-server
     #   matplotlib-inline
     #   nbclient
     #   nbconvert
@@ -4861,7 +4726,6 @@ tzdata==2025.3 \
     --hash=sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1 \
     --hash=sha256:de39c2ca5dc7b0344f2eba86f49d614019d29f060fc4ebc8a417896a620b56a7
     # via
-    #   arrow
     #   faker
     #   pandas
     #   psycopg
@@ -4960,10 +4824,6 @@ ujson==5.11.0 \
     --hash=sha256:fa79fdb47701942c2132a9dd2297a1a85941d966d8c87bfd9e29b0cf423f26cc \
     --hash=sha256:fac6c0649d6b7c3682a0a6e18d3de6857977378dce8d419f57a0b20e3d775b39
     # via evidently
-uri-template==1.3.0 \
-    --hash=sha256:0e00f8eb65e18c7de20d595a14336e9f337ead580c70934141624b6d1ffdacc7 \
-    --hash=sha256:a44a133ea12d44a0c0f06d7d42a52d71282e77e2f937d8abd5655b8d56fc1363
-    # via jsonschema
 uritemplate==3.0.1 \
     --hash=sha256:07620c3f3f8eed1f12600845892b0e036a2420acf513c53f7de0abd911a5894f \
     --hash=sha256:5af8ad10cec94f215e3f48112de2022e1d5a37ed427fbd88652fa908f2ab7cae
@@ -5215,10 +5075,6 @@ wcwidth==0.2.14 \
     --hash=sha256:4d478375d31bc5395a3c55c40ccdf3354688364cd61c4f6adacaa9215d0b3605 \
     --hash=sha256:a7bb560c8aee30f9957e5f9895805edd20602f2d7f720186dfd906e82b4982e1
     # via prompt-toolkit
-webcolors==25.10.0 \
-    --hash=sha256:032c727334856fc0b968f63daa252a1ac93d33db2f5267756623c210e57a4f1d \
-    --hash=sha256:62abae86504f66d0f6364c2a8520de4a0c47b80c03fc3a5f1815fedbef7c19bf
-    # via jsonschema
 webencodings==0.5.1 \
     --hash=sha256:a0af1213f3c2226497a97e2b3aa01a7e4bee4f403f95be16fc9acd2947514a78 \
     --hash=sha256:b36a1c245f2d304965eb4e0a82848379241dc04b865afcc4aab16748587e1923
@@ -5228,9 +5084,7 @@ webencodings==0.5.1 \
 websocket-client==1.9.0 \
     --hash=sha256:9e813624b6eb619999a97dc7958469217c3176312b3a16a4bd1bc7e08a46ec98 \
     --hash=sha256:af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef
-    # via
-    #   jupyter-server
-    #   kubernetes
+    # via kubernetes
 websockets==15.0.1 \
     --hash=sha256:0701bc3cfcb9164d04a14b149fd74be7347a530ad3bbf15ab2c678a2cd3dd9a2 \
     --hash=sha256:0a34631031a8f05657e8e90903e656959234f3a04552259458aac0b0f9ae6fd9 \

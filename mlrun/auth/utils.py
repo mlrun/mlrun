@@ -235,14 +235,15 @@ def load_and_prepare_secret_tokens(
     """
     tokens_list = load_secret_tokens_from_file(raise_on_error=raise_on_error)
     validated_tokens = extract_and_validate_tokens_info(
-        [
+        secret_tokens=[
             mlrun.common.schemas.SecretToken(
                 name=token["name"],
                 token=token["token"],
             )
             for token in tokens_list
         ],
-        auth_user_id,
+        authenticated_id=auth_user_id,
+        filter_by_authenticated_id=True,
     )
     secret_tokens = translate_secret_tokens(
         validated_tokens, raise_on_error=raise_on_error

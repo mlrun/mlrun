@@ -214,23 +214,32 @@ def test_get_offline_token_from_file(
 
 
 @pytest.mark.parametrize(
-    "token_count",
-    [1, 2],
+    "token_user_ids, auth_user_id, expected_count",
+    [
+        # Case 1: one token, returns 1 token (same user)
+        (["test-user-123"], "test-user-123", 1),
+        # Case 2: two tokens, returns 2 tokens (same user)
+        (["test-user-123", "test-user-123"], "test-user-123", 2),
+        # Case 3: two tokens, return 1 token (one different user)
+        (["test-user-123", "other-user"], "test-user-123", 1),
+        # Case 4: two tokens, return 0 tokens (both different users)
+        (["other-user-1", "other-user-2"], "test-user-123", 0),
+    ],
 )
-def test_load_and_prepare_secret_tokens_valid(tmp_path, token_count, monkeypatch):
-    # Generate valid JWT tokens with the same user ID
-    user_id = "test-user-123"
+def test_load_and_prepare_secret_tokens_valid(
+    tmp_path, token_user_ids, auth_user_id, expected_count, monkeypatch
+):
+    # Generate valid JWT tokens with the specified user IDs
     tokens = []
-    for i in range(token_count):
+    for idx, user_id in enumerate(token_user_ids):
         jwt_token = _create_jwt_token({"sub": user_id, "exp": 9999999999})
-        tokens.append({"name": f"token{i+1}", "token": jwt_token})
+        tokens.append({"name": f"token{idx+1}", "token": jwt_token})
 
     content = {"secretTokens": tokens}
     path = _write_file(tmp_path, "tokens.yml", content)
     monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
 
     # Mock translate_secret_tokens to handle the dict returned by extract_and_validate_tokens_info
-    # The production code has a bug where it passes a dict to translate_secret_tokens which expects a list
     def mock_translate_secret_tokens(tokens_dict, raise_on_error=True):
         return [
             mlrun.common.schemas.SecretToken(name=name, token=info["token"])
@@ -243,10 +252,10 @@ def test_load_and_prepare_secret_tokens_valid(tmp_path, token_count, monkeypatch
         side_effect=mock_translate_secret_tokens,
     ):
         secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
-            auth_user_id=user_id
+            auth_user_id=auth_user_id
         )
         assert isinstance(secret_tokens, list)
-        assert len(secret_tokens) == token_count
+        assert len(secret_tokens) == expected_count
         assert all(
             isinstance(t, mlrun.common.schemas.SecretToken) for t in secret_tokens
         )

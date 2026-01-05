@@ -772,7 +772,7 @@ def test_store_secret_tokens_invalid_offline_token_jwt_decode(mock_iguazio_clien
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="Failed to decode offline token 'bad'",
+        match="Failed to decode offline token",
     ):
         services.api.crud.Secrets().store_secret_tokens(
             secret_tokens,

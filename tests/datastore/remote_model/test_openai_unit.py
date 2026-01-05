@@ -25,8 +25,7 @@ class TestOpenAIBatchConcurrency:
     """Test batch invocation concurrency limits using a lightweight mock."""
 
     @pytest.fixture
-    def mock_invoke_with_semaphore(self):
-        """Mock _invoke_with_global_semaphore: tracks concurrency and simulates latency."""
+    def mock_single_invoke(self):
         state = {
             "current_running": 0,
             "max_concurrent_observed": 0,
@@ -34,34 +33,33 @@ class TestOpenAIBatchConcurrency:
             "call_count": 0,
         }
 
-        def _mock(self, global_semaphore, messages, invoke_response_format, **kwargs):
-            # Respect the real semaphore to mimic production flow
-            with global_semaphore:
-                with state["lock"]:
-                    state["current_running"] += 1
-                    state["call_count"] += 1
-                    state["max_concurrent_observed"] = max(
-                        state["max_concurrent_observed"], state["current_running"]
-                    )
-                # Simulate API latency
-                time.sleep(0.1)
-                with state["lock"]:
-                    state["current_running"] -= 1
-                return {"mock": "response", "answer": "mocked"}
+        def _mock(self, messages, invoke_response_format, **kwargs):
+            with state["lock"]:
+                state["current_running"] += 1
+                state["call_count"] += 1
+                state["max_concurrent_observed"] = max(
+                    state["max_concurrent_observed"], state["current_running"]
+                )
+
+            # Simulate API latency for a single OpenAI call
+            time.sleep(0.1)
+
+            with state["lock"]:
+                state["current_running"] -= 1
+
+            return {"mock": "response", "answer": "mocked"}
 
         _mock.state = state
         return _mock
 
-    def test_sync_batch_concurrency_limit(self, mock_invoke_with_semaphore):
-        """Ensure batch_invoke caps concurrent work to max_workers_per_batch."""
-        # Config: global 20, per-batch 5 => executor size 5
+    def test_sync_batch_concurrency_limit(self, mock_single_invoke):
+        # Config: global limit is high enough not to interfere; per-batch is 5
         mlrun.mlconf.model_providers.openai_batch_max_workers_global = 20
         mlrun.mlconf.model_providers.openai_batch_max_workers_per_batch = 5
 
-        # Patch the semaphore-wrapped invoke so we observe real limits
         with unittest.mock.patch(
-            "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._invoke_with_global_semaphore",
-            mock_invoke_with_semaphore,
+            "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._single_invoke",
+            mock_single_invoke,
         ):
             provider = mlrun.get_model_provider(
                 url="openai://gpt-4o-mini",
@@ -76,10 +74,13 @@ class TestOpenAIBatchConcurrency:
             results = provider.invoke(messages=messages_list)
             duration = time.perf_counter() - start
 
-        state = mock_invoke_with_semaphore.state
+        state = mock_single_invoke.state
+        # Basic sanity
         assert len(results) == 20
         assert state["call_count"] == 20
-        # Executor is sized to per-batch limit (5), so observed concurrency should match
+
+        # Per-batch concurrency should be capped at 5 by the executor
         assert state["max_concurrent_observed"] <= 5
-        # Timing: ~0.4s ideal; allow generous tolerance for thread scheduling
-        assert 0.3 <= duration <= 0.9
+
+        # Timing: ideal ~0.4s (20 / 5 * 0.1). Allow some tolerance.
+        assert 0.3 <= duration <= 0.6

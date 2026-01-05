@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 import inspect
+import os
 import threading
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -92,6 +93,11 @@ class OpenAIProvider(ModelProvider):
         self._max_workers_per_batch = (
             self._get_secret_or_env("OPENAI_BATCH_MAX_WORKERS_PER_BATCH")
             or mlrun.mlconf.model_providers.openai_batch_max_workers_per_batch
+        )
+        # Async concurrency limit per batch
+        self._max_concurrent = (
+            self._get_secret_or_env("OPENAI_BATCH_MAX_CONCURRENT")
+            or mlrun.mlconf.model_providers.openai_batch_max_concurrent
         )
 
     @classmethod
@@ -341,10 +347,13 @@ class OpenAIProvider(ModelProvider):
         async with cls._global_async_semaphore_lock:
             if cls._global_async_semaphore is None:
                 cls._global_max_concurrent = (
-                    mlrun.mlconf.model_providers.openai_batch_max_concurrent_global
+                    os.getenv("OPENAI_BATCH_MAX_CONCURRENT_GLOBAL")
+                    or mlrun.mlconf.model_providers.openai_batch_max_concurrent_global
                 )
                 cls._global_async_semaphore = asyncio.Semaphore(
-                    cls._global_max_concurrent
+                    int(cls._global_max_concurrent)
+                    if cls._global_max_concurrent
+                    else 50
                 )
         return cls._global_async_semaphore
 
@@ -429,14 +438,13 @@ class OpenAIProvider(ModelProvider):
         self,
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
-        max_concurrent: Optional[int] = None,
         **invoke_kwargs,
     ) -> BatchInvokeResponse:
         """
         Invoke multiple message sets in parallel using asyncio.
 
         Note on concurrency limits:
-            Uses two levels of concurrency control:
+            Uses two levels of concurrency control configured during initialization:
             1. Global limit (max_concurrent_global): Shared across ALL async_batch_invoke calls
             2. Per-batch limit (max_concurrent): Max concurrent tasks per batch_invoke call
 
@@ -454,10 +462,6 @@ class OpenAIProvider(ModelProvider):
         :param invoke_response_format:
             Specifies the format of the returned response for all invocations.
 
-        :param max_concurrent:
-            Maximum number of concurrent async requests for THIS batch.
-            Adjust based on API rate limits.
-
         :param invoke_kwargs:
             Additional keyword arguments passed to each invoke call.
 
@@ -465,12 +469,8 @@ class OpenAIProvider(ModelProvider):
             List of responses in the same order as messages_list.
             Each response format depends on `invoke_response_format`.
         """
-        max_concurrent = (
-            max_concurrent or mlrun.mlconf.model_providers.openai_batch_max_concurrent
-        )
-
         # Per-batch semaphore (limits THIS batch)
-        batch_semaphore = asyncio.Semaphore(max_concurrent)
+        batch_semaphore = asyncio.Semaphore(self._max_concurrent)
 
         # Global semaphore (shared across ALL batches)
         global_semaphore = await self._get_or_create_global_async_semaphore()
@@ -659,7 +659,6 @@ class OpenAIProvider(ModelProvider):
 
         :param invoke_kwargs:
             Additional keyword arguments passed to the OpenAI client.
-            For batch invocations, supports `max_concurrent` to control parallelism.
 
         :return:
             Single invocation: A string, dictionary, or `ChatCompletion` object.
@@ -668,11 +667,9 @@ class OpenAIProvider(ModelProvider):
         """
         # Detect if this is a batch invocation (list of lists)
         if messages and isinstance(messages[0], list):
-            max_concurrent = invoke_kwargs.pop("max_concurrent", None)
             return await self.async_batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
-                max_concurrent=max_concurrent,
                 **invoke_kwargs,
             )
 

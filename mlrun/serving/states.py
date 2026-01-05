@@ -248,6 +248,7 @@ class BaseStep(ModelObj):
             full_event=full_event,
             input_path=input_path,
             result_path=result_path,
+            error_handler_type="graph" if isinstance(self, RootFlowStep) else "step",
         )
         self.on_error = name
         before = [before] if isinstance(before, str) else before
@@ -255,14 +256,15 @@ class BaseStep(ModelObj):
         step.base_step = self.name
         if hasattr(self, "_parent") and self._parent:
             # when self is a step
-            step = self._parent._steps.update(name, step)
-            step.set_parent(self._parent)
+            root = self._extract_root_step()
+            step = root._steps.update(name, step)
+            step.set_parent(self)
         else:
             # when self is the graph
             step = self._steps.update(name, step)
             step.set_parent(self)
 
-        return self
+        return step
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         """init the step class"""
@@ -387,8 +389,8 @@ class BaseStep(ModelObj):
         """
         if hasattr(self, "steps"):
             parent = self
-        elif self._parent:
-            parent = self._parent
+        elif parent := self._extract_root_step():
+            pass
         else:
             raise GraphError(
                 f"step {self.name} parent is not set or it's not part of a graph"
@@ -976,7 +978,7 @@ class ErrorStep(TaskStep):
     """error execution step, runs a class or handler"""
 
     kind = "error_step"
-    _dict_fields = TaskStep._dict_fields + ["before", "base_step"]
+    _dict_fields = TaskStep._dict_fields + ["before", "base_step", "error_handler_kind"]
     _default_class = ""
 
     def __init__(
@@ -991,6 +993,7 @@ class ErrorStep(TaskStep):
         responder: Optional[bool] = None,
         input_path: Optional[str] = None,
         result_path: Optional[str] = None,
+        error_handler_type: Optional[str] = None,
     ):
         super().__init__(
             class_name=class_name,
@@ -1004,8 +1007,14 @@ class ErrorStep(TaskStep):
             input_path=input_path,
             result_path=result_path,
         )
-        self.before = None
+        self.before = []
         self.base_step = None
+        self.error_handler_kind = error_handler_type
+
+    def to(self, **kwargs):
+        step = super().to(**kwargs)
+        self.before.append(step.name)
+        return step
 
 
 class RouterStep(TaskStep):
@@ -3191,7 +3200,18 @@ class RootFlowStep(FlowStep):
                 hasattr(step, "responder")
                 and step.responder
                 and step.kind != "error_step"
-                and not step.next
+                and (
+                    not step.next
+                    or (
+                        step.next
+                        and all(
+                            [
+                                self.steps[step].kind == "error_step"
+                                for next_step in step.next
+                            ]
+                        )
+                    )
+                )
             ):
                 return True
         return False

@@ -170,14 +170,14 @@ def test_on_error():
     chain = graph.to("Chain", name="s1")
     chain.to("Raiser").respond().error_handler(
         name="catch", class_name="EchoError", full_event=True
-    ).to("Chain", name="s3")
+    )
 
     function.verbose = True
     try:
         server = function.to_mock_server()
 
         # plot the graph for test & debug
-        graph.plot(f"{results}/serving/on_error.png")
+        # graph.plot(f"{results}/serving/on_error.png")
         resp = server.test(body=[])
     finally:
         server.wait_for_completion()
@@ -195,7 +195,7 @@ def test_push_error():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     chain = graph.to("Chain", name="s1")
-    chain.to("Raiser")
+    chain.to("Raiser").respond()
 
     function.verbose = True
     server = function.to_mock_server()

@@ -22,7 +22,7 @@ import mlrun.auth.utils
 import mlrun.utils.helpers
 from mlrun.config import is_running_as_api
 
-from .utils import AzureVaultStore, list2dict, logger
+from .utils import AzureVaultStore, list2dict
 
 
 class SecretsStore:
@@ -262,8 +262,7 @@ def sync_secret_tokens() -> None:
     Synchronize local secret tokens with the backend. Doesn't sync when running from a runtime.
 
     This function:
-      1. Reads the local token file (default: ~/.igz.yml, configurable via
-         `mlrun.mlconf.auth_with_oauth_token.token_file`).
+      1. Reads the local token file (defaults to `mlrun.mlconf.auth_with_oauth_token.token_file` value).
       2. Validates its content and converts validated tokens into `SecretToken` objects.
       3. Uploads the tokens to the backend.
       4. Logs a warning if any tokens were updated on the backend due to newer
@@ -284,10 +283,4 @@ def sync_secret_tokens() -> None:
 
     # The log_warning=False flag ensures the SDK doesn’t log unnecessary warnings about local file updates, since
     # this method reads from the file, not updates it.
-    response = get_run_db().store_secret_tokens(secret_tokens, log_warning=False)
-
-    if response.updated_tokens:
-        logger.warning(
-            "Some tokens were updated on the backend due to newer expiration found locally",
-            updated_tokens=response.updated_tokens,
-        )
+    get_run_db().store_secret_tokens(secret_tokens, log_warning=False)

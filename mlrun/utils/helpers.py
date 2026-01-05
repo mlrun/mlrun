@@ -2587,3 +2587,18 @@ def is_running_in_runtime() -> bool:
     """
     # Check for the presence of the MLRUN_RUNTIME_KIND environment variable
     return True if os.getenv("MLRUN_RUNTIME_KIND") else False
+
+
+def is_async_serving_graph(function_spec) -> bool:
+    """Check if the serving graph contains any async nodes."""
+    if not function_spec:
+        return False
+
+    if (
+        hasattr(function_spec, "graph")
+        and hasattr(function_spec.graph, "engine")
+        and function_spec.graph.engine == "async"
+    ):
+        return True
+
+    return False

@@ -51,7 +51,7 @@ generate-hashes = true
 universal = true
 
 [tool.pytest.ini_options]
-addopts = "-v -rf --disable-warnings"
+addopts = "-v -rf --disable-warnings --import-mode=importlib"
 pythonpath = "./server/py" # This allows running server side tests from the project root directory
 python_files = [
     "tests/*/test_*.py",

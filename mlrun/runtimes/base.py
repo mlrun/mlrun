@@ -23,7 +23,6 @@ from typing import Optional, Union
 import requests.exceptions
 from nuclio.build import mlrun_footer
 
-import mlrun.auth.utils
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
@@ -449,8 +448,6 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
 
-        mlrun.auth.utils.enrich_auth_env(runtime_env)
-
         if self.metadata.credentials.access_key:
             runtime_env[
                 mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
@@ -460,6 +457,10 @@ class BaseRuntime(ModelObj):
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True
             )
+            if runobj.metadata.project:
+                runtime_env[mlrun_constants.MLRUN_ACTIVE_PROJECT] = (
+                    runobj.metadata.project
+                )
             if runobj.spec.verbose:
                 runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:

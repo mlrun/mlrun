@@ -269,3 +269,41 @@ def test_get_client_spec_cached(
             cached_response = client.get("client-spec")
             assert cached_response.status_code == http.HTTPStatus.OK.value
             assert mocked_get_client.call_count == 3
+
+
+def test_client_spec_includes_oauth_config_in_iguazio_v4_mode(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    mlrun.mlconf.httpdb.authentication.mode = (
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+    )
+    mlrun.mlconf.iguazio_api_url = "http://x.local"
+    mlrun.mlconf.iguazio_api_url_ingress = "https://x.com"
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+
+    assert (
+        response_body["oauth_external_token_endpoint"]
+        == "https://x.com/api/v1/authentication/refresh-access-token"
+    )
+    assert (
+        response_body["oauth_internal_token_endpoint"]
+        == "http://x.local/api/v1/authentication/refresh-access-token"
+    )
+
+
+def test_client_spec_does_not_include_oauth_config_when_not_iguazio_v4_mode(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    mlrun.mlconf.httpdb.authentication.mode = mlrun.common.types.AuthenticationMode.NONE
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+
+    assert response_body.get("oauth_external_token_endpoint") is None
+    assert response_body.get("oauth_internal_token_endpoint") is None

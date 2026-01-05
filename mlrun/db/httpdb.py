@@ -13,11 +13,11 @@
 # limitations under the License.
 import enum
 import http
+import os
 import re
 import time
 import traceback
 import typing
-import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
 from os import environ, path, remove
@@ -39,6 +39,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
+import mlrun.k8s_utils
 import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
@@ -141,24 +142,30 @@ class HTTPRunDB(RunDBInterface):
             version.Version().get_python_version()
         )
 
+        self.user = None
+        self.password = None
+        self.token_provider = None
+        self.base_url = None
+        self._parsed_url = None
+
         self._enrich_and_validate(url)
 
     def _enrich_and_validate(self, url):
-        parsed_url = urlparse(url)
-        scheme = parsed_url.scheme.lower()
-        if scheme not in ("http", "https"):
-            raise ValueError(
-                f"Invalid URL scheme {scheme} for HTTPRunDB, only http(s) is supported"
-            )
-
-        endpoint = parsed_url.hostname
-        if parsed_url.port:
-            endpoint += f":{parsed_url.port}"
-        base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
+        base_url, parsed_url = self._resolve_api_urls(url)
 
         self.base_url = base_url
-        username = parsed_url.username or config.httpdb.user
-        password = parsed_url.password or config.httpdb.password
+        self._parsed_url = parsed_url
+        self.user = parsed_url.username or config.httpdb.user
+        self.password = parsed_url.password or config.httpdb.password
+        self._init_token_provider()
+
+    def _init_token_provider(self):
+        """
+        Initialize token provider according to current config.
+
+        Must be called after `connect()` synced config from server (client-spec), since
+        some auth flows (e.g. Iguazio V4 OAuth token) require values fetched from the API.
+        """
         self.token_provider = None
 
         if config.auth_with_client_id.enabled:
@@ -171,17 +178,20 @@ class HTTPRunDB(RunDBInterface):
         elif config.auth_with_oauth_token.enabled:
             self.token_provider = mlrun.auth.IGTokenProvider(
                 token_endpoint=config.auth_token_endpoint,
+                timeout=config.auth_with_oauth_token.request_timeout,
             )
         else:
             username, password, token = mlrun.platforms.add_or_refresh_credentials(
-                parsed_url.hostname, username, password, config.httpdb.token
+                self._parsed_url.hostname,
+                self.user,
+                self.password,
+                config.httpdb.token,
             )
+            self.user = username
+            self.password = password
 
             if token:
                 self.token_provider = mlrun.auth.StaticTokenProvider(token)
-
-        self.user = username
-        self.password = password
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -463,7 +473,7 @@ class HTTPRunDB(RunDBInterface):
 
         return True
 
-    def connect(self, secrets=None):
+    def connect(self, secrets=None) -> typing.Self:
         """Connect to the MLRun API server. Must be called prior to executing any other method.
         The code utilizes the URL for the API server from the configuration - ``config.dbpath``.
 
@@ -474,7 +484,8 @@ class HTTPRunDB(RunDBInterface):
         """
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
         if "mock-server" in self.base_url:
-            return
+            return self
+
         resp = self.api_call("GET", "client-spec", timeout=5)
         try:
             server_cfg = resp.json()
@@ -631,12 +642,49 @@ class HTTPRunDB(RunDBInterface):
                 or config.httpdb.authentication.mode
             )
 
+            # Iguazio V4 OAuth token config auto-initialization
+            if (
+                config.httpdb.authentication.mode
+                == mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value
+            ):
+                if not config.auth_with_oauth_token.token_file:
+                    user_token_file = os.path.expanduser("~/.igz.yml")
+
+                    # runtimes
+                    # TODO: change to os.getenv("MLRUN_RUNTIME_KIND")
+                    # when https://github.com/mlrun/mlrun/pull/9121 is done.
+                    if (
+                        mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
+                        and not os.environ.get("JPY_SESSION_NAME")
+                    ):
+                        user_token_file = os.path.join(
+                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+                            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                        )
+
+                    config.auth_with_oauth_token.token_file = user_token_file
+
+                # if running inside kubernetes, use the internal endpoint, otherwise use the external endpoint
+                if mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+                    config.auth_token_endpoint = server_cfg.get(
+                        "oauth_internal_token_endpoint"
+                    )
+                else:
+                    config.auth_token_endpoint = server_cfg.get(
+                        "oauth_external_token_endpoint"
+                    )
+
+                config.auth_with_oauth_token.enabled = True
+
         except Exception as exc:
             logger.warning(
                 "Failed syncing config from server",
                 exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
+
+        # Initialize token provider after syncing config from server
+        self._init_token_provider()
 
         if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()
@@ -1283,7 +1331,6 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: Optional[int] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.ArtifactPartitionByField, str]
         ] = None,
@@ -1336,7 +1383,6 @@ class HTTPRunDB(RunDBInterface):
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
         :param format_: The format in which to return the artifacts. Default is 'full'.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -1360,12 +1406,11 @@ class HTTPRunDB(RunDBInterface):
             tree=tree,
             producer_uri=producer_uri,
             format_=format_,
-            limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            return_all=not limit,
+            return_all=True,
             parent=parent,
         )
         return artifacts
@@ -2256,7 +2301,7 @@ class HTTPRunDB(RunDBInterface):
         :param project:         The project of the pipeline
         :param pipeline:        Pipeline function or path to .yaml/.zip pipeline file.
         :param arguments:       A dictionary of arguments to pass to the pipeline.
-        :param experiment:      A name to assign for the specific experiment.
+        :param experiment:      (deprecated) A name to assign for the specific experiment.
         :param run:             A name for this specific run.
         :param namespace:       Kubernetes namespace to execute the pipeline in.
         :param artifact_path:   A path to artifacts used by this pipeline.
@@ -2265,6 +2310,13 @@ class HTTPRunDB(RunDBInterface):
                                 workflow and all its resources are deleted)
         :param timeout:         Timeout for the API call.
         """
+        if experiment is not None:
+            warnings.warn(
+                "The 'experiment' parameter is deprecated and will be removed in 1.13.0. "
+                "Pipelines are automatically scoped by project.",
+                # TODO: Remove this in 1.13.0
+                FutureWarning,
+            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
@@ -5430,7 +5482,6 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: Optional[int] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.ArtifactPartitionByField, str]
         ] = None,
@@ -5451,13 +5502,6 @@ class HTTPRunDB(RunDBInterface):
         project = project or config.active_project
         labels = self._parse_labels(labels)
 
-        if limit:
-            # TODO: Remove this in 1.11.0
-            warnings.warn(
-                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
-                FutureWarning,
-            )
-
         params = {
             "name": name,
             "tag": tag,
@@ -5471,7 +5515,6 @@ class HTTPRunDB(RunDBInterface):
             "producer_uri": producer_uri,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
-            "limit": limit,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,
@@ -5723,24 +5766,27 @@ class HTTPRunDB(RunDBInterface):
         if page_params.get("page-token") is None and page_params.get("page") is None:
             page_params["page"] = 1
         if page_params.get("page-size") is None:
-            page_size = config.httpdb.pagination.default_page_size
+            page_params["page-size"] = config.httpdb.pagination.default_page_size
 
-            if page_params.get("limit") is not None:
-                page_size = page_params["limit"]
-
-                # limit and page/page size are conflicting
-                page_params.pop("limit")
-            page_params["page-size"] = page_size
-
-        # this may happen only when page-size was explicitly set along with limit
-        # this is to ensure we will not get stopped by API on similar below validation
-        # but rather simply fallback to use page-size.
-        if page_params.get("page-size") and page_params.get("limit"):
-            logger.warning(
-                "Both 'limit' and 'page-size' are provided, using 'page-size'."
-            )
-            page_params.pop("limit")
         return page_params
+
+    def _resolve_api_urls(self, url: str) -> tuple[str, str]:
+        """
+        Resolves the base url and parsed url from the given url.
+        """
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme.lower()
+        if scheme not in ("http", "https"):
+            raise ValueError(
+                f"Invalid URL scheme {scheme} for HTTPRunDB, only http(s) is supported"
+            )
+
+        endpoint = parsed_url.hostname
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
+        base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
+
+        return base_url, parsed_url
 
 
 def _as_json(obj):

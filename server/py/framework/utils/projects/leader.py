@@ -397,7 +397,7 @@ class Member(
         # TODO: do it concurrently
         follower_responses = {
             follower_name: getattr(follower, method)(*args, **kwargs)
-            for follower_name, follower in self._followers.items()
+            for follower_name, follower in sorted(self._followers.items())
         }
         if not leader_first:
             leader_response = getattr(self._leader_follower, method)(*args, **kwargs)

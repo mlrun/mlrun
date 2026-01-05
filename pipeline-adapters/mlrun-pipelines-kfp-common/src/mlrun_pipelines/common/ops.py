@@ -730,11 +730,12 @@ def _enrich_gpu_limits(function, task):
         task.container.add_resource_limit(resource_name, resource_value)
 
 
-def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
+def process_kfp_workflow_secret_references(
     byte_buffer: bytes,
     content_type: str,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: typing.Optional[str] = None,
 ) -> bytes:
     if content_type.endswith(
         "zip"
@@ -744,6 +745,7 @@ def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
             byte_buffer=byte_buffer,
             env_var_names=env_var_names,
             secrets_store=secrets_store,
+            auth_secret_name=auth_secret_name,
         )
         return modified_zip_bytes
     elif content_type.endswith(("yaml", "plain")):
@@ -751,6 +753,7 @@ def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
             yaml_bytes=byte_buffer,
             env_var_names=env_var_names,
             secrets_store=secrets_store,
+            auth_secret_name=auth_secret_name,
         )
         return modified_yaml_bytes
     else:
@@ -761,11 +764,12 @@ def _enrich_kfp_workflow_credentials_in_subprocess(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: typing.Optional[str] = None,
 ) -> bytes:
     queue = multiprocessing.Queue()
     process = multiprocessing.Process(
         target=_enrich_wrapper,
-        args=(queue, byte_buffer, env_var_names, secrets_store),
+        args=(queue, byte_buffer, env_var_names, secrets_store, auth_secret_name),
     )
     process.start()
     result = queue.get()
@@ -778,11 +782,13 @@ def _enrich_wrapper(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: typing.Optional[str] = None,
 ):
     result = _enrich_kfp_workflow_zip_credentials(
         byte_buffer=byte_buffer,
         env_var_names=env_var_names,
         secrets_store=secrets_store,
+        auth_secret_name=auth_secret_name,
     )
     queue.put(result)
 
@@ -791,6 +797,7 @@ def _enrich_kfp_workflow_zip_credentials(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: typing.Optional[str] = None,
 ) -> bytes:
     in_memory_zip = io.BytesIO(byte_buffer)
     with zipfile.ZipFile(in_memory_zip, "r") as zip_read:
@@ -806,6 +813,7 @@ def _enrich_kfp_workflow_zip_credentials(
                 yaml_bytes=file_data,
                 env_var_names=env_var_names,
                 secrets_store=secrets_store,
+                auth_secret_name=auth_secret_name,
             )
             files_data[file_name] = modified_yaml
 
@@ -821,6 +829,7 @@ def _enrich_kfp_workflow_yaml_credentials(
     yaml_bytes: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
+    auth_secret_name: typing.Optional[str] = None,
 ) -> bytes:
     """
     Modifies the given workflow YAML to add secret environment variables to container specifications.
@@ -828,6 +837,8 @@ def _enrich_kfp_workflow_yaml_credentials(
     environment variables accordingly.
     """
     workflow_dict = yaml.safe_load(yaml_bytes)
+    workflow_dict = add_auth_mount_to_argo_pods(workflow_dict, auth_secret_name)
+
     # Determine the KFP version by checking the 'apiVersion' field
     api_version = (
         workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
@@ -865,6 +876,41 @@ def _enrich_kfp_workflow_yaml_credentials(
         raise ValueError(
             f"Unknown or unsupported KFP version '{api_version}'. No changes made."
         )
+
+
+def add_auth_mount_to_argo_pods(
+    workflow_dict: dict, auth_secret_name: typing.Optional[str] = None
+) -> dict:
+    if auth_secret_name:
+        volume = {
+            "name": "secret",
+            "secret": {
+                "secretName": auth_secret_name,
+                "items": [
+                    {
+                        "key": "tokensFile",
+                        "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+                    }
+                ],
+            },
+        }
+        volume_mount = {
+            "name": "secret",
+            "mountPath": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
+        }
+
+        for template in workflow_dict["spec"]["templates"]:
+            # Skip DAG-only templates
+            if "container" not in template:
+                continue
+
+            # Add volumes to the template
+            template.setdefault("volumes", []).append(volume)
+
+            # Add volumeMounts to the container
+            template["container"].setdefault("volumeMounts", []).append(volume_mount)
+
+    return workflow_dict
 
 
 def _replace_secret_envs_in_argocd_template(

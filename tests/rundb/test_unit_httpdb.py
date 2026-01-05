@@ -336,10 +336,6 @@ def test_watch_logs_continue():
             {"page": 2},
             {"page": 2, "page-size": mlrun.mlconf.httpdb.pagination.default_page_size},
         ),
-        # `limit` turns into `page-size`
-        ({"limit": 5}, {"page": 1, "page-size": 5}),
-        # `page-size` overrides limit
-        ({"page-size": 2, "limit": 5}, {"page": 1, "page-size": 2}),
     ],
 )
 def test_resolve_page_params(params, expected_page_params):

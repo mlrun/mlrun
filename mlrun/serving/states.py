@@ -2984,6 +2984,14 @@ class FlowStep(BaseStep):
         event.body = {"id": event.id}
         return event
 
+    async def _run_async_wrapper(self, event):
+        resp_awaitable = self._controller.emit(
+            event, await_result=self._wait_for_result
+        )
+        if self._wait_for_result:
+            return await resp_awaitable
+        return await self._await_and_return_id(resp_awaitable, event)
+
     def run(self, event, *args, **kwargs):
         if self._controller:
             # async flow (using storey)
@@ -2995,12 +3003,7 @@ class FlowStep(BaseStep):
                 if self._wait_for_result and resp:
                     return resp.await_result()
             else:
-                resp_awaitable = self._controller.emit(
-                    event, await_result=self._wait_for_result
-                )
-                if self._wait_for_result:
-                    return resp_awaitable
-                return self._await_and_return_id(resp_awaitable, event)
+                return self._run_async_wrapper(event)
             event = copy(event)
             event.body = {"id": event.id}
             return event

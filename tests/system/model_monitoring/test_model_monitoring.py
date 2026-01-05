@@ -2480,7 +2480,7 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
     """Test LLModel serving with model monitoring enabled."""
 
     project_name = "llmodel-monitoring-5"
-    image: Optional[str] = "artifactory.iguazeng.com:10557/davids/mlrun:1.11.0"
+    image: Optional[str] = "mlrun/mlrun"
 
     def test_mep_with_remote_model(self):
         self.set_mm_credentials()

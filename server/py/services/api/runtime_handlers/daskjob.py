@@ -328,9 +328,7 @@ def enrich_dask_cluster(
     image = function.full_image_path(
         client_version=client_version, client_python_version=client_python_version
     )
-    env, external_source_env = function._generate_runtime_env(return_k8s_format=True)
-
-    env.extend(external_source_env)
+    env = function._generate_k8s_runtime_env()
 
     # filter any spec.env that already exists in env
     # in other words, dont let spec.env override env (or not even duplicate it)

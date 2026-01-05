@@ -105,10 +105,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         run: mlrun.run.RunObject,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        extra_env, external_source_env = runtime._generate_runtime_env(
-            run, return_k8s_format=True
-        )
-        extra_env.extend(external_source_env)
+        extra_env = runtime._generate_k8s_runtime_env(run)
         if runtime.spec.pythonpath:
             extra_env.append({"name": "PYTHONPATH", "value": runtime.spec.pythonpath})
         args = []

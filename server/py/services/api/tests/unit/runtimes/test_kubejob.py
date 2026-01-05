@@ -28,7 +28,6 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
 from mlrun.common.schemas import SecurityContextEnrichmentModes
-from mlrun.common.types import AuthenticationMode
 from mlrun.config import config as mlconf
 from mlrun.runtimes.mounts import auto_mount
 from mlrun.runtimes.utils import generate_resources

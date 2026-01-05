@@ -477,9 +477,23 @@ class OpenAIProvider(ModelProvider):
                         messages, invoke_response_format, **invoke_kwargs
                     )
 
-        tasks = [_bounded_invoke(messages) for messages in messages_list]
-        # gather() will raise on first exception, failing entire batch
-        return await asyncio.gather(*tasks)
+        # Create tasks (not just coroutines) to allow cancellation on failure
+        tasks = [
+            asyncio.create_task(_bounded_invoke(messages)) for messages in messages_list
+        ]
+
+        try:
+            # gather() stops on first exception - fast fail
+            return await asyncio.gather(*tasks)
+        except Exception:
+            # Cancel all remaining tasks
+            for task in tasks:
+                task.cancel()
+
+            # Wait for all tasks to acknowledge cancellation
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            raise
 
     def _single_invoke(
         self,

@@ -400,6 +400,7 @@ class OpenAIProvider(ModelProvider):
 
             for future in as_completed(futures):
                 idx = futures[future]
+                # Fails fast - raises exception immediately on first failure
                 results[idx] = future.result()
 
         return results

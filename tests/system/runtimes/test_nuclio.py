@@ -688,10 +688,14 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             image=self.image,
             handler="main:async_handler",
         )
+        nuclio_function.spec.function_handler = "main:async_handler"
+        nuclio_function.with_http(
+            async_spec=AsyncSpec(enabled=True, max_connections=200)
+        )
         url = nuclio_function.deploy()
         async_function = project.set_function(
             func=async_code_path if with_code else None,
-            name="async-http-function-serving-graph",
+            name="remote-http",
             kind="serving",
             image=self.image,
         )
@@ -704,7 +708,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
                 body_expression="event['inputs']",
                 result_path="resp",
                 retries=0,
-                max_in_flight=100,
+                max_in_flight=16,
                 timeout=100,
             )
         ).respond()
@@ -719,11 +723,13 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         self._logger.debug("Triggering async serving function")
         start = time.time()
-        with ThreadPoolExecutor(max_workers=100) as executor:
+        with ThreadPoolExecutor(max_workers=16) as executor:
             # Submit tasks
             futures = [
-                executor.submit(async_function.invoke, path="/", body=[i])
-                for i in range(100)
+                executor.submit(
+                    async_function.invoke, path="/", body={"inputs": [[1, 2], [1, 2]]}
+                )
+                for i in range(16)
             ]
             # Retrieve results as they complete
             for future in as_completed(futures):

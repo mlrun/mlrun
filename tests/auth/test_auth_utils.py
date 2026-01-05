@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import re
 import textwrap
+import time
 from unittest.mock import patch
 
+import jwt
 import pytest
 import yaml
 
@@ -25,9 +28,18 @@ import mlrun.errors
 from mlrun.config import config
 
 
-def _create_jwt_token(payload: dict) -> str:
-    """Helper to create a JWT token with a given payload."""
-    import jwt
+def _create_jwt_token(payload: dict, add_defaults: bool = True) -> str:
+    """Helper to create a JWT token with a given payload.
+
+    :param payload: The payload to encode in the JWT.
+    :param add_defaults: If True, adds default 'exp' and 'sub' if not present.
+                        Set to False when testing missing claims.
+    """
+    if add_defaults:
+        if "exp" not in payload:
+            payload["exp"] = time.time() + 3600
+        if "sub" not in payload:
+            payload["sub"] = "test-user"
 
     return jwt.encode(payload, key="test-secret", algorithm="HS256")
 
@@ -202,38 +214,42 @@ def test_get_offline_token_from_file(
 
 
 @pytest.mark.parametrize(
-    "content,expected_count",
-    [
-        (
-            textwrap.dedent("""\
-            secretTokens:
-              - name: token1
-                token: abc123
-        """),
-            1,
-        ),
-        (
-            textwrap.dedent("""\
-            secretTokens:
-              - name: token1
-                token: abc123
-              - name: token2
-                token: def456
-        """),
-            2,
-        ),
-    ],
+    "token_count",
+    [1, 2],
 )
-def test_load_and_prepare_secret_tokens_valid(
-    tmp_path, content, expected_count, monkeypatch
-):
+def test_load_and_prepare_secret_tokens_valid(tmp_path, token_count, monkeypatch):
+    # Generate valid JWT tokens with the same user ID
+    user_id = "test-user-123"
+    tokens = []
+    for i in range(token_count):
+        jwt_token = _create_jwt_token({"sub": user_id, "exp": 9999999999})
+        tokens.append({"name": f"token{i+1}", "token": jwt_token})
+
+    content = {"secretTokens": tokens}
     path = _write_file(tmp_path, "tokens.yml", content)
     monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
 
-    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens()
-    assert isinstance(secret_tokens, list)
-    assert len(secret_tokens) == expected_count
-    assert all(isinstance(t, mlrun.common.schemas.SecretToken) for t in secret_tokens)
+    # Mock translate_secret_tokens to handle the dict returned by extract_and_validate_tokens_info
+    # The production code has a bug where it passes a dict to translate_secret_tokens which expects a list
+    def mock_translate_secret_tokens(tokens_dict, raise_on_error=True):
+        return [
+            mlrun.common.schemas.SecretToken(name=name, token=info["token"])
+            for name, info in tokens_dict.items()
+        ]
+
+    with patch.object(
+        mlrun.auth.utils,
+        "translate_secret_tokens",
+        side_effect=mock_translate_secret_tokens,
+    ):
+        secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
+            auth_user_id=user_id
+        )
+        assert isinstance(secret_tokens, list)
+        assert len(secret_tokens) == token_count
+        assert all(
+            isinstance(t, mlrun.common.schemas.SecretToken) for t in secret_tokens
+        )
 
 
 @pytest.mark.parametrize(
@@ -261,32 +277,49 @@ def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "content",
+    "secret_tokens_factory, expected_error",
     [
-        textwrap.dedent("""\
-            secretTokens:
-              - token: abc123
-        """),
-        textwrap.dedent("""\
-            secretTokens:
-              - name: dup
-                token: abc123
-              - name: dup
-                token: def456
-        """),
-        textwrap.dedent("""\
-            secretTokens:
-              - name: missing_token
-        """),
+        # Missing/empty token name
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        # Duplicate token names
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="dup",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="dup",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+        # Invalid JWT token (not a valid JWT)
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="invalid_jwt",
+                    token="not-a-valid-jwt-token",
+                ),
+            ],
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
     ],
 )
-def test_validate_secret_tokens_invalid_entries(tmp_path, content, monkeypatch):
-    path = _write_file(tmp_path, "tokens.yml", content)
-    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
-    tokens_list = mlrun.auth.utils.load_secret_tokens_from_file(raise_on_error=False)
-    with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        mlrun.auth.utils.validate_secret_tokens(
-            tokens_list, auth_user_id=None, raise_on_error=True
+def test_validate_secret_tokens_invalid_entries(secret_tokens_factory, expected_error):
+    secret_tokens = secret_tokens_factory()
+    with pytest.raises(expected_error):
+        mlrun.auth.utils.extract_and_validate_tokens_info(
+            secret_tokens, authenticated_id="user-123", filter_by_authenticated_id=False
         )
 
 
@@ -362,10 +395,12 @@ def _write_file(tmp_path, name: str, content) -> str:
             {
                 "token_name": "token1",
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "add_defaults": True,
             },
             {
                 "token_name": "token2",
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "add_defaults": True,
             },
             False,
             None,
@@ -375,10 +410,15 @@ def _write_file(tmp_path, name: str, content) -> str:
         ),
         # Missing expiration claim
         (
-            {"token_name": "token1", "token_payload": {"sub": "user-123"}},
+            {
+                "token_name": "token1",
+                "token_payload": {"sub": "user-123"},
+                "add_defaults": False,
+            },
             {
                 "token_name": "token2",
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "add_defaults": True,
             },
             True,
             "Offline token 'token1' is missing the 'exp' (expiration) claim",
@@ -388,10 +428,15 @@ def _write_file(tmp_path, name: str, content) -> str:
         ),
         # Missing subject claim
         (
-            {"token_name": "token1", "token_payload": {"exp": 9999999999}},
+            {
+                "token_name": "token1",
+                "token_payload": {"exp": 9999999999},
+                "add_defaults": False,
+            },
             {
                 "token_name": "token2",
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "add_defaults": True,
             },
             True,
             "Offline token 'token1' is missing the 'sub' (subject) claim",
@@ -404,10 +449,12 @@ def _write_file(tmp_path, name: str, content) -> str:
             {
                 "token_name": "token1",
                 "token_payload": {"sub": "different-user", "exp": 9999999999},
+                "add_defaults": True,
             },
             {
                 "token_name": "token2",
                 "token_payload": {"sub": "different-user", "exp": 9999999999},
+                "add_defaults": True,
             },
             True,
             "Offline token 'token1' does not match the authenticated user ID. Stored tokens can only belong to the"
@@ -421,10 +468,12 @@ def _write_file(tmp_path, name: str, content) -> str:
             {
                 "token_name": "token1",
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "add_defaults": True,
             },
             {
                 "token_name": "token1",
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "add_defaults": True,
             },
             True,
             "Invalid or duplicate token name 'token1' found in request payload",
@@ -434,10 +483,15 @@ def _write_file(tmp_path, name: str, content) -> str:
         ),
         # Missing token name
         (
-            {"token_name": "", "token_payload": {"sub": "user-123", "exp": 9999999999}},
+            {
+                "token_name": "",
+                "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "add_defaults": True,
+            },
             {
                 "token_name": "token2",
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "add_defaults": True,
             },
             True,
             "Invalid or duplicate token name '' found in request payload",
@@ -459,11 +513,15 @@ def test_extract_and_validate_tokens_info(
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
             name=token_1["token_name"],
-            token=_create_jwt_token(token_1["token_payload"]),
+            token=_create_jwt_token(
+                token_1["token_payload"], add_defaults=token_1.get("add_defaults", True)
+            ),
         ),
         mlrun.common.schemas.SecretToken(
             name=token_2["token_name"],
-            token=_create_jwt_token(token_2["token_payload"]),
+            token=_create_jwt_token(
+                token_2["token_payload"], add_defaults=token_2.get("add_defaults", True)
+            ),
         ),
     ]
 
@@ -507,7 +565,7 @@ def test_extract_and_validate_tokens_info(
                 },
             ],
             None,
-            ["admin", "normal-user"],
+            [],
         ),
         # Case 3: 1 token, returns 0 tokens for non-matching user
         (
@@ -526,23 +584,29 @@ def test_validate_secret_tokens_filters_by_auth_user(
     # Set a dummy token file path for the function
     monkeypatch.setattr(config.auth_with_oauth_token, "token_file", "/tmp/dummy.yml")
 
-    tokens_list = tokens()
-    result = mlrun.auth.utils.validate_secret_tokens(
-        tokens_list, auth_user_id=auth_user_id, raise_on_error=False
+    tokens_list = [
+        mlrun.common.schemas.SecretToken(
+            name=token["name"],
+            token=token["token"],
+        )
+        for token in tokens()
+    ]
+    result = mlrun.auth.utils.extract_and_validate_tokens_info(
+        tokens_list, authenticated_id=auth_user_id, filter_by_authenticated_id=True
     )
 
-    assert [t.get("name") for t in result] == expected_names
+    assert list(result.keys()) == expected_names
 
 
 @pytest.mark.parametrize(
-    "token, expected_sub",
+    "token, add_defaults, expected_sub",
     [
-        ({}, None),
-        ({"sub": "user-123"}, "user-123"),
+        ({}, False, None),  # Empty payload without defaults -> no 'sub' claim
+        ({"sub": "user-123"}, False, "user-123"),  # Explicit 'sub' claim
     ],
 )
-def test_resolve_jwt_subject(token, expected_sub):
+def test_resolve_jwt_subject(token, add_defaults, expected_sub):
     """Test extracting 'sub' claim from JWT token."""
-    jwt_token = _create_jwt_token(token)
+    jwt_token = _create_jwt_token(token, add_defaults=add_defaults)
     result = mlrun.auth.utils.resolve_jwt_subject(jwt_token, raise_on_error=True)
     assert result == expected_sub

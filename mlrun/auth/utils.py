@@ -234,71 +234,20 @@ def load_and_prepare_secret_tokens(
     :rtype: list[mlrun.common.schemas.SecretToken]
     """
     tokens_list = load_secret_tokens_from_file(raise_on_error=raise_on_error)
-    validated_tokens = validate_secret_tokens(
-        tokens_list, auth_user_id=auth_user_id, raise_on_error=raise_on_error
+    validated_tokens = extract_and_validate_tokens_info(
+        [
+            mlrun.common.schemas.SecretToken(
+                name=token["name"],
+                token=token["token"],
+            )
+            for token in tokens_list
+        ],
+        auth_user_id,
     )
     secret_tokens = translate_secret_tokens(
         validated_tokens, raise_on_error=raise_on_error
     )
     return secret_tokens
-
-
-def validate_secret_tokens(
-    tokens_list: list[dict[str, typing.Any]],
-    auth_user_id: str | None,
-    raise_on_error: bool = True,
-) -> list[dict[str, typing.Any]]:
-    """
-    Validate a list of token dictionaries.
-
-    Checks performed:
-      - Each token has a non-empty 'name' and 'token'.
-        If raise_on_error=False, invalid entries are ignored.
-      - No duplicate token names.
-        If raise_on_error=False, duplicates are ignored.
-
-    :param tokens_list: List of token dictionaries to validate.
-    :param raise_on_error: Whether to raise exceptions on invalid entries.
-    :return: List of validated token dictionaries.
-    :rtype: list[dict[str, Any]]
-    """
-    valid_tokens = []
-    seen = set()
-
-    token_file = os.path.expanduser(mlconf.auth_with_oauth_token.token_file)
-    for token in tokens_list:
-        name = token.get("name")
-        token_value = token.get("token")
-
-        if not name or not isinstance(token_value, str) or not token_value.strip():
-            # Invalid entry
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Invalid token entry in {token_file}: missing or empty 'name' or 'token'",
-                raise_on_error,
-            )
-            continue
-
-        if name in seen:
-            # Duplicate entry
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Duplicate token name '{name}' found in {token_file}",
-                raise_on_error,
-            )
-            continue
-
-        seen.add(name)
-        valid_tokens.append(token)
-
-    # filter out token with "sub" claim not matching the authenticated user
-    if auth_user_id:
-        matching_tokens = []
-        for token in valid_tokens:
-            name, value = token["name"], token["token"]
-            if _decode_offline_token(value).get("sub") == auth_user_id:
-                matching_tokens.append(token)
-        return matching_tokens
-
-    return valid_tokens
 
 
 def translate_secret_tokens(
@@ -332,6 +281,7 @@ def translate_secret_tokens(
 def extract_and_validate_tokens_info(
     secret_tokens: list[mlrun.common.schemas.SecretToken],
     authenticated_id: str,
+    filter_by_authenticated_id: bool = False,
 ) -> dict[str, dict[str, typing.Any]]:
     """
     Extract and validate tokens info from a list of SecretToken objects.
@@ -362,6 +312,9 @@ def extract_and_validate_tokens_info(
             # Validate token belongs to the authenticated user
             token_sub = decoded_token.get("sub")
             if token_sub != authenticated_id:
+                # just ignore the token as it doesn't belong to the authenticated user
+                if filter_by_authenticated_id:
+                    continue
                 mlrun.utils.logger.warning(
                     "Offline token subject does not match the authenticated user",
                     token_name=token_name,

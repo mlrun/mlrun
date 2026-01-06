@@ -464,7 +464,7 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers: typing.Optional[int] = None,
+        workers: typing.Optional[int] = 8,
         port: typing.Optional[int] = None,
         host: typing.Optional[str] = None,
         paths: typing.Optional[list[str]] = None,
@@ -513,11 +513,10 @@ class RemoteRuntime(KubeResource):
 
         if async_spec and async_spec.enabled:
             if workers is not None and workers > 1:
-                raise mlrun.errors.MLRunValueError(
-                    "When using async HTTP trigger, the number of workers should be 1"
+                logger.warning(
+                    "When async mode is enabled, the number of workers is set to 1"
                 )
             workers = 1
-        workers = workers or 8
 
         annotations = annotations or {}
         if worker_timeout:

@@ -565,7 +565,6 @@ class RemoteRuntime(KubeResource):
                 trigger._struct["mode"] = "async"
                 trigger._struct["async"] = {
                     "maxConnectionsNumber": async_spec.max_connections,
-                    "minConnectionsNumber": async_spec.min_connections,
                     "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,
                 }
 

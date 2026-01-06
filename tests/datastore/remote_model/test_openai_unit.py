@@ -54,9 +54,15 @@ class TestOpenAIBatchConcurrency:
         return _mock
 
     def test_sync_batch_concurrency_limit(self, mock_single_invoke):
-        # Config: global limit is high enough not to interfere; per-batch is 5
-        mlrun.mlconf.model_providers.openai_batch_max_workers_global = 20
-        mlrun.mlconf.model_providers.openai_batch_max_workers_per_batch = 5
+        """Ensure batch_invoke caps concurrent work to openai_batch_max_workers_per_batch."""
+        latency = 0.1
+
+        per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_workers
+        global_limit = mlrun.mlconf.model_providers.openai_batch_max_workers_global
+        total_messages = global_limit
+
+
+        effective_parallelism = max(1, min(per_batch_limit, global_limit))
 
         with unittest.mock.patch(
             "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._single_invoke",
@@ -68,7 +74,7 @@ class TestOpenAIBatchConcurrency:
             )
 
             messages_list = [
-                [{"role": "user", "content": f"message {i}"}] for i in range(20)
+                [{"role": "user", "content": f"message {i}"}] for i in range(total_messages)
             ]
 
             start = time.perf_counter()
@@ -76,17 +82,20 @@ class TestOpenAIBatchConcurrency:
             duration = time.perf_counter() - start
 
         state = mock_single_invoke.state
-        # Basic sanity
-        assert len(results) == 20
-        assert state["call_count"] == 20
+        assert len(results) == total_messages
+        assert state["call_count"] == total_messages
+        assert state["max_concurrent_observed"] <= effective_parallelism
 
-        # Per-batch concurrency should be capped at 5 by the executor
-        assert state["max_concurrent_observed"] <= 5
+        # Expected duration scales with achievable parallelism.
+        expected_duration = (total_messages / effective_parallelism) * latency
+        # The run cannot finish materially faster than expected_duration because each call
+        # sleeps for `latency`. Allow small jitter (+/-20%) to accommodate scheduling noise.
+        #lower_bound = expected_duration * 0.8
+        #upper_bound = expected_duration * 1.2
+        upper_bound = expected_duration + 0.2  # allow some extra time for scheduling delays
+        assert expected_duration <= duration <= upper_bound
 
-        # Timing: ideal ~0.4s (20 / 5 * 0.1). Allow some tolerance.
-        assert 0.3 <= duration <= 0.6
-
-    def test_global_thread_concurrency_limit(self, mock_single_invoke):
+    def test_sync_global_concurrency_limit(self, mock_single_invoke):
         with unittest.mock.patch(
             "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._single_invoke",
             mock_single_invoke,

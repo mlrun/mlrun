@@ -173,15 +173,7 @@ class TestOpenAIBatchThreading:
         assert expected_duration <= duration <= upper_bound
 
     def test_sync_error_handling_fast_fail(self, mock_single_invoke_with_failure):
-        """Verify batch_invoke fails fast when one invocation raises an exception.
-
-        Scenario:
-        - 10 messages total
-        - Each successful call takes 0.5s
-        - Message at index 3 fails after 0.05s
-        - Expected: Should fail in ~0.05-0.2s (fast fail)
-        - Not expected: Waiting ~5s for all 10 messages (if no fast fail)
-        """
+        """Verify batch_invoke fails fast when one invocation raises an exception."""
 
         per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_workers
         fail_on_index = math.ceil(per_batch_limit / 2)
@@ -207,7 +199,9 @@ class TestOpenAIBatchThreading:
             start = time.perf_counter()
 
             # Should raise RuntimeError from the failing message
-            with pytest.raises(RuntimeError, match="Simulated API error on message 3"):
+            with pytest.raises(
+                RuntimeError, match=f"Simulated API error on message {fail_on_index}"
+            ):
                 provider.invoke(messages=messages_list)
 
             duration = time.perf_counter() - start

@@ -401,7 +401,7 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preempti
 
 ### Serving/Nuclio triggers
 
-Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/development/nuclio/triggers.py)
+Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/master/nuclio/triggers.py)
 
 By default, Nuclio deploys a default HTTP trigger if the function doesn't have one. This is because users typically want to invoke functions through HTTP. 
 However, we provide a way to disable the default HTTP trigger using:

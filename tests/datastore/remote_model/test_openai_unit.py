@@ -300,3 +300,55 @@ class TestOpenAIBatchAsync:
             expected_duration + 0.2
         )  # allow some extra time for scheduling delays
         assert expected_duration <= duration <= upper_bound
+
+    @pytest.mark.asyncio
+    async def test_async_global_concurrency_limit(self, mock_async_single_invoke):
+        """Ensure global async semaphore limits concurrent tasks across multiple batch calls."""
+        per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_concurrent
+        global_limit = mlrun.mlconf.model_providers.openai_batch_max_concurrent_global
+        batches_count = math.ceil(global_limit / per_batch_limit) + 1
+        total_messages = batches_count * per_batch_limit
+
+        with unittest.mock.patch(
+            "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._async_single_invoke",
+            mock_async_single_invoke,
+        ):
+            provider = mlrun.get_model_provider(
+                url="openai://gpt-4o-mini",
+                secrets={"OPENAI_API_KEY": "test-key"},
+            )
+
+            batches = [
+                [
+                    [{"role": "user", "content": f"batch{b}-msg{i}"}]
+                    for i in range(per_batch_limit)
+                ]
+                for b in range(batches_count)
+            ]
+
+            async def _run_batch(msgs):
+                return await provider.async_invoke(messages=msgs)
+
+            start = time.perf_counter()
+            # Run all batches concurrently
+            results_per_batch = await asyncio.gather(
+                *[_run_batch(batch) for batch in batches]
+            )
+            duration = time.perf_counter() - start
+
+        state = mock_async_single_invoke.state
+
+        assert len(results_per_batch) == batches_count
+        assert all(
+            len(batch_results) == per_batch_limit for batch_results in results_per_batch
+        )
+        # Total calls across all batches
+        assert state["call_count"] == total_messages
+        # Global limit ensures max concurrent tasks across all batches
+        assert state["max_concurrent_observed"] == global_limit
+
+        latency = 0.1
+        expected_duration = math.ceil(total_messages / global_limit) * latency
+        upper_bound = expected_duration + 0.1
+        assert expected_duration <= duration <= upper_bound
+

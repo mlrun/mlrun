@@ -4443,7 +4443,7 @@ class HTTPRunDB(RunDBInterface):
         :param item_type: The type of item to retrieve from the hub source (e.g: functions, modules).
         :returns: :py:class:`~mlrun.common.schemas.hub.HubItem`.
         """
-        path = (f"hub/sources/{source_name}/items/{item_name}",)
+        path = f"hub/sources/{source_name}/items/{item_name}"
         params = {
             "version": version,
             "tag": tag,

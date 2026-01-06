@@ -243,3 +243,40 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
             mlrun.get_hub_step(
                 hub_prefix + source_name + "/" + name, local_path="./temp"
             )
+
+    def test_get_hub_item(self):
+        source_name = mlrun.mlconf.hub.default_source.name
+
+        # Test basic retrieval of a function item
+        hub_item = mlrun.get_hub_item(source_name=source_name, item_name="describe")
+        assert hub_item.metadata.name == "describe"
+        assert (
+            hub_item.metadata.source == mlrun.common.schemas.hub.HubSourceType.functions
+        )
+
+        # Test retrieval with explicit item_type parameter for functions
+        hub_item = mlrun.get_hub_item(
+            source_name=source_name,
+            item_name="describe",
+            item_type=mlrun.common.schemas.hub.HubSourceType.functions,
+        )
+        assert hub_item.metadata.name == "describe"
+        assert (
+            hub_item.metadata.source == mlrun.common.schemas.hub.HubSourceType.functions
+        )
+
+        # Test retrieval with force_refresh parameter
+        hub_item_refreshed = mlrun.get_hub_item(
+            source_name=source_name, item_name="describe", force_refresh=True
+        )
+        assert hub_item_refreshed.metadata.name == "describe"
+
+        # Test non-existent item raises MLRunNotFoundError
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            mlrun.get_hub_item(source_name=source_name, item_name="not-exist-function")
+
+        # Test non-existent source raises MLRunNotFoundError
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            mlrun.get_hub_item(
+                source_name=source_name + "-not-exist", item_name="describe"
+            )

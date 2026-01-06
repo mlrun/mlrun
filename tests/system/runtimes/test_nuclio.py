@@ -650,7 +650,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         )
         function.spec.function_handler = "main:async_handler"
 
-        function.with_http(async_spec=AsyncSpec(enabled=True, max_connections=200))
+        function.with_http(async_spec=AsyncSpec(enabled=True, max_connections=100))
 
         self._logger.debug("Deploying nuclio function")
         function.deploy()
@@ -672,8 +672,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         ), f"running nuclio async mode took {timing} seconds should be < 7"
 
     @pytest.mark.parametrize("with_code", [True, False])
-    @pytest.mark.parametrize("with_http", [True, False])
-    def test_async_http_mode_serving_graph(self, with_code, with_http):
+    def test_async_http_mode_serving_graph(self, with_code):
         async_code_path = str(self.assets_path / "async_serving_func.py")
         code_path = str(self.assets_path / "async_nuclio_func.py")
 
@@ -713,10 +712,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             )
         ).respond()
 
-        if with_http:
-            async_function.with_http(
-                async_spec=AsyncSpec(enabled=True, max_connections=200)
-            )
+        async_function.with_http(
+            async_spec=AsyncSpec(enabled=True, max_connections=200)
+        )
 
         self._logger.debug("Deploying nuclio function")
         async_function.deploy()

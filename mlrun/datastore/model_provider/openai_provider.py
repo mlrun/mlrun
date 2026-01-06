@@ -381,20 +381,16 @@ class OpenAIProvider(ModelProvider):
             List of responses in the same order as messages_list.
             Each response format depends on `invoke_response_format`.
         """
-        # Get global semaphore (shared across all batches)
-        global_semaphore = self._get_or_create_global_thread_semaphore()
+        if not messages_list:
+            return []
 
+        global_semaphore = self._get_or_create_global_thread_semaphore()
         results: BatchInvokeResponse = [None] * len(messages_list)  # type: ignore
 
-        # Create fresh executor sized for THIS batch
-        # Per-batch concurrency controlled by executor size
-        # Global concurrency controlled by global_semaphore
         max_workers_for_batch = min(len(messages_list), self._max_workers_per_batch)
         with ThreadPoolExecutor(max_workers=max_workers_for_batch) as executor:
-            futures = {}
-
+            futures: dict[Any, int] = {}
             for idx, messages in enumerate(messages_list):
-                # Submit task - global semaphore acquired inside worker thread
                 future = executor.submit(
                     self._invoke_with_global_semaphore,
                     global_semaphore,
@@ -404,10 +400,25 @@ class OpenAIProvider(ModelProvider):
                 )
                 futures[future] = idx
 
+            first_exception: Optional[BaseException] = None
+
             for future in as_completed(futures):
                 idx = futures[future]
-                # Fails fast - raises exception immediately on first failure
-                results[idx] = future.result()
+                if first_exception is not None:
+                    # We've already seen a failure – best-effort cancel remaining work
+                    future.cancel()
+                    continue
+                try:
+                    results[idx] = future.result()
+                except BaseException as exc:  # noqa: B902
+                    first_exception = exc
+                    # Cancel all other futures that haven't completed yet
+                    for other_future in futures:
+                        if other_future is not future and not other_future.done():
+                            other_future.cancel()
+
+            if first_exception is not None:
+                raise first_exception
 
         return results
 

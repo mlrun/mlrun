@@ -54,6 +54,34 @@ class TestOpenAIBatchConcurrency:
         _mock.state = state
         return _mock
 
+    @pytest.fixture
+    def mock_single_invoke_with_failure(self):
+        """Mock that fails on a specific message index for testing error handling."""
+        state = {
+            "lock": threading.Lock(),
+            "call_count": 0,
+            "fail_on_index": None,  # Set this in the test
+        }
+
+        def _mock(self, messages, invoke_response_format, **kwargs):
+            with state["lock"]:
+                current_index = state["call_count"]
+                state["call_count"] += 1
+
+            # Check if this call should fail BEFORE sleep
+            if current_index == state["fail_on_index"]:
+                # Fail quickly to test fast-fail behavior
+                time.sleep(0.05)
+                raise RuntimeError(f"Simulated API error on message {current_index}")
+
+            # Normal flow: simulate API latency
+            time.sleep(0.5)
+
+            return {"mock": "response", "answer": "mocked"}
+
+        _mock.state = state
+        return _mock
+
     def test_sync_batch_concurrency_limit(self, mock_single_invoke):
         """Ensure batch_invoke caps concurrent work to openai_batch_max_workers_per_batch."""
         latency = 0.1
@@ -142,3 +170,59 @@ class TestOpenAIBatchConcurrency:
         expected_duration = math.ceil(total_messages / global_limit) * latency
         upper_bound = expected_duration + 0.1
         assert expected_duration <= duration <= upper_bound
+
+    def test_sync_error_handling_fast_fail(self, mock_single_invoke_with_failure):
+        """Verify batch_invoke fails fast when one invocation raises an exception.
+
+        Scenario:
+        - 10 messages total
+        - Each successful call takes 0.5s
+        - Message at index 3 fails after 0.05s
+        - Expected: Should fail in ~0.05-0.2s (fast fail)
+        - Not expected: Waiting ~5s for all 10 messages (if no fast fail)
+        """
+
+        per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_workers
+        fail_on_index = math.ceil(per_batch_limit / 2)
+        total_messages = per_batch_limit * 2  # Ensure multiple batches
+
+        # Configure the mock to fail on specific index
+        mock_single_invoke_with_failure.state["fail_on_index"] = fail_on_index
+
+        with unittest.mock.patch(
+            "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._single_invoke",
+            mock_single_invoke_with_failure,
+        ):
+            provider = mlrun.get_model_provider(
+                url="openai://gpt-4o-mini",
+                secrets={"OPENAI_API_KEY": "test-key"},
+            )
+
+            messages_list = [
+                [{"role": "user", "content": f"message {i}"}]
+                for i in range(total_messages)
+            ]
+
+            start = time.perf_counter()
+
+            # Should raise RuntimeError from the failing message
+            with pytest.raises(RuntimeError, match="Simulated API error on message 3"):
+                provider.invoke(messages=messages_list)
+
+            duration = time.perf_counter() - start
+
+        state = mock_single_invoke_with_failure.state
+
+        # Verify fast-fail behavior:
+        # 2. Duration is much less than if two batches of tasks completed (around 0.5 seconds + overhead)
+        assert duration < 0.7, "Should fail fast, not wait for all tasks"
+
+        # 3. All worker threads start, failing task completes quickly, freed thread grabs one more task before
+        # cancellation takes action
+        assert state["call_count"] == per_batch_limit + 1
+
+        # 4. Not all tasks should have been executed due to fast-fail cancellation
+        assert state["call_count"] < total_messages, (
+            f"Fast-fail should prevent all {total_messages} tasks from executing "
+            f"(got {state['call_count']})"
+        )

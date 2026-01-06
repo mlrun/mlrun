@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import concurrent.futures
 import math
 import threading
@@ -24,7 +25,7 @@ import mlrun
 
 
 class TestOpenAIBatchThreading:
-    """Test batch invocation threading limits using lightweight mocks."""
+    """Test batch invocation threading limits using mocks."""
 
     @pytest.fixture
     def mock_single_invoke(self):
@@ -226,3 +227,76 @@ class TestOpenAIBatchThreading:
             f"Fast-fail should prevent all {total_messages} tasks from executing "
             f"(got {state['call_count']})"
         )
+
+
+class TestOpenAIBatchAsync:
+    """Test batch invocation with async concurrency using mocks."""
+
+    @pytest.fixture
+    def mock_async_single_invoke(self):
+        state = {
+            "current_running": 0,
+            "max_concurrent_observed": 0,
+            "lock": asyncio.Lock(),
+            "call_count": 0,
+        }
+
+        async def _mock(self, messages, invoke_response_format, **kwargs):
+            async with state["lock"]:
+                state["current_running"] += 1
+                state["call_count"] += 1
+                state["max_concurrent_observed"] = max(
+                    state["max_concurrent_observed"], state["current_running"]
+                )
+
+            # Simulate API latency for a single OpenAI call
+            await asyncio.sleep(0.1)
+
+            async with state["lock"]:
+                state["current_running"] -= 1
+
+            return {"mock": "response", "answer": "mocked"}
+
+        _mock.state = state
+        return _mock
+
+    @pytest.mark.asyncio
+    async def test_async_batch_concurrency_limit(self, mock_async_single_invoke):
+        """Ensure async_batch_invoke caps concurrent tasks to openai_batch_max_concurrent."""
+        latency = 0.1
+
+        per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_concurrent
+        global_limit = mlrun.mlconf.model_providers.openai_batch_max_concurrent_global
+        total_messages = global_limit
+
+        effective_parallelism = max(1, min(per_batch_limit, global_limit))
+
+        with unittest.mock.patch(
+            "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._async_single_invoke",
+            mock_async_single_invoke,
+        ):
+            provider = mlrun.get_model_provider(
+                url="openai://gpt-4o-mini",
+                secrets={"OPENAI_API_KEY": "test-key"},
+            )
+
+            messages_list = [
+                [{"role": "user", "content": f"message {i}"}]
+                for i in range(total_messages)
+            ]
+
+            start = time.perf_counter()
+            results = await provider.async_invoke(messages=messages_list)
+            duration = time.perf_counter() - start
+
+        state = mock_async_single_invoke.state
+        assert len(results) == total_messages
+        assert state["call_count"] == total_messages
+        assert state["max_concurrent_observed"] <= effective_parallelism
+
+        # Expected duration scales with achievable parallelism.
+        expected_duration = (total_messages / effective_parallelism) * latency
+        upper_bound = (
+            expected_duration + 0.2
+        )  # allow some extra time for scheduling delays
+        assert expected_duration <= duration <= upper_bound

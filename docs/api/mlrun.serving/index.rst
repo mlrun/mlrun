@@ -4,7 +4,7 @@ mlrun.serving
 ==============
 
 .. autoclass:: mlrun.serving.states.BaseStep
-   :members: to, error_handler, set_flow
+   :members: to, error_handler, set_flow, to_cycle
    :private-members:
 
 .. automodule:: mlrun.serving

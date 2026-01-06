@@ -13,6 +13,7 @@
 # limitations under the License.
 import pickle
 import typing
+from typing import Any
 
 import fsspec
 import numpy as np
@@ -200,6 +201,14 @@ class MyModel(mlrun.serving.Model):
         result: np.ndarray = self.model.predict(feats)
         body["outputs"] = result.tolist()
         body["timestamp"] = start
+        return body
+
+    def format_batch(self, body: Any):
+        if isinstance(body, list):
+            batched_body = {"inputs": []}
+            for item in body:
+                batched_body["inputs"].append(item.get("inputs", item))
+            return batched_body
         return body
 
     async def predict_async(self, body):

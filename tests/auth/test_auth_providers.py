@@ -213,3 +213,11 @@ def test_refresh_token_fails_and_is_not_valid(monkeypatch):
     assert provider._token == "almost_expired_token"
     assert provider._token is not None
     assert provider._token_expiry_time is not None
+
+
+def test_authenticated_user_id():
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = jwt.encode(
+        {"sub": "test-user"}, key="test-secret", algorithm="HS256"
+    )
+    assert provider.authenticated_user_id == "test-user"

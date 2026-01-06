@@ -648,9 +648,7 @@ def _set_source_code_and_handler(function, config):
         mlrun.utils.update_in(
             config,
             "spec.handler",
-            "mlrun.serving.serving_wrapper:async_handler"
-            if mlrun.utils.helpers.is_async_serving_graph(function.spec)
-            else "mlrun.serving.serving_wrapper:handler",
+            "mlrun.serving.serving_wrapper:handler",
         )
 
 

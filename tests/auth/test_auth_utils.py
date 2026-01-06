@@ -239,26 +239,12 @@ def test_load_and_prepare_secret_tokens_valid(
     path = _write_file(tmp_path, "tokens.yml", content)
     monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
 
-    # Mock translate_secret_tokens to handle the dict returned by extract_and_validate_tokens_info
-    def mock_translate_secret_tokens(tokens_dict, raise_on_error=True):
-        return [
-            mlrun.common.schemas.SecretToken(name=name, token=info["token"])
-            for name, info in tokens_dict.items()
-        ]
-
-    with patch.object(
-        mlrun.auth.utils,
-        "translate_secret_tokens",
-        side_effect=mock_translate_secret_tokens,
-    ):
-        secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
-            auth_user_id=auth_user_id
-        )
-        assert isinstance(secret_tokens, list)
-        assert len(secret_tokens) == expected_count
-        assert all(
-            isinstance(t, mlrun.common.schemas.SecretToken) for t in secret_tokens
-        )
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
+        auth_user_id=auth_user_id
+    )
+    assert isinstance(secret_tokens, list)
+    assert len(secret_tokens) == expected_count
+    assert all(isinstance(t, mlrun.common.schemas.SecretToken) for t in secret_tokens)
 
 
 @pytest.mark.parametrize(

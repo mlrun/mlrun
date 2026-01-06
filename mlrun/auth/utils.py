@@ -245,38 +245,10 @@ def load_and_prepare_secret_tokens(
         authenticated_id=auth_user_id,
         filter_by_authenticated_id=True,
     )
-    secret_tokens = translate_secret_tokens(
+    secret_tokens = _translate_secret_tokens(
         validated_tokens, raise_on_error=raise_on_error
     )
     return secret_tokens
-
-
-def translate_secret_tokens(
-    tokens_list: list[dict[str, typing.Any]], raise_on_error: bool = True
-) -> list[mlrun.common.schemas.SecretToken]:
-    """
-    Translate a list of validated token dictionaries into SecretToken objects.
-
-    Each dictionary in the list must be validated and contain the required fields
-    for SecretToken creation. If an entry fails to translate, behavior depends on
-    ``raise_on_error``: raise an exception or log a warning.
-
-    :param tokens_list: List of validated token dictionaries.
-    :param raise_on_error: Whether to raise exceptions on translation errors.
-    :return: List of SecretToken objects created from the input dictionaries.
-    :rtype: list[mlrun.common.schemas.SecretToken]
-    """
-    token_file = os.path.expanduser(mlconf.auth_with_oauth_token.token_file)
-    tokens = []
-    for token in tokens_list:
-        try:
-            tokens.append(mlrun.common.schemas.SecretToken(**token))
-        except Exception as exc:
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Failed to create SecretToken from entry in {token_file}: {exc}",
-                raise_on_error,
-            )
-    return tokens
 
 
 def extract_and_validate_tokens_info(
@@ -374,3 +346,36 @@ def _decode_offline_token(token: str) -> dict:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Unexpected error decoding token"
         ) from exc
+
+
+def _translate_secret_tokens(
+    tokens_dict: dict[str, dict[str, typing.Any]], raise_on_error: bool = True
+) -> list[mlrun.common.schemas.SecretToken]:
+    """
+    Translate a dictionary of validated token data into SecretToken objects.
+
+    The dictionary is keyed by token name, with values containing token data
+    (including the token string). If an entry fails to translate, behavior depends
+    on ``raise_on_error``: raise an exception or log a warning.
+
+    :param tokens_dict: Dictionary of validated token data, keyed by token name.
+    :param raise_on_error: Whether to raise exceptions on translation errors.
+    :return: List of SecretToken objects created from the input dictionary.
+    :rtype: list[mlrun.common.schemas.SecretToken]
+    """
+    token_file = os.path.expanduser(mlconf.auth_with_oauth_token.token_file)
+    tokens = []
+    for token_name, token_data in tokens_dict.items():
+        try:
+            tokens.append(
+                mlrun.common.schemas.SecretToken(
+                    name=token_name,
+                    token=token_data["token"],
+                )
+            )
+        except Exception as exc:
+            mlrun.utils.helpers.raise_or_log_error(
+                f"Failed to create SecretToken from entry in {token_file}: {exc}",
+                raise_on_error,
+            )
+    return tokens

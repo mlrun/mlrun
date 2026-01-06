@@ -103,7 +103,6 @@ def min_nuclio_versions(*versions):
 class AsyncSpec:
     enabled: bool = True
     max_connections: typing.Optional[int] = None
-    min_connections: typing.Optional[int] = None
     connection_availability_timeout: typing.Optional[int] = None
 
 

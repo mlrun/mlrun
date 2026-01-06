@@ -103,6 +103,8 @@ def min_nuclio_versions(*versions):
 class AsyncSpec:
     enabled: bool = True
     max_connections: typing.Optional[int] = None
+    min_connections: typing.Optional[int] = None
+    connection_availability_timeout: typing.Optional[int] = None
 
 
 class NuclioSpec(KubeResourceSpec):
@@ -463,7 +465,7 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers: typing.Optional[int] = 8,
+        workers: typing.Optional[int] = None,
         port: typing.Optional[int] = None,
         host: typing.Optional[str] = None,
         paths: typing.Optional[list[str]] = None,
@@ -509,6 +511,14 @@ class RemoteRuntime(KubeResource):
             logger.warning(
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
             )
+
+        if async_spec and async_spec.enabled:
+            if workers is not None and workers > 1:
+                raise mlrun.errors.MLRunValueError(
+                    "When using async HTTP trigger, the number of workers should be 1"
+                )
+            workers = 1
+        workers = workers or 8
 
         annotations = annotations or {}
         if worker_timeout:
@@ -556,7 +566,9 @@ class RemoteRuntime(KubeResource):
             if async_spec.enabled:
                 trigger._struct["mode"] = "async"
                 trigger._struct["async"] = {
-                    "maxConnections": async_spec.max_connections
+                    "maxConnectionsNumber": async_spec.max_connections,
+                    "minConnectionsNumber": async_spec.min_connections,
+                    "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,
                 }
 
         self.add_trigger(trigger_name or "http", trigger)

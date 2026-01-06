@@ -1986,7 +1986,11 @@ class HTTPRunDB(RunDBInterface):
             _path = (
                 f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
             )
-            resp = self.api_call("POST", _path, json=req)
+            # Use readinessTimeoutSeconds from function config if set, otherwise default to 120s
+            # Add 60s buffer for HTTP overhead beyond the Nuclio readiness timeout
+            readiness_timeout = func.spec.config.get("spec.readinessTimeoutSeconds", 60)
+            timeout = int(readiness_timeout) + 60
+            resp = self.api_call("POST", _path, json=req, timeout=timeout)
         except OSError as err:
             logger.error(f"error submitting nuclio deploy task: {err_to_str(err)}")
             raise OSError(f"error: cannot submit deploy, {err_to_str(err)}")

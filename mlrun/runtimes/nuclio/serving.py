@@ -715,20 +715,20 @@ class ServingRuntime(RemoteRuntime):
             encoded_code = mlrun.utils.helpers.encode_user_code(decoded_code)
             self.spec.build.functionSourceCode = encoded_code
 
-        if validate_nuclio_version_compatibility("1.15.3"):
-            if mlrun.utils.helpers.is_async_serving_graph(self.spec):
-                if (
-                    self.spec.function_handler
-                    and "nuclio:handler" in self.spec.function_handler
-                ):
-                    logger.debug(
-                        "Overriding default function handler, using async_handler for async serving graph"
-                    )
-                    self.spec.function_handler = "main:async_handler"
-                # set async handler if not already set
-                self.spec.function_handler = (
-                    self.spec.function_handler or "main:async_handler"
-                )
+        # if validate_nuclio_version_compatibility("1.15.3"):
+        #     if mlrun.utils.helpers.is_async_serving_graph(self.spec):
+        #         if (
+        #             self.spec.function_handler
+        #             and "nuclio:handler" in self.spec.function_handler
+        #         ):
+        #             logger.debug(
+        #                 "Overriding default function handler, using async_handler for async serving graph"
+        #             )
+        #             self.spec.function_handler = "main:async_handler"
+        #         # set async handler if not already set
+        #         self.spec.function_handler = (
+        #             self.spec.function_handler or "main:async_handler"
+        #         )
 
         # Handle secret processing before handling child functions, since secrets are transferred to them
         if self.spec.secret_sources:

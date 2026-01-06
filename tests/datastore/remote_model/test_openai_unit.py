@@ -215,17 +215,17 @@ class TestOpenAIBatchThreading:
         state = mock_single_invoke_with_failure.state
 
         # Verify fast-fail behavior:
-        # 2. Duration is much less than if two batches of tasks completed (around 0.5 seconds + overhead)
+        # Duration is much less than if two batches of tasks completed (around 0.5 seconds + overhead)
         assert duration < 0.7, "Should fail fast, not wait for all tasks"
 
-        # 3. All worker threads start, failing task completes quickly, freed thread grabs one more task before
+        # All worker threads start, failing task completes quickly, freed thread grabs one more task before
         # cancellation takes action
         assert state["call_count"] == per_batch_limit + 1
 
-        # 4. Not all tasks should have been executed due to fast-fail cancellation
+        # Not all tasks should have been executed due to fast-fail cancellation
         assert state["call_count"] < total_messages, (
-            f"Fast-fail should prevent all {total_messages} tasks from executing "
-            f"(got {state['call_count']})"
+            f"Fast-fail should prevent remaining tasks from executing: "
+            f"expected < {total_messages}, got {state['call_count']}"
         )
 
 
@@ -254,6 +254,36 @@ class TestOpenAIBatchAsync:
 
             async with state["lock"]:
                 state["current_running"] -= 1
+
+            return {"mock": "response", "answer": "mocked"}
+
+        _mock.state = state
+        return _mock
+
+    @pytest.fixture
+    def mock_async_single_invoke_with_failure(self):
+        """Async mock that fails on a specific message index for testing error handling."""
+        state = {
+            "lock": asyncio.Lock(),
+            "call_count": 0,
+            "fail_on_index": None,  # Set this in the test
+        }
+
+        async def _mock(self, messages, invoke_response_format, **kwargs):
+            async with state["lock"]:
+                current_index = state["call_count"]
+                state["call_count"] += 1
+
+            # Check if this call should fail BEFORE sleep
+            if current_index == state["fail_on_index"]:
+                # Fail quickly to test fast-fail behavior
+                await asyncio.sleep(0.05)
+                raise RuntimeError(
+                    f"Simulated async API error on message {current_index}"
+                )
+
+            # Normal flow: simulate API latency
+            await asyncio.sleep(0.5)
 
             return {"mock": "response", "answer": "mocked"}
 
@@ -352,3 +382,55 @@ class TestOpenAIBatchAsync:
         upper_bound = expected_duration + 0.1
         assert expected_duration <= duration <= upper_bound
 
+    @pytest.mark.asyncio
+    async def test_async_error_handling_fast_fail(
+        self, mock_async_single_invoke_with_failure
+    ):
+        """Verify async_batch_invoke fails fast when one invocation raises an exception."""
+        per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_concurrent
+        fail_on_index = math.ceil(per_batch_limit / 2)
+        total_messages = per_batch_limit * 2  # Ensure multiple batches worth
+
+        # Configure the mock to fail on specific index
+        mock_async_single_invoke_with_failure.state["fail_on_index"] = fail_on_index
+
+        with unittest.mock.patch(
+            "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._async_single_invoke",
+            mock_async_single_invoke_with_failure,
+        ):
+            provider = mlrun.get_model_provider(
+                url="openai://gpt-4o-mini",
+                secrets={"OPENAI_API_KEY": "test-key"},
+            )
+
+            messages_list = [
+                [{"role": "user", "content": f"message {i}"}]
+                for i in range(total_messages)
+            ]
+
+            start = time.perf_counter()
+
+            # Should raise RuntimeError from the failing message
+            with pytest.raises(
+                RuntimeError,
+                match=f"Simulated async API error on message {fail_on_index}",
+            ):
+                await provider.async_invoke(messages=messages_list)
+
+            duration = time.perf_counter() - start
+
+        state = mock_async_single_invoke_with_failure.state
+
+        # Verify fast-fail behavior:
+        # Duration is much less than if two batches of tasks completed (around 0.5 seconds + overhead)
+        assert duration < 0.7, "Should fail fast, not wait for all tasks"
+
+        # All concurrent tasks start, failing task completes quickly, freed semaphore slot allows one more
+        # task before cancellation
+        assert state["call_count"] == per_batch_limit + 1
+
+        # Not all tasks should have been executed due to fast-fail cancellation
+        assert state["call_count"] < total_messages, (
+            f"Fast-fail should prevent remaining tasks from executing: "
+            f"expected < {total_messages}, got {state['call_count']}"
+        )

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import concurrent.futures
+import math
 import threading
 import time
 import unittest.mock
@@ -61,7 +62,6 @@ class TestOpenAIBatchConcurrency:
         global_limit = mlrun.mlconf.model_providers.openai_batch_max_workers_global
         total_messages = global_limit
 
-
         effective_parallelism = max(1, min(per_batch_limit, global_limit))
 
         with unittest.mock.patch(
@@ -74,7 +74,8 @@ class TestOpenAIBatchConcurrency:
             )
 
             messages_list = [
-                [{"role": "user", "content": f"message {i}"}] for i in range(total_messages)
+                [{"role": "user", "content": f"message {i}"}]
+                for i in range(total_messages)
             ]
 
             start = time.perf_counter()
@@ -88,14 +89,16 @@ class TestOpenAIBatchConcurrency:
 
         # Expected duration scales with achievable parallelism.
         expected_duration = (total_messages / effective_parallelism) * latency
-        # The run cannot finish materially faster than expected_duration because each call
-        # sleeps for `latency`. Allow small jitter (+/-20%) to accommodate scheduling noise.
-        #lower_bound = expected_duration * 0.8
-        #upper_bound = expected_duration * 1.2
-        upper_bound = expected_duration + 0.2  # allow some extra time for scheduling delays
+        upper_bound = (
+            expected_duration + 0.2
+        )  # allow some extra time for scheduling delays
         assert expected_duration <= duration <= upper_bound
 
     def test_sync_global_concurrency_limit(self, mock_single_invoke):
+        per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_workers
+        global_limit = mlrun.mlconf.model_providers.openai_batch_max_workers_global
+        batches_count = math.ceil(global_limit / per_batch_limit) + 1
+        total_messages = batches_count * per_batch_limit
         with unittest.mock.patch(
             "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._single_invoke",
             mock_single_invoke,
@@ -105,33 +108,37 @@ class TestOpenAIBatchConcurrency:
                 secrets={"OPENAI_API_KEY": "test-key"},
             )
 
-            # 5 batches, each with 5 messages
             batches = [
-                [[{"role": "user", "content": f"batch{b}-msg{i}"}] for i in range(5)]
-                for b in range(5)
+                [
+                    [{"role": "user", "content": f"batch{b}-msg{i}"}]
+                    for i in range(per_batch_limit)
+                ]
+                for b in range(batches_count)
             ]
 
             def _run_batch(msgs):
                 return provider.invoke(messages=msgs)
 
             start = time.perf_counter()
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=batches_count
+            ) as executor:
                 futures = [executor.submit(_run_batch, batch) for batch in batches]
                 results_per_batch = [f.result() for f in futures]
             duration = time.perf_counter() - start
 
         state = mock_single_invoke.state
 
-        # Each batch returns 5 results
-        assert len(results_per_batch) == 5
-        assert all(len(batch_results) == 5 for batch_results in results_per_batch)
+        assert len(results_per_batch) == batches_count
+        assert all(
+            len(batch_results) == per_batch_limit for batch_results in results_per_batch
+        )
         # Total calls across all batches
-        assert state["call_count"] == 25
-        # Global limit: at most 20 concurrent calls across all batches
-        assert state["max_concurrent_observed"] <= 20
+        assert state["call_count"] == total_messages
+        # Global limit ensures max concurrent across all batches
+        assert state["max_concurrent_observed"] <= global_limit
 
-        # Rough timing check:
-        # - 25 calls, each 0.1s, with up to 20 concurrent
-        # - First ~20 finish around 0.1s, last 5 add another ~0.1s layer
-        # So total should be in the ~0.2-0.5s range (allow some jitter).
-        assert 0.15 <= duration <= 0.8
+        latency = 0.1
+        expected_duration = math.ceil(total_messages / global_limit) * latency
+        upper_bound = expected_duration + 0.1
+        assert expected_duration <= duration <= upper_bound

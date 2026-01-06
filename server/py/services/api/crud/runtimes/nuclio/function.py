@@ -637,12 +637,6 @@ def _set_source_code_and_handler(function, config):
             "spec.build.functionSourceCode",
             base64.b64encode(body.encode("utf-8")).decode("utf-8"),
         )
-        if mlrun.utils.helpers.is_async_serving_graph(function.spec):
-            mlrun.utils.update_in(
-                config,
-                "spec.handler",
-                "main:async_handler",
-            )
     elif not function.spec.function_handler:
         # point the nuclio function handler to mlrun serving wrapper handlers
         mlrun.utils.update_in(

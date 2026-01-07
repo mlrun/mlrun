@@ -320,9 +320,6 @@ class HuggingFaceProvider(ModelProvider):
                 mlrun.mlconf.model_providers.huggingface_default_batch_size
             )
 
-        if InvokeResponseFormat.is_str_response(invoke_response_format.value):
-            invoke_kwargs["return_full_text"] = False
-
         batch_response = self.custom_invoke(text_inputs=prompts, **invoke_kwargs)
 
         results = []
@@ -401,6 +398,9 @@ class HuggingFaceProvider(ModelProvider):
                 "HuggingFaceProvider.invoke supports text-generation task only"
             )
 
+        if InvokeResponseFormat.is_str_response(invoke_response_format.value):
+            invoke_kwargs["return_full_text"] = False
+
         is_batch = self._validate_and_detect_batch_invocation(messages)
 
         if is_batch:
@@ -410,8 +410,6 @@ class HuggingFaceProvider(ModelProvider):
                 **invoke_kwargs,
             )
 
-        if InvokeResponseFormat.is_str_response(invoke_response_format.value):
-            invoke_kwargs["return_full_text"] = False
         response = self.custom_invoke(text_inputs=messages, **invoke_kwargs)
         response = self._response_handler(
             messages=messages,

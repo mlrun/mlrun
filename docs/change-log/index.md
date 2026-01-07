@@ -1033,7 +1033,7 @@ conda activate python39
  
 #### Documentation
 
-Improvements to [Set up your environment](../install/remote.md).
+Improvements to [Set up your environment](../setup-guide.md).
 
 
 #### Infrastructure improvements 

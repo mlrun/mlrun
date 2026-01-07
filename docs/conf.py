@@ -196,6 +196,9 @@ redirects = {
     "concepts/monitoring": "model-monitoring.html",
     "monitoring/index": "../model-monitoring/index.html",
     "monitoring/model-monitoring": "model-monitoring/index.html",
+    "install/kubernetes": "install-mlrun-ce/kubernetes-install.html",
+    "install/aws-install": "install-mlrun-ce/aws-install.html",
+    "install/remote": "setup-guide.html",
 }
 
 smartquotes = False

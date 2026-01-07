@@ -162,7 +162,7 @@ In the `tests/system/` directory exist test suites to run against a running syst
 
 ### Setting Up an MLRun Community Edition Instance for System Tests
 
-You can follow the [Install MLRun on Kubernetes](https://docs.mlrun.org/en/latest/install/kubernetes.html) guide to 
+You can follow the [Install MLRun on Kubernetes](https://docs.mlrun.org/en/latest/install-mlrun-ce/kubernetes-install.html) guide to 
 install an instance of MLRun Community Edition on your local machine. Notice the mentioned prerequisites and make sure 
 you have some kubernetes cluster running locally. 
 You can use [minikube](https://minikube.sigs.k8s.io/docs/start/) for this purpose (however this will require an extra step, see below).

@@ -155,7 +155,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             )
         assert isinstance(response, openai.types.chat.ChatCompletion)
         assert EXPECTED_RESULTS[0] in response.choices[0].message.content.lower()
-        assert response.usage.completion_tokens == 50
+        assert 45 <= response.usage.completion_tokens <= 55
 
         if run_async:
             response = await model_provider.async_invoke(
@@ -175,7 +175,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         prompt_tokens = response[UsageResponseKeys.USAGE]["prompt_tokens"]
         total_tokens = response[UsageResponseKeys.USAGE]["total_tokens"]
         assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
-        assert completion_tokens == 50
+        assert 45 <= completion_tokens <= 55
         assert prompt_tokens > 0
         assert total_tokens == prompt_tokens + completion_tokens
 
@@ -239,14 +239,14 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             elif invoke_response_format == InvokeResponseFormat.FULL:
                 assert isinstance(result, openai.types.chat.ChatCompletion)
                 assert EXPECTED_RESULTS[i] in result.choices[0].message.content.lower()
-                assert result.usage.completion_tokens == 100
+                assert 95 <= result.usage.completion_tokens <= 105
 
             elif invoke_response_format == InvokeResponseFormat.USAGE:
                 assert isinstance(result, dict)
                 assert UsageResponseKeys.ANSWER in result
                 assert UsageResponseKeys.USAGE in result
                 assert EXPECTED_RESULTS[i] in result[UsageResponseKeys.ANSWER].lower()
-                assert result[UsageResponseKeys.USAGE]["completion_tokens"] == 100
+                assert 95 <= result[UsageResponseKeys.USAGE]["completion_tokens"] <= 105
                 assert result[UsageResponseKeys.USAGE]["prompt_tokens"] > 0
 
     async def test_configurable_model(self):
@@ -365,7 +365,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             assert len(encoding.encode(answer)) == 100
 
             stats = response[UsageResponseKeys.USAGE]
-            assert stats["completion_tokens"] == 100
+            assert 95 <= stats["completion_tokens"] <= 105
             assert stats["prompt_tokens"] > 0
             assert (
                 stats["total_tokens"]

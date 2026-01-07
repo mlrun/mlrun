@@ -84,13 +84,13 @@ class OpenAIProvider(ModelProvider):
         )
         self.options = self.get_client_options()
 
-        # Per-batch limit per batch
-        self._max_workers_per_batch = (
+        # Max workers allowed for each individual batch invocation
+        self._max_workers_per_batch = int(
             self._get_secret_or_env("OPENAI_BATCH_MAX_WORKERS")
             or mlrun.mlconf.model_providers.openai_batch_max_workers
         )
         # Async concurrency limit per batch
-        self._max_concurrent_per_batch = (
+        self._max_concurrent_per_batch = int(
             self._get_secret_or_env("OPENAI_BATCH_MAX_CONCURRENT")
             or mlrun.mlconf.model_providers.openai_batch_max_concurrent
         )
@@ -381,8 +381,6 @@ class OpenAIProvider(ModelProvider):
             List of responses in the same order as messages_list.
             Each response format depends on `invoke_response_format`.
         """
-        if not messages_list:
-            return []
 
         global_semaphore = self._get_or_create_global_thread_semaphore()
         results: BatchInvokeResponse = [None] * len(messages_list)  # type: ignore
@@ -496,7 +494,7 @@ class OpenAIProvider(ModelProvider):
         try:
             # gather() stops on first exception - fast fail
             return await asyncio.gather(*tasks)
-        except Exception:
+        except:
             # Cancel all remaining tasks
             for task in tasks:
                 task.cancel()

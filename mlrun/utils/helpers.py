@@ -2149,7 +2149,7 @@ def validate_single_def_handler(function_kind: str, code: str):
     # it would override MLRun's wrapper
     if function_kind == "mlrun":
         # Find all lines that start with "def handler("
-        pattern = re.compile(r"^def handler\(", re.MULTILINE)
+        pattern = re.compile(r"^(?:async\s+)?def handler\(", re.MULTILINE)
         matches = pattern.findall(code)
 
         # Only MLRun's wrapper handler (footer) can be in the code

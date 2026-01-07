@@ -321,7 +321,7 @@ class OpenAIProvider(ModelProvider):
         """
         with cls._global_thread_semaphore_lock:
             if cls._global_thread_semaphore is None:
-                max_workers = (
+                max_workers = int(
                     mlrun.mlconf.model_providers.openai_batch_max_workers_global
                 )
                 cls._global_thread_semaphore = threading.Semaphore(max_workers)
@@ -338,7 +338,7 @@ class OpenAIProvider(ModelProvider):
         """
         async with cls._global_async_semaphore_lock:
             if cls._global_async_semaphore is None:
-                cls._global_max_concurrent = (
+                cls._global_max_concurrent = int(
                     mlrun.mlconf.model_providers.openai_batch_max_concurrent_global
                 )
                 cls._global_async_semaphore = asyncio.Semaphore(

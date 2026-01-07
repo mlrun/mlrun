@@ -540,6 +540,32 @@ class OpenAIProvider(ModelProvider):
             response=response,
         )
 
+    def _validate_and_detect_batch_invocation(
+        self, messages: Union[list[dict], list[list[dict]]]
+    ) -> bool:
+        """
+        Validate messages format and detect if this is a batch invocation.
+
+        :param messages: Either a list of message dicts (single) or list of message lists (batch)
+        :return: True if batch invocation, False if single invocation
+        :raises MLRunInvalidArgumentError: If messages format is invalid (mixed types)
+        """
+        if not messages or not isinstance(messages, list):
+            return False
+
+        has_list = any(isinstance(item, list) for item in messages)
+        has_dict = any(isinstance(item, dict) for item in messages)
+
+        if has_list and has_dict:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid messages format: cannot mix list and dict items. "
+                "Use either all lists for batch invocation or all dicts for single invocation."
+            )
+
+        if has_list:
+            return True
+        return False
+
     def invoke(
         self,
         messages: Union[list[dict], list[list[dict]]],
@@ -604,8 +630,10 @@ class OpenAIProvider(ModelProvider):
             Batch invocation: A list of responses in the same order as input messages.
             Response format depends on `invoke_response_format`.
         """
-        # Detect if this is a batch invocation (list of lists)
-        if messages and isinstance(messages[0], list):
+        # Detect if this is a batch invocation
+        is_batch = self._validate_and_detect_batch_invocation(messages)
+
+        if is_batch:
             return self.batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
@@ -683,8 +711,10 @@ class OpenAIProvider(ModelProvider):
             Batch invocation: A list of responses in the same order as input messages.
             Response format depends on `invoke_response_format`.
         """
-        # Detect if this is a batch invocation (list of lists)
-        if messages and isinstance(messages[0], list):
+        # Detect if this is a batch invocation
+        is_batch = self._validate_and_detect_batch_invocation(messages)
+
+        if is_batch:
             return await self.async_batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,

@@ -222,6 +222,24 @@ class TestOpenAIBatchThreading:
             f"expected < {total_messages}, got {state['call_count']}"
         )
 
+    def test_mixed_messages_raises_error(self):
+        """Verify that mixing list and dict items in messages raises an error."""
+        provider = mlrun.get_model_provider(
+            url="openai://gpt-4o-mini",
+            secrets={"OPENAI_API_KEY": "test-key"},
+        )
+
+        mixed_messages = [
+            [{"role": "user", "content": "message 1"}],  # list
+            {"role": "user", "content": "message 2"},  # dict - INVALID
+        ]
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="cannot mix list and dict items",
+        ):
+            provider.invoke(messages=mixed_messages)
+
 
 class TestOpenAIBatchAsync:
     """Test batch invocation with async concurrency using mocks."""
@@ -428,3 +446,23 @@ class TestOpenAIBatchAsync:
             f"Fast-fail should prevent remaining tasks from executing: "
             f"expected < {total_messages}, got {state['call_count']}"
         )
+
+    @pytest.mark.asyncio
+    async def test_async_mixed_messages_raises_error(self):
+        """Verify that mixing list and dict items in messages raises an error."""
+        provider = mlrun.get_model_provider(
+            url="openai://gpt-4o-mini",
+            secrets={"OPENAI_API_KEY": "test-key"},
+        )
+
+        # Mix of list (batch) and dict (single) - should raise error
+        mixed_messages = [
+            [{"role": "user", "content": "message 1"}],  # list
+            {"role": "user", "content": "message 2"},  # dict - INVALID
+        ]
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="cannot mix list and dict items",
+        ):
+            await provider.async_invoke(messages=mixed_messages)

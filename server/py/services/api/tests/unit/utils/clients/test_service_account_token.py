@@ -16,6 +16,8 @@ from unittest import mock
 
 import pytest
 
+import mlrun.common.schemas
+
 import framework.utils.clients.service_account_token as service_account_token
 
 TEST_TOKEN = "test-token"
@@ -86,7 +88,7 @@ def test_auth_headers(patch_config, patch_is_token_expired):
     patch_is_token_expired.return_value = False
     client = service_account_token.Client()
     expected = {
-        "X-IGZ-Authenticator-Kind": "sa",
+        mlrun.common.schemas.HeaderNames.igz_authenticator_kind: "sa",
         "Authorization": f"Bearer {TEST_TOKEN}",
     }
     assert client.auth_headers == expected
@@ -98,7 +100,7 @@ def test_escalate_request_headers(patch_config, patch_is_token_expired):
     original = {"foo": "bar"}
     result = client.escalate_request_headers(original)
     assert result["foo"] == "bar"
-    assert result["X-IGZ-Authenticator-Kind"] == "sa"
+    assert result[mlrun.common.schemas.HeaderNames.igz_authenticator_kind] == "sa"
     assert result["Authorization"] == f"Bearer {TEST_TOKEN}"
 
 

@@ -73,9 +73,6 @@ def deploy_nuclio_function(
         function.spec.add_templated_ingress_host_mode
         or mlrun.mlconf.httpdb.nuclio.add_templated_ingress_host_mode,
         function.spec.service_type or mlrun.mlconf.httpdb.nuclio.default_service_type,
-        function.spec.graph.engine
-        if mlrun.utils.helpers.is_async_serving_graph(function.spec)
-        else None,
     )
 
     try:

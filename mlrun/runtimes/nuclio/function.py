@@ -464,7 +464,7 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers: typing.Optional[int] = 8,
+        workers: typing.Optional[int] = None,
         port: typing.Optional[int] = None,
         host: typing.Optional[str] = None,
         paths: typing.Optional[list[str]] = None,
@@ -484,7 +484,8 @@ class RemoteRuntime(KubeResource):
         if the max time a request will wait for until it will start processing, gateway_timeout must be greater than
         the worker_timeout.
 
-        :param workers:    number of worker processes (default=8). set 0 to use Nuclio's default workers count
+        :param workers: Number of worker processes. Defaults to 8 in synchronous mode and
+                        1 in asynchronous mode. Set to 0 to use Nuclio’s default worker count.
         :param port:       TCP port to listen on. by default, nuclio will choose a random port as long as
                            the function service is NodePort. if the function service is ClusterIP, the port
                            is ignored.
@@ -512,17 +513,14 @@ class RemoteRuntime(KubeResource):
             )
 
         if async_spec and async_spec.enabled:
-            if workers is not None and workers > 1:
-                logger.warning(
-                    "When async mode is enabled, the number of workers is set to 1"
-                )
-            workers = 1
+            workers = 1 if workers is None else workers
+        else:
+            workers = 8 if workers is None else workers
 
         annotations = annotations or {}
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
-        if workers is None:
-            workers = 0
+
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(

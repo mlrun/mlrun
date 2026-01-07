@@ -179,6 +179,7 @@ class HuggingFaceProvider(ModelProvider):
                 return str_response
             if invoke_response_format == InvokeResponseFormat.USAGE:
                 tokenizer = self.client.tokenizer
+                # Messages already be a formatted prompt string
                 if not isinstance(messages, str):
                     try:
                         messages = tokenizer.apply_chat_template(
@@ -292,17 +293,12 @@ class HuggingFaceProvider(ModelProvider):
         else:
             return self.client(**invoke_kwargs)
 
-    def batch_invoke(
+    def _batch_invoke(
         self,
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> list[Union[str, dict, list]]:
-        if self.client.task != "text-generation":
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "HuggingFaceProvider.batch_invoke supports text-generation task only"
-            )
-
         tokenizer = self.client.tokenizer
         prompts = []
         for messages in messages_list:
@@ -320,7 +316,9 @@ class HuggingFaceProvider(ModelProvider):
             prompts.append(prompt)
 
         if "batch_size" not in invoke_kwargs:
-            invoke_kwargs["batch_size"] = mlrun.mlconf.model_providers.huggingface_default_batch_size
+            invoke_kwargs["batch_size"] = (
+                mlrun.mlconf.model_providers.huggingface_default_batch_size
+            )
 
         if InvokeResponseFormat.is_str_response(invoke_response_format.value):
             invoke_kwargs["return_full_text"] = False
@@ -330,7 +328,7 @@ class HuggingFaceProvider(ModelProvider):
         results = []
         for i, single_response in enumerate(batch_response):
             processed = self._response_handler(
-                messages=messages_list[i],
+                messages=prompts[i],
                 response=[single_response],
                 invoke_response_format=invoke_response_format,
             )
@@ -406,7 +404,7 @@ class HuggingFaceProvider(ModelProvider):
         is_batch = self._validate_and_detect_batch_invocation(messages)
 
         if is_batch:
-            return self.batch_invoke(
+            return self._batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
                 **invoke_kwargs,

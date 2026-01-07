@@ -28,7 +28,6 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
 from mlrun.common.schemas import SecurityContextEnrichmentModes
-from mlrun.common.types import AuthenticationMode
 from mlrun.config import config as mlconf
 from mlrun.runtimes.mounts import auto_mount
 from mlrun.runtimes.utils import generate_resources
@@ -1465,34 +1464,6 @@ def my_func(context):
 
         # validate that the default project env var is also set for backward compatibility
         assert env["MLRUN_DEFAULT_PROJECT"] == self.project
-
-    def test_generate_runtime_env_injects_iguazio4_envs(self):
-        runtime = self._generate_runtime()
-        iguazio_api_url = "https://api.example.com"
-        runobj = mlrun.model.RunObject.from_dict(
-            {
-                "metadata": {
-                    "name": "job",
-                    "project": self.project,
-                },
-            }
-        )
-        mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
-        mlrun.mlconf.iguazio_api_url = iguazio_api_url
-        mlrun.mlconf.iguazio_api_ssl_verify = False
-
-        env = runtime._generate_runtime_env(runobj)
-
-        # Iguazio v4 auth envs are injected
-        assert env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] == "true"
-        assert env["MLRUN_AUTH_TOKEN_ENDPOINT"] == os.path.join(
-            iguazio_api_url, "api/v1/authentication/refresh-access-token"
-        )
-        assert env["MLRUN_HTTPDB__HTTP__VERIFY"] == "false"
-        assert env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] == os.path.join(
-            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
-        )
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

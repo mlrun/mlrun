@@ -73,6 +73,12 @@ async def create_project(
     )
     if is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+
+    await framework.utils.auth.verifier.AuthVerifier().ensure_project_permissions(
+        project.metadata.name,
+        auth_info,
+    )
+
     response.status_code = http.HTTPStatus.CREATED.value
     return project
 
@@ -107,6 +113,12 @@ async def store_project(
     )
     if is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+
+    await framework.utils.auth.verifier.AuthVerifier().ensure_project_permissions(
+        project.metadata.name,
+        auth_info,
+    )
+
     return project
 
 

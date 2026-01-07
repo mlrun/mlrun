@@ -25,6 +25,7 @@ import kfp_server_api
 import sqlalchemy.orm
 
 import mlrun
+import mlrun.auth.utils
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.helpers
@@ -47,9 +48,10 @@ from mlrun_pipelines.models import PipelineRun
 
 import framework.api.utils
 import framework.utils.singletons.db
+import framework.utils.singletons.k8s
 import services.api.crud
+import services.api.utils.helpers
 from services.api.crud.workflows import RerunRunner
-from services.api.utils.helpers import resolve_client_default_kfp_image
 
 
 class Pipelines(
@@ -432,7 +434,7 @@ class Pipelines(
                                    - status:  `"running"`
                                    - run_id:  the new MLRun-run UID for the RerunRunner job
         """
-        client_image = resolve_client_default_kfp_image(
+        client_image = services.api.utils.helpers.resolve_client_default_kfp_image(
             project,
             workflow_spec=None,
             client_version=client_version,
@@ -601,6 +603,7 @@ class Pipelines(
         content_type: str,
         data: bytes,
         arguments: typing.Optional[dict] = None,
+        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
     ):
         if arguments is None:
             arguments = {}
@@ -616,11 +619,21 @@ class Pipelines(
         mlrun.utils.logger.debug(
             "Writing pipeline to temp file", content_type=content_type
         )
-        data = mlrun_pipelines.common.ops.replace_kfp_plaintext_secret_env_vars_with_secret_refs(
+
+        # TODO In ML-11600, pass the token name from the request
+        provided_token_name = None
+        # Workflows do not go through launcher/runtime handler
+        # So enrichment, validation and secret retrieval need to be done here
+        auth_secret_name = services.api.utils.helpers.resolve_auth_token_secret_name(
+            provided_token_name=provided_token_name, username=auth_info.username
+        )
+
+        data = mlrun_pipelines.common.ops.process_kfp_workflow_secret_references(
             byte_buffer=data,
             content_type=content_type,
             env_var_names=["MLRUN_AUTH_SESSION", "V3IO_ACCESS_KEY"],
             secrets_store=services.api.crud.Secrets(),
+            auth_secret_name=auth_secret_name,
         )
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:

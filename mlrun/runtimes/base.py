@@ -446,7 +446,14 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
 
-        if self.metadata.credentials.access_key:
+        # Import here to avoid circular import
+        import mlrun.runtimes
+
+        # Set auth session only for nuclio runtimes that have an access key
+        if (
+            self.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            and self.metadata.credentials.access_key
+        ):
             runtime_env[
                 mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
             ] = self.metadata.credentials.access_key

@@ -170,6 +170,56 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             + response[UsageResponseKeys.USAGE]["completion_tokens"]
         )
 
+    @pytest.mark.parametrize(
+        "invoke_response_format",
+        [
+            InvokeResponseFormat.STRING,
+            InvokeResponseFormat.FULL,
+            InvokeResponseFormat.USAGE,
+        ],
+    )
+    def test_batch_invoke(self, invoke_response_format):
+        model_url = self.url_prefix + self.basic_llm_model
+        model_provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_new_tokens": 100}
+        )
+        model_provider = cast(HuggingFaceProvider, model_provider)
+
+        messages_list = [[msg] for msg in formatted_messages]
+
+        results = model_provider.invoke(
+            messages=messages_list, invoke_response_format=invoke_response_format
+        )
+
+        assert isinstance(results, list)
+        assert len(results) == len(formatted_messages)
+
+        for i, result in enumerate(results):
+            if invoke_response_format == InvokeResponseFormat.STRING:
+                assert isinstance(result, str)
+                assert EXPECTED_RESULTS[i] in result.lower()
+
+            elif invoke_response_format == InvokeResponseFormat.FULL:
+                assert isinstance(result, list)
+                assert result[0]["generated_text"][0] == formatted_messages[i]
+                assistant_response = result[0]["generated_text"][1]
+                assert assistant_response["role"] == "assistant"
+                assert EXPECTED_RESULTS[i] in assistant_response["content"].lower()
+                token_count = len(
+                    model_provider.client.tokenizer.encode(
+                        assistant_response["content"]
+                    )
+                )
+                assert 95 <= token_count <= 105
+
+            elif invoke_response_format == InvokeResponseFormat.USAGE:
+                assert isinstance(result, dict)
+                assert UsageResponseKeys.ANSWER in result
+                assert UsageResponseKeys.USAGE in result
+                assert EXPECTED_RESULTS[i] in result[UsageResponseKeys.ANSWER].lower()
+                assert 95 <= result[UsageResponseKeys.USAGE]["completion_tokens"] <= 105
+                assert result[UsageResponseKeys.USAGE]["prompt_tokens"] > 0
+
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     def test_basic_invoke(self, cred_mode):
         # torch cannot be included in the dev image

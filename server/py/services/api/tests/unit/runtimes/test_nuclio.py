@@ -536,6 +536,17 @@ class TestNuclioRuntime(TestRuntimeBase):
                 "valueFrom": {"secretKeyRef": {"key": secret_key, "name": secret}},
             },
             {"name": name2, "value": value2},
+            {"name": "MLRUN_ACTIVE_PROJECT", "value": self.project},
+            {"name": "MLRUN_NAMESPACE", "value": self.namespace},
+            {
+                "name": "MLRUN_RUNTIME_KIND",
+                "valueFrom": {
+                    "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.labels['mlrun/class']",
+                    }
+                },
+            },
             # TODO: Remove this in 1.12.0 — deprecated MLRUN_DEFAULT_PROJECT injected for backward compatibility
             {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
         ]

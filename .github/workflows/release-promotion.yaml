@@ -47,7 +47,7 @@ on:
       target_artifactory_docker_repo:
         description: 'Target Artifactory Docker repository name (for promotion, used when target includes Artifactory)'
         required: false
-        default: 'private-mlrun-promoted'
+        default: 'mlrun-staging-promoted'
         type: string
       source_artifactory_pypi_repo:
         description: 'Source Artifactory PyPI repository name'

@@ -3221,9 +3221,9 @@ class RootFlowStep(FlowStep):
             * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
                 event loop to continue running while waiting for a response.
 
-            * **shared_executor**:  Reuses an external executor (typically managed by the flow or context) to execute the
-                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
-                useful when:
+            * **shared_executor**:  Reuses an external executor (typically managed by the flow or context) to execute
+                the runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and
+                especially useful when:
 
                 - You want to share a heavy resource like a large model loaded onto a GPU.
 

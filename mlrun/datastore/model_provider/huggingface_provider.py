@@ -292,9 +292,55 @@ class HuggingFaceProvider(ModelProvider):
         else:
             return self.client(**invoke_kwargs)
 
+    def batch_invoke(
+        self,
+        messages_list: list[list[dict]],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **invoke_kwargs,
+    ) -> list[Union[str, dict, list]]:
+        if self.client.task != "text-generation":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "HuggingFaceProvider.batch_invoke supports text-generation task only"
+            )
+
+        tokenizer = self.client.tokenizer
+        prompts = []
+        for messages in messages_list:
+            try:
+                prompt = tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+            except Exception as e:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Failed to apply chat template using the tokenizer for model '{self.model}'. "
+                    "This may indicate that the tokenizer does not support chat formatting, "
+                    "or that the input format is invalid. "
+                    f"Original error: {e}"
+                )
+            prompts.append(prompt)
+
+        if "batch_size" not in invoke_kwargs:
+            invoke_kwargs["batch_size"] = mlrun.mlconf.model_providers.huggingface_default_batch_size
+
+        if InvokeResponseFormat.is_str_response(invoke_response_format.value):
+            invoke_kwargs["return_full_text"] = False
+
+        batch_response = self.custom_invoke(text_inputs=prompts, **invoke_kwargs)
+
+        results = []
+        for i, single_response in enumerate(batch_response):
+            processed = self._response_handler(
+                messages=messages_list[i],
+                response=[single_response],
+                invoke_response_format=invoke_response_format,
+            )
+            results.append(processed)
+
+        return results
+
     def invoke(
         self,
-        messages: Union[str, list[str], "ChatType", list["ChatType"]],
+        messages: Union[str, list[str], "ChatType", list["ChatType"], list[list[str]]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, list, dict[str, Any]]:
@@ -356,6 +402,16 @@ class HuggingFaceProvider(ModelProvider):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "HuggingFaceProvider.invoke supports text-generation task only"
             )
+
+        is_batch = self._validate_and_detect_batch_invocation(messages)
+
+        if is_batch:
+            return self.batch_invoke(
+                messages_list=messages,
+                invoke_response_format=invoke_response_format,
+                **invoke_kwargs,
+            )
+
         if InvokeResponseFormat.is_str_response(invoke_response_format.value):
             invoke_kwargs["return_full_text"] = False
         response = self.custom_invoke(text_inputs=messages, **invoke_kwargs)

@@ -30,8 +30,8 @@ import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
-import mlrun.runtimes.constants
 import mlrun.launcher.factory
+import mlrun.runtimes
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
@@ -449,7 +449,7 @@ class BaseRuntime(ModelObj):
 
         # Set auth session only for nuclio runtimes that have an access key
         if (
-            self.kind in mlrun.runtimes.constants.RuntimeKinds.nuclio_runtimes()
+            self.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
             and self.metadata.credentials.access_key
         ):
             runtime_env[

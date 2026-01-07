@@ -201,6 +201,7 @@ default_config = {
     "model_providers": {
         "openai_default_model": "gpt-4o",
         "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
+        "huggingface_default_batch_size": 8,
     },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",

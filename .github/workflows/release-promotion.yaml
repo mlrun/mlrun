@@ -42,7 +42,7 @@ on:
       target_docker_registries:
         description: 'Comma separated list of target docker registries to push promoted images to (e.g., artifactory.iguazeng.com:6555/)'
         required: false
-        default: 'artifactory.iguazeng.com:6555/'
+        default: 'ghcr.io/,quay.io/,registry.hub.docker.com/'
         type: string
       target_artifactory_docker_repo:
         description: 'Target Artifactory Docker repository name (for promotion, used when target includes Artifactory)'
@@ -215,7 +215,7 @@ jobs:
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
-          UV_PUBLISH_URL: https://artifactory.iguazeng.com/artifactory/api/pypi/${{ github.event.inputs.target_artifactory_pypi_repo }}
+          # UV_PUBLISH_URL: https://artifactory.iguazeng.com/artifactory/api/pypi/${{ github.event.inputs.target_artifactory_pypi_repo }}
           UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
           UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
         run: |

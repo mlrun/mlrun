@@ -59,9 +59,17 @@ on:
         default: ''
 
 jobs:
+  approval-gate:
+    name: Approval gate for private release
+    runs-on: ubuntu-latest
+    environment: prod-release
+    steps:
+      - name: Manual approval checkpoint
+        run: echo "✅ Private release approved, proceeding with build and publish..."  
   prepare-inputs:
     name: Prepare inputs
     runs-on: ubuntu-latest
+    needs: approval-gate
     outputs:
       is_stable_version: ${{ steps.resolve.outputs.is_stable_version }}
       is_feature_branch: ${{ steps.resolve.outputs.is_feature_branch }}

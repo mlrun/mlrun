@@ -81,16 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
-    steps:
-    # TODO remove the clean up as it is not needed
-    - name: Cleanup build artifacts from previous runs
-      run: |
-        # Remove any root-owned build artifacts from previous runs using Docker
-        # This works even when files are owned by root
-        if [ -d "$GITHUB_WORKSPACE/server" ]; then
-          docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
-        fi
-        
+    steps:        
     - uses: actions/checkout@v6
       if: github.event.inputs.pr_number == ''
 
@@ -107,8 +98,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install curl and jq
-      # TODO it BACK HERE
-      if: false
+      if: true
       run: sudo apt-get install -y curl jq
 
     - name: Extract git hash, ref and latest version

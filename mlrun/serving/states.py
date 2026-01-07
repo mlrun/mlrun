@@ -3222,7 +3222,7 @@ class RootFlowStep(FlowStep):
                 event loop to continue running while waiting for a response.
 
             * **shared_executor**:  Reuses an external executor (typically managed by the flow or context) to execute
-                the runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and
+                the runnable. Should be used only if you have multiple `ParallelExecution` in the same flow and
                 especially useful when:
 
                 - You want to share a heavy resource like a large model loaded onto a GPU.

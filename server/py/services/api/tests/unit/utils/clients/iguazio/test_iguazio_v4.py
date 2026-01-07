@@ -523,11 +523,17 @@ def test_store_project(
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
 def test_delete_project(mock_session, iguazio_client, igv4_auth_info):
-    iguazio_client.delete_project(
-        mock_session, TEST_PROJECT_NAME, auth_info=igv4_auth_info
-    )
+    auth_headers = {"test": "test"}
+    with unittest.mock.patch(
+        "framework.utils.clients.service_account_token.Client.auth_headers",
+        auth_headers,
+    ):
+        iguazio_client.delete_project(
+            mock_session, TEST_PROJECT_NAME, auth_info=igv4_auth_info
+        )
+
     iguazio_client._client.set_override_auth_headers.assert_called_once_with(
-        igv4_auth_info.request_headers
+        auth_headers
     )
     iguazio_client._client.delete_project_policies.assert_called_once_with(
         project=TEST_PROJECT_NAME

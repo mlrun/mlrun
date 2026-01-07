@@ -423,3 +423,4 @@ The MLRun CE (Community Edition) includes the following services:
           aws ec2 delete-volume --volume-id ${VOLUME_ID} --region ${REGION}
       done
       ```
+

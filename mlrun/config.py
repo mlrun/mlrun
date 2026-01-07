@@ -200,6 +200,10 @@ default_config = {
     "v3io_framesd": "http://framesd:8080",
     "model_providers": {
         "openai_default_model": "gpt-4o",
+        "openai_batch_max_workers": 5,
+        "openai_batch_max_workers_global": 20,
+        "openai_batch_max_concurrent": 10,
+        "openai_batch_max_concurrent_global": 200,
         "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
         "huggingface_default_batch_size": 8,
     },

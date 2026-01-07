@@ -18,8 +18,7 @@ import typing
 import uuid
 from collections import defaultdict
 
-import jwt
-
+import mlrun.auth.utils
 import mlrun.common
 import mlrun.common.constants
 import mlrun.common.schemas
@@ -450,7 +449,7 @@ class Secrets(
         )
 
         # Extract and validate tokens info
-        tokens_values = self._extract_and_validate_tokens_info(
+        tokens_values = mlrun.auth.utils.extract_and_validate_tokens_info(
             secret_tokens=secret_tokens, authenticated_id=auth_info.user_id
         )
 
@@ -620,72 +619,6 @@ class Secrets(
             token=token_value,
         )
 
-    def _extract_and_validate_tokens_info(
-        self,
-        secret_tokens: list[mlrun.common.schemas.SecretToken],
-        authenticated_id: str,
-    ):
-        token_values = {}
-        for secret_token in secret_tokens:
-            token_name = secret_token.name
-
-            # Validate name is provided and not duplicate
-            if secret_token.name and secret_token.name not in token_values:
-                decoded_token = self._decode_offline_token(
-                    secret_token.name, secret_token.token
-                )
-
-                # Validate token expiration existence
-                if not decoded_token.get("exp"):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
-                    )
-                # Validate token subject existence
-                if not decoded_token.get("sub"):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
-                    )
-
-                # Validate token belongs to the authenticated user
-                token_sub = decoded_token.get("sub")
-                if token_sub != authenticated_id:
-                    mlrun.utils.logger.warning(
-                        "Offline token subject does not match the authenticated user",
-                        token_name=token_name,
-                        token_sub=token_sub,
-                        user_id=authenticated_id,
-                    )
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Offline token '{token_name}' does not match the authenticated user ID. "
-                        "Stored tokens can only belong to the authenticated user."
-                    )
-
-                # Store token info
-                token_values[secret_token.name] = {
-                    "token_exp": decoded_token.get("exp"),
-                    "token": secret_token.token,
-                }
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Invalid or duplicate token name '{secret_token.name}' found in request payload"
-                )
-        return token_values
-
-    @staticmethod
-    def _decode_offline_token(token_name: str, token: str) -> dict:
-        try:
-            # The token is expected to be a JWT. We don't verify its signature here, because it has already been
-            # verified earlier during the refresh_access_token call.
-            return jwt.decode(token, options={"verify_signature": False})
-        except jwt.DecodeError as exc:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Failed to decode offline token '{token_name}'"
-            ) from exc
-        except Exception as exc:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unexpected error decoding token '{token_name}'"
-            ) from exc
-
     def _resolve_project_secret_key(
         self,
         project: str,
@@ -813,31 +746,6 @@ class Secrets(
     @staticmethod
     def _generate_uuid() -> str:
         return str(uuid.uuid4())
-
-    @staticmethod
-    def mount_secret_token_to_runtime(
-        runtime: mlrun.runtimes.base.BaseRuntime, token_name: str, username: str
-    ):
-        # Validation that the secret exists is done in the ServerSideLauncher
-        secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(
-            username=username, token_name=token_name
-        )
-
-        # In case the secret was not found (which should not happen because of the prior validation), we do not mount it
-        if secret:
-            runtime.apply(
-                mlrun.mounts.mount_secret(
-                    secret.metadata.name,
-                    mount_path=mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-                    items=[
-                        {
-                            "key": "tokensFile",
-                            "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
-                        }
-                    ],
-                )
-            )
-        return runtime
 
 
 def get_project_secret_provider(project: str) -> typing.Callable:

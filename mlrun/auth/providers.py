@@ -309,6 +309,10 @@ class IGTokenProvider(DynamicTokenProvider):
     def __init__(self, token_endpoint: str, timeout=5):
         super().__init__(token_endpoint=token_endpoint, timeout=timeout, max_retries=2)
 
+    @property
+    def authenticated_user_id(self) -> typing.Optional[str]:
+        return mlrun.auth.utils.resolve_jwt_subject(self._token, raise_on_error=True)
+
     def _cleanup(self):
         self._token = None
         self._token_total_lifetime = 0

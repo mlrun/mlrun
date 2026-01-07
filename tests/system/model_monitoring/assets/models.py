@@ -11,13 +11,47 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pickle
 import typing
+from typing import Any
 
+import fsspec
 import numpy as np
+import pandas as pd
 from cloudpickle import load
 
 import mlrun.artifacts
 import mlrun.serving
+
+
+class BatchedModel(mlrun.serving.states.Model):
+    def __init__(self, model_path: str, **kwargs):
+        super().__init__(**kwargs)
+        self.model_path = model_path
+        self.model = None
+
+    def load(self) -> None:
+        with fsspec.open(self.model_path, "rb") as f:
+            self.model = pickle.load(f)
+
+    def predict(self, body, **kwargs):
+        invocation_body = body.get("input")
+        if isinstance(invocation_body, dict):
+            # example of single invocation
+            x = pd.DataFrame([invocation_body])
+        elif isinstance(invocation_body, list):
+            x = pd.DataFrame(invocation_body)
+        else:
+            x = invocation_body
+        predictions = self.model.predict(x).tolist()
+        return [round(v, 6) for v in predictions]
+
+    @staticmethod
+    def format_batch(body: typing.Any):
+        batched_body = {"input": []}
+        for item in body:
+            batched_body["input"].append(item.get("input", item))
+        return batched_body
 
 
 class OneToOne(mlrun.serving.V2ModelServer):
@@ -167,6 +201,14 @@ class MyModel(mlrun.serving.Model):
         result: np.ndarray = self.model.predict(feats)
         body["outputs"] = result.tolist()
         body["timestamp"] = start
+        return body
+
+    def format_batch(self, body: Any):
+        if isinstance(body, list):
+            batched_body = {"inputs": []}
+            for item in body:
+                batched_body["inputs"].append(item.get("inputs", item))
+            return batched_body
         return body
 
     async def predict_async(self, body):

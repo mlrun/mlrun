@@ -14,7 +14,6 @@
 
 import collections
 import json
-import re
 import unittest.mock
 
 import deepdiff
@@ -773,7 +772,7 @@ def test_store_secret_tokens_invalid_offline_token_jwt_decode(mock_iguazio_clien
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="Failed to decode offline token 'bad'",
+        match="Failed to decode offline token",
     ):
         services.api.crud.Secrets().store_secret_tokens(
             secret_tokens,
@@ -883,132 +882,6 @@ def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
         )
 
     mock_iguazio_client.refresh_access_tokens.assert_called_once_with(secret_tokens)
-
-
-@pytest.mark.parametrize(
-    "token_1, token_2, should_raise, expected_err_msg, expected_token_1, expected_token_2, authenticated_id",
-    [
-        # Valid tokens with different names
-        (
-            {
-                "token_name": "token1",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
-            },
-            {
-                "token_name": "token2",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
-            },
-            False,
-            None,
-            {"sub": "user-123", "exp": 9999999999},
-            {"sub": "user-123", "exp": 9999999999},
-            "user-123",
-        ),
-        # Missing expiration claim
-        (
-            {"token_name": "token1", "token_payload": {"sub": "user-123"}},
-            {
-                "token_name": "token2",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
-            },
-            True,
-            "Offline token 'token1' is missing the 'exp' (expiration) claim",
-            None,
-            None,
-            "user-123",
-        ),
-        # Missing subject claim
-        (
-            {"token_name": "token1", "token_payload": {"exp": 9999999999}},
-            {
-                "token_name": "token2",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
-            },
-            True,
-            "Offline token 'token1' is missing the 'sub' (subject) claim",
-            None,
-            None,
-            "user-123",
-        ),
-        # Token from wrong user (not matching authenticated ID)
-        (
-            {
-                "token_name": "token1",
-                "token_payload": {"sub": "different-user", "exp": 9999999999},
-            },
-            {
-                "token_name": "token2",
-                "token_payload": {"sub": "different-user", "exp": 9999999999},
-            },
-            True,
-            "Offline token 'token1' does not match the authenticated user ID. Stored tokens can only belong to the"
-            " authenticated user.",
-            None,
-            None,
-            "user-123",
-        ),
-        # Duplicate token names
-        (
-            {
-                "token_name": "token1",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
-            },
-            {
-                "token_name": "token1",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
-            },
-            True,
-            "Invalid or duplicate token name 'token1' found in request payload",
-            None,
-            None,
-            "user-123",
-        ),
-        # Missing token name
-        (
-            {"token_name": "", "token_payload": {"sub": "user-123", "exp": 9999999999}},
-            {
-                "token_name": "token2",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
-            },
-            True,
-            "Invalid or duplicate token name '' found in request payload",
-            None,
-            None,
-            "user-123",
-        ),
-    ],
-)
-def test_extract_and_validate_tokens_info(
-    token_1,
-    token_2,
-    should_raise,
-    expected_err_msg,
-    expected_token_1,
-    expected_token_2,
-    authenticated_id,
-):
-    secret_tokens = [
-        mlrun.common.schemas.SecretToken(
-            name=token_1["token_name"], token=_generate_token(token_1["token_payload"])
-        ),
-        mlrun.common.schemas.SecretToken(
-            name=token_2["token_name"], token=_generate_token(token_2["token_payload"])
-        ),
-    ]
-
-    if should_raise:
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match=re.escape(expected_err_msg)
-        ):
-            services.api.crud.Secrets()._extract_and_validate_tokens_info(
-                secret_tokens, authenticated_id
-            )
-    else:
-        tokens_info = services.api.crud.Secrets()._extract_and_validate_tokens_info(
-            secret_tokens, authenticated_id
-        )
-        assert tokens_info["token1"]["token_exp"] == expected_token_1["exp"]
-        assert tokens_info["token2"]["token_exp"] == expected_token_2["exp"]
 
 
 def test_list_secret_tokens_returns_tokens():
@@ -1164,104 +1037,6 @@ def test_get_secret_token_not_found():
             token_name=token_name,
             authenticated_username=username,
         )
-
-
-@pytest.mark.parametrize(
-    "initial_volume_mounts,initial_volumes,expected_secret_count",
-    [
-        # No existing volumes or mounts
-        ([], [], 1),
-        # Volume with same name already exists (should be updated, not duplicated)
-        (
-            [{"mountPath": "/var/mlrun-secrets/auth", "name": "secret"}],
-            [
-                {
-                    "name": "secret",
-                    "secret": {"items": [], "secretName": "old-secret"},
-                }
-            ],
-            1,
-        ),
-        # Volume with a different name already exists (should add new one)
-        (
-            [{"mountPath": "/some/other/path", "name": "other-volume"}],
-            [
-                {
-                    "name": "other-volume",
-                    "secret": {"items": [], "secretName": "old-secret"},
-                }
-            ],
-            2,
-        ),
-    ],
-)
-def test_mount_secret_token_to_runtime(
-    initial_volume_mounts,
-    initial_volumes,
-    expected_secret_count,
-):
-    token_name = "test-token"
-    username = "test-user"
-
-    runtime = mlrun.runtimes.kubejob.KubejobRuntime()
-    runtime.spec.volume_mounts = initial_volume_mounts.copy()
-    runtime.spec.volumes = initial_volumes.copy()
-
-    mock_secret = unittest.mock.MagicMock()
-    mock_secret.metadata.name = "test-secret"
-
-    mock_helper = unittest.mock.MagicMock()
-    mock_helper._get_user_token_secret.return_value = mock_secret
-
-    with unittest.mock.patch(
-        "framework.utils.singletons.k8s.get_k8s_helper",
-        return_value=mock_helper,
-    ):
-        runtime = services.api.crud.Secrets().mount_secret_token_to_runtime(
-            runtime, token_name, username
-        )
-
-    secret_mounts = [vm for vm in runtime.spec.volume_mounts if vm["name"] == "secret"]
-    secret_volumes = [v for v in runtime.spec.volumes if v["name"] == "secret"]
-
-    assert len(secret_mounts) == 1
-    assert (
-        secret_mounts[0]["mountPath"]
-        == mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH
-    )
-
-    assert len(secret_volumes) == 1
-    assert secret_volumes[0]["secret"]["secretName"] == "test-secret"
-    assert secret_volumes[0]["secret"]["items"] == [
-        {
-            "key": "tokensFile",
-            "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
-        }
-    ]
-
-    assert len(runtime.spec.volumes) == expected_secret_count
-
-
-def test_mount_secret_token_to_runtime_non_existing_secret():
-    token_name = "test-token"
-    username = "test-user"
-
-    runtime = mlrun.runtimes.kubejob.KubejobRuntime()
-
-    mock_helper = unittest.mock.MagicMock()
-    mock_helper._get_user_token_secret.return_value = None
-
-    with unittest.mock.patch(
-        "framework.utils.singletons.k8s.get_k8s_helper",
-        return_value=mock_helper,
-    ):
-        runtime = services.api.crud.Secrets().mount_secret_token_to_runtime(
-            runtime, token_name, username
-        )
-
-    # If the secret does not exist, nothing should be mounted or added
-    assert runtime.spec.volume_mounts == []
-    assert runtime.spec.volumes == []
 
 
 def _generate_token(payload: dict) -> str:

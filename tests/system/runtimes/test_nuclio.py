@@ -11,12 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import json
 import os
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 import pytest
@@ -32,9 +31,11 @@ import tests.system.base
 from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from mlrun.serving import ModelRunnerStep
 from mlrun.serving.remote import MLRunAPIRemoteStep
 from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
+from tests.system.runtimes.assets.function_llm_with_tools import MySelector
 from tests.system.runtimes.assets.function_with_llm import MyLLM
 from tests.system.runtimes.assets.function_with_model import DummyModel, MyModelSelector
 
@@ -566,6 +567,109 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         assert isinstance(resp, dict)
         assert "endpoints" in resp
         assert isinstance(resp["endpoints"], list)
+
+    def test_serving_with_cyclic_graph(self):
+        code_path = str(self.assets_path / "cyclic_function.py")
+        function = mlrun.code_to_function(
+            name="function-with-cyclic-graph",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        graph = function.set_topology(
+            "flow", engine="async", allow_cyclic=True, max_iterations=6
+        )
+        graph.to(class_name="Counter", name="count").to(
+            name="route", class_name="Route", cycle_to="count"
+        ).to(name="end", class_name="Echo").respond()
+        # Deploy the function
+        function.deploy()
+
+        resp = function.invoke(path="/", body={"counter": 1})
+        assert resp["counter"] == 5
+        with pytest.raises(
+            RuntimeError, match=r"Max iterations exceeded in step 'count'"
+        ):
+            function.invoke(path="/", body={"counter": -5})
+
+    @pytest.mark.parametrize("with_object", [True, False])
+    def test_mrs_with_tools_routing_sys(self, with_object):
+        code_path = str(self.assets_path / "function_llm_with_tools.py")
+        function = mlrun.code_to_function(
+            name="llm-wih-tools",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+        if with_object:
+            model_runner_step = ModelRunnerStep(
+                name="my_model_runner",
+                model_runner_selector=MySelector(tool_a="tool_a", tool_b="tool_b"),
+            )
+        else:
+            model_runner_step = ModelRunnerStep(
+                name="my_model_runner",
+                model_runner_selector="MySelector",
+                model_runner_selector_parameters={
+                    "tool_a": "tool_a",
+                    "tool_b": "tool_b",
+                },
+            )
+        model_runner_step.add_model(
+            model_class="LLModelWithTools",
+            execution_mechanism="naive",
+            endpoint_name="llm_with_tools",
+        )
+        runner = graph.to(name="start", class_name="Echo").to(model_runner_step)
+        runner.to(name="tool_a", class_name="Tool", cycle_to="my_model_runner")
+        runner.to(name="tool_b", class_name="Tool", cycle_to="my_model_runner")
+        runner.to(name="end", class_name="Echo").respond()
+
+        # Deploy the function
+        function.deploy()
+
+        resp = function.invoke(path="/", body={"counter": 0})
+        assert resp["counter"] == 5
+        assert resp["tool_a"] == 2
+        assert resp["tool_b"] == 2
+
+    def test_async_http_mode(self):
+        code_path = str(self.assets_path / "async_nuclio_func.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="async-http-function",
+            kind="nuclio",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+            handler="main:async_handler",
+        )
+        function.spec.function_handler = "main:async_handler"
+
+        function.with_http(async_spec=AsyncSpec(enabled=True, max_connections=200))
+
+        self._logger.debug("Deploying nuclio function")
+        function.deploy()
+
+        self._logger.debug("Triggering nuclio function")
+        start = time.time()
+        with ThreadPoolExecutor(max_workers=100) as executor:
+            # Submit tasks
+            futures = [
+                executor.submit(function.invoke, path="/", body=[i]) for i in range(100)
+            ]
+            # Retrieve results as they complete
+            for future in as_completed(futures):
+                future.result()
+        end = time.time()
+        timing = end - start
+        assert (
+            timing < 7
+        ), f"running nuclio async mode took {timing} seconds should be < 7"
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

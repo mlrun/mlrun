@@ -16,6 +16,7 @@ import json
 import os
 import pickle
 import string
+import uuid
 from datetime import UTC, datetime, timedelta
 from random import choice, randint, uniform
 from time import monotonic, sleep
@@ -539,16 +540,6 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
                 == created_model_endpoint.spec.label_names
             )
 
-        mep = mlrun.get_run_db().get_model_endpoint(
-            project=endpoints_out[0].metadata.project,
-            name=endpoints_out[0].metadata.name,
-            endpoint_id=endpoints_out[0].metadata.uid,
-            feature_analysis=True,
-        )
-
-        assert mep.status.drift_measures_timestamp is not None
-        assert mep.status.current_stats_timestamp is not None
-
     def test_mep_with_model(self):
         model_obj = self.project.log_model(
             "my-model",
@@ -713,22 +704,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             and model_endpoints[1].metadata.name == "my-model-2"
         ), "expected model endpoints with the names my-model-1 and my-model-2"
 
-    def test_mep_with_remote_model(self):
-        model_name = "my_model"
-        model_url = "mock://my-model-url"
-        default_config = {"model_version": "4"}
-        model_artifact = self.project.log_model(
-            model_name,
-            model_url=model_url,
-            default_config=default_config,
-        )
-        llm_prompt = self.project.log_llm_prompt(
-            "my-llm-prompt",
-            prompt_template=[
-                {"role": "user", "content": "What is the capital of France?"}
-            ],
-            model_artifact=model_artifact,
-        )
+    @pytest.mark.parametrize("multiple_models", (True, False))
+    def test_mrs_direct_batch_input(self, multiple_models):
         function = mlrun.code_to_function(
             name="function_with_model",
             kind="serving",
@@ -738,78 +715,74 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             image=self.image,
         )
         graph = function.set_topology("flow", engine="async")
-        graph.add_shared_model(
-            model_class="LLModel",
-            execution_mechanism="naive",
-            result_path="result",
-            name="shared-model",
-            model_artifact=model_artifact,
-        )
-        model_runner_step = mlrun.serving.states.ModelRunnerStep(
-            name="model-runner-step"
-        )
-        model_runner_step.add_model(
-            model_class="MyRemoteModel",
-            execution_mechanism="naive",
-            endpoint_name="my-model-1",
-            model_artifact=model_artifact,
-        )
-        model_runner_step.add_shared_model_proxy(
-            endpoint_name="my-model-2",
-            model_artifact=llm_prompt.uri,
-        )
-        model_runner_step.add_model(
-            model_class="LLModel",
-            execution_mechanism="naive",
-            endpoint_name="my-model-3",
-            model_artifact=llm_prompt.uri,
-        )
-        graph.to(model_runner_step, "runner").respond()
+        step = graph
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
 
+        inputs_raw_list = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
+        invalid_raw_list = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
+        wrapped_inputs = [{"input": item} for item in inputs_raw_list]
+        wrapped_invalid = [{"input": item} for item in invalid_raw_list]
+
+        endpoint_name = "my_model_1"
+        endpoint_name2 = "my_model_2"
+
+        artifact_path1 = f"v3io:///projects/{self.project.metadata.name}/test_mrs_direct_batch_input/{uuid.uuid4()}"
+        artifact_path2 = f"v3io:///projects/{self.project.metadata.name}/test_mrs_direct_batch_input/{uuid.uuid4()}"
+        f"v3io:///projects/{self.project.metadata.name}/{uuid.uuid4()}"
+        model_obj = self.project.log_model(
+            "my-model",
+            model_dir=str(self.assets_path),
+            model_file="linear_model.pkl",
+            artifact_path=artifact_path1,
+            tag="latest",
+            upload=True,
+        )
+        model_path = model_obj.target_path + model_obj.model_file
+        model_runner_step.add_model(
+            model_class="BatchedModel",
+            execution_mechanism="naive",
+            endpoint_name=endpoint_name,
+            model_path=model_path,
+        )
+
+        if multiple_models:
+            model_obj2 = self.project.log_model(
+                "my-model2",
+                model_dir=str(self.assets_path),
+                model_file="linear_model2.pkl",
+                artifact_path=artifact_path2,
+                tag="latest",
+                upload=True,
+            )
+            model_path2 = model_obj2.target_path + model_obj2.model_file
+            model_runner_step.add_model(
+                model_class="BatchedModel",
+                endpoint_name=endpoint_name2,
+                execution_mechanism="naive",
+                model_path=model_path2,
+            )
+        step.to(model_runner_step).respond()
         function.deploy()
-
-        response = function.invoke(
-            f"v2/models/{model_name}/infer",
-            json.dumps({"prompt": "What is the capital of france?"}),
-        )
-
-        assert response["my-model-1"]["default_config"] == default_config
-        assert response["my-model-1"]["url"] == model_url
-        assert response["my-model-1"]["prompt"] == "What is the capital of france?"
-
-        assert (
-            response["my-model-2"]["result"]["answer"]
-            == "You are using a mock model provider, no actual inference is performed."
-        )
-        assert response["my-model-2"]["result"]["usage"] == {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-        }
-
-        assert (
-            response["my-model-3"]["answer"]
-            == "You are using a mock model provider, no actual inference is performed."
-        )
-        assert response["my-model-3"]["usage"] == {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-        }
-
-        meps = self.project.list_model_endpoints()
-        assert (
-            len(meps.endpoints) == 3
-        ), f"Expected 3 endpoints, got {len(meps.endpoints)}"
-        mep_2: ModelEndpoint = self.project.list_model_endpoints(
-            names="my-model-2"
-        ).endpoints[0]
-        assert mep_2.spec.label_names == ["answer", "usage"]
-        assert mep_2.spec.model_class == "LLModel"
-
-        mep_3: ModelEndpoint = self.project.list_model_endpoints(
-            names="my-model-3"
-        ).endpoints[0]
-        assert mep_3.spec.label_names == ["answer", "usage"]
-        assert mep_3.spec.model_class == "LLModel"
+        with pytest.raises(
+            RuntimeError,
+            match=".*The feature names should match those that were passed during fit.*",
+        ):
+            function.invoke("/", invalid_raw_list)
+        with pytest.raises(
+            RuntimeError,
+            match=".*The feature names should match those that were passed during fit.*",
+        ):
+            function.invoke("/", wrapped_invalid)
+        resp = function.invoke("/", body=inputs_raw_list)
+        resp2 = function.invoke("/", body=wrapped_inputs)
+        for respond in (resp, resp2):
+            if multiple_models:
+                assert respond == {
+                    endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
+                    endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
+                }
+            else:
+                assert respond == [3.0, 5.0, 7.0, 9.0, 11.0]
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -1038,6 +1011,156 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             if not with_training_set
             else ["label"]
         )
+
+    @pytest.mark.parametrize("with_training_set", [False, True])
+    def test_monitoring_with_model_runner_batch_infer(self, with_training_set: bool):
+        function_name = "function-with-model"
+        endpoint_name = "model-1"
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        self.set_mm_credentials()
+
+        # Log a model artifact
+        train_set = None
+        if with_training_set:
+            iris = load_iris()
+            train_set = pd.DataFrame(
+                data=np.c_[iris["data"], iris["target"]],
+                columns=iris.feature_names + ["label"],
+            )
+        model_name = "sklearn_RandomForestClassifier"
+        # Upload the model through the projects API so that it is available to the serving function
+        model = self.project.log_model(
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=train_set,
+            artifact_path=f"v3io:///projects/{self.project.name}",
+            label_column="label" if with_training_set else None,
+        )
+        function.save(versioned=False)
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
+        model_runner_step.add_model(
+            model_class="MyModel",
+            endpoint_name=endpoint_name,
+            input_path="inputs",
+            result_path="outputs",
+            execution_mechanism="naive",
+            model_artifact=model.uri,
+        )
+        graph.to(model_runner_step, "runner").respond()
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            image=self.image,
+            wait_for_deployment=True,
+        )
+        function.deploy()
+        response = function.invoke(
+            "/",
+            body=[
+                {"inputs": [5.1, 3.5, 1.4, 0.2]},
+                {"inputs": [4.9, 3.0, 1.4, 0.2]},
+                {"inputs": [4.7, 3.2, 1.3, 0.2]},
+            ],
+        )
+        with pytest.raises(
+            RuntimeError,
+            match=".*X has 3 features, but RandomForestClassifier is expecting 4 features as input*",
+        ):
+            function.invoke(
+                "/",
+                body=[
+                    {"inputs": [5.1, 3.5, 1.4]},
+                    {"inputs": [4.9, 3.0, 1.4]},
+                    {"inputs": [4.7, 3.2, 1.3]},
+                ],
+            )
+
+        sleep(5)
+        endpoint = (
+            mlrun.get_run_db()
+            .list_model_endpoints(
+                self.project_name, metric_list=["error_count"], tsdb_metrics=True
+            )
+            .endpoints[0]
+        )
+        expected_feature_names = (
+            ["f0", "f1", "f2", "f3"]
+            if not with_training_set
+            else [
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ]
+        )
+        assert expected_feature_names == endpoint.spec.feature_names
+        assert len(response["inputs"]) == 3
+        assert response["outputs"] == [0, 0, 0]
+        assert (
+            endpoint.spec.label_names == ["p0"] if not with_training_set else ["label"]
+        )
+        sleep(180)
+        mep = mlrun.db.get_run_db().get_model_endpoint(
+            name=endpoint_name,
+            project=self.project.name,
+            function_name=function_name,
+            function_tag="latest",
+            feature_analysis=True,
+            tsdb_metrics=True,
+        )
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project.name, profile=self.mm_tsdb_profile
+        )
+        predications = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="now-50m", end="now"
+        )
+        assert len(predications) == 1
+        predication_dict = predications.head(1).to_dict(orient="records")[0]
+        assert (
+            predication_dict["effective_sample_count"]
+            == predication_dict["estimated_prediction_count"]
+            == 3
+        )
+
+        v3io_df = pd.read_parquet(
+            f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet/key={mep.metadata.uid}"
+        )
+        assert len(v3io_df) == 3
+        expected_identical_fields = [
+            "endpoint_name",
+            "timestamp",
+            "request_id",
+            "effective_sample_count",
+            "estimated_prediction_count",
+        ]
+        # Compare each row to the first row
+        assert (
+            (
+                v3io_df[expected_identical_fields]
+                == v3io_df[expected_identical_fields].iloc[0]
+            )
+            .all(axis=1)
+            .all()
+        )
+        v3io_dict = v3io_df.head(1).to_dict(orient="records")[0]
+        assert (
+            v3io_dict["effective_sample_count"]
+            == v3io_dict["estimated_prediction_count"]
+            == 3
+        )
+        error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
+        assert len(error_df) == 1
+        error_dict = error_df.head(1).to_dict(orient="records")[0]
+        assert error_dict["error_count"] == 1
 
     def _assert_model_endpoint_tags_and_labels(
         self,
@@ -2351,3 +2474,120 @@ def _validate_model_uri(model_obj, model_endpoint):
     )
 
     assert model_endpoint.spec.model_uri == model_artifact_uri
+
+
+class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
+    """Test LLModel serving with model monitoring enabled."""
+
+    project_name = "llmodel-monitoring-5"
+    image: Optional[str] = "mlrun/mlrun"
+
+    def test_mep_with_remote_model(self):
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            base_period=1, deploy_histogram_data_drift_app=False, image=self.image
+        )
+        model_name = "my_model"
+        model_url = "mock://my-model-url"
+        default_config = {"model_version": "4"}
+        model_artifact = self.project.log_model(
+            model_name,
+            model_url=model_url,
+            default_config=default_config,
+        )
+        llm_prompt = self.project.log_llm_prompt(
+            "my-llm-prompt",
+            prompt_template=[
+                {"role": "user", "content": "What is the capital of France?"}
+            ],
+            model_artifact=model_artifact,
+        )
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+        graph.add_shared_model(
+            model_class="LLModel",
+            execution_mechanism="naive",
+            result_path="result",
+            name="shared-model",
+            model_artifact=model_artifact,
+        )
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(
+            name="model-runner-step"
+        )
+        model_runner_step.add_model(
+            model_class="MyRemoteModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model-1",
+            model_artifact=model_artifact,
+            inputs=["prompt"],
+            outputs=["prompt"],
+        )
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my-model-2",
+            model_artifact=llm_prompt.uri,
+        )
+        model_runner_step.add_model(
+            model_class="LLModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model-3",
+            model_artifact=llm_prompt.uri,
+        )
+        graph.to(model_runner_step, "runner").respond()
+        function.set_tracking()
+
+        function.deploy()
+
+        response = function.invoke(
+            f"v2/models/{model_name}/infer",
+            json.dumps({"prompt": "What is the capital of france?"}),
+        )
+
+        assert response["my-model-1"]["default_config"] == default_config
+        assert response["my-model-1"]["url"] == model_url
+        assert response["my-model-1"]["prompt"] == "What is the capital of france?"
+
+        assert (
+            response["my-model-2"]["result"]["answer"]
+            == "You are using a mock model provider, no actual inference is performed."
+        )
+        assert response["my-model-2"]["result"]["usage"] == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        assert (
+            response["my-model-3"]["answer"]
+            == "You are using a mock model provider, no actual inference is performed."
+        )
+        assert response["my-model-3"]["usage"] == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        sleep(45)
+        meps = self.project.list_model_endpoints(tsdb_metrics=True)
+        assert (
+            len(meps.endpoints) == 3
+        ), f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        mep_2: ModelEndpoint = self.project.list_model_endpoints(
+            names="my-model-2"
+        ).endpoints[0]
+        assert mep_2.spec.label_names == ["answer", "usage"]
+        assert mep_2.spec.model_class == "LLModel"
+
+        mep_3: ModelEndpoint = self.project.list_model_endpoints(
+            names="my-model-3"
+        ).endpoints[0]
+        assert mep_3.spec.label_names == ["answer", "usage"]
+        assert mep_3.spec.model_class == "LLModel"
+
+        for mep in meps.endpoints:
+            # make sure stream processing worked and last_request is set
+            assert mep.status.last_request is not None

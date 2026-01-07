@@ -97,3 +97,6 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     else \
       echo "Skipping iguazio install for Python ${MLRUN_PYTHON_VERSION}"; \
     fi
+
+# plant uv for next phases usage
+COPY --from=uv-image /uv /bin/uv

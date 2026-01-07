@@ -23,7 +23,6 @@ from typing import Optional, Union
 import requests.exceptions
 from nuclio.build import mlrun_footer
 
-import mlrun.auth.utils
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
@@ -460,8 +459,6 @@ class BaseRuntime(ModelObj):
             # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
-
-        mlrun.auth.utils.enrich_auth_env(runtime_env)
 
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
@@ -954,6 +951,35 @@ class BaseRuntime(ModelObj):
                         if "default" in p:
                             line += f", default={p['default']}"
                         print("    " + line)
+
+    def remove_auth_secret_volumes(self):
+        secret_name_prefix = (
+            mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+                hashed_access_key=""
+            )
+        )
+        volumes = self.spec.volumes or []
+        mounts = self.spec.volume_mounts or []
+
+        volumes_to_remove = set()
+
+        # Identify volumes to remove
+        for vol in volumes:
+            secret_name = mlrun.utils.get_in(vol, "secret.secretName", "")
+
+            # Pattern of auth secret volumes
+            if secret_name.startswith(secret_name_prefix):
+                volumes_to_remove.add(vol["name"])
+
+        # Filter out only the matched volumes
+        self.spec.volumes = [
+            volume for volume in volumes if volume["name"] not in volumes_to_remove
+        ]
+
+        # Filter out matching mounts
+        self.spec.volume_mounts = [
+            mount for mount in mounts if mount["name"] not in volumes_to_remove
+        ]
 
     def skip_image_enrichment(self):
         return False

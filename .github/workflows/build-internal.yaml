@@ -61,6 +61,10 @@ on:
         description: 'The GitHub runner to use for building images (e.g., ubuntu-latest, self-hosted)'
         default: 'ubuntu-latest'
         type: string
+      is_private_release:
+        description: 'Whether this is a private release build'
+        default: 'false'
+        type: string
 
 jobs:
   matrix_prep:
@@ -140,14 +144,17 @@ jobs:
           input_docker_repo=$INPUT_DOCKER_REPO && \
           default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
           echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
+
         echo "mlrun_docker_registries=$( \
-          input_docker_registries=$INPUT_DOCKER_REGISTRIES && \
-          echo ${input_docker_registries:-ghcr.io/})" >> $GITHUB_OUTPUT
+          if [ \"${{ inputs.is_private_release }}\" = \"true\" ]; then \
+            echo \"${{ secrets.ARTIFACTORY_URL }}/\"; \
+          else \
+            echo ${{ inputs.docker_registries || 'ghcr.io/' }}; \
+          fi)" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
       env:
         INPUT_VERSION: ${{ inputs.version }}
         INPUT_DOCKER_REPO: ${{ inputs.docker_repo }}
-        INPUT_DOCKER_REGISTRIES: ${{ inputs.docker_registries }}
 
     - name: Docker login (ghcr)
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0

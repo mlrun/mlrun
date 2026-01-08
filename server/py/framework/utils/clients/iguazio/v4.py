@@ -14,8 +14,6 @@
 import typing
 
 import httpx
-
-# iguazio package is only supported in Python >= 3.11
 import iguazio
 import sqlalchemy.orm
 from iguazio.schemas import (
@@ -44,7 +42,7 @@ class Client(BaseClient, project_follower.Member):
         self._client = iguazio.Client(
             api_url=self._api_url,
             auto_login=False,
-            load_token_file=False,
+            use_token_file=False,
             verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
         )
 

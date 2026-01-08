@@ -17,9 +17,13 @@ import typing
 import semver
 
 import mlrun
+import mlrun.auth.utils
+import mlrun.common.constants
 import mlrun.common.schemas
 from mlrun.common.schemas import ProjectOut, WorkflowSpec
 from mlrun.utils import logger
+
+import framework.utils.singletons.k8s
 
 
 def resolve_client_default_kfp_image(
@@ -69,3 +73,28 @@ def resolve_client_default_kfp_image(
         resolved_image=image,
     )
     return image
+
+
+def resolve_auth_token_secret_name(
+    provided_token_name: typing.Optional[str], username: typing.Optional[str]
+) -> typing.Optional[str]:
+    """
+    Resolve the name of the secret that holds the user's auth token. Performs enrichment and validation of the
+    token name.
+    :param provided_token_name: The name of the token provided by the user, if any.
+    :param username: The username for which the token is being resolved.
+
+    :return: The name of the secret that holds the user's auth token.
+    """
+    if mlrun.mlconf.is_iguazio_v4_mode():
+        # In ML-11600, we will implement a proper resolution logic that checks all secret tokens
+        # of the user and finds a valid one if no token name is provided
+        # If token name not provided, use default
+        token_name = (
+            provided_token_name
+            or mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME
+        )
+        secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(
+            username=username, token_name=token_name
+        )
+        return secret.metadata.name if secret else None

@@ -15,5 +15,4 @@
 from mlrun.common.schemas import ModelEndpoint, ModelEndpointList
 
 from .db import get_tsdb_connector
-from .db._schedules import delete_model_monitoring_schedules_user_folder
 from .helpers import get_stream_path

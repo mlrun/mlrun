@@ -682,6 +682,9 @@ default_config = {
             # When True, automatically create/generate database name using system_id if not explicitly
             # specified in the connection string. When False, use the database from connection string as-is.
             "auto_create_database": True,
+            # Connection pool timeout in seconds. This is the maximum time to wait for a connection
+            # from the pool before raising an error.
+            "connection_pool_timeout": 120,
         },
     },
     "secret_stores": {

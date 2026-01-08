@@ -103,6 +103,7 @@ def min_nuclio_versions(*versions):
 class AsyncSpec:
     enabled: bool = True
     max_connections: typing.Optional[int] = None
+    connection_availability_timeout: typing.Optional[int] = None
 
 
 class NuclioSpec(KubeResourceSpec):
@@ -463,7 +464,7 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers: typing.Optional[int] = 8,
+        workers: typing.Optional[int] = None,
         port: typing.Optional[int] = None,
         host: typing.Optional[str] = None,
         paths: typing.Optional[list[str]] = None,
@@ -483,7 +484,8 @@ class RemoteRuntime(KubeResource):
         if the max time a request will wait for until it will start processing, gateway_timeout must be greater than
         the worker_timeout.
 
-        :param workers:    number of worker processes (default=8). set 0 to use Nuclio's default workers count
+        :param workers: Number of worker processes. Defaults to 8 in synchronous mode and
+                        1 in asynchronous mode. Set to 0 to use Nuclio’s default worker count.
         :param port:       TCP port to listen on. by default, nuclio will choose a random port as long as
                            the function service is NodePort. if the function service is ClusterIP, the port
                            is ignored.
@@ -510,11 +512,15 @@ class RemoteRuntime(KubeResource):
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
             )
 
+        if async_spec and async_spec.enabled:
+            workers = 1 if workers is None else workers
+        else:
+            workers = 8 if workers is None else workers
+
         annotations = annotations or {}
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
-        if workers is None:
-            workers = 0
+
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(
@@ -556,7 +562,8 @@ class RemoteRuntime(KubeResource):
             if async_spec.enabled:
                 trigger._struct["mode"] = "async"
                 trigger._struct["async"] = {
-                    "maxConnections": async_spec.max_connections
+                    "maxConnectionsNumber": async_spec.max_connections,
+                    "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,
                 }
 
         self.add_trigger(trigger_name or "http", trigger)

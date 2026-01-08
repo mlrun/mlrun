@@ -65,6 +65,8 @@ jobs:
       is_feature_branch: ${{ steps.resolve.outputs.is_feature_branch }}
       version: ${{ steps.resolve.outputs.version }}
       previous_version: ${{ steps.resolve.outputs.previous_version }}
+      artifactory_docker_registry: ${{ steps.resolve.outputs.artifactory_docker_registry }}
+      artifactory_pypi_repo: ${{ steps.resolve.outputs.artifactory_pypi_repo }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
     steps:
       - uses: actions/checkout@v6
@@ -90,6 +92,8 @@ jobs:
           echo "is_feature_branch=$(python ./automation/version/version_file.py is-feature-branch)" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
+          echo "artifactory_docker_registry=${{ secrets.ARTIFACTORY_URL }}/${ARTIFACTORY_DOCKER_REPO}/" >> $GITHUB_OUTPUT
+          echo "artifactory_pypi_repo=${{ secrets.ARTIFACTORY_URL }}/${ARTIFACTORY_PYPI_REPO}" >> $GITHUB_OUTPUT
           echo "ui_ref=${UI_REF_INPUT:-`echo ${{ github.ref_name }}`}" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
         env:
@@ -104,7 +108,7 @@ jobs:
     needs: prepare-inputs
     uses: ./.github/workflows/build-internal.yaml
     with:
-      docker_registries: "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/
+      docker_registries: ${{ needs.prepare-inputs.outputs.artifactory_docker_registry }}
       version: ${{ needs.prepare-inputs.outputs.version }}
       runner: 'self-hosted'
     secrets: inherit
@@ -130,7 +134,7 @@ jobs:
           workflow_file_name: build.yaml
           ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
           wait_interval: 60
-          client_payload: '{"docker_registries": "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/", "runner" : "self-hosted", "version": "${{ needs.prepare-inputs.outputs.version }}"}'
+          client_payload: '{"docker_registries": "${{ needs.prepare-inputs.outputs.artifactory_docker_registry }}", "runner" : "self-hosted", "version": "${{ needs.prepare-inputs.outputs.version }}"}'
 
   publish-to-artifactory:
     name: Publish package to Artifactory PyPI
@@ -149,7 +153,7 @@ jobs:
       - name: Build & push to Artifactory PyPI
         env:
           MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
-          UV_PUBLISH_URL: https://${{ secrets.ARTIFACTORY_URL }}/artifactory/api/pypi/${{ inputs.artifactory_pypi_repo }}
+          UV_PUBLISH_URL: https://${{ secrets.ARTIFACTORY_URL }}/artifactory/api/pypi/${{ github.event.inputs.artifactory_pypi_repo }}
           UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
           UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
         run: uv run --no-project --with packaging~=25.0 make publish-package

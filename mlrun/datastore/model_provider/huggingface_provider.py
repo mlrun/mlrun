@@ -326,7 +326,7 @@ class HuggingFaceProvider(ModelProvider):
         for i, single_response in enumerate(batch_response):
             processed = self._response_handler(
                 messages=prompts[i],
-                response=[single_response],
+                response=single_response,
                 invoke_response_format=invoke_response_format,
             )
             results.append(processed)

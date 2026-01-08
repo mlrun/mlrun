@@ -26,6 +26,7 @@ __all__ = [
     "KubeResource",
     "ApplicationRuntime",
     "MpiRuntimeV1",
+    "RuntimeKinds",
 ]
 
 import typing
@@ -34,7 +35,7 @@ from mlrun.runtimes.utils import resolve_spark_operator_version
 
 from ..common.runtimes.constants import MPIJobCRDVersions
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
-from .constants import RuntimeKinds
+from .constants import RuntimeKindsBase
 from .daskjob import DaskCluster  # noqa
 from .databricks_job.databricks_runtime import DatabricksRuntime
 from .kubejob import KubejobRuntime, KubeResource  # noqa
@@ -56,37 +57,45 @@ from .sparkjob import Spark3Runtime
 from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip
 
 
-def resolve_nuclio_runtime(kind: str, sub_kind: str):
-    kind = kind.split(":")[0]
-    if kind not in RuntimeKinds.nuclio_runtimes():
-        raise ValueError(
-            f"Kind {kind} is not a nuclio runtime, available runtimes are {RuntimeKinds.nuclio_runtimes()}"
-        )
+class RuntimeKinds(RuntimeKindsBase):
+    """
+    Public `RuntimeKinds` API exposed from `mlrun.runtimes`.
 
-    if sub_kind == serving_subkind:
-        return ServingRuntime()
+    We intentionally keep `mlrun/runtimes/constants.py` free of imports from nuclio runtimes
+    to avoid import cycles.
+    Nuclio resolver helpers therefore live here, where nuclio runtime classes are already imported by this package.
+    """
 
-    if kind == RuntimeKinds.application:
-        return ApplicationRuntime()
+    @staticmethod
+    def resolve_nuclio_runtime(kind: str, sub_kind: str):
+        kind = kind.split(":")[0]
+        if kind not in RuntimeKinds.nuclio_runtimes():
+            raise ValueError(
+                f"Kind {kind} is not a nuclio runtime, "
+                f"available runtimes are {RuntimeKinds.nuclio_runtimes()}"
+            )
 
-    runtime = RemoteRuntime()
-    runtime.spec.function_kind = sub_kind
-    return runtime
+        # These names are imported at module level below; referenced at call-time (no imports here).
+        if sub_kind == serving_subkind:
+            return ServingRuntime()
 
+        if kind == RuntimeKinds.application:
+            return ApplicationRuntime()
 
-def resolve_nuclio_sub_kind(kind: str):
-    is_nuclio = kind.startswith("nuclio")
-    sub_kind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
-    if kind == RuntimeKinds.serving:
-        is_nuclio = True
-        sub_kind = serving_subkind
-    elif kind == RuntimeKinds.application:
-        is_nuclio = True
-    return is_nuclio, sub_kind
+        runtime = RemoteRuntime()
+        runtime.spec.function_kind = sub_kind
+        return runtime
 
-
-RuntimeKinds.resolve_nuclio_runtime = staticmethod(resolve_nuclio_runtime)
-RuntimeKinds.resolve_nuclio_sub_kind = staticmethod(resolve_nuclio_sub_kind)
+    @staticmethod
+    def resolve_nuclio_sub_kind(kind: str):
+        is_nuclio = kind.startswith("nuclio")
+        sub_kind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
+        if kind == RuntimeKinds.serving:
+            is_nuclio = True
+            sub_kind = serving_subkind
+        elif kind == RuntimeKinds.application:
+            is_nuclio = True
+        return is_nuclio, sub_kind
 
 
 def new_model_server(

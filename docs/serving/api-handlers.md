@@ -1,7 +1,7 @@
 (api-handlers)=
 # API handlers
 
-API handlers perform preprocessing on serving graphs, to, for example, add runtime configuration and administration handlers that perform modifications on the graph without having to re-deploy it.
+API handlers perform preprocessing on serving graphs to add, for example, runtime configuration and administration handlers that perform modifications on the graph without having to re-deploy it.
 API handlers: 
 - Support industry-defined API schemas, such as OpenAI interface for LLMs served by the graph
 - Implement the v2 KFServing REST API (https://kserve.github.io/website/0.8/modelserving/inference_api/)

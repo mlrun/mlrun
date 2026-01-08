@@ -33,6 +33,9 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # mainly used for mlrun and mlrun-gpu.
 MLRUN_PYTHON_VERSION ?= 3.11
 
+# Ruff command - defaults to "python -m ruff", set to "ruff" to use global ruff
+MLRUN_RUFF_CMD ?= python -m ruff
+
 # Centralized MySQL image tag for tests and tooling (overridable)
 MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
 
@@ -864,8 +867,8 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 .PHONY: fmt-ruff
 fmt-ruff: ## Format the code using Ruff
 	@echo "Running ruff checks and fixes..."
-	ruff check --fix-only
-	ruff format
+	$(MLRUN_RUFF_CMD) check --fix-only
+	$(MLRUN_RUFF_CMD) format
 
 .PHONY: fmt
 fmt: fmt-ruff ## Format the code using Ruff and blacken-docs
@@ -891,9 +894,9 @@ lint: lint-ruff lint-imports ## Run lint on the code
 .PHONY: lint-ruff
 lint-ruff: ## Check the code (using ruff)
 	@echo "Running ruff checks..."
-	ruff check --exit-non-zero-on-fix
-	ruff check --preview --select=CPY001 --exit-non-zero-on-fix
-	ruff format --check
+	$(MLRUN_RUFF_CMD) check --exit-non-zero-on-fix
+	$(MLRUN_RUFF_CMD) check --preview --select=CPY001 --exit-non-zero-on-fix
+	$(MLRUN_RUFF_CMD) format --check
 
 .PHONY: lint-go
 lint-go:

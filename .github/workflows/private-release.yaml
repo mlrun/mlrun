@@ -130,7 +130,7 @@ jobs:
           workflow_file_name: build.yaml
           ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
           wait_interval: 60
-          client_payload: '{"docker_registries": "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/", "runner" : "self-hosted", "version": "${{ needs.prepare-inputs.outputs.version }}"}'
+          client_payload: "{\"docker_registries\": \"${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/\", \"runner\": \"self-hosted\", \"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
 
   publish-to-artifactory:
     name: Publish package to Artifactory PyPI

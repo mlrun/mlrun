@@ -137,7 +137,7 @@ jobs:
           default_mlrun_version=$(echo ${{ steps.git_info.outputs.unstable_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}) && \
           echo ${input_mlrun_version:-`echo $default_mlrun_version`})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_repo=$( \
-          input_docker_repo=$INPUT_DOCKER_VERSION && \
+          input_docker_repo=$INPUT_DOCKER_REPO && \
           default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
           echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registries=$( \
@@ -146,7 +146,7 @@ jobs:
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
       env:
         INPUT_VERSION: ${{ inputs.version }}
-        INPUT_DOCKER_VERSION: ${{ inputs.docker_repo }}
+        INPUT_DOCKER_REPO: ${{ inputs.docker_repo }}
         INPUT_DOCKER_REGISTRIES: ${{ inputs.docker_registries }}
 
     - name: Docker login (ghcr)

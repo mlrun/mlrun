@@ -161,7 +161,7 @@ jobs:
 
       - name: Pull, retag and push Docker image
         run: |
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${{github.repository_owner}}/${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
+          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun/${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
           
           echo "Pulling image: $SOURCE_IMAGE"
           docker pull "$SOURCE_IMAGE"
@@ -175,7 +175,7 @@ jobs:
             if [[ "$registry" == *"artifactory"* ]]; then
               TARGET_IMAGE="${registry}${{ github.event.inputs.target_artifactory_docker_repo }}/${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
             else
-              TARGET_IMAGE="${registry}${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
+              TARGET_IMAGE="${registry}mlrun/${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
             fi
             
             echo "Tagging image as: $TARGET_IMAGE"

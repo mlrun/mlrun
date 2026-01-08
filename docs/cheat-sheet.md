@@ -28,16 +28,16 @@ The cheat sheet provides simple code examples of many of MLRun's features.
 - [Hyperparameter tuning](#hyperparameter-tuning)
 
 ## MLRun setup
-Docs: [Set up your client environment](./install/remote.md), [Installation and setup guide](./install.md)
+Docs: [Set up your client environment](./setup-guide.md), [Development Guide](setup-guide.md)
 
 ### MLRun server/client overview
 
 MLRun has two main components, the service and the client (SDK+UI):
-- MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes) - see [installation documentation](./install.md) for more information
+- MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes) - see [MLRun CE installation documentation](setup-guide.md) for more information
 - MLRun client SDK is installed in your development environment via `pip` and interacts with the service using REST API calls
 
 ### Remote connection (laptop, CI/CD, etc.)
-Docs: [Configure remote environment](./install/remote.md#configure-remote-environment)
+Docs: [Configure remote environment](./setup-guide.md#configure-remote-environment)
 
 **Localhost**: Create a `mlrun.env` file for environment variables. MLRUN_DBPATH saves the URL endpoint of the MLRun APIs 
 service endpoint. Since it is localhost, username and access_key are not required:

@@ -37,7 +37,7 @@ MLRUN_PYTHON_VERSION ?= 3.11
 MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
 
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
-IGUAZIO_PACKAGE_VERSION ?= 0.0.1a20
+IGUAZIO_PACKAGE_VERSION ?= 0.0.1a22
 
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=

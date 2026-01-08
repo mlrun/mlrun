@@ -431,6 +431,11 @@ default_config = {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
                 "authentication_endpoint": "api/v1/authentication/refresh-access-token",
             },
+            "service_account": {
+                # the following are the default values for k8s service accounts, but may be changed per deployment
+                "token_expiration_seconds": 600,
+                "token_path": "/var/run/secrets/kubernetes.io/serviceaccount/token",
+            },
         },
         "nuclio": {
             # One of ClusterIP | NodePort
@@ -682,6 +687,9 @@ default_config = {
             # When True, automatically create/generate database name using system_id if not explicitly
             # specified in the connection string. When False, use the database from connection string as-is.
             "auto_create_database": True,
+            # Connection pool timeout in seconds. This is the maximum time to wait for a connection
+            # from the pool before raising an error.
+            "connection_pool_timeout": 120,
         },
     },
     "secret_stores": {

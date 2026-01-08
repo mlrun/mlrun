@@ -2149,7 +2149,7 @@ def validate_single_def_handler(function_kind: str, code: str):
     # it would override MLRun's wrapper
     if function_kind == "mlrun":
         # Find all lines that start with "def handler("
-        pattern = re.compile(r"^def handler\(", re.MULTILINE)
+        pattern = re.compile(r"^(?:async\s+)?def handler\(", re.MULTILINE)
         matches = pattern.findall(code)
 
         # Only MLRun's wrapper handler (footer) can be in the code
@@ -2601,6 +2601,15 @@ def raise_or_log_error(message: str, raise_on_error: bool = True):
     if raise_on_error:
         raise mlrun.errors.MLRunRuntimeError(message)
     logger.warning(message)
+
+
+def is_running_in_runtime() -> bool:
+    """
+    Check if the code is running inside an MLRun runtime environment.
+    :return: True if running inside an MLRun runtime, False otherwise.
+    """
+    # Check for the presence of the MLRUN_RUNTIME_KIND environment variable
+    return True if os.getenv("MLRUN_RUNTIME_KIND") else False
 
 
 def is_async_serving_graph(function_spec) -> bool:

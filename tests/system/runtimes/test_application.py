@@ -274,12 +274,10 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.spec.args = [
             "-m",
             "flask",
+            "--app=function_with_delay_healthcheck",
             "run",
             "--host=0.0.0.0",
             "--port=5000",
-        ]
-        function.spec.env = [
-            {"name": "FLASK_APP", "value": "function_with_delay_healthcheck.py"}
         ]
         function.with_http(workers=1, trigger_name="application-http")
         delay_healthcheck_source = os.path.join(
@@ -289,14 +287,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.spec.config["spec.sidecars"] = [
             {
                 "name": f"{function.metadata.name}-sidecar",
-                "image": f".mlrun/func-{self.project.metadata.name}-{function.metadata.name}:latest",
-                "ports": [
-                    {
-                        "containerPort": 5000,
-                        "name": "application-t-0",
-                        "protocol": "TCP",
-                    }
-                ],
                 "readinessProbe": {"httpGet": {"path": "/health", "port": 5000}},
             }
         ]

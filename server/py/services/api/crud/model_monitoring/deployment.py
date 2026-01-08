@@ -1686,16 +1686,15 @@ class MonitoringDeployment:
         ):
             if mlrun.mlconf.is_ce_mode():
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "MLRun CE supports only TDEngine and TimescaleDB TSDB, received a V3IO profile for the TSDB"
+                    "MLRun CE supports only TimescaleDB TSDB, received a V3IO profile for the TSDB"
                 )
         elif not isinstance(
             tsdb_profile,
-            mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
-            | mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+            mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfilePostgreSQL`."
+                "Expects `DatastoreProfileV3io` or `DatastoreProfilePostgreSQL`."
             )
 
         return tsdb_profile
@@ -1810,7 +1809,7 @@ class MonitoringDeployment:
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
         :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
-                                          Either V3IO or TDEngine profile.
+                                          Either V3IO or TimescaleDB (PostgreSQL) profile.
         :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
                                           framework. Either V3IO or KafkaSource profile.
         :param replace_creds:             If True, the credentials will be set even if they are already set.

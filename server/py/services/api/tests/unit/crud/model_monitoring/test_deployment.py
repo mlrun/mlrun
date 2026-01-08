@@ -19,7 +19,6 @@ from unittest.mock import Mock, patch
 
 import kafka.errors
 import pytest
-import taosws
 
 import mlrun.common.schemas
 import mlrun.runtimes
@@ -106,12 +105,6 @@ class TestAppDeployment:
                 monitoring_deployment.set_credentials(
                     stream_path="kafka://stream",
                     tsdb_connection="wrong",
-                )
-
-            with pytest.raises(taosws.QueryError):
-                monitoring_deployment.set_credentials(
-                    stream_path="v3io",
-                    tsdb_connection="taosws://",
                 )
 
             with pytest.raises(kafka.errors.NoBrokersAvailable):

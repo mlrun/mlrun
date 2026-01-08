@@ -108,6 +108,7 @@ jobs:
       runner: 'self-hosted'
       docker_repo: mlrun
       is_private_release: 'true'
+      build_from_cache: 'false'
     secrets: inherit
 
   trigger-and-wait-for-ui-image-building:

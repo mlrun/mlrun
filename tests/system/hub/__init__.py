@@ -11,18 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
-class BaseClass:
-    def __init__(self, context, name=None):
-        self.context = context
-        self.name = name
-
-
-class Echo(BaseClass):
-    def __init__(self, context, name=None):
-        super().__init__(context=context, name=name)
-
-    def do(self, x):
-        print("Echo:", self.name, x)
-        return x

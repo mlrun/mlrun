@@ -18,6 +18,7 @@ from typing import Optional
 import pandas as pd
 
 import mlrun
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 from mlrun.config import config
@@ -63,9 +64,6 @@ class TimescaleDBConnector(TSDBConnector):
     """
 
     type: str = mm_schemas.TSDBTarget.TimescaleDB
-
-    # Default database name prefix for auto-generated names
-    _DEFAULT_DB_PREFIX = "mlrun_mm"
 
     def __init__(
         self,
@@ -152,29 +150,15 @@ class TimescaleDBConnector(TSDBConnector):
         """
         Determine the database name to use.
 
-        Behavior depends on `mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database`:
-        - When True (default): auto-generate database name using system_id
-        - When False: use the database from the profile as-is
+        Delegates to the shared helper function to ensure consistent database naming
+        across all TimescaleDB components (connector, stream, storey targets).
 
         :param profile: The PostgreSQL profile
         :return: The database name to use
         """
-        auto_create = mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database
-
-        if not auto_create:
-            # Use database from profile as-is
-            return profile.database
-
-        # Auto-create mode: generate database name using system_id
-        if not mlrun.mlconf.system_id:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "system_id is not set in mlrun.mlconf. "
-                "TimescaleDBConnector requires system_id for auto-generating database name "
-                "when auto_create_database is enabled. "
-                "Either set system_id in MLRun configuration or disable auto_create_database "
-                "and provide an explicit database in the PostgreSQL connection string."
-            )
-        return f"{self._DEFAULT_DB_PREFIX}_{mlrun.mlconf.system_id}"
+        return mlrun.common.model_monitoring.helpers.get_tsdb_database_name(
+            profile.database
+        )
 
     # Delegate operations methods
     def create_tables(self, *args, **kwargs) -> None:

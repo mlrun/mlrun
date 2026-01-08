@@ -70,7 +70,7 @@ class TimescaleDBStoreyTarget(storey.TimescaleDBTarget):
             datastore_profile = datastore_profile_read(url)
             if not isinstance(datastore_profile, DatastoreProfilePostgreSQL):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Unexpected datastore profile type: {datastore_profile.type}. "
+                    f"Unexpected datastore profile type: {type(datastore_profile)}. "
                     "Only DatastoreProfilePostgreSQL is supported"
                 )
             # Use the shared helper to determine the correct database name

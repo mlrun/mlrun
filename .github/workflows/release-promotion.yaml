@@ -40,7 +40,7 @@ on:
         default: 'private-mlrun'
         type: string
       target_docker_registries:
-        description: 'Comma separated list of target docker registries to push promoted images to (e.g., ${{ secrets.ARTIFACTORY_URL }})'
+        description: 'Comma separated list of target docker registries to push promoted images to (e.g., ghcr.io/,quay.io/,registry.hub.docker.com/)'
         required: false
         default: 'ghcr.io/,quay.io/,registry.hub.docker.com/'
         type: string

@@ -21,7 +21,7 @@ The change log lists updates per version, open issues, limitations, and deprecat
 Upgrading these three MLRun dependencies spans several releases.  The upgrades are comprised of:
 - KFP: from 1.8 to 2.x. KFP has 2 components: the KFP service, and the KFP client package (which is used in both the MLRun service and some MLRun clients) and pipeline code (which is provided by the user). The client is not yet upgraded.
 - Pydantic: from version 1 to 2.
-- Python: from 3.9 to 3.11.
+- Python: from 3.9 to 3.11. Completed in v1.11.0.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
@@ -52,13 +52,14 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Breaking Changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-11065| Python 3.9 is not supported. <ul><li></li><li>You must rebuild custom images and migrate existing workflows to Python 3.11.</li><li>Scheduled workflows that were created using MLRun client versions < 1.11.0 and Python 3.9–based images are not modified or migrated automatically. They continue to run exactly as they were originally defined, using the same MLRun client version, the same Python runtime (3.9), and the same image reference. After you upgrade your client to v1.11.0, all existing Python 3.9-based schedules must be rebuilt and re-created to migrate them to Python 3.11, and schedules must use Python 3.11.</li></ul> |
 |ML-11482|TDEngine is deprecated and replaced with TimescaleDB. Model monitoring data in TDEngine is not migrated.|
 
 
 ### Deprecations
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-11065| Python 3.9 is not supported. <ul><li></li><li>You must rebuild custom images and migrate existing workflows to Python 3.11.</li><li>Scheduled workflows that were created using MLRun client versions < 1.11.0 and Python 3.9–based images are not modified or migrated automatically. They continue to run exactly as they were originally defined, using the same MLRun client version, the same Python runtime (3.9), and the same image reference. </li><li>When you upgrade your client to v1.11.0, all existing Python 3.9-based schedules must be rebuilt and re-created to migrate them to Python 3.11, and schedules must use Python 3.11.</li></ul> |
+
 
 
 (v1100)=

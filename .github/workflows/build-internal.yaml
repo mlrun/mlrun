@@ -169,7 +169,7 @@ jobs:
       if: contains(inputs.docker_registries, 'artifactory.iguazeng.com')
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
-        registry: artifactory.iguazeng.com:6555
+        registry: ${{ secrets.ARTIFACTORY_URL }}
         username: ${{ secrets.ARTIFACTORY_USERNAME }}
         password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 

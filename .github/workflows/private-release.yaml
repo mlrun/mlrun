@@ -92,8 +92,8 @@ jobs:
           echo "is_feature_branch=$(python ./automation/version/version_file.py is-feature-branch)" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
-          echo "artifactory_docker_registry=artifactory.iguazeng.com:6555/${ARTIFACTORY_DOCKER_REPO}/" >> $GITHUB_OUTPUT
-          echo "artifactory_pypi_repo=artifactory.iguazeng.com:6555/${ARTIFACTORY_PYPI_REPO}" >> $GITHUB_OUTPUT
+          echo "artifactory_docker_registry=${{ secrets.ARTIFACTORY_URL }}/${ARTIFACTORY_DOCKER_REPO}/" >> $GITHUB_OUTPUT
+          echo "artifactory_pypi_repo=${{ secrets.ARTIFACTORY_URL }}/${ARTIFACTORY_PYPI_REPO}" >> $GITHUB_OUTPUT
           echo "ui_ref=${UI_REF_INPUT:-`echo ${{ github.ref_name }}`}" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
         env:
@@ -153,7 +153,7 @@ jobs:
       - name: Build & push to Artifactory PyPI
         env:
           MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
-          UV_PUBLISH_URL: https://artifactory.iguazeng.com/artifactory/api/pypi/${{ github.event.inputs.artifactory_pypi_repo }}
+          UV_PUBLISH_URL: https://${{ secrets.ARTIFACTORY_URL }}/artifactory/api/pypi/${{ github.event.inputs.artifactory_pypi_repo }}
           UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
           UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
         run: uv run --no-project --with packaging~=25.0 make publish-package

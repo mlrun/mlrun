@@ -40,7 +40,7 @@ on:
         default: 'private-mlrun'
         type: string
       target_docker_registries:
-        description: 'Comma separated list of target docker registries to push promoted images to (e.g., artifactory.iguazeng.com:6555/)'
+        description: 'Comma separated list of target docker registries to push promoted images to (e.g., ${{ secrets.ARTIFACTORY_URL }})'
         required: false
         default: 'ghcr.io/,quay.io/,registry.hub.docker.com/'
         type: string
@@ -109,26 +109,27 @@ jobs:
           VERSION_INPUT: ${{ github.event.inputs.version }}
           PREVIOUS_VERSION_INPUT: ${{ github.event.inputs.previous_version }}
 
+  matrix-prep:
+    name: Prepare image matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: set-matrix
+        uses: ./.github/actions/image-matrix-prep
+        with:
+          skip_images: ${{ github.event.inputs.skip_images }}
+
   promote-docker-images:
-    name: Promote Docker images from source to target Artifactory
+    name: Promote Docker images from source to target
     runs-on: self-hosted
-    needs: prepare-inputs
+    needs: [prepare-inputs, matrix-prep]
     strategy:
       fail-fast: false
-      matrix:
-        image: [mlrun, mlrun-gpu, mlrun-kfp, mlrun-api, jupyter, log-collector, mlrun-ui]
+      matrix: ${{ fromJson(needs.matrix-prep.outputs.matrix) }}
     steps:
-      - name: Check if image should be skipped
-        id: check-skip
-        run: |
-          if [[ ",${{ github.event.inputs.skip_images }}," == *",${{ matrix.image }},"* ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Docker login (ghcr.io)
-        if: steps.check-skip.outputs.skip == 'false'
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
         with:
           registry: ghcr.io
@@ -136,7 +137,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Docker login (quay.io)
-        if: steps.check-skip.outputs.skip == 'false'
         continue-on-error: true
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
         with:
@@ -145,7 +145,6 @@ jobs:
           password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
 
       - name: Docker login (docker.com)
-        if: steps.check-skip.outputs.skip == 'false'
         continue-on-error: true
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
         with:
@@ -154,17 +153,15 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
 
       - name: Docker login (Source Artifactory)
-        if: steps.check-skip.outputs.skip == 'false'
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
         with:
-          registry: artifactory.iguazeng.com:6555
+          registry: ${{ secrets.ARTIFACTORY_URL }}
           username: ${{ secrets.ARTIFACTORY_USERNAME }}
           password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
       - name: Pull, retag and push Docker image
-        if: steps.check-skip.outputs.skip == 'false'
         run: |
-          SOURCE_IMAGE="artifactory.iguazeng.com:6555/${{ github.event.inputs.source_artifactory_docker_repo }}/${{github.repository_owner}}/${{ matrix.image }}:${{ needs.prepare-inputs.outputs.version }}"
+          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${{github.repository_owner}}/${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
           
           echo "Pulling image: $SOURCE_IMAGE"
           docker pull "$SOURCE_IMAGE"
@@ -175,10 +172,10 @@ jobs:
             registry=$(echo "$registry" | xargs)  # trim whitespace
             
             # Determine the target image based on registry
-            if [[ "$registry" == *"artifactory.iguazeng.com"* ]]; then
-              TARGET_IMAGE="${registry}${{ github.event.inputs.target_artifactory_docker_repo }}/${{ matrix.image }}:${{ needs.prepare-inputs.outputs.version }}"
+            if [[ "$registry" == *"artifactory"* ]]; then
+              TARGET_IMAGE="${registry}${{ github.event.inputs.target_artifactory_docker_repo }}/${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
             else
-              TARGET_IMAGE="${registry}${{ matrix.image }}:${{ needs.prepare-inputs.outputs.version }}"
+              TARGET_IMAGE="${registry}${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
             fi
             
             echo "Tagging image as: $TARGET_IMAGE"
@@ -187,7 +184,7 @@ jobs:
             echo "Pushing image: $TARGET_IMAGE"
             docker push "$TARGET_IMAGE"
             
-            echo "✅ Successfully promoted ${{ matrix.image }} to $registry"
+            echo "✅ Successfully promoted ${{ matrix.image-name }} to $registry"
           done
 
   promote-pypi-package:
@@ -201,7 +198,7 @@ jobs:
           mkdir -p dist
           pip download \
             --no-deps \
-            --index-url https://${{ secrets.ARTIFACTORY_USERNAME }}:${{ secrets.ARTIFACTORY_PASSWORD }}@artifactory.iguazeng.com/artifactory/api/pypi/${{ github.event.inputs.source_artifactory_pypi_repo }}/simple \
+            --index-url https://${{ secrets.ARTIFACTORY_USERNAME }}:${{ secrets.ARTIFACTORY_PASSWORD }}@${{ secrets.ARTIFACTORY_URL }}/artifactory/api/pypi/${{ github.event.inputs.source_artifactory_pypi_repo }}/simple \
             --dest dist \
             mlrun==${{ needs.prepare-inputs.outputs.version }}
           

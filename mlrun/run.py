@@ -735,7 +735,6 @@ def code_to_function(
         )
 
     """
-    filebase, _ = path.splitext(path.basename(filename))
     ignored_tags = ignored_tags or mlconf.ignored_notebook_tags
 
     def add_name(origin, name=""):

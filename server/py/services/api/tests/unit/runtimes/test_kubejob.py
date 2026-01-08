@@ -28,7 +28,6 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
 from mlrun.common.schemas import SecurityContextEnrichmentModes
-from mlrun.common.types import AuthenticationMode
 from mlrun.config import config as mlconf
 from mlrun.runtimes.mounts import auto_mount
 from mlrun.runtimes.utils import generate_resources
@@ -1445,12 +1444,7 @@ def my_func(context):
         )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
-    def test_generate_runtime_env_injects_deprecated_default_project(
-        self, db: Session, k8s_secrets_mock
-    ):
-        # TODO: Remove this test in 1.12.0
-        # This test ensures that even though MLRUN_DEFAULT_PROJECT is deprecated, it is still injected into the
-        # runtime environment for backward compatibility
+    def test_generate_default_runtime_env(self):
         runtime = self._generate_runtime()
 
         runobj = mlrun.model.RunObject.from_dict(
@@ -1459,40 +1453,20 @@ def my_func(context):
             }
         )
 
-        env = runtime._generate_runtime_env(runobj)
+        env, external_source_env = runtime._generate_runtime_env(runobj)
 
         assert env["MLRUN_ACTIVE_PROJECT"] == self.project
+        assert not deepdiff.DeepDiff(
+            json.loads(env["MLRUN_EXEC_CONFIG"]), runobj.to_dict()
+        )
+        assert env["MLRUN_NAMESPACE"] == mlrun.mlconf.namespace
 
-        # validate that the default project env var is also set for backward compatibility
+        assert external_source_env["MLRUN_RUNTIME_KIND"] is not None
+
+        # TODO: Remove this assertion in 1.12.0
+        # Ensure that the MLRUN_DEFAULT_PROJECT env var is also injected into the runtime environment for
+        # backward compatibility
         assert env["MLRUN_DEFAULT_PROJECT"] == self.project
-
-    def test_generate_runtime_env_injects_iguazio4_envs(self):
-        runtime = self._generate_runtime()
-        iguazio_api_url = "https://api.example.com"
-        runobj = mlrun.model.RunObject.from_dict(
-            {
-                "metadata": {
-                    "name": "job",
-                    "project": self.project,
-                },
-            }
-        )
-        mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
-        mlrun.mlconf.iguazio_api_url = iguazio_api_url
-        mlrun.mlconf.iguazio_api_ssl_verify = False
-
-        env = runtime._generate_runtime_env(runobj)
-
-        # Iguazio v4 auth envs are injected
-        assert env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] == "true"
-        assert env["MLRUN_AUTH_TOKEN_ENDPOINT"] == os.path.join(
-            iguazio_api_url, "api/v1/authentication/refresh-access-token"
-        )
-        assert env["MLRUN_HTTPDB__HTTP__VERIFY"] == "false"
-        assert env["MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_FILE"] == os.path.join(
-            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH,
-            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
-        )
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

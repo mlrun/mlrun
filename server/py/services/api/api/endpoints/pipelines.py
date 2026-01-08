@@ -487,6 +487,7 @@ async def _create_pipeline(
         content_type,
         data,
         arguments,
+        auth_info,
     )
 
     return {

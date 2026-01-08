@@ -92,25 +92,6 @@ class StepKinds:
     model_runner = "model_runner"
 
 
-_task_step_fields = [
-    "kind",
-    "class_name",
-    "class_args",
-    "handler",
-    "skip_context",
-    "after",
-    "function",
-    "comment",
-    "shape",
-    "full_event",
-    "on_error",
-    "responder",
-    "input_path",
-    "result_path",
-    "model_endpoint_creation_strategy",
-    "endpoint_type",
-]
-
 _default_fields_to_strip_from_step = [
     "model_endpoint_creation_strategy",
     "endpoint_type",
@@ -142,7 +123,7 @@ class BaseStep(ModelObj):
         "after",
         "on_error",
         "max_iterations",
-        "_cycle_to",
+        "cycle_from",
     ]
     _default_fields_to_strip = _default_fields_to_strip_from_step
 
@@ -166,7 +147,7 @@ class BaseStep(ModelObj):
             schemas.ModelEndpointCreationStrategy.SKIP
         )
         self._max_iterations = max_iterations
-        self._cycle_from = []
+        self.cycle_from = []
 
     def get_shape(self):
         """graphviz shape"""
@@ -465,7 +446,7 @@ class BaseStep(ModelObj):
                     f"step {step_name} doesnt exist in the graph under {self._parent.fullname}"
                 )
             root[step_name].after_step(self.name, append=True)
-            root[step_name]._cycle_from.append(self.name)
+            root[step_name].cycle_from.append(self.name)
 
         return self
 
@@ -713,7 +694,20 @@ class TaskStep(BaseStep):
     """task execution step, runs a class or handler"""
 
     kind = "task"
-    _dict_fields = _task_step_fields
+    _dict_fields = BaseStep._dict_fields + [
+        "class_name",
+        "class_args",
+        "handler",
+        "skip_context",
+        "function",
+        "shape",
+        "full_event",
+        "responder",
+        "input_path",
+        "result_path",
+        "model_endpoint_creation_strategy",
+        "endpoint_type",
+    ]
     _default_class = ""
 
     def __init__(
@@ -982,7 +976,7 @@ class ErrorStep(TaskStep):
     """error execution step, runs a class or handler"""
 
     kind = "error_step"
-    _dict_fields = _task_step_fields + ["before", "base_step"]
+    _dict_fields = TaskStep._dict_fields + ["before", "base_step"]
     _default_class = ""
 
     def __init__(
@@ -1019,7 +1013,7 @@ class RouterStep(TaskStep):
 
     kind = "router"
     default_shape = "doubleoctagon"
-    _dict_fields = _task_step_fields + ["routes", "name"]
+    _dict_fields = TaskStep._dict_fields + ["routes", "name"]
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
@@ -1765,7 +1759,8 @@ class ModelRunner(storey.ParallelExecution):
         else:
             for model in event:
                 body_by_model = event.get(model)
-                return isinstance(body_by_model, dict) and "error" in body_by_model
+                if isinstance(body_by_model, dict) and "error" in body_by_model:
+                    return True
         return False
 
 
@@ -2660,10 +2655,10 @@ class FlowStep(BaseStep):
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
                              * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
-                              create a new model endpoint entry and set it as `latest`.
+                                create a new model endpoint entry and set it as `latest`.
 
                             * **inplace** (default): If model endpoints with the same name exist, update the `latest`
-                            entry; otherwise, create a new entry.
+                                entry; otherwise, create a new entry.
 
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
@@ -2789,7 +2784,7 @@ class FlowStep(BaseStep):
         for step in self._steps.values():
             step._next = None
             step._visited = False
-            if step.after and not step._cycle_from:
+            if step.after and not step.cycle_from:
                 has_illegal_branches = len(step.after) > 1 and self.engine == "sync"
                 if has_illegal_branches:
                     raise GraphError(
@@ -2802,11 +2797,11 @@ class FlowStep(BaseStep):
                     )
             elif (
                 step.after
-                and step._cycle_from
-                and set(step.after) == set(step._cycle_from)
+                and step.cycle_from
+                and set(step.after) == set(step.cycle_from)
             ):
                 start_steps.append(step.name)
-            elif not step._cycle_from:
+            elif not step.cycle_from:
                 start_steps.append(step.name)
 
         responders = []
@@ -3206,8 +3201,8 @@ class RootFlowStep(FlowStep):
         Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
         :param name:                Name of the shared model (should be unique in the graph)
         :param model_class:         Model class name. If LLModel is chosen
-                                    (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
-                                    outputs will be overridden with UsageResponseKeys fields.
+        (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
+        outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
             * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
@@ -3215,7 +3210,7 @@ class RootFlowStep(FlowStep):
                 Lock (GIL).
 
             * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU
-            intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
+                intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
 
             * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
                 otherwise block the main event loop thread.
@@ -3223,9 +3218,9 @@ class RootFlowStep(FlowStep):
             * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
                 event loop to continue running while waiting for a response.
 
-            * **shared_executor":  Reuses an external executor (typically managed by the flow or context) to execute the
-                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
-                useful when:
+            * **shared_executor**:  Reuses an external executor (typically managed by the flow or context) to execute
+                the runnable. Should be used only if you have multiple `ParallelExecution` in the same flow and
+                especially useful when:
 
                 - You want to share a heavy resource like a large model loaded onto a GPU.
 
@@ -3239,22 +3234,22 @@ class RootFlowStep(FlowStep):
             * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or file
                 I/O. It means that the runnable will not actually be run in parallel to anything else.
 
-            :param model_artifact:      model artifact or mlrun model artifact uri
-            :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
-                                        that been configured in the model artifact, please note that those inputs need
-                                        to be equal in length and order to the inputs that model_class
-                                        predict method expects
-            :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
-                                        that been configured in the model artifact, please note that those outputs need
-                                        to be equal to the model_class
-                                        predict method outputs (length, and order)
-            :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
-                                        (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-            :param result_path:         result path inside the user output event, expect scopes to be defined by dot
-                                        notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
-                                        in path.
-            :param override:            bool allow override existing model on the current ModelRunnerStep.
-            :param model_parameters:    Parameters for model instantiation
+        :param model_artifact:      model artifact or mlrun model artifact uri
+        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
+                                    that been configured in the model artifact, please note that those inputs need
+                                    to be equal in length and order to the inputs that model_class
+                                    predict method expects
+        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
+                                    that been configured in the model artifact, please note that those outputs need
+                                    to be equal to the model_class
+                                    predict method outputs (length, and order)
+        :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
+                                    (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+        :param result_path:         result path inside the user output event, expect scopes to be defined by dot
+                                    notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
+                                    in path.
+        :param override:            bool allow override existing model on the current ModelRunnerStep.
+        :param model_parameters:    Parameters for model instantiation
         """
         if isinstance(model_class, Model) and model_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -3339,8 +3334,9 @@ class RootFlowStep(FlowStep):
     ) -> None:
         """
         Configure the resource limits for the shared models in the graph.
+
         :param max_processes: Maximum number of processes to spawn (excluding dedicated processes).
-                             Defaults to the number of CPUs or 16 if undetectable.
+            Defaults to the number of CPUs or 16 if undetectable.
         :param max_threads: Maximum number of threads to spawn. Defaults to 32.
         :param pool_factor: Multiplier to scale the number of process/thread workers per runnable. Defaults to 1.
         """

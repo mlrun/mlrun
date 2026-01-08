@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 import psycopg
 import pytest
 
+import mlrun.config
 import mlrun.errors
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     Statement,
@@ -270,3 +271,41 @@ class TestTimescaleDBConnectionIntegration:
         # Verify error message
         assert "deadlock persisted after 3 retries" in str(exc_info.value)
         assert mock_cursor.execute.call_count == 4  # Initial + 3 retries
+
+
+class TestTimescaleDBConnectionPoolTimeout:
+    """Test connection pool timeout configuration (ML-11775)."""
+
+    def test_pool_uses_configured_timeout(self):
+        """Test that ConnectionPool is created with timeout from config."""
+        # Set custom timeout in config
+        original_timeout = (
+            mlrun.config.config.model_endpoint_monitoring.tsdb.connection_pool_timeout
+        )
+        mlrun.config.config.model_endpoint_monitoring.tsdb.connection_pool_timeout = 90
+
+        try:
+            with patch(
+                "mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection.ConnectionPool"
+            ) as mock_pool_class:
+                conn = TimescaleDBConnection(
+                    dsn="postgres://test:test@localhost:5432/test",
+                    max_connections=5,
+                )
+                # Access the pool property to trigger pool creation
+                _ = conn.pool
+
+                # Verify ConnectionPool was called with the configured timeout
+                mock_pool_class.assert_called_once()
+                call_kwargs = mock_pool_class.call_args.kwargs
+                assert call_kwargs["timeout"] == 90.0
+        finally:
+            # Restore original value
+            mlrun.config.config.model_endpoint_monitoring.tsdb.connection_pool_timeout = original_timeout
+
+    def test_pool_default_timeout_is_120(self):
+        """Test that the default connection pool timeout is 120 seconds."""
+        default_timeout = (
+            mlrun.config.config.model_endpoint_monitoring.tsdb.connection_pool_timeout
+        )
+        assert default_timeout == 120

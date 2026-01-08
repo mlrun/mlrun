@@ -104,7 +104,7 @@ jobs:
     needs: prepare-inputs
     uses: ./.github/workflows/build-internal.yaml
     with:
-      docker_registries: "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/"
+      docker_registries: "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/
       version: ${{ needs.prepare-inputs.outputs.version }}
       runner: 'self-hosted'
     secrets: inherit

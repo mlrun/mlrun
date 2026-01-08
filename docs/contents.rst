@@ -7,7 +7,9 @@ Table of Contents
    
    index
    tutorials/index
-   install   
+   install-mlrun-ce/index  
+   setup-guide
+ 
 
        
 .. toctree::

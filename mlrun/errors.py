@@ -264,7 +264,7 @@ class MLRunFatalFailureError(Exception):
 
 
 class ModelRunnerError(MLRunBaseError):
-    def __init__(self, models_errors: dict[str:str], *args) -> None:
+    def __init__(self, models_errors: dict[str, str], *args) -> None:
         self.models_errors = models_errors
         super().__init__(self.__repr__(), *args)
 

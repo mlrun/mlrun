@@ -13,7 +13,6 @@
 # limitations under the License.
 import os
 import pathlib
-import pickle
 import shutil
 import tempfile
 import time
@@ -21,6 +20,7 @@ import typing
 import unittest.mock
 from copy import deepcopy
 from datetime import datetime
+from itertools import product
 from types import SimpleNamespace
 from typing import Optional, Union
 
@@ -32,12 +32,32 @@ import mlrun.common.schemas as schemas
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError, ModelRunnerError
-from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
+from mlrun.serving import (  # noqa: F401
+    LLModel,
+    Model,
+    ModelRunnerSelector,
+    ModelRunnerStep,
+    ModelSelector,
+    RouterStep,
+)
 from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results
-
-from .demo_states import *  # noqa
+from tests.serving.demo_states import (  # noqa: F401
+    Chain,
+    ChainWithContext,
+    Counter,
+    Echo,
+    EchoError,
+    LLModelWithTools,
+    ModelClass,
+    MyRemoteModel,
+    MySelector,
+    Raiser,
+    Route,
+    Tool,
+    multiply_input,
+)
 
 
 class _DummyStreamRaiser:
@@ -86,7 +106,6 @@ def test_async_basic():
 
     # plot the graph for test & debug
     flow.plot(f"{results}/serving/async.png")
-
     server = function.to_mock_server()
     server.context.visits = {}
     logger.info(f"\nAsync Flow:\n{flow.to_yaml()}")
@@ -134,11 +153,12 @@ def test_async_nested():
     graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
 
     server = function.to_mock_server()
-
-    # plot the graph for test & debug
-    graph.plot(f"{results}/serving/nested.png")
-    resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
-    server.wait_for_completion()
+    try:
+        # plot the graph for test & debug
+        graph.plot(f"{results}/serving/nested.png")
+        resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
+    finally:
+        server.wait_for_completion()
     # resp should be input (5) * multiply_input (2) * m2 multiplier (200)
     assert resp["outputs"] == 5 * 2 * 200, f"wrong health response {resp}"
 
@@ -152,12 +172,14 @@ def test_on_error():
     ).to("Chain", name="s3")
 
     function.verbose = True
-    server = function.to_mock_server()
+    try:
+        server = function.to_mock_server()
 
-    # plot the graph for test & debug
-    graph.plot(f"{results}/serving/on_error.png")
-    resp = server.test(body=[])
-    server.wait_for_completion()
+        # plot the graph for test & debug
+        graph.plot(f"{results}/serving/on_error.png")
+        resp = server.test(body=[])
+    finally:
+        server.wait_for_completion()
     if isinstance(resp, dict):
         assert (
             resp["error"] and resp["origin_state"] == "Raiser"
@@ -223,13 +245,22 @@ def test_batch():
 
 
 class MyModel(Model):
-    def __init__(self, inc: int, gpu_number: Optional[int] = None, **kwargs):
+    def __init__(
+        self, inc: int, gpu_number: Optional[int] = None, err: bool = True, **kwargs
+    ):
         super().__init__(**kwargs)
         self.inc = inc
         self.gpu_number = gpu_number
+        self.err = err
 
     def predict(self, body):
-        body["n"] += self.inc
+        try:
+            body["n"] += self.inc
+        except TypeError:
+            if self.err:
+                raise
+            else:
+                body["n"] = 1
         body.pop("models", None)
         if self.gpu_number is not None:
             body["gpu"] = self.gpu_number
@@ -242,47 +273,6 @@ class MyModel(Model):
 
     def do(self, event):
         return self.predict(event)
-
-
-class MyRemoteModel(Model):
-    def predict(self, body, **kwargs):
-        body["url"] = self.model_artifact.model_url
-        body["default_config"] = self.model_artifact.default_config
-        return body
-
-    async def predict_async(self, body, **kwargs):
-        body["async_triggered"] = "Async predict was triggered."
-        return body
-
-
-class BatchedModel(Model):
-    def __init__(self, model_path: str, **kwargs):
-        super().__init__(**kwargs)
-        self.model_path = model_path
-        self.model = None
-
-    def load(self) -> None:
-        with open(self.model_path, "rb") as f:
-            self.model = pickle.load(f)
-
-    def predict(self, body, **kwargs):
-        invocation_body = body.get("input")
-        if isinstance(invocation_body, dict):
-            # example of single invocation
-            x = pd.DataFrame([invocation_body])
-        elif isinstance(invocation_body, list):
-            x = pd.DataFrame(invocation_body)
-        else:
-            x = invocation_body
-        predictions = self.model.predict(x).tolist()
-        return [round(v, 6) for v in predictions]
-
-    @staticmethod
-    def format_batch(body: typing.Any):
-        batched_body = {"input": []}
-        for item in body:
-            batched_body["input"].append(item.get("input", item))
-        return batched_body
 
 
 class MyLLM(LLModel):
@@ -310,10 +300,9 @@ class DummyAsyncLLMWithoutAsyncPredict(LLModel):
 
 
 class MyPklModel(Model):
-    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
+    def __init__(self, name, artifact_uri, **kwargs):
         super().__init__(
             name=name,
-            raise_exception=raise_exception,
             artifact_uri=artifact_uri,
             **kwargs,
         )
@@ -590,6 +579,7 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
         endpoint_name="my_model_0",
         raise_error=False,
         inc=1,
+        err=False,
     )
     model_runner_step.add_model(
         model_class="MyModel",
@@ -600,7 +590,11 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
     )
     graph.to(model_runner_step).respond()
     _test_model_runner_raise_error_output(
-        function, raise_error, with_error, models=["my_model_0", "my_model_1"]
+        function,
+        raise_error,
+        with_error,
+        models=["my_model_0", "my_model_1"],
+        models_with_error=["my_model_1"],
     )
 
 
@@ -629,8 +623,9 @@ def test_model_runner_multiple_downstream_steps(raise_error: bool, with_error: b
 
 
 def _test_model_runner_raise_error_output(
-    function, raise_error, with_error, models=None
+    function, raise_error, with_error, models=None, models_with_error=None
 ):
+    models_with_error = models_with_error or models
     server = function.to_mock_server()
     if with_error:
         if raise_error:
@@ -642,7 +637,7 @@ def _test_model_runner_raise_error_output(
                 assert "error" in body, f"Expected error field in body got {body}"
             else:
                 assert all(
-                    "error" in body.get(model) for model in models
+                    "error" in body.get(model) for model in models_with_error
                 ), f"Expected error field for each model in body got {body}"
     else:
         if models is None or len(models) == 1:
@@ -666,11 +661,30 @@ class MyModelSelector(ModelSelector):
         return []
 
 
+class MyModelRunnerSelector(ModelRunnerSelector):
+    def __init__(self, models: Union[list[str], list[Model]]):
+        super().__init__()
+        self.models = deepcopy(models)
+
+    def select_models(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        current_models = event.body.get("models")
+        if current_models and set(current_models).issubset(set(self.models)):
+            return current_models
+        return []
+
+
 @pytest.mark.parametrize(
-    "execution_mechanism",
-    ("process_pool", "dedicated_process", "thread_pool", "asyncio", "naive"),
+    ("execution_mechanism", "selector"),
+    list(
+        product(
+            ("process_pool", "dedicated_process", "thread_pool", "asyncio", "naive"),
+            ("new", "old"),
+        )
+    ),
 )
-def test_model_runner_with_selector(execution_mechanism: str):
+def test_model_runner_with_selector(execution_mechanism: str, selector: str):
     m1 = MyModel(
         name="m1",
         execution_mechanism="naive",
@@ -680,10 +694,17 @@ def test_model_runner_with_selector(execution_mechanism: str):
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(
-        name="my_model_runner",
-        model_selector=MyModelSelector(models=["m1", "m2"]),
-    )
+    if selector == "new":
+        model_runner_step = ModelRunnerStep(
+            name="my_model_runner",
+            model_runner_selector=MyModelRunnerSelector(models=["m1", "m2"]),
+        )
+    else:
+        with pytest.warns(FutureWarning, match="model_selector.*deprecated"):
+            model_runner_step = ModelRunnerStep(
+                name="my_model_runner",
+                model_selector=MyModelSelector(models=["m1", "m2"]),
+            )
     model_runner_step.add_model(
         endpoint_name=m1.name,
         model_class=m1,
@@ -1495,72 +1516,27 @@ def test_max_iter_of_cyclic_graph(method, max_iter):
         server.wait_for_completion()
 
 
-@pytest.mark.parametrize("multiple_models", (True, False))
-@pytest.mark.parametrize("raise_exception", (True, False))
-@pytest.mark.parametrize("batching_format", ("raw_list", "input_list"))
-def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_format):
+def test_mrs_with_tools_routing():
     function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    step = graph
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
-    if batching_format == "raw_list":
-        if raise_exception:
-            inputs = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
-        else:
-            inputs = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
-    else:
-        if raise_exception:
-            inputs = [
-                {"input": {"z": 1}},
-                {"input": {"z": 2}},
-                {"input": {"z": 3}},
-                {"input": {"z": 4}},
-                {"input": {"z": 5}},
-            ]
-        else:
-            inputs = [
-                {"input": {"x": 1}},
-                {"input": {"x": 2}},
-                {"input": {"x": 3}},
-                {"input": {"x": 4}},
-                {"input": {"x": 5}},
-            ]
-    model_path = str(pathlib.Path(__file__).parent / "assets" / "linear_model.pkl")
-    model_path2 = str(pathlib.Path(__file__).parent / "assets" / "linear_model2.pkl")
-    endpoint_name = "my_model_1"
-    endpoint_name2 = "my_model_2"
-    model_runner_step.add_model(
-        model_class="BatchedModel",
-        execution_mechanism="naive",
-        endpoint_name=endpoint_name,
-        model_path=model_path,
+    graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", model_runner_selector="MySelector"
     )
+    model_runner_step.add_model(
+        model_class="LLModelWithTools",
+        execution_mechanism="naive",
+        endpoint_name="llm_with_tools",
+    )
+    runner = graph.to(model_runner_step)
+    runner.to(name="tool_a", class_name="Tool", cycle_to="my_model_runner")
+    runner.to(name="tool_b", class_name="Tool", cycle_to="my_model_runner")
+    runner.to(name="end", class_name="Echo").respond()
 
-    if multiple_models:
-        model_runner_step.add_model(
-            model_class="BatchedModel",
-            endpoint_name=endpoint_name2,
-            execution_mechanism="naive",
-            model_path=model_path2,
-        )
-    step.to(model_runner_step).respond()
     server = function.to_mock_server()
-
     try:
-        if raise_exception:
-            with pytest.raises(
-                RuntimeError,
-                match=".*The feature names should match those that were passed during fit.*",
-            ):
-                server.test(body=inputs)
-        else:
-            resp = server.test(body=inputs)
-            if multiple_models:
-                assert resp == {
-                    endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
-                    endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
-                }
-            else:
-                assert resp == [3.0, 5.0, 7.0, 9.0, 11.0]
+        resp = server.test(body={"counter": 0})
+        assert resp["counter"] == 5
+        assert resp["tool_a"] == 2
+        assert resp["tool_b"] == 2
     finally:
         server.wait_for_completion()

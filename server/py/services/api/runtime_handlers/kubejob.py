@@ -105,9 +105,9 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         run: mlrun.run.RunObject,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        extra_env = runtime._generate_runtime_env(run, auth_info)
+        extra_env = runtime._generate_k8s_runtime_env(run)
         if runtime.spec.pythonpath:
-            extra_env["PYTHONPATH"] = runtime.spec.pythonpath
+            extra_env.append({"name": "PYTHONPATH", "value": runtime.spec.pythonpath})
         args = []
         command = runtime.spec.command
         code = (
@@ -120,7 +120,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             raise ValueError('cannot use "pass" mode with handler')
 
         if code:
-            extra_env["MLRUN_EXEC_CODE"] = code
+            extra_env.append({"name": "MLRUN_EXEC_CODE", "value": code})
 
         load_archive = (
             runtime.spec.build.load_source_on_run and runtime.spec.build.source
@@ -161,7 +161,6 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             if runtime.spec.args:
                 args = [arg.format(**run.spec.parameters) for arg in runtime.spec.args]
 
-        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
         return command, args, extra_env
 
     @staticmethod

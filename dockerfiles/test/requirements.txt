@@ -1,1 +1,2 @@
 mlrun-pipelines-kfp-v1-8[kfp]~=0.6.0
+mlflow~=3.0

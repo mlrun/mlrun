@@ -16,9 +16,9 @@ import gzip
 from copy import deepcopy
 from typing import Optional, Union
 
-import semver
 from dependency_injector import containers, providers
 
+import mlrun.auth.utils
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas.schedule
@@ -451,32 +451,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}."
                     )
-                if (
-                    not client_version
-                    or semver.Version.parse(client_version)
-                    >= semver.Version.parse("1.8.0-rc20")
-                    or "unstable" in client_version
-                ):
-                    # Compress and encode the serving spec
-                    compressed_serving_spec = gzip.compress(
-                        serving_spec.encode("utf-8")
-                    )
-                    encoded_serving_spec = base64.b64encode(
-                        compressed_serving_spec
-                    ).decode("utf-8")
-                else:
-                    # TODO: remove in 1.11.0.
-                    if (
-                        serving_spec_len >= SERVING_SPEC_MAX_LENGTH / 10
-                    ):  # 1MB limitation as it were before the zip
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}."
-                        )
-                    mlrun.utils.logger.info(
-                        "Client version does not support passing serving spec as zip via ConfigMap",
-                        FutureWarning,
-                    )
-                    encoded_serving_spec = serving_spec
+                # Compress and encode the serving spec
+                compressed_serving_spec = gzip.compress(serving_spec.encode("utf-8"))
+                encoded_serving_spec = base64.b64encode(compressed_serving_spec).decode(
+                    "utf-8"
+                )
 
                 function_name = mlrun.runtimes.nuclio.function.get_fullname(
                     function.metadata.name, project, function.metadata.tag
@@ -696,36 +675,24 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     f"must be less than {staleness_threshold_seconds} seconds, got {max_delay} seconds"
                 )
 
-    # TODO In ML-11600, implement token name resolution and validation + tests
     def enrich_and_validate_auth_token_name(
         self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
     ):
-        if mlrun.mlconf.is_iguazio_v4_mode():
-            if object.spec.auth is None:
-                object.spec.auth = {}
+        if object.spec.auth is None:
+            object.spec.auth = {}
 
-            # Get the provided token name, if any
-            provided_token_name = object.spec.auth.get("token_name")
+        # Get the provided token name, if any
+        provided_token_name = object.spec.auth.get("token_name")
 
-            # Resolve token name and raise error only if token is explicitly provided by the user
-            # in ML-11600, we will implement a proper resolution logic that checks all secret tokens
-            # of the user and finds a valid one if no token name is provided
-            raise_error_on_failure = bool(provided_token_name)
-            token_name = (
-                provided_token_name
-                or mlrun.common.constants.MLRUN_JOB_AUTH_DEFAULT_TOKEN_NAME
-            )
-            self._validate_token_name(
-                token_name, raise_error_on_failure=raise_error_on_failure
-            )
+        # In ML-11600, we will implement a proper resolution logic that checks all secret tokens
+        # of the user and finds a valid one if no token name is provided
+        # If token name not provided, use default
+        token_name = (
+            provided_token_name
+            or mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME
+        )
 
-            object.spec.auth["token_name"] = token_name
-
-    # TODO implement validation in ML-11600
-    def _validate_token_name(
-        self, token_name: str, raise_error_on_failure: bool = False
-    ):
-        pass
+        object.spec.auth["token_name"] = token_name
 
 
 # Once this file is imported it will set the container server side launcher

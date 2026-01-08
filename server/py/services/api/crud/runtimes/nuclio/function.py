@@ -23,7 +23,7 @@ import nuclio.utils
 import requests
 
 import mlrun
-import mlrun.auth.utils
+import mlrun.auth.nuclio
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -91,7 +91,7 @@ def deploy_nuclio_function(
             create_new=mlrun.mlconf.httpdb.projects.leader == "mlrun",
             watch=False,
             return_address_mode=nuclio.deploy.ReturnAddressModes.all,
-            auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
+            auth_info=mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info),
         )
     except nuclio.utils.DeployError as exc:
         if exc.err:
@@ -161,7 +161,7 @@ def get_nuclio_deploy_status(
             verbose,
             resolve_address,
             return_function_status=True,
-            auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
+            auth_info=mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info),
         )
     except requests.exceptions.ConnectionError as exc:
         mlrun.errors.raise_for_status(
@@ -378,8 +378,6 @@ def _enrich_config_spec(
 
 def _resolve_env_vars(function):
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
-    mlrun.auth.utils.enrich_auth_env(env_dict)
-
     return env_dict, external_source_env_dict
 
 

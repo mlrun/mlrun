@@ -147,6 +147,15 @@ jobs:
     # publishing to artifactory after images are built successfully
     needs: [ prepare-inputs, trigger-and-wait-for-mlrun-image-building, trigger-and-wait-for-ui-image-building ]
     steps:
+
+      # TODO remove clean up 
+      - name: Cleanup build artifacts from previous runs
+        run: |
+          # Remove any root-owned build artifacts from previous runs using Docker
+          # This works even when files are owned by root
+          if [ -d "$GITHUB_WORKSPACE/server" ]; then
+            docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
+          fi      
       - uses: actions/checkout@v6
       - name: Set up uv
         uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # 7.1.5

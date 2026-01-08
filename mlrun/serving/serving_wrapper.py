@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 
 # serving runtime hooks, used in empty serving functions
 from mlrun.runtimes import nuclio_init_hook
@@ -20,5 +21,8 @@ def init_context(context):
     nuclio_init_hook(context, globals(), "serving_v2")
 
 
-def handler(context, event):
-    return context.mlrun_handler(context, event)
+async def handler(context, event):
+    result = context.mlrun_handler(context, event)
+    if asyncio.iscoroutine(result):
+        return await result
+    return result

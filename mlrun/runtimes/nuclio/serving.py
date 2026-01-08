@@ -46,7 +46,11 @@ from mlrun.utils import get_caller_globals, logger, set_paths
 
 from .. import KubejobRuntime
 from ..pod import KubeResourceSpec
-from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
+from .function import (
+    NuclioSpec,
+    RemoteRuntime,
+    min_nuclio_versions,
+)
 
 serving_subkind = "serving_v2"
 

@@ -98,7 +98,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install curl and jq
-      if: true
+      if: runner == 'ubuntu-latest'
       run: sudo apt-get install -y curl jq
 
     - name: Extract git hash, ref and latest version

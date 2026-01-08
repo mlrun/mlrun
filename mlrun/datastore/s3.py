@@ -24,6 +24,9 @@ from fsspec.registry import get_filesystem_class
 import mlrun.errors
 
 from .base import DataStore, FileStats, make_datastore_schema_sanitizer
+from .utils import parse_s3_bucket_and_key
+
+__all__ = ["parse_s3_bucket_and_key"]
 
 
 class S3Store(DataStore):
@@ -259,16 +262,3 @@ class S3Store(DataStore):
         #  In order to raise an error if there is connection error, ML-7056.
         self.filesystem.exists(path=path)
         self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
-
-
-def parse_s3_bucket_and_key(s3_path):
-    try:
-        path_parts = s3_path.replace("s3://", "").split("/")
-        bucket = path_parts.pop(0)
-        key = "/".join(path_parts)
-    except Exception as exc:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "failed to parse s3 bucket and key"
-        ) from exc
-
-    return bucket, key

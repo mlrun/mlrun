@@ -6,7 +6,7 @@ This page contains notes for configuring your development system (after installa
 
 - [Change the deployment and jobs default PVC](#change-the-deployment-and-jobs-default-pvc)
 - [Configuring the user Jupyter conda environment](#configuring-the-user-jupyter-conda-environment)
-- [Configuring TDengine and Kafka for model monitoring](#configuring-tdengine-and-kafka-for-model-monitoring)
+- [Configuring TimescaleDB and Kafka for model monitoring](#configuring-timescaledb-and-kafka-for-model-monitoring)
 
 ## Change the deployment and jobs default PVC
 A default PVC is created during the MLRun installation. If you modified the env vars before importing MLRun (to change the PVC), those values are overwritten. Change the PVC, after importing MLRun, by running this code:
@@ -45,18 +45,19 @@ pip install --user ipykernel
 python -m ipykernel install --user --name <myenv> --display-name "Python (<myenv>)"
 ```
 
-## Configuring TDengine and Kafka for model monitoring
-TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values.
+## Configuring TimescaleDB and Kafka for model monitoring
+TimescaleDB and Kafka are part of the default CE installations. These are the default TimescaleDB and Kafka installation values.
 
 The connections are managed by using [MLRun datastore profiles](https://docs.mlrun.org/en/stable/store/datastore.html#data-store-profiles). datastore profiles manage the connection credentials securely.
 ```py
 # Create and register TSDB profile
-tsdb_profile = DatastoreProfileTDEngine(
-    name=tsdb_profile_name,
-    user="root",
-    password="taosdata",
-    host=f"tdengine-tsdb",
-    port="6041",
+tsdb_profile = DatastoreProfilePostgreSQL(
+    name="my-timescaledb",
+    user="user",
+    password="pw",
+    host="192.168.226.26",
+    port=5432,
+    database="postgres"
 )
 project.register_datastore_profile(tsdb_profile)
 

@@ -37,7 +37,10 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.html#exanple-of-a-cyclic-graph), {py:meth}`BaseStep to() <~mlrun.serving.states.BaseStep.to>`, {py:meth}`QueueStep to()<~mlrun.serving.QueueStep.to>`, and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
 
-
+### Model monitoring
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10919|Model monitoring supports TimescaleDB as a TSDB platform. See {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
 
 ### UI
 | ID    |Description                                                                 |

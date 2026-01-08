@@ -299,6 +299,20 @@ class HuggingFaceProvider(ModelProvider):
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> list[Union[str, dict, list]]:
+        """
+        Internal batch processing for multiple message lists.
+
+        Note: When using InvokeResponseFormat.FULL with batch processing, the response
+        may include chat template tokens (e.g., <|user|>, <|assistant|>) in the output,
+        depending on the model's tokenizer configuration. This differs from single
+        invocations where the response format is more structured.
+
+        :param messages_list:           List of message lists to process in batch.
+        :param invoke_response_format:  Response format (STRING, USAGE, or FULL).
+        :param invoke_kwargs:           Additional kwargs for the pipeline.
+
+        :return:                        List of processed responses.
+        """
         tokenizer = self.client.tokenizer
         prompts = []
         for messages in messages_list:
@@ -335,7 +349,7 @@ class HuggingFaceProvider(ModelProvider):
 
     def invoke(
         self,
-        messages: Union[str, list[str], "ChatType", list["ChatType"], list[list[str]]],
+        messages: Union["ChatType", list["ChatType"]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, list, dict[str, Any]]:
@@ -343,13 +357,18 @@ class HuggingFaceProvider(ModelProvider):
         HuggingFace-specific implementation of model invocation using the synchronous pipeline client.
         Invokes a HuggingFace model operation for text generation tasks.
 
+        Supports both single and batch invocations:
+        - Single invocation: Pass a single ChatType (string or chat format messages)
+        - Batch invocation: Pass a list of ChatType objects for batch processing
+
         Note: Ensure your environment has sufficient computational resources (CPU/GPU and memory) to run the model.
 
         :param messages:
             Input for the text generation model. Can be provided in multiple formats:
 
+            **Single invocation:**
+
             - A single string: Direct text input for generation
-            - A list of strings: Multiple text inputs for batch processing
             - Chat format: A list of dictionaries with "role" and "content" keys:
 
             .. code-block:: json
@@ -359,11 +378,27 @@ class HuggingFaceProvider(ModelProvider):
                     {"role": "user", "content": "What is the capital of France?"}
                 ]
 
+            **Batch invocation:**
+
+            - List of chat format messages: Multiple chat conversations for batch processing:
+
+            .. code-block:: json
+
+                [
+                    [
+                        {"role": "user", "content": "What is the capital of France?"}
+                    ],
+                    [
+                        {"role": "user", "content": "What is the capital of Germany?"}
+                    ]
+                ]
+
         :param invoke_response_format: InvokeResponseFormat
             Specifies the format of the returned response. Options:
 
-            - "string": Returns only the generated text content, extracted from a single response.
-            - "usage":  Combines the generated text with metadata (e.g., token usage), returning a dictionary:
+            - "string": Returns only the generated text content. For batch invocations, returns a list of strings.
+            - "usage":  Combines the generated text with metadata (e.g., token usage). For batch invocations,
+                        returns a list of dictionaries:
 
             .. code-block:: json
                 {
@@ -381,11 +416,17 @@ class HuggingFaceProvider(ModelProvider):
                         typically a list of generated sequences (dictionaries).
                         This format does not include token usage statistics.
 
+                        Note: When using batch processing with FULL mode, the response may include
+                        chat template tokens (e.g., <|user|>, <|assistant|>) in the output.
+
         :param invoke_kwargs:
             Additional keyword arguments passed to the HuggingFace pipeline.
+            For batch invocations, you can specify 'batch_size' to control the batch processing size.
+            If not provided, defaults to mlrun.mlconf.model_providers.huggingface_default_batch_size.
 
         :return:
-            A string, dictionary, or list of model outputs, depending on `invoke_response_format`.
+            - Single invocation: A string, dictionary, or list depending on `invoke_response_format`.
+            - Batch invocation: A list of strings, dictionaries, or lists depending on `invoke_response_format`.
 
         :raises MLRunInvalidArgumentError:
             If the pipeline task is not "text-generation" or if the response contains multiple outputs when extracting

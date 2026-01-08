@@ -173,7 +173,7 @@ jobs:
             
             # Determine the target image based on registry
             if [[ "$registry" == *"artifactory"* ]]; then
-              TARGET_IMAGE="${registry}${{ github.event.inputs.target_artifactory_docker_repo }}/${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
+              TARGET_IMAGE="${registry}mlrun${{ github.event.inputs.target_artifactory_docker_repo }}/${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
             else
               TARGET_IMAGE="${registry}mlrun/${{ matrix.image-name }}:${{ needs.prepare-inputs.outputs.version }}"
             fi

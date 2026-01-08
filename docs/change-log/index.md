@@ -1541,22 +1541,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0| v1.10.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`    |`DatastoreProfileKafkaStream`|
 | v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
 | v1.12.0| v1.10.0 |`fetch_credentials_from_sys_config`                                       |NA|
-| v1.11.0| v1.11.0|TDEngine support will be removed in v1.11.0. Data will not be migrated.|MLRun will support TimescaleDB.|
-| v1.11.0| v1.8.0 |`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
-| v1.11.0| v1.8.0 |`remove_function` of MLrunProject                            |`delete_function`|
-| v1.11.0| v1.8.0 |`batch` of `ServingRuntime.set_tracking`                   |NA|
-| v1.11.0| v1.8.0 |`limit` in `MLrunProject.list_artifacts`                               |`page` and `page_size`|
-| v1.11.0| v1.8.0 |`limit` in `HTTPRunDB.list_artifacts`                                  |`page` and `page_size`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.VolumeMount`                                           |`mlrun.runtimes.mounts.VolumeMount`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.auto_mount`                                            |`.mounts.auto_mount`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_configmap`                                            |`.mounts.mount_configmap`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_hostpath`                                            |`.mounts.mount_hostpath`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_pvc`                                            |`.mounts.mount_pvc`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_s3`                                            |`.mounts.mount_s3`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_secret`                                            |`.mounts.mount_secret`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_v3io`                                            |`.mounts.mount_v3io`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.set_env_variables`                                            |`.mounts.set_env_variables`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.v3io_cred`                                            |`.mounts.v3io_cred`|
 
 
 
@@ -1564,6 +1548,22 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|API                                                    |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| v1.11.0|TDEngine support is removed in v1.11.0. Data is not migrated.|MLRun supports TimescaleDB instead.|
+| v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
+| v1.11.0|`remove_function` of MLrunProject                            |`delete_function`|
+| v1.11.0|`batch` of `ServingRuntime.set_tracking`                   |NA|
+| v1.11.0|`limit` in `MLrunProject.list_artifacts`                               |`page` and `page_size`|
+| v1.11.0|`limit` in `HTTPRunDB.list_artifacts`                                  |`page` and `page_size`|
+| v1.11.0|`mlrun.platforms.VolumeMount`                                           |`mlrun.runtimes.mounts.VolumeMount`|
+| v1.11.0|`mlrun.platforms.auto_mount`                                            |`.mounts.auto_mount`|
+| v1.11.0|`mlrun.platforms.mount_configmap`                                            |`.mounts.mount_configmap`|
+| v1.11.0|`mlrun.platforms.mount_hostpath`                                            |`.mounts.mount_hostpath`|
+| v1.11.0|`mlrun.platforms.mount_pvc`                                            |`.mounts.mount_pvc`|
+| v1.11.0|`mlrun.platforms.mount_s3`                                            |`.mounts.mount_s3`|
+| v1.11.0|`mlrun.platforms.mount_secret`                                            |`.mounts.mount_secret`|
+| v1.11.0|`mlrun.platforms.mount_v3io`                                            |`.mounts.mount_v3io`|
+| v1.11.0|`mlrun.platforms.set_env_variables`                                            |`.mounts.set_env_variables`|
+| v1.11.0|`mlrun.platforms.v3io_cred`                                            |`.mounts.v3io_cred
 | v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
 | v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
 | v1.10.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
@@ -1600,8 +1600,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                              |MLRUN_DBPATH environment variable |
 | v1.10.0|`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|
 | v1.10.0|`FunctionSpec.clone_target_dir`                                                |`ImageBuilder.source_code_target_dir`|
-| v1.10.0|
-| v1.10.0|
 | v1.8.0 |`--watch` parameter of `mlrun logs`                                                        |NA|
 | v1.8.0 |datastore `get_filesystem`                                                                 |`filesystem` property|
 | v1.8.0 |`dashboard` of `RemoteRuntime.invoke`                                                      |NA|

@@ -14,8 +14,12 @@
 
 import typing
 
+import mlrun.runtimes.nuclio as nuclio_runtime
+import mlrun.runtimes.nuclio.application as nuclio_application
+import mlrun.runtimes.nuclio.serving as nuclio_serving
 
-class RuntimeKindsBase:
+
+class RuntimeKinds:
     remote = "remote"
     nuclio = "nuclio"
     dask = "dask"
@@ -32,79 +36,79 @@ class RuntimeKindsBase:
     @staticmethod
     def all():
         return [
-            RuntimeKindsBase.remote,
-            RuntimeKindsBase.nuclio,
-            RuntimeKindsBase.serving,
-            RuntimeKindsBase.dask,
-            RuntimeKindsBase.job,
-            RuntimeKindsBase.spark,
-            RuntimeKindsBase.remotespark,
-            RuntimeKindsBase.mpijob,
-            RuntimeKindsBase.local,
-            RuntimeKindsBase.databricks,
-            RuntimeKindsBase.application,
+            RuntimeKinds.remote,
+            RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
+            RuntimeKinds.dask,
+            RuntimeKinds.job,
+            RuntimeKinds.spark,
+            RuntimeKinds.remotespark,
+            RuntimeKinds.mpijob,
+            RuntimeKinds.local,
+            RuntimeKinds.databricks,
+            RuntimeKinds.application,
         ]
 
     @staticmethod
     def runtime_with_handlers():
         return [
-            RuntimeKindsBase.dask,
-            RuntimeKindsBase.job,
-            RuntimeKindsBase.spark,
-            RuntimeKindsBase.remotespark,
-            RuntimeKindsBase.mpijob,
-            RuntimeKindsBase.databricks,
+            RuntimeKinds.dask,
+            RuntimeKinds.job,
+            RuntimeKinds.spark,
+            RuntimeKinds.remotespark,
+            RuntimeKinds.mpijob,
+            RuntimeKinds.databricks,
         ]
 
     @staticmethod
     def abortable_runtimes():
         return [
-            RuntimeKindsBase.job,
-            RuntimeKindsBase.spark,
-            RuntimeKindsBase.remotespark,
-            RuntimeKindsBase.mpijob,
-            RuntimeKindsBase.databricks,
-            RuntimeKindsBase.local,
-            RuntimeKindsBase.handler,
+            RuntimeKinds.job,
+            RuntimeKinds.spark,
+            RuntimeKinds.remotespark,
+            RuntimeKinds.mpijob,
+            RuntimeKinds.databricks,
+            RuntimeKinds.local,
+            RuntimeKinds.handler,
             "",
         ]
 
     @staticmethod
     def retriable_runtimes():
         return [
-            RuntimeKindsBase.job,
+            RuntimeKinds.job,
         ]
 
     @staticmethod
     def nuclio_runtimes():
         return [
-            RuntimeKindsBase.remote,
-            RuntimeKindsBase.nuclio,
-            RuntimeKindsBase.serving,
-            RuntimeKindsBase.application,
+            RuntimeKinds.remote,
+            RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
+            RuntimeKinds.application,
         ]
 
     @staticmethod
     def pure_nuclio_deployed_runtimes():
         return [
-            RuntimeKindsBase.remote,
-            RuntimeKindsBase.nuclio,
-            RuntimeKindsBase.serving,
+            RuntimeKinds.remote,
+            RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
         ]
 
     @staticmethod
     def handlerless_runtimes():
         return [
-            RuntimeKindsBase.serving,
+            RuntimeKinds.serving,
             # Application runtime handler is internal reverse proxy
-            RuntimeKindsBase.application,
+            RuntimeKinds.application,
         ]
 
     @staticmethod
     def local_runtimes():
         return [
-            RuntimeKindsBase.local,
-            RuntimeKindsBase.handler,
+            RuntimeKinds.local,
+            RuntimeKinds.handler,
         ]
 
     @staticmethod
@@ -116,7 +120,7 @@ class RuntimeKindsBase:
         """
         # if local run, the log collector doesn't support it as it is only supports k8s resources
         # when runtime is local the client is responsible for logging the stdout of the run by using `log_std`
-        if RuntimeKindsBase.is_local_runtime(kind):
+        if RuntimeKinds.is_local_runtime(kind):
             return False
 
         if (
@@ -127,9 +131,9 @@ class RuntimeKindsBase:
                 # logs for dask is by using `log_std` on client side after we execute the code against the cluster,
                 # as submitting the run with the dask client will return the run stdout.
                 # For more information head to `DaskCluster._run`.
-                RuntimeKindsBase.dask
+                RuntimeKinds.dask
             ]
-            + RuntimeKindsBase.nuclio_runtimes()
+            + RuntimeKinds.nuclio_runtimes()
         ):
             return True
 
@@ -138,7 +142,7 @@ class RuntimeKindsBase:
     @staticmethod
     def is_local_runtime(kind):
         # "" or None counted as local
-        if not kind or kind in RuntimeKindsBase.local_runtimes():
+        if not kind or kind in RuntimeKinds.local_runtimes():
             return True
         return False
 
@@ -158,38 +162,64 @@ class RuntimeKindsBase:
         :param kind: Runtime kind string (job, spark, serving, local, etc.)
         :return: True if function name needs k8s DNS-1123 validation, False otherwise
         """
-        return not RuntimeKindsBase.is_local_runtime(kind)
+        return not RuntimeKinds.is_local_runtime(kind)
 
     @staticmethod
     def requires_absolute_artifacts_path(kind):
         """
         Returns True if the runtime kind requires absolute artifacts' path (i.e. is local), False otherwise.
         """
-        if RuntimeKindsBase.is_local_runtime(kind):
+        if RuntimeKinds.is_local_runtime(kind):
             return False
 
         if kind not in [
             # logging artifacts is done externally to the dask cluster by a client that can either run locally (in which
             # case the path can be relative) or remotely (in which case the path must be absolute and will be passed
             # to another run)
-            RuntimeKindsBase.dask
+            RuntimeKinds.dask
         ]:
             return True
         return False
 
     @staticmethod
     def requires_image_name_for_execution(kind):
-        if RuntimeKindsBase.is_local_runtime(kind):
+        if RuntimeKinds.is_local_runtime(kind):
             return False
 
         # both spark and remote spark uses different mechanism for assigning images
-        return kind not in [RuntimeKindsBase.spark, RuntimeKindsBase.remotespark]
+        return kind not in [RuntimeKinds.spark, RuntimeKinds.remotespark]
 
     @staticmethod
     def supports_from_notebook(kind):
-        return kind not in [RuntimeKindsBase.application]
+        return kind not in [RuntimeKinds.application]
 
+    @staticmethod
+    def resolve_nuclio_runtime(kind: str, sub_kind: str):
+        kind = kind.split(":")[0]
+        if kind not in RuntimeKinds.nuclio_runtimes():
+            raise ValueError(
+                f"Kind {kind} is not a nuclio runtime, "
+                f"available runtimes are {RuntimeKinds.nuclio_runtimes()}"
+            )
 
-# Backwards compatibility: keep `mlrun.runtimes.constants.RuntimeKinds` import working.
-# The public, extended API remains `mlrun.runtimes.RuntimeKinds`.
-RuntimeKinds = RuntimeKindsBase
+        # These names are imported at module level below; referenced at call-time (no imports here).
+        if sub_kind == nuclio_serving.serving_subkind:
+            return nuclio_runtime.ServingRuntime()
+
+        if kind == RuntimeKinds.application:
+            return nuclio_application.ApplicationRuntime()
+
+        runtime = nuclio_runtime.RemoteRuntime()
+        runtime.spec.function_kind = sub_kind
+        return runtime
+
+    @staticmethod
+    def resolve_nuclio_sub_kind(kind: str):
+        is_nuclio = kind.startswith("nuclio")
+        sub_kind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
+        if kind == RuntimeKinds.serving:
+            is_nuclio = True
+            sub_kind = nuclio_serving.serving_subkind
+        elif kind == RuntimeKinds.application:
+            is_nuclio = True
+        return is_nuclio, sub_kind

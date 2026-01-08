@@ -21,27 +21,18 @@ import nuclio.auth
 import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.run
+import mlrun.runtimes.nuclio.api_gateway as nuclio_api_gateway
+import mlrun.runtimes.nuclio.function as nuclio_function
 from mlrun.common.runtimes.constants import (
     NuclioIngressAddTemplatedIngressModes,
     ProbeTimeConfig,
     ProbeType,
 )
-from mlrun.runtimes import RemoteRuntime
-from mlrun.runtimes.nuclio import (
-    min_nuclio_versions,
-    multiple_port_sidecar_is_supported,
-)
-from mlrun.runtimes.nuclio.api_gateway import (
-    APIGateway,
-    APIGatewayMetadata,
-    APIGatewaySpec,
-)
-from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
 from mlrun.utils import is_valid_port, logger, update_in
 
 
-class ApplicationSpec(NuclioSpec):
-    _dict_fields = NuclioSpec._dict_fields + [
+class ApplicationSpec(nuclio_function.NuclioSpec):
+    _dict_fields = nuclio_function.NuclioSpec._dict_fields + [
         "internal_application_port",
         "application_ports",
     ]
@@ -196,7 +187,7 @@ class ApplicationSpec(NuclioSpec):
 
         # ensure multiple ports are supported in Nuclio
         if len(application_ports) > 1:
-            multiple_port_sidecar_is_supported()
+            nuclio_function.multiple_port_sidecar_is_supported()
 
         self._application_ports = application_ports
 
@@ -222,7 +213,7 @@ class ApplicationSpec(NuclioSpec):
         self.application_ports = self._application_ports
 
 
-class ApplicationStatus(NuclioStatus):
+class ApplicationStatus(nuclio_function.NuclioStatus):
     def __init__(
         self,
         state=None,
@@ -252,15 +243,17 @@ class ApplicationStatus(NuclioStatus):
         self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
-        self.api_gateway: typing.Optional[APIGateway] = api_gateway or None
+        self.api_gateway: typing.Optional[nuclio_api_gateway.APIGateway] = (
+            api_gateway or None
+        )
         self.url = url or None
 
 
-class ApplicationRuntime(RemoteRuntime):
+class ApplicationRuntime(nuclio_function.RemoteRuntime):
     kind = "application"
     reverse_proxy_image = None
 
-    @min_nuclio_versions("1.13.1")
+    @nuclio_function.min_nuclio_versions("1.13.1")
     def __init__(self, spec=None, metadata=None):
         super().__init__(spec=spec, metadata=metadata)
 
@@ -285,7 +278,7 @@ class ApplicationRuntime(RemoteRuntime):
         return self.status.api_gateway
 
     @api_gateway.setter
-    def api_gateway(self, api_gateway: APIGateway):
+    def api_gateway(self, api_gateway: nuclio_api_gateway.APIGateway):
         self.status.api_gateway = api_gateway
 
     @property
@@ -676,13 +669,13 @@ class ApplicationRuntime(RemoteRuntime):
             port or self.spec.internal_application_port if direct_port_access else []
         )
 
-        api_gateway = APIGateway(
-            APIGatewayMetadata(
+        api_gateway = nuclio_api_gateway.APIGateway(
+            nuclio_api_gateway.APIGatewayMetadata(
                 name=name,
                 namespace=self.metadata.namespace,
                 labels=self.metadata.labels.copy(),
             ),
-            APIGatewaySpec(
+            nuclio_api_gateway.APIGatewaySpec(
                 functions=[self],
                 project=self.metadata.project,
                 path=path,
@@ -716,12 +709,14 @@ class ApplicationRuntime(RemoteRuntime):
 
         if set_as_default:
             self.status.api_gateway_name = api_gateway_scheme.metadata.name
-            self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+            self.status.api_gateway = nuclio_api_gateway.APIGateway.from_scheme(
+                api_gateway_scheme
+            )
             self.status.api_gateway.wait_for_readiness()
             self.url = self.status.api_gateway.invoke_url
             url = self.url
         else:
-            api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+            api_gateway = nuclio_api_gateway.APIGateway.from_scheme(api_gateway_scheme)
             api_gateway.wait_for_readiness()
             url = api_gateway.invoke_url
             # Update application status (enriches invocation url)
@@ -839,7 +834,7 @@ class ApplicationRuntime(RemoteRuntime):
             else self.metadata.name
         )
 
-    @min_nuclio_versions("1.13.1")
+    @nuclio_function.min_nuclio_versions("1.13.1")
     def disable_default_http_trigger(
         self,
     ):
@@ -847,7 +842,7 @@ class ApplicationRuntime(RemoteRuntime):
             "Application runtime does not support disabling the default HTTP trigger"
         )
 
-    @min_nuclio_versions("1.13.1")
+    @nuclio_function.min_nuclio_versions("1.13.1")
     def enable_default_http_trigger(
         self,
     ):
@@ -978,7 +973,9 @@ class ApplicationRuntime(RemoteRuntime):
         api_gateway_scheme = db.get_api_gateway(
             name=self.status.api_gateway_name, project=self.metadata.project
         )
-        self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+        self.status.api_gateway = nuclio_api_gateway.APIGateway.from_scheme(
+            api_gateway_scheme
+        )
         self.status.api_gateway.wait_for_readiness()
         self.url = self.status.api_gateway.invoke_url
 

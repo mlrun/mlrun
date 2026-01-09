@@ -108,6 +108,8 @@ jobs:
       runner: 'self-hosted'
       docker_repo: ${{ inputs.artifactory_docker_repo }}/mlrun
       is_private_release: 'true'
+      # On the fork the caches needs to be disabled because ghcr is hardcoded and used for caches. 
+      # Having to use mlrun ( due to some product limitations) causes permission issues on forks only, we could set this to true once merged.
       build_from_cache: 'false'
       build_to_cache: 'false'
     secrets: inherit

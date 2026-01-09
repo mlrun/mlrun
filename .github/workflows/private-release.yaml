@@ -106,7 +106,7 @@ jobs:
     with:
       version: ${{ needs.prepare-inputs.outputs.version }}
       runner: 'self-hosted'
-      docker_repo: mlrun
+      docker_repo: ${{ inputs.artifactory_docker_repo }}/mlrun
       is_private_release: 'true'
       build_from_cache: 'false'
     secrets: inherit

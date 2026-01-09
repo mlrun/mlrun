@@ -106,7 +106,7 @@ jobs:
     with:
       version: ${{ needs.prepare-inputs.outputs.version }}
       runner: 'self-hosted'
-      docker_repo: ${{ inputs.artifactory_docker_repo }}/mlrun
+      docker_repo: ${{ inputs.artifactory_docker_repo }}
       is_private_release: 'true'
       # On the fork the caches needs to be disabled because ghcr is hardcoded and used for caches. 
       # Having to use mlrun ( due to some product limitations) causes permission issues on forks only, we could set this to true once merged.

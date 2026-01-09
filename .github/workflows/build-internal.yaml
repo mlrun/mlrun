@@ -131,11 +131,15 @@ jobs:
         export unstable_tag="unstable-cache${version_suffix:+-$version_suffix}${INPUT_CACHE_TAG_SUFFIX:+-$INPUT_CACHE_TAG_SUFFIX}"
         export build_from_cache=$(if [ -z "$INPUT_BUILD_FROM_CACHE" ]; then echo "true" ; else echo "$INPUT_BUILD_FROM_CACHE";fi);
         export no_cache=$(if [ "$build_from_cache" = "false" ]; then echo "true" ; else echo "";fi);
+        export build_to_cache=$(if [ -z "$INPUT_BUILD_TO_CACHE" ]; then echo "true" ; else echo "$INPUT_BUILD_TO_CACHE";fi);
+        export push_cache=$(if [ "$build_to_cache" = "true" ]; then echo "true" ; else echo "";fi);
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
         echo "no_cache=$(echo $no_cache)" >> $GITHUB_OUTPUT
+        echo "push_cache=$(echo $push_cache)" >> $GITHUB_OUTPUT
       env:
         INPUT_BUILD_FROM_CACHE: ${{ inputs.build_from_cache }}
         INPUT_CACHE_TAG_SUFFIX: ${{ inputs.cache_tag_suffix }}
+        INPUT_BUILD_TO_CACHE: ${{ inputs.build_to_cache }}
 
     - name: Set computed versions params
       id: computed_params
@@ -208,7 +212,7 @@ jobs:
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
-            MLRUN_PUSH_DOCKER_CACHE_IMAGE=${{ inputs.build_to_cache }} \
+            MLRUN_PUSH_DOCKER_CACHE_IMAGE=${{ steps.docker_cache.outputs.push_cache }} \
             MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
             INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
             make push-${{ matrix.image-name }}; \

@@ -65,6 +65,10 @@ on:
         description: 'Whether this is a private release build'
         default: 'false'
         type: string
+      build_to_cache:
+        description: 'Whether to push built images to cache registry'
+        default: 'true'
+        type: string
 
 jobs:
   matrix_prep:
@@ -204,7 +208,7 @@ jobs:
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
-            MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
+            MLRUN_PUSH_DOCKER_CACHE_IMAGE=${{ inputs.build_to_cache }} \
             MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
             INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
             make push-${{ matrix.image-name }}; \
@@ -238,7 +242,7 @@ jobs:
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
         MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+        MLRUN_PUSH_DOCKER_CACHE_IMAGE=${{ inputs.build_to_cache }} \
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
         INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
         make push-${{ matrix.image-name }}

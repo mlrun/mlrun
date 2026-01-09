@@ -93,6 +93,7 @@ jobs:
 
     # TODO remove this step once we have self-hosted runners with proper permissions  
     - name: Cleanup build artifacts from previous runs
+      if: inputs.runner == 'self-hosted'
       run: |
         # Remove any root-owned build artifacts from previous runs using Docker
         # This works even when files are owned by root

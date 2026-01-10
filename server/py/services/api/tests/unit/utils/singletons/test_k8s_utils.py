@@ -677,17 +677,80 @@ def test_list_secrets_empty(k8s_helper):
     assert result == []
 
 
+def test_list_secrets_with_existence_check(k8s_helper):
+    """Test that None value in labels generates existence check (key only, no =value)"""
+    secret = _make_k8s_secret(
+        "secret1",
+        labels={mlrun_constants.MLRunInternalLabels.auth_token_name: "my-token"},
+    )
+
+    fake_secret_list = mock.MagicMock()
+    fake_secret_list.items = [secret]
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.list_namespaced_secret = mock.MagicMock(
+        return_value=fake_secret_list
+    )
+
+    # Pass None as value to trigger existence check
+    result = k8s_helper.list_secrets(
+        namespace="default",
+        labels={mlrun_constants.MLRunInternalLabels.auth_token_name: None},
+    )
+
+    assert result == [secret]
+    # Should generate "mlrun/token" (existence check), not "mlrun/token=None"
+    k8s_helper.v1api.list_namespaced_secret.assert_called_once_with(
+        namespace="default", label_selector="mlrun/token"
+    )
+
+
+def test_list_secrets_with_mixed_labels(k8s_helper):
+    """Test that mixed labels (some with values, some None) generate correct selector"""
+    secret = _make_k8s_secret(
+        "secret1",
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_token_name: "my-token",
+            mlrun_constants.MLRunInternalLabels.auth_username: "test-user",
+        },
+    )
+
+    fake_secret_list = mock.MagicMock()
+    fake_secret_list.items = [secret]
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.list_namespaced_secret = mock.MagicMock(
+        return_value=fake_secret_list
+    )
+
+    result = k8s_helper.list_secrets(
+        namespace="default",
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_token_name: None,  # existence check
+            mlrun_constants.MLRunInternalLabels.auth_username: "test-user",  # value check
+        },
+    )
+
+    assert result == [secret]
+    # Should generate "mlrun/token,mlrun/user=test-user"
+    k8s_helper.v1api.list_namespaced_secret.assert_called_once_with(
+        namespace="default", label_selector="mlrun/token,mlrun/user=test-user"
+    )
+
+
 def test_list_user_token_secrets_valid(k8s_helper):
     token1_name = "token1"
     token2_name = "token2"
     username = "test-user"
+    expiration1 = 1111
+    expiration2 = 2222
     secret1_name = k8s_helper._resolve_auth_secret_name(username, token1_name)
     secret2_name = k8s_helper._resolve_auth_secret_name(username, token2_name)
     secret1 = _make_user_token_secret(
-        secret1_name, token_name=token1_name, expiration=1111
+        secret1_name, token_name=token1_name, expiration=expiration1
     )
     secret2 = _make_user_token_secret(
-        secret2_name, token_name=token2_name, expiration=2222
+        secret2_name, token_name=token2_name, expiration=expiration2
     )
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
@@ -697,13 +760,20 @@ def test_list_user_token_secrets_valid(k8s_helper):
 
     assert len(result) == 2
     assert result[0].name == token1_name
-    assert result[0].expiration == 1111
+    assert result[0].expiration == datetime.datetime.fromtimestamp(
+        expiration1, tz=datetime.timezone.utc
+    )
     assert result[1].name == token2_name
-    assert result[1].expiration == 2222
+    assert result[1].expiration == datetime.datetime.fromtimestamp(
+        expiration2, tz=datetime.timezone.utc
+    )
 
     k8s_helper.list_secrets.assert_called_once_with(
         namespace="default",
-        labels={mlrun_constants.MLRunInternalLabels.auth_username: "test-user"},
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_token_name: None,
+            mlrun_constants.MLRunInternalLabels.auth_username: "test-user",
+        },
     )
 
 
@@ -718,6 +788,132 @@ def test_list_user_token_secrets_invalid_expiration(k8s_helper):
 
     result = k8s_helper.list_user_token_secrets(username=username, namespace="default")
     assert len(result) == 0
+
+    k8s_helper.list_secrets.assert_called_once_with(
+        namespace="default",
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_token_name: None,
+            mlrun_constants.MLRunInternalLabels.auth_username: "test-user",
+        },
+    )
+
+
+def test_list_user_token_secrets_all_users(k8s_helper):
+    """Test listing without username filter uses only token label existence check"""
+    token1_name = "token1"
+    token2_name = "token2"
+    expiration1 = 1111
+    expiration2 = 2222
+    secret1_name = k8s_helper._resolve_auth_secret_name("user1", token1_name)
+    secret2_name = k8s_helper._resolve_auth_secret_name("user2", token2_name)
+    secret1 = _make_user_token_secret(
+        secret1_name,
+        token_name=token1_name,
+        expiration=expiration1,
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_username: "user1",
+            mlrun_constants.MLRunInternalLabels.auth_token_name: token1_name,
+        },
+    )
+    secret2 = _make_user_token_secret(
+        secret2_name,
+        token_name=token2_name,
+        expiration=expiration2,
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_username: "user2",
+            mlrun_constants.MLRunInternalLabels.auth_token_name: token2_name,
+        },
+    )
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[secret1, secret2])
+
+    # Call without username to list all users' tokens
+    result = k8s_helper.list_user_token_secrets(username=None, namespace="default")
+
+    assert len(result) == 2
+    assert result[0].name == token1_name
+    assert result[0].username == "user1"
+    assert result[1].name == token2_name
+    assert result[1].username == "user2"
+
+    # Should only use token existence check, not username filter
+    k8s_helper.list_secrets.assert_called_once_with(
+        namespace="default",
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_token_name: None,
+        },
+    )
+
+
+def test_list_user_token_secrets_sorted(k8s_helper):
+    """Test that results are sorted by username (A-Z), then by token name (A-Z)"""
+    # Create secrets with different usernames and token names in non-sorted order
+    secrets = [
+        _make_user_token_secret(
+            k8s_helper._resolve_auth_secret_name("charlie", "ztoken"),
+            token_name="ztoken",
+            expiration=1111,
+            labels={
+                mlrun_constants.MLRunInternalLabels.auth_username: "charlie",
+                mlrun_constants.MLRunInternalLabels.auth_token_name: "ztoken",
+            },
+        ),
+        _make_user_token_secret(
+            k8s_helper._resolve_auth_secret_name("alice", "btoken"),
+            token_name="btoken",
+            expiration=2222,
+            labels={
+                mlrun_constants.MLRunInternalLabels.auth_username: "alice",
+                mlrun_constants.MLRunInternalLabels.auth_token_name: "btoken",
+            },
+        ),
+        _make_user_token_secret(
+            k8s_helper._resolve_auth_secret_name("alice", "atoken"),
+            token_name="atoken",
+            expiration=3333,
+            labels={
+                mlrun_constants.MLRunInternalLabels.auth_username: "alice",
+                mlrun_constants.MLRunInternalLabels.auth_token_name: "atoken",
+            },
+        ),
+        _make_user_token_secret(
+            k8s_helper._resolve_auth_secret_name("bob", "default"),
+            token_name="default",
+            expiration=4444,
+            labels={
+                mlrun_constants.MLRunInternalLabels.auth_username: "bob",
+                mlrun_constants.MLRunInternalLabels.auth_token_name: "default",
+            },
+        ),
+    ]
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.list_secrets = mock.MagicMock(return_value=secrets)
+
+    result = k8s_helper.list_user_token_secrets(username=None, namespace="default")
+
+    # Should be sorted: alice/atoken, alice/btoken, bob/default, charlie/ztoken
+    assert len(result) == 4
+    assert result[0].username == "alice"
+    assert result[0].name == "atoken"
+    assert result[1].username == "alice"
+    assert result[1].name == "btoken"
+    assert result[2].username == "bob"
+    assert result[2].name == "default"
+    assert result[3].username == "charlie"
+    assert result[3].name == "ztoken"
+
+
+def test_convert_secret_to_token_info_no_labels(k8s_helper):
+    """Test that secrets without labels return None"""
+    # Create a secret with no labels (metadata.labels = None)
+    secret = _make_k8s_secret("secret-no-labels")
+    secret.metadata.labels = None
+
+    result = k8s_helper._convert_secret_to_token_info(secret)
+
+    assert result is None
 
 
 def test_get_user_token_secret_value_valid(k8s_helper):

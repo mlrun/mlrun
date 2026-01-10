@@ -24,6 +24,9 @@ import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.common.secrets
 import mlrun.datastore.datastore_profile as ds_profile
+import mlrun.runtimes.kubejob as kubejob_runtime
+import mlrun.runtimes.nuclio.function as nuclio_function
+import mlrun.runtimes.pod as pod_runtime
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -43,14 +46,6 @@ from mlrun.serving.states import (
     params_to_step,
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
-
-from .. import KubejobRuntime
-from ..pod import KubeResourceSpec
-from .function import (
-    NuclioSpec,
-    RemoteRuntime,
-    min_nuclio_versions,
-)
 
 serving_subkind = "serving_v2"
 
@@ -89,8 +84,8 @@ def new_v2_model_server(
     return f
 
 
-class ServingSpec(NuclioSpec):
-    _dict_fields = NuclioSpec._dict_fields + [
+class ServingSpec(nuclio_function.NuclioSpec):
+    _dict_fields = nuclio_function.NuclioSpec._dict_fields + [
         "graph",
         "load_mode",
         "graph_initializer",
@@ -237,7 +232,7 @@ class ServingSpec(NuclioSpec):
         self._function_refs = ObjectList.from_list(FunctionReference, function_refs)
 
 
-class ServingRuntime(RemoteRuntime):
+class ServingRuntime(nuclio_function.RemoteRuntime):
     """MLRun Serving Runtime"""
 
     kind = "serving"
@@ -660,7 +655,7 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
-    @min_nuclio_versions("1.12.10")
+    @nuclio_function.min_nuclio_versions("1.12.10")
     def deploy(
         self,
         project="",
@@ -874,7 +869,9 @@ class ServingRuntime(RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(self, func_name: Optional[str] = None) -> KubejobRuntime:
+    def to_job(
+        self, func_name: Optional[str] = None
+    ) -> "kubejob_runtime.KubejobRuntime":
         """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
 
         Args:
@@ -893,7 +890,7 @@ class ServingRuntime(RemoteRuntime):
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
             )
 
-        spec = KubeResourceSpec(
+        spec = pod_runtime.KubeResourceSpec(
             image=self.spec.image,
             mode=self.spec.mode,
             volumes=self.spec.volumes,
@@ -963,7 +960,7 @@ class ServingRuntime(RemoteRuntime):
                     suffix=suffix,
                 )
 
-        job = KubejobRuntime(
+        job = kubejob_runtime.KubejobRuntime(
             spec=spec,
             metadata=job_metadata,
         )

@@ -217,8 +217,7 @@ def test_is_matching(
         # Multiple types to reduce:
         ({int, str, list[int]}, {list}),
         (list[str], {list}),
-        # TODO: Uncomment once we support Python >= 3.10:
-        # (str | int, {str, int}),
+        (str | int, {str, int}),
     ],
 )
 def test_reduce_type_hint(type_hint: type, expected_result: set[type]):

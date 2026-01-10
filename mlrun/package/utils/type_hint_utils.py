@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import builtins
+import collections
 import importlib
 import itertools
 import re
+import types
 import typing
 
 from mlrun.errors import MLRunInvalidArgumentError
@@ -40,8 +42,8 @@ class TypeHintUtils:
         """
         # A type hint should be one of the based typing classes, meaning it will have "typing" as its module. Some
         # typing classes are considered a type (like `TypeVar`) so we check their type as well. The only case "types"
-        # will be a module is for generic aliases like `list[int]`.
-        return (type_hint.__module__ == "typing") or (
+        # will be a module for the type of the type hint is for `GenericAlias` like `list[int]`.
+        return (type_hint.__module__ in ["typing", "types"]) or (
             type(type_hint).__module__ in ["typing", "types"]
         )
 
@@ -195,7 +197,7 @@ class TypeHintUtils:
 
         :param type_hint: The type hint to reduce.
 
-        :return: The reduced type hints set or an empty set if the type hint could not be reduced.
+        :return: The reduced type hints set or an empty set if the type hints could not be reduced.
         """
         # Wrap in a set if provided a single type hint:
         type_hints = {type_hint} if not isinstance(type_hint, set) else type_hint
@@ -260,27 +262,23 @@ class TypeHintUtils:
         # type alias (e.g. origin of List[int] is list):
         origin = typing.get_origin(type_hint)
 
-        # If the typing type has no origin (e.g. None is returned), we cannot reduce it, so we return an empty list:
-        if origin is None:
-            return []
-
-        # If the origin is a type of one of `builtins`, `contextlib` or `collections` (for example: List's origin is
-        # list) then we can be sure there is nothing to reduce as it's a regular type:
-        if not TypeHintUtils.is_typing_type(type_hint=origin):
-            return [origin]
-
         # Get the type's subscriptions - arguments, in order to reduce it to them (we know for sure there are arguments,
         # otherwise origin would have been None):
         args = typing.get_args(type_hint)
 
-        # Return the reduced type as its arguments according to the origin:
-        if origin is typing.Callable:
+        # If the typing type has no origin (e.g. None is returned) and it has no args (meaning it is a type without
+        # subscriptions), we cannot reduce it, so we return an empty list:
+        if origin is None:
+            return []
+
+        # Check for a special typing type and return the reduced type accordingly:
+        if origin is typing.Callable or origin is collections.abc.Callable:
             # A callable cannot be reduced to its arguments, so we'll return the origin - Callable:
-            return [typing.Callable]
+            return [collections.abc.Callable]
         if origin is typing.Literal:
             # Literal arguments are not types, but values. So we'll take the types of the values as the reduced type:
             return [type(arg) for arg in args]
-        if origin is typing.Union:
+        if origin is typing.Union or origin is types.UnionType:
             # A union is reduced to its arguments:
             return list(args)
         if origin is typing.Annotated:
@@ -290,6 +288,20 @@ class TypeHintUtils:
         if origin is typing.Final or origin is typing.ClassVar:
             # Both Final and ClassVar takes only one argument - the type:
             return [args[0]]
+        # For `typing.Generic` we return `[]` as it cannot be reduced further.
 
-        # For Generic types we return an empty list:
-        return []
+        # It is not a special typing type, it is most likely a `types.GenericAlias` or `typing._GenericAlias` so we
+        # return the origin:
+        # TODO: Technically we should reduce a generic alias from its args by one level at a time.
+        #       For example:
+        #       * `Dict[str, list[int]]` will be reduced to `dict[str, list]` and on another call to `dict`.
+        #       * `List[int | str | dict[str, int | float]]` will be reduced to `List[int | str | dict[str, int]]` and
+        #         `List[int | str | dict[str, float]]`, which then both will yield `List[int | str | dict]`, and finally
+        #         `list`.
+        #       The algorithm should find the deepest typing type possible (like union) and reduce it. Once there are no
+        #       more typing types to reduce, the deepest args should be reduced until we reach the core origin we now
+        #       return by default. If there are two or more args to reduce, all combinations (permutations) should be
+        #       returned.
+        #       For now, we reduce only to the origin type itself regardless of its args, as it seems to be sufficient
+        #       for our users.
+        return [origin]

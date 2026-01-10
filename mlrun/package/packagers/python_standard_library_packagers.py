@@ -15,6 +15,7 @@
 import os
 import pathlib
 import tempfile
+import types
 from typing import Optional, Union
 
 from mlrun.artifacts import Artifact
@@ -40,11 +41,11 @@ class NonePackager(DefaultPackager):
     ``None`` packager.
     """
 
-    # TODO: From python 3.10 the `PACKABLE_OBJECT_TYPE` should be changed to `types.NoneType`
-    PACKABLE_OBJECT_TYPE = type(None)
+    PACKABLE_OBJECT_TYPE = types.NoneType
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
 
-    # TODO: `None` as pickle will be available from Python 3.10, so this method can be removed once we move to 3.10.
+    # `None` as pickle is possible since Python 3.10, but it cannot be imported from `builtins`, hence we have this
+    # method to keep it unpickle-able by design.
     def get_supported_artifact_types(self) -> list[str]:
         """
         Get all the supported artifact types on this packager. It will be the same as `DefaultPackager` but without the

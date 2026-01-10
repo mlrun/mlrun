@@ -16,6 +16,7 @@ import ast
 import os
 import pathlib
 import tempfile
+import types
 
 from mlrun import MLClientCtx
 from mlrun.package.packagers.python_standard_library_packagers import (
@@ -47,17 +48,12 @@ from tests.package.packager_tester import (
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-NoneType = type(None)  # TODO: Replace with types.NoneType from python 3.10
-
-
-def pack_none() -> NoneType:
+def pack_none() -> types.NoneType:
     return None
 
 
-def validate_none(result: NoneType) -> bool:
-    # TODO: None values should not be casted to strings when casted to results, once it is implemented in
-    #       'execution._cast_result`, change this validation to `return result is None`.
-    return result == "None"
+def validate_none(result: types.NoneType) -> bool:
+    return result is None
 
 
 class NonePackagerTester(PackagerTester):

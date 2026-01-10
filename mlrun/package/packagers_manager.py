@@ -265,6 +265,13 @@ class PackagersManager:
 
         :return: The unpacked object parsed as type hinted.
         """
+        # Check if a type hint was provided - if not, continue only if user set auto unpacking:
+        if (
+            type_hint is inspect.Parameter.empty
+            and not mlrun.mlconf.packagers.auto_unpack_inputs
+        ):
+            return data_item
+
         # Check if `DataItem` is hinted - meaning the user can expect a data item and do not want to unpack it:
         if TypeHintUtils.is_matching(object_type=DataItem, type_hint=type_hint):
             return data_item
@@ -285,15 +292,15 @@ class PackagersManager:
         # Unpack:
         try:
             if packaging_instructions:
-                # The data item is a package and the object type is equal or part of the type hint (part of is in case
-                # of a `typing.Union` for example):
+                # The data item is a package (if the object type is equal or part of the type hint (part of means in
+                # case of a `typing.Union` for example) it will be unpacked as a package, otherwise as a data item):
                 return self._unpack_package(
                     data_item=data_item,
                     artifact_key=artifact_key,
                     packaging_instructions=packaging_instructions,
                     type_hint=type_hint,
                 )
-            # The data item is not a package or the object type is not equal or part of the type hint:
+            # The data item is not a package (will continue only if a type hint was provided):
             return self._unpack_data_item(
                 data_item=data_item,
                 type_hint=type_hint,
@@ -600,7 +607,7 @@ class PackagersManager:
                 f"with the attribute 'with_repo=True`.\n"
                 f"MLRun will try to unpack according to the provided type hint in code."
             )
-        elif type_hint is None:
+        elif type_hint is inspect.Parameter.empty:
             # User count on the type noted in the package, so we unpack it as is:
             unpack_as_package = True
         else:
@@ -642,13 +649,25 @@ class PackagersManager:
         `typing.Union`), the manager goes over the types, and reduces them while looking for the first packager that
         can successfully unpack the data item.
 
+        If the type hint is empty (meaning it was not provided), a warning is printed and the data item is returned as
+        is.
+
         :param data_item: The data item to unpack.
         :param type_hint: The type hint to unpack it to.
 
-        :return: The unpacked object.
+        :return: The unpacked object if a type hint was provided or the data item itself if type hint was empty.
 
         :raise MLRunPackageUnpackingError: If there is no packager that supports the provided type hint.
         """
+        # Check if a type hint is available:
+        if type_hint is inspect.Parameter.empty:
+            logger.warn(
+                f"Although 'auto_unpack_inputs' is set, the input of '{data_item.key}' could not be "
+                f"unpacked as it was not originally packaged. To unpack it, please provide a type hint in the handler "
+                f"code or the inputs key in the MLRun's function `run` method call."
+            )
+            return data_item
+
         # Prepare a list of a packager and exception string for all the failures in case there was no fitting packager:
         found_packagers: list[tuple[Packager, str]] = []
 

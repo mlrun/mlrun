@@ -18,6 +18,8 @@ from collections import OrderedDict
 from collections.abc import Callable
 from typing import Optional, Union
 
+import mlrun
+
 from ..config import config
 from .context_handler import ContextHandler
 from .errors import (
@@ -38,18 +40,13 @@ from .utils import (
 
 
 def handler(
-    labels: Optional[dict[str, str]] = None,
     outputs: Optional[list[Union[str, dict[str, str]]]] = None,
     inputs: Union[bool, dict[str, Union[str, type]]] = True,
 ):
     """
-    MLRun's handler is a decorator to wrap a function and enable setting labels, parsing inputs (`mlrun.DataItem`) using
-    type hints and log returning outputs using log hints.
+    MLRun's handler is a decorator to wrap a function and enable parsing inputs (`mlrun.DataItem`) using type hints and
+    log returning outputs using log hints.
 
-    Notice: this decorator is now appplied automatically with the release of `mlrun.package`. It should not be used
-    manually.
-
-    :param labels:  Labels to add to the run. Expecting a dictionary with the labels names as keys. Default: None.
     :param outputs: Log hints (logging configurations) for the function's returned values. Expecting a list of the
                     following values:
 
@@ -105,7 +102,6 @@ def handler(
 
     def decorator(func: Callable):
         def wrapper(*args: tuple, **kwargs: dict):
-            nonlocal labels
             nonlocal outputs
             nonlocal inputs
 
@@ -137,11 +133,18 @@ def handler(
             # Call the original function and get the returning values:
             func_outputs = func(*args, **kwargs)
 
-            # If an MLRun context is found, set the given labels and log the returning values to MLRun via the context:
+            # If 'auto_pack_outputs' is set, add auto log hints for the available outputs:
+            if mlrun.mlconf.packagers.auto_pack_outputs:
+                default_key = (
+                    f"{cxt_handler.context.name}-{mlrun.mlconf.packagers.auto_pack_key}"
+                )
+                outputs = outputs or []
+                if len(outputs) < len(func_outputs):
+                    for index in range(len(func_outputs) - len(outputs)):
+                        outputs.append(f"{default_key}-{index}")
+
+            # If an MLRun context is found, log the returning values to MLRun via the context:
             if cxt_handler.is_context_available():
-                if labels:
-                    # TODO: Should deprecate this labels
-                    cxt_handler.set_labels(labels=labels)
                 if outputs:
                     cxt_handler.log_outputs(
                         outputs=func_outputs

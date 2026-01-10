@@ -856,13 +856,23 @@ default_config = {
         # Whether to enable packagers. True will wrap each run in the `mlrun.package.handler` decorator to log and parse
         # using packagers.
         "enabled": True,
+        # Whether to automatically unpack inputs with no type hints instead of leaving them as `mlrun.DataItem` objects.
+        # If True, all inputs without type hints that were originally logged via `mlrun.package` will be unpacked
+        # automatically. Default is False.
+        "auto_unpack_inputs": False,
+        # Whether to automatically pack outputs, even if not log hints were provided by the user running the function.
+        # If True, returned objects will be packed with their default packager and their artifact key will be equal to
+        # the following name template: "<context_name>-<auto_pack_key>-<i>" where "i" is enumerated. If
+        # False, the returned objects will simply be ignored. Default is False.
+        "auto_pack_outputs": False,
+        "auto_pack_key": "artifact",
         # Whether to treat returned tuples from functions as a tuple and not as multiple returned items. If True, all
         # returned values will be packaged together as the tuple they are returned in. Default is False to enable
         # logging multiple returned items.
         "pack_tuples": False,
         # In multi-workers run, only the logging worker will pack the outputs and log the results and artifacts.
         # Otherwise, the workers will log the results and artifacts using the same keys, overriding them. It is common
-        # that only the main worker (usualy rank 0) will log, so this is the default value.
+        # that only the main worker (usually rank 0) will log, so this is the default value.
         "logging_worker": 0,
         # TODO: Consider adding support for logging from all workers (ignoring the `logging_worker`) and add the worker
         #       number to the artifact / result key (like "<key>-rank<#>". Results can have reduce operation in the

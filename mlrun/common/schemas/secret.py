@@ -66,7 +66,6 @@ class SecretTokenInfo(BaseModel):
     username: str
 
 
-
 class ListSecretTokensResponse(BaseModel):
     secret_tokens: list[SecretTokenInfo]
 

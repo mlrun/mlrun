@@ -44,13 +44,15 @@ async def _is_system_admin(
     :param action: The authorization action to check (read, delete, etc.).
     :return: True if the user has system admin privileges, False otherwise.
     """
-    return await framework.utils.auth.verifier.AuthVerifier().query_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.tokens,
-        "",
-        action,
-        auth_info,
-        raise_on_forbidden=False,
-        resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+    return (
+        await framework.utils.auth.verifier.AuthVerifier().query_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.tokens,
+            "",
+            action,
+            auth_info,
+            raise_on_forbidden=False,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+        )
     )
 
 

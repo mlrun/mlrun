@@ -1015,7 +1015,7 @@ class NopDB(RunDBInterface):
         pass
 
     def list_secret_tokens(
-            self, username: Optional[str] = None
+        self, username: Optional[str] = None
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         pass
 

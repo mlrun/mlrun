@@ -15,11 +15,10 @@ import base64
 import hashlib
 import json
 import random
-import re
 import string
 import time
 import typing
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import kubernetes.client.rest as k8s_client_rest
 import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
@@ -1276,7 +1275,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             return True
 
         # Convert new_expiration to datetime for comparison
-        new_exp_dt = datetime.fromtimestamp(new_expiration, tz=timezone.utc)
+        new_exp_dt = datetime.fromtimestamp(new_expiration, tz=UTC)
         return new_exp_dt > existing_exp
 
     def list_user_token_secrets(
@@ -1340,7 +1339,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     label_selector_parts.append(k)  # existence check
                 else:
                     label_selector_parts.append(f"{k}={v}")  # equality check
-            label_selector = ",".join(label_selector_parts) if label_selector_parts else None
+            label_selector = (
+                ",".join(label_selector_parts) if label_selector_parts else None
+            )
 
         try:
             secrets_list = self.v1api.list_namespaced_secret(
@@ -1412,7 +1413,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         try:
             expiration_b64 = k8s_secret.data["tokenExpiration"]
             expiration_str = base64.b64decode(expiration_b64).decode("utf-8")
-            return datetime.fromtimestamp(int(expiration_str), tz=timezone.utc)
+            return datetime.fromtimestamp(int(expiration_str), tz=UTC)
         except Exception as exc:
             logger.warning(
                 "Failed to decode 'tokenExpiration' from secret",

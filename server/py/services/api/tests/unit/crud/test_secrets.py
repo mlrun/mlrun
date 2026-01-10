@@ -887,8 +887,8 @@ def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
 
 def test_list_secret_tokens_returns_tokens():
     username = "dummy-user"
-    expiration1 = datetime.datetime.fromtimestamp(1750979191, tz=datetime.timezone.utc)
-    expiration2 = datetime.datetime.fromtimestamp(1754966400, tz=datetime.timezone.utc)
+    expiration1 = datetime.datetime.fromtimestamp(1750979191, tz=datetime.UTC)
+    expiration2 = datetime.datetime.fromtimestamp(1754966400, tz=datetime.UTC)
     expected_tokens = [
         mlrun.common.schemas.SecretTokenInfo(
             name="jupyter", expiration=expiration1, username=username

@@ -761,11 +761,11 @@ def test_list_user_token_secrets_valid(k8s_helper):
     assert len(result) == 2
     assert result[0].name == token1_name
     assert result[0].expiration == datetime.datetime.fromtimestamp(
-        expiration1, tz=datetime.timezone.utc
+        expiration1, tz=datetime.UTC
     )
     assert result[1].name == token2_name
     assert result[1].expiration == datetime.datetime.fromtimestamp(
-        expiration2, tz=datetime.timezone.utc
+        expiration2, tz=datetime.UTC
     )
 
     k8s_helper.list_secrets.assert_called_once_with(

@@ -585,9 +585,10 @@ class MLClientCtx:
 
         def recursive_get_input(input_key: str, input_url: str | dict | list):
             if isinstance(input_url, dict):
+                inputs_dict = {}
                 for k, v in input_url.items():
-                    input_url[k] = recursive_get_input(k, v)
-                return input_url
+                    inputs_dict[k] = recursive_get_input(k, v)
+                return inputs_dict
             if isinstance(input_url, list):
                 return [
                     recursive_get_input(f"{input_key}_{i}", v)

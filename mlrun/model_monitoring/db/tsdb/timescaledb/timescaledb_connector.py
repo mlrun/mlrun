@@ -442,7 +442,6 @@ class TimescaleDBConnector(TSDBConnector):
         # Build application filter and params
         app_filter_metrics = ""
         app_filter_results = ""
-        params = []
 
         if application_names:
             if isinstance(application_names, str):

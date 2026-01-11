@@ -222,23 +222,34 @@ class TestOpenAIBatchThreading:
             f"expected < {total_messages}, got {state['call_count']}"
         )
 
-    def test_mixed_messages_raises_error(self):
-        """Verify that mixing list and dict items in messages raises an error."""
+    @pytest.mark.parametrize(
+        "invalid_messages, error_match",
+        [
+            (
+                [
+                    [{"role": "user", "content": "message 1"}],  # list
+                    {"role": "user", "content": "message 2"},  # dict - INVALID
+                ],
+                "cannot mix list and dict items",
+            ),
+            (
+                ["message 1", "message 2", "message 3"],  # list of strings - INVALID
+                "list of strings is not supported",
+            ),
+        ],
+    )
+    def test_invalid_messages_raises_error(self, invalid_messages, error_match):
+        """Verify that invalid message formats raise appropriate errors."""
         provider = mlrun.get_model_provider(
             url="openai://gpt-4o-mini",
             secrets={"OPENAI_API_KEY": "test-key"},
         )
 
-        mixed_messages = [
-            [{"role": "user", "content": "message 1"}],  # list
-            {"role": "user", "content": "message 2"},  # dict - INVALID
-        ]
-
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="cannot mix list and dict items",
+            match=error_match,
         ):
-            provider.invoke(messages=mixed_messages)
+            provider.invoke(messages=invalid_messages)
 
 
 class TestOpenAIBatchAsync:
@@ -448,21 +459,33 @@ class TestOpenAIBatchAsync:
         )
 
     @pytest.mark.asyncio
-    async def test_async_mixed_messages_raises_error(self):
-        """Verify that mixing list and dict items in messages raises an error."""
+    @pytest.mark.parametrize(
+        "invalid_messages, error_match",
+        [
+            (
+                [
+                    [{"role": "user", "content": "message 1"}],  # list
+                    {"role": "user", "content": "message 2"},  # dict - INVALID
+                ],
+                "cannot mix list and dict items",
+            ),
+            (
+                ["message 1", "message 2", "message 3"],  # list of strings - INVALID
+                "list of strings is not supported",
+            ),
+        ],
+    )
+    async def test_async_invalid_messages_raises_error(
+        self, invalid_messages, error_match
+    ):
+        """Verify that invalid message formats raise appropriate errors."""
         provider = mlrun.get_model_provider(
             url="openai://gpt-4o-mini",
             secrets={"OPENAI_API_KEY": "test-key"},
         )
 
-        # Mix of list (batch) and dict (single) - should raise error
-        mixed_messages = [
-            [{"role": "user", "content": "message 1"}],  # list
-            {"role": "user", "content": "message 2"},  # dict - INVALID
-        ]
-
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="cannot mix list and dict items",
+            match=error_match,
         ):
-            await provider.async_invoke(messages=mixed_messages)
+            await provider.async_invoke(messages=invalid_messages)

@@ -32,7 +32,6 @@ if TYPE_CHECKING:
 
 # Type aliases for response types
 InvokeResponse = Union["ChatCompletion", str, dict[str, Any]]
-BatchInvokeResponse = list[InvokeResponse]
 
 
 class OpenAIProvider(ModelProvider):
@@ -345,7 +344,7 @@ class OpenAIProvider(ModelProvider):
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> BatchInvokeResponse:
+    ) -> list[InvokeResponse]:
         """
         Invoke multiple message sets in parallel using a fresh thread pool per batch.
 
@@ -377,7 +376,7 @@ class OpenAIProvider(ModelProvider):
         """
 
         global_semaphore = self._get_or_create_global_thread_semaphore()
-        results: BatchInvokeResponse = [None] * len(messages_list)  # type: ignore
+        results: list[InvokeResponse] = [None] * len(messages_list)  # type: ignore
 
         max_workers_for_batch = min(len(messages_list), self._max_workers_per_batch)
         with ThreadPoolExecutor(max_workers=max_workers_for_batch) as executor:
@@ -435,7 +434,7 @@ class OpenAIProvider(ModelProvider):
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> BatchInvokeResponse:
+    ) -> list[InvokeResponse]:
         """
         Invoke multiple message sets in parallel using asyncio.
 
@@ -563,7 +562,7 @@ class OpenAIProvider(ModelProvider):
         messages: Union[list[dict], list[list[dict]]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[InvokeResponse, BatchInvokeResponse]:
+    ) -> Union[InvokeResponse, list[InvokeResponse]]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
         Invokes an OpenAI model operation using the synchronous client.
@@ -644,7 +643,7 @@ class OpenAIProvider(ModelProvider):
         messages: Union[list[dict], list[list[dict]]],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[InvokeResponse, BatchInvokeResponse]:
+    ) -> Union[InvokeResponse, list[InvokeResponse]]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
         Invokes an OpenAI model operation using the asynchronous client.

@@ -63,6 +63,9 @@ timeout = 1800  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
 asyncio_mode = "auto"
+markers = [
+    "collect_pod_logs: collect pod logs on test failure for debugging",
+]
 
 [tool.importlinter]
 root_packages = [

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import time
 import typing
 
 import jwt
@@ -25,6 +26,15 @@ from mlrun.config import config as mlconf
 
 if typing.TYPE_CHECKING:
     import mlrun.db
+
+
+class Claims:
+    """
+    JWT Claims constants.
+    """
+
+    SUBJECT = "sub"
+    EXPIRATION = "exp"
 
 
 def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
@@ -269,21 +279,24 @@ def extract_and_validate_tokens_info(
 
         # Validate name is provided and not duplicate
         if secret_token.name and secret_token.name not in token_values:
-            decoded_token = _decode_offline_token(secret_token.token)
+            # The token is expected to be a refresh token which we cannot verify ourselves, we verify it separately
+            # via orca when exchanging it for an access token. We decode it here without verification to extract its
+            # claims.
+            decoded_token = _decode_token_unverified(secret_token.token)
 
             # Validate token expiration existence
-            if not decoded_token.get("exp"):
+            if not decoded_token.get(Claims.EXPIRATION):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
                 )
             # Validate token subject existence
-            if not decoded_token.get("sub"):
+            if not decoded_token.get(Claims.SUBJECT):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
                 )
 
             # Validate token belongs to the authenticated user
-            token_sub = decoded_token.get("sub")
+            token_sub = decoded_token.get(Claims.SUBJECT)
             if token_sub != authenticated_id:
                 # just ignore the token as it doesn't belong to the authenticated user
                 if filter_by_authenticated_id:
@@ -301,7 +314,7 @@ def extract_and_validate_tokens_info(
 
             # Store token info
             token_values[secret_token.name] = {
-                "token_exp": decoded_token.get("exp"),
+                "token_exp": decoded_token.get(Claims.EXPIRATION),
                 "token": secret_token.token,
             }
         else:
@@ -325,7 +338,9 @@ def resolve_jwt_subject(
     :return: The 'sub' claim value, or None if extraction fails.
     """
     try:
-        return _decode_offline_token(token).get("sub")
+        # This method is used from the client side after receiving this token from the server, there's no need or
+        # ability to verify its signature here.
+        return _decode_token_unverified(token).get(Claims.SUBJECT)
     except jwt.PyJWTError as exc:
         mlrun.utils.helpers.raise_or_log_error(
             f"Failed to decode JWT token: {exc}", raise_on_error
@@ -333,10 +348,29 @@ def resolve_jwt_subject(
         return None
 
 
-def _decode_offline_token(token: str) -> dict:
+def is_token_expired(token: str, buffer_seconds: int = 0) -> bool:
+    """
+    Check if a JWT token is expired based on its 'exp' claim.
+
+    :param token: The JWT token string.
+    :param buffer_seconds: Number of seconds to subtract from the expiration time
+    :return: True if the token is expired, False otherwise.
+    """
+
+    # This method is used for caching and/or extra validation purposes in addition to the main verification flow,
+    # so we decode without signature verification here.
+    decoded_token = _decode_token_unverified(token)
+    expiration = decoded_token.get(Claims.EXPIRATION)
+    if not expiration:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Token is missing the 'exp' (expiration) claim"
+        )
+    now = time.time()
+    return now >= expiration - buffer_seconds
+
+
+def _decode_token_unverified(token: str) -> dict:
     try:
-        # The token is expected to be a JWT. We don't verify its signature here, because it has already been
-        # verified earlier during the refresh_access_token call.
         return jwt.decode(token, options={"verify_signature": False})
     except jwt.DecodeError as exc:
         raise mlrun.errors.MLRunInvalidArgumentError(

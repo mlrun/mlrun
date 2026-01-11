@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 
-
-async def async_handler(context, event):
-    await asyncio.sleep(5)
-    return event
+class PreprocessStep:
+    async def do(self, event):
+        return {"preprocessed_item": event}

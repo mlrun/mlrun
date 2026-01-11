@@ -18,6 +18,7 @@ from mergedeep import merge
 from storey import V3ioDriver
 
 import mlrun
+import mlrun.common.model_monitoring.helpers
 from mlrun.datastore.base import DataStore
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaStream,
@@ -69,10 +70,15 @@ class TimescaleDBStoreyTarget(storey.TimescaleDBTarget):
             datastore_profile = datastore_profile_read(url)
             if not isinstance(datastore_profile, DatastoreProfilePostgreSQL):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Unexpected datastore profile type: {datastore_profile.type.__name__}. "
+                    f"Unexpected datastore profile type: {type(datastore_profile)}. "
                     "Only DatastoreProfilePostgreSQL is supported"
                 )
-            url = datastore_profile.dsn()
+            # Use the shared helper to determine the correct database name
+            # This ensures consistency with TimescaleDBConnector's database naming
+            database = mlrun.common.model_monitoring.helpers.get_tsdb_database_name(
+                datastore_profile.database
+            )
+            url = datastore_profile.dsn(database=database)
         super().__init__(*args, dsn=url, **kwargs)
 
 
@@ -189,7 +195,7 @@ class RedisNoSqlStoreyTarget(storey.NoSqlTarget):
         endpoint, uri = mlrun.datastore.targets.RedisNoSqlTarget.get_server_endpoint(
             path
         )
-        kwargs["path"] = endpoint + "/" + uri
+        kwargs["path"] = f"{endpoint}/{uri}"
         super().__init__(*args, **kwargs)
 
 

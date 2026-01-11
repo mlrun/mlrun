@@ -187,10 +187,69 @@ jobs:
             echo "✅ Successfully promoted ${{ matrix.image-name }} to $registry"
           done
 
+  promote-ui-image:
+    name: Promote UI Docker image from source to target
+    runs-on: self-hosted
+    if: "!contains(github.event.inputs.skip_images, 'ui')"
+    needs: [prepare-inputs]
+    steps:
+      - name: Docker login (ghcr.io)
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker login (quay.io)
+        continue-on-error: true
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Docker login (docker.com)
+        continue-on-error: true
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: registry.hub.docker.com
+          username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Docker login (Source Artifactory)
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: ${{ secrets.ARTIFACTORY_URL }}
+          username: ${{ secrets.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
+      - name: Pull, retag and push UI Docker image
+        run: |
+          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
+          
+          echo "Pulling image: $SOURCE_IMAGE"
+          docker pull "$SOURCE_IMAGE"
+          
+          # Loop through target registries and push to each
+          IFS=',' read -ra REGISTRIES <<< "${{ github.event.inputs.target_docker_registries }}"
+          for registry in "${REGISTRIES[@]}"; do
+            registry=$(echo "$registry" | xargs)  # trim whitespace
+            
+            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
+            
+            echo "Tagging image as: $TARGET_IMAGE"
+            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
+            
+            echo "Pushing image: $TARGET_IMAGE"
+            docker push "$TARGET_IMAGE"
+            
+            echo "✅ Successfully promoted ui to $registry"
+          done
+
   promote-pypi-package:
     name: Promote PyPI package from source to target Artifactory
     runs-on: self-hosted
-    needs: [ prepare-inputs, promote-docker-images ]
+    needs: [ prepare-inputs, promote-docker-images, promote-ui-image ]
     steps:
       - name: Download package from source PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
@@ -212,6 +271,7 @@ jobs:
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
+          # TODO remove this after testing
           UV_PUBLISH_URL: https://artifactory.iguazeng.com/artifactory/api/pypi/${{ github.event.inputs.target_artifactory_pypi_repo }}
           UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
           UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}

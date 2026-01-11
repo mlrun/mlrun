@@ -71,4 +71,5 @@ class ListSecretTokensResponse(BaseModel):
 
 
 class RevokeSecretTokenResponse(BaseModel):
-    revoked: bool = True  # False if token revocation fails
+    # False if token revocation fails
+    revoked: bool = True

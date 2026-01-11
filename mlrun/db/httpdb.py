@@ -5444,7 +5444,7 @@ class HTTPRunDB(RunDBInterface):
     @mlrun.utils.iguazio_v4_only
     def revoke_secret_token(
         self, token_name: str, username: Optional[str] = None
-    ) -> None:
+    ) -> mlrun.common.schemas.RevokeSecretTokenResponse:
         """
         Revoke a secret token.
 
@@ -5474,6 +5474,7 @@ class HTTPRunDB(RunDBInterface):
             logger.info(f"Token '{token_name}'{user_info} was successfully revoked.")
         else:
             logger.warning(f"Token '{token_name}'{user_info} could not be revoked.")
+        return result
 
     @mlrun.utils.iguazio_v4_only
     def get_secret_token(

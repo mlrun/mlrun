@@ -5426,6 +5426,8 @@ class HTTPRunDB(RunDBInterface):
             # As a system admin, list tokens for all users
             all_tokens = db.list_secret_tokens()
         """
+        if username == "":
+            raise MLRunInvalidArgumentError("Username cannot be an empty string.")
         endpoint_path = "user-secrets/tokens"
         params = None
         if username is not None:
@@ -5454,6 +5456,8 @@ class HTTPRunDB(RunDBInterface):
                          can use this parameter. If not provided, the authenticated user's
                          token is revoked.
         """
+        if username == "":
+            raise MLRunInvalidArgumentError("Username cannot be an empty string.")
         endpoint_path = f"user-secrets/tokens/{token_name}"
         params = None
         if username is not None:

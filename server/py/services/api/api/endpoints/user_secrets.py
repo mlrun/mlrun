@@ -136,6 +136,8 @@ async def list_secret_tokens(
       - System admin: lists tokens for ALL users
       - Regular user: lists only their own tokens
     """
+    if username == "":
+        raise mlrun.errors.MLRunBadRequestError("Username cannot be an empty string.")
     target_username = await _resolve_target_username(
         auth_info, username, mlrun.common.schemas.AuthorizationAction.read
     )
@@ -170,6 +172,8 @@ async def revoke_secret_token(
         RevokeSecretTokenResponse with revoked=True if token was revoked,
         or revoked=False if token was not found.
     """
+    if username == "":
+        raise mlrun.errors.MLRunBadRequestError("Username cannot be an empty string.")
     target_username = await _resolve_target_username(
         auth_info, username, mlrun.common.schemas.AuthorizationAction.delete
     )

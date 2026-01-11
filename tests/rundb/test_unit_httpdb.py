@@ -376,7 +376,9 @@ def test_secret_tokens_operations_rejects_empty_username(
 ):
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
-    db.api_call = unittest.mock.Mock(side_effect=AssertionError("api_call should not be invoked"))
+    db.api_call = unittest.mock.Mock(
+        side_effect=AssertionError("api_call should not be invoked")
+    )
     method = getattr(db, method_name)
 
     with pytest.raises(

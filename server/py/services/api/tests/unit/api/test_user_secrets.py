@@ -56,7 +56,9 @@ def _mock_is_system_admin(
 def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
     # Force unsupported auth mode
     orig_mode = mlrun.mlconf.httpdb.authentication.mode
-    mlrun.mlconf.httpdb.authentication.mode = mlrun.common.types.AuthenticationMode.BASIC
+    mlrun.mlconf.httpdb.authentication.mode = (
+        mlrun.common.types.AuthenticationMode.BASIC
+    )
 
     # Pick an endpoint that includes the iguazio_v4_only dependency
     response = client.put(API_USER_SECRETS_TOKENS_PATH, json=[])
@@ -69,10 +71,10 @@ def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
 @pytest.mark.parametrize(
     "action, allowed",
     [
-        (mlrun.common.schemas.AuthorizationAction.read, True), # System admin
-        (mlrun.common.schemas.AuthorizationAction.read, False), # Non-system admin
-        (mlrun.common.schemas.AuthorizationAction.delete, True), # System admin
-        (mlrun.common.schemas.AuthorizationAction.delete, False), # Non-system admin
+        (mlrun.common.schemas.AuthorizationAction.read, True),  # System admin
+        (mlrun.common.schemas.AuthorizationAction.read, False),  # Non-system admin
+        (mlrun.common.schemas.AuthorizationAction.delete, True),  # System admin
+        (mlrun.common.schemas.AuthorizationAction.delete, False),  # Non-system admin
     ],
 )
 async def test_is_system_admin_check(

@@ -75,7 +75,9 @@ async def list_secret_tokens(
     if username == "":
         raise mlrun.errors.MLRunBadRequestError("Username cannot be an empty string.")
     # NOTE: admins listing without username get “all users” semantics; revoke does not.
-    target_username = await _resolve_target_username_for_list_secret_tokens(auth_info, username)
+    target_username = await _resolve_target_username_for_list_secret_tokens(
+        auth_info, username
+    )
     return await run_in_threadpool(
         services.api.crud.Secrets().list_secret_tokens,
         username=target_username,
@@ -110,7 +112,9 @@ async def revoke_secret_token(
     if username == "":
         raise mlrun.errors.MLRunBadRequestError("Username cannot be an empty string.")
     # NOTE: even for admins, omitting username means “self only” (no implicit all-users semantics).
-    target_username = await _resolve_target_username_for_revoke_secret_tokens(auth_info, username)
+    target_username = await _resolve_target_username_for_revoke_secret_tokens(
+        auth_info, username
+    )
     return await run_in_threadpool(
         services.api.crud.Secrets().revoke_secret_token,
         name,
@@ -184,11 +188,10 @@ async def _resolve_target_username_for_list_secret_tokens(
     )
     if validated_username is not None:
         return validated_username
-    if await _is_system_admin(
-        auth_info, mlrun.common.schemas.AuthorizationAction.read
-    ):
+    if await _is_system_admin(auth_info, mlrun.common.schemas.AuthorizationAction.read):
         return None
     return auth_info.username
+
 
 async def _resolve_target_username_for_revoke_secret_tokens(
     auth_info: mlrun.common.schemas.AuthInfo,
@@ -206,5 +209,3 @@ async def _resolve_target_username_for_revoke_secret_tokens(
     if validated_username is not None:
         return validated_username
     return auth_info.username
-
-

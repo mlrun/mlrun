@@ -557,7 +557,7 @@ class TestEndpointCounting:
     from both METRICS and APP_RESULTS tables (UNION logic) - an endpoint is counted
     if it has data in EITHER table.
 
-    Note: count_processed_model_endpoints is on the connector as it queries multiple tables.
+    Note: count_processed_model_endpoints is in the connector class as it queries multiple tables.
     """
 
     def test_count_processed_model_endpoints_no_data(self, connector):

@@ -326,6 +326,10 @@ class OpenAIProvider(ModelProvider):
 
         :return: Shared global asyncio.Semaphore instance.
         """
+
+        if cls._global_async_semaphore is not None:
+            return cls._global_async_semaphore
+
         async with cls._global_async_semaphore_lock:
             if cls._global_async_semaphore is None:
                 cls._global_max_concurrent = int(

@@ -49,7 +49,6 @@ class OpenAIProvider(ModelProvider):
     """
 
     support_async = True
-    response_class = None
 
     # Class-level shared async semaphore for global concurrency control
     _global_async_semaphore: Optional[asyncio.Semaphore] = None
@@ -94,15 +93,6 @@ class OpenAIProvider(ModelProvider):
             self._get_secret_or_env("OPENAI_BATCH_MAX_CONCURRENT")
             or mlrun.mlconf.model_providers.openai_batch_max_concurrent
         )
-
-    @classmethod
-    def _import_response_class(cls) -> None:
-        if not cls.response_class:
-            try:
-                from openai.types.chat.chat_completion import ChatCompletion
-            except ImportError as exc:
-                raise ImportError("openai package is not installed") from exc
-            cls.response_class = ChatCompletion
 
     @staticmethod
     def _extract_string_output(response: "ChatCompletion") -> str:

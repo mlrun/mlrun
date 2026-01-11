@@ -345,3 +345,16 @@ def parse_url(url):
 def accepts_param(func: callable, param_name):
     sig = inspect.signature(func)
     return param_name in sig.parameters
+
+
+def parse_s3_bucket_and_key(s3_path: str) -> tuple[str, str]:
+    try:
+        path_parts = s3_path.replace("s3://", "").split("/")
+        bucket = path_parts.pop(0)
+        key = "/".join(path_parts)
+    except Exception as exc:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "failed to parse s3 bucket and key"
+        ) from exc
+
+    return bucket, key

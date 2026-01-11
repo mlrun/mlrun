@@ -62,6 +62,9 @@ from mlrun.model_monitoring.applications import (
     histogram_data_drift,
 )
 from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
+from mlrun.model_monitoring.db._schedules import (
+    delete_model_monitoring_schedules_user_folder,
+)
 from mlrun.utils.logger import Logger
 from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
@@ -2137,9 +2140,7 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             executor.submit(self._deploy_model_serving)
 
     def custom_teardown(self) -> None:
-        mlrun.model_monitoring.delete_model_monitoring_schedules_user_folder(
-            self.project_name
-        )
+        delete_model_monitoring_schedules_user_folder(self.project_name)
         return super().custom_teardown()
 
     @pytest.mark.parametrize("run_local", [False, True])

@@ -31,6 +31,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.launcher.factory
+import mlrun.runtimes
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
@@ -445,9 +446,6 @@ class BaseRuntime(ModelObj):
             # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
-
-        # Import here to avoid circular import
-        import mlrun.runtimes
 
         # Set auth session only for nuclio runtimes that have an access key
         if (

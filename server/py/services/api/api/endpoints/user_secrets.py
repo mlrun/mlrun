@@ -30,70 +30,6 @@ import services.api.crud
 router = fastapi.APIRouter(prefix="/user-secrets")
 
 
-async def _is_system_admin(
-    auth_info: mlrun.common.schemas.AuthInfo,
-    action: mlrun.common.schemas.AuthorizationAction,
-) -> bool:
-    """
-    Check if the authenticated user has system admin privileges for token operations.
-
-    System admin privileges are determined by querying the authorization provider
-    for permissions on the 'tokens' resource in the 'mgmt' namespace.
-
-    :param auth_info: Authentication information of the user.
-    :param action: The authorization action to check (read, delete, etc.).
-    :return: True if the user has system admin privileges, False otherwise.
-    """
-    return (
-        await framework.utils.auth.verifier.AuthVerifier().query_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.tokens,
-            "",
-            action,
-            auth_info,
-            raise_on_forbidden=False,
-            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
-        )
-    )
-
-
-async def _resolve_target_username(
-    auth_info: mlrun.common.schemas.AuthInfo,
-    username: Optional[str],
-    action: mlrun.common.schemas.AuthorizationAction,
-) -> Optional[str]:
-    """
-    Resolve the target username for token operations.
-
-    - If `username` is provided, only system admins are allowed to use it.
-    - If `username` is not provided:
-      - System admin with 'read' action: returns None (all users)
-      - Otherwise: returns the authenticated user's username
-
-    :param auth_info: Authentication information of the user.
-    :param username: Optional username parameter from the request.
-    :param action: The authorization action (read, delete, etc.).
-    :return: The resolved target username, or None for all users.
-    :raises MLRunAccessDeniedError: If a non-admin tries to use the username parameter.
-    """
-    if username is not None:
-        # Only system admins can specify a username
-        is_admin = await _is_system_admin(auth_info, action)
-        if not is_admin:
-            raise mlrun.errors.MLRunAccessDeniedError(
-                f"Only system admins can {action.value} tokens for other users"
-            )
-        return username
-
-    # No username provided
-    is_admin = await _is_system_admin(auth_info, action)
-    if is_admin and action == mlrun.common.schemas.AuthorizationAction.read:
-        # Admin listing: return None to get all users' tokens
-        return None
-
-    # Regular user or admin revoking: use their own username
-    return auth_info.username
-
-
 @router.put(
     "/tokens",
     status_code=HTTPStatus.OK.value,
@@ -138,9 +74,8 @@ async def list_secret_tokens(
     """
     if username == "":
         raise mlrun.errors.MLRunBadRequestError("Username cannot be an empty string.")
-    target_username = await _resolve_target_username(
-        auth_info, username, mlrun.common.schemas.AuthorizationAction.read
-    )
+    # NOTE: admins listing without username get “all users” semantics; revoke does not.
+    target_username = await _resolve_target_username_for_list_secret_tokens(auth_info, username)
     return await run_in_threadpool(
         services.api.crud.Secrets().list_secret_tokens,
         username=target_username,
@@ -174,12 +109,102 @@ async def revoke_secret_token(
     """
     if username == "":
         raise mlrun.errors.MLRunBadRequestError("Username cannot be an empty string.")
-    target_username = await _resolve_target_username(
-        auth_info, username, mlrun.common.schemas.AuthorizationAction.delete
-    )
+    # NOTE: even for admins, omitting username means “self only” (no implicit all-users semantics).
+    target_username = await _resolve_target_username_for_revoke_secret_tokens(auth_info, username)
     return await run_in_threadpool(
         services.api.crud.Secrets().revoke_secret_token,
         name,
         target_username,
         auth_info.request_headers,
     )
+
+
+async def _is_system_admin(
+    auth_info: mlrun.common.schemas.AuthInfo,
+    action: mlrun.common.schemas.AuthorizationAction,
+) -> bool:
+    """
+    Check if the authenticated user has system admin privileges for token operations.
+
+    System admin privileges are determined by querying the authorization provider
+    for permissions on the 'tokens' resource in the 'mgmt' namespace.
+
+    :param auth_info: Authentication information of the user.
+    :param action: The authorization action to check (read, delete, etc.).
+    :return: True if the user has system admin privileges, False otherwise.
+    """
+    return (
+        await framework.utils.auth.verifier.AuthVerifier().query_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.tokens,
+            "",
+            action,
+            auth_info,
+            raise_on_forbidden=False,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+        )
+    )
+
+
+async def _validate_username_param_usage(
+    auth_info: mlrun.common.schemas.AuthInfo,
+    username: Optional[str],
+    action: mlrun.common.schemas.AuthorizationAction,
+) -> Optional[str]:
+    """
+    Validate usage of the optional `username` query parameter:
+    - If `username` is provided (including empty string), only system admins may use it.
+    - If `username` is not provided (`None`), return `None` to signal “no username param”.
+
+    Callers must apply their own defaulting rules for the `None` case (e.g. list vs revoke).
+    """
+    if username is not None:
+        is_admin = await _is_system_admin(auth_info, action)
+        if not is_admin:
+            raise mlrun.errors.MLRunAccessDeniedError(
+                f"Only system admins can {action.value} tokens for other users"
+            )
+        return username
+    return None
+
+
+async def _resolve_target_username_for_list_secret_tokens(
+    auth_info: mlrun.common.schemas.AuthInfo,
+    username: Optional[str],
+) -> Optional[str]:
+    """
+    Resolve the target username for LIST token operations.
+
+    - If `username` is provided: only system admins may use it -> return that username
+    - If `username` is NOT provided:
+      - system admin -> return None (means “all users”)
+      - otherwise -> return authenticated user's username
+    """
+    validated_username = await _validate_username_param_usage(
+        auth_info, username, mlrun.common.schemas.AuthorizationAction.read
+    )
+    if validated_username is not None:
+        return validated_username
+    if await _is_system_admin(
+        auth_info, mlrun.common.schemas.AuthorizationAction.read
+    ):
+        return None
+    return auth_info.username
+
+async def _resolve_target_username_for_revoke_secret_tokens(
+    auth_info: mlrun.common.schemas.AuthInfo,
+    username: Optional[str],
+) -> str:
+    """
+    Resolve the target username for REVOKE (delete) token operations.
+
+    - If `username` is provided: only system admins may use it -> return that username
+    - If `username` is NOT provided: always operate on the authenticated user (self)
+    """
+    validated_username = await _validate_username_param_usage(
+        auth_info, username, mlrun.common.schemas.AuthorizationAction.delete
+    )
+    if validated_username is not None:
+        return validated_username
+    return auth_info.username
+
+

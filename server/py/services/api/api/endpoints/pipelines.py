@@ -435,17 +435,17 @@ async def _create_pipeline(
     run_name: str = "",
     project: typing.Optional[str] = None,
 ):
-    # Prefix the experiment name with the project name - required for pipelines listing
-    # If experiment_name is not set, use run_name (workflow name) as fallback, similar to client-side logic
     if not experiment_name:
         experiment_name = run_name or project
 
+    # Ensure experiment_name is prefixed with project name - required for pipelines listing
     if experiment_name != project and not experiment_name.startswith(f"{project}-"):
         experiment_name = f"{project}-{experiment_name}"
 
-    run_name = run_name or experiment_name + " " + datetime.datetime.now().strftime(
-        "%Y-%m-%d %H-%M-%S"
-    )
+    # Generate timestamped run_name (reusing input run_name or experiment_name as base)
+    base_name = run_name or experiment_name
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+    run_name = f"{base_name} {timestamp}"
 
     data = await request.body()
     if not data:

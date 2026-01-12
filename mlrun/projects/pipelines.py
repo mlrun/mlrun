@@ -637,13 +637,12 @@ class _KFPRunner(_PipelineRunner):
 
         project.spec.notifications = project.notifiers.server_notifications
 
-        workflow_name = name or workflow_spec.name
         run_id = _run_pipeline(
             workflow_handler,
             project=project.metadata.name,
             arguments=workflow_spec.args,
             experiment=None,
-            run=workflow_name,
+            run=name or workflow_spec.name,
             namespace=namespace,
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,

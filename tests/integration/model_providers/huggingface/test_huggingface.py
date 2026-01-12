@@ -44,6 +44,13 @@ from tests.integration.model_providers.model_providers_utils import (
     create_mocked_get_store_artifact,
 )
 
+
+class LLMContentMismatchError(AssertionError):
+    """Raised when LLM generates unexpected content (retriable error)."""
+
+    pass
+
+
 here = os.path.dirname(__file__)
 config = {}
 config_file_path = os.path.join(here, "test-huggingface.yml")
@@ -59,6 +66,8 @@ if os.path.exists(config_file_path):
 class TestBasicHuggingFaceProvider:
     profile_name = "huggingface_profile"
     env_secrets = config
+    # Max retry attempts for LLM content mismatches (non-deterministic failures)
+    max_retries = 2
 
     @classmethod
     def setup_class(cls):
@@ -88,11 +97,14 @@ class TestBasicHuggingFaceProvider:
 
     @staticmethod
     def _check_string_response(result: str, expected_result: str, tokenizer) -> None:
-        """Validate STRING response format."""
         assert isinstance(result, str)
-        assert expected_result in result.lower()
         token_count = len(tokenizer.encode(result))
         assert 95 <= token_count <= 101
+
+        if expected_result not in result.lower():
+            raise LLMContentMismatchError(
+                f"Expected '{expected_result}' not found in LLM answer: '{result[:100]}...'"
+            )
 
     @staticmethod
     def _check_full_response(
@@ -103,14 +115,18 @@ class TestBasicHuggingFaceProvider:
         min_tokens: int = 95,
         max_tokens: int = 101,
     ) -> None:
-        """Validate FULL response format."""
         assert isinstance(result, list)
         assert result[0]["generated_text"][0] == expected_input_message
         assistant_response = result[0]["generated_text"][1]
         assert assistant_response["role"] == "assistant"
-        assert expected_result in assistant_response["content"].lower()
         token_count = len(tokenizer.encode(assistant_response["content"]))
         assert min_tokens <= token_count <= max_tokens
+
+        content = assistant_response["content"].lower()
+        if expected_result not in content:
+            raise LLMContentMismatchError(
+                f"Expected '{expected_result}' not found in LLM answer: '{content[:100]}...'"
+            )
 
     @staticmethod
     def _check_usage_response(
@@ -121,11 +137,9 @@ class TestBasicHuggingFaceProvider:
         min_tokens: int = 95,
         max_tokens: int = 101,
     ) -> None:
-        """Validate USAGE response format."""
         assert isinstance(result, dict)
         assert UsageResponseKeys.ANSWER in result
         assert UsageResponseKeys.USAGE in result
-        assert expected_result in result[UsageResponseKeys.ANSWER].lower()
         assert (
             min_tokens
             <= result[UsageResponseKeys.USAGE]["completion_tokens"]
@@ -137,13 +151,18 @@ class TestBasicHuggingFaceProvider:
             + result[UsageResponseKeys.USAGE]["completion_tokens"]
         )
 
-        # Verify prompt token count is calculated correctly if messages and tokenizer provided
         if messages is not None and tokenizer is not None:
             prompt = tokenizer.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True
             )
             prompt_tokens = len(tokenizer.encode(prompt))
             assert result[UsageResponseKeys.USAGE]["prompt_tokens"] == prompt_tokens
+
+        answer = result[UsageResponseKeys.ANSWER].lower()
+        if expected_result not in answer:
+            raise LLMContentMismatchError(
+                f"Expected '{expected_result}' not found in LLM answer: '{answer[:100]}...'"
+            )
 
     def setup_datastore_profile(self, task=None, model_kwargs=None):
         # noinspection PyAttributeOutsideInit
@@ -180,45 +199,70 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         model_provider = cast(HuggingFaceProvider, model_provider)
         assert model_provider.model == model_name
 
-        # Test STRING response format
-        result = model_provider.invoke(
-            messages=messages, invoke_response_format=InvokeResponseFormat.STRING
-        )
-        cls._check_string_response(
-            result, EXPECTED_RESULTS[0], model_provider.client.tokenizer
-        )
+        for attempt in range(cls.max_retries + 1):
+            try:
+                result = model_provider.invoke(
+                    messages=messages,
+                    invoke_response_format=InvokeResponseFormat.STRING,
+                )
+                cls._check_string_response(
+                    result, EXPECTED_RESULTS[0], model_provider.client.tokenizer
+                )
+                break
+            except LLMContentMismatchError as e:
+                if attempt == cls.max_retries:
+                    raise
+                print(
+                    f"LLM content mismatch in STRING (attempt {attempt + 1}/{cls.max_retries + 1}): {e}"
+                )
 
         if expected_torch_dtype:
             assert model_provider.client.model.dtype == expected_torch_dtype
 
-        # Test FULL response format
-        response = model_provider.invoke(
-            messages=messages,
-            max_new_tokens=50,
-        )
-        cls._check_full_response(
-            response,
-            formatted_messages[0],
-            EXPECTED_RESULTS[0],
-            model_provider.client.tokenizer,
-            min_tokens=45,
-            max_tokens=51,
-        )
+        for attempt in range(cls.max_retries + 1):
+            try:
+                response = model_provider.invoke(
+                    messages=messages,
+                    max_new_tokens=50,
+                )
+                cls._check_full_response(
+                    response,
+                    formatted_messages[0],
+                    EXPECTED_RESULTS[0],
+                    model_provider.client.tokenizer,
+                    min_tokens=45,
+                    max_tokens=51,
+                )
+                break
+            except LLMContentMismatchError as e:
+                if attempt == cls.max_retries:
+                    raise
+                print(
+                    f"LLM content mismatch in FULL (attempt {attempt + 1}/{cls.max_retries + 1}): {e}"
+                )
 
-        # Test USAGE response format
-        response = model_provider.invoke(
-            messages=messages,
-            max_new_tokens=50,
-            invoke_response_format=InvokeResponseFormat.USAGE,
-        )
-        cls._check_usage_response(
-            response,
-            EXPECTED_RESULTS[0],
-            messages=messages,
-            tokenizer=model_provider.client.tokenizer,
-            min_tokens=45,
-            max_tokens=51,
-        )
+        for attempt in range(cls.max_retries + 1):
+            try:
+                response = model_provider.invoke(
+                    messages=messages,
+                    max_new_tokens=50,
+                    invoke_response_format=InvokeResponseFormat.USAGE,
+                )
+                cls._check_usage_response(
+                    response,
+                    EXPECTED_RESULTS[0],
+                    messages=messages,
+                    tokenizer=model_provider.client.tokenizer,
+                    min_tokens=45,
+                    max_tokens=51,
+                )
+                break
+            except LLMContentMismatchError as e:
+                if attempt == cls.max_retries:
+                    raise
+                print(
+                    f"LLM content mismatch in USAGE (attempt {attempt + 1}/{cls.max_retries + 1}): {e}"
+                )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     def test_basic_invoke(self, cred_mode):
@@ -254,7 +298,6 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         ],
     )
     def test_batch_invoke(self, invoke_response_format):
-        # Batch invocation may fail on MPS (Apple Silicon GPU), use CPU/GPU device in this test
         self.setup_datastore_profile()
         model_url = self.url_prefix + self.basic_llm_model
         model_provider = mlrun.get_model_provider(
@@ -264,27 +307,39 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
         messages_list = [[msg] for msg in formatted_messages]
 
-        results = model_provider.invoke(
-            messages=messages_list, invoke_response_format=invoke_response_format
-        )
-
-        assert isinstance(results, list)
-        assert len(results) == len(formatted_messages)
-
-        for i, result in enumerate(results):
-            if invoke_response_format == InvokeResponseFormat.STRING:
-                self._check_string_response(
-                    result, EXPECTED_RESULTS[i], model_provider.client.tokenizer
+        for attempt in range(self.max_retries + 1):
+            try:
+                results = model_provider.invoke(
+                    messages=messages_list,
+                    invoke_response_format=invoke_response_format,
                 )
-            elif invoke_response_format == InvokeResponseFormat.FULL:
-                self._check_full_response(
-                    result,
-                    formatted_messages[i],
-                    EXPECTED_RESULTS[i],
-                    model_provider.client.tokenizer,
+
+                assert isinstance(results, list)
+                assert len(results) == len(formatted_messages)
+
+                for i, result in enumerate(results):
+                    if invoke_response_format == InvokeResponseFormat.STRING:
+                        self._check_string_response(
+                            result, EXPECTED_RESULTS[i], model_provider.client.tokenizer
+                        )
+                    elif invoke_response_format == InvokeResponseFormat.FULL:
+                        self._check_full_response(
+                            result,
+                            formatted_messages[i],
+                            EXPECTED_RESULTS[i],
+                            model_provider.client.tokenizer,
+                        )
+                    elif invoke_response_format == InvokeResponseFormat.USAGE:
+                        self._check_usage_response(result, EXPECTED_RESULTS[i])
+
+                break
+
+            except LLMContentMismatchError as e:
+                if attempt == self.max_retries:
+                    raise
+                print(
+                    f"LLM content mismatch in batch (attempt {attempt + 1}/{self.max_retries + 1}): {e}"
                 )
-            elif invoke_response_format == InvokeResponseFormat.USAGE:
-                self._check_usage_response(result, EXPECTED_RESULTS[i])
 
     def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.huggingface_default_model
@@ -395,9 +450,6 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         try:
             from transformers import AutoTokenizer
 
-            response = server.test(body=INPUT_DATA[0])["output"]
-
-            # Reconstruct the messages to validate prompt tokens
             messages = [
                 {
                     "role": prompt["role"],
@@ -406,16 +458,27 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
                 for prompt in PROMPT_TEMPLATE
             ]
 
-            # Load tokenizer for validation
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
 
-            # Complete validation including tokenizer
-            self._check_usage_response(
-                response,
-                EXPECTED_RESULTS[0],
-                messages=messages,
-                tokenizer=tokenizer,
-            )
+            for attempt in range(self.max_retries + 1):
+                try:
+                    response = server.test(body=INPUT_DATA[0])["output"]
+
+                    self._check_usage_response(
+                        response,
+                        EXPECTED_RESULTS[0],
+                        messages=messages,
+                        tokenizer=tokenizer,
+                    )
+                    break
+
+                except LLMContentMismatchError as e:
+                    if attempt == self.max_retries:
+                        raise
+                    print(
+                        f"LLM content mismatch (attempt {attempt + 1}/{self.max_retries + 1}): {e}"
+                    )
+
         finally:
             server.wait_for_completion()
 

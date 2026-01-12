@@ -284,7 +284,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         :param engine:       - optional for flow, sync or async engine
         :param exist_ok:     - allow overriding existing topology
         :param allow_cyclic: - allow cyclic graphs (only for async flow)
-        :param max_iterations: - optional, max iterations for cyclic graphs (only for async flow)
+        :param max_iterations: - optional, max iterations for cyclic graphs (only for async flow), default 100
         :param class_args:   - optional, router/flow class init args
 
         :return: graph object (fn.spec.graph)
@@ -294,10 +294,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "graph topology is already set, graph was initialized, use exist_ok=True to override"
             )
-        if allow_cyclic and (
-            topology == StepKinds.router
-            or (topology == StepKinds.flow and engine == "sync")
-        ):
+        if allow_cyclic and topology == StepKinds.router:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cyclic graphs are only supported in flow topology with async engine"
             )

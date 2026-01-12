@@ -16,7 +16,6 @@ Each of these  MLRun tutorials is a dedicated Jupyter notebook, illustrating dif
 06-batch-infer
 07-add-mlops-to-code
 ../feature-store/basic-demo
-mlflow
 ```
 
 ````{card} Make sure you start with the Quick start tutorial to understand the basics
@@ -36,5 +35,4 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 - {ref}`realtime-monitor-drift-tutor`
 - {ref}`batch-infer-drift-tutor`
 - {ref}`add-mlops-to-code`
-- {ref}`mlflow-tracker`
 - {ref}`basic-demo` 

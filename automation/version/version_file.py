@@ -129,6 +129,11 @@ def get_current_version(
 
             semver_tag = packaging.version.parse(tag.removeprefix("v"))
 
+            # Local versions (e.g. 1.10.1-rc2+ui-navbar) are used for feature/testing builds and
+            # should not affect release version calculations on non-feature branches.
+            if semver_tag.local and not feature_name:
+                continue
+
             # compare base versions on both base and current tag
             # if current tag version (e.g.: 1.4.0) is smaller than base version (e.g.: 1.5.0)
             # then, keep that tag version as the most recent version
@@ -172,10 +177,9 @@ def get_current_version(
             # tag is not rc, not feature branch, and not older than current tag. use it
             found_tag = semver_tag
 
-        # stop here because
-        # we either have a tag
-        # or, moving back in time wont find newer tags on same branch timeline
-        break
+        # stop iteration to older commits if we already have a valid tag
+        if found_tag:
+            break
 
     # nothing to bump, just return the version
     if not found_tag:

@@ -28,7 +28,7 @@ MLRun is an open source AI orchestration platform for quickly building and manag
 MLRun significantly reduces engineering efforts, time to production, and computation resources. 
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
-Get started with the MLRun [**Tutorials and Examples**](https://docs.mlrun.org/en/stable/tutorials/index.html) and the [**Installation and setup guide**](https://docs.mlrun.org/en/stable/install.html), or read about the [**MLRun Architecture**](https://docs.mlrun.org/en/stable/architecture.html).
+Get started with the MLRun [**Tutorials and Examples**](https://docs.mlrun.org/en/stable/tutorials/index.html) and the [**Set up your client environment**](https://docs.mlrun.org/en/stable/setup-guide.md), or read about the [**MLRun Architecture**](https://docs.mlrun.org/en/stable/architecture.html).
 
 This page explains how MLRun addresses the [**gen AI tasks**](#genai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#core-components).
 

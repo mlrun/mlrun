@@ -52,7 +52,7 @@ kubeconfig*
 **/test-huggingface.yml
 **/tests
 **/env.yml
-**/patch[_\-]env.yml
+**/patch[_\-]env*.yml
 **/mlrun.env
 **/google-big-query-credentials.json
 

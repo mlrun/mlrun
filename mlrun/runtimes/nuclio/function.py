@@ -17,6 +17,7 @@ import copy
 import json
 import typing
 import warnings
+from dataclasses import dataclass
 from datetime import datetime
 from time import sleep
 from urllib.parse import urlparse, urlunparse
@@ -31,6 +32,7 @@ from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.auth.nuclio
 import mlrun.common.constants
 import mlrun.db
 import mlrun.errors
@@ -95,6 +97,13 @@ def min_nuclio_versions(*versions):
         return wrapper
 
     return decorator
+
+
+@dataclass
+class AsyncSpec:
+    enabled: bool = True
+    max_connections: typing.Optional[int] = None
+    connection_availability_timeout: typing.Optional[int] = None
 
 
 class NuclioSpec(KubeResourceSpec):
@@ -455,7 +464,7 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers: typing.Optional[int] = 8,
+        workers: typing.Optional[int] = None,
         port: typing.Optional[int] = None,
         host: typing.Optional[str] = None,
         paths: typing.Optional[list[str]] = None,
@@ -467,6 +476,7 @@ class RemoteRuntime(KubeResource):
         annotations: typing.Optional[typing.Mapping[str, str]] = None,
         extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
         batching_spec: typing.Optional[BatchingSpec] = None,
+        async_spec: typing.Optional[AsyncSpec] = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -474,7 +484,8 @@ class RemoteRuntime(KubeResource):
         if the max time a request will wait for until it will start processing, gateway_timeout must be greater than
         the worker_timeout.
 
-        :param workers:    number of worker processes (default=8). set 0 to use Nuclio's default workers count
+        :param workers: Number of worker processes. Defaults to 8 in synchronous mode and
+                        1 in asynchronous mode. Set to 0 to use Nuclio’s default worker count.
         :param port:       TCP port to listen on. by default, nuclio will choose a random port as long as
                            the function service is NodePort. if the function service is ClusterIP, the port
                            is ignored.
@@ -490,6 +501,10 @@ class RemoteRuntime(KubeResource):
         :param extra_attributes: key/value dict of extra nuclio trigger attributes
         :param batching_spec: BatchingSpec object that defines batching configuration.
             By default, batching is disabled.
+
+        :param async_spec: AsyncSpec object defines async configuration. If number of max connections
+            won't be set, the default value will be set to 1000 according to nuclio default.
+
         :return: function object (self)
         """
         if self.disable_default_http_trigger:
@@ -497,11 +512,15 @@ class RemoteRuntime(KubeResource):
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
             )
 
+        if async_spec and async_spec.enabled:
+            workers = 1 if workers is None else workers
+        else:
+            workers = 8 if workers is None else workers
+
         annotations = annotations or {}
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
-        if workers is None:
-            workers = 0
+
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(
@@ -534,6 +553,18 @@ class RemoteRuntime(KubeResource):
                     "Batching is only supported on Nuclio 1.14.0 and higher"
                 )
             trigger._struct["batch"] = batching_config
+
+        if async_spec:
+            if not validate_nuclio_version_compatibility("1.15.3"):
+                raise mlrun.errors.MLRunValueError(
+                    "Async spec is only supported on Nuclio 1.15.3 and higher"
+                )
+            if async_spec.enabled:
+                trigger._struct["mode"] = "async"
+                trigger._struct["async"] = {
+                    "maxConnectionsNumber": async_spec.max_connections,
+                    "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,
+                }
 
         self.add_trigger(trigger_name or "http", trigger)
         return self
@@ -845,24 +876,6 @@ class RemoteRuntime(KubeResource):
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
 
-    def _get_runtime_env(self):
-        # for runtime specific env var enrichment (before deploy)
-        active_project = self.metadata.project or mlconf.active_project
-        runtime_env = {
-            mlrun.common.constants.MLRUN_ACTIVE_PROJECT: active_project,
-            # TODO: Remove this in 1.12.0 as MLRUN_DEFAULT_PROJECT is deprecated and should not be injected anymore
-            "MLRUN_DEFAULT_PROJECT": active_project,
-        }
-        if mlconf.httpdb.api_url:
-            runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url
-        if mlconf.namespace:
-            runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
-        if self.metadata.credentials.access_key:
-            runtime_env[
-                mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
-            ] = self.metadata.credentials.access_key
-        return runtime_env
-
     def _get_serving_spec(self):
         return None
 
@@ -887,8 +900,9 @@ class RemoteRuntime(KubeResource):
             if value_from is not None:
                 external_source_env_dict[sanitized_env_var.get("name")] = value_from
 
-        for key, value in self._get_runtime_env().items():
-            env_dict[key] = value
+        envs, external_source_envs = self._generate_runtime_env()
+        env_dict.update(envs)
+        external_source_env_dict.update(external_source_envs)
 
         return env_dict, external_source_env_dict
 
@@ -1547,7 +1561,7 @@ def get_nuclio_deploy_status(
             verbose,
             resolve_address,
             return_function_status=True,
-            auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
+            auth_info=mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(auth_info),
         )
     except requests.exceptions.ConnectionError as exc:
         mlrun.errors.raise_for_status(

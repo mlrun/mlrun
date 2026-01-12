@@ -1,4 +1,4 @@
-# Copyright 2024 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tdengine_connector import TDEngineConnector
+
+class PreprocessStep:
+    async def do(self, event):
+        return {"preprocessed_item": event}

@@ -200,14 +200,14 @@ In agentic systems, loops and iterative refinement are common architectural patt
 Cycles are supported for graphs of `flow` topology and `async` engine (storey) with `kind` = `job` and `serving`. You can run it `to_mock_server` and `deploy()`.
 Set a graph as cyclic using `allow_cyclic=True` in `set_topology`, or with `serving.spec.graph.allow_cyclic = True` after the graph is already defined.
 
-Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See {py:meth}`BaseStep to() <~mlrun.serving.states.BaseStep.to>` and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.) 
-Example of creating a cycle from step 1 through to step 3, and back to step 1:
+Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See {py:meth}`BaseStep_to() <~mlrun.serving.states.BaseStep.to>` and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.) 
+Example of creating a cycle from step 1 through to step 3, and cycling back to step 1:
 ```python
 graph.to("step1").to("step2").to("step3").cycle_to(["step1"])
 ```
 
-Iteration tracking is automatic, you do not need to add counters manually in the step code. If you set `max_iterations` in `set_topology` and in `add_step`, the value in `add_step` takes precedence. The default number of iterations is 10_000.
-
+Iteration tracking is automatic, you do not need to add counters manually in the step code. The default number of iterations is 10_000.
+If you set `max_iterations` in `set_topology` and in `add_step`, the value in `add_step` takes precedence. 
 ```{admonition} Important
 - If stop conditions (`max_iterations`) are misconfigured, cycles can lead to an infinite execution of graph steps.
 - Rerunning steps in a loop can cause unexpected compute spikes and higher costs.

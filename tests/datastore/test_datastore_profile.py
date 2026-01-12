@@ -28,7 +28,6 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaTarget,
     DatastoreProfilePostgreSQL,
     DatastoreProfileRedis,
-    DatastoreProfileTDEngine,
     DatastoreProfileV3io,
     datastore_profile_read,
     register_temporary_client_datastore_profile,
@@ -101,81 +100,6 @@ def test_from_public_json() -> None:
     )
     profile = DatastoreProfile2Json.create_from_json(public_profile_schema.object)
     assert isinstance(profile, DatastoreProfileV3io), "Not the right profile"
-
-
-class TestTDEngineProfile:
-    @staticmethod
-    def test_from_dsn() -> None:
-        dsn = "taosws://root:taosdata@localhost:6041"
-        profile_name = "test-taosws"
-        profile = DatastoreProfileTDEngine.from_dsn(dsn=dsn, profile_name=profile_name)
-        assert profile.type == "taosws"
-        assert profile.user == "root"
-        assert profile.password == "taosdata"
-        assert profile.host == "localhost"
-        assert profile.port == 6041
-        assert (
-            profile.dsn() == dsn
-        ), "Converting the profile back to DSN did not work as expected"
-
-    @staticmethod
-    def test_url_encoding_special_characters() -> None:
-        """Test that special characters in user/password are properly URL encoded/decoded."""
-        profile = DatastoreProfileTDEngine(
-            name="test-profile",
-            user="user@domain",
-            password="p@ss:word/123",
-            host="localhost",
-            port=6041,
-        )
-        dsn = profile.dsn()
-        assert dsn == "taosws://user%40domain:p%40ss%3Aword%2F123@localhost:6041"
-
-        # Round-trip: from_dsn should decode back to original values
-        restored = DatastoreProfileTDEngine.from_dsn(dsn=dsn, profile_name="restored")
-        assert restored.user == "user@domain"
-        assert restored.password == "p@ss:word/123"
-
-    @staticmethod
-    def test_url_encoding_round_trip() -> None:
-        """Test that from_dsn -> dsn produces consistent results."""
-        # Start with an encoded DSN
-        encoded_dsn = "taosws://user%40domain:p%40ss%3Aword@localhost:6041"
-        profile = DatastoreProfileTDEngine.from_dsn(
-            dsn=encoded_dsn, profile_name="test"
-        )
-
-        # Verify decoded values
-        assert profile.user == "user@domain"
-        assert profile.password == "p@ss:word"
-
-        # Round-trip should produce the same DSN
-        assert profile.dsn() == encoded_dsn
-
-    @staticmethod
-    def test_datastore_profile_read_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-        profile_name = "test-profile"
-        project_name = "test-project"
-
-        public_profile = mlrun.common.schemas.DatastoreProfile(
-            name=profile_name,
-            type="taosws",
-            object='{"type":"dGFvc3dz","name":"dGRlbmdpbmUx","user":"cm9vdA==","host":"MC4wLjAuMA==","port":"NjA0MQ=="}',
-            private=None,
-            project=project_name,
-        )
-
-        with patch(
-            "mlrun.db.nopdb.NopDB.get_datastore_profile", return_value=public_profile
-        ):
-            monkeypatch.setenv(
-                f"datastore-profiles.{project_name}.{profile_name}",
-                '{"password": "MTIzNA=="}',
-            )
-            profile_read = datastore_profile_read(f"ds://{profile_name}", project_name)
-
-        assert profile_read.type == "taosws", "Wrong profile type"
-        assert profile_read.password == "1234", "Wrong password"
 
 
 class TestDatastoreProfilePostgreSQL:

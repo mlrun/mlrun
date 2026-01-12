@@ -556,8 +556,11 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
     @staticmethod
     def _assert_pod_env_from_secrets(pod_env, expected_variables):
         for env_variable in pod_env:
-            if isinstance(env_variable, dict) and env_variable.setdefault(
-                "valueFrom", None
+            # valueFrom can be secretKeyRef, but also configMapKeyRef/fieldRef/resourceFieldRef
+            if (
+                isinstance(env_variable, dict)
+                and "valueFrom" in env_variable
+                and "secretKeyRef" in env_variable["valueFrom"]
             ):
                 # Nuclio spec comes in as a dict, with some differences from the V1EnvVar - convert it.
                 value_from = client.V1EnvVarSource(

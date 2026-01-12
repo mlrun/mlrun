@@ -23,7 +23,6 @@ from typing import Optional, Union
 import requests.exceptions
 from nuclio.build import mlrun_footer
 
-import mlrun.auth.utils
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
@@ -32,6 +31,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.launcher.factory
+import mlrun.runtimes
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
@@ -279,18 +279,6 @@ class BaseRuntime(ModelObj):
             mlrun.model.Credentials.generate_access_key
         )
 
-    def generate_runtime_k8s_env(self, runobj: RunObject = None) -> list[dict]:
-        """
-        Prepares a runtime environment as it's expected by kubernetes.models.V1Container
-
-        :param runobj: Run context object (RunObject) with run metadata and status
-        :return: List of dicts with the structure {"name": "var_name", "value": "var_value"}
-        """
-        return [
-            {"name": k, "value": v}
-            for k, v in self._generate_runtime_env(runobj).items()
-        ]
-
     def run(
         self,
         runspec: Optional[
@@ -443,16 +431,14 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _generate_runtime_env(
-        self, runobj: RunObject = None, auth_info: mlrun.common.schemas.AuthInfo = None
-    ) -> dict:
+    def _generate_runtime_env(self, runobj: RunObject = None):
         """
-        Prepares all available environment variables for usage on a runtime
-        Data will be extracted from several sources and most of them are not guaranteed to be available
+        Prepares all available environment variables for usage on a runtime.
 
-        :param runobj: Run context object (RunObject) with run metadata and status
-        :param auth_info: Optional authentication information.
-        :return: Dictionary with all the variables that could be parsed
+        :param runobj: Optional run context object (RunObject) with run metadata and status
+        :return: Tuple of (runtime_env, external_source_env) where:
+                 - runtime_env: Dict of {env_name: value} for standard env vars
+                 - external_source_env: Dict of {env_name: value_from} for env vars with external sources
         """
         active_project = self.metadata.project or config.active_project
         runtime_env = {
@@ -461,7 +447,14 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
 
-        mlrun.auth.utils.enrich_auth_env(runtime_env)
+        # Set auth session only for nuclio runtimes that have an access key
+        if (
+            self.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            and self.metadata.credentials.access_key
+        ):
+            runtime_env[
+                mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
+            ] = self.metadata.credentials.access_key
 
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
@@ -477,7 +470,47 @@ class BaseRuntime(ModelObj):
             runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
-        return runtime_env
+
+        external_source_env = self._generate_external_source_runtime_envs()
+
+        return runtime_env, external_source_env
+
+    def _generate_external_source_runtime_envs(self):
+        """
+        Returns non-static env vars to be added to the runtime pod/container.
+
+        :return: Dict of {env_name: value_from} for env vars with external sources (e.g., fieldRef)
+        """
+        return {
+            "MLRUN_RUNTIME_KIND": {
+                "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": f"metadata.labels['{mlrun_constants.MLRunInternalLabels.mlrun_class}']",
+                }
+            },
+        }
+
+    def _generate_k8s_runtime_env(self, runobj: RunObject = None):
+        """
+        Generates runtime environment variables in Kubernetes format.
+
+        :param runobj: Optional run context object (RunObject) with run metadata and status
+        :return: List of env var dicts in K8s format:
+                 - Standard envs: [{"name": key, "value": value}, ...]
+                 - External source envs: [{"name": key, "valueFrom": value_from}, ...]
+        """
+        runtime_env, external_source_env = self._generate_runtime_env(runobj)
+
+        # Convert standard env vars to K8s format
+        k8s_env = [{"name": k, "value": v} for k, v in runtime_env.items()]
+
+        # Convert external source env vars to K8s format
+        k8s_external_env = [
+            {"name": k, "valueFrom": v} for k, v in external_source_env.items()
+        ]
+
+        k8s_env.extend(k8s_external_env)
+        return k8s_env
 
     @staticmethod
     def _handle_submit_job_http_error(error: requests.HTTPError):

@@ -18,7 +18,6 @@ from abc import abstractmethod
 from datetime import UTC, datetime
 from typing import cast
 
-import botocore.exceptions
 import fsspec
 
 import mlrun.datastore.base
@@ -88,16 +87,8 @@ class ModelMonitoringStatsFile(abc.ABC):
         except (
             mlrun.errors.MLRunNotFoundError,
             # Different errors are raised for S3 or local storage, see ML-8042
-            botocore.exceptions.ClientError,
             FileNotFoundError,
         ) as err:
-            if (
-                isinstance(err, botocore.exceptions.ClientError)
-                # Add a log only to "NoSuchKey" errors codes - equivalent to `FileNotFoundError`
-                and err.response["Error"]["Code"] != "NoSuchKey"
-            ):
-                raise
-
             logger.warning(
                 "The Stats file was not found. It should have been created "
                 "as a part of the model endpoint's creation",

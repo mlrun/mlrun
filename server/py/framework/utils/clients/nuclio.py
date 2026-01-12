@@ -21,6 +21,7 @@ import requests.adapters
 import requests.auth
 import sqlalchemy.orm
 
+import mlrun.auth.nuclio
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
@@ -253,7 +254,9 @@ class Client(
 
         auth = None
         if auth_info:
-            auth = auth_info.to_nuclio_auth_info().to_requests_auth()
+            auth = mlrun.auth.nuclio.NuclioAuthInfo.from_auth_info(
+                auth_info
+            ).to_requests_auth()
 
         response = self._session.request(
             method,

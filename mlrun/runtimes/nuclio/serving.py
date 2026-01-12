@@ -13,7 +13,6 @@
 # limitations under the License.
 import json
 import os
-import warnings
 from base64 import b64decode
 from copy import deepcopy
 from typing import Optional, Union
@@ -25,6 +24,9 @@ import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.common.secrets
 import mlrun.datastore.datastore_profile as ds_profile
+import mlrun.runtimes.kubejob as kubejob_runtime
+import mlrun.runtimes.nuclio.function as nuclio_function
+import mlrun.runtimes.pod as pod_runtime
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -44,10 +46,6 @@ from mlrun.serving.states import (
     params_to_step,
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
-
-from .. import KubejobRuntime
-from ..pod import KubeResourceSpec
-from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 
 serving_subkind = "serving_v2"
 
@@ -86,8 +84,8 @@ def new_v2_model_server(
     return f
 
 
-class ServingSpec(NuclioSpec):
-    _dict_fields = NuclioSpec._dict_fields + [
+class ServingSpec(nuclio_function.NuclioSpec):
+    _dict_fields = nuclio_function.NuclioSpec._dict_fields + [
         "graph",
         "load_mode",
         "graph_initializer",
@@ -234,7 +232,7 @@ class ServingSpec(NuclioSpec):
         self._function_refs = ObjectList.from_list(FunctionReference, function_refs)
 
 
-class ServingRuntime(RemoteRuntime):
+class ServingRuntime(nuclio_function.RemoteRuntime):
     """MLRun Serving Runtime"""
 
     kind = "serving"
@@ -294,7 +292,7 @@ class ServingRuntime(RemoteRuntime):
         topology = topology or StepKinds.router
         if self.spec.graph and not exist_ok:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "graph topology is already set, cannot be overwritten"
+                "graph topology is already set, graph was initialized, use exist_ok=True to override"
             )
         if allow_cyclic and (
             topology == StepKinds.router
@@ -330,7 +328,6 @@ class ServingRuntime(RemoteRuntime):
     def set_tracking(
         self,
         stream_path: Optional[str] = None,
-        batch: Optional[int] = None,
         sampling_percentage: float = 100,
         stream_args: Optional[dict] = None,
         enable_tracking: bool = True,
@@ -340,7 +337,6 @@ class ServingRuntime(RemoteRuntime):
 
         :param stream_path:                Path/url of the tracking stream e.g. v3io:///users/mike/mystream
                                            you can use the "dummy://" path for test/simulation.
-        :param batch:                      Deprecated. Micro batch size (send micro batches of N records at a time).
         :param sampling_percentage:        Down sampling events that will be pushed to the monitoring stream based on
                                            a specified percentage. e.g. 50 for 50%. By default, all events are pushed.
         :param stream_args:                Stream initialization parameters, e.g. shards, retention_in_hours, ..
@@ -388,13 +384,6 @@ class ServingRuntime(RemoteRuntime):
 
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
-        if batch:
-            warnings.warn(
-                "The `batch` size parameter was deprecated in version 1.8.0 and is no longer used. "
-                "It will be removed in 1.11.",
-                # TODO: Remove this in 1.11
-                FutureWarning,
-            )
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
 
@@ -666,7 +655,7 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
-    @min_nuclio_versions("1.12.10")
+    @nuclio_function.min_nuclio_versions("1.12.10")
     def deploy(
         self,
         project="",
@@ -880,7 +869,9 @@ class ServingRuntime(RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(self, func_name: Optional[str] = None) -> KubejobRuntime:
+    def to_job(
+        self, func_name: Optional[str] = None
+    ) -> "kubejob_runtime.KubejobRuntime":
         """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
 
         Args:
@@ -899,7 +890,7 @@ class ServingRuntime(RemoteRuntime):
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
             )
 
-        spec = KubeResourceSpec(
+        spec = pod_runtime.KubeResourceSpec(
             image=self.spec.image,
             mode=self.spec.mode,
             volumes=self.spec.volumes,
@@ -969,7 +960,7 @@ class ServingRuntime(RemoteRuntime):
                     suffix=suffix,
                 )
 
-        job = KubejobRuntime(
+        job = kubejob_runtime.KubejobRuntime(
             spec=spec,
             metadata=job_metadata,
         )

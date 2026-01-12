@@ -3824,25 +3824,26 @@ class MlrunProject(ModelObj):
         Please note that you have to set the credentials before deploying any model monitoring application
         or a tracked serving function.
 
-        For example, the full flow for enabling model monitoring infrastructure with **TDEngine** and **Kafka**, is:
+        For example, the full flow for enabling model monitoring infrastructure with **TimescaleDB** and **Kafka**, is:
 
         .. code-block:: python
 
             import mlrun
             from mlrun.datastore.datastore_profile import (
                 DatastoreProfileKafkaStream,
-                DatastoreProfileTDEngine,
+                DatastoreProfilePostgreSQL,
             )
 
             project = mlrun.get_or_create_project("mm-infra-setup")
 
             # Create and register TSDB profile
-            tsdb_profile = DatastoreProfileTDEngine(
-                name="my-tdengine",
-                host="<tdengine-server-ip-address>",
-                port=6041,
-                user="username",
-                password="<tdengine-password>",
+            tsdb_profile = DatastoreProfilePostgreSQL(
+                name="my-timescaledb",
+                host="<timescaledb-server-ip-address>",
+                port=5432,
+                user="postgres",
+                password="<timescaledb-password>",
+                database="mlrun",
             )
             project.register_datastore_profile(tsdb_profile)
 
@@ -3913,7 +3914,6 @@ class MlrunProject(ModelObj):
                                           monitoring. The supported profiles are:
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
-                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileTDEngine`
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL`
 
                                           You need to register one of them, and pass the profile's name.
@@ -4464,7 +4464,6 @@ class MlrunProject(ModelObj):
         kind: Optional[str] = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
-        limit: Optional[int] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -4514,7 +4513,6 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
@@ -4525,13 +4523,6 @@ class MlrunProject(ModelObj):
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-
-        if limit:
-            # TODO: Remove this in 1.11.0
-            warnings.warn(
-                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
-                FutureWarning,
-            )
 
         return db.list_artifacts(
             name,
@@ -4546,7 +4537,6 @@ class MlrunProject(ModelObj):
             category=category,
             tree=tree,
             format_=format_,
-            limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
@@ -4627,7 +4617,6 @@ class MlrunProject(ModelObj):
         iter: Optional[int] = None,
         best_iteration: bool = False,
         tree: Optional[str] = None,
-        limit: Optional[int] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -4661,7 +4650,6 @@ class MlrunProject(ModelObj):
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -4676,7 +4664,6 @@ class MlrunProject(ModelObj):
             best_iteration=best_iteration,
             kind=mlrun.artifacts.model.ModelArtifact.kind,
             tree=tree,
-            limit=limit,
             format_=format_,
         ).to_objects()
 

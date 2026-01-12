@@ -2149,7 +2149,7 @@ def validate_single_def_handler(function_kind: str, code: str):
     # it would override MLRun's wrapper
     if function_kind == "mlrun":
         # Find all lines that start with "def handler("
-        pattern = re.compile(r"^def handler\(", re.MULTILINE)
+        pattern = re.compile(r"^(?:async\s+)?def handler\(", re.MULTILINE)
         matches = pattern.findall(code)
 
         # Only MLRun's wrapper handler (footer) can be in the code
@@ -2456,7 +2456,30 @@ def split_path(path: str) -> typing.Union[str, list[str], None]:
     return path
 
 
-def get_data_from_path(path: typing.Union[str, list[str], None], data: dict) -> Any:
+def get_data_from_path(
+    path: typing.Union[str, list[str], None], data: typing.Union[dict, list]
+) -> Any:
+    if data and isinstance(data, list):
+        output_data = []
+        for item in data:
+            if isinstance(item, dict):
+                output_data.append(get_data_from_dict(path, item))
+            elif path is None:
+                output_data = data
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "If data is a list of non-dict values, path must be None"
+                )
+        return output_data
+    elif isinstance(data, dict):
+        return get_data_from_dict(path, data)
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected data be of type dict or list"
+        )
+
+
+def get_data_from_dict(path: typing.Union[str, list[str], None], data: dict) -> Any:
     if isinstance(path, str):
         output_data = data.get(path)
     elif isinstance(path, list):
@@ -2578,3 +2601,27 @@ def raise_or_log_error(message: str, raise_on_error: bool = True):
     if raise_on_error:
         raise mlrun.errors.MLRunRuntimeError(message)
     logger.warning(message)
+
+
+def is_running_in_runtime() -> bool:
+    """
+    Check if the code is running inside an MLRun runtime environment.
+    :return: True if running inside an MLRun runtime, False otherwise.
+    """
+    # Check for the presence of the MLRUN_RUNTIME_KIND environment variable
+    return True if os.getenv("MLRUN_RUNTIME_KIND") else False
+
+
+def is_async_serving_graph(function_spec) -> bool:
+    """Check if the serving graph contains any async nodes."""
+    if not function_spec:
+        return False
+
+    if (
+        hasattr(function_spec, "graph")
+        and hasattr(function_spec.graph, "engine")
+        and function_spec.graph.engine == "async"
+    ):
+        return True
+
+    return False

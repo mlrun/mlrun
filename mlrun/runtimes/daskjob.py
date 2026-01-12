@@ -552,7 +552,8 @@ class DaskCluster(KubejobRuntime):
 
         # TODO: investigate if the following instructions could overwrite the environment on any MLRun API Pod
         # Such action could result on race conditions against other runtimes and MLRun itself
-        extra_env = self._generate_runtime_env(runobj)
+        extra_env, _ = self._generate_runtime_env(runobj)
+        # Since it runs locally, we don't need the external sources env vars
         environ.update(extra_env)
 
         context = MLClientCtx.from_dict(

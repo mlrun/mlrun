@@ -23,6 +23,7 @@ import semver
 from psycopg_pool import ConnectionPool
 
 import mlrun.errors
+from mlrun.config import config
 from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateManager
 from mlrun.utils import logger
 
@@ -127,7 +128,9 @@ class TimescaleDBConnection:
                 conninfo=self._dsn,
                 min_size=self._min_connections,
                 max_size=self._max_connections,
-                timeout=30.0,
+                timeout=float(
+                    config.model_endpoint_monitoring.tsdb.connection_pool_timeout
+                ),
             )
         return self._pool
 

@@ -236,7 +236,9 @@ class ModelObj:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
 
         if init_with_params:
-            kwargs = {field: struct.pop(field, None) for field in fields}
+            kwargs = {
+                field: struct.pop(field, None) for field in fields if field in struct
+            }
             kwargs.pop("self", None)
             new_obj = cls(**kwargs)
         else:

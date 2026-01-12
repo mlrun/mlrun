@@ -59,7 +59,6 @@ from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
 from .dbfs_store import DatabricksFileBugFixed, DatabricksFileSystemDisableCache
-from .s3 import parse_s3_bucket_and_key
 from .sources import (
     BigQuerySource,
     CSVSource,
@@ -75,7 +74,7 @@ from .store_resources import (
     parse_store_uri,
 )
 from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
-from .utils import get_kafka_brokers_from_dict, parse_kafka_url
+from .utils import get_kafka_brokers_from_dict, parse_kafka_url, parse_s3_bucket_and_key
 
 store_manager = StoreManager()
 

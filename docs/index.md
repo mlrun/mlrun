@@ -4,17 +4,33 @@
 MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks down the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
-Get started with the MLRun **{ref}`Tutorials and examples <tutorials-all>`** and **{ref}`Installation and setup guide <install-setup-guide>`**.
-
+Get started with the MLRun **{ref}`Tutorials and examples <tutorials-all>`**.
 
 This page explains how MLRun addresses the [**gen AI tasks**](#gen-ai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#mlrun-core-components).
 
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
 **In this section**
-- [Gen AI tasks](#gen-ai-tasks) 
+- [Deployment options](#deployment-options)
+- [Set up your client](#set-up-your-client)
+- [GenAI tasks](#gen-ai-tasks) 
 - [MLOps tasks](#mlops-tasks)
 - [MLRun core components](#mlrun-core-components)
+
+## Deployment options
+
+The deployment options are:
+- {ref}`Kubernetes<install-on-kubernetes>`: Deploys the MLRun CE server over Kubernetes. 
+- {ref}`AWS cluster<aws-install>`: Deploys the MLRun CE server on an AWS cluster.
+- [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
+  Note that Iguazio provides a 14 day free trial.
+
+## Set up your client
+
+You can work with your favorite IDE (e.g. PyCharm, VSCode, Jupyter, Colab, etc.). Read how to configure your client against the deployed
+MLRun server in {ref}`install-remote`.
+
+Once you have installed and configured MLRun, follow the {ref}`quick-start-ml` and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy GenAI and machine learning applications to production.
 
 ## Gen AI tasks
 

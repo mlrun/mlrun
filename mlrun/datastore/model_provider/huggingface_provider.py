@@ -302,44 +302,23 @@ class HuggingFaceProvider(ModelProvider):
         """
         Internal batch processing for multiple message lists.
 
-        Note: When using InvokeResponseFormat.FULL with batch processing, the response
-        may include chat template tokens (e.g., <|user|>, <|assistant|>) in the output,
-        depending on the model's tokenizer configuration. This differs from single
-        invocations where the response format is more structured.
-
         :param messages_list:           List of message lists to process in batch.
         :param invoke_response_format:  Response format (STRING, USAGE, or FULL).
         :param invoke_kwargs:           Additional kwargs for the pipeline.
 
         :return:                        List of processed responses.
         """
-        tokenizer = self.client.tokenizer
-        prompts = []
-        for messages in messages_list:
-            try:
-                prompt = tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True
-                )
-            except Exception as e:
-                raise mlrun.errors.MLRunRuntimeError(
-                    f"Failed to apply chat template using the tokenizer for model '{self.model}'. "
-                    "This may indicate that the tokenizer does not support chat formatting, "
-                    "or that the input format is invalid. "
-                    f"Original error: {e}"
-                )
-            prompts.append(prompt)
-
         if "batch_size" not in invoke_kwargs:
             invoke_kwargs["batch_size"] = (
                 mlrun.mlconf.model_providers.huggingface_default_batch_size
             )
 
-        batch_response = self.custom_invoke(text_inputs=prompts, **invoke_kwargs)
+        batch_response = self.custom_invoke(text_inputs=messages_list, **invoke_kwargs)
 
         results = []
         for i, single_response in enumerate(batch_response):
             processed = self._response_handler(
-                messages=prompts[i],
+                messages=messages_list[i],
                 response=single_response,
                 invoke_response_format=invoke_response_format,
             )

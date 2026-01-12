@@ -18,7 +18,6 @@ from typing import Optional, cast
 import pytest
 import yaml
 from PIL import Image
-from transformers import AutoTokenizer
 
 import mlrun
 import mlrun.artifacts
@@ -87,13 +86,72 @@ class TestBasicHuggingFaceProvider:
         # noinspection PyAttributeOutsideInit
         self.url_prefix = "huggingface://"
 
+    @staticmethod
+    def _check_string_response(result: str, expected_result: str, tokenizer) -> None:
+        """Validate STRING response format."""
+        assert isinstance(result, str)
+        assert expected_result in result.lower()
+        token_count = len(tokenizer.encode(result))
+        assert 95 <= token_count <= 101
+
+    @staticmethod
+    def _check_full_response(
+        result: list,
+        expected_input_message: dict,
+        expected_result: str,
+        tokenizer,
+        min_tokens: int = 95,
+        max_tokens: int = 101,
+    ) -> None:
+        """Validate FULL response format."""
+        assert isinstance(result, list)
+        assert result[0]["generated_text"][0] == expected_input_message
+        assistant_response = result[0]["generated_text"][1]
+        assert assistant_response["role"] == "assistant"
+        assert expected_result in assistant_response["content"].lower()
+        token_count = len(tokenizer.encode(assistant_response["content"]))
+        assert min_tokens <= token_count <= max_tokens
+
+    @staticmethod
+    def _check_usage_response(
+        result: dict,
+        expected_result: str,
+        messages: Optional[list[dict]] = None,
+        tokenizer=None,
+        min_tokens: int = 95,
+        max_tokens: int = 101,
+    ) -> None:
+        """Validate USAGE response format."""
+        assert isinstance(result, dict)
+        assert UsageResponseKeys.ANSWER in result
+        assert UsageResponseKeys.USAGE in result
+        assert expected_result in result[UsageResponseKeys.ANSWER].lower()
+        assert (
+            min_tokens
+            <= result[UsageResponseKeys.USAGE]["completion_tokens"]
+            <= max_tokens
+        )
+        assert (
+            result[UsageResponseKeys.USAGE]["total_tokens"]
+            == result[UsageResponseKeys.USAGE]["prompt_tokens"]
+            + result[UsageResponseKeys.USAGE]["completion_tokens"]
+        )
+
+        # Verify prompt token count is calculated correctly if messages and tokenizer provided
+        if messages is not None and tokenizer is not None:
+            prompt = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            prompt_tokens = len(tokenizer.encode(prompt))
+            assert result[UsageResponseKeys.USAGE]["prompt_tokens"] == prompt_tokens
+
     def setup_datastore_profile(self, task=None, model_kwargs=None):
         # noinspection PyAttributeOutsideInit
         self.profile = HuggingFaceProfile(
             name=self.profile_name,
             task=task or "text-generation",
             token=self.env_secrets.get("HF_TOKEN"),
-            device=self.env_secrets.get("HF_DEVICE"),
+            device=self.env_secrets.get("HF_DEVICE") or "cpu",
             device_map=self.env_secrets.get("HF_DEVICE_MAP"),
             trust_remote_code=self.env_secrets.get("HF_TRUST_REMOTE_CODE"),
             model_kwargs=model_kwargs,
@@ -121,106 +179,46 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         )
         model_provider = cast(HuggingFaceProvider, model_provider)
         assert model_provider.model == model_name
+
+        # Test STRING response format
         result = model_provider.invoke(
             messages=messages, invoke_response_format=InvokeResponseFormat.STRING
         )
-        assert isinstance(result, str)
-        assert EXPECTED_RESULTS[0] in result.lower()
+        cls._check_string_response(
+            result, EXPECTED_RESULTS[0], model_provider.client.tokenizer
+        )
+
         if expected_torch_dtype:
             assert model_provider.client.model.dtype == expected_torch_dtype
 
-        token_count = len(model_provider.client.tokenizer.encode(result))
-        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
-        # due to internal EOS or tokenizer behavior, so we assert within this range.
-        assert 95 <= token_count <= 101
-        # checking invoke_response_format=InvokeResponseFormat.FULL
+        # Test FULL response format
         response = model_provider.invoke(
             messages=messages,
             max_new_tokens=50,
         )
-        assert isinstance(response, list)
-        assert response[0]["generated_text"][0] == formatted_messages[0]
+        cls._check_full_response(
+            response,
+            formatted_messages[0],
+            EXPECTED_RESULTS[0],
+            model_provider.client.tokenizer,
+            min_tokens=45,
+            max_tokens=51,
+        )
 
-        assistant_response = response[0]["generated_text"][1]
-        result = assistant_response["content"]
-        token_count = len(model_provider.client.tokenizer.encode(result))
-        assert assistant_response["role"] == "assistant"
-        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
-        # due to internal EOS or tokenizer behavior, so we assert within this range.
-        assert 45 <= token_count <= 51
-
-        # checking invoke_response_format=InvokeResponseFormat.USAGE
+        # Test USAGE response format
         response = model_provider.invoke(
             messages=messages,
             max_new_tokens=50,
             invoke_response_format=InvokeResponseFormat.USAGE,
         )
-        assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
-        assert isinstance(response, dict)
-        assert 45 <= response[UsageResponseKeys.USAGE]["completion_tokens"] <= 51
-
-        prompt = model_provider.client.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        cls._check_usage_response(
+            response,
+            EXPECTED_RESULTS[0],
+            messages=messages,
+            tokenizer=model_provider.client.tokenizer,
+            min_tokens=45,
+            max_tokens=51,
         )
-        prompt_tokens = len(model_provider.client.tokenizer.encode(prompt))
-        assert response[UsageResponseKeys.USAGE]["prompt_tokens"] == prompt_tokens
-        assert (
-            response[UsageResponseKeys.USAGE]["total_tokens"]
-            == response[UsageResponseKeys.USAGE]["prompt_tokens"]
-            + response[UsageResponseKeys.USAGE]["completion_tokens"]
-        )
-
-    @pytest.mark.parametrize(
-        "invoke_response_format",
-        [
-            InvokeResponseFormat.STRING,
-            InvokeResponseFormat.FULL,
-            InvokeResponseFormat.USAGE,
-        ],
-    )
-    def test_batch_invoke(self, invoke_response_format):
-        model_url = self.url_prefix + self.basic_llm_model
-        model_provider = mlrun.get_model_provider(
-            url=model_url, default_invoke_kwargs={"max_new_tokens": 100}
-        )
-        model_provider = cast(HuggingFaceProvider, model_provider)
-
-        messages_list = [[msg] for msg in formatted_messages]
-
-        results = model_provider.invoke(
-            messages=messages_list, invoke_response_format=invoke_response_format
-        )
-
-        assert isinstance(results, list)
-        assert len(results) == len(formatted_messages)
-
-        for i, result in enumerate(results):
-            if invoke_response_format == InvokeResponseFormat.STRING:
-                assert isinstance(result, str)
-                assert EXPECTED_RESULTS[i] in result.lower()
-
-            elif invoke_response_format == InvokeResponseFormat.FULL:
-                assert isinstance(result, list)
-                # Note: Batch responses may include chat template tokens (e.g., <|user|>, <|assistant|>)
-                # so we skip the exact message match assertion and only verify the assistant response
-                assert len(result[0]["generated_text"]) >= len(formatted_messages[i])
-                assistant_response = result[0]["generated_text"][1]
-                assert assistant_response["role"] == "assistant"
-                assert EXPECTED_RESULTS[i] in assistant_response["content"].lower()
-                token_count = len(
-                    model_provider.client.tokenizer.encode(
-                        assistant_response["content"]
-                    )
-                )
-                assert 95 <= token_count <= 105
-
-            elif invoke_response_format == InvokeResponseFormat.USAGE:
-                assert isinstance(result, dict)
-                assert UsageResponseKeys.ANSWER in result
-                assert UsageResponseKeys.USAGE in result
-                assert EXPECTED_RESULTS[i] in result[UsageResponseKeys.ANSWER].lower()
-                assert 95 <= result[UsageResponseKeys.USAGE]["completion_tokens"] <= 105
-                assert result[UsageResponseKeys.USAGE]["prompt_tokens"] > 0
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     def test_basic_invoke(self, cred_mode):
@@ -246,6 +244,47 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             model_name=self.basic_llm_model,
             expected_torch_dtype=expected_torch_dtype,
         )
+
+    @pytest.mark.parametrize(
+        "invoke_response_format",
+        [
+            InvokeResponseFormat.STRING,
+            InvokeResponseFormat.FULL,
+            InvokeResponseFormat.USAGE,
+        ],
+    )
+    def test_batch_invoke(self, invoke_response_format):
+        # Batch invocation may fail on MPS (Apple Silicon GPU), use CPU/GPU device in this test
+        self.setup_datastore_profile()
+        model_url = self.url_prefix + self.basic_llm_model
+        model_provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_new_tokens": 100}
+        )
+        model_provider = cast(HuggingFaceProvider, model_provider)
+
+        messages_list = [[msg] for msg in formatted_messages]
+
+        results = model_provider.invoke(
+            messages=messages_list, invoke_response_format=invoke_response_format
+        )
+
+        assert isinstance(results, list)
+        assert len(results) == len(formatted_messages)
+
+        for i, result in enumerate(results):
+            if invoke_response_format == InvokeResponseFormat.STRING:
+                self._check_string_response(
+                    result, EXPECTED_RESULTS[i], model_provider.client.tokenizer
+                )
+            elif invoke_response_format == InvokeResponseFormat.FULL:
+                self._check_full_response(
+                    result,
+                    formatted_messages[i],
+                    EXPECTED_RESULTS[i],
+                    model_provider.client.tokenizer,
+                )
+            elif invoke_response_format == InvokeResponseFormat.USAGE:
+                self._check_usage_response(result, EXPECTED_RESULTS[i])
 
     def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.huggingface_default_model
@@ -354,23 +393,28 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         ):
             server = function.to_mock_server()
         try:
+            from transformers import AutoTokenizer
+
             response = server.test(body=INPUT_DATA[0])["output"]
 
-            assert len(response) == 2
-            answer = response[UsageResponseKeys.ANSWER]
-            assert EXPECTED_RESULTS[0] in answer.lower()
-            tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
-            token_count = len(tokenizer.encode(answer))
-            # Token count may be lower due to early stopping or slightly higher (e.g., 101)
-            # due to internal EOS or tokenizer behavior, so we assert within this range.
-            assert 95 <= token_count <= 101
+            # Reconstruct the messages to validate prompt tokens
+            messages = [
+                {
+                    "role": prompt["role"],
+                    "content": prompt["content"].format(**INPUT_DATA[0]),
+                }
+                for prompt in PROMPT_TEMPLATE
+            ]
 
-            stats = response[UsageResponseKeys.USAGE]
-            assert stats["completion_tokens"] == token_count
-            assert stats["prompt_tokens"] > 0
-            assert (
-                stats["total_tokens"]
-                == stats["completion_tokens"] + stats["prompt_tokens"]
+            # Load tokenizer for validation
+            tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
+
+            # Complete validation including tokenizer
+            self._check_usage_response(
+                response,
+                EXPECTED_RESULTS[0],
+                messages=messages,
+                tokenizer=tokenizer,
             )
         finally:
             server.wait_for_completion()

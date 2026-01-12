@@ -51,10 +51,10 @@ TimescaleDB and Kafka are part of the default CE installations. These are the de
 The connections are managed by using [MLRun datastore profiles](https://docs.mlrun.org/en/stable/store/datastore.html#data-store-profiles). datastore profiles manage the connection credentials securely.
 ```py
 # Create and register TSDB profile
-tsdb_profile = DatastoreProfilePostgreSQL(
+  tsdb_profile = DatastoreProfilePostgreSQL(
     name="my-timescaledb",
-    user="user",
-    password="pw",
+    user="testuser",
+    password="testpass",
     host="192.168.226.26",
     port=5432,
     database="postgres"

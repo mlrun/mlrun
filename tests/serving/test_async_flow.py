@@ -1565,7 +1565,7 @@ def test_mrs_with_tools_routing():
         server.wait_for_completion()
 
 
-def test_invalid_cyclic_graph_defenitions():
+def test_invalid_cyclic_graph_definitions():
     function = mlrun.new_function("tests", kind="serving", project="x")
     graph = function.set_topology("flow", engine="async", allow_cyclic=False)
 

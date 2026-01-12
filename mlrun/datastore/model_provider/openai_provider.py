@@ -339,7 +339,7 @@ class OpenAIProvider(ModelProvider):
                 )
         return cls._global_async_semaphore
 
-    def batch_invoke(
+    def _batch_invoke(
         self,
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
@@ -349,8 +349,8 @@ class OpenAIProvider(ModelProvider):
         Invoke multiple message sets in parallel using a fresh thread pool per batch.
 
         Note on worker limits:
-            Creates a fresh ThreadPoolExecutor for each batch_invoke call with two-level control:
-            1. Global semaphore (max_workers): Shared across ALL batch_invoke calls globally
+            Creates a fresh ThreadPoolExecutor for each _batch_invoke call with two-level control:
+            1. Global semaphore (max_workers): Shared across ALL _batch_invoke calls globally
             2. Per-batch semaphore (max_workers_per_batch): Limits workers for THIS batch call
 
             This prevents overwhelming the OpenAI API while ensuring fair resource sharing
@@ -429,7 +429,7 @@ class OpenAIProvider(ModelProvider):
                 messages, invoke_response_format, **invoke_kwargs
             )
 
-    async def async_batch_invoke(
+    async def _async_batch_invoke(
         self,
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
@@ -440,8 +440,8 @@ class OpenAIProvider(ModelProvider):
 
         Note on concurrency limits:
             Uses two levels of concurrency control configured during initialization:
-            1. Global limit (max_concurrent_global): Shared across ALL async_batch_invoke calls
-            2. Per-batch limit (max_concurrent): Max concurrent tasks per batch_invoke call
+            1. Global limit (max_concurrent_global): Shared across ALL _async_batch_invoke calls
+            2. Per-batch limit (max_concurrent): Max concurrent tasks per _batch_invoke call
 
             This prevents overwhelming the OpenAI API with too many concurrent requests
             while allowing fair resource sharing across multiple batches.
@@ -505,7 +505,7 @@ class OpenAIProvider(ModelProvider):
     ) -> InvokeResponse:
         """
         Internal method for single invocation.
-        Used by both invoke and batch_invoke.
+        Used by both invoke and _batch_invoke.
         """
         response = self.custom_invoke(messages=messages, **invoke_kwargs)
         return self._response_handler(
@@ -522,7 +522,7 @@ class OpenAIProvider(ModelProvider):
     ) -> InvokeResponse:
         """
         Internal async method for single invocation.
-        Used by both async_invoke and async_batch_invoke.
+        Used by both async_invoke and _async_batch_invoke.
         """
         response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
         return self._response_handler(
@@ -633,7 +633,7 @@ class OpenAIProvider(ModelProvider):
         is_batch = self._validate_and_detect_batch_invocation(messages)
 
         if is_batch:
-            return self.batch_invoke(
+            return self._batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
                 **invoke_kwargs,
@@ -714,7 +714,7 @@ class OpenAIProvider(ModelProvider):
         is_batch = self._validate_and_detect_batch_invocation(messages)
 
         if is_batch:
-            return await self.async_batch_invoke(
+            return await self._async_batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
                 **invoke_kwargs,

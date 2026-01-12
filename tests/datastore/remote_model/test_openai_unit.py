@@ -84,7 +84,7 @@ class TestOpenAIBatchThreading:
         return _mock
 
     def test_sync_batch_workers_limit(self, mock_single_invoke):
-        """Ensure batch_invoke caps parallel workers to openai_batch_max_workers_per_batch."""
+        """Ensure _batch_invoke caps parallel workers to openai_batch_max_workers_per_batch."""
         latency = 0.1
 
         per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_workers
@@ -173,7 +173,7 @@ class TestOpenAIBatchThreading:
         assert expected_duration <= duration <= upper_bound
 
     def test_sync_error_handling_fast_fail(self, mock_single_invoke_with_failure):
-        """Verify batch_invoke fails fast when one invocation raises an exception."""
+        """Verify _batch_invoke fails fast when one invocation raises an exception."""
 
         per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_workers
         fail_on_index = math.ceil(per_batch_limit / 2)
@@ -315,7 +315,7 @@ class TestOpenAIBatchAsync:
 
     @pytest.mark.asyncio
     async def test_async_batch_concurrency_limit(self, mock_async_single_invoke):
-        """Ensure async_batch_invoke caps concurrent tasks to openai_batch_max_concurrent."""
+        """Ensure _async_batch_invoke caps concurrent tasks to openai_batch_max_concurrent."""
         latency = 0.1
 
         per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_concurrent
@@ -409,7 +409,7 @@ class TestOpenAIBatchAsync:
     async def test_async_error_handling_fast_fail(
         self, mock_async_single_invoke_with_failure
     ):
-        """Verify async_batch_invoke fails fast when one invocation raises an exception."""
+        """Verify _async_batch_invoke fails fast when one invocation raises an exception."""
         per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_concurrent
         fail_on_index = math.ceil(per_batch_limit / 2)
         total_messages = per_batch_limit * 2  # Ensure multiple batches worth

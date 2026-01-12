@@ -235,7 +235,7 @@ jobs:
           for registry in "${REGISTRIES[@]}"; do
             registry=$(echo "$registry" | xargs)  # trim whitespace
             
-            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
+            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/mlrun/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
             
             echo "Tagging image as: $TARGET_IMAGE"
             docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"

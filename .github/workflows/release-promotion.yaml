@@ -271,8 +271,6 @@ jobs:
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
-          # TODO remove this after testing
-          UV_PUBLISH_URL: https://artifactory.iguazeng.com/artifactory/api/pypi/${{ github.event.inputs.target_artifactory_pypi_repo }}
           UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
           UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
         run: |

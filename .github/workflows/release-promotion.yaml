@@ -165,7 +165,7 @@ jobs:
           if [ "${{ matrix.image-name }}" = "api" ]; then
             image_name="mlrun-api"
           fi
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
+          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
           
           echo "Pulling image: $SOURCE_IMAGE"
           docker pull "$SOURCE_IMAGE"

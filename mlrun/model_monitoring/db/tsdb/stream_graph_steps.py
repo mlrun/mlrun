@@ -29,10 +29,9 @@ ERROR_TRUNCATION_MESSAGE = "Error message truncated for storage"
 
 class BaseErrorExtractor(mlrun.feature_store.steps.MapClass):
     """
-    Shared error extraction implementation for TDEngine and TimescaleDB.
+    Shared error extraction implementation for TimescaleDB.
 
     Prepares events for insertion into the errors TSDB table.
-    These two implementations are identical and can use this shared base class.
     V3io has different requirements and uses its own implementation.
     """
 

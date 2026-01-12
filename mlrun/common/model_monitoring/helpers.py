@@ -52,6 +52,44 @@ def get_kafka_topic(project: str, function_name: typing.Optional[str] = None) ->
     )
 
 
+# Constants for TimescaleDB database naming
+TIMESCALEDB_DEFAULT_DB_PREFIX = "mlrun_mm"
+
+
+def get_tsdb_database_name(profile_database: str) -> str:
+    """
+    Determine the TimescaleDB database name based on configuration.
+
+    When auto_create_database is enabled (default), generates a database name
+    using the system_id: 'mlrun_mm_{system_id}'.
+    When disabled, uses the database from the profile as-is.
+
+    This function is used by both TimescaleDBConnector (API server side) and
+    TimescaleDBStoreyTarget (stream side) to ensure consistent database naming.
+
+    :param profile_database: The database name from the PostgreSQL profile.
+    :return: The database name to use for TimescaleDB connections.
+    :raises MLRunInvalidArgumentError: If auto_create_database is enabled but
+                                       system_id is not set.
+    """
+    auto_create = mlrun.mlconf.model_endpoint_monitoring.tsdb.auto_create_database
+
+    if not auto_create:
+        return profile_database
+
+    # Auto-create mode: generate database name using system_id
+    if not mlrun.mlconf.system_id:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "system_id is not set in mlrun.mlconf. "
+            "TimescaleDB requires system_id for auto-generating database name "
+            "when auto_create_database is enabled. "
+            "Either set system_id in MLRun configuration or disable auto_create_database "
+            "and provide an explicit database in the PostgreSQL connection string."
+        )
+
+    return f"{TIMESCALEDB_DEFAULT_DB_PREFIX}_{mlrun.mlconf.system_id}"
+
+
 def _get_counts(hist: Histogram) -> BinCounts:
     """Return the histogram counts"""
     return BinCounts(hist[0])
@@ -118,13 +156,12 @@ def get_model_endpoints_creation_task_status(
             task_name=server.model_endpoint_creation_task_name,
         )
     if background_task is None:
-        model_endpoints = mlrun.get_run_db().list_model_endpoints(
+        if model_endpoints := mlrun.get_run_db().list_model_endpoints(
             project=server.project,
             function_name=server.function_name,
             function_tag=server.function_tag,
             tsdb_metrics=False,
-        )
-        if model_endpoints:
+        ):
             model_endpoint_uids = {
                 endpoint.metadata.uid for endpoint in model_endpoints.endpoints
             }

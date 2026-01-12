@@ -214,9 +214,9 @@ class BaseStep(ModelObj):
 
         **Example**::
 
-            In the below example, an 'error_catcher' step is set as the error_handler of the 'raise' step:
-            in case of error/raise in 'raise' step, the handle_error will be run. After that,
-            the 'echo' step will be run.
+            # Set an 'error_catcher' step as the error_handler of the 'raise' step:
+            # in case of error/raise in 'raise' step, the handle_error will be run. After that,
+            # the 'echo' step will be run.
 
             graph = function.set_topology('flow', engine='async')
             graph.to(name='raise', handler='raising_step')
@@ -307,7 +307,7 @@ class BaseStep(ModelObj):
             error_step = self.context.root.path_to_step(self.on_error)
             self._on_error_handler = error_step.run
 
-    def _log_error(self, event, err, **kwargs):
+    def _log_error(self, event, handler, **kwargs):
         """on failure log (for sync mode)"""
         error_message = err_to_str(err)
         self.context.logger.error(
@@ -481,11 +481,11 @@ class BaseStep(ModelObj):
 
         **Example**::
 
-            The below code sets the downstream nodes of step1 by using a list of steps (provided to `set_flow()`) and a
-            single step (provided to `to()`), resulting in the graph (step1 -> step2 -> step3 -> step4).
-            Notice that using `force=True` is required in case step1 already had downstream nodes (e.g. if the existing
-            graph is step1 -> step2_old) and that following the execution of this code the existing downstream steps
-            are removed. If the intention is to split the graph (and not to overwrite), please use `to()`.
+            # The below code sets the downstream nodes of step1 by using a list of steps (provided to `set_flow()`) and a
+            # single step (provided to `to()`), resulting in the graph (step1 -> step2 -> step3 -> step4).
+            # Notice that using `force=True` is required in case step1 already had downstream nodes (e.g. if the existing
+            # graph is step1 -> step2_old) and that following the execution of this code the existing downstream steps
+            # are removed. If the intention is to split the graph (and not to overwrite), please use `to()`.
 
             step1.set_flow(
                 [
@@ -2673,7 +2673,7 @@ class FlowStep(BaseStep):
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
-                             * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
                                 create a new model endpoint entry and set it as `latest`.
 
                             * **inplace** (default): If model endpoints with the same name exist, update the `latest`

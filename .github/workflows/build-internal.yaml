@@ -191,7 +191,7 @@ jobs:
         password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
 
     - name: Docker login (Artifactory)
-      if: inputs.is_private_release == 'true'
+      if: inputs.is_private_release == true
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
         registry: ${{ secrets.ARTIFACTORY_URL }}

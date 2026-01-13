@@ -118,7 +118,7 @@ async def test_is_system_admin_check(
             False,
             "other-user",
             None,
-            "Only system admins can read tokens for other users",
+            "Only system admins can list tokens for other users",
         ),  # Username is other user -> forbidden
         (
             False,
@@ -129,7 +129,12 @@ async def test_is_system_admin_check(
         # Admin users
         (True, None, "auth-user", None),  # Username is None -> self
         (True, "", "auth-user", None),  # Username is "" -> self
-        (True, "*", "*", None),  # Username is "*" -> all users (wildcard passed through)
+        (
+            True,
+            "*",
+            "*",
+            None,
+        ),  # Username is "*" -> all users (wildcard passed through)
         (True, "some-user", "some-user", None),  # Username is some-user -> some-user
         (True, "auth-user", "auth-user", None),  # Username is self -> self
     ],

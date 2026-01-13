@@ -182,7 +182,7 @@ async def _resolve_target_username_for_list_secret_tokens(
     # Regular users can only query themselves
     if not is_admin and username != auth_info.username:
         raise mlrun.errors.MLRunAccessDeniedError(
-            "Only system admins can read tokens for other users"
+            "Only system admins can list tokens for other users"
         )
 
     return username

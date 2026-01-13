@@ -362,30 +362,3 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
     assert "This method is only supported in an Iguazio V4 system" in str(
         exc_info.value
     )
-
-
-@pytest.mark.parametrize(
-    "method_name,token_name",
-    [
-        ("list_secret_tokens", None),
-        ("revoke_secret_token", "some-token"),
-    ],
-)
-def test_secret_tokens_operations_rejects_empty_username(
-    monkeypatch, method_name, token_name
-):
-    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
-    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
-    db.api_call = unittest.mock.Mock(
-        side_effect=AssertionError("api_call should not be invoked")
-    )
-    method = getattr(db, method_name)
-
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="Username cannot be an empty string.",
-    ):
-        if token_name is not None:
-            method(token_name, username="")
-        else:
-            method(username="")

@@ -110,36 +110,28 @@ async def test_is_system_admin_check(
 @pytest.mark.parametrize(
     "is_admin, username_param, expected_result, expected_error_message",
     [
+        # Regular users
+        (False, None, "auth-user", None),  # Username is None -> self
+        (False, "", "auth-user", None),  # Username is "" -> self
+        (False, "auth-user", "auth-user", None),  # Username is self -> self
         (
             False,
-            None,
-            "auth-user",
-            None,
-        ),  # regular user, list without username -> self
-        (
-            True,
-            None,
-            None,
-            None,
-        ),  # admin, list without username -> all users
-        (
-            True,
-            "some-user",
-            "some-user",
-            None,
-        ),  # admin, list with username -> some-user
-        (
-            False,
-            "some-user",
+            "other-user",
             None,
             "Only system admins can read tokens for other users",
-        ),  # regular user, list with username -> forbidden
+        ),  # Username is other user -> forbidden
         (
             False,
-            "auth-user",
+            "*",
             None,
-            "Only system admins can read tokens for other users",
-        ),  # regular user, list with username=self -> forbidden (username param disallowed)
+            "Only system admins can list tokens for all users",
+        ),  # Username is wildcard -> forbidden
+        # Admin users
+        (True, None, "auth-user", None),  # Username is None -> self
+        (True, "", "auth-user", None),  # Username is "" -> self
+        (True, "*", "*", None),  # Username is "*" -> all users (wildcard passed through)
+        (True, "some-user", "some-user", None),  # Username is some-user -> some-user
+        (True, "auth-user", "auth-user", None),  # Username is self -> self
     ],
 )
 async def test_resolve_target_username_for_list(
@@ -174,36 +166,21 @@ async def test_resolve_target_username_for_list(
 @pytest.mark.parametrize(
     "is_admin, username_param, expected_result, expected_error_message",
     [
+        # Regular users
+        (False, None, "auth-user", None),  # Username is None -> self
+        (False, "", "auth-user", None),  # Username is "" -> self
+        (False, "auth-user", "auth-user", None),  # Username is self -> self
         (
             False,
-            None,
-            "auth-user",
-            None,
-        ),  # regular user, revoke without username -> self
-        (
-            True,
-            None,
-            "auth-user",
-            None,
-        ),  # admin, revoke without username -> self
-        (
-            True,
-            "some-user",
-            "some-user",
-            None,
-        ),  # admin, revoke with username -> some-user
-        (
-            False,
-            "some-user",
+            "other-user",
             None,
             "Only system admins can delete tokens for other users",
-        ),  # regular user, revoke with username -> forbidden
-        (
-            False,
-            "auth-user",
-            None,
-            "Only system admins can delete tokens for other users",
-        ),  # regular user, revoke with username=self -> forbidden (username param disallowed)
+        ),  # Username is other user -> forbidden
+        # Admin users
+        (True, None, "auth-user", None),  # Username is None -> self
+        (True, "", "auth-user", None),  # Username is "" -> self
+        (True, "some-user", "some-user", None),  # Username is specific -> that user
+        (True, "auth-user", "auth-user", None),  # Username is self -> self
     ],
 )
 async def test_resolve_target_username_for_revoke(

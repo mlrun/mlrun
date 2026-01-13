@@ -799,7 +799,7 @@ def test_list_user_token_secrets_invalid_expiration(k8s_helper):
 
 
 def test_list_user_token_secrets_all_users(k8s_helper):
-    """Test listing without username filter uses only token label existence check"""
+    """Test listing with '*' wildcard uses only token label existence check (no username filter)"""
     token1_name = "token1"
     token2_name = "token2"
     expiration1 = 1111
@@ -828,8 +828,8 @@ def test_list_user_token_secrets_all_users(k8s_helper):
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.list_secrets = mock.MagicMock(return_value=[secret1, secret2])
 
-    # Call without username to list all users' tokens
-    result = k8s_helper.list_user_token_secrets(username=None, namespace="default")
+    # Use "*" wildcard to list all users' tokens
+    result = k8s_helper.list_user_token_secrets(username="*", namespace="default")
 
     assert len(result) == 2
     assert result[0].name == token1_name
@@ -891,7 +891,8 @@ def test_list_user_token_secrets_sorted(k8s_helper):
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
     k8s_helper.list_secrets = mock.MagicMock(return_value=secrets)
 
-    result = k8s_helper.list_user_token_secrets(username=None, namespace="default")
+    # Use "*" wildcard to list all users' tokens
+    result = k8s_helper.list_user_token_secrets(username="*", namespace="default")
 
     # Should be sorted: alice/atoken, alice/btoken, bob/default, charlie/ztoken
     assert len(result) == 4

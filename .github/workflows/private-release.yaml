@@ -105,7 +105,7 @@ jobs:
     uses: ./.github/workflows/build-internal.yaml
     with:
       version: ${{ needs.prepare-inputs.outputs.version }}
-      runner: 'self-hosted'
+      runner: 'mlrun-release'
       docker_repo: ${{ inputs.artifactory_docker_repo }}
       is_private_release: true
       # On the fork the caches needs to be disabled because ghcr is hardcoded and used for caches. 
@@ -116,7 +116,7 @@ jobs:
 
   trigger-and-wait-for-ui-image-building:
     name: Build and push UI image to Artifactory
-    runs-on: self-hosted
+    runs-on: mlrun-release
     needs: prepare-inputs
     env:
       DOCKER_REGISTRY: "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/"
@@ -137,11 +137,11 @@ jobs:
           workflow_file_name: build.yaml
           ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
           wait_interval: 60
-          client_payload: "{\"docker_registries\": \"${{ env.DOCKER_REGISTRY }}\", \"docker_repo\": \"mlrun\", \"runner\": \"self-hosted\", \"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
+          client_payload: "{\"docker_registries\": \"${{ env.DOCKER_REGISTRY }}\", \"docker_repo\": \"mlrun\", \"runner\": \"mlrun-release\", \"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
 
   publish-to-artifactory:
     name: Publish package to Artifactory PyPI
-    runs-on: self-hosted
+    runs-on: mlrun-release
     env:
       PYPI_REPO_URL: "https://${{ secrets.ARTIFACTORY_URL }}/artifactory/api/pypi/${{ inputs.artifactory_pypi_repo }}"
 
@@ -163,8 +163,6 @@ jobs:
       - uses: actions/checkout@v6
       - name: Set up uv
         uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # 7.1.5
-      - name: Install packaging dependency
-        run: uv pip install --system packaging~=25.0
       - name: Build & push to Artifactory PyPI
         env:
           MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}

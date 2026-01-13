@@ -123,7 +123,7 @@ jobs:
 
   promote-docker-images:
     name: Promote Docker images from source to target
-    runs-on: self-hosted
+    runs-on: mlrun-release
     needs: [prepare-inputs, matrix-prep]
     strategy:
       fail-fast: false
@@ -189,7 +189,7 @@ jobs:
 
   promote-ui-image:
     name: Promote UI Docker image from source to target
-    runs-on: self-hosted
+    runs-on: mlrun-release
     if: "!contains(github.event.inputs.skip_images, 'ui')"
     needs: [prepare-inputs]
     steps:
@@ -248,7 +248,7 @@ jobs:
 
   promote-pypi-package:
     name: Promote PyPI package from source to target Artifactory
-    runs-on: self-hosted
+    runs-on: mlrun-release
     needs: [ prepare-inputs, promote-docker-images, promote-ui-image ]
     steps:
       - name: Download package from source PyPI repo

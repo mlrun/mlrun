@@ -5393,26 +5393,13 @@ class HTTPRunDB(RunDBInterface):
         username: Optional[str] = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List secret tokens.
-
-        Regular users can only list their own secret tokens.
-        System administrators can list tokens for a specific user (by providing `username`)
-        or for all users (when `username` is not provided).
+        List secret tokens. Only system-administrators can list tokens for other users.
 
         :param username: Optional; the username for which to list secret tokens.
-                         If not provided and the caller is a system administrator,
-                         tokens for all users are listed.
-                         Regular users cannot specify this parameter.
+                         Use ``"*"`` to list tokens for all users.
         :return: A `ListSecretTokensResponse` object containing a list of `SecretTokenInfo`
-                 objects. Each `SecretTokenInfo` includes:
-
-                 - **name** (`str`): The name of the secret token.
-                 - **expiration** (`datetime`): A timezone-aware datetime indicating
-                   when the token will expire.
-                 - **username** (`str`): The owner of the token.
-
+                 objects.
         Example::
-
             # As a regular user, list your own tokens
             tokens_response = db.list_secret_tokens()
             for token in tokens_response.secret_tokens:
@@ -5424,10 +5411,8 @@ class HTTPRunDB(RunDBInterface):
             user_tokens = db.list_secret_tokens(username="john_doe")
 
             # As a system admin, list tokens for all users
-            all_tokens = db.list_secret_tokens()
+            all_tokens = db.list_secret_tokens(username="*")
         """
-        if username == "":
-            raise MLRunInvalidArgumentError("Username cannot be an empty string.")
         endpoint_path = "user-secrets/tokens"
         params = None
         if username is not None:
@@ -5446,18 +5431,11 @@ class HTTPRunDB(RunDBInterface):
         self, token_name: str, username: Optional[str] = None
     ) -> mlrun.common.schemas.RevokeSecretTokenResponse:
         """
-        Revoke a secret token.
-
-        Regular users can only revoke their own tokens (without providing the `username` parameter).
-        Only system administrators can use the `username` parameter to revoke another user's token.
+        Revoke a secret token. Only system-administrators can revoke tokens for other users.
 
         :param token_name: The name of the token to revoke.
-        :param username: Optional; the username of the token owner. Only system administrators
-                         can use this parameter. If not provided, the authenticated user's
-                         token is revoked.
+        :param username: Optional; the username of the token owner.
         """
-        if username == "":
-            raise MLRunInvalidArgumentError("Username cannot be an empty string.")
         endpoint_path = f"user-secrets/tokens/{token_name}"
         params = None
         if username is not None:

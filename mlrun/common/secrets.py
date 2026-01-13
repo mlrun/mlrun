@@ -100,7 +100,7 @@ class SecretProviderInterface(ABC):
     @abstractmethod
     def list_user_token_secrets(
         self,
-        username: typing.Optional[str] = None,
+        username: str,
         namespace: typing.Optional[str] = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         pass
@@ -211,7 +211,7 @@ class InMemorySecretProvider(SecretProviderInterface):
 
     def list_user_token_secrets(
         self,
-        username: typing.Optional[str] = None,
+        username: str,
         namespace: typing.Optional[str] = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         raise NotImplementedError()

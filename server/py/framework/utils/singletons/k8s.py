@@ -1280,14 +1280,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def list_user_token_secrets(
         self,
-        username: typing.Optional[str] = None,
+        username: str,
         namespace: typing.Optional[str] = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         """
         List all offline token secrets for a given user.
 
-        :param username: Optional; the username whose tokens should be listed.
-                         If not provided, tokens for all users are listed.
+        :param username: The username whose tokens should be listed. Use "*" to list all users' tokens.
         :param namespace: Kubernetes namespace where the secrets are stored.
         :return: List of SecretTokenInfo objects, each containing the token name, expiration and username.
         """
@@ -1295,7 +1294,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         # Always filter by auth token label to only get auth token secrets
         # Use None as value to perform "label exists" check (more efficient than fetching all secrets)
         labels = {mlrun_constants.MLRunInternalLabels.auth_token_name: None}
-        if username:
+        # "*" means list all users' tokens, so skip the username filter
+        if username != "*":
             labels[mlrun_constants.MLRunInternalLabels.auth_username] = username
 
         k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)

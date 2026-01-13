@@ -164,8 +164,8 @@ myst_xref_missing = "ignore"
 
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
-    "version": "1.9.2",
-    "ceversion": "v0.9.0",
+    "version": "1.10.0",
+    "ceversion": "v0.10.0",
     "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 
@@ -196,6 +196,9 @@ redirects = {
     "concepts/monitoring": "model-monitoring.html",
     "monitoring/index": "../model-monitoring/index.html",
     "monitoring/model-monitoring": "model-monitoring/index.html",
+    "install/kubernetes": "install-mlrun-ce/kubernetes-install.html",
+    "install/aws-install": "install-mlrun-ce/aws-install.html",
+    "install/remote": "setup-guide.html",
 }
 
 smartquotes = False
@@ -224,8 +227,6 @@ linkcheck_ignore = [
     "https://docs.confident-ai.com/docs/",
     # Returns 404 though link is valid
     "https://docs.databricks.com/aws/en/reference/jobs-2.0-api",
-    # can be removed after v1.8.0 is released:
-    "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.datastore_profile.TDEngineDatastoreProfile",
     # Mckinsey restricted
     "https://ollama.com/download",
     "https://ollama.com/library/llama3",

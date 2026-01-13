@@ -17,6 +17,7 @@ import json
 import os
 import typing
 import unittest.mock
+from http import HTTPStatus
 
 import deepdiff
 import kubernetes
@@ -30,6 +31,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.runtimes.nuclio.function
@@ -41,6 +43,7 @@ from mlrun.utils import logger
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
+from services.api.api.endpoints.nuclio import _validate_sidecar_probes
 from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 from services.api.utils.functions import build_function
@@ -533,6 +536,17 @@ class TestNuclioRuntime(TestRuntimeBase):
                 "valueFrom": {"secretKeyRef": {"key": secret_key, "name": secret}},
             },
             {"name": name2, "value": value2},
+            {"name": "MLRUN_ACTIVE_PROJECT", "value": self.project},
+            {"name": "MLRUN_NAMESPACE", "value": self.namespace},
+            {
+                "name": "MLRUN_RUNTIME_KIND",
+                "valueFrom": {
+                    "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.labels['mlrun/class']",
+                    }
+                },
+            },
             # TODO: Remove this in 1.12.0 — deprecated MLRUN_DEFAULT_PROJECT injected for backward compatibility
             {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
         ]
@@ -2068,6 +2082,169 @@ class TestNuclioRuntime(TestRuntimeBase):
                             if expected_url
                             else url.startswith("http")
                         )
+
+    def test_compile_function_config_with_auth_secret(self):
+        function = self._generate_runtime(self.runtime_kind)
+
+        # minimal auth spec
+        function.spec.auth = {"token_name": "default"}
+
+        auth_info = unittest.mock.Mock()
+        auth_info.username = "test-user"
+        mlrun.mlconf.httpdb.authentication.mode = (
+            mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+        )
+
+        with unittest.mock.patch(
+            "framework.utils.singletons.k8s.get_k8s_helper"
+        ) as k8s_helper_mock:
+            # fake k8s secret
+            secret = unittest.mock.Mock()
+            secret.metadata.name = "mlrun-auth-secrets.123456"
+            k8s_helper_mock.return_value._get_user_token_secret.return_value = secret
+
+            _, _, config = (
+                services.api.crud.runtimes.nuclio.function._compile_function_config(
+                    function=function,
+                    auth_info=auth_info,
+                )
+            )
+
+        volumes = mlrun.utils.get_in(config, "spec.volumes", [])
+
+        auth_volumes = [
+            volume
+            for volume in volumes
+            if volume.get("volume", {})
+            .get("secret", {})
+            .get("secretName", "")
+            .startswith("mlrun-auth-secrets")
+        ]
+
+        assert len(auth_volumes) == 1
+
+        auth_volume = auth_volumes[0]
+
+        assert auth_volume["volume"]["secret"]["items"] == [
+            {
+                "key": "tokensFile",
+                "path": mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_FILE,
+            }
+        ]
+
+        assert auth_volume["volumeMount"]["mountPath"] == (
+            mlrun.common.constants.MLRUN_JOB_AUTH_SECRET_PATH
+        )
+
+    def test_compile_function_config_non_iguazio_v4(self):
+        function = self._generate_runtime(self.runtime_kind)
+
+        auth_info = unittest.mock.Mock()
+        auth_info.username = "test-user"
+        mlrun.mlconf.httpdb.authentication.mode = (
+            mlrun.common.types.AuthenticationMode.IGUAZIO
+        )
+
+        _, _, config = (
+            services.api.crud.runtimes.nuclio.function._compile_function_config(
+                function=function,
+                auth_info=auth_info,
+            )
+        )
+
+        volumes = mlrun.utils.get_in(config, "spec.volumes", [])
+
+        assert not any(
+            volume.get("secret", {})
+            .get("secretName", "")
+            .startswith("mlrun-auth-secrets")
+            for volume in volumes
+        )
+
+    def test_validate_sidecar_probes_positive_flow(self):
+        # Test 3 sidecars, each with a different health check method
+        sidecars = [
+            {
+                "name": "sidecar-http",
+                "readinessProbe": {
+                    "httpGet": {
+                        "path": "/ready",
+                        "port": 8080,
+                    },
+                    "initialDelaySeconds": 5,
+                    "periodSeconds": 3,
+                },
+            },
+            {
+                "name": "sidecar-exec",
+                "livenessProbe": {
+                    "exec": {
+                        "command": ["/bin/sh", "-c", "cat /tmp/healthy"],
+                    },
+                    "initialDelaySeconds": 10,
+                    "periodSeconds": 5,
+                },
+            },
+            {
+                "name": "sidecar-tcp",
+                "startupProbe": {
+                    "tcpSocket": {
+                        "port": 9090,
+                    },
+                    "initialDelaySeconds": 15,
+                    "periodSeconds": 10,
+                },
+                "livenessProbe": {
+                    "grpc": {
+                        "port": 9091,
+                        "service": "health",
+                    },
+                    "initialDelaySeconds": 20,
+                    "periodSeconds": 5,
+                },
+            },
+        ]
+
+        _validate_sidecar_probes(sidecars)
+
+    def test_validate_sidecar_probes_invalid_configurations(self):
+        # Test various invalid probe configurations - should raise HTTPException
+        invalid_sidecar_configs = [
+            [
+                {
+                    "name": "test-sidecar-missing",
+                    "readinessProbe": {
+                        "initialDelaySeconds": 5,
+                        "periodSeconds": 3,
+                    },
+                }
+            ],
+            [
+                {
+                    "name": "test-sidecar-more-than-one_health-check",
+                    "readinessProbe": {
+                        "initialDelaySeconds": 5,
+                        "periodSeconds": 3,
+                        "tcpSocket": {
+                            "port": 9090,
+                        },
+                        "httpGet": {
+                            "path": "/ready",
+                            "port": 8080,
+                        },
+                    },
+                }
+            ],
+        ]
+
+        for sidecars in invalid_sidecar_configs:
+            with pytest.raises(HTTPException) as exception_result:
+                _validate_sidecar_probes(sidecars)
+
+            assert exception_result.value.status_code == HTTPStatus.BAD_REQUEST.value
+            assert "must have exactly one of" in str(
+                exception_result.value.detail.get("reason", "")
+            )
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

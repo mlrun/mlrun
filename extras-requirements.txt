@@ -38,7 +38,6 @@ kafka-python~=2.1.0
 avro~=1.11
 redis~=4.3
 graphviz~=0.20.0
-mlflow~=2.22
 # any newer version then 0.13 should be tested with adlfs,gcsfs and s3fs installation.
 # we experience a different in google-auth package in databricks-sdk>0.13
 databricks-sdk~=0.20.0
@@ -46,7 +45,6 @@ databricks-sdk~=0.20.0
 sqlalchemy~=2.0
 dask==2024.8
 distributed==2024.8
-taos-ws-py==0.3.2
 # TimescaleDB dependencies - optional for model monitoring
 psycopg[binary,pool]~=3.2
 snowflake-connector-python~=3.7

@@ -180,14 +180,6 @@ async def delete_model_endpoint(
     delete_background_task: BackgroundTasks,
     function_name: Optional[str] = Query(None, alias="function-name"),
     function_tag: Optional[str] = Query(None, alias="function-tag"),
-    # TODO: remove in 1.11
-    endpoint_id_old: typing.Optional[EndpointIDAnnotation] = Query(
-        None,
-        alias="endpoint_id",
-        deprecated=True,
-        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0."
-        "Use endpoint-id instead.",
-    ),
     endpoint_id: typing.Optional[EndpointIDAnnotation] = Query(
         None, alias="endpoint-id"
     ),
@@ -205,7 +197,7 @@ async def delete_model_endpoint(
     :param auth_info:              The auth info of the request.
     :param db_session:             A session that manages the current dialog with the database.
     """
-    endpoint_id = endpoint_id or endpoint_id_old or "*"
+    endpoint_id = endpoint_id or "*"
 
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -506,25 +498,9 @@ async def get_model_endpoint(
     project: ProjectAnnotation,
     function_name: Optional[str] = Query(None, alias="function-name"),
     function_tag: Optional[str] = Query(None, alias="function-tag"),
-    # TODO: remove in 1.11
-    endpoint_id_old: Optional[EndpointIDAnnotation] = Query(
-        None,
-        alias="endpoint_id",
-        deprecated=True,
-        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
-        "Use endpoint-id instead.",
-    ),
     endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
     metric_list: Optional[list[str]] = Query(None, alias="metric"),
-    # TODO: remove in 1.11
-    feature_analysis_old: bool = Query(
-        False,
-        alias="feature_analysis",
-        deprecated=True,
-        description="'feature_analysis' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
-        "Use feature-analysis instead.",
-    ),
     feature_analysis: bool = Query(False, alias="feature-analysis"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -546,9 +522,6 @@ async def get_model_endpoint(
     :param db_session:          A session that manages the current dialog with the database.
     :return:                    The model endpoint object.
     """
-    endpoint_id = endpoint_id or endpoint_id_old
-    feature_analysis = feature_analysis or feature_analysis_old
-
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=name, auth_info=auth_info
     )

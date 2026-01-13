@@ -1686,16 +1686,15 @@ class MonitoringDeployment:
         ):
             if mlrun.mlconf.is_ce_mode():
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "MLRun CE supports only TDEngine and TimescaleDB TSDB, received a V3IO profile for the TSDB"
+                    "MLRun CE supports only TimescaleDB TSDB, received a V3IO profile for the TSDB"
                 )
         elif not isinstance(
             tsdb_profile,
-            mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
-            | mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+            mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfilePostgreSQL`."
+                "Expects `DatastoreProfileV3io` or `DatastoreProfilePostgreSQL`."
             )
 
         return tsdb_profile
@@ -1810,7 +1809,7 @@ class MonitoringDeployment:
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
         :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
-                                          Either V3IO or TDEngine profile.
+                                          Either V3IO or TimescaleDB (PostgreSQL) profile.
         :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
                                           framework. Either V3IO or KafkaSource profile.
         :param replace_creds:             If True, the credentials will be set even if they are already set.
@@ -1824,9 +1823,17 @@ class MonitoringDeployment:
                 self.check_if_credentials_are_set()
                 if self._is_the_same_cred(stream_profile_name, tsdb_profile_name):
                     logger.debug(
-                        "The same credentials are already set for the project - aborting with no error",
+                        "The same credentials are already set for the project - ensuring TSDB tables exist",
                         project=self.project,
                     )
+                    # Even if credentials match, ensure TSDB tables exist (ML-11807).
+                    # This handles cases where tables were deleted or don't exist yet.
+                    # The create_tables() call is idempotent for all TSDB connectors.
+                    if tsdb_profile_name:
+                        tsdb_profile = self._validate_and_get_tsdb_profile(
+                            tsdb_profile_name
+                        )
+                        self._create_tsdb_tables(tsdb_profile)
                     return
                 raise mlrun.errors.MLRunConflictError(
                     f"For {self.project} the credentials are already set, if you want to set new credentials, "
@@ -1977,8 +1984,11 @@ class MonitoringDeployment:
         delete_background_task: fastapi.BackgroundTasks,
     ):
         async with semaphore:
-            result = framework.db.session.run_function_with_new_db_session(
-                func=services.api.crud.ModelEndpoints().create_model_endpoints,
+            # Use run_in_threadpool to avoid blocking the event loop
+            # while performing synchronous DB operations
+            result = await run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                services.api.crud.ModelEndpoints().create_model_endpoints,
                 model_endpoints_instructions=model_endpoints_instructions,
                 project=project,
                 function_name=function_name,

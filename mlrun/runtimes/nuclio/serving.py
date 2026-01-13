@@ -13,7 +13,6 @@
 # limitations under the License.
 import json
 import os
-import warnings
 from base64 import b64decode
 from copy import deepcopy
 from typing import Optional, Union
@@ -25,6 +24,9 @@ import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.common.secrets
 import mlrun.datastore.datastore_profile as ds_profile
+import mlrun.runtimes.kubejob as kubejob_runtime
+import mlrun.runtimes.nuclio.function as nuclio_function
+import mlrun.runtimes.pod as pod_runtime
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -43,11 +45,7 @@ from mlrun.serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from mlrun.utils import get_caller_globals, logger, set_paths
-
-from .. import KubejobRuntime
-from ..pod import KubeResourceSpec
-from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
+from mlrun.utils import get_caller_globals, logger, merge_requirements, set_paths
 
 serving_subkind = "serving_v2"
 
@@ -86,8 +84,8 @@ def new_v2_model_server(
     return f
 
 
-class ServingSpec(NuclioSpec):
-    _dict_fields = NuclioSpec._dict_fields + [
+class ServingSpec(nuclio_function.NuclioSpec):
+    _dict_fields = nuclio_function.NuclioSpec._dict_fields + [
         "graph",
         "load_mode",
         "graph_initializer",
@@ -155,6 +153,7 @@ class ServingSpec(NuclioSpec):
         disable_default_http_trigger=None,
         model_endpoint_creation_task_name=None,
         serving_spec=None,
+        auth=None,
     ):
         super().__init__(
             command=command,
@@ -196,6 +195,7 @@ class ServingSpec(NuclioSpec):
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             disable_default_http_trigger=disable_default_http_trigger,
             serving_spec=serving_spec,
+            auth=auth,
         )
 
         self.models = models or {}
@@ -232,7 +232,7 @@ class ServingSpec(NuclioSpec):
         self._function_refs = ObjectList.from_list(FunctionReference, function_refs)
 
 
-class ServingRuntime(RemoteRuntime):
+class ServingRuntime(nuclio_function.RemoteRuntime):
     """MLRun Serving Runtime"""
 
     kind = "serving"
@@ -251,6 +251,8 @@ class ServingRuntime(RemoteRuntime):
         class_name=None,
         engine=None,
         exist_ok=False,
+        allow_cyclic: bool = False,
+        max_iterations: Optional[int] = None,
         **class_args,
     ) -> Union[RootFlowStep, RouterStep]:
         """set the serving graph topology (router/flow) and root class or params
@@ -281,6 +283,8 @@ class ServingRuntime(RemoteRuntime):
         :param class_name:   - optional for router, router class name/path or router object
         :param engine:       - optional for flow, sync or async engine
         :param exist_ok:     - allow overriding existing topology
+        :param allow_cyclic: - allow cyclic graphs (only for async flow)
+        :param max_iterations: - optional, max iterations for cyclic graphs (only for async flow), default 100
         :param class_args:   - optional, router/flow class init args
 
         :return: graph object (fn.spec.graph)
@@ -288,7 +292,11 @@ class ServingRuntime(RemoteRuntime):
         topology = topology or StepKinds.router
         if self.spec.graph and not exist_ok:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "graph topology is already set, cannot be overwritten"
+                "graph topology is already set, graph was initialized, use exist_ok=True to override"
+            )
+        if allow_cyclic and topology == StepKinds.router:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cyclic graphs are only supported in flow topology with async engine"
             )
 
         if topology == StepKinds.router:
@@ -302,7 +310,11 @@ class ServingRuntime(RemoteRuntime):
                 step = RouterStep(class_name=class_name, class_args=class_args)
             self.spec.graph = step
         elif topology == StepKinds.flow:
-            self.spec.graph = RootFlowStep(engine=engine or "async")
+            self.spec.graph = RootFlowStep(
+                engine=engine or "async",
+                allow_cyclic=allow_cyclic,
+                max_iterations=max_iterations,
+            )
             self.spec.graph.track_models = self.spec.track_models
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -313,7 +325,6 @@ class ServingRuntime(RemoteRuntime):
     def set_tracking(
         self,
         stream_path: Optional[str] = None,
-        batch: Optional[int] = None,
         sampling_percentage: float = 100,
         stream_args: Optional[dict] = None,
         enable_tracking: bool = True,
@@ -323,7 +334,6 @@ class ServingRuntime(RemoteRuntime):
 
         :param stream_path:                Path/url of the tracking stream e.g. v3io:///users/mike/mystream
                                            you can use the "dummy://" path for test/simulation.
-        :param batch:                      Deprecated. Micro batch size (send micro batches of N records at a time).
         :param sampling_percentage:        Down sampling events that will be pushed to the monitoring stream based on
                                            a specified percentage. e.g. 50 for 50%. By default, all events are pushed.
         :param stream_args:                Stream initialization parameters, e.g. shards, retention_in_hours, ..
@@ -371,13 +381,6 @@ class ServingRuntime(RemoteRuntime):
 
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
-        if batch:
-            warnings.warn(
-                "The `batch` size parameter was deprecated in version 1.8.0 and is no longer used. "
-                "It will be removed in 1.11.",
-                # TODO: Remove this in 1.11
-                FutureWarning,
-            )
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
 
@@ -649,7 +652,7 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
-    @min_nuclio_versions("1.12.10")
+    @nuclio_function.min_nuclio_versions("1.12.10")
     def deploy(
         self,
         project="",
@@ -718,6 +721,8 @@ class ServingRuntime(RemoteRuntime):
             self._add_ref_triggers()
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
+
+        self._add_steps_requirements()
 
         return super().deploy(
             project,
@@ -863,7 +868,9 @@ class ServingRuntime(RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(self, func_name: Optional[str] = None) -> KubejobRuntime:
+    def to_job(
+        self, func_name: Optional[str] = None
+    ) -> "kubejob_runtime.KubejobRuntime":
         """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
 
         Args:
@@ -882,7 +889,9 @@ class ServingRuntime(RemoteRuntime):
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
             )
 
-        spec = KubeResourceSpec(
+        self._add_steps_requirements()
+
+        spec = pod_runtime.KubeResourceSpec(
             image=self.spec.image,
             mode=self.spec.mode,
             volumes=self.spec.volumes,
@@ -952,8 +961,37 @@ class ServingRuntime(RemoteRuntime):
                     suffix=suffix,
                 )
 
-        job = KubejobRuntime(
+        job = kubejob_runtime.KubejobRuntime(
             spec=spec,
             metadata=job_metadata,
         )
         return job
+
+    def _add_steps_requirements(self) -> None:
+        # extract child function name from self.metadata.name if parent label exists
+        full_name = self.metadata.name
+        parent_label = (
+            self.metadata.labels.get("mlrun/parent-function")
+            if self.metadata.labels
+            else None
+        )
+        current_function = None  # only set if current function is a child
+        if parent_label and full_name.startswith(parent_label + "-"):
+            current_function = full_name[len(parent_label) + 1 :]
+
+        steps = getattr(getattr(self.spec, "graph", {}), "steps", {})
+        for step in steps.values():
+            # only add requirements to the function if this step is local to it
+            if step_requirements := getattr(step, "requirements", []):
+                if not step._is_local_function(
+                    context=None, current_function=current_function
+                ):
+                    continue
+                build_reqs = getattr(
+                    getattr(self.spec, "build", {}), "requirements", []
+                )
+                reqs_union = merge_requirements(
+                    reqs_priority=build_reqs,
+                    reqs_secondary=step_requirements,
+                )
+                self.with_requirements(requirements=reqs_union, overwrite=True)

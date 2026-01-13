@@ -476,3 +476,13 @@ def test_model_runner_with_selector():
 
     with pytest.raises(mlrun.serving.states.GraphError):
         graph.to(name="s1", handler="(event + 1)").to(model_runner_step)
+
+
+def test_sync_flow_with_branches():
+    fn = mlrun.new_function("tests", kind="serving", project="x")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to(name="s1", class_name="Mul")
+    graph.to(name="s2", class_name="Mul")
+    graph.add_step(name="gather", class_name="Gather", after=["s1", "s2"])
+    with pytest.raises(mlrun.serving.states.GraphError):
+        fn.to_mock_server()

@@ -51,7 +51,7 @@ generate-hashes = true
 universal = true
 
 [tool.pytest.ini_options]
-addopts = "-v -rf --disable-warnings"
+addopts = "-v -rf --disable-warnings --import-mode=importlib"
 pythonpath = "./server/py" # This allows running server side tests from the project root directory
 python_files = [
     "tests/*/test_*.py",
@@ -63,6 +63,9 @@ timeout = 1800  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
 asyncio_mode = "auto"
+markers = [
+    "collect_pod_logs: collect pod logs on test failure for debugging",
+]
 
 [tool.importlinter]
 root_packages = [

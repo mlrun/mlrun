@@ -206,7 +206,7 @@ Additional operations:
 hub_module.to_dict()
 
 # Download module files into a local directory
-hub_module.download_module_files("./temp")
+hub_module.download_files("./temp")
 
 # Import the module 
 mod = hub_module.module()

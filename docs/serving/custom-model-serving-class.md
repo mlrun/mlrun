@@ -179,14 +179,13 @@ is used to create real-time dashboards, detect drift, and analyze performance.
 To monitor a deployed model, apply `set_tracking()` on your serving function and specify the function spec attributes:
 
 ```py
-fn.set_tracking(stream_path, batch, sample)
+fn.set_tracking(stream_path, sampling_percentage)
 ```
 
 Optional arguments:
-* **stream_path** &mdash; Enterprise: the v3io stream path (e.g. `v3io:///users/..`); CE: a valid Kafka stream 
+* **stream_path** &mdash; Enterprise: the v3io stream path (e.g. `v3io:///users/..`); CE: a valid Kafka stream
 (e.g. kafka://kafka.default.svc.cluster.local:9092)
-* **sample** &mdash; optional, sample every N requests
-* **batch** &mdash; optional, send micro-batches every N requests
+* **sampling_percentage** &mdash; optional, down sampling events that will be pushed to the monitoring stream based on a specified percentage (e.g. 50 for 50%). By default, all events are pushed.
 
 Before you deploy a model with model monitoring enabled via `fn.set_tracking()`,
 set the credentials for the project:

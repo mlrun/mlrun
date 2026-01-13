@@ -106,6 +106,7 @@ class HeaderNames:
     v3io_user_id = "x-v3io-user-id"
     v3io_session_planes = "x-v3io-session-planes"
     authorization = "authorization"
+    igz_authenticator_kind = "x-igz-authenticator-kind"
     cookies = "cookies"
     cookie = "cookie"
     x_request_id = "x-request-id"

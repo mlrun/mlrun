@@ -21,6 +21,7 @@ from nuclio.auth import AuthInfo as NuclioAuthInfo
 
 import mlrun.common.schemas
 import mlrun.runtimes
+import mlrun.runtimes.utils
 import tests.system.base
 
 
@@ -31,7 +32,11 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
     def custom_setup(self):
         super().custom_setup()
         self._vizro_app_code_filename = "vizro_app.py"
-        self._files_to_upload = [self._vizro_app_code_filename]
+        self._function_with_delay_healthcheck = "function_with_delay_healthcheck.py"
+        self._files_to_upload = [
+            self._vizro_app_code_filename,
+            self._function_with_delay_healthcheck,
+        ]
         self._source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
 
     def test_deploy_application(self):
@@ -190,6 +195,29 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function._get_state()
         assert len(function.status.external_invocation_urls) == 2
 
+    def test_application_probes(self):
+        self._upload_code_to_cluster()
+        self._logger.debug("Creating application")
+        function = self._create_delay_health_check_application("delay-health-check-app")
+        # Add probes to the function - set timeout_seconds > 20 to allow health endpoint to respond
+        self._logger.debug("Adding probes to function")
+        function.set_probe(
+            type="readiness",
+            http_path="/health",
+            http_port=5000,  # Flask app runs on port 5000
+            period_seconds=5,
+            timeout_seconds=25,  # Wait 25 seconds (more than the 20 seconds sleep in /health)
+        )
+
+        # Deploy with probes
+        self._logger.debug("Deploying application with probes")
+        function.deploy(with_mlrun=False)
+
+        # Verify the application is running and healthy
+        self._logger.debug("Validating application is healthy")
+        response = function.invoke("/external", verify=False).content.decode("utf-8")
+        assert response == "test message"
+
     def _create_vizro_application(
         self, name="vizro-app", app_image=None, with_repo: bool = False
     ):
@@ -227,3 +255,27 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         output = new_stdout.getvalue()
         new_stdout.close()
         return output
+
+    def _create_delay_health_check_application(self, name="delay-app"):
+        function = self.project.set_function(
+            name=name,
+            kind="application",
+            requirements=["Flask==3.0.0"],
+            with_repo=False,
+        )
+        function.set_internal_application_port(5000)  # Match Flask port
+        function.spec.command = "python"
+        function.spec.args = [
+            "-m",
+            "flask",
+            "--app=function_with_delay_healthcheck",
+            "run",
+            "--host=0.0.0.0",
+            "--port=5000",
+        ]
+        function.with_http(workers=1, trigger_name="application-http")
+        delay_healthcheck_source = os.path.join(
+            self.remote_code_dir, self._function_with_delay_healthcheck
+        )
+        function.with_source_archive(source=delay_healthcheck_source)
+        return function

@@ -20,8 +20,10 @@ import fastapi
 
 import mlrun
 import mlrun.common.schemas as schemas
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.common.types import AuthenticationMode
+from mlrun.utils import logger
 
 import framework.utils.auth.providers.nop
 import framework.utils.auth.providers.opa
@@ -299,6 +301,30 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                 project_name, ""
             ),
             resource_namespace,
+        )
+
+    async def ensure_project_permissions(
+        self,
+        project_name: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+    ):
+        """
+        Ensures project permissions are populated in the AuthVerifier
+        """
+
+        async def _check_project_read_permissions():
+            await self.query_project_permissions(
+                project_name,
+                mlrun.common.schemas.AuthorizationAction.read,
+                auth_info,
+            )
+
+        await mlrun.utils.helpers.retry_until_successful_async(
+            backoff=1,
+            timeout=10,
+            logger=logger,
+            verbose=False,
+            _function=_check_project_read_permissions,
         )
 
     def _generate_resource_string_from_project_resource(

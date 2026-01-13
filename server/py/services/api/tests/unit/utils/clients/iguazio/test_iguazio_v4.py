@@ -486,11 +486,12 @@ def test_store_project(
 ):
     project = _generate_igv4_project(owner=owner)
 
-    if not project_exists:
-        iguazio_client._client.get_project_policy_assignments.side_effect = (
+    if project_exists:
+        # Simulate 409 Conflict when trying to create project policies that already exist
+        iguazio_client._client.create_default_project_policies.side_effect = (
             _generate_igv4_httpx_exception(
-                "Project not found",
-                httpx.codes.NOT_FOUND,
+                "Project policies already exist",
+                httpx.codes.CONFLICT,
             )
         )
 
@@ -501,16 +502,16 @@ def test_store_project(
         igv4_auth_info.request_headers
     )
 
-    iguazio_client._client.get_project_policy_assignments.assert_called_once_with(
+    # create_project is always called first (which calls create_default_project_policies)
+    iguazio_client._client.create_default_project_policies.assert_called_once_with(
         project=TEST_PROJECT_NAME
     )
 
     if not project_exists:
-        iguazio_client._client.create_default_project_policies.assert_called_once_with(
-            project=TEST_PROJECT_NAME
-        )
+        # New project: create succeeded, no need to update owner
         iguazio_client._client.update_project_owner.assert_not_called()
     else:
+        # Existing project: 409 Conflict triggered patch_project
         if not owner:
             iguazio_client._client.update_project_owner.assert_not_called()
         else:
@@ -522,11 +523,17 @@ def test_store_project(
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
 def test_delete_project(mock_session, iguazio_client, igv4_auth_info):
-    iguazio_client.delete_project(
-        mock_session, TEST_PROJECT_NAME, auth_info=igv4_auth_info
-    )
+    auth_headers = {"test": "test"}
+    with unittest.mock.patch(
+        "framework.utils.clients.service_account_token.Client.auth_headers",
+        auth_headers,
+    ):
+        iguazio_client.delete_project(
+            mock_session, TEST_PROJECT_NAME, auth_info=igv4_auth_info
+        )
+
     iguazio_client._client.set_override_auth_headers.assert_called_once_with(
-        igv4_auth_info.request_headers
+        auth_headers
     )
     iguazio_client._client.delete_project_policies.assert_called_once_with(
         project=TEST_PROJECT_NAME

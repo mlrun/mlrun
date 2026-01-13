@@ -88,6 +88,15 @@ def git_repo(tmpdir, request):
             ],
             "1.5.1",
         ),
+        # ML-11751: local version tag should be ignored on non-feature branches
+        (
+            "1.10.0",
+            [
+                (1, "1.10.1-rc1"),
+                (0, "1.10.1-rc2+ui-navbar"),  # Local version from feature branch
+            ],
+            "1.10.1-rc1",  # Should return rc1, not the local version
+        ),
     ],
 )
 def test_current_version(git_repo, base_version, tags, expected_current_version):
@@ -103,7 +112,9 @@ def test_current_version(git_repo, base_version, tags, expected_current_version)
                 f"HEAD~{tag[0]}",
             ]
         )
-    current_version = get_current_version(base_version=packaging.version.parse("1.5.0"))
+    current_version = get_current_version(
+        base_version=packaging.version.parse(base_version)
+    )
     assert current_version == expected_current_version
 
 

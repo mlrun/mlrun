@@ -14,8 +14,6 @@
 import typing
 
 import httpx
-
-# iguazio package is only supported in Python >= 3.11
 import iguazio
 import sqlalchemy.orm
 from iguazio.schemas import (
@@ -31,6 +29,7 @@ import mlrun.common.types
 import mlrun.errors
 from mlrun.utils import get_in
 
+import framework.utils.clients.service_account_token as service_account_token
 import framework.utils.projects.remotes.follower as project_follower
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
@@ -41,10 +40,11 @@ _GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
 class Client(BaseClient, project_follower.Member):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self._service_account_token_client = service_account_token.Client()
         self._client = iguazio.Client(
             api_url=self._api_url,
             auto_login=False,
-            load_token_file=False,
+            use_token_file=False,
             verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
         )
 
@@ -162,6 +162,10 @@ class Client(BaseClient, project_follower.Member):
         self._logger.debug("Creating default project policies in Iguazio")
 
         def _create_default_project_policies():
+            # TODO: Currently, create_default_project_policies relies on the auth info of the incoming request to
+            #       determine the owner of the project. The iguazio api needs to be updated to accept an explicit owner
+            #       parameter so we can use the service account token here.
+            #       This isn't required now, but will be for the project sync functionality.
             self._client.set_override_auth_headers(auth_info.request_headers)
             self._client.create_default_project_policies(project=project.metadata.name)
             self._logger.info(
@@ -187,10 +191,27 @@ class Client(BaseClient, project_follower.Member):
 
         def _update_owner_or_create_policies():
             self._client.set_override_auth_headers(auth_info.request_headers)
-            if self._project_policies_exist(project.metadata.name, auth_info):
-                self.patch_project(session, name, project.dict(), auth_info=auth_info)
-            else:
-                self.create_project(session, project, auth_info=auth_info)
+            try:
+                # Try to create policies first
+                self._client.create_default_project_policies(
+                    project=project.metadata.name
+                )
+                self._logger.info(
+                    "Successfully created default project policies in Iguazio"
+                )
+            except httpx.HTTPStatusError as exc:
+                # If policies already exist (409 Conflict), update owner instead
+                if exc.response.status_code == httpx.codes.CONFLICT:
+                    self._logger.debug(
+                        "Project policies already exist, updating owner instead",
+                        project=project.metadata.name,
+                    )
+                    self.patch_project(
+                        session, name, project.dict(), auth_info=auth_info
+                    )
+                else:
+                    # Unexpected error, re-raise
+                    raise
 
         self._try_callback_with_httpx_exceptions(
             _update_owner_or_create_policies,
@@ -235,7 +256,9 @@ class Client(BaseClient, project_follower.Member):
         self._logger.debug("Deleting project policies in Iguazio")
 
         def _delete_project_policies():
-            self._client.set_override_auth_headers(auth_info.request_headers)
+            self._client.set_override_auth_headers(
+                self._service_account_token_client.auth_headers
+            )
             self._client.delete_project_policies(project=name)
             self._logger.info("Successfully deleted project policies in Iguazio")
 
@@ -289,7 +312,9 @@ class Client(BaseClient, project_follower.Member):
     def _project_policies_exist(
         self, project: str, auth_info: mlrun.common.schemas.AuthInfo
     ) -> bool:
-        self._client.set_override_auth_headers(auth_info.request_headers)
+        self._client.set_override_auth_headers(
+            self._service_account_token_client.auth_headers
+        )
         try:
             self._client.get_project_policy_assignments(project=project)
         except httpx.HTTPStatusError as exc:

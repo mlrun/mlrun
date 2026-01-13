@@ -791,6 +791,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
 
         logger.debug("Updating secret", secret_name=secret_name)
+        namespace = self.resolve_namespace(namespace)
         secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
         for key, value in secrets.items():
             secret_data[key] = (
@@ -1573,7 +1574,7 @@ class BasePod:
         self.args = args
         self._volumes = []
         self._mounts = []
-        self.env: list[client.V1EnvVar] = []
+        self.env = None
         self.node_selector = None
         self.project = project
         self._labels = {

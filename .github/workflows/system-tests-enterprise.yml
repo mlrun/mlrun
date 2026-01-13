@@ -127,7 +127,7 @@ jobs:
         output-credentials: true
 
     - name: Install uv
-      uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
+      uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # 7.2.0
       with:
         enable-cache: true
         python-version: 3.11
@@ -310,7 +310,7 @@ jobs:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Upload env file
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: env
         path: "${{ steps.encrypt_file.outputs.env_file_path }}"
@@ -357,6 +357,7 @@ jobs:
         # gcc, make     for installing python packages
         apt-get update -qqy && \
           apt-get install -y \
+            curl \
             gnupg \
             nodejs \
             graphviz \
@@ -364,9 +365,31 @@ jobs:
             gcc \
             make
 
+    - name: Install aws-iam-authenticator
+      # Required when kubeconfig uses exec auth with `command: aws-iam-authenticator`
+      run: |
+        set -euo pipefail
+        export PATH="/usr/local/bin:$PATH"
+        curl -fsSL \
+          -o /usr/local/bin/aws-iam-authenticator \
+          https://amazon-eks.s3-us-west-2.amazonaws.com/1.34.2/2025-11-13/bin/linux/amd64/aws-iam-authenticator
+        chmod +x /usr/local/bin/aws-iam-authenticator
+        command -v aws-iam-authenticator
+        aws-iam-authenticator version
+
     - uses: actions/setup-node@v6
       with:
         node-version: 18
+
+    # Configure AWS credentials in the test job as well, so the kubeconfig can use exec-based auth
+    # (aws eks get-token) and refresh tokens throughout long test runs. This prevents 401s during
+    # pod-log collection on failures.
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708
+      with:
+        role-to-assume: ${{ env.AWS_ROLE_ARN }}
+        role-session-name: mlrun-system-tests-${{ github.run_id }}
+        aws-region: ${{ env.AWS_REGION }}
 
     - uses: actions/checkout@v6
       # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
@@ -376,14 +399,14 @@ jobs:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # 7.1.4
+      uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # 7.2.0
       with:
         enable-cache: true
         python-version: 3.11
         cache-dependency-glob: |
           **/*requirements*.txt
 
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v7
       with:
         name: env
         path: /tmp
@@ -411,7 +434,7 @@ jobs:
         uv venv venv --seed
         . venv/bin/activate
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
-          make install-requirements install-complete-kfp-requirements update-version-file
+          make install-requirements install-complete-requirements update-version-file
 
     - name: Run System Tests
       run: |

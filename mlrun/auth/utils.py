@@ -13,16 +13,28 @@
 # limitations under the License.
 
 import os
+import time
 import typing
 
+import jwt
 import yaml
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.helpers
 from mlrun.config import config as mlconf
 
 if typing.TYPE_CHECKING:
     import mlrun.db
+
+
+class Claims:
+    """
+    JWT Claims constants.
+    """
+
+    SUBJECT = "sub"
+    EXPIRATION = "exp"
 
 
 def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
@@ -214,6 +226,7 @@ def get_offline_token_from_env() -> typing.Optional[str]:
 
 
 def load_and_prepare_secret_tokens(
+    auth_user_id: str | None = None,
     raise_on_error: bool = True,
 ) -> list[mlrun.common.schemas.SecretToken]:
     """
@@ -224,127 +237,179 @@ def load_and_prepare_secret_tokens(
       2. Validate each token for required fields and uniqueness.
       3. Translate validated token dictionaries into SecretToken objects.
 
+    :param auth_user_id: The user ID to filter the tokens by.
     :param raise_on_error: Whether to raise exceptions or log warnings on failure
                            in any of the steps (loading, validation, translation).
     :return: List of SecretToken objects.
     :rtype: list[mlrun.common.schemas.SecretToken]
     """
     tokens_list = load_secret_tokens_from_file(raise_on_error=raise_on_error)
-    validated_tokens = validate_secret_tokens(
-        tokens_list, raise_on_error=raise_on_error
+    validated_tokens = extract_and_validate_tokens_info(
+        secret_tokens=[
+            mlrun.common.schemas.SecretToken(
+                name=token["name"],
+                token=token["token"],
+            )
+            for token in tokens_list
+        ],
+        authenticated_id=auth_user_id,
+        filter_by_authenticated_id=True,
     )
-    secret_tokens = translate_secret_tokens(
+    secret_tokens = _translate_secret_tokens(
         validated_tokens, raise_on_error=raise_on_error
     )
     return secret_tokens
 
 
-def validate_secret_tokens(
-    tokens_list: list[dict[str, typing.Any]], raise_on_error: bool = True
-) -> list[dict[str, typing.Any]]:
+def extract_and_validate_tokens_info(
+    secret_tokens: list[mlrun.common.schemas.SecretToken],
+    authenticated_id: str,
+    filter_by_authenticated_id: bool = False,
+) -> dict[str, dict[str, typing.Any]]:
     """
-    Validate a list of token dictionaries.
+    Extract and validate tokens info from a list of SecretToken objects.
 
-    Checks performed:
-      - Each token has a non-empty 'name' and 'token'.
-        If raise_on_error=False, invalid entries are ignored.
-      - No duplicate token names.
-        If raise_on_error=False, duplicates are ignored.
-
-    :param tokens_list: List of token dictionaries to validate.
-    :param raise_on_error: Whether to raise exceptions on invalid entries.
-    :return: List of validated token dictionaries.
-    :rtype: list[dict[str, Any]]
+    :param secret_tokens: List of SecretToken objects.
+    :param authenticated_id: The authenticated user ID.
+    :return: Dictionary of token info with the token name as the key and the token as the value.
     """
-    valid_tokens = []
-    seen = set()
+    token_values = {}
+    for secret_token in secret_tokens:
+        token_name = secret_token.name
 
-    token_file = os.path.expanduser(mlconf.auth_with_oauth_token.token_file)
-    for token in tokens_list:
-        name = token.get("name")
-        token_value = token.get("token")
+        # Validate name is provided and not duplicate
+        if secret_token.name and secret_token.name not in token_values:
+            # The token is expected to be a refresh token which we cannot verify ourselves, we verify it separately
+            # via orca when exchanging it for an access token. We decode it here without verification to extract its
+            # claims.
+            decoded_token = _decode_token_unverified(secret_token.token)
 
-        if not name or not isinstance(token_value, str) or not token_value.strip():
-            # Invalid entry
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Invalid token entry in {token_file}: missing or empty 'name' or 'token'",
-                raise_on_error,
+            # Validate token expiration existence
+            if not decoded_token.get(Claims.EXPIRATION):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
+                )
+            # Validate token subject existence
+            if not decoded_token.get(Claims.SUBJECT):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
+                )
+
+            # Validate token belongs to the authenticated user
+            token_sub = decoded_token.get(Claims.SUBJECT)
+            if token_sub != authenticated_id:
+                # just ignore the token as it doesn't belong to the authenticated user
+                if filter_by_authenticated_id:
+                    continue
+                mlrun.utils.logger.warning(
+                    "Offline token subject does not match the authenticated user",
+                    token_name=token_name,
+                    token_sub=token_sub,
+                    user_id=authenticated_id,
+                )
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Offline token '{token_name}' does not match the authenticated user ID. "
+                    "Stored tokens can only belong to the authenticated user."
+                )
+
+            # Store token info
+            token_values[secret_token.name] = {
+                "token_exp": decoded_token.get(Claims.EXPIRATION),
+                "token": secret_token.token,
+            }
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid or duplicate token name '{secret_token.name}' found in request payload"
             )
-            continue
-
-        if name in seen:
-            # Duplicate entry
-            mlrun.utils.helpers.raise_or_log_error(
-                f"Duplicate token name '{name}' found in {token_file}",
-                raise_on_error,
-            )
-            continue
-
-        seen.add(name)
-        valid_tokens.append(token)
-
-    return valid_tokens
+    return token_values
 
 
-def translate_secret_tokens(
-    tokens_list: list[dict[str, typing.Any]], raise_on_error: bool = True
+def resolve_jwt_subject(
+    token: str, raise_on_error: bool = True
+) -> typing.Optional[str]:
+    """
+    Extract the 'sub' (subject/user ID) claim from a JWT token.
+
+    The token is decoded without signature verification since it has already
+    been verified earlier during the authentication process.
+
+    :param token: The JWT token string.
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The 'sub' claim value, or None if extraction fails.
+    """
+    try:
+        # This method is used from the client side after receiving this token from the server, there's no need or
+        # ability to verify its signature here.
+        return _decode_token_unverified(token).get(Claims.SUBJECT)
+    except jwt.PyJWTError as exc:
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Failed to decode JWT token: {exc}", raise_on_error
+        )
+        return None
+
+
+def is_token_expired(token: str, buffer_seconds: int = 0) -> bool:
+    """
+    Check if a JWT token is expired based on its 'exp' claim.
+
+    :param token: The JWT token string.
+    :param buffer_seconds: Number of seconds to subtract from the expiration time
+    :return: True if the token is expired, False otherwise.
+    """
+
+    # This method is used for caching and/or extra validation purposes in addition to the main verification flow,
+    # so we decode without signature verification here.
+    decoded_token = _decode_token_unverified(token)
+    expiration = decoded_token.get(Claims.EXPIRATION)
+    if not expiration:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Token is missing the 'exp' (expiration) claim"
+        )
+    now = time.time()
+    return now >= expiration - buffer_seconds
+
+
+def _decode_token_unverified(token: str) -> dict:
+    try:
+        return jwt.decode(token, options={"verify_signature": False})
+    except jwt.DecodeError as exc:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Failed to decode offline token"
+        ) from exc
+    except Exception as exc:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Unexpected error decoding token"
+        ) from exc
+
+
+def _translate_secret_tokens(
+    tokens_dict: dict[str, dict[str, typing.Any]], raise_on_error: bool = True
 ) -> list[mlrun.common.schemas.SecretToken]:
     """
-    Translate a list of validated token dictionaries into SecretToken objects.
+    Translate a dictionary of validated token data into SecretToken objects.
 
-    Each dictionary in the list must be validated and contain the required fields
-    for SecretToken creation. If an entry fails to translate, behavior depends on
-    ``raise_on_error``: raise an exception or log a warning.
+    The dictionary is keyed by token name, with values containing token data
+    (including the token string). If an entry fails to translate, behavior depends
+    on ``raise_on_error``: raise an exception or log a warning.
 
-    :param tokens_list: List of validated token dictionaries.
+    :param tokens_dict: Dictionary of validated token data, keyed by token name.
     :param raise_on_error: Whether to raise exceptions on translation errors.
-    :return: List of SecretToken objects created from the input dictionaries.
+    :return: List of SecretToken objects created from the input dictionary.
     :rtype: list[mlrun.common.schemas.SecretToken]
     """
     token_file = os.path.expanduser(mlconf.auth_with_oauth_token.token_file)
     tokens = []
-    for token in tokens_list:
+    for token_name, token_data in tokens_dict.items():
         try:
-            tokens.append(mlrun.common.schemas.SecretToken(**token))
+            tokens.append(
+                mlrun.common.schemas.SecretToken(
+                    name=token_name,
+                    token=token_data["token"],
+                )
+            )
         except Exception as exc:
             mlrun.utils.helpers.raise_or_log_error(
                 f"Failed to create SecretToken from entry in {token_file}: {exc}",
                 raise_on_error,
             )
     return tokens
-
-
-def enrich_auth_env(
-    env: dict,
-    db: "mlrun.db.RunDBInterface",
-    auth_info: mlrun.common.schemas.AuthInfo = None,
-):
-    """
-    Enrich the given environment dictionary with authentication information.
-
-    This function adds authentication-related environment variables to the provided
-    environment dictionary based on the given AuthInfo object.
-
-    :param env: The environment dictionary to enrich.
-    :param db: The RunDBInterface instance to retrieve secret tokens.
-    :param auth_info: The AuthInfo object containing authentication details.
-    """
-
-    # TODO: Remove this once we implement secret token mounting in jobs (ML-11292)
-    _default_token_name = "default"
-
-    if mlrun.mlconf.is_iguazio_v4_mode():
-        if auth_info and auth_info.username:
-            secret = db.get_secret_token(
-                token_name=_default_token_name,
-                username=auth_info.username,
-            )
-            env["MLRUN_AUTH_OFFLINE_TOKEN"] = secret.token
-
-        env["MLRUN_AUTH_WITH_OAUTH_TOKEN__ENABLED"] = "true"
-        env["MLRUN_AUTH_TOKEN_ENDPOINT"] = (
-            mlrun.mlconf.iguazio_api_url + "/api/v1/refresh-access-token"
-        )
-        env["MLRUN_HTTPDB__HTTP__VERIFY"] = str(
-            mlrun.mlconf.iguazio_api_ssl_verify
-        ).lower()

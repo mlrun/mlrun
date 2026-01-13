@@ -16,9 +16,9 @@ import gzip
 from copy import deepcopy
 from typing import Optional, Union
 
-import semver
 from dependency_injector import containers, providers
 
+import mlrun.auth.utils
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas.schedule
@@ -310,6 +310,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         self._handle_retry(run)
         run = self._pre_run_image_pull_secret_enrichment(run)
+        self.enrich_and_validate_auth_token_name(run)
         return self._pre_run_scheduling_constraints_enrichment(runtime, run)
 
     @staticmethod
@@ -450,31 +451,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}."
                     )
-                if (
-                    not client_version
-                    or semver.Version.parse(client_version)
-                    >= semver.Version.parse("1.8.0-rc20")
-                    or "unstable" in client_version
-                ):
-                    # Compress and encode the serving spec
-                    compressed_serving_spec = gzip.compress(
-                        serving_spec.encode("utf-8")
-                    )
-                    encoded_serving_spec = base64.b64encode(
-                        compressed_serving_spec
-                    ).decode("utf-8")
-                else:
-                    # TODO: remove in 1.11.0.
-                    if (
-                        serving_spec_len >= SERVING_SPEC_MAX_LENGTH / 10
-                    ):  # 1MB limitation as it were before the zip
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}."
-                        )
-                    mlrun.utils.logger.info(
-                        "Client version does not support passing serving spec as zip via ConfigMap",
-                    )
-                    encoded_serving_spec = serving_spec
+                # Compress and encode the serving spec
+                compressed_serving_spec = gzip.compress(serving_spec.encode("utf-8"))
+                encoded_serving_spec = base64.b64encode(compressed_serving_spec).decode(
+                    "utf-8"
+                )
 
                 function_name = mlrun.runtimes.nuclio.function.get_fullname(
                     function.metadata.name, project, function.metadata.tag

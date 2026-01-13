@@ -22,7 +22,6 @@ import anyio
 import anyio.lowlevel
 import anyio.to_thread
 import fastapi
-import fastapi.concurrency
 import fastapi.exception_handlers
 import semver
 from dependency_injector import containers, providers
@@ -34,13 +33,13 @@ import mlrun.utils.version
 from mlrun import mlconf
 
 import framework.api.utils
+import framework.db.session
 import framework.middlewares
 import framework.utils.clients.chief
 import framework.utils.clients.messaging
 import framework.utils.pagination
 import framework.utils.periodic
-from framework.db.session import run_async_function_with_new_db_session
-from framework.utils.singletons.db import initialize_db
+import framework.utils.singletons.db
 
 
 class Service(ABC):
@@ -66,7 +65,9 @@ class Service(ABC):
 
     async def move_service_to_online(self):
         self._logger.info("Moving service to online", service_name=self.service_name)
-        await run_async_function_with_new_db_session(self._sync_system_metadata)
+        await framework.db.session.run_async_function_with_new_db_session(
+            self._sync_system_metadata
+        )
         await self._move_service_to_online()
 
     # https://fastapi.tiangolo.com/advanced/events/
@@ -158,6 +159,48 @@ class Service(ABC):
             mlrun_service_name=self.service_name,
             mlrun_service=self,
         )
+        self._add_swagger_authorization()
+
+    def _add_swagger_authorization(self):
+        """
+        Add authorization header support to Swagger UI.
+        This allows users to add a custom authorization header in the Swagger UI.
+        """
+
+        def custom_openapi():
+            if self.app.openapi_schema:
+                return self.app.openapi_schema
+            from fastapi.openapi.utils import get_openapi
+
+            openapi_schema = get_openapi(
+                title=self.app.title,
+                version=self.app.version,
+                description=self.app.description,
+                routes=self.app.routes,
+            )
+            openapi_schema.setdefault("components", {})
+
+            # Add security scheme for authorization header
+            # This makes the "Authorize" button appear in Swagger UI
+            openapi_schema["components"].setdefault("securitySchemes", {})
+            openapi_schema["components"]["securitySchemes"]["Authorization"] = {
+                "type": "apiKey",
+                "in": "header",
+                "name": "Authorization",
+                "description": "Enter your authorization header token. Example: Bearer <token>",
+            }
+            # Add security requirement at root level to make it available globally
+            # Empty array [] means the security is optional (not required)
+            # This allows Swagger UI to attach the header to requests when user authorizes,
+            # but won't interfere with cookie-based authentication when user doesn't authorize
+            openapi_schema.setdefault("security", [])
+            auth_security = {"Authorization": []}
+            if auth_security not in openapi_schema["security"]:
+                openapi_schema["security"].append(auth_security)
+            self.app.openapi_schema = openapi_schema
+            return self.app.openapi_schema
+
+        self.app.openapi = custom_openapi
 
     async def _setup_service(self):
         """
@@ -180,7 +223,7 @@ class Service(ABC):
             max_workers=anyio.to_thread.current_default_thread_limiter().total_tokens,
         )
 
-        await fastapi.concurrency.run_in_threadpool(initialize_db)
+        await mlrun.utils.run_in_threadpool(framework.utils.singletons.db.initialize_db)
         await self._custom_setup_service()
 
         if (

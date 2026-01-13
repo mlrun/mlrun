@@ -152,11 +152,8 @@ jobs:
     # publishing to artifactory after images are built successfully
     needs: [ prepare-inputs ]
     steps:
-
-      
       - name: Cleanup build artifacts from previous runs
-        # TODO This is only needed for work-around, disabling it for now if everything works we can remove this.
-        if: false
+        if: true
         run: |
           # Remove any root-owned build artifacts from previous runs using Docker
           # This works even when files are owned by root
@@ -174,4 +171,4 @@ jobs:
           UV_PUBLISH_URL: ${{ env.PYPI_REPO_URL }}
           UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
           UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
-        run: make publish-package
+        run: uv run --no-project --with packaging~=25.0 make publish-package

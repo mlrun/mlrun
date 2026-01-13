@@ -36,8 +36,12 @@ import mlrun.errors
 import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
-from mlrun.utils import logger
-from mlrun.utils.helpers import run_with_retry, to_non_empty_values_dict
+from mlrun.utils import logger, regex
+from mlrun.utils.helpers import (
+    run_with_retry,
+    to_non_empty_values_dict,
+    verify_field_regex,
+)
 
 import framework.utils.runtimes.mpijob
 
@@ -1296,6 +1300,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         labels = {mlrun_constants.MLRunInternalLabels.auth_token_name: None}
         # "*" means list all users' tokens, so skip the username filter
         if username != "*":
+            # Validate username is a valid K8s label value
+            verify_field_regex("username", username, regex.label_value)
             labels[mlrun_constants.MLRunInternalLabels.auth_username] = username
 
         k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
@@ -1569,6 +1575,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token_name: str,
         namespace: typing.Optional[str] = None,
     ):
+        # Validate username and token_name are valid K8s label values
+        verify_field_regex("username", username, regex.label_value)
+        verify_field_regex("token_name", token_name, regex.label_value)
+
         namespace = self.resolve_namespace(namespace)
         labels = {
             mlrun_constants.MLRunInternalLabels.auth_username: username,

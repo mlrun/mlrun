@@ -16,7 +16,7 @@ As explained in {ref}`serving-graph`, the serving graph is based on Nuclio funct
  
 ## Using Nuclio with stream triggers
 
-Nuclio can use different trigger types. When used with stream triggers, such as Kafka and V3IO, it uses a consumer group to 
+Nuclio can use different trigger types. When used with stream triggers, such as Kafka, RabbitMQ, and V3IO, it uses a consumer group to 
 continue reading from the last processed offset on function restart. This provides the "at least once" semantics for stateless functions. 
 However, if the function does have state, such as persisting a batch of events to storage (e.g. parquet files, database) or if the function 
 performs additional processing of events after the function handler returns, then the flow can get into situations where events seem to be 
@@ -33,6 +33,8 @@ When the function restarts (for any reason including scale-up or scale-down), it
 The size of the required Window ACK is based on the number of events that could be in processing when the function terminates. You can 
 define a window ACK per trigger (Kafka, V3IO stream, etc.). When used with a serving graph, the appropriate Window ACK size depends on the 
 graph structure and should be calculated accordingly. The following sections explain the relevant considerations.
+
+See {py:class}`~mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger` and {py:class}`~mlrun.runtimes.nuclio.add_rabbitmq_trigger`.
 
 ## Consumer function configuration
 
@@ -120,8 +122,6 @@ and parameters that provide high availability, using a non-default configuration
 
 Make sure you thoroughly understand your serving graph and its functions before defining the `ack_window_size`. Its value depends on the 
 entire graph flow. You need to understand which steps are parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers affects the window size.
-      
-See the {py:class}`~mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`.
 
 For example:  
 - If a graph includes: consumer -> remote r1 -> remote r2:

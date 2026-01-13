@@ -19,7 +19,7 @@ tests/temp*
 tests/*.pkl
 tests/project.yaml
 tests/system/env.yml
-server/py/services/api/db/mlrun.db
+server/py/services/api/db
 migration_tests.log
 # Coverage reports
 *.coverage

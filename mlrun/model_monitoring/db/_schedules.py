@@ -19,8 +19,6 @@ from datetime import datetime
 from types import TracebackType
 from typing import TYPE_CHECKING, Final, Optional
 
-import botocore.exceptions
-
 import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.errors
@@ -84,16 +82,8 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
         except (
             mlrun.errors.MLRunNotFoundError,
             # Different errors are raised for S3 or local storage, see ML-8042
-            botocore.exceptions.ClientError,
             FileNotFoundError,
-        ) as err:
-            if (
-                isinstance(err, botocore.exceptions.ClientError)
-                # Add a log only to "NoSuchKey" errors codes - equivalent to `FileNotFoundError`
-                and err.response["Error"]["Code"] != "NoSuchKey"
-            ):
-                raise
-
+        ):
             logger.exception(
                 "The schedules file was not found. It should have been created "
                 "as a part of the model endpoint's creation",

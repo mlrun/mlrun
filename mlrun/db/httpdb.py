@@ -2352,7 +2352,9 @@ class HTTPRunDB(RunDBInterface):
             remove(pipe_file)
 
         try:
-            params = {"namespace": namespace, "experiment": experiment, "run": run}
+            params = {"namespace": namespace, "run": run}
+            if experiment is not None:
+                params["experiment"] = experiment
             resp = self.api_call(
                 "POST",
                 f"projects/{project}/pipelines",

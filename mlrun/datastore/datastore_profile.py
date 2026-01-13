@@ -449,49 +449,6 @@ class DatastoreProfileHdfs(DatastoreProfile):
         return f"webhdfs://{self.host}:{self.http_port}{subpath}"
 
 
-class DatastoreProfileTDEngine(DatastoreProfile):
-    """
-    A profile that holds the required parameters for a TDEngine database, with the websocket scheme.
-    https://docs.tdengine.com/developer-guide/connecting-to-tdengine/#websocket-connection
-    """
-
-    type: str = pydantic.v1.Field("taosws")
-    _private_attributes = ["password"]
-    user: str
-    # The password cannot be empty in real world scenarios. It's here just because of the profiles completion design.
-    password: typing.Optional[str]
-    host: str
-    port: int
-
-    def dsn(self) -> str:
-        """Get the Data Source Name of the configured TDEngine profile."""
-        # URL-encode user and password to handle special characters like @, :, /
-        user = quote(self.user, safe="")
-        password = quote(self.password or "", safe="")
-        return f"{self.type}://{user}:{password}@{self.host}:{self.port}"
-
-    @classmethod
-    def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfileTDEngine":
-        """
-        Construct a TDEngine profile from DSN (connection string) and a name for the profile.
-
-        :param dsn:          The DSN (Data Source Name) of the TDEngine database, e.g.: ``"taosws://root:taosdata@localhost:6041"``.
-        :param profile_name: The new profile's name.
-        :return:             The TDEngine profile.
-        """
-        parsed_url = urlparse(dsn)
-        # URL-decode username and password (urlparse doesn't decode them)
-        username = unquote(parsed_url.username) if parsed_url.username else None
-        password = unquote(parsed_url.password) if parsed_url.password else None
-        return cls(
-            name=profile_name,
-            user=username,
-            password=password,
-            host=parsed_url.hostname,
-            port=parsed_url.port,
-        )
-
-
 class DatastoreProfilePostgreSQL(DatastoreProfile):
     """
     A profile that holds the required parameters for a PostgreSQL database.
@@ -627,7 +584,6 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "gcs": DatastoreProfileGCS,
     "az": DatastoreProfileAzureBlob,
     "hdfs": DatastoreProfileHdfs,
-    "taosws": DatastoreProfileTDEngine,
     "postgresql": DatastoreProfilePostgreSQL,
     "config": ConfigProfile,
     "openai": OpenAIProfile,

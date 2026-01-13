@@ -481,16 +481,16 @@ def _deploy_function(
         # TODO in ML-11600/ML-11599 need to handle redeployment with different auth token name
         launcher.enrich_and_validate_auth_token_name(fn)
 
+        # Validate sidecar probe configurations before deployment
+        sidecars = fn.spec.config.get("spec.sidecars") or []
+        if sidecars:
+            _validate_sidecar_probes(sidecars)
+
         # save the function to DB
         fn.save(versioned=False)
 
         # after saving function to DB, we need to restore the original config so that the sensitive data won't be stored
         fn.spec.config = raw_config
-
-        # Validate sidecar probe configurations before deployment
-        sidecars = fn.spec.config.get("spec.sidecars") or []
-        if sidecars:
-            _validate_sidecar_probes(sidecars)
 
         fn = _deploy_nuclio_runtime(
             auth_info,

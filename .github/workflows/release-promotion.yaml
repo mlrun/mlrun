@@ -1,0 +1,403 @@
+# Copyright 2023 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Promotion Pipeline ( Release )
+run-name: Releasing ${{ inputs.version }} (${{ github.ref_name }})
+
+permissions:
+
+  # Create release and upload artifact to releases
+  contents: write
+
+  # Allow the action to upload images to ghcr
+  packages: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version to promote (must already exist), without prefix v (e.g. 1.1.0-rc10)'
+        required: true
+        type: string
+      previous_version:
+        description: 'The previous version for release notes comparison, without prefix v (e.g. 1.0.0)'
+        required: true
+        type: string
+      source_artifactory_docker_repo:
+        description: 'Source Artifactory Docker repository name'
+        required: false
+        default: 'mlrun-staging'
+        type: string
+      target_docker_registries:
+        description: 'Comma separated list of target docker registries to push promoted images to (e.g., ghcr.io/,quay.io/,registry.hub.docker.com/)'
+        required: false
+        default: 'ghcr.io/,quay.io/,registry.hub.docker.com/'
+        type: string
+      target_docker_repo:
+        description: 'Target Artifactory Docker repository name (for promotion, used when target includes Artifactory)'
+        required: false
+        default: 'mlrun'
+        type: string
+      source_artifactory_pypi_repo:
+        description: 'Source Artifactory PyPI repository name'
+        required: false
+        default: 'private-mlrun-py'
+        type: string
+      target_artifactory_pypi_repo:
+        description: 'Target Artifactory PyPI repository name (for promotion)'
+        required: false
+        default: 'pioardi-pypi-mlrun'
+        type: string
+      skip_images:
+        description: 'Comma separated list of images to skip promoting, example: mlrun,mlrun-gpu,ui,api,jupyter'
+        required: false
+        default: ''
+      skip_publish_pypi:
+        description: 'Whether to skip promoting the python package to target PyPI repo'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
+      skip_create_tag_release:
+        description: 'Whether to skip creating tag & release in Github'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+
+  approval-gate:
+    name: Approval gate for production release
+    runs-on: ubuntu-latest
+    environment: prod-release
+    steps:
+      - name: Manual approval checkpoint
+        run: echo "✅ Production release approved, proceeding with promotion..."
+
+  prepare-inputs:
+    name: Prepare inputs
+    runs-on: ubuntu-latest
+    needs: approval-gate
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      previous_version: ${{ steps.resolve.outputs.previous_version }}
+
+    steps:
+      - name: Resolve inputs
+        id: resolve
+        run: |
+          echo "version=$VERSION_INPUT" >> $GITHUB_OUTPUT
+          echo "previous_version=$PREVIOUS_VERSION_INPUT" >> $GITHUB_OUTPUT
+          echo "Promoting version: $VERSION_INPUT"
+          echo "Previous version: $PREVIOUS_VERSION_INPUT"
+          cat $GITHUB_OUTPUT
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+          PREVIOUS_VERSION_INPUT: ${{ github.event.inputs.previous_version }}
+
+  matrix-prep:
+    name: Prepare image matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: set-matrix
+        uses: ./.github/actions/image-matrix-prep
+        with:
+          skip_images: ${{ github.event.inputs.skip_images }}
+
+  promote-docker-images:
+    name: Promote Docker images from source to target
+    runs-on: self-hosted
+    needs: [prepare-inputs, matrix-prep]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix-prep.outputs.matrix) }}
+    steps:
+      - name: Docker login (ghcr.io)
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker login (quay.io)
+        continue-on-error: true
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Docker login (docker.com)
+        continue-on-error: true
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: registry.hub.docker.com
+          username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Docker login (Source Artifactory)
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: ${{ secrets.ARTIFACTORY_URL }}
+          username: ${{ secrets.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
+      - name: Pull, retag and push Docker image
+        run: |
+          image_name="${{ matrix.image-name }}"
+          if [ "${{ matrix.image-name }}" = "api" ]; then
+            image_name="mlrun-api"
+          fi
+          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
+          
+          echo "Pulling image: $SOURCE_IMAGE"
+          docker pull "$SOURCE_IMAGE"
+          
+          # Loop through target registries and push to each
+          IFS=',' read -ra REGISTRIES <<< "${{ github.event.inputs.target_docker_registries }}"
+          for registry in "${REGISTRIES[@]}"; do
+            registry=$(echo "$registry" | xargs)  # trim whitespace
+            
+            # Determine the target image based on registry
+            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
+
+            echo "Tagging image as: $TARGET_IMAGE"
+            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
+            
+            echo "Pushing image: $TARGET_IMAGE"
+            docker push "$TARGET_IMAGE"
+            
+            echo "✅ Successfully promoted ${{ matrix.image-name }} to $registry"
+          done
+
+  promote-ui-image:
+    name: Promote UI Docker image from source to target
+    runs-on: self-hosted
+    if: "!contains(github.event.inputs.skip_images, 'ui')"
+    needs: [prepare-inputs]
+    steps:
+      - name: Docker login (ghcr.io)
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker login (quay.io)
+        continue-on-error: true
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Docker login (docker.com)
+        continue-on-error: true
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: registry.hub.docker.com
+          username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Docker login (Source Artifactory)
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          registry: ${{ secrets.ARTIFACTORY_URL }}
+          username: ${{ secrets.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
+      - name: Pull, retag and push UI Docker image
+        run: |
+          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
+          
+          echo "Pulling image: $SOURCE_IMAGE"
+          docker pull "$SOURCE_IMAGE"
+          
+          # Loop through target registries and push to each
+          IFS=',' read -ra REGISTRIES <<< "${{ github.event.inputs.target_docker_registries }}"
+          for registry in "${REGISTRIES[@]}"; do
+            registry=$(echo "$registry" | xargs)  # trim whitespace
+            
+            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/mlrun/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
+            
+            echo "Tagging image as: $TARGET_IMAGE"
+            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
+            
+            echo "Pushing image: $TARGET_IMAGE"
+            docker push "$TARGET_IMAGE"
+            
+            echo "✅ Successfully promoted ui to $registry"
+          done
+
+  promote-pypi-package:
+    name: Promote PyPI package from source to target Artifactory
+    runs-on: self-hosted
+    needs: [ prepare-inputs, promote-docker-images, promote-ui-image ]
+    steps:
+      - name: Download package from source PyPI repo
+        if: github.event.inputs.skip_publish_pypi != 'true'
+        run: |
+          mkdir -p dist
+          pip download \
+            --no-deps \
+            --index-url https://${{ secrets.ARTIFACTORY_USERNAME }}:${{ secrets.ARTIFACTORY_PASSWORD }}@${{ secrets.ARTIFACTORY_URL }}/artifactory/api/pypi/${{ github.event.inputs.source_artifactory_pypi_repo }}/simple \
+            --dest dist \
+            mlrun==${{ needs.prepare-inputs.outputs.version }}
+          
+          echo "Downloaded packages:"
+          ls -lh dist/
+
+      - name: Set up uv
+        if: github.event.inputs.skip_publish_pypi != 'true'
+        uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # 7.1.5
+
+      - name: Upload package to target PyPI repo
+        if: github.event.inputs.skip_publish_pypi != 'true'
+        env:
+          UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+        run: |
+          uv publish dist/*
+          echo "✅ Successfully promoted PyPI package"
+
+  create-releases:
+    name: Create release & tag v${{ needs.prepare-inputs.outputs.version }}
+    runs-on: ubuntu-latest
+    needs: [ prepare-inputs, promote-pypi-package ]
+    steps:
+      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+        if: github.event.inputs.skip_create_tag_release != 'true'
+        with:
+          tag: v${{ needs.prepare-inputs.outputs.version }}
+          commit: ${{ github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate GitHub App Token for ui repo
+        if: github.event.inputs.skip_create_tag_release != 'true'
+        id: ui-release-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
+      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+        if: github.event.inputs.skip_create_tag_release != 'true'
+        with:
+          repo: ui
+          tag: v${{ needs.prepare-inputs.outputs.version }}
+          commit: ${{ github.ref_name }}
+          token: ${{ steps.ui-release-app-token.outputs.token }}
+          # experienced 500 errors when trying to create release notes for ui repo with `prerelease flag`
+          # prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
+
+  update-tutorials:
+    name: Bundle tutorials
+    needs: [ prepare-inputs, create-releases ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Create tutorials tar
+        run: |
+          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
+          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/README.md -P docs
+          tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb
+          rm -rf docs/welcome.ipynb docs/README.md
+      - name: Add tutorials tar to release
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+        with:
+          allowUpdates: true
+          tag: v${{ needs.prepare-inputs.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: mlrun-tutorials.tar
+
+  update-demos:
+    name: Bundle demos
+    needs: [ prepare-inputs, create-releases ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Python venv
+        run: |
+          venv="$HOME/.local/share/venv"
+          python3 -m venv "$venv"
+          echo "$venv/bin" >> $GITHUB_PATH
+      - name: Install prerequisites
+        run: |
+          pip install requests packaging tqdm
+      - name: Download demos using get_demos script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python automation/scripts/get_demos.py ${{ needs.prepare-inputs.outputs.version }} \
+          --dest demos
+      - name: Copy update script to demos folder
+        run: |
+          cp automation/scripts/update_demos.sh demos/update_demos.sh
+      - name: Create mlrun-demos tar
+        run: |
+          tar -cf mlrun-demos.tar demos
+          echo "✅ Archive created successfully!"
+      - name: Add mlrun-demos tar to release
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+        with:
+          allowUpdates: true
+          tag: v${{ needs.prepare-inputs.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: mlrun-demos.tar
+
+  update-release-notes:
+    name: Update release notes
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_create_tag_release != 'true'
+    # runs lastly to avoid conflicts with other release-related jobs
+    needs: [ prepare-inputs, update-tutorials, update-demos ]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          make install-automation-requirements
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          make release-notes
+        env:
+          MLRUN_SKIP_CLONE: true
+          MLRUN_RELEASE_BRANCH: ${{ github.ref_name }}
+          MLRUN_RELEASE_NOTES_OUTPUT_FILE: release_notes.md
+          MLRUN_RAISE_ON_ERROR: false
+          MLRUN_VERSION: "v${{ needs.prepare-inputs.outputs.version }}"
+          MLRUN_OLD_VERSION: "v${{ needs.prepare-inputs.outputs.previous_version }}"
+
+      - name: resolve release notes
+        id: resolve-release-notes
+        run: |
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+        with:
+          tag: v${{ needs.prepare-inputs.outputs.version }}
+          body: ${{ steps.resolve-release-notes.outputs.body }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true

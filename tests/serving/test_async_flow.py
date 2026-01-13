@@ -1516,6 +1516,29 @@ def test_max_iter_of_cyclic_graph(method, max_iter):
         server.wait_for_completion()
 
 
+def test_default_max_iter_of_cyclic_graph():
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology(
+        "flow",
+        engine="async",
+        allow_cyclic=True,
+    )
+    graph.to(name="start", class_name="Echo").to(class_name="Counter", name="count").to(
+        name="route",
+        class_name="Route",
+        cycle_to="count",
+    ).to(name="end", class_name="Echo").respond()
+
+    expected_error = r"Max iterations exceeded in step 'count'"
+
+    server = function.to_mock_server()
+    try:
+        with pytest.raises(RuntimeError, match=rf"{expected_error}"):
+            server.test(body={"counter": -300})
+    finally:
+        server.wait_for_completion()
+
+
 def test_mrs_with_tools_routing():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async", allow_cyclic=True)
@@ -1540,3 +1563,31 @@ def test_mrs_with_tools_routing():
         assert resp["tool_b"] == 2
     finally:
         server.wait_for_completion()
+
+
+def test_invalid_cyclic_graph_definitions():
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=False)
+
+    with pytest.raises(
+        GraphError, match="cyclic graphs are not allowed, enable allow_cyclic"
+    ):
+        graph.to(name="start", class_name="Echo").to(
+            class_name="Counter", name="count"
+        ).to(name="route", class_name="Route", cycle_to="count").to(
+            name="end", class_name="Echo"
+        ).respond()
+
+    function_sync = mlrun.new_function("tests-sync", kind="serving", project="x")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"Cyclic graphs are not supported with sync engine, please use async engine",
+    ):
+        function_sync.set_topology("flow", engine="sync", allow_cyclic=True)
+
+    graph = function_sync.set_topology("flow", engine="sync")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"Cyclic graphs are not supported with sync engine, please use async engine",
+    ):
+        graph.allow_cyclic = True

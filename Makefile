@@ -250,7 +250,7 @@ endif
 	find ./docs/install/*.yaml -type f -print0 | xargs -0 sed -i '' -e 's/{TAG:-.*}/{TAG:-$(MLRUN_NEW_VERSION)}/g'
 
 .PHONY: update-version-file
-update-version-file: ## Update the version file
+update-version-file: install-automation-requirements ## Update the version file
 	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: generate-dockerignore

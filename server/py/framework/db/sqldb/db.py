@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import abc
 import asyncio
 import collections
 import functools
@@ -44,24 +44,27 @@ from sqlalchemy import (
     types,
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Query, Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy.sql.functions import GenericFunction
 
 import mlrun
+import mlrun.artifacts.base
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.db.dialects
 import mlrun.common.formatters
 import mlrun.common.model_monitoring
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.partition_interval
 import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
-from mlrun.artifacts.base import fill_artifact_object_hash
-from mlrun.common.db.dialects import Dialects
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
@@ -136,6 +139,17 @@ from framework.db.sqldb.models import (
     _with_notifications,
 )
 
+
+class now(GenericFunction):  # noqa: N801
+    type = sqlalchemy.types.DateTime()
+    name = "now"
+
+
+@compiles(now, mlrun.common.db.dialects.Dialects.POSTGRESQL)
+def _pg_now(element, compiler, **kw):
+    return "now()"
+
+
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
@@ -197,20 +211,32 @@ def retry_on_conflict(function):
 
 
 class SQLDB(DBInterface):
-    def __new__(cls, dsn: str = ""):
+    def __new__(cls, dsn: Optional[str] = None):
+        if dsn is None:
+            dsn = mlrun.config.config.httpdb.dsn
         if cls is SQLDB and dsn:
             scheme = urllib.parse.urlparse(dsn).scheme.lower()
-            if scheme.startswith(Dialects.MYSQL):
+            if scheme.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
                 return super().__new__(MySQLDB)
-            elif scheme.startswith(Dialects.POSTGRESQL):
+            elif scheme.startswith(mlrun.common.db.dialects.Dialects.POSTGRESQL):
                 return super().__new__(PostgreSQLDB)
+            elif scheme.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
+                return super().__new__(SQLiteDB)
             else:
-                return super().__new__(cls)
+                raise ValueError("Unsupported database dialect: " + scheme)
         return super().__new__(cls)
 
-    def __init__(self, dsn=""):
+    def __init__(
+        self,
+        dsn: str = "",
+    ):
         self.dsn = dsn
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
+        # Cached partition intervals per table (per-process)
+        self._partition_intervals_by_table: dict[
+            str,
+            mlrun.common.schemas.partition_interval.PartitionInterval,
+        ] = {}
 
     def initialize(self, session):
         if self.dsn and self.dsn.startswith("sqlite:///"):
@@ -708,7 +734,7 @@ class SQLDB(DBInterface):
         if run.state in endable_states and not run.end_time:
             if end_time is None:
                 # Ensures fsp 6 for MySQL NOW() to includes microseconds
-                end_time = func.now(6)
+                end_time = now(6)
             run.end_time = end_time
         elif run.state not in endable_states:
             # Ensure end time is not set if the run is not in a terminal state
@@ -776,7 +802,9 @@ class SQLDB(DBInterface):
             artifact_dict.setdefault("metadata", {})["project"] = project
 
         # calculate uid
-        uid = fill_artifact_object_hash(artifact_dict, iter, producer_id)
+        uid = mlrun.artifacts.base.fill_artifact_object_hash(
+            artifact_dict, iter, producer_id
+        )
 
         # If object was referenced by UID, the request cannot modify it
         if original_uid and uid != original_uid:
@@ -857,7 +885,9 @@ class SQLDB(DBInterface):
         if not project:
             raise mlrun.errors.MLRunMissingProjectError()
         if not uid:
-            uid = fill_artifact_object_hash(artifact, iteration, producer_id)
+            uid = mlrun.artifacts.base.fill_artifact_object_hash(
+                artifact, iteration, producer_id
+            )
 
         # check if the object already exists
         query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
@@ -3989,7 +4019,7 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
-        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+        if mlrun.mlconf.httpdb.dsn.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
             logger.debug("Partition management not supported for SQLite")
             return {}, {}, {}
 
@@ -6799,6 +6829,7 @@ class SQLDB(DBInterface):
         ]
 
     @staticmethod
+    @abc.abstractmethod
     def create_partitions(
         session: Session,
         table_name: str,
@@ -6818,6 +6849,7 @@ class SQLDB(DBInterface):
         pass
 
     @staticmethod
+    @abc.abstractmethod
     def drop_partitions(
         session: Session,
         table_name: str,
@@ -6850,6 +6882,7 @@ class SQLDB(DBInterface):
         pass
 
     @staticmethod
+    @abc.abstractmethod
     def table_exists(
         session: Session,
         table_name: str,
@@ -7037,7 +7070,13 @@ class SQLDB(DBInterface):
             number_of_events=alert_data.criteria.count,
             data=extra_data,
         )
-
+        self._set_partition_key_from_table_interval(
+            session=session,
+            record=alert_activation_record,
+            table_name=AlertActivation.__tablename__,
+            datetime_attr_name=AlertActivation.activation_time.name,
+            partition_key_attr_name=AlertActivation.partition_key.name,
+        )
         # for auto reset policy reset_time is the same as the activation time
         # for manual reset policy, we keep it empty until the alert is reset
         if alert_data.reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO:
@@ -7063,7 +7102,10 @@ class SQLDB(DBInterface):
         update_reset_time: bool = False,
     ):
         query = self._query(
-            session, AlertActivation, id=activation_id, activation_time=activation_time
+            session,
+            AlertActivation,
+            id=activation_id,
+            activation_time=activation_time,
         )
         activation = query.one_or_none()
         if not activation:
@@ -7116,6 +7158,44 @@ class SQLDB(DBInterface):
         query = self._apply_alert_activation_project_filters(
             query, projects_with_creation_time
         )
+
+        # Optional partition-aware filter for both MySQL and PostgreSQL.
+        # We only apply it when:
+        # - The dialect is MySQL or PostgreSQL (dialects that support partition pruning),
+        # - We have both since and until (so we can bound the partition range precisely), and
+        # - The table has a configured partition interval.
+        if (
+            session.bind is not None
+            and session.bind.dialect.name
+            in (
+                mlrun.common.db.dialects.Dialects.MYSQL,
+                mlrun.common.db.dialects.Dialects.POSTGRESQL,
+            )
+            and since is not None
+            and until is not None
+        ):
+            partition_interval_for_alert_activation_table = (
+                self.get_partition_interval_for_table(
+                    session=session,
+                    table_name=AlertActivation.__tablename__,
+                )
+            )
+            if partition_interval_for_alert_activation_table is not None:
+                lower_partition_key_value = partition_interval_for_alert_activation_table.get_partition_key_value(
+                    current_datetime=since,
+                )
+                next_partition_boundary = partition_interval_for_alert_activation_table.get_next_partition_time(
+                    current_datetime=until,
+                )
+                upper_partition_key_value = partition_interval_for_alert_activation_table.get_partition_key_value(
+                    current_datetime=next_partition_boundary,
+                )
+                # This predicate is understood by both MySQL and PostgreSQL partitioning
+                # mechanisms and allows the planner to prune irrelevant partitions.
+                query = query.filter(
+                    AlertActivation.partition_key >= lower_partition_key_value,
+                    AlertActivation.partition_key < upper_partition_key_value,
+                )
 
         if name:
             query = query.filter(
@@ -8384,6 +8464,70 @@ class SQLDB(DBInterface):
         self._commit(session, db_object)
         session.flush()
 
+    def get_partition_interval_for_table(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+    ) -> Optional[mlrun.common.schemas.partition_interval.PartitionInterval]:
+        """
+        Retrieve the partition interval registered for a specific table, if any.
+
+        :param session: The active SQLAlchemy session used for querying metadata.
+        :param table_name: The name of the table to look up.
+        :return: The partition interval assigned to the table, or None if not configured.
+        """
+        table_partition_interval = (
+            session.query(framework.db.sqldb.models.TablePartitionInterval)
+            .filter(
+                framework.db.sqldb.models.TablePartitionInterval.table_name
+                == table_name,
+            )
+            .one_or_none()
+        )
+        if table_partition_interval is not None:
+            return table_partition_interval.interval
+        return None
+
+    def set_partition_interval_for_table(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+    ) -> None:
+        """
+        Register a partition interval for a table, or validate it if already set.
+
+        If the table already has a different interval registered, an exception is raised
+        to prevent inconsistent metadata.
+
+        :param session: The active SQLAlchemy session used for storing metadata.
+        :param table_name: The name of the table to update.
+        :param partition_interval: The partition interval to set or validate.
+        :raises MLRunInvalidArgumentError: If the table already has a conflicting interval.
+        """
+        existing_table_partition_interval = self.get_partition_interval_for_table(
+            session=session,
+            table_name=table_name,
+        )
+
+        if (
+            existing_table_partition_interval is not None
+            and existing_table_partition_interval != partition_interval
+        ):
+            raise mlrun.MLRunInvalidArgumentError(
+                f"Mismatch: table '{table_name}' is registered with "
+                f"partition interval '{existing_table_partition_interval}' "
+                f"but received '{partition_interval}'."
+            )
+
+        session.add(
+            framework.db.sqldb.models.TablePartitionInterval(
+                table_name=table_name,
+                interval=partition_interval,
+            ),
+        )
+        session.commit()
+
     def _ensure_datetime_obj(self, date: typing.Union[str, datetime]) -> datetime:
         """
         Ensure the input date is a datetime object. If it's a string, try to parse it as ISO 8601.
@@ -8401,6 +8545,70 @@ class SQLDB(DBInterface):
                 f"Invalid date type: {type(date)}. Expected str or datetime."
             )
         return date
+
+    def _set_partition_key_from_table_interval(
+        self,
+        session: sqlalchemy.orm.Session,
+        record: object,
+        table_name: str,
+        datetime_attr_name: str,
+        partition_key_attr_name: str = "partition_key",
+    ) -> None:
+        """
+        Set a record's partition key using the table's configured partition interval.
+
+        The partition key is computed from a datetime attribute and is only set if
+        it is currently missing.
+        """
+        partition_key_value = getattr(record, partition_key_attr_name, None)
+        if partition_key_value is not None:
+            return
+
+        interval = self.get_partition_interval_for_table(
+            session,
+            table_name=table_name,
+        )
+
+        datetime_value = getattr(record, datetime_attr_name, None)
+        if datetime_value is None:
+            raise RuntimeError(
+                f"{datetime_attr_name} must be set before computing {partition_key_attr_name} "
+                f"for table '{table_name}'"
+            )
+        setattr(
+            record,
+            partition_key_attr_name,
+            interval.get_partition_key_value(datetime_value),
+        )
+
+
+class SQLiteDB(SQLDB):
+    @staticmethod
+    def create_partitions(
+        session: Session,
+        table_name: str,
+        partitioning_information_list: list[tuple[str, str]],
+    ):
+        logger.debug(
+            "SQLite does not support partitioning natively, skipping partition creation",
+        )
+        return []
+
+    @staticmethod
+    def drop_partitions(session: Session, table_name: str, cutoff_partition_name: str):
+        logger.debug(
+            "SQLite does not support partitioning natively, skipping partition drop",
+        )
+
+    @staticmethod
+    def table_exists(
+        session: Session,
+        table_name: str,
+    ) -> bool:
+        logger.debug(
+            "SQLite does not support table exists, skipping table creation",
+        )
+        return False
 
 
 class MySQLDB(SQLDB):
@@ -8466,6 +8674,7 @@ class MySQLDB(SQLDB):
         session.execute(
             text(f"ALTER TABLE {quoted_table} ADD PARTITION ({alter_clause})")
         )
+        session.commit()
 
     @staticmethod
     def drop_partitions(
@@ -8499,26 +8708,7 @@ class MySQLDB(SQLDB):
             parts=parts,
         )
         session.execute(text(f"ALTER TABLE {safe_table} DROP PARTITION {parts}"))
-
-    @staticmethod
-    def get_partition_expression_for_table(
-        session: Session,
-        table_name: str,
-    ) -> str:
-        """
-        Returns partitioning expression for a given table.
-
-        :param session: SQLAlchemy session.
-        :param table_name: Name of the table.
-        """
-        return session.execute(
-            text("""
-                SELECT PARTITION_EXPRESSION
-                FROM information_schema.PARTITIONS
-                WHERE TABLE_NAME = :table_name
-            """),
-            {"table_name": table_name},
-        ).scalar()
+        session.commit()
 
     @staticmethod
     def table_exists(
@@ -8536,6 +8726,7 @@ class MySQLDB(SQLDB):
                 SELECT COUNT(*)
                 FROM information_schema.tables
                 WHERE TABLE_NAME = :table_name
+                AND TABLE_SCHEMA = DATABASE()
             """),
             {
                 "table_name": table_name,
@@ -8591,6 +8782,7 @@ class MySQLDB(SQLDB):
                 WHERE TABLE_SCHEMA = DATABASE()
                   AND TABLE_NAME = :table_name
                   AND PARTITION_NAME IS NOT NULL
+                ORDER BY PARTITION_DESCRIPTION
                 """
             ),
             {"table_name": table_name},
@@ -8700,31 +8892,6 @@ class PostgreSQLDB(SQLDB):
             session.execute(text(f"DROP TABLE IF EXISTS {q_part}"))
 
         session.commit()
-
-    @staticmethod
-    def get_partition_expression_for_table(
-        session: Session,
-        table_name: str,
-    ) -> str:
-        """
-        Returns partitioning expression for a given table.
-
-        :param session: SQLAlchemy session.
-        :param table_name: Name of the table.
-        """
-        return session.execute(
-            text("""
-                SELECT pg_get_expr(pt.partbound, pt.partrelid) AS partition_expression
-                FROM pg_partitioned_table AS pt
-                JOIN pg_class      AS pc ON pt.partrelid   = pc.oid
-                JOIN pg_namespace  AS pn ON pc.relnamespace = pn.oid
-                WHERE pn.nspname = current_schema()
-                  AND pc.relname = :table_name
-            """),
-            {
-                "table_name": table_name,
-            },
-        ).scalar()
 
     @staticmethod
     def table_exists(

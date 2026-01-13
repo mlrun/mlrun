@@ -35,6 +35,7 @@ MLRUN_PYTHON_VERSION ?= 3.11
 
 # Centralized MySQL image tag for tests and tooling (overridable)
 MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
+MLRUN_POSTGRES_IMAGE = gcr.io/iguazio/postgres:17
 
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
 IGUAZIO_PACKAGE_VERSION ?= 0.0.1a22
@@ -647,6 +648,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-e MLRUN_VERSION=$(MLRUN_VERSION) \
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
+		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 		-v /tmp:/tmp \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
@@ -712,6 +714,7 @@ test-integration-dockerized: build-test api ## Run mlrun integration tests in do
 		-e MLRUN_VERSION=$(MLRUN_VERSION) \
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
+		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
@@ -722,6 +725,7 @@ test-integration: clean ## Run mlrun integration tests
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
 	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
+	MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
@@ -748,6 +752,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-e MLRUN_VERSION=$(MLRUN_VERSION) \
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
+		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make RUN_COVERAGE=true test-migrations
 
@@ -756,6 +761,7 @@ test-migrations: clean ## Run mlrun db migrations tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
 	export MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) && \
+	export MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) && \
 	export COVERAGE_FILE && \
 	$(SETUP_COVERAGE) && \
 	bash -c 'set -euo pipefail; \
@@ -1096,14 +1102,16 @@ upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 		upgrade-mlrun-system-test-deps-lock
 
 
-.PHONY: coverage-combine
-coverage-combine: ## Combine all coverage reports, ignoring errors like missing or corrupted source files
+coverage-combine:
 	rm -f tests/coverage_reports/combined.coverage; \
-	UNIT_TEST_COVERAGE_PATHS=$${UNIT_TEST_COVERAGE_PATHS:-"tests/coverage_reports/unit_tests.coverage"}; \
-	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage combine --keep \
-	$$UNIT_TEST_COVERAGE_PATHS \
-	tests/coverage_reports/integration_tests.coverage \
-	tests/coverage_reports/migration_tests.coverage; \
+	coverage_files="$$(find tests/coverage_reports -type f -name '*.coverage' 2>/dev/null)"; \
+	if [ -z "$$coverage_files" ]; then \
+		echo "No coverage files found under tests/coverage_reports, nothing to combine."; \
+		exit 1; \
+	fi; \
+	echo "Combining coverage from:"; \
+	printf '  %s\n' $$coverage_files; \
+	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage combine --keep $$coverage_files; \
 	python -m coverage xml --ignore-errors --data-file=tests/coverage_reports/combined.coverage -o tests/coverage_reports/combined.xml; \
 	echo "Full coverage report:"; \
 	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage report -i

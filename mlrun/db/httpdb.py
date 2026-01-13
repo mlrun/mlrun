@@ -5399,14 +5399,17 @@ class HTTPRunDB(RunDBInterface):
 
         :param username: Optional; the username for which to list secret tokens.
                          Use ``"*"`` to list tokens for all users.
-        :return: A `ListSecretTokensResponse` object containing a list of `SecretTokenInfo`
-                 objects.
+        :return: A ``ListSecretTokensResponse`` object containing a list of
+                 ``SecretTokenInfo`` objects.
+
         Example::
+
             # As a regular user, list your own tokens
             tokens_response = db.list_secret_tokens()
             for token in tokens_response.secret_tokens:
                 print(
-                    f"Username: {token.username}, Token name: {token.token_name}, Expiration: {token.expiration}"
+                    f"Username: {token.username}, Token name: {token.token_name}, "
+                    f"Expiration: {token.expiration}"
                 )
 
             # As a system admin, list tokens for a specific user

@@ -40,7 +40,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10919|Model monitoring supports TimescaleDB as a TSDB platform. See {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
+|ML-10919|Model monitoring supports TimescaleDB PostgreSQL `17` with TimescaleDB extensionas a TSDB platform. See [Configuring data store profiles](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-data-store-profiles) and {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
 
 ### UI
 | ID    |Description                                                                 |
@@ -55,7 +55,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-11065| Python 3.9 is not supported. <ul><li>You must rebuild custom images and migrate existing workflows to Python 3.11.</li><li>Scheduled workflows that were created using MLRun client versions < 1.11.0 and Python 3.9–based images are not modified or migrated automatically. They continue to run exactly as they were originally defined, using the same MLRun client version, the same Python runtime (3.9), and the same image reference. After you upgrade your client to v1.11.0, all existing Python 3.9-based schedules must be rebuilt and re-created to migrate them to Python 3.11, and schedules must use Python 3.11.</li><li>TensorFlow/tf-keras are removed from `dev-requirements.txt `as part of the Python 3.11 upgrade. If you rely on them, you must manually install compatible versions.</li></ul> |
-|ML-11482|TDEngine is deprecated and replaced with TimescaleDB. Model monitoring data in TDEngine is not migrated.|
+|ML-11482|TDEngine is deprecated. Model monitoring data in TDEngine is not migrated. |
 
 
 ### Deprecations

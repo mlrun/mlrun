@@ -375,7 +375,7 @@ class OpenAIProvider(ModelProvider):
             Each response format depends on `invoke_response_format`.
         """
 
-        global_semaphore = self._get_or_create_global_thread_semaphore()
+        self._get_or_create_global_thread_semaphore()
         results: list[InvokeResponse] = [None] * len(messages_list)  # type: ignore
 
         max_workers_for_batch = min(len(messages_list), self._max_workers_per_batch)

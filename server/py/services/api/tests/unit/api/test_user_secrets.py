@@ -55,7 +55,6 @@ def _mock_is_system_admin(
 
 def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
     # Force unsupported auth mode
-    orig_mode = mlrun.mlconf.httpdb.authentication.mode
     mlrun.mlconf.httpdb.authentication.mode = (
         mlrun.common.types.AuthenticationMode.BASIC
     )
@@ -64,7 +63,6 @@ def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
     response = client.put(API_USER_SECRETS_TOKENS_PATH, json=[])
 
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
-    mlrun.mlconf.httpdb.authentication.mode = orig_mode
 
 
 @pytest.mark.asyncio

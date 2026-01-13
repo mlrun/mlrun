@@ -882,6 +882,26 @@ def check_if_hub_uri(uri: str) -> bool:
     return uri.startswith(hub_prefix)
 
 
+def lock_hub_uri_version(uri: str, locked_version: str) -> str:
+    """
+    If hub URI has no tag or uses ':latest', replace/add the given version.
+    Otherwise, return the URI unchanged.
+    """
+    name = uri.removeprefix(hub_prefix)
+    if ":" in name:
+        path, tag = name.rsplit(":", 1)
+    else:
+        path, tag = name, "latest"
+    if tag == "latest":
+        logger.info(
+            f"Hub URI '{uri}' does not specify a version (or uses 'latest'). "
+            f"The step will be pinned to version '{locked_version}'."
+        )
+        tag = locked_version
+
+    return f"{hub_prefix}{path}:{tag}"
+
+
 def extend_hub_uri_if_needed(
     uri: str,
     asset_type: HubSourceType = HubSourceType.functions,

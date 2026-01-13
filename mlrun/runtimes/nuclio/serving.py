@@ -45,7 +45,7 @@ from mlrun.serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from mlrun.utils import get_caller_globals, logger, set_paths
+from mlrun.utils import get_caller_globals, logger, merge_requirements, set_paths
 
 serving_subkind = "serving_v2"
 
@@ -284,7 +284,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         :param engine:       - optional for flow, sync or async engine
         :param exist_ok:     - allow overriding existing topology
         :param allow_cyclic: - allow cyclic graphs (only for async flow)
-        :param max_iterations: - optional, max iterations for cyclic graphs (only for async flow)
+        :param max_iterations: - optional, max iterations for cyclic graphs (only for async flow), default 100
         :param class_args:   - optional, router/flow class init args
 
         :return: graph object (fn.spec.graph)
@@ -294,10 +294,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "graph topology is already set, graph was initialized, use exist_ok=True to override"
             )
-        if allow_cyclic and (
-            topology == StepKinds.router
-            or (topology == StepKinds.flow and engine == "sync")
-        ):
+        if allow_cyclic and topology == StepKinds.router:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cyclic graphs are only supported in flow topology with async engine"
             )
@@ -725,6 +722,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
+        self._add_steps_requirements()
+
         return super().deploy(
             project,
             tag,
@@ -890,6 +889,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
             )
 
+        self._add_steps_requirements()
+
         spec = pod_runtime.KubeResourceSpec(
             image=self.spec.image,
             mode=self.spec.mode,
@@ -965,3 +966,32 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             metadata=job_metadata,
         )
         return job
+
+    def _add_steps_requirements(self) -> None:
+        # extract child function name from self.metadata.name if parent label exists
+        full_name = self.metadata.name
+        parent_label = (
+            self.metadata.labels.get("mlrun/parent-function")
+            if self.metadata.labels
+            else None
+        )
+        current_function = None  # only set if current function is a child
+        if parent_label and full_name.startswith(parent_label + "-"):
+            current_function = full_name[len(parent_label) + 1 :]
+
+        steps = getattr(getattr(self.spec, "graph", {}), "steps", {})
+        for step in steps.values():
+            # only add requirements to the function if this step is local to it
+            if step_requirements := getattr(step, "requirements", []):
+                if not step._is_local_function(
+                    context=None, current_function=current_function
+                ):
+                    continue
+                build_reqs = getattr(
+                    getattr(self.spec, "build", {}), "requirements", []
+                )
+                reqs_union = merge_requirements(
+                    reqs_priority=build_reqs,
+                    reqs_secondary=step_requirements,
+                )
+                self.with_requirements(requirements=reqs_union, overwrite=True)

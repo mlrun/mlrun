@@ -403,6 +403,8 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preempti
 
 Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/master/nuclio/triggers.py)
 
+#### HTTP
+
 By default, Nuclio deploys a default HTTP trigger if the function doesn't have one. This is because users typically want to invoke functions through HTTP. 
 However, we provide a way to disable the default HTTP trigger using:
 `function.disable_default_http_trigger()`
@@ -434,6 +436,10 @@ serve.add_v3io_stream_trigger(
     shards=1,
 )
 
+# RabbitMQ stream trigger
+serve.add_rabbitmq_trigger(url="ds://my-rabbitmq")
+
+
 # Kafka stream trigger
 serve.add_trigger(
     name="kafka",
@@ -445,6 +451,7 @@ serve.add_trigger(
         initial_offset="earliest",
     ),
 )
+
 
 # Cron trigger
 serve.add_trigger("cron_interval", spec=nuclio.CronTrigger(interval="10s"))

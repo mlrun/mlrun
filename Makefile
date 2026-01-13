@@ -35,7 +35,7 @@ MLRUN_PYTHON_VERSION ?= 3.11
 
 # Centralized MySQL image tag for tests and tooling (overridable)
 MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
-MLRUN_POSTGRES_IMAGE = postgres:17 # TODO: push this image to gcr.io/iguazio
+MLRUN_POSTGRES_IMAGE = gcr.io/iguazio/postgres:17
 
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
 IGUAZIO_PACKAGE_VERSION ?= 0.0.1a22

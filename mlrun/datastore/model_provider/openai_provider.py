@@ -384,7 +384,6 @@ class OpenAIProvider(ModelProvider):
             for idx, messages in enumerate(messages_list):
                 future = executor.submit(
                     self._invoke_with_global_semaphore,
-                    global_semaphore,
                     messages,
                     invoke_response_format,
                     **invoke_kwargs,
@@ -415,16 +414,11 @@ class OpenAIProvider(ModelProvider):
 
     def _invoke_with_global_semaphore(
         self,
-        global_semaphore: threading.Semaphore,
         messages: list[dict],
         invoke_response_format: InvokeResponseFormat,
         **invoke_kwargs,
     ) -> InvokeResponse:
-        """
-        Wrapper that acquires global semaphore before invoke.
-        Ensures global concurrency limit is maintained across all batches.
-        """
-        with global_semaphore:
+        with self._get_or_create_global_thread_semaphore():
             return self._single_invoke(
                 messages, invoke_response_format, **invoke_kwargs
             )
@@ -464,22 +458,17 @@ class OpenAIProvider(ModelProvider):
             List of responses in the same order as messages_list.
             Each response format depends on `invoke_response_format`.
         """
-        # Global semaphore (shared across ALL batches)
-        global_semaphore = await self._get_or_create_global_async_semaphore()
-
-        # Per-batch semaphore (limits THIS batch)
         batch_semaphore = asyncio.Semaphore(self._max_concurrent_per_batch)
 
         async def _bounded_invoke(messages):
             """Execute invoke with both global and per-batch semaphore control."""
-            # Acquire global semaphore first, then per-batch
-            async with global_semaphore:
-                async with batch_semaphore:
-                    return await self._async_single_invoke(
-                        messages, invoke_response_format, **invoke_kwargs
-                    )
+            return await self._async_invoke_with_global_semaphore(
+                batch_semaphore,
+                messages,
+                invoke_response_format,
+                **invoke_kwargs,
+            )
 
-        # Create tasks (not just coroutines) to allow cancellation on failure
         tasks = [
             asyncio.create_task(_bounded_invoke(messages)) for messages in messages_list
         ]
@@ -496,6 +485,20 @@ class OpenAIProvider(ModelProvider):
             await asyncio.gather(*tasks, return_exceptions=True)
 
             raise
+
+    async def _async_invoke_with_global_semaphore(
+        self,
+        batch_semaphore: asyncio.Semaphore,
+        messages: list[dict],
+        invoke_response_format: InvokeResponseFormat,
+        **invoke_kwargs,
+    ) -> InvokeResponse:
+        global_semaphore = await self._get_or_create_global_async_semaphore()
+        async with global_semaphore:
+            async with batch_semaphore:
+                return await self._async_single_invoke(
+                    messages, invoke_response_format, **invoke_kwargs
+                )
 
     def _single_invoke(
         self,

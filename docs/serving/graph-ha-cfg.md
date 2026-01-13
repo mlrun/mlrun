@@ -34,7 +34,7 @@ The size of the required Window ACK is based on the number of events that could 
 define a window ACK per trigger (Kafka, V3IO stream, etc.). When used with a serving graph, the appropriate Window ACK size depends on the 
 graph structure and should be calculated accordingly. The following sections explain the relevant considerations.
 
-See {py:class}`~mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger` and {py:class}`~mlrun.runtimes.nuclio.add_rabbitmq_trigger`.
+See {py:class}`~mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger` and {py:class}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`.
 
 ## Consumer function configuration
 

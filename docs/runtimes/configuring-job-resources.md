@@ -136,9 +136,6 @@ serve.add_rabbitmq_trigger(
         url="amqp://rabbitmq-host:5672",
         exchange_name="my-exchange",
         queue_name="my-queue",
-        prefetch_count=10,
-        durable_exchange=True,
-        durable_queue=True,
         num_workers=4,
     )
 ```

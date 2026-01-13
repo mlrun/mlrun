@@ -156,7 +156,7 @@ jobs:
       
       - name: Cleanup build artifacts from previous runs
         # TODO This is only needed for work-around, disabling it for now if everything works we can remove this.
-        if: true
+        if: false
         run: |
           # Remove any root-owned build artifacts from previous runs using Docker
           # This works even when files are owned by root

@@ -63,12 +63,12 @@ on:
         type: string
       is_private_release:
         description: 'Whether this is a private release build'
-        default: false
-        type: boolean
+        default: 'false'
+        type: string
       build_to_cache:
         description: 'Whether to push built images to cache registry'
-        default: true
-        type: boolean
+        default: 'true'
+        type: string
 
 jobs:
   matrix_prep:
@@ -191,7 +191,7 @@ jobs:
         password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
 
     - name: Docker login (Artifactory)
-      if: contains(inputs.docker_registries, 'artifactory.iguazeng.com')
+      if: contains(inputs.docker_registries, 'artifactory')
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
       with:
         registry: ${{ secrets.ARTIFACTORY_URL }}

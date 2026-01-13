@@ -62,7 +62,7 @@ on:
         default: 'ubuntu-latest'
         type: string
       is_private_release:
-        description: 'Whether this is a private release build'
+        description: 'Whether this is a private release build or not. If specified the docker_registries will be ignored and the private Artifactory will be used. '
         default: 'false'
         type: string
       build_to_cache:

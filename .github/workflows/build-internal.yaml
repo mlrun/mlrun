@@ -63,12 +63,12 @@ on:
         type: string
       is_private_release:
         description: 'Whether this is a private release build or not. If specified the docker_registries will be ignored and the private Artifactory will be used. '
-        default: 'false'
-        type: string
+        default: false
+        type: boolean
       build_to_cache:
         description: 'Whether to push built images to cache registry'
-        default: 'true'
-        type: string
+        default: true
+        type: boolean
 
 jobs:
   matrix_prep:

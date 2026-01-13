@@ -46,33 +46,48 @@ python -m ipykernel install --user --name <myenv> --display-name "Python (<myenv
 ```
 
 ## Configuring TimescaleDB and Kafka for model monitoring
-TimescaleDB and Kafka are part of the default CE installations. These are the default TimescaleDB and Kafka installation values.
+TimescaleDB and Kafka are part of the default CE installations for model monitoring.
 
-The connections are managed by using [MLRun datastore profiles](https://docs.mlrun.org/en/stable/store/datastore.html#data-store-profiles). datastore profiles manage the connection credentials securely.
-```py
-# Create and register TSDB profile
+  [TimescaleDB](https://docs.timescale.com/self-hosted/latest/install/) is a PostgreSQL-based time-series database used as the TSDB backend for model monitoring. 
+  Default connection values for CE:
+  - `Host`: timescaledb.<namespace>.svc.cluster.local
+  - `Port`: 5432
+  - `Database`: postgres
+  - `User`: postgres
+  - `Password`: postgres
+  
+  [Kafka](https://github.com/bitnami/charts/tree/main/bitnami/kafka) is the streaming platform used for data flow between model monitoring components.
+  Default connection values for CE:
+  - `Brokers`: kafka-stream.<namespace>.svc.cluster.local:9092
+  
+  ### Configuring data store profiles
+  The connections are managed by using [data store profiles](../store/datastore.md#data-store-profiles). Data store profiles manage the connection credentials securely.
+  ```python
+  from mlrun.datastore.datastore_profile import (
+      DatastoreProfileKafkaStream,
+      DatastoreProfilePostgreSQL,
+  )
+  # Create and register TSDB profile
   tsdb_profile = DatastoreProfilePostgreSQL(
-    name="my-timescaledb",
-    user="testuser",
-    password="testpass",
-    host="192.168.226.26",
-    port=5432,
-    database="postgres"
-)
-project.register_datastore_profile(tsdb_profile)
-
-# Create and register stream profile
-stream_profile = DatastoreProfileKafkaSource(
-    name=stream_profile_name,
-    brokers=f"kafka-stream:9092",
-    topics=[],
-)
-
-# Set model monitoring credentials and enable the infrastructure
-project.set_model_monitoring_credentials(
-    tsdb_profile_name=tsdb_profile.name,
-    stream_profile_name=stream_profile.name,
-)
+      name=tsdb_profile_name,
+      user="postgres",
+      password="postgres",
+      host="timescaledb",
+      port=5432,
+      database="postgres",
+  )
+  project.register_datastore_profile(tsdb_profile)
+  # Create and register stream profile
+  stream_profile = DatastoreProfileKafkaStream(
+      name=stream_profile_name,
+      brokers="kafka-stream:9092",
+      topics=[],
+  )
+  project.register_datastore_profile(stream_profile)
+  # Set model monitoring credentials and enable the infrastructure
+  project.set_model_monitoring_credentials(
+      tsdb_profile_name=tsdb_profile.name,
+      stream_profile_name=stream_profile.name,
+  )
 ```
-
 See more details, including additional configuration options, in {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.

@@ -1966,6 +1966,32 @@ def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
         set_data_by_path(path, data, value)
 
 
+def test_set_data_by_path_list_of_dicts():
+    """Test setting values in a list of dicts with matching list value"""
+    data = [{"a": 1}, {"a": 2}, {"a": 3}]
+    path_as_list = "b"
+    set_data_by_path(path_as_list, data, [10, 20, 30])
+    assert data == [{"a": 1, "b": 10}, {"a": 2, "b": 20}, {"a": 3, "b": 30}]
+
+
+def test_set_data_by_path_list_of_dicts_nested():
+    """Test setting nested values in list of dicts"""
+    data = [{"outer": {"a": 1}}, {"outer": {"a": 2}}]
+    path_as_list = split_path("outer.b")
+    set_data_by_path(path_as_list, data, [10, 20])
+    assert data[0]["outer"]["b"] == 10
+    assert data[1]["outer"]["b"] == 20
+
+
+def test_set_data_by_path_list_length_mismatch():
+    """Test that setting a list value with wrong length raises error"""
+    data = [{"a": 1}, {"a": 2}, {"a": 3}]
+    path_as_list = split_path("b")
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        set_data_by_path(path_as_list, data, [10, 20])
+    assert "must match data list length" in str(exc.value)
+
+
 @pytest.mark.parametrize(
     "priority_reqs, reqs, expected_result",
     [

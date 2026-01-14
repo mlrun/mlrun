@@ -1434,11 +1434,27 @@ class LLModel(Model):
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
             )
+            answer = (
+                response_with_stats.get("answer")
+                if isinstance(response_with_stats, dict)
+                else [
+                    single_response.get("answer")
+                    for single_response in response_with_stats
+                ]
+            )
+            usage = (
+                response_with_stats.get("usage")
+                if isinstance(response_with_stats, dict)
+                else [
+                    single_response.get("usage")
+                    for single_response in response_with_stats
+                ]
+            )
             logger.debug(
                 "LLModel prediction completed",
                 model_name=self.name,
-                answer=response_with_stats.get("answer"),
-                usage=response_with_stats.get("usage"),
+                answer=answer,
+                usage=usage,
             )
         else:
             logger.warning(

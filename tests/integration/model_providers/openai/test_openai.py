@@ -495,6 +495,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             # Send all 5 INPUT_DATA events as batch
+            # TODO failed because we got list of responses, need to think if we want to wrap it under dict or not...
             response = server.test(body=INPUT_DATA)["output"]
 
             # Assert we got list of 5 responses
@@ -524,4 +525,3 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
                 )
         finally:
             server.wait_for_completion()
-

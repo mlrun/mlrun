@@ -214,30 +214,6 @@ jobs:
           client_payload: "{\"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
 
 
-
-      - name: Pull, retag and push UI Docker image
-        run: |
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
-          
-          echo "Pulling image: $SOURCE_IMAGE"
-          docker pull "$SOURCE_IMAGE"
-          
-          # Loop through target registries and push to each
-          IFS=',' read -ra REGISTRIES <<< "${{ github.event.inputs.target_docker_registries }}"
-          for registry in "${REGISTRIES[@]}"; do
-            registry=$(echo "$registry" | xargs)  # trim whitespace
-            
-            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
-            
-            echo "Tagging image as: $TARGET_IMAGE"
-            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
-            
-            echo "Pushing image: $TARGET_IMAGE"
-            docker push "$TARGET_IMAGE"
-            
-            echo "✅ Successfully promoted ui to $registry"
-          done
-
   promote-pypi-package:
     name: Promote PyPI package from source to target Artifactory
     runs-on: mlrun-release

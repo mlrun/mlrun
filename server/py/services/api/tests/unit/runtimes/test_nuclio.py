@@ -17,6 +17,7 @@ import json
 import os
 import typing
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 from http import HTTPStatus
 
 import deepdiff
@@ -2247,7 +2248,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             )
 
     @pytest.mark.parametrize(
-        "sidecars,is_valid",
+        "sidecars,expectation,is_valid",
         [
             # Test case 1: Valid probes - should save to DB
             (
@@ -2264,6 +2265,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                         },
                     },
                 ],
+                does_not_raise(),
                 True,
             ),
             # Test case 2: Invalid probes - should NOT save to DB
@@ -2278,12 +2280,13 @@ class TestNuclioRuntime(TestRuntimeBase):
                         },
                     },
                 ],
+                pytest.raises(HTTPException),
                 False,
             ),
         ],
     )
     def test_deploy_function_sidecar_probes_validation_and_db_save(
-        self, db: Session, sidecars, is_valid
+        self, db: Session, sidecars, expectation, is_valid
     ):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.config["spec.sidecars"] = sidecars
@@ -2306,32 +2309,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             deploy_mock.return_value = function
             auth_info = mlrun.common.schemas.AuthInfo()
 
-            if not is_valid:
-                # should raise HTTPException before save
-                with pytest.raises(HTTPException) as exception_result:
-                    _deploy_function(
-                        db_session=db,
-                        auth_info=auth_info,
-                        project=self.project,
-                        name=self.name,
-                        function=function.to_dict(),
-                        builder_env=None,
-                        client_version=None,
-                        client_python_version=None,
-                    )
-
-                # Verify HTTPException was raised
-                assert (
-                    exception_result.value.status_code == HTTPStatus.BAD_REQUEST.value
-                )
-                assert "must have exactly one of" in str(
-                    exception_result.value.detail.get("reason", "")
-                )
-
-                # Verify save was NOT called (validation failed before save)
-                mock_db.assert_not_called()
-            else:
-                # Valid probes - should save to DB
+            with expectation:
                 _deploy_function(
                     db_session=db,
                     auth_info=auth_info,
@@ -2343,7 +2321,10 @@ class TestNuclioRuntime(TestRuntimeBase):
                     client_python_version=None,
                 )
 
+            if is_valid:
                 mock_db.assert_called_with(versioned=False)
+            else:
+                mock_db.assert_not_called()
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

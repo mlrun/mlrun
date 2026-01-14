@@ -160,6 +160,7 @@ jobs:
           password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
       - name: Pull, retag and push Docker image
+        if: ${{ matrix.image-name != 'test' }}
         run: |
           image_name="${{ matrix.image-name }}"
           if [ "${{ matrix.image-name }}" = "api" ]; then
@@ -193,12 +194,21 @@ jobs:
     if: "!contains(github.event.inputs.skip_images, 'ui')"
     needs: [prepare-inputs]
     steps:
+
+      - name: Generate GitHub App Token for ui repo
+        id: ui-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
       - name: Docker login (ghcr.io)
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ steps.ui-app-token.outputs.token }}
 
       - name: Docker login (quay.io)
         continue-on-error: true

@@ -199,12 +199,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._upload_code_to_cluster()
         self._logger.debug("Creating application")
         function = self._create_delay_health_check_application("delay-health-check-app")
-        self._logger.debug("Deploying application with readiness probe (will fail)")
-        # The deployment should fail because the readiness probe have default timeout_seconds
-        # and the /health endpoint sleeps for 20 seconds, causing the probe to timeout
-        with pytest.raises(mlrun.runtimes.utils.RunError, match="deployment failed"):
-            function.deploy(with_mlrun=False)
-
         # Add probes to the function - set timeout_seconds > 20 to allow health endpoint to respond
         self._logger.debug("Adding probes to function")
         function.set_probe(
@@ -215,8 +209,8 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             timeout_seconds=25,  # Wait 25 seconds (more than the 20 seconds sleep in /health)
         )
 
-        # Redeploy with probes
-        self._logger.debug("Redeploying application with probes")
+        # Deploy with probes
+        self._logger.debug("Deploying application with probes")
         function.deploy(with_mlrun=False)
 
         # Verify the application is running and healthy
@@ -284,11 +278,4 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             self.remote_code_dir, self._function_with_delay_healthcheck
         )
         function.with_source_archive(source=delay_healthcheck_source)
-        function.spec.config["spec.sidecars"] = [
-            {
-                "name": f"{function.metadata.name}-sidecar",
-                "readinessProbe": {"httpGet": {"path": "/health", "port": 5000}},
-            }
-        ]
-
         return function

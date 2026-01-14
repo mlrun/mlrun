@@ -4594,14 +4594,6 @@ tabulate==0.8.10 \
     # via
     #   -r requirements.txt
     #   kfp
-taos-ws-py==0.3.2 \
-    --hash=sha256:2cc6620ed590c250edb974e357257d8c823e628f1f640c278d703d4e4a38b8e4 \
-    --hash=sha256:4662ba418555bc41c7ce5b89c5274d5eff0eca6d62f82a9bf0322cb92a79d0fd \
-    --hash=sha256:7548ea9a919b443a886e1677a4f4150a875bc00f273594fa6d43876a498f21d4 \
-    --hash=sha256:b0ed47ba385e50e8efc8b38e37b8250e0dd270e999793a9123b3284167990306 \
-    --hash=sha256:ea3a7fff25fc828e050459024e59558a925788c4fb8623af83bbcbca0f47c535 \
-    --hash=sha256:f165176a20e99e44205e9693e032540a6be8125841e43d809a21b4888ac9be44
-    # via -r extras-requirements.txt
 tblib==3.2.2 \
     --hash=sha256:26bdccf339bcce6a88b2b5432c988b266ebbe63a4e593f6b578b1d2e723d2b76 \
     --hash=sha256:e9a652692d91bf4f743d4a15bc174c0b76afc750fe8c7b6d195cc1c1d6d2ccec

@@ -41,6 +41,7 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    lock_hub_uri_version,
     merge_requirements,
     parse_artifact_uri,
     remove_tag_from_artifact_uri,
@@ -248,6 +249,23 @@ def test_extend_hub_uri(rundb_mock, case):
     if is_hub_url:
         expected_output = hub_url + expected_output
     assert expected_output == output
+
+
+@pytest.mark.parametrize(
+    "uri, locked_version, expected",
+    [
+        ("hub://function-name", "1.2.3", "hub://function-name:1.2.3"),
+        ("hub://function-name:latest", "1.2.3", "hub://function-name:1.2.3"),
+        (
+            "hub://source/function-name:latest",
+            "2.0.0",
+            "hub://source/function-name:2.0.0",
+        ),
+        ("hub://function-name:0.0.1", "2.0.0", "hub://function-name:0.0.1"),
+    ],
+)
+def test_lock_hub_uri_version(uri, locked_version, expected):
+    assert lock_hub_uri_version(uri, locked_version) == expected
 
 
 @pytest.mark.parametrize(

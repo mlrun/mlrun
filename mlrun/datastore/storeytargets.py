@@ -24,7 +24,6 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaStream,
     DatastoreProfileKafkaTarget,
     DatastoreProfilePostgreSQL,
-    DatastoreProfileTDEngine,
     datastore_profile_read,
 )
 
@@ -48,20 +47,6 @@ def get_url_and_storage_options(path, external_storage_options=None):
     else:
         storage_options = storage_options or external_storage_options
     return url, DataStore._sanitize_options(storage_options)
-
-
-class TDEngineStoreyTarget(storey.TDEngineTarget):
-    def __init__(self, *args, url: str, **kwargs):
-        if url.startswith("ds://"):
-            datastore_profile = datastore_profile_read(url)
-            if not isinstance(datastore_profile, DatastoreProfileTDEngine):
-                raise ValueError(
-                    f"Unexpected datastore profile type:{datastore_profile.type}."
-                    "Only DatastoreProfileTDEngine is supported"
-                )
-            url = datastore_profile.dsn()
-        kwargs["url"] = url
-        super().__init__(*args, **kwargs)
 
 
 class TimescaleDBStoreyTarget(storey.TimescaleDBTarget):

@@ -3507,6 +3507,9 @@ class RootFlowStep(FlowStep):
         visited.add(step.name)
         if not step.next:
             return step.name
+        # If all next steps list this step in their `cycle_from`, then all outgoing
+        # edges from this step are back-edges within the same cycle, so we treat
+        # this step as the final step in the cyclic subgraph
         elif all(
             step.name in self[next_step_name].cycle_from for next_step_name in step.next
         ):

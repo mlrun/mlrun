@@ -2285,9 +2285,17 @@ class TestNuclioRuntime(TestRuntimeBase):
             ),
         ],
     )
-    def test_deploy_function_sidecar_probes_validation_and_db_save(
+    def test_sidecar_probe_validation_db_save(
         self, db: Session, sidecars, expectation, is_valid
     ):
+        """Test that sidecar probe validation happens before DB save.
+
+        Validates that:
+        - Valid sidecar probes allow the function to be saved to DB
+        - Invalid sidecar probes:
+          1. Raise specific HTTPException from _validate_sidecar_probes
+          2. No DB changes (save is not called)
+        """
         function = self._generate_runtime(self.runtime_kind)
         function.spec.config["spec.sidecars"] = sidecars
 
@@ -2309,7 +2317,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             deploy_mock.return_value = function
             auth_info = mlrun.common.schemas.AuthInfo()
 
-            with expectation:
+            with expectation as exception_result:
                 _deploy_function(
                     db_session=db,
                     auth_info=auth_info,
@@ -2322,8 +2330,16 @@ class TestNuclioRuntime(TestRuntimeBase):
                 )
 
             if is_valid:
+                assert exception_result is None
                 mock_db.assert_called_with(versioned=False)
             else:
+                # Verify HTTPException was raised by _validate_sidecar_probes
+                assert (
+                    exception_result.value.status_code == HTTPStatus.BAD_REQUEST.value
+                )
+                assert "must have exactly one of" in str(
+                    exception_result.value.detail.get("reason", "")
+                )
                 mock_db.assert_not_called()
 
 

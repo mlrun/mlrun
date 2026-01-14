@@ -407,3 +407,65 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
 
         finally:
             server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_model_runner_batch_with_openai(self, execution_mechanism):
+        """Test batch processing of multiple events with OpenAI model"""
+        project = mlrun.new_project("test-openai-model-batch", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            default_config={"max_tokens": 100},
+        )
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            # Send all 5 INPUT_DATA events as batch
+            response = server.test(body=INPUT_DATA)["output"]
+
+            # Assert we got list of 5 responses
+            assert isinstance(response, list)
+            assert len(response) == 5
+
+            encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+
+            # Verify each response
+            for i, result in enumerate(response):
+                assert len(result) == 2  # answer + usage
+                answer = result[UsageResponseKeys.ANSWER]
+
+                # Check expected result is in answer
+                assert EXPECTED_RESULTS[i] in answer.lower()
+
+                # Verify token count
+                assert len(encoding.encode(answer)) == 100
+
+                # Verify usage stats
+                stats = result[UsageResponseKeys.USAGE]
+                assert stats["completion_tokens"] == 100
+                assert stats["prompt_tokens"] > 0
+                assert (
+                    stats["total_tokens"]
+                    == stats["completion_tokens"] + stats["prompt_tokens"]
+                )
+        finally:
+            server.wait_for_completion()
+

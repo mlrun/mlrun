@@ -239,8 +239,8 @@ jobs:
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
-          UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
-          UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
           uv publish dist/*
           echo "✅ Successfully promoted PyPI package"

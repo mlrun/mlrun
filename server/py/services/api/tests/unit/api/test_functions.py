@@ -528,7 +528,9 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
 
 
 def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_models(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    httpserver,
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     endpoint = "/build/function"

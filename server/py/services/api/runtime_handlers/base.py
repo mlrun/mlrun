@@ -491,11 +491,11 @@ class BaseRuntimeHandler(ABC):
         if not mlrun.mlconf.is_iguazio_v4_mode():
             return
 
-        username = auth_info.username if auth_info else None
+        user_id = auth_info.user_id if auth_info else None
 
         # Validation that the secret exists is done in the ServerSideLauncher
         secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(
-            username=username, token_name=token_name
+            user_id=user_id, token_name=token_name
         )
 
         # In case the secret was not found (such as in IG3), we do not mount it

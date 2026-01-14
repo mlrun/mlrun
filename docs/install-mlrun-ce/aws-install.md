@@ -226,10 +226,10 @@ The MLRun CE (Community Edition) includes the following services:
 - Nuclio - https://github.com/nuclio/nuclio
 - Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
 - Kafka
+- TimescaleDB
 - Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
-  - Grafana
-- TDengine  
+  - Grafana  
 
 ## Installation
 1. [Optional] Create or import a certificate to AWS Certificate Manager for the relevant domain including wildcards **\*.SYSTEM_NAME.example.com** by one of:

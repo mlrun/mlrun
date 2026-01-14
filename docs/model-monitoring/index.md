@@ -79,15 +79,15 @@ For example:
 (mm-tsdb-streaming-platforms)=
 ## Selecting the streaming and TSDB platforms
 
-Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO TSDB platforms.
+Model monitoring supports Kafka or V3IO as streaming platforms, and TimescaleDB (PostgreSQL) or V3IO TSDB platforms.
 
 The recommended versions are:
 
-- TDEngine: `3.3.2.0`
+- TimescaleDB: PostgreSQL `17` with TimescaleDB extension
 - Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`)
 
 Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-See also [Configuring TDengine and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-tdengine-and-kafka-for-model-monitoring).
+See also [Configuring Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md).
 
 ## Model monitoring applications
 
@@ -152,7 +152,6 @@ When ramping up the scale of your model monitoring, take note of these limitatio
 - Up to 200 small projects (model endpoints < 100)
 - On each project and per 10 minute base-period:
   - Up to 50,000 results/metrics can be captured (V3IO-TSDB)
-  - Up to 5,000 results/metrics can be captured (TDengine-TSDB)
   
 **These numbers can vary depending on the overall system stress level and the TSDB performance.**
 

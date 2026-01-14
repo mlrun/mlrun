@@ -18,9 +18,9 @@ Revision ID: 650f0ce2da6f
 Revises: 63a7eec6d034
 Create Date: 2024-10-30 16:38:07.592754
 
+Only supports MySQL
 """
 
-import os
 from datetime import datetime
 
 import sqlalchemy as sa
@@ -28,7 +28,7 @@ from alembic import op
 from sqlalchemy.dialects import mysql
 
 import mlrun.common.schemas.alert
-import mlrun.common.schemas.partition
+import mlrun.common.schemas.partition_interval
 
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"
@@ -83,27 +83,15 @@ def upgrade():
     )
     # ### end Alembic commands ###
 
-    partition_interval = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
-
-    # Validate the partition interval
-    if not mlrun.common.schemas.partition.PartitionInterval.is_valid(
-        partition_interval
-    ):
-        raise ValueError(
-            f"Partition interval can only be one of the following: "
-            f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
-        )
-
+    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
     # Calculate the date of next partitioning interval
     now_utc = datetime.utcnow()
 
-    partition_interval = mlrun.common.schemas.partition.PartitionInterval(
-        partition_interval
+    partition_name, partition_value = (
+        partition_interval.get_partition_names_and_boundaries(now_utc)[0]
     )
-
-    partition_name, partition_value = partition_interval.get_partition_info(now_utc)[0]
-    partition_expression = partition_interval.get_partition_expression(
-        column_name="activation_time"
+    partition_expression = partition_interval.get_mysql_partition_key_sql(
+        column_name="activation_time",
     )
 
     # Construct SQL for partitioning

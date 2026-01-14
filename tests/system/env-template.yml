@@ -85,11 +85,12 @@ mlrun_model_monitoring_tsdb_profile:
   # type: v3io
   # v3io_access_key: # can leave empty
   # # or:
-  # type: taosws
+  # type: postgresql
   # host:
-  # port: 6041
+  # port: 5432
   # user:
   # password:
+  # database:
 
 mlrun_model_monitoring_stream_profile:
   # name: # choose, e.g.: my-mm-stream

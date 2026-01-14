@@ -202,7 +202,6 @@ jobs:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ui
       - name: Docker login (ghcr.io)
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
         with:

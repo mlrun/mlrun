@@ -209,6 +209,7 @@ jobs:
           repo: ui
           github_token: ${{ steps.ui-app-token.outputs.token }}
           workflow_file_name: ui-promotion.yaml
+          ref: development
           wait_interval: 60
           client_payload: "{\"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
 

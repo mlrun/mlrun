@@ -914,14 +914,14 @@ def test_list_secret_tokens_returns_tokens():
 
 
 def test_revoke_secret_token_success(mock_iguazio_client):
-    auth_info = mlrun.common.schemas.AuthInfo(
-        username="dummy-user", user_id="user-id-123"
-    )
-    token_name = "my-token"
-    fake_token = "jwt-token-123"
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
     }
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123", request_headers=request_headers
+    )
+    token_name = "my-token"
+    fake_token = "jwt-token-123"
 
     mock_secrets_provider = unittest.mock.Mock()
     services.api.crud.Secrets().secrets_provider = mock_secrets_provider

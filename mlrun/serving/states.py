@@ -307,7 +307,7 @@ class BaseStep(ModelObj):
             error_step = self.context.root.path_to_step(self.on_error)
             self._on_error_handler = error_step.run
 
-    def _log_error(self, event, handler, **kwargs):
+    def _log_error(self, event, err, **kwargs):
         """on failure log (for sync mode)"""
         error_message = err_to_str(err)
         self.context.logger.error(

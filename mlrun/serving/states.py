@@ -485,7 +485,8 @@ class BaseStep(ModelObj):
             # `set_flow()`) and a
             # single step (provided to `to()`), resulting in the graph (step1 ->
             # step2 -> step3 -> step4).
-            # Notice that using `force=True` is required in case step1 already had downstream nodes (e.g. if the existing
+            # Notice that using `force=True` is required in case step1 already had downstream nodes
+            # (e.g. if the existing
             # graph is step1 -> step2_old) and that following the execution of this code the existing downstream steps
             # are removed. If the intention is to split the graph (and not to overwrite), please use `to()`.
 

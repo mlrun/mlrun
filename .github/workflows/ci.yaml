@@ -151,7 +151,11 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.11"]
+        include:
+          - python-version: "3.11"
+            test-db: mysql
+          - python-version: "3.11"
+            test-db: postgres
 
     steps:
     - uses: actions/checkout@v6
@@ -192,6 +196,7 @@ jobs:
           MLRUN_DOCKER_REGISTRY=ghcr.io/ \
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
           MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+          MLRUN_TEST_DB=${{ matrix.test-db }} \
           RUN_COVERAGE=$RUN_COVERAGE \
           make test-integration-dockerized
       timeout-minutes: 90
@@ -200,7 +205,7 @@ jobs:
       uses: actions/upload-artifact@v6
       if: env.RUN_COVERAGE == 'true'
       with:
-         name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
+         name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ matrix.test-db }}_${{ github.run_id }}.coverage
          path: /tmp/coverage_reports/integration_tests/integration_tests.coverage
          retention-days: 30
 
@@ -371,8 +376,6 @@ jobs:
       - name: Download integration coverage report
         uses: actions/download-artifact@v7
         with:
-          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
-          
           path: tests/coverage_reports/
 
       - name: Download migration coverage report

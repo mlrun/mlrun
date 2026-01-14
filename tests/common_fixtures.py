@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import functools
 import inspect
 import io
 import os
@@ -20,6 +20,7 @@ import sys
 import unittest
 from collections.abc import Callable
 from datetime import datetime
+from datetime import datetime as _orig_datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -55,6 +56,94 @@ from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path
 
 session_maker: Callable
+
+
+class FrozenDateTimeMeta(type):
+    def __instancecheck__(cls, instance):
+        """Treat anything whose MRO contains the built-in datetime.datetime
+        as a datetime, to prevent calling isinstance() on datetime and getting a recursion error."""
+        for base in type(instance).mro():
+            if base.__module__ == "datetime" and base.__name__ == "datetime":
+                return True
+
+        # Also treat our own class as datetime
+        return type(instance).__name__ == "FrozenDatetime"
+
+
+class FrozenDatetime(
+    _orig_datetime,
+    metaclass=FrozenDateTimeMeta,
+):
+    """
+    `datetime` subclass whose .now()/ .utcnow() always return `_frozen_now`.
+    Tests may mutate `FrozenDatetime._frozen_now` on-the-fly.
+    """
+
+    _frozen_now: _orig_datetime = _orig_datetime(1970, 1, 1)
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls._frozen_now.replace(tzinfo=tz)
+
+    @classmethod
+    def utcnow(cls):
+        return cls._frozen_now
+
+
+def _patch_everywhere(monkey):
+    """
+    Replace *all* references to the original :class:`datetime.datetime`
+    that are already present in imported modules **and** make sure any
+    future import gets :class:`FrozenDatetime`.
+    """
+    import datetime as _dt_module
+
+    old_datetime_cls = _dt_module.datetime  # ← keep pointer
+
+    if old_datetime_cls is FrozenDatetime:
+        return
+
+    # 1. Patch canonical symbol – affects future imports
+    monkey.setattr(_dt_module, "datetime", FrozenDatetime, raising=True)
+
+    # 2. Sweep every module loaded so far and update stale aliases
+    import sys
+
+    for mod in list(sys.modules.values()):
+        if mod is None:
+            continue
+        for name, val in vars(mod).items():
+            if val is old_datetime_cls:
+                # alias still points at the *old* class → replace
+                monkey.setattr(mod, name, FrozenDatetime, raising=False)
+
+
+def freeze_datetime(target_dt: _orig_datetime):
+    """
+    Decorator that freezes *all* `datetime.now()` / `datetime.utcnow()` calls —
+    whether code did `import datetime` *or* `from datetime import datetime`.
+
+    Usage::
+
+        @freeze_datetime(datetime(2025, 1, 1))
+        def test_something(...):
+            ...
+    """
+
+    def decorator(test_func):
+        @functools.wraps(test_func)
+        def wrapper(*args, **kwargs):
+            monkey = pytest.MonkeyPatch()
+            try:
+                FrozenDatetime._frozen_now = target_dt
+                _patch_everywhere(monkey)
+                return test_func(*args, **kwargs)
+            finally:
+                monkey.undo()
+
+        return wrapper
+
+    return decorator
 
 
 @pytest.fixture(autouse=True)

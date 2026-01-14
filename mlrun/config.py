@@ -350,6 +350,9 @@ default_config = {
                     # enabled / disabled
                     "mode": "enabled",
                     "interval": 15,  # seconds
+                    # when set to True, the worker will allow to run even if the chief version is different
+                    # this is useful for development purposes
+                    "allow_version_mismatch": False,
                 },
                 "request_timeout": 45,  # seconds
             },

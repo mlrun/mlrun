@@ -91,10 +91,18 @@ class ModelProvider(BaseRemoteClient):
 
         :param messages: Either a list of message dicts (single) or list of message lists (batch)
         :return: True if batch invocation, False if single invocation
-        :raises MLRunInvalidArgumentError: If messages format is invalid (mixed types)
+        :raises MLRunInvalidArgumentError: If messages format is invalid (mixed types or strings)
         """
         if not messages or not isinstance(messages, list):
             return False
+
+        # Check if user mistakenly passed a list of strings
+        has_str = any(isinstance(item, str) for item in messages)
+        if has_str:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid messages format: list of strings is not supported. "
+                "Messages must be a list of dicts (single invocation) or list of lists of dicts (batch invocation)."
+            )
 
         has_list = any(isinstance(item, list) for item in messages)
         has_dict = any(isinstance(item, dict) for item in messages)

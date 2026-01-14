@@ -43,7 +43,7 @@ from mlrun.utils import logger
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
-from services.api.api.endpoints.nuclio import _validate_sidecar_probes
+from services.api.api.endpoints.nuclio import _deploy_function, _validate_sidecar_probes
 from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 from services.api.utils.functions import build_function
@@ -2245,6 +2245,105 @@ class TestNuclioRuntime(TestRuntimeBase):
             assert "must have exactly one of" in str(
                 exception_result.value.detail.get("reason", "")
             )
+
+    @pytest.mark.parametrize(
+        "sidecars,is_valid",
+        [
+            # Test case 1: Valid probes - should save to DB
+            (
+                [
+                    {
+                        "name": "sidecar-http",
+                        "readinessProbe": {
+                            "httpGet": {
+                                "path": "/healthy",
+                                "port": 8080,
+                            },
+                            "initialDelaySeconds": 17,
+                            "periodSeconds": 13,
+                        },
+                    },
+                ],
+                True,
+            ),
+            # Test case 2: Invalid probes - should NOT save to DB
+            (
+                [
+                    {
+                        "name": "sidecar-invalid",
+                        "readinessProbe": {
+                            "initialDelaySeconds": 5,
+                            "periodSeconds": 3,
+                            # Missing httpGet, exec, tcpSocket, or grpc
+                        },
+                    },
+                ],
+                False,
+            ),
+        ],
+    )
+    def test_deploy_function_sidecar_probes_validation_and_db_save(
+        self, db: Session, sidecars, is_valid
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.spec.config["spec.sidecars"] = sidecars
+
+        # Mock fn.save()
+        mock_db = unittest.mock.Mock()
+
+        # Mock _deploy_nuclio_runtime to avoid actual deployment
+        with (
+            unittest.mock.patch(
+                "services.api.api.endpoints.nuclio._deploy_nuclio_runtime"
+            ) as deploy_mock,
+            unittest.mock.patch.object(mlrun.runtimes.RemoteRuntime, "save", mock_db),
+            unittest.mock.patch.object(
+                mlrun.runtimes.RemoteRuntime,
+                "mask_sensitive_data_in_config",
+                return_value={},
+            ),
+        ):
+            deploy_mock.return_value = function
+            auth_info = mlrun.common.schemas.AuthInfo()
+
+            if not is_valid:
+                # should raise HTTPException before save
+                with pytest.raises(HTTPException) as exception_result:
+                    _deploy_function(
+                        db_session=db,
+                        auth_info=auth_info,
+                        project=self.project,
+                        name=self.name,
+                        function=function.to_dict(),
+                        builder_env=None,
+                        client_version=None,
+                        client_python_version=None,
+                    )
+
+                # Verify HTTPException was raised
+                assert (
+                    exception_result.value.status_code == HTTPStatus.BAD_REQUEST.value
+                )
+                assert "must have exactly one of" in str(
+                    exception_result.value.detail.get("reason", "")
+                )
+
+                # Verify save was NOT called (validation failed before save)
+                mock_db.assert_not_called()
+            else:
+                # Valid probes - should save to DB
+                _deploy_function(
+                    db_session=db,
+                    auth_info=auth_info,
+                    project=self.project,
+                    name=self.name,
+                    function=function.to_dict(),
+                    builder_env=None,
+                    client_version=None,
+                    client_python_version=None,
+                )
+
+                mock_db.assert_called_with(versioned=False)
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

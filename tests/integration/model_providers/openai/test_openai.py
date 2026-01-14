@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import os
 import time
 import unittest.mock
@@ -206,7 +207,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         ],
     )
     @pytest.mark.parametrize("run_async", [True, False])
-    async def test_batch_invoke(self, invoke_response_format, run_async):
+    def test_batch_invoke(self, invoke_response_format, run_async):
         model_url = self.url_prefix + self.basic_llm_model
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_tokens": 100}
@@ -218,8 +219,11 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
         # Execute batch invoke (sync or async)
         if run_async:
-            results = await model_provider.async_invoke(
-                messages=messages_list, invoke_response_format=invoke_response_format
+            results = asyncio.run(
+                model_provider.async_invoke(
+                    messages=messages_list,
+                    invoke_response_format=invoke_response_format,
+                )
             )
         else:
             results = model_provider.invoke(

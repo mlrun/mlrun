@@ -35,7 +35,7 @@ on:
       artifactory_docker_repo:
         description: 'Artifactory docker repository name'
         required: false
-        default: 'mlrun-staging'
+        default: 'mlrun-staging/mlrun'
         type: string
       artifactory_pypi_repo:
         description: 'Artifactory PyPI repository name'
@@ -137,7 +137,7 @@ jobs:
           workflow_file_name: build.yaml
           ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
           wait_interval: 60
-          client_payload: "{\"docker_registries\": \"${{ env.DOCKER_REGISTRY }}\", \"docker_repo\": \"mlrun\", \"runner\": \"mlrun-release\", \"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
+          client_payload: "{\"docker_registries\": \"${{ env.DOCKER_REGISTRY }}\", \"docker_repo\": \"\", \"runner\": \"mlrun-release\", \"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
 
   publish-to-artifactory:
     name: Publish package to Artifactory PyPI

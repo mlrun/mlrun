@@ -32,6 +32,7 @@ import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.common.secrets as mlsecrets
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
@@ -714,6 +715,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         namespace: str = "",
         type_: str = SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
+        annotations: typing.Optional[dict] = None,
         encoded: bool = False,
     ):
         """
@@ -730,6 +732,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
          if empty.
         :param type_: Kubernetes secret type (default: Opaque).
         :param labels: Optional dictionary of labels to attach to the secret.
+        :param annotations: Optional dictionary of annotations to attach to the secret.
         :param encoded: Whether the secret values are already base64-encoded. Defaults to False.
         """
         logger.debug("Creating secret", secret_name=secret_name)
@@ -746,6 +749,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 name=secret_name,
                 namespace=namespace,
                 labels=labels,
+                annotations=annotations,
             ),
             data=secret_data,
         )

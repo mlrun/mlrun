@@ -1575,11 +1575,6 @@ class LLModel(Model):
 
         # Handle batch input (list of dicts)
         if isinstance(input_data, list):
-            logger.info(
-                "Processing batch input",
-                model_name=self.name,
-                batch_size=len(input_data),
-            )
             enriched_messages_list = []
             for event in input_data:
                 enriched_messages = self._enrich_single_event(

@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Release
-
+name: DO NOT USE OLD RELEASE PROCEDURE - USE private-release.yaml INSTEAD
 run-name: Releasing ${{ inputs.version }} (${{ github.ref_name }})
 
 permissions:
@@ -60,9 +59,17 @@ on:
         default: ''
 
 jobs:
+  approval-gate:
+    name: Approval gate for private release
+    runs-on: ubuntu-latest
+    environment: prod-release
+    steps:
+      - name: Manual approval checkpoint
+        run: echo "✅ Private release approved, proceeding with build and publish..."  
   prepare-inputs:
     name: Prepare inputs
     runs-on: ubuntu-latest
+    needs: approval-gate
     outputs:
       is_stable_version: ${{ steps.resolve.outputs.is_stable_version }}
       is_feature_branch: ${{ steps.resolve.outputs.is_feature_branch }}

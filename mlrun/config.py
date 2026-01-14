@@ -200,10 +200,7 @@ default_config = {
     "v3io_framesd": "http://framesd:8080",
     "model_providers": {
         "openai_default_model": "gpt-4o",
-        "openai_batch_max_workers": 5,
-        "openai_batch_max_workers_global": 20,
         "openai_batch_max_concurrent": 10,
-        "openai_batch_max_concurrent_global": 200,
         "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
         "huggingface_default_batch_size": 8,
     },
@@ -355,6 +352,9 @@ default_config = {
                     # enabled / disabled
                     "mode": "enabled",
                     "interval": 15,  # seconds
+                    # when set to True, the worker will allow to run even if the chief version is different
+                    # this is useful for development purposes
+                    "allow_version_mismatch": False,
                 },
                 "request_timeout": 45,  # seconds
             },
@@ -435,6 +435,11 @@ default_config = {
             "iguazio": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
                 "authentication_endpoint": "api/v1/authentication/refresh-access-token",
+            },
+            "service_account": {
+                # the following are the default values for k8s service accounts, but may be changed per deployment
+                "token_expiration_seconds": 600,
+                "token_path": "/var/run/secrets/kubernetes.io/serviceaccount/token",
             },
         },
         "nuclio": {
@@ -687,6 +692,9 @@ default_config = {
             # When True, automatically create/generate database name using system_id if not explicitly
             # specified in the connection string. When False, use the database from connection string as-is.
             "auto_create_database": True,
+            # Connection pool timeout in seconds. This is the maximum time to wait for a connection
+            # from the pool before raising an error.
+            "connection_pool_timeout": 120,
         },
     },
     "secret_stores": {

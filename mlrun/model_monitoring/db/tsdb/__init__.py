@@ -28,7 +28,6 @@ class ObjectTSDBFactory(enum.Enum):
     """Enum class to handle the different TSDB connector type values for storing real time metrics"""
 
     v3io_tsdb = "v3io-tsdb"
-    tdengine = "tdengine"
     timescaledb = "postgresql"
 
     def to_tsdb_connector(
@@ -55,11 +54,6 @@ class ObjectTSDBFactory(enum.Enum):
             from .timescaledb.timescaledb_connector import TimescaleDBConnector
 
             return TimescaleDBConnector(project=project, profile=profile, **kwargs)
-
-        if self == self.tdengine:
-            from .tdengine.tdengine_connector import TDEngineConnector
-
-            return TDEngineConnector(project=project, profile=profile, **kwargs)
 
         raise mlrun.errors.MLRunInvalidMMStoreTypeError("Code should not reach here")
 
@@ -97,10 +91,6 @@ def get_tsdb_connector(
     kwargs = {}
     if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
-    elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
-    ):
-        tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
     elif isinstance(
         profile, mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL
     ):

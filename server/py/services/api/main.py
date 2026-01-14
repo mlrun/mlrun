@@ -22,6 +22,7 @@ import typing
 import sqlalchemy.orm
 
 import mlrun
+import mlrun.common.db.dialects
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -569,14 +570,15 @@ class Service(framework.service.Service):
                 services.api.utils.db.partitioner.DBPartitioner().get_partition_interval,
                 table_name=table_name,
             )
+            # run twice per interval
             interval_in_seconds = int(
                 partition_interval.as_duration().total_seconds() / 2
             )
             run_function_periodically(
                 interval_in_seconds,
-                f"{self._manage_partitions.__name__}_{table_name}",
-                False,
-                self._manage_partitions,
+                f"{self._create_new_and_drop_expired_partitions.__name__}_{table_name}",
+                replace=False,
+                function=self._create_new_and_drop_expired_partitions,
                 table_name=table_name,
                 retention_days=retention_days,
             )
@@ -626,7 +628,10 @@ class Service(framework.service.Service):
             )
 
     @staticmethod
-    async def _manage_partitions(table_name, retention_days):
+    async def _create_new_and_drop_expired_partitions(
+        table_name: str,
+        retention_days: int,
+    ):
         await mlrun.utils.run_in_threadpool(
             framework.db.session.run_function_with_new_db_session,
             services.api.utils.db.partitioner.DBPartitioner().create_and_drop_partitions,

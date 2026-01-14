@@ -22,8 +22,6 @@ from sqlalchemy import and_
 import mlrun.common.runtimes.constants
 from mlrun.utils import get_in
 
-from framework.db.sqldb.models import Base
-
 max_str_length = 255
 
 
@@ -79,6 +77,8 @@ def update_labels(obj, labels: dict[str, typing.Union[str, int]]):
 
 
 def to_dict(obj):
+    from framework.db.sqldb.models import Base
+
     if isinstance(obj, Base):
         return {
             attr: to_dict(getattr(obj, attr)) for attr in dir(obj) if is_field(attr)

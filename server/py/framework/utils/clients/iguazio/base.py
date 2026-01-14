@@ -188,6 +188,9 @@ class BaseAsyncClient(BaseClient):
             mlrun.common.schemas.HeaderNames.x_request_id: getattr(
                 request.state, "request_id", ""
             ),
+            mlrun.common.schemas.HeaderNames.igz_authenticator_kind: request.headers.get(
+                mlrun.common.schemas.HeaderNames.igz_authenticator_kind, ""
+            ),
         }
         async with (
             self._send_request_to_api_async(

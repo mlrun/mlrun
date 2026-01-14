@@ -25,9 +25,11 @@ import pytest
 import mlrun
 from mlrun.common.model_monitoring.helpers import (
     _MAX_FLOAT,
+    TIMESCALEDB_DEFAULT_DB_PREFIX,
     FeatureStats,
     Histogram,
     get_kafka_topic,
+    get_tsdb_database_name,
     pad_features_hist,
     pad_hist,
 )
@@ -679,3 +681,82 @@ def test_get_start_end():
             start=now + datetime.timedelta(seconds=10),
             end=now,
         )
+
+
+class TestGetTsdbDatabaseName:
+    """Tests for get_tsdb_database_name() function."""
+
+    @staticmethod
+    def test_auto_create_disabled_returns_profile_database(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        profile_database = "my_custom_database"
+        monkeypatch.setattr(
+            mlrun.mlconf.model_endpoint_monitoring.tsdb,
+            "auto_create_database",
+            False,
+        )
+
+        result = get_tsdb_database_name(profile_database)
+
+        assert result == profile_database
+
+    @staticmethod
+    def test_auto_create_enabled_with_system_id_returns_generated_name(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        profile_database = "postgres"
+        system_id = "abc123"
+        monkeypatch.setattr(
+            mlrun.mlconf.model_endpoint_monitoring.tsdb,
+            "auto_create_database",
+            True,
+        )
+        monkeypatch.setattr(mlrun.mlconf, "system_id", system_id)
+
+        result = get_tsdb_database_name(profile_database)
+
+        assert result == f"{TIMESCALEDB_DEFAULT_DB_PREFIX}_{system_id}"
+
+    @staticmethod
+    def test_auto_create_enabled_without_system_id_raises_error(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            mlrun.mlconf.model_endpoint_monitoring.tsdb,
+            "auto_create_database",
+            True,
+        )
+        monkeypatch.setattr(mlrun.mlconf, "system_id", "")
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="system_id is not set in mlrun.mlconf",
+        ):
+            get_tsdb_database_name("postgres")
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("profile_database", "system_id"),
+        [
+            ("postgres", "xyz789"),
+            ("mydb", "test_system"),
+            ("production", "prod_123"),
+        ],
+    )
+    def test_auto_create_generates_consistent_name(
+        monkeypatch: pytest.MonkeyPatch,
+        profile_database: str,
+        system_id: str,
+    ) -> None:
+        monkeypatch.setattr(
+            mlrun.mlconf.model_endpoint_monitoring.tsdb,
+            "auto_create_database",
+            True,
+        )
+        monkeypatch.setattr(mlrun.mlconf, "system_id", system_id)
+
+        result = get_tsdb_database_name(profile_database)
+
+        expected = f"{TIMESCALEDB_DEFAULT_DB_PREFIX}_{system_id}"
+        assert result == expected

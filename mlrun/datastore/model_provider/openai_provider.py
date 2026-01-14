@@ -13,9 +13,7 @@
 # limitations under the License.
 import asyncio
 import inspect
-import threading
 from collections.abc import Awaitable, Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import mlrun
@@ -32,7 +30,6 @@ if TYPE_CHECKING:
 
 # Type aliases for response types
 InvokeResponse = Union["ChatCompletion", str, dict[str, Any]]
-BatchInvokeResponse = list[InvokeResponse]
 
 
 class OpenAIProvider(ModelProvider):
@@ -49,16 +46,6 @@ class OpenAIProvider(ModelProvider):
     """
 
     support_async = True
-    response_class = None
-
-    # Class-level shared async semaphore for global concurrency control
-    _global_async_semaphore: Optional[asyncio.Semaphore] = None
-    _global_async_semaphore_lock = asyncio.Lock()
-    _global_max_concurrent: Optional[int] = None
-
-    # Class-level shared thread semaphore for global sync concurrency control
-    _global_thread_semaphore: Optional[threading.Semaphore] = None
-    _global_thread_semaphore_lock = threading.Lock()
 
     def __init__(
         self,
@@ -84,25 +71,11 @@ class OpenAIProvider(ModelProvider):
         )
         self.options = self.get_client_options()
 
-        # Max workers allowed for each individual batch invocation
-        self._max_workers_per_batch = int(
-            self._get_secret_or_env("OPENAI_BATCH_MAX_WORKERS")
-            or mlrun.mlconf.model_providers.openai_batch_max_workers
-        )
         # Async concurrency limit per batch
         self._max_concurrent_per_batch = int(
             self._get_secret_or_env("OPENAI_BATCH_MAX_CONCURRENT")
             or mlrun.mlconf.model_providers.openai_batch_max_concurrent
         )
-
-    @classmethod
-    def _import_response_class(cls) -> None:
-        if not cls.response_class:
-            try:
-                from openai.types.chat.chat_completion import ChatCompletion
-            except ImportError as exc:
-                raise ImportError("openai package is not installed") from exc
-            cls.response_class = ChatCompletion
 
     @staticmethod
     def _extract_string_output(response: "ChatCompletion") -> str:
@@ -310,148 +283,18 @@ class OpenAIProvider(ModelProvider):
                 }
         return response
 
-    @classmethod
-    def _get_or_create_global_thread_semaphore(cls) -> threading.Semaphore:
-        """
-        Get or create the class-level global thread semaphore.
-        This semaphore is shared across ALL OpenAIProvider instances to enforce
-        a global limit on concurrent threads.
-
-        :return: Shared global threading.Semaphore instance.
-        """
-        with cls._global_thread_semaphore_lock:
-            if cls._global_thread_semaphore is None:
-                max_workers = int(
-                    mlrun.mlconf.model_providers.openai_batch_max_workers_global
-                )
-                cls._global_thread_semaphore = threading.Semaphore(max_workers)
-        return cls._global_thread_semaphore
-
-    @classmethod
-    async def _get_or_create_global_async_semaphore(cls) -> asyncio.Semaphore:
-        """
-        Get or create the class-level global async semaphore.
-        This semaphore is shared across ALL OpenAIProvider instances to enforce
-        a global limit on concurrent async requests.
-
-        :return: Shared global asyncio.Semaphore instance.
-        """
-        async with cls._global_async_semaphore_lock:
-            if cls._global_async_semaphore is None:
-                cls._global_max_concurrent = int(
-                    mlrun.mlconf.model_providers.openai_batch_max_concurrent_global
-                )
-                cls._global_async_semaphore = asyncio.Semaphore(
-                    cls._global_max_concurrent
-                )
-        return cls._global_async_semaphore
-
-    def batch_invoke(
+    async def _async_batch_invoke(
         self,
         messages_list: list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> BatchInvokeResponse:
-        """
-        Invoke multiple message sets in parallel using a fresh thread pool per batch.
-
-        Note on worker limits:
-            Creates a fresh ThreadPoolExecutor for each batch_invoke call with two-level control:
-            1. Global semaphore (max_workers): Shared across ALL batch_invoke calls globally
-            2. Per-batch semaphore (max_workers_per_batch): Limits workers for THIS batch call
-
-            This prevents overwhelming the OpenAI API while ensuring fair resource sharing
-            and proper cleanup after each batch completes.
-
-        :param messages_list:
-            A list of message lists, each to be invoked separately.
-            Each inner list should contain message dictionaries in the format::
-                {
-                    "role": "system" | "user" | "assistant",
-                    "content": "Message content as a string",
-                }
-
-        :param invoke_response_format:
-            Specifies the format of the returned response for all invocations.
-
-        :param invoke_kwargs:
-            Additional keyword arguments passed to each invoke call.
-
-        :return:
-            List of responses in the same order as messages_list.
-            Each response format depends on `invoke_response_format`.
-        """
-
-        global_semaphore = self._get_or_create_global_thread_semaphore()
-        results: BatchInvokeResponse = [None] * len(messages_list)  # type: ignore
-
-        max_workers_for_batch = min(len(messages_list), self._max_workers_per_batch)
-        with ThreadPoolExecutor(max_workers=max_workers_for_batch) as executor:
-            futures: dict[Any, int] = {}
-            for idx, messages in enumerate(messages_list):
-                future = executor.submit(
-                    self._invoke_with_global_semaphore,
-                    global_semaphore,
-                    messages,
-                    invoke_response_format,
-                    **invoke_kwargs,
-                )
-                futures[future] = idx
-
-            first_exception: Optional[BaseException] = None
-
-            for future in as_completed(futures):
-                idx = futures[future]
-                if first_exception is not None:
-                    # We've already seen a failure – best-effort cancel remaining work
-                    future.cancel()
-                    continue
-                try:
-                    results[idx] = future.result()
-                except BaseException as exc:  # noqa: B902
-                    first_exception = exc
-                    # Cancel all other futures that haven't completed yet
-                    for other_future in futures:
-                        if other_future is not future and not other_future.done():
-                            other_future.cancel()
-
-            if first_exception is not None:
-                raise first_exception
-
-        return results
-
-    def _invoke_with_global_semaphore(
-        self,
-        global_semaphore: threading.Semaphore,
-        messages: list[dict],
-        invoke_response_format: InvokeResponseFormat,
-        **invoke_kwargs,
-    ) -> InvokeResponse:
-        """
-        Wrapper that acquires global semaphore before invoke.
-        Ensures global concurrency limit is maintained across all batches.
-        """
-        with global_semaphore:
-            return self._single_invoke(
-                messages, invoke_response_format, **invoke_kwargs
-            )
-
-    async def async_batch_invoke(
-        self,
-        messages_list: list[list[dict]],
-        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
-        **invoke_kwargs,
-    ) -> BatchInvokeResponse:
+    ) -> list[InvokeResponse]:
         """
         Invoke multiple message sets in parallel using asyncio.
 
         Note on concurrency limits:
-            Uses two levels of concurrency control configured during initialization:
-            1. Global limit (max_concurrent_global): Shared across ALL async_batch_invoke calls
-            2. Per-batch limit (max_concurrent): Max concurrent tasks per batch_invoke call
-
-            This prevents overwhelming the OpenAI API with too many concurrent requests
-            while allowing fair resource sharing across multiple batches.
+            Uses per-batch concurrency control configured during initialization.
+            Limits the maximum number of concurrent tasks per batch invocation.
 
         :param messages_list:
             A list of message lists, each to be invoked separately.
@@ -471,22 +314,15 @@ class OpenAIProvider(ModelProvider):
             List of responses in the same order as messages_list.
             Each response format depends on `invoke_response_format`.
         """
-        # Global semaphore (shared across ALL batches)
-        global_semaphore = await self._get_or_create_global_async_semaphore()
-
-        # Per-batch semaphore (limits THIS batch)
         batch_semaphore = asyncio.Semaphore(self._max_concurrent_per_batch)
 
         async def _bounded_invoke(messages):
-            """Execute invoke with both global and per-batch semaphore control."""
-            # Acquire global semaphore first, then per-batch
-            async with global_semaphore:
-                async with batch_semaphore:
-                    return await self._async_single_invoke(
-                        messages, invoke_response_format, **invoke_kwargs
-                    )
+            """Execute invoke with per-batch semaphore control."""
+            async with batch_semaphore:
+                return await self._async_single_invoke(
+                    messages, invoke_response_format, **invoke_kwargs
+                )
 
-        # Create tasks (not just coroutines) to allow cancellation on failure
         tasks = [
             asyncio.create_task(_bounded_invoke(messages)) for messages in messages_list
         ]
@@ -512,7 +348,7 @@ class OpenAIProvider(ModelProvider):
     ) -> InvokeResponse:
         """
         Internal method for single invocation.
-        Used by both invoke and batch_invoke.
+        Used by both invoke and _batch_invoke.
         """
         response = self.custom_invoke(messages=messages, **invoke_kwargs)
         return self._response_handler(
@@ -529,7 +365,7 @@ class OpenAIProvider(ModelProvider):
     ) -> InvokeResponse:
         """
         Internal async method for single invocation.
-        Used by both async_invoke and async_batch_invoke.
+        Used by both async_invoke and _async_batch_invoke.
         """
         response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
         return self._response_handler(
@@ -543,14 +379,14 @@ class OpenAIProvider(ModelProvider):
         messages: Union[list[dict], list[list[dict]]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[InvokeResponse, BatchInvokeResponse]:
+    ) -> Union[InvokeResponse, list[InvokeResponse]]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
         Invokes an OpenAI model operation using the synchronous client.
 
         Supports both single and batch invocations:
         - If messages is a list of dicts, performs a single invocation.
-        - If messages is a list of lists, performs batch invocation using thread pool.
+        - If messages is a list of lists, performs batch invocation using asyncio.run().
 
         :param messages:
             Single invocation: A list of dictionaries representing the conversation history.
@@ -606,10 +442,12 @@ class OpenAIProvider(ModelProvider):
         is_batch = self._validate_and_detect_batch_invocation(messages)
 
         if is_batch:
-            return self.batch_invoke(
-                messages_list=messages,
-                invoke_response_format=invoke_response_format,
-                **invoke_kwargs,
+            return asyncio.run(
+                self._async_batch_invoke(
+                    messages_list=messages,
+                    invoke_response_format=invoke_response_format,
+                    **invoke_kwargs,
+                )
             )
 
         # Single invocation
@@ -624,7 +462,7 @@ class OpenAIProvider(ModelProvider):
         messages: Union[list[dict], list[list[dict]]],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[InvokeResponse, BatchInvokeResponse]:
+    ) -> Union[InvokeResponse, list[InvokeResponse]]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
         Invokes an OpenAI model operation using the asynchronous client.
@@ -687,7 +525,7 @@ class OpenAIProvider(ModelProvider):
         is_batch = self._validate_and_detect_batch_invocation(messages)
 
         if is_batch:
-            return await self.async_batch_invoke(
+            return await self._async_batch_invoke(
                 messages_list=messages,
                 invoke_response_format=invoke_response_format,
                 **invoke_kwargs,

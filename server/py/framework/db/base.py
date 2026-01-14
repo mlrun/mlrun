@@ -17,6 +17,7 @@ import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
+import sqlalchemy
 from sqlalchemy.orm import Session
 
 import mlrun.alerts
@@ -26,7 +27,8 @@ import mlrun.common.types
 import mlrun.lists
 import mlrun.model
 
-import framework.db.sqldb.models
+if typing.TYPE_CHECKING:
+    import framework.db.sqldb.models
 
 
 class DBError(Exception):
@@ -937,7 +939,7 @@ class DBInterface(ABC):
         self,
         session,
         alert: mlrun.common.schemas.AlertConfig,
-        state: Optional[framework.db.sqldb.models.AlertState] = None,
+        state: Optional["framework.db.sqldb.models.AlertState"] = None,
     ):
         pass
 
@@ -955,13 +957,6 @@ class DBInterface(ABC):
         table_name: str,
         cutoff_partition_name: str,
     ):
-        pass
-
-    @staticmethod
-    def get_partition_expression_for_table(
-        session,
-        table_name: str,
-    ) -> str:
         pass
 
     @staticmethod
@@ -1148,7 +1143,7 @@ class DBInterface(ABC):
         page_size: int,
         kwargs: dict,
         pagination_cache_record: typing.Optional[
-            framework.db.sqldb.models.PaginationCache
+            "framework.db.sqldb.models.PaginationCache"
         ] = None,
     ):
         raise NotImplementedError
@@ -1344,7 +1339,7 @@ class DBInterface(ABC):
         as_dict: bool = False,
     ) -> Union[
         mlrun.common.schemas.ModelEndpointList,
-        dict[str, str],
+        dict[str, "framework.db.sqldb.models.ModelEndpoint"],
     ]:
         """
         List model endpoints by project and optional filters.
@@ -1427,5 +1422,38 @@ class DBInterface(ABC):
     def cleanup_old_background_tasks(self, db_session: Session, max_age_seconds: int):
         """
         Cleanup old background tasks that are older than the specified age.
+        """
+        pass
+
+    def get_partition_interval_for_table(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+    ) -> Optional[mlrun.common.schemas.partition_interval.PartitionInterval]:
+        """
+        Retrieve the partition interval registered for a specific table, if any.
+
+        :param session: The active SQLAlchemy session used for querying metadata.
+        :param table_name: The name of the table to look up.
+        :return: The partition interval assigned to the table, or None if not configured.
+        """
+        pass
+
+    def set_partition_interval_for_table(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+    ) -> None:
+        """
+        Register a partition interval for a table, or validate it if already set.
+
+        If the table already has a different interval registered, an exception is raised
+        to prevent inconsistent metadata.
+
+        :param session: The active SQLAlchemy session used for storing metadata.
+        :param table_name: The name of the table to update.
+        :param partition_interval: The partition interval to set or validate.
+        :raises MLRunInvalidArgumentError: If the table already has a conflicting interval.
         """
         pass

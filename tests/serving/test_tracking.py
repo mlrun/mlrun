@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import json
+import pickle
+import typing
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
@@ -21,6 +23,7 @@ from time import sleep
 from typing import Union, cast
 
 import numpy as np
+import pandas as pd
 import pytest
 
 import mlrun
@@ -68,6 +71,101 @@ class ModelTestingClass(mlrun.serving.V2ModelServer):
 class ModelTestingCustomTrack(ModelTestingClass):
     def logged_results(self, request: dict, response: dict, op: str):
         return [[1]], [self.get_param("multiplier", 1)]
+
+
+class BatchedModel(Model):
+    def __init__(self, model_path: str, return_as_dict: bool, **kwargs):
+        super().__init__(**kwargs)
+        self.model_path = model_path
+        self.model = None
+        self.return_as_dict = return_as_dict
+
+    def load(self) -> None:
+        with open(self.model_path, "rb") as f:
+            self.model = pickle.load(f)
+
+    def predict(self, body, **kwargs):
+        invocation_body = body.get("input")
+        if isinstance(invocation_body, dict):
+            # example of single invocation
+            x = pd.DataFrame([invocation_body])
+        elif isinstance(invocation_body, list):
+            x = pd.DataFrame(invocation_body)
+        else:
+            x = invocation_body
+        predictions = self.model.predict(x).tolist()
+        prediction_results = [round(v, 6) for v in predictions]
+        return (
+            {"output": {"results": prediction_results}}
+            if self.return_as_dict
+            else prediction_results
+        )
+
+    @staticmethod
+    def format_batch(body: typing.Any):
+        batched_body = {"input": []}
+        for item in body:
+            if isinstance(item, dict):
+                batched_body["input"].append(item.get("input", item))
+            elif isinstance(item, list):
+                # for example: [[1,2],[3,4]]
+                row = {"x1": item[0], "x2": item[1]}
+                batched_body["input"].append(row)
+        return batched_body
+
+
+class StringBatchedModel(Model):
+    def __init__(self, suffix: str, return_as_dict: bool, **kwargs):
+        super().__init__(**kwargs)
+        self.suffix = suffix
+        self.return_as_dict = return_as_dict
+
+    def load(self) -> None:
+        # No loading needed for this simple model
+        pass
+
+    def predict(self, body, **kwargs):
+        invocation_body = body.get("input")
+
+        # Handle different input formats
+        if isinstance(invocation_body, list):
+            # List of strings or list of dicts
+            if invocation_body and isinstance(invocation_body[0], dict):
+                # List of dicts - extract "text" field from each
+                prediction_results = [
+                    item["text"] + self.suffix for item in invocation_body
+                ]
+            else:
+                # List of strings
+                prediction_results = [item + self.suffix for item in invocation_body]
+        elif isinstance(invocation_body, dict):
+            # Single dict invocation
+            prediction_results = [invocation_body.get("text", "") + self.suffix]
+        elif isinstance(invocation_body, str):
+            # Single string
+            prediction_results = [invocation_body + self.suffix]
+        else:
+            raise ValueError(f"Unsupported input type: {type(invocation_body)}")
+
+        return (
+            {"output": {"results": prediction_results}}
+            if self.return_as_dict
+            else prediction_results
+        )
+
+    @staticmethod
+    def format_batch(body: typing.Any):
+        # Reformats the batched list into the expected {"input": [...]} structure
+        batched_body = {"input": []}
+        for item in body:
+            if isinstance(item, dict):
+                batched_body["input"].append(item.get("input", item))
+            elif isinstance(item, list):
+                for sub_item in item:
+                    batched_body["input"].append(sub_item)
+            else:
+                batched_body["input"].append(item)
+        return batched_body
 
 
 def test_tracking(rundb_mock):
@@ -1392,3 +1490,285 @@ def test_serving_stream_profile(
         assert isinstance(server.context.stream.output_stream, output_stream_type)
         server.test("/", {"n": 1})
         server.wait_for_completion()
+
+
+@pytest.mark.parametrize("multiple_models", (True, False))
+@pytest.mark.parametrize("raise_exception", (True, False))
+@pytest.mark.parametrize("return_as_dict", (True, False))
+@pytest.mark.parametrize("batching_format", ("raw_list", "input_list", "list_of_lists"))
+def test_mrs_direct_batch_input(
+    multiple_models, raise_exception, return_as_dict, batching_format, rundb_mock
+):
+    function = mlrun.new_function("tests", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    if batching_format == "raw_list":
+        if raise_exception:
+            inputs = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
+        else:
+            inputs = [
+                {"x1": 1, "x2": 0},
+                {"x1": 2, "x2": 1},
+                {"x1": 4, "x2": 3},
+            ]
+    elif batching_format == "input_list":
+        if raise_exception:
+            inputs = [
+                {"input": {"z": 1}},
+                {"input": {"z": 2}},
+                {"input": {"z": 3}},
+                {"input": {"z": 4}},
+                {"input": {"z": 5}},
+            ]
+        else:
+            inputs = [
+                {"input": {"x1": 1, "x2": 0}},
+                {"input": {"x1": 2, "x2": 1}},
+                {"input": {"x1": 4, "x2": 3}},
+            ]
+    else:  # list_of_lists
+        if raise_exception:
+            inputs = [[1, 2, 3], []]
+        else:
+            inputs = [[1, 0], [2, 1], [4, 3]]
+    model_path = str(Path(__file__).parent / "assets" / "linear_model.pkl")
+    model_path2 = str(Path(__file__).parent / "assets" / "linear_model2.pkl")
+    endpoint_name = "my_model_1"
+    endpoint_name2 = "my_model_2"
+    model_runner_step.add_model(
+        model_class="BatchedModel",
+        execution_mechanism="naive",
+        endpoint_name=endpoint_name,
+        model_path=model_path,
+        return_as_dict=return_as_dict,
+        input_path="input" if batching_format == "input_list" else None,
+        result_path="output.results" if return_as_dict else None,
+    )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="BatchedModel",
+            endpoint_name=endpoint_name2,
+            execution_mechanism="naive",
+            model_path=model_path2,
+            return_as_dict=return_as_dict,
+            input_path="input" if batching_format == "input_list" else None,
+            result_path="output.results" if return_as_dict else None,
+        )
+    graph.to(model_runner_step).respond()
+    server = function.to_mock_server()
+
+    try:
+        if raise_exception:
+            error_regex = (
+                "list index out of range"
+                if batching_format == "list_of_lists"
+                else ".*The feature names should match those that were passed during fit.*"
+            )
+            with pytest.raises(
+                RuntimeError,
+                match=error_regex,
+            ):
+                server.test(body=inputs)
+        else:
+            resp = server.test(body=inputs)
+            if multiple_models:
+                if return_as_dict:
+                    assert resp == {
+                        "my_model_1": {"output": {"results": [3.0, 8.0, 18.0]}},
+                        "my_model_2": {"output": {"results": [7.0, 12.0, 22.0]}},
+                    }
+                else:
+                    assert resp == {
+                        endpoint_name: [3.0, 8.0, 18.0],
+                        endpoint_name2: [7.0, 12.0, 22.0],
+                    }
+            elif return_as_dict:
+                assert resp == {"output": {"results": [3.0, 8.0, 18.0]}}
+            else:
+                assert resp == [3.0, 8.0, 18.0]
+    finally:
+        server.wait_for_completion()
+    if not raise_exception:
+        expected_inputs = (
+            [[1, 0], [2, 1], [4, 3]]
+            if batching_format == "list_of_lists"
+            else [{"x1": 1, "x2": 0}, {"x1": 2, "x2": 1}, {"x1": 4, "x2": 3}]
+        )
+        dummy_stream = server.context.stream.output_stream
+        event = dummy_stream.event_list[0]
+        assert event["effective_sample_count"] == 3
+        assert event["labels"] == {}
+        assert event["request"]["inputs"] == expected_inputs
+        assert event["resp"]["outputs"] == [3.0, 8.0, 18.0]
+        assert event["error"] is None
+        assert event["model"] == endpoint_name
+        assert event["metrics"] is None
+        if multiple_models:
+            event = dummy_stream.event_list[1]
+            assert event["effective_sample_count"] == 3
+            assert event["labels"] == {}
+            assert event["request"]["inputs"] == expected_inputs
+            assert event["resp"]["outputs"] == [7.0, 12.0, 22.0]
+            assert event["error"] is None
+            assert event["model"] == endpoint_name2
+            assert event["metrics"] is None
+
+
+@pytest.mark.parametrize("multiple_models", (True, False))
+@pytest.mark.parametrize("raise_exception", (True, False))
+@pytest.mark.parametrize("return_as_dict", (True, False))
+@pytest.mark.parametrize("batching_format", ("raw_list", "input_list", "list_of_lists"))
+def test_mrs_direct_batch_str(
+    multiple_models, raise_exception, return_as_dict, batching_format, rundb_mock
+):
+    function = mlrun.new_function("tests", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    if batching_format == "raw_list":
+        if raise_exception:
+            # Missing "text" field will cause empty strings
+            inputs = [{"z": 1}, {"z": 2}, {"z": 3}]
+        else:
+            inputs = ["hello", "world", "test", "mlrun", "data", "science"]
+    elif batching_format == "input_list":
+        if raise_exception:
+            inputs = [
+                {"input": {"z": 1}},
+                {"input": {"z": 2}},
+                {"input": {"z": 3}},
+            ]
+        else:
+            inputs = [
+                {"input": {"text": "hello"}},
+                {"input": {"text": "world"}},
+                {"input": {"text": "test"}},
+                {"input": {"text": "mlrun"}},
+                {"input": {"text": "data"}},
+                {"input": {"text": "science"}},
+            ]
+    else:  # list_of_lists (treated as list of strings)
+        if raise_exception:
+            # Non-string items will cause errors
+            inputs = [[123, 456, 789], [111, 222, 333]]
+        else:
+            inputs = [["hello", "world", "test"], ["mlrun", "data", "science"]]
+
+    suffix1 = "_model1"
+    suffix2 = "_model2"
+    endpoint_name = "my_model_1"
+    endpoint_name2 = "my_model_2"
+    model_runner_step.add_model(
+        model_class="StringBatchedModel",
+        execution_mechanism="naive",
+        endpoint_name=endpoint_name,
+        suffix=suffix1,
+        return_as_dict=return_as_dict,
+        input_path="input.text" if batching_format == "input_list" else None,
+        result_path="output.results" if return_as_dict else None,
+    )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="StringBatchedModel",
+            endpoint_name=endpoint_name2,
+            execution_mechanism="naive",
+            suffix=suffix2,
+            return_as_dict=return_as_dict,
+            input_path="input.text" if batching_format == "input_list" else None,
+            result_path="output.results" if return_as_dict else None,
+        )
+    graph.to(model_runner_step).respond()
+    server = function.to_mock_server()
+
+    try:
+        if raise_exception:
+            if batching_format == "list_of_lists":
+                error_regex = (
+                    r".*unsupported operand type\(s\) for \+: 'int' and 'str'.*"
+                )
+            else:
+                error_regex = ".*KeyError: 'text'"
+            with pytest.raises(
+                RuntimeError,
+                match=error_regex,
+            ):
+                server.test(body=inputs)
+        else:
+            resp = server.test(body=inputs)
+            expected_output_1 = [
+                "hello_model1",
+                "world_model1",
+                "test_model1",
+                "mlrun_model1",
+                "data_model1",
+                "science_model1",
+            ]
+            expected_output_2 = [
+                "hello_model2",
+                "world_model2",
+                "test_model2",
+                "mlrun_model2",
+                "data_model2",
+                "science_model2",
+            ]
+
+            if multiple_models:
+                if return_as_dict:
+                    assert resp == {
+                        "my_model_1": {"output": {"results": expected_output_1}},
+                        "my_model_2": {"output": {"results": expected_output_2}},
+                    }
+                else:
+                    assert resp == {
+                        endpoint_name: expected_output_1,
+                        endpoint_name2: expected_output_2,
+                    }
+            elif return_as_dict:
+                assert resp == {"output": {"results": expected_output_1}}
+            else:
+                assert resp == expected_output_1
+    finally:
+        server.wait_for_completion()
+    if not raise_exception:
+        expected_inputs = (
+            [["hello", "world", "test"], ["mlrun", "data", "science"]]
+            if batching_format == "list_of_lists"
+            else ["hello", "world", "test", "mlrun", "data", "science"]
+        )
+
+        effective_sample_count = 2 if batching_format == "list_of_lists" else 6
+        dummy_stream = server.context.stream.output_stream
+        event = dummy_stream.event_list[0]
+        assert event["effective_sample_count"] == effective_sample_count
+        assert event["labels"] == {}
+        assert event["request"]["inputs"] == expected_inputs
+        assert event["resp"]["outputs"] == [
+            "hello_model1",
+            "world_model1",
+            "test_model1",
+            "mlrun_model1",
+            "data_model1",
+            "science_model1",
+        ]
+        assert event["error"] is None
+        assert event["model"] == endpoint_name
+        assert event["metrics"] is None
+        if multiple_models:
+            event = dummy_stream.event_list[1]
+            assert event["effective_sample_count"] == effective_sample_count
+            assert event["labels"] == {}
+            assert event["request"]["inputs"] == expected_inputs
+            assert event["resp"]["outputs"] == [
+                "hello_model2",
+                "world_model2",
+                "test_model2",
+                "mlrun_model2",
+                "data_model2",
+                "science_model2",
+            ]
+            assert event["error"] is None
+            assert event["model"] == endpoint_name2
+            assert event["metrics"] is None

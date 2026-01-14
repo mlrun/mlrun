@@ -31,6 +31,9 @@ GOLANGCI_LINT_VERSION := 2.4.0
 GOLANGCI_LINT_BIN := $(CI_BIN_DIR)/golangci-lint
 GOLANGCI_LINT_INSTALL_COMMAND := GOBIN=$(CI_BIN_DIR) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)
 
+GOTESTSUM_VERSION = v1.13.0
+GOTESTSUM_BIN := $(CI_BIN_DIR)/gotestsum-$(GOTESTSUM_VERSION)
+
 #
 # Build
 #
@@ -89,13 +92,19 @@ compile-schemas-go:
 #
 # Test
 #
+
+$(GOTESTSUM_BIN):
+	@echo "$(YELLOW)Installing gotestsum $(GOTESTSUM_VERSION)...$(NC)"
+	GOBIN=$(CI_BIN_DIR) go install gotest.tools/gotestsum@$(GOTESTSUM_VERSION) && \
+    mv $(CI_BIN_DIR)/gotestsum $(GOTESTSUM_BIN)
+
 .PHONY: test-unit-local
-test-unit-local: compile-schemas-local
-	go test -v -race -tags=test_unit -short ./...
+test-unit-local: compile-schemas-local $(GOTESTSUM_BIN)
+	$(GOTESTSUM_BIN) --format testname -- -v -race -tags=test_unit -short ./...
 
 .PHONY: test-integration-local
-test-integration-local: compile-schemas-local
-	go test -v -p 1 -race -tags=test_integration ./...
+test-integration-local: compile-schemas-local $(GOTESTSUM_BIN)
+	$(GOTESTSUM_BIN) --format testname -- -v -p 1 -race -tags=test_integration ./...
 
 .PHONY: test-unit-dockerized
 test-unit-dockerized: schemas-compiler

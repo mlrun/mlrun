@@ -23,10 +23,13 @@ __all__ = [
 import inspect
 import os
 import pathlib
+import shutil
+import tempfile
 import traceback
 import warnings
 from abc import ABC
 from collections.abc import Collection
+from contextlib import contextmanager
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
@@ -63,7 +66,13 @@ from ..datastore.utils import (
 from ..errors import MLRunInvalidArgumentError, ModelRunnerError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
-from ..utils import get_class, get_function, is_explicit_ack_supported
+from ..utils import (
+    check_if_hub_uri,
+    get_class,
+    get_function,
+    is_explicit_ack_supported,
+    lock_hub_uri_version,
+)
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
 callable_prefix = "_"
@@ -90,6 +99,7 @@ class StepKinds:
     error_step = "error_step"
     monitoring_application = "monitoring_application"
     model_runner = "model_runner"
+    hub_task = "hub_task"
 
 
 _default_fields_to_strip_from_step = [
@@ -270,7 +280,7 @@ class BaseStep(ModelObj):
         """init the step class"""
         self.context = context
 
-    def _is_local_function(self, context):
+    def _is_local_function(self, context, current_function=None):
         return True
 
     def get_children(self):
@@ -751,29 +761,7 @@ class TaskStep(BaseStep):
         self.model_endpoint_creation_strategy = model_endpoint_creation_strategy
         self.endpoint_type = endpoint_type
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        self.context = context
-        self._async_object = None
-        if not self._is_local_function(context):
-            # skip init of non local functions
-            return
-
-        if self.handler and not self.class_name:
-            # link to function
-            if callable(self.handler):
-                self._handler = self.handler
-                self.handler = self.handler.__name__
-            else:
-                self._handler = get_function(self.handler, namespace)
-            args = signature(self._handler).parameters
-            if args and "context" in list(args.keys()):
-                self._inject_context = True
-            self._set_error_handler()
-            return
-
-        self._class_object, self.class_name = self.get_step_class_object(
-            namespace=namespace
-        )
+    def _init_class_object_and_handler(self, namespace, reset, **extra_kwargs) -> None:
         if not self._object or reset:
             # init the step class + args
             extracted_class_args = self.get_full_class_args(
@@ -805,6 +793,32 @@ class TaskStep(BaseStep):
                 self._handler = getattr(self._object, handler, None)
             if hasattr(self._object, "select_outlets"):
                 self._outlets_selector = self._object.select_outlets
+
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        self.context = context
+        self._async_object = None
+        if not self._is_local_function(context):
+            # skip init of non local functions
+            return
+
+        if self.handler and not self.class_name:
+            # link to function
+            if callable(self.handler):
+                self._handler = self.handler
+                self.handler = self.handler.__name__
+            else:
+                self._handler = get_function(self.handler, namespace)
+            args = signature(self._handler).parameters
+            if args and "context" in list(args.keys()):
+                self._inject_context = True
+            self._set_error_handler()
+            return
+
+        self._class_object, self.class_name = self.get_step_class_object(
+            namespace=namespace
+        )
+
+        self._init_class_object_and_handler(namespace, reset, **extra_kwargs)
 
         self._set_error_handler()
         if mode != "skip":
@@ -845,9 +859,9 @@ class TaskStep(BaseStep):
                 class_object = get_class(class_name or self._default_class, namespace)
         return class_object, class_name
 
-    def _is_local_function(self, context):
+    def _is_local_function(self, context, current_function=None) -> bool:
         # detect if the class is local (and should be initialized)
-        current_function = get_current_function(context)
+        current_function = current_function or get_current_function(context)
         if current_function == "*":
             return True
         if not self.function and not current_function:
@@ -2594,7 +2608,7 @@ class FlowStep(BaseStep):
         self._wait_for_result = False
         self._source = None
         self._start_steps = []
-        self._allow_cyclic = allow_cyclic
+        self.allow_cyclic = allow_cyclic
 
     def get_children(self):
         return self._steps.values()
@@ -2664,10 +2678,10 @@ class FlowStep(BaseStep):
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
                              * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
-                              create a new model endpoint entry and set it as `latest`.
+                                create a new model endpoint entry and set it as `latest`.
 
                             * **inplace** (default): If model endpoints with the same name exist, update the `latest`
-                            entry; otherwise, create a new entry.
+                                entry; otherwise, create a new entry.
 
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
@@ -3163,10 +3177,16 @@ class RootFlowStep(FlowStep):
         engine=None,
         final_step=None,
         allow_cyclic: bool = False,
-        max_iterations: Optional[int] = 10_000,
+        max_iterations: Optional[int] = None,
     ):
         super().__init__(
-            name, steps, after, engine, final_step, allow_cyclic, max_iterations
+            name,
+            steps,
+            after,
+            engine,
+            final_step,
+            allow_cyclic,
+            max_iterations or 100 if allow_cyclic else None,
         )
         self._models = set()
         self._route_models = set()
@@ -3191,7 +3211,14 @@ class RootFlowStep(FlowStep):
 
     @allow_cyclic.setter
     def allow_cyclic(self, allow_cyclic: bool):
-        self._allow_cyclic = allow_cyclic
+        if allow_cyclic and self.engine == "async":
+            self._allow_cyclic = allow_cyclic
+        elif allow_cyclic and self.engine == "sync":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cyclic graphs are not supported with sync engine, please use async engine"
+            )
+        else:
+            self._allow_cyclic = allow_cyclic
 
     def have_responder_step(self):
         """return whether the graph has a responder step"""
@@ -3233,8 +3260,8 @@ class RootFlowStep(FlowStep):
         Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
         :param name:                Name of the shared model (should be unique in the graph)
         :param model_class:         Model class name. If LLModel is chosen
-                                    (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
-                                    outputs will be overridden with UsageResponseKeys fields.
+        (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
+        outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
             * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
@@ -3242,7 +3269,7 @@ class RootFlowStep(FlowStep):
                 Lock (GIL).
 
             * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU
-            intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
+                intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
 
             * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
                 otherwise block the main event loop thread.
@@ -3250,9 +3277,9 @@ class RootFlowStep(FlowStep):
             * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
                 event loop to continue running while waiting for a response.
 
-            * **shared_executor":  Reuses an external executor (typically managed by the flow or context) to execute the
-                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
-                useful when:
+            * **shared_executor**:  Reuses an external executor (typically managed by the flow or context) to execute
+                the runnable. Should be used only if you have multiple `ParallelExecution` in the same flow and
+                especially useful when:
 
                 - You want to share a heavy resource like a large model loaded onto a GPU.
 
@@ -3266,22 +3293,22 @@ class RootFlowStep(FlowStep):
             * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or file
                 I/O. It means that the runnable will not actually be run in parallel to anything else.
 
-            :param model_artifact:      model artifact or mlrun model artifact uri
-            :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
-                                        that been configured in the model artifact, please note that those inputs need
-                                        to be equal in length and order to the inputs that model_class
-                                        predict method expects
-            :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
-                                        that been configured in the model artifact, please note that those outputs need
-                                        to be equal to the model_class
-                                        predict method outputs (length, and order)
-            :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
-                                        (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-            :param result_path:         result path inside the user output event, expect scopes to be defined by dot
-                                        notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
-                                        in path.
-            :param override:            bool allow override existing model on the current ModelRunnerStep.
-            :param model_parameters:    Parameters for model instantiation
+        :param model_artifact:      model artifact or mlrun model artifact uri
+        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
+                                    that been configured in the model artifact, please note that those inputs need
+                                    to be equal in length and order to the inputs that model_class
+                                    predict method expects
+        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
+                                    that been configured in the model artifact, please note that those outputs need
+                                    to be equal to the model_class
+                                    predict method outputs (length, and order)
+        :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
+                                    (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+        :param result_path:         result path inside the user output event, expect scopes to be defined by dot
+                                    notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
+                                    in path.
+        :param override:            bool allow override existing model on the current ModelRunnerStep.
+        :param model_parameters:    Parameters for model instantiation
         """
         if isinstance(model_class, Model) and model_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -3366,8 +3393,9 @@ class RootFlowStep(FlowStep):
     ) -> None:
         """
         Configure the resource limits for the shared models in the graph.
+
         :param max_processes: Maximum number of processes to spawn (excluding dedicated processes).
-                             Defaults to the number of CPUs or 16 if undetectable.
+            Defaults to the number of CPUs or 16 if undetectable.
         :param max_threads: Maximum number of threads to spawn. Defaults to 32.
         :param pool_factor: Multiplier to scale the number of process/thread workers per runnable. Defaults to 1.
         """
@@ -3507,6 +3535,92 @@ class RootFlowStep(FlowStep):
         }
 
 
+class HubTaskStep(TaskStep):
+    """hub task execution step, runs a class or handler from a hub"""
+
+    kind = "hub_task"
+    _dict_fields = TaskStep._dict_fields + ["hub_step_class_name", "requirements"]
+
+    def __init__(
+        self,
+        class_name: Optional[Union[str, type]] = None,
+        hub_step_class_name: Optional[str] = None,
+        class_args: Optional[dict] = None,
+        handler: Optional[str] = None,
+        name: Optional[str] = None,
+        after: Optional[list] = None,
+        full_event: Optional[bool] = None,
+        function: Optional[str] = None,
+        responder: Optional[bool] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
+        model_endpoint_creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.SKIP,
+        endpoint_type: Optional[schemas.EndpointType] = schemas.EndpointType.NODE_EP,
+        requirements: Optional[list] = None,
+    ):
+        super().__init__(
+            class_name=class_name,
+            class_args=class_args,
+            handler=handler,
+            name=name,
+            after=after,
+            full_event=full_event,
+            function=function,
+            responder=responder,
+            input_path=input_path,
+            result_path=result_path,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
+            endpoint_type=endpoint_type,
+        )
+        self.hub_step_class_name = hub_step_class_name
+        self.requirements = requirements
+
+    @staticmethod
+    @contextmanager
+    def hub_step_tempdir():
+        """
+        Create a temporary directory named 'hub_step' inside the system temp directory.
+        Directory is cleaned up automatically when the context exits.
+        """
+        base = tempfile.gettempdir()
+        path = os.path.join(base, "hub_steps")
+        if os.path.exists(path):
+            shutil.rmtree(path)
+        os.makedirs(path, exist_ok=True)
+        try:
+            yield path
+        finally:
+            shutil.rmtree(path, ignore_errors=True)
+
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        self.context = context
+        self._async_object = None
+        if not self._is_local_function(context):
+            return
+
+        with self.hub_step_tempdir() as local_path:  # self-cleaning tmp dir util
+            hub_step = mlrun.get_hub_step(self.class_name, local_path=local_path)
+            mod = hub_step.module()
+
+        if hub_step.default_handler and not hub_step.class_name:
+            self._handler = getattr(mod, hub_step.default_handler)
+            args = signature(self._handler).parameters
+            if args and "context" in list(args.keys()):
+                self._inject_context = True
+            self._set_error_handler()
+            return
+
+        self._class_object = getattr(mod, hub_step.class_name)
+
+        self._init_class_object_and_handler(namespace, reset, **extra_kwargs)
+
+        self._set_error_handler()
+        if mode != "skip":
+            self._post_init(mode)
+
+
 classes_map = {
     "task": TaskStep,
     "router": RouterStep,
@@ -3515,6 +3629,7 @@ classes_map = {
     "error_step": ErrorStep,
     "monitoring_application": MonitoringApplicationStep,
     "model_runner": ModelRunnerStep,
+    "hub_task": HubTaskStep,
 }
 
 
@@ -3748,6 +3863,30 @@ def params_to_step(
             routes=routes,
             input_path=input_path,
             result_path=result_path,
+        )
+
+    elif class_name and check_if_hub_uri(class_name):
+        try:
+            hub_step = mlrun.get_hub_step(url=class_name, download_files=False)
+        except Exception as exc:
+            raise MLRunInvalidArgumentError(
+                f"failed to get hub step from {class_name}, error: {exc}"
+            ) from exc
+        class_name = lock_hub_uri_version(class_name, hub_step.version)
+        name = get_name(name, hub_step.class_name)
+        step = HubTaskStep(
+            hub_step_class_name=hub_step.class_name,
+            class_name=class_name,
+            class_args=class_args,
+            handler=handler,
+            name=name,
+            function=function,
+            full_event=full_event,
+            input_path=input_path,
+            result_path=result_path,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
+            endpoint_type=endpoint_type,
+            requirements=hub_step.requirements,
         )
 
     elif class_name or handler:

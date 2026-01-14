@@ -13,7 +13,6 @@
 # limitations under the License.
 import os
 import pathlib
-import pickle
 import shutil
 import tempfile
 import time
@@ -274,36 +273,6 @@ class MyModel(Model):
 
     def do(self, event):
         return self.predict(event)
-
-
-class BatchedModel(Model):
-    def __init__(self, model_path: str, **kwargs):
-        super().__init__(**kwargs)
-        self.model_path = model_path
-        self.model = None
-
-    def load(self) -> None:
-        with open(self.model_path, "rb") as f:
-            self.model = pickle.load(f)
-
-    def predict(self, body, **kwargs):
-        invocation_body = body.get("input")
-        if isinstance(invocation_body, dict):
-            # example of single invocation
-            x = pd.DataFrame([invocation_body])
-        elif isinstance(invocation_body, list):
-            x = pd.DataFrame(invocation_body)
-        else:
-            x = invocation_body
-        predictions = self.model.predict(x).tolist()
-        return [round(v, 6) for v in predictions]
-
-    @staticmethod
-    def format_batch(body: typing.Any):
-        batched_body = {"input": []}
-        for item in body:
-            batched_body["input"].append(item.get("input", item))
-        return batched_body
 
 
 class MyLLM(LLModel):
@@ -1547,6 +1516,29 @@ def test_max_iter_of_cyclic_graph(method, max_iter):
         server.wait_for_completion()
 
 
+def test_default_max_iter_of_cyclic_graph():
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology(
+        "flow",
+        engine="async",
+        allow_cyclic=True,
+    )
+    graph.to(name="start", class_name="Echo").to(class_name="Counter", name="count").to(
+        name="route",
+        class_name="Route",
+        cycle_to="count",
+    ).to(name="end", class_name="Echo").respond()
+
+    expected_error = r"Max iterations exceeded in step 'count'"
+
+    server = function.to_mock_server()
+    try:
+        with pytest.raises(RuntimeError, match=rf"{expected_error}"):
+            server.test(body={"counter": -300})
+    finally:
+        server.wait_for_completion()
+
+
 def test_mrs_with_tools_routing():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async", allow_cyclic=True)
@@ -1573,72 +1565,29 @@ def test_mrs_with_tools_routing():
         server.wait_for_completion()
 
 
-@pytest.mark.parametrize("multiple_models", (True, False))
-@pytest.mark.parametrize("raise_exception", (True, False))
-@pytest.mark.parametrize("batching_format", ("raw_list", "input_list"))
-def test_mrs_direct_batch_input(multiple_models, raise_exception, batching_format):
-    function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    step = graph
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
-    if batching_format == "raw_list":
-        if raise_exception:
-            inputs = [{"z": 1}, {"z": 2}, {"z": 3}, {"z": 4}, {"z": 5}]
-        else:
-            inputs = [{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}, {"x": 5}]
-    else:
-        if raise_exception:
-            inputs = [
-                {"input": {"z": 1}},
-                {"input": {"z": 2}},
-                {"input": {"z": 3}},
-                {"input": {"z": 4}},
-                {"input": {"z": 5}},
-            ]
-        else:
-            inputs = [
-                {"input": {"x": 1}},
-                {"input": {"x": 2}},
-                {"input": {"x": 3}},
-                {"input": {"x": 4}},
-                {"input": {"x": 5}},
-            ]
-    model_path = str(pathlib.Path(__file__).parent / "assets" / "linear_model.pkl")
-    model_path2 = str(pathlib.Path(__file__).parent / "assets" / "linear_model2.pkl")
-    endpoint_name = "my_model_1"
-    endpoint_name2 = "my_model_2"
-    model_runner_step.add_model(
-        model_class="BatchedModel",
-        execution_mechanism="naive",
-        endpoint_name=endpoint_name,
-        model_path=model_path,
-    )
+def test_invalid_cyclic_graph_definitions():
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=False)
 
-    if multiple_models:
-        model_runner_step.add_model(
-            model_class="BatchedModel",
-            endpoint_name=endpoint_name2,
-            execution_mechanism="naive",
-            model_path=model_path2,
-        )
-    step.to(model_runner_step).respond()
-    server = function.to_mock_server()
+    with pytest.raises(
+        GraphError, match="cyclic graphs are not allowed, enable allow_cyclic"
+    ):
+        graph.to(name="start", class_name="Echo").to(
+            class_name="Counter", name="count"
+        ).to(name="route", class_name="Route", cycle_to="count").to(
+            name="end", class_name="Echo"
+        ).respond()
 
-    try:
-        if raise_exception:
-            with pytest.raises(
-                RuntimeError,
-                match=".*The feature names should match those that were passed during fit.*",
-            ):
-                server.test(body=inputs)
-        else:
-            resp = server.test(body=inputs)
-            if multiple_models:
-                assert resp == {
-                    endpoint_name: [3.0, 5.0, 7.0, 9.0, 11.0],
-                    endpoint_name2: [5.0, 8.0, 11.0, 14.0, 17.0],
-                }
-            else:
-                assert resp == [3.0, 5.0, 7.0, 9.0, 11.0]
-    finally:
-        server.wait_for_completion()
+    function_sync = mlrun.new_function("tests-sync", kind="serving", project="x")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"Cyclic graphs are not supported with sync engine, please use async engine",
+    ):
+        function_sync.set_topology("flow", engine="sync", allow_cyclic=True)
+
+    graph = function_sync.set_topology("flow", engine="sync")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"Cyclic graphs are not supported with sync engine, please use async engine",
+    ):
+        graph.allow_cyclic = True

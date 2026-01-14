@@ -18,12 +18,16 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import boto3
+import botocore.exceptions
 from boto3.s3.transfer import TransferConfig
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
 from .base import DataStore, FileStats, make_datastore_schema_sanitizer
+from .utils import parse_s3_bucket_and_key
+
+__all__ = ["parse_s3_bucket_and_key"]
 
 
 class S3Store(DataStore):
@@ -225,9 +229,17 @@ class S3Store(DataStore):
     def get(self, key, size=None, offset=0):
         bucket, key = self.get_bucket_and_key(key)
         obj = self.s3.Object(bucket, key)
-        if size or offset:
-            return obj.get(Range=S3Store.get_range(size, offset))["Body"].read()
-        return obj.get()["Body"].read()
+        try:
+            if size or offset:
+                return obj.get(Range=S3Store.get_range(size, offset))["Body"].read()
+            return obj.get()["Body"].read()
+
+        except botocore.exceptions.ClientError as exc:
+            if exc.response["Error"]["Code"] == "NoSuchKey":
+                # "NoSuchKey" errors codes - equivalent to `FileNotFoundError`
+                raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
+            # Other errors are raised as-is
+            raise
 
     def put(self, key, data, append=False):
         data, _ = self._prepare_put_data(data, append)
@@ -259,16 +271,3 @@ class S3Store(DataStore):
         #  In order to raise an error if there is connection error, ML-7056.
         self.filesystem.exists(path=path)
         self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
-
-
-def parse_s3_bucket_and_key(s3_path):
-    try:
-        path_parts = s3_path.replace("s3://", "").split("/")
-        bucket = path_parts.pop(0)
-        key = "/".join(path_parts)
-    except Exception as exc:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "failed to parse s3 bucket and key"
-        ) from exc
-
-    return bucket, key

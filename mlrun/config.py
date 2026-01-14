@@ -85,7 +85,8 @@ default_config = {
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
-    "iguazio_api_url": "",  # the url to iguazio api
+    "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
+    "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
     "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
@@ -349,6 +350,9 @@ default_config = {
                     # enabled / disabled
                     "mode": "enabled",
                     "interval": 15,  # seconds
+                    # when set to True, the worker will allow to run even if the chief version is different
+                    # this is useful for development purposes
+                    "allow_version_mismatch": False,
                 },
                 "request_timeout": 45,  # seconds
             },
@@ -428,6 +432,12 @@ default_config = {
             "bearer": {"token": ""},
             "iguazio": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
+                "authentication_endpoint": "api/v1/authentication/refresh-access-token",
+            },
+            "service_account": {
+                # the following are the default values for k8s service accounts, but may be changed per deployment
+                "token_expiration_seconds": 600,
+                "token_path": "/var/run/secrets/kubernetes.io/serviceaccount/token",
             },
         },
         "nuclio": {
@@ -680,6 +690,9 @@ default_config = {
             # When True, automatically create/generate database name using system_id if not explicitly
             # specified in the connection string. When False, use the database from connection string as-is.
             "auto_create_database": True,
+            # Connection pool timeout in seconds. This is the maximum time to wait for a connection
+            # from the pool before raising an error.
+            "connection_pool_timeout": 120,
         },
     },
     "secret_stores": {
@@ -883,11 +896,14 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
         "refresh_threshold": 0.75,
-        "token_file": "~/.igz.yml",
+        # Default is empty. automatically set based on configuration (end client vs jupyter vs runtime, etc)
+        # can be set manually set using envvars
+        "token_file": "",
         # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
         # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
     },
+    # a runtime computed value. Do not set it manually.
     "auth_token_endpoint": "",
     "services": {
         # The running service name. One of: "api", "alerts"

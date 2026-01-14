@@ -23,7 +23,7 @@ body:
       label: Installation check
       options:
         - label: >
-            I have read the [installation guide](https://docs.mlrun.org/en/latest/install.html).
+            I have read the [installation guide](https://docs.mlrun.org/en/latest/setup-guide.html).
           required: true
   - type: dropdown
     id: os

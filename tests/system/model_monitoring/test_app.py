@@ -62,6 +62,9 @@ from mlrun.model_monitoring.applications import (
     histogram_data_drift,
 )
 from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
+from mlrun.model_monitoring.db._schedules import (
+    delete_model_monitoring_schedules_user_folder,
+)
 from mlrun.utils.logger import Logger
 from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
@@ -215,14 +218,7 @@ class _V3IORecordsChecker:
                 table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
         else:
-            # TDEngine
-            predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
-                table=cls._tsdb_storage.tables[
-                    mm_constants.TDEngineSuperTables.PREDICTIONS
-                ].super_table,
-                start=datetime.min,
-                end=datetime.now().astimezone(),
-            )
+            raise ValueError(f"Unsupported TSDB type: {cls._tsdb_storage.type}")
         if should_be_empty:
             assert predictions_df.empty, "Predictions should be empty"
         else:
@@ -2137,9 +2133,7 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             executor.submit(self._deploy_model_serving)
 
     def custom_teardown(self) -> None:
-        mlrun.model_monitoring.delete_model_monitoring_schedules_user_folder(
-            self.project_name
-        )
+        delete_model_monitoring_schedules_user_folder(self.project_name)
         return super().custom_teardown()
 
     @pytest.mark.parametrize("run_local", [False, True])
@@ -2474,14 +2468,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
                     end="now",
                 )
             else:
-                # TDEngine
-                predictions_df = self._tsdb_storage._get_records(
-                    table=self._tsdb_storage.tables[
-                        mm_constants.TDEngineSuperTables.PREDICTIONS
-                    ].super_table,
-                    start=datetime.min,
-                    end=datetime.now().astimezone(),
-                )
+                raise ValueError(f"Unsupported TSDB type: {self._tsdb_storage.type}")
             assert (
                 predictions_df.shape[0] == 20
             ), "TSDB predictions data not yet available"
@@ -2524,16 +2511,8 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
             predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
                 table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
-
         else:
-            # TDEngine
-            predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
-                table=self._tsdb_storage.tables[
-                    mm_constants.TDEngineSuperTables.PREDICTIONS
-                ].super_table,
-                start=datetime.min,
-                end=datetime.now().astimezone(),
-            )
+            raise ValueError(f"Unsupported TSDB type: {self._tsdb_storage.type}")
 
         assert "effective_sample_count" in predictions_df.columns
         assert "estimated_prediction_count" in predictions_df.columns

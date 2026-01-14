@@ -24,9 +24,8 @@ class ProcessBeforeTimescaleDBWriter(mlrun.feature_store.steps.MapClass):
     """
     Process the data before writing to TimescaleDB via the new async writer.
 
-    This step combines functionality from both the existing stream processor
-    and the TDEngine writer pattern to create appropriate table names and
-    format data for TimescaleDB writer targets.
+    This step combines functionality from the existing stream processor
+    to create appropriate table names and format data for TimescaleDB writer targets.
 
     :returns: Event as a dictionary which will be written into the TimescaleDB Metrics/App Results tables.
     """
@@ -57,7 +56,7 @@ class ProcessBeforeTimescaleDBWriter(mlrun.feature_store.steps.MapClass):
                 mm_schemas.EventFieldType.TIMESTAMP
             ]
 
-        # Handle START_INFER_TIME conversion (TDEngine pattern)
+        # Handle START_INFER_TIME conversion
         if mm_schemas.WriterEvent.START_INFER_TIME in event and isinstance(
             event[mm_schemas.WriterEvent.START_INFER_TIME], str
         ):
@@ -65,8 +64,8 @@ class ProcessBeforeTimescaleDBWriter(mlrun.feature_store.steps.MapClass):
                 event[mm_schemas.WriterEvent.START_INFER_TIME]
             )
 
-        # Create table column identifier (adapted from both patterns)
-        # TimescaleDB uses endpoint-based table organization unlike TDEngine's complex naming
+        # Create table column identifier
+        # TimescaleDB uses endpoint-based table organization
         event[mm_schemas.EventFieldType.TABLE_COLUMN] = (
             f"_{event.get(mm_schemas.EventFieldType.ENDPOINT_ID)}"
         )

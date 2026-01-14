@@ -361,7 +361,7 @@ class BaseStep(ModelObj):
 
         **Example**::
 
-            # a 4-step pipeline ending with a stream 
+            # a 4-step pipeline ending with a stream
             graph.to('URLDownloader')
                  .to('ToParagraphs')
                  .to(name='to_json', handler='json.dumps')
@@ -481,8 +481,10 @@ class BaseStep(ModelObj):
 
         **Example**::
 
-            # The below code sets the downstream nodes of step1 by using a list of steps (provided to `set_flow()`) and a
-            # single step (provided to `to()`), resulting in the graph (step1 -> step2 -> step3 -> step4).
+            # The below code sets the downstream nodes of step1 by using a list of steps (provided to
+            # `set_flow()`) and a
+            # single step (provided to `to()`), resulting in the graph (step1 ->
+            # step2 -> step3 -> step4).
             # Notice that using `force=True` is required in case step1 already had downstream nodes (e.g. if the existing
             # graph is step1 -> step2_old) and that following the execution of this code the existing downstream steps
             # are removed. If the intention is to split the graph (and not to overwrite), please use `to()`.
@@ -2646,7 +2648,7 @@ class FlowStep(BaseStep):
         use after/before to insert into a specific location
 
         **Example**::
-        
+
             graph = fn.set_topology("flow", exist_ok=True)
             graph.add_step(class_name="Chain", name="s1")
             graph.add_step(class_name="Chain", name="s3", after="$prev")
@@ -3237,24 +3239,24 @@ class RootFlowStep(FlowStep):
         outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
-        * **process_pool**: 
+        * **process_pool**:
             To run in a separate process from a process pool. This is appropriate for CPU or GPU
             intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
             Lock (GIL).
 
-        * **dedicated_process**: 
+        * **dedicated_process**:
             To run in a separate dedicated process. This is appropriate for CPU or GPU
             intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
 
-        * **thread_pool**: 
+        * **thread_pool**:
             To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
             otherwise block the main event loop thread.
 
-        * **asyncio**: 
+        * **asyncio**:
             To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
             event loop to continue running while waiting for a response.
 
-        * **shared_executor**:  
+        * **shared_executor**:
             Reuses an external executor (typically managed by the flow or context) to execute
             the runnable. Should be used only if you have multiple `ParallelExecution` in the same flow and
             especially useful when:
@@ -3266,7 +3268,7 @@ class RootFlowStep(FlowStep):
             The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
             memory and hardware accelerators.
 
-        * **naive**: 
+        * **naive**:
             To run in the main event loop. This is appropriate only for trivial computation and/or file
             I/O. It means that the runnable will not actually be run in parallel to anything else.
 

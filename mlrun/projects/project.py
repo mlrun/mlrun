@@ -3756,7 +3756,8 @@ class MlrunProject(ModelObj):
         :store: if True, allow updating in case project already exists
         """
         self.export(filepath)
-        self.save_to_db(store)
+        project = self.save_to_db(store)
+        self.__dict__.update(project.__dict__)
         return self
 
     def save_to_db(self, store=True):

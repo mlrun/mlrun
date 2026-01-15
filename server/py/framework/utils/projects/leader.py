@@ -71,11 +71,13 @@ class Member(
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
     ) -> tuple[typing.Optional[mlrun.common.schemas.ProjectOut], bool]:
+        self._enrich_project_create(project, auth_info)
         self._enrich_and_validate(project)
         self._run_on_all_followers(
             True, "create_project", db_session, project, auth_info
         )
-        return self.get_project(db_session, project.metadata.name), False
+        project = self.get_project(db_session, project.metadata.name)
+        return project, False
 
     def store_project(
         self,
@@ -444,6 +446,12 @@ class Member(
     @staticmethod
     def _enrich_project(project: mlrun.common.schemas.Project):
         project.status.state = project.spec.desired_state
+
+    @staticmethod
+    def _enrich_project_create(
+        project: mlrun.common.schemas.Project, auth_info: mlrun.common.schemas.AuthInfo
+    ):
+        project.spec.owner = auth_info.username
 
     @staticmethod
     def _enrich_project_patch(project_patch: dict):

@@ -385,6 +385,7 @@ class OpenAIProvider(ModelProvider):
         :raises MLRunInvalidArgumentError: If messages format is invalid (mixed types or strings)
         """
         if not messages or not isinstance(messages, list):
+            # TODO raise error
             return False
 
         # Check if user mistakenly passed a list of strings

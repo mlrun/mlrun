@@ -166,7 +166,15 @@ jobs:
           if [ "${{ matrix.image-name }}" = "api" ]; then
             image_name="mlrun-api"
           fi
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
+          
+          # Compute Python version suffix (e.g., -py39) when include-suffix is true
+          python_version_suffix=""
+          if [[ "${{ matrix.include-suffix }}" == "true" ]]; then
+            # Convert 3.9 -> py39
+            python_version_suffix="-py$(echo '${{ matrix.python-version }}' | tr -d '.')"
+          fi
+          
+          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
           
           echo "Pulling image: $SOURCE_IMAGE"
           docker pull "$SOURCE_IMAGE"
@@ -177,7 +185,7 @@ jobs:
             registry=$(echo "$registry" | xargs)  # trim whitespace
             
             # Determine the target image based on registry
-            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
+            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
 
             echo "Tagging image as: $TARGET_IMAGE"
             docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
@@ -185,7 +193,7 @@ jobs:
             echo "Pushing image: $TARGET_IMAGE"
             docker push "$TARGET_IMAGE"
             
-            echo "✅ Successfully promoted ${{ matrix.image-name }} to $registry"
+            echo "✅ Successfully promoted ${{ matrix.image-name }}${python_version_suffix} to $registry"
           done
 
   promote-ui-image:

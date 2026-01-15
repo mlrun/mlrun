@@ -1,16 +1,17 @@
 (datastore-profies)=
 # Datastore profiles
 
-Data store profiles serve multiple purposes in MLRun:
+Data store profiles serve multiple purposes in MLRun depending on the use: genAI, model monitoring, queues, storage providers. 
+In this section:
+- [GenAI datastore profiles](#genai-datastore-profiles)
+- [Model monitoring datastore profiles](#model-monitoring-datastore-profiles)
+- [Queue datastore profiles](#queue-datastore-profiles)
 
-GenAI: OpenAI and HF
-Model monitoring: TimescaleDB
-Queues: Kafka, RabbitMQ
-Storage providers: See  {ref}`data-stores`
+Storage provider data store profiles are described in {ref}`data-stores`.
 
 ## GenAI datastore profiles
 
-GenAI datastore profiles define credentials and environment variables. 
+GenAI datastore profiles define credentials and environment variables for accessing models. 
 
 ### OpenAI profile
 ```python
@@ -24,8 +25,8 @@ open_ai_profile = OpenAIProfile(
     max_retries=os.environ.get("OPENAI_MAX_RETRIES"),
 )
 ```
-See
-- {py:class}`mlrun.datastore.datastore_profile.OpenAIProfile`
+See also:
+- {py:class}`~mlrun.datastore.datastore_profile.OpenAIProfile`
 - [Integrating an OpenAI LLM with MLRun](../genai/deployment/openai-model.ipynb)
 
 ### Hugging Face
@@ -40,14 +41,14 @@ profile = HuggingFaceProfile(
 )
 ```
 
-See
-- {py:class}`mlrun.datastore.datastore_profile.HuggingFaceProfile`
+See also:
+- {py:class}`~mlrun.datastore.datastore_profile.HuggingFaceProfile`
 - [Integrating a Hugging Face image classification model with MLRun](../genai/deployment/hf-model-image-classification.ipynb)
 
 ## Model monitoring datastore profiles
 
-Model monitoring uses a streaming platform and a TSDB platform. It supports
-Kafka and V3IO as streaming platforms, and TimescaleDB (PostgreSQL) and V3IO as TSDB platforms.
+Model monitoring datastore profiles define the streaming and TSDB platforms required to run model monitoring.
+MLRun supports Kafka and V3IO as streaming platforms, and TimescaleDB (PostgreSQL) and V3IO as TSDB platforms.
 
 TimescaleDB (PostgreSQL) and Kafka are part of the default CE installations. The default confgurations are:
 ```
@@ -80,7 +81,7 @@ stream_profile = DatastoreProfileV3io(
     v3io_access_key=mlrun.mlconf.get_v3io_access_key(),
 )
 ```
-See {py:class}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+See {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 
 ## Queue datastore profiles
 

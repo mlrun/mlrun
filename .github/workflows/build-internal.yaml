@@ -29,7 +29,7 @@ on:
   workflow_call:
     inputs:
       docker_registries:
-        description: 'Comma separated list of docker registries to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
+        description: 'Comma separated list of docker registries to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub. If is_private_release is true this should not be specified.)'
         default: 'ghcr.io/'
         type: string
       docker_repo:
@@ -62,7 +62,7 @@ on:
         default: 'ubuntu-latest'
         type: string
       is_private_release:
-        description: 'Whether this is a private release build or not. If specified the docker_registries will be ignored and the private Artifactory will be used. '
+        description: 'Whether this is a private release build or not. If set to true then the docker_registries should not be set since the private Artifactory will be used.'
         default: false
         type: boolean
       build_to_cache:
@@ -71,6 +71,20 @@ on:
         type: boolean
 
 jobs:
+  validate_inputs:
+    name: Validate inputs
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+    steps:
+      - id: validate
+        run: |
+          set -e
+          if [ "${{ inputs.is_private_release }}" = "true" ] && [ -n "${{ inputs.docker_registries }}" ]; then
+            echo "Error: docker_registries should not be set when is_private_release is true"
+            exit 1
+          fi
+        
   matrix_prep:
     runs-on: ubuntu-latest
     outputs:

@@ -885,7 +885,9 @@ def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
 
 
 def test_list_secret_tokens_returns_tokens():
-    username = "dummy-user"
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
     expected_tokens = [
         mlrun.common.schemas.SecretTokenInfo(name="jupyter", expiration=1750979191),
         mlrun.common.schemas.SecretTokenInfo(name="my-token", expiration=1754966400),
@@ -897,9 +899,7 @@ def test_list_secret_tokens_returns_tokens():
         unittest.mock.Mock(return_value=expected_tokens)
     )
 
-    response = services.api.crud.Secrets().list_secret_tokens(
-        authenticated_username=username
-    )
+    response = services.api.crud.Secrets().list_secret_tokens(auth_info=auth_info)
 
     assert isinstance(response, mlrun.common.schemas.ListSecretTokensResponse)
     assert len(response.secret_tokens) == 2
@@ -909,17 +909,19 @@ def test_list_secret_tokens_returns_tokens():
     assert response.secret_tokens[1].expiration == 1754966400
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
-        username=username
+        user_id=auth_info.user_id
     )
 
 
 def test_revoke_secret_token_success(mock_iguazio_client):
-    username = "dummy-user"
-    token_name = "my-token"
-    fake_token = "jwt-token-123"
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
     }
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123", request_headers=request_headers
+    )
+    token_name = "my-token"
+    fake_token = "jwt-token-123"
 
     mock_secrets_provider = unittest.mock.Mock()
     services.api.crud.Secrets().secrets_provider = mock_secrets_provider
@@ -929,23 +931,24 @@ def test_revoke_secret_token_success(mock_iguazio_client):
 
     services.api.crud.Secrets().revoke_secret_token(
         token_name=token_name,
-        authenticated_username=username,
-        request_headers=request_headers,
+        auth_info=auth_info,
     )
 
     mock_secrets_provider.get_user_token_secret_value.assert_called_once_with(
-        username=username, token_name=token_name
+        user_id=auth_info.user_id, token_name=token_name
     )
     mock_iguazio_client.revoke_offline_token.assert_called_once_with(
         fake_token, request_headers
     )
     mock_secrets_provider.delete_user_token_secret.assert_called_once_with(
-        username=username, token_name=token_name
+        user_id=auth_info.user_id, token_name=token_name
     )
 
 
 def test_revoke_secret_token_secret_not_found(mock_iguazio_client):
-    username = "dummy-user"
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
     token_name = "missing"
 
     mock_secrets_provider = unittest.mock.Mock()
@@ -956,12 +959,14 @@ def test_revoke_secret_token_secret_not_found(mock_iguazio_client):
     )
 
     services.api.crud.Secrets().revoke_secret_token(
-        token_name=token_name, authenticated_username=username
+        token_name=token_name, auth_info=auth_info
     )
 
 
 def test_revoke_secret_token_iguazio_failure(mock_iguazio_client):
-    username = "dummy-user"
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
     token_name = "badtoken"
     fake_token = "jwt-token-456"
 
@@ -973,12 +978,14 @@ def test_revoke_secret_token_iguazio_failure(mock_iguazio_client):
 
     with pytest.raises(RuntimeError, match="Iguazio error"):
         services.api.crud.Secrets().revoke_secret_token(
-            token_name=token_name, authenticated_username=username
+            token_name=token_name, auth_info=auth_info
         )
 
 
 def test_revoke_secret_token_delete_failure(mock_iguazio_client):
-    username = "dummy-user"
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
     token_name = "fail-delete"
     fake_token = "jwt-token-789"
 
@@ -994,12 +1001,14 @@ def test_revoke_secret_token_delete_failure(mock_iguazio_client):
         match="revoked, but failed to delete associated secret",
     ):
         services.api.crud.Secrets().revoke_secret_token(
-            token_name=token_name, authenticated_username=username
+            token_name=token_name, auth_info=auth_info
         )
 
 
 def test_get_secret_token_success():
-    username = "dummy-user"
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
     token_name = "my-token"
     fake_token_value = "jwt-fake-token"
 
@@ -1009,11 +1018,11 @@ def test_get_secret_token_success():
 
     result = services.api.crud.Secrets().get_secret_token(
         token_name=token_name,
-        authenticated_username=username,
+        auth_info=auth_info,
     )
 
     mock_secrets_provider.get_user_token_secret_value.assert_called_once_with(
-        username=username,
+        user_id=auth_info.user_id,
         token_name=token_name,
     )
 
@@ -1023,7 +1032,9 @@ def test_get_secret_token_success():
 
 
 def test_get_secret_token_not_found():
-    username = "dummy-user"
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
     token_name = "missing-token"
 
     mock_secrets_provider = unittest.mock.Mock()
@@ -1035,7 +1046,7 @@ def test_get_secret_token_not_found():
     with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Token not found"):
         services.api.crud.Secrets().get_secret_token(
             token_name=token_name,
-            authenticated_username=username,
+            auth_info=auth_info,
         )
 
 

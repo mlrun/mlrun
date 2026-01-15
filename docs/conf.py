@@ -275,6 +275,39 @@ def setup(app):
     ):
         app.connect("build-finished", create_llms_txt)
 
+    # When requested, validate stable docs links against latest during linkcheck only.
+    # Usage:
+    #   REPLACE_STABLE_WITH_LATEST_FOR_LINKCHECK=True make -C docs linkcheck
+    if environ.get("REPLACE_STABLE_WITH_LATEST_FOR_LINKCHECK"):
+        app.connect(
+            "linkcheck-process-uri",
+            _linkcheck_process_uri_replace_stable_with_latest,
+        )
+
+
+def _replace_mlrun_docs_stable_with_latest(uri: str) -> str:
+    """
+    Rewrite docs.mlrun.org stable links to latest.
+
+    This is intended to be used for Sphinx linkcheck runs only (so we don't change the generated docs),
+    to allow validating links against the "latest" docs when "stable" is not available / not desired.
+    """
+    # Keep scheme (http/https) as-is, replace only docs.mlrun.org/en/stable[/...]
+    return re.sub(
+        r"^(https?://docs\.mlrun\.org/en/)stable(?=/|$)",
+        r"\1latest",
+        uri,
+    )
+
+
+def _linkcheck_process_uri_replace_stable_with_latest(
+    app, uri: str, *args, **kwargs
+) -> str:
+    # This event is emitted by Sphinx's linkcheck builder; we keep the guard anyway for safety.
+    if getattr(getattr(app, "builder", None), "name", None) != "linkcheck":
+        return uri
+    return _replace_mlrun_docs_stable_with_latest(uri)
+
 
 # default header for llms.txt file
 default_prefix = """# MLRun

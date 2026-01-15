@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import concurrent.futures
 import inspect
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Optional, Union
-import concurrent.futures
+
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,

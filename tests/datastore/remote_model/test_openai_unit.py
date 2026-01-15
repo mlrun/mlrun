@@ -111,7 +111,7 @@ class TestOpenAIBatch:
         assert state["max_concurrent_observed"] <= per_batch_limit
 
         expected_duration = (total_messages / per_batch_limit) * latency
-        upper_bound = expected_duration + 0.2
+        upper_bound = expected_duration + 0.1
         assert expected_duration <= duration <= upper_bound
 
     def test_sync_batch_error_handling_fast_fail(
@@ -258,7 +258,7 @@ class TestOpenAIBatch:
         assert state["max_concurrent_observed"] <= per_batch_limit
 
         expected_duration = (total_messages / per_batch_limit) * latency
-        upper_bound = expected_duration + 0.2
+        upper_bound = expected_duration + 0.1
         assert expected_duration <= duration <= upper_bound
 
     @pytest.mark.asyncio

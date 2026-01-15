@@ -474,6 +474,9 @@ class OpenAIProvider(ModelProvider):
             Single invocation: A string, dictionary, or `ChatCompletion` object.
             Batch invocation: A list of responses in the same order as input messages.
             Response format depends on `invoke_response_format`.
+
+        :raises:
+            In batch invocation: Any exception from a single item fails the entire batch.
         """
         # Detect if this is a batch invocation
         is_batch = self._validate_and_detect_batch_invocation(messages)
@@ -571,6 +574,9 @@ class OpenAIProvider(ModelProvider):
             Single invocation: A string, dictionary, or `ChatCompletion` object.
             Batch invocation: A list of responses in the same order as input messages.
             Response format depends on `invoke_response_format`.
+
+        :raises:
+            In batch invocation: Any exception from a single item fails the entire batch.
         """
         # Detect if this is a batch invocation
         is_batch = self._validate_and_detect_batch_invocation(messages)

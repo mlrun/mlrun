@@ -810,7 +810,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 
 .PHONY: test-package compile-schemas
 test-package: ## Run mlrun package tests
-	python ./automation/package_test/test.py run
+	MLRUN_PYTHON_PACKAGE_INSTALLER=$(MLRUN_PYTHON_PACKAGE_INSTALLER) python ./automation/package_test/test.py run
 
 .PHONY: test-go
 test-go-unit: ## Run mlrun go unit tests

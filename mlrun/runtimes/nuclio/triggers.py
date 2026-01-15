@@ -86,13 +86,12 @@ class RabbitMQTrigger(NuclioTrigger):
         :param url:                       RabbitMQ connection URL in AMQP format
                                           (e.g., 'amqp://host:port' or 'amqp://user:pass@host:port')
                                           or a datastore profile URL (e.g., 'ds://profile-name')
-        :param exchange_name:             The exchange that contains the queue (required unless
-                                          using a datastore profile)
-        :param queue_name:                Specific queue to consume from. Either queue_name or
-                                          topics must be specified, but not both.
+        :param exchange_name:             The exchange that contains the queue
+        :param queue_name:                Specific queue to consume from. Mutually exclusive
+                                          with topics.
         :param topics:                    List of topics (routing keys) to subscribe to. Creates
-                                          a unique queue and binds it to these routing keys. Either
-                                          queue_name or topics must be specified, but not both.
+                                          a unique queue and binds it to these routing keys.
+                                          Mutually exclusive with queue_name.
         :param username:                  RabbitMQ username (can also be embedded in URL)
         :param password:                  RabbitMQ password (can also be embedded in URL)
         :param prefetch_count:            Broker channel prefetch limit (0 = unlimited)
@@ -152,38 +151,12 @@ class RabbitMQTrigger(NuclioTrigger):
             if worker_termination_timeout is None:
                 worker_termination_timeout = attrs.get("worker_termination_timeout")
 
-        # Apply defaults for parameters still None after profile merge
-        if prefetch_count is None:
-            prefetch_count = 0
-        if durable_exchange is None:
-            durable_exchange = False
-        if durable_queue is None:
-            durable_queue = False
-        if on_error is None:
-            on_error = "nack"
-        if requeue_on_error is None:
-            requeue_on_error = False
-        if reconnect_duration is None:
-            reconnect_duration = "5m"
-        if reconnect_interval is None:
-            reconnect_interval = "15s"
-        if num_workers is None:
-            num_workers = 1
-        if worker_termination_timeout is None:
-            worker_termination_timeout = "10s"
-
-        # Validate exchange_name is provided
-        if not exchange_name:
-            raise ValueError("exchange_name is required")
-
-        # Validate that exactly one of queue_name or topics is specified
+        # Validate that queue_name and topics are mutually exclusive
         if queue_name and topics:
             raise ValueError("Cannot specify both queue_name and topics. Choose one.")
-        if not queue_name and not topics:
-            raise ValueError("Must specify either queue_name or topics.")
 
-        # Validate on_error value
-        if on_error not in ("ack", "nack"):
+        # Validate on_error value if provided
+        if on_error is not None and on_error not in ("ack", "nack"):
             raise ValueError(f"on_error must be 'ack' or 'nack', got '{on_error}'")
 
         # Extract credentials from URL if not provided explicitly
@@ -203,32 +176,40 @@ class RabbitMQTrigger(NuclioTrigger):
                 clean_url += parsed_url.path
             url = clean_url
 
-        # Build the trigger structure
+        # Build the trigger structure with only non-None values
+        # Let Nuclio handle defaults for unspecified parameters
         struct = {
             "kind": self.kind,
             "url": url,
-            "numWorkers": num_workers,
-            "workerTerminationTimeout": worker_termination_timeout,
-            "attributes": {
-                "exchangeName": exchange_name,
-                "reconnectDuration": reconnect_duration,
-                "reconnectInterval": reconnect_interval,
-                "prefetchCount": prefetch_count,
-                "durableExchange": durable_exchange,
-                "durableQueue": durable_queue,
-            },
+            "attributes": {},
         }
 
-        # Add queue_name or topics
-        if queue_name:
-            struct["attributes"]["queueName"] = queue_name
-        if topics:
-            struct["attributes"]["topics"] = topics
+        # Add optional top-level parameters
+        if num_workers is not None:
+            struct["numWorkers"] = num_workers
+        if worker_termination_timeout is not None:
+            struct["workerTerminationTimeout"] = worker_termination_timeout
 
-        # Add error handling configuration
-        if on_error:
+        # Add optional attributes
+        if exchange_name is not None:
+            struct["attributes"]["exchangeName"] = exchange_name
+        if queue_name is not None:
+            struct["attributes"]["queueName"] = queue_name
+        if topics is not None:
+            struct["attributes"]["topics"] = topics
+        if reconnect_duration is not None:
+            struct["attributes"]["reconnectDuration"] = reconnect_duration
+        if reconnect_interval is not None:
+            struct["attributes"]["reconnectInterval"] = reconnect_interval
+        if prefetch_count is not None:
+            struct["attributes"]["prefetchCount"] = prefetch_count
+        if durable_exchange is not None:
+            struct["attributes"]["durableExchange"] = durable_exchange
+        if durable_queue is not None:
+            struct["attributes"]["durableQueue"] = durable_queue
+        if on_error is not None:
             struct["attributes"]["onError"] = on_error
-        if requeue_on_error:
+        if requeue_on_error is not None:
             struct["attributes"]["requeueOnError"] = requeue_on_error
 
         # Add credentials if provided

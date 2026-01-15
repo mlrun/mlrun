@@ -241,10 +241,14 @@ def test_rabbitmq_trigger_error_handling_config():
 @pytest.mark.parametrize(
     "queue_name,topics,expected",
     [
-        (None, None, pytest.raises(ValueError)),
+        # Both specified - error (mutually exclusive)
         ("queue", ["key"], pytest.raises(ValueError)),
+        # Only queue_name - OK
         ("queue", None, does_not_raise()),
+        # Only topics - OK
         (None, ["key"], does_not_raise()),
+        # Neither specified - OK (let Nuclio handle validation)
+        (None, None, does_not_raise()),
     ],
 )
 def test_rabbitmq_trigger_queue_or_topics_validation(queue_name, topics, expected):
@@ -252,7 +256,6 @@ def test_rabbitmq_trigger_queue_or_topics_validation(queue_name, topics, expecte
     with expected:
         function.add_rabbitmq_trigger(
             url="amqp://rabbitmq-host:5672",
-            exchange_name="my-exchange",
             queue_name=queue_name,
             topics=topics,
         )
@@ -271,7 +274,6 @@ def test_rabbitmq_trigger_on_error_validation(on_error, expected):
     with expected:
         function.add_rabbitmq_trigger(
             url="amqp://rabbitmq-host:5672",
-            exchange_name="my-exchange",
             queue_name="my-queue",
             on_error=on_error,
         )

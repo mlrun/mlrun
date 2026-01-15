@@ -188,9 +188,11 @@ class Venv:
         self.install_package(f".{extra}")
 
     def install_package(self, package, upgrade=False):
-        return self.run_command(
-            f"{self._package_installer_command} {'--upgrade' if upgrade else ''} {shlex.quote(package)}"
-        )
+        cmd = self._package_installer_command
+        if upgrade:
+            cmd += " --upgrade"
+        cmd += f" {shlex.quote(package)}"
+        return self.run_command(cmd)
 
     def run_command(self, command, env=None, raise_on_error=True):
         venv_command = f". {self._venv_name}/bin/activate"
@@ -343,6 +345,11 @@ class PackageTester:
         )
         if failed:
             raise RuntimeError("Package tests failed")
+
+    # Exposed funcaionlity for external test cases
+    def test_requirements_vulnerabilities(self, extra):
+        with Venv(self._logger, self._package_installer) as venv:
+            _run_vulnerability_test(venv, extra, self._logger)
 
 
 @click.group()

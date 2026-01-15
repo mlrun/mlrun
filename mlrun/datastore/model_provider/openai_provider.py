@@ -385,8 +385,9 @@ class OpenAIProvider(ModelProvider):
         :raises MLRunInvalidArgumentError: If messages format is invalid (mixed types or strings)
         """
         if not messages or not isinstance(messages, list):
-            # TODO raise error
-            return False
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries."
+            )
 
         # Check if user mistakenly passed a list of strings
         has_str = any(isinstance(item, str) for item in messages)

@@ -170,6 +170,18 @@ class TestOpenAIBatch:
                 ["message 1", "message 2", "message 3"],  # list of strings - INVALID
                 "list of strings is not supported",
             ),
+            (
+                [],  # empty list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
+            (
+                None,  # not a list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
+            (
+                "single message string",  # string instead of list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
         ],
     )
     def test_sync_invalid_messages_raises_error(self, invalid_messages, error_match):
@@ -277,6 +289,18 @@ class TestOpenAIBatch:
             (
                 ["message 1", "message 2", "message 3"],  # list of strings - INVALID
                 "list of strings is not supported",
+            ),
+            (
+                [],  # empty list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
+            (
+                None,  # not a list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
+            (
+                "single message string",  # string instead of list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
             ),
         ],
     )

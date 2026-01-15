@@ -495,8 +495,8 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             # Send all 5 INPUT_DATA events as batch
-            # TODO failed because we got list of responses, need to think if we want to wrap it under dict or not...
-            response = server.test(body=INPUT_DATA)["output"]
+            # need to be a list, so in batch step, we will be able to split the events back to the original ones
+            response = server.test(body=INPUT_DATA)
 
             # Assert we got list of 5 responses
             assert isinstance(response, list)

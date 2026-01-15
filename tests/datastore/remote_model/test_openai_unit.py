@@ -198,6 +198,32 @@ class TestOpenAIBatch:
             provider.invoke(messages=invalid_messages)
 
     @pytest.mark.asyncio
+    async def test_sync_batch_invoke_from_event_loop(
+        self, mock_async_single_invoke
+    ):
+        """Verify that sync batch invoke works when called from within an event loop."""
+        with unittest.mock.patch(
+            "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._async_single_invoke",
+            mock_async_single_invoke,
+        ):
+            provider = mlrun.get_model_provider(
+                url="openai://gpt-4o-mini",
+                secrets={"OPENAI_API_KEY": "test-key"},
+            )
+
+            messages_list = [
+                [{"role": "user", "content": "message 1"}],
+                [{"role": "user", "content": "message 2"}],
+            ]
+
+            # Should work even when called from within an existing event loop
+            # (Currently will fail with RuntimeError until we fix the asyncio.run() issue)
+            results = provider.invoke(messages=messages_list)
+
+            assert len(results) == 2
+            assert all(result["mock"] == "response" for result in results)
+
+    @pytest.mark.asyncio
     async def test_async_batch_concurrency_limit(self, mock_async_single_invoke):
         """Ensure async batch invocation caps concurrent tasks to openai_batch_max_concurrent."""
         latency = 0.1

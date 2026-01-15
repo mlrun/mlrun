@@ -15,7 +15,7 @@ import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Optional, Union
-
+import concurrent.futures
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
@@ -478,13 +478,27 @@ class OpenAIProvider(ModelProvider):
         is_batch = self._validate_and_detect_batch_invocation(messages)
 
         if is_batch:
-            return asyncio.run(
-                self._async_batch_invoke(
-                    messages_list=messages,
-                    invoke_response_format=invoke_response_format,
-                    **invoke_kwargs,
-                )
+            # Prepare the async batch coroutine
+            batch_coro = self._async_batch_invoke(
+                messages_list=messages,
+                invoke_response_format=invoke_response_format,
+                **invoke_kwargs,
             )
+
+            try:
+                asyncio.get_running_loop()
+                in_event_loop = True
+            except RuntimeError:
+                in_event_loop = False
+
+            if in_event_loop:
+                # We're in an event loop - run asyncio.run() in a separate thread
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(asyncio.run, batch_coro)
+                    return future.result()
+            else:
+                # No running loop, use asyncio.run() directly
+                return asyncio.run(batch_coro)
 
         # Single invocation
         return self._single_invoke(

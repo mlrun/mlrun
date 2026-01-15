@@ -224,6 +224,20 @@ def test_rabbitmq_trigger_extracts_credentials_from_url():
     assert trigger["password"] == "mypass"
 
 
+def test_rabbitmq_trigger_decodes_url_encoded_credentials():
+    """Test that URL-encoded special characters in credentials are decoded."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    # Password contains special characters: p@ss word (encoded as p%40ss%20word)
+    function.add_rabbitmq_trigger(
+        url="amqp://my%40user:p%40ss%20word@rabbitmq-host:5672",
+        queue_name="my-queue",
+    )
+    trigger = function.spec.config["spec.triggers.rabbitmq"]
+    assert trigger["url"] == "amqp://rabbitmq-host:5672"
+    assert trigger["username"] == "my@user"
+    assert trigger["password"] == "p@ss word"
+
+
 def test_rabbitmq_trigger_error_handling_config():
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     function.add_rabbitmq_trigger(

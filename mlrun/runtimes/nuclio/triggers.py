@@ -12,10 +12,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
-from urllib.parse import urlparse
+from typing import NamedTuple, Optional
+from urllib.parse import unquote, urlparse
 
 from nuclio.triggers import NuclioTrigger
+
+import mlrun.datastore.datastore_profile
+
+
+class UrlCredentials(NamedTuple):
+    """Parsed URL with extracted and decoded credentials."""
+
+    url: str
+    username: Optional[str]
+    password: Optional[str]
+
+
+def _first_not_none(*values):
+    """Return the first non-None value, or None if all are None."""
+    for v in values:
+        if v is not None:
+            return v
+    return None
+
+
+def _extract_credentials_from_url(url: str) -> UrlCredentials:
+    """
+    Extract credentials from URL and return clean URL without embedded credentials.
+
+    Credentials are URL-decoded to handle special characters (e.g., %40 -> @).
+
+    :param url: URL that may contain embedded credentials (e.g., 'amqp://user:pass@host:port')
+    :return: UrlCredentials with clean_url, decoded username, and decoded password
+    """
+    parsed = urlparse(url)
+
+    if not parsed.username and not parsed.password:
+        return UrlCredentials(url, None, None)
+
+    # Reconstruct URL without credentials
+    clean_url = f"{parsed.scheme}://{parsed.hostname}"
+    if parsed.port:
+        clean_url += f":{parsed.port}"
+    if parsed.path:
+        clean_url += parsed.path
+
+    # Decode URL-encoded characters (e.g., %40 -> @, %20 -> space)
+    username = unquote(parsed.username) if parsed.username else None
+    password = unquote(parsed.password) if parsed.password else None
+
+    return UrlCredentials(clean_url, username, password)
 
 
 class RabbitMQTrigger(NuclioTrigger):
@@ -104,118 +150,88 @@ class RabbitMQTrigger(NuclioTrigger):
         :param num_workers:               Number of workers processing messages concurrently
         :param worker_termination_timeout: Timeout for worker termination (e.g., '10s')
         """
-        # Handle datastore profile URL
+        # Handle datastore profile URL - merge profile values with explicit params
         if url.startswith("ds://"):
-            from mlrun.datastore.datastore_profile import (
-                DatastoreProfileRabbitMQ,
-                datastore_profile_read,
-            )
-
-            datastore_profile = datastore_profile_read(url)
-            if not isinstance(datastore_profile, DatastoreProfileRabbitMQ):
+            profile = mlrun.datastore.datastore_profile.datastore_profile_read(url)
+            if not isinstance(
+                profile, mlrun.datastore.datastore_profile.DatastoreProfileRabbitMQ
+            ):
                 raise ValueError(
-                    f"Unexpected datastore profile type: {datastore_profile.type}. "
+                    f"Unexpected datastore profile type: {profile.type}. "
                     "Only DatastoreProfileRabbitMQ is supported."
                 )
-
-            # Get attributes from profile, explicit params override profile values
-            # Use 'is None' checks to properly handle falsy values like 0 and False
-            attrs = datastore_profile.attributes()
+            attrs = profile.attributes()
             url = attrs["url"]
-            if exchange_name is None:
-                exchange_name = attrs.get("exchange_name")
-            if queue_name is None:
-                queue_name = attrs.get("queue_name")
-            if topics is None:
-                topics = attrs.get("topics")
-            if username is None:
-                username = attrs.get("username")
-            if password is None:
-                password = attrs.get("password")
-            if prefetch_count is None:
-                prefetch_count = attrs.get("prefetch_count")
-            if durable_exchange is None:
-                durable_exchange = attrs.get("durable_exchange")
-            if durable_queue is None:
-                durable_queue = attrs.get("durable_queue")
-            if on_error is None:
-                on_error = attrs.get("on_error")
-            if requeue_on_error is None:
-                requeue_on_error = attrs.get("requeue_on_error")
-            if reconnect_duration is None:
-                reconnect_duration = attrs.get("reconnect_duration")
-            if reconnect_interval is None:
-                reconnect_interval = attrs.get("reconnect_interval")
-            if num_workers is None:
-                num_workers = attrs.get("num_workers")
-            if worker_termination_timeout is None:
-                worker_termination_timeout = attrs.get("worker_termination_timeout")
+            exchange_name = _first_not_none(exchange_name, attrs.get("exchange_name"))
+            queue_name = _first_not_none(queue_name, attrs.get("queue_name"))
+            topics = _first_not_none(topics, attrs.get("topics"))
+            username = _first_not_none(username, attrs.get("username"))
+            password = _first_not_none(password, attrs.get("password"))
+            prefetch_count = _first_not_none(
+                prefetch_count, attrs.get("prefetch_count")
+            )
+            durable_exchange = _first_not_none(
+                durable_exchange, attrs.get("durable_exchange")
+            )
+            durable_queue = _first_not_none(durable_queue, attrs.get("durable_queue"))
+            on_error = _first_not_none(on_error, attrs.get("on_error"))
+            requeue_on_error = _first_not_none(
+                requeue_on_error, attrs.get("requeue_on_error")
+            )
+            reconnect_duration = _first_not_none(
+                reconnect_duration, attrs.get("reconnect_duration")
+            )
+            reconnect_interval = _first_not_none(
+                reconnect_interval, attrs.get("reconnect_interval")
+            )
+            num_workers = _first_not_none(num_workers, attrs.get("num_workers"))
+            worker_termination_timeout = _first_not_none(
+                worker_termination_timeout, attrs.get("worker_termination_timeout")
+            )
 
-        # Validate that queue_name and topics are mutually exclusive
+        # Extract credentials from URL if not provided explicitly
+        creds = _extract_credentials_from_url(url)
+        url = creds.url
+        username = _first_not_none(username, creds.username)
+        password = _first_not_none(password, creds.password)
+
+        # Validate
         if queue_name and topics:
             raise ValueError("Cannot specify both queue_name and topics. Choose one.")
-
-        # Validate on_error value if provided
         if on_error is not None and on_error not in ("ack", "nack"):
             raise ValueError(f"on_error must be 'ack' or 'nack', got '{on_error}'")
 
-        # Extract credentials from URL if not provided explicitly
-        parsed_url = urlparse(url)
-        if parsed_url.username and not username:
-            username = parsed_url.username
-        if parsed_url.password and not password:
-            password = parsed_url.password
+        # Build the trigger structure
+        struct = {"kind": self.kind, "url": url, "attributes": {}}
+        attrs = struct["attributes"]
 
-        # Build clean URL without credentials if they were embedded
-        if parsed_url.username or parsed_url.password:
-            # Reconstruct URL without credentials
-            clean_url = f"{parsed_url.scheme}://{parsed_url.hostname}"
-            if parsed_url.port:
-                clean_url += f":{parsed_url.port}"
-            if parsed_url.path:
-                clean_url += parsed_url.path
-            url = clean_url
-
-        # Build the trigger structure with only non-None values
-        # Let Nuclio handle defaults for unspecified parameters
-        struct = {
-            "kind": self.kind,
-            "url": url,
-            "attributes": {},
-        }
-
-        # Add optional top-level parameters
+        if username is not None:
+            struct["username"] = username
+        if password is not None:
+            struct["password"] = password
         if num_workers is not None:
             struct["numWorkers"] = num_workers
         if worker_termination_timeout is not None:
             struct["workerTerminationTimeout"] = worker_termination_timeout
-
-        # Add optional attributes
         if exchange_name is not None:
-            struct["attributes"]["exchangeName"] = exchange_name
+            attrs["exchangeName"] = exchange_name
         if queue_name is not None:
-            struct["attributes"]["queueName"] = queue_name
+            attrs["queueName"] = queue_name
         if topics is not None:
-            struct["attributes"]["topics"] = topics
+            attrs["topics"] = topics
         if reconnect_duration is not None:
-            struct["attributes"]["reconnectDuration"] = reconnect_duration
+            attrs["reconnectDuration"] = reconnect_duration
         if reconnect_interval is not None:
-            struct["attributes"]["reconnectInterval"] = reconnect_interval
+            attrs["reconnectInterval"] = reconnect_interval
         if prefetch_count is not None:
-            struct["attributes"]["prefetchCount"] = prefetch_count
+            attrs["prefetchCount"] = prefetch_count
         if durable_exchange is not None:
-            struct["attributes"]["durableExchange"] = durable_exchange
+            attrs["durableExchange"] = durable_exchange
         if durable_queue is not None:
-            struct["attributes"]["durableQueue"] = durable_queue
+            attrs["durableQueue"] = durable_queue
         if on_error is not None:
-            struct["attributes"]["onError"] = on_error
+            attrs["onError"] = on_error
         if requeue_on_error is not None:
-            struct["attributes"]["requeueOnError"] = requeue_on_error
-
-        # Add credentials if provided
-        if username:
-            struct["username"] = username
-        if password:
-            struct["password"] = password
+            attrs["requeueOnError"] = requeue_on_error
 
         super().__init__(struct)
